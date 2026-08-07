@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
+  Compass,
   Eye,
+  Gauge,
   Grid3x3,
   Layers,
   Network,
@@ -14,10 +16,13 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { PRACTICE_NAME, controls } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
+import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { KnowledgeMap } from "@/components/precog/knowledge-map";
 import { LayerDetail, LayersPanel } from "@/components/precog/layers-panel";
+import { PioneerCoach } from "@/components/precog/pioneer-coach";
+import { ResidualRadar } from "@/components/precog/residual-radar";
 import { ScenarioRunner } from "@/components/precog/scenario-runner";
 import { SodPanel } from "@/components/precog/sod-panel";
 import { Badge } from "@/components/ui/badge";
@@ -29,10 +34,20 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-type TabId = "command" | "coso" | "layers" | "knowledge" | "precog" | "sod";
+type TabId =
+  | "command"
+  | "pioneer"
+  | "residual"
+  | "coso"
+  | "layers"
+  | "knowledge"
+  | "precog"
+  | "sod";
 
 const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
   { id: "command", label: "Command", icon: Activity },
+  { id: "pioneer", label: "Pioneer", icon: Compass },
+  { id: "residual", label: "Residual", icon: Gauge },
   { id: "coso", label: "COSO", icon: Grid3x3 },
   { id: "layers", label: "Layers", icon: Layers },
   { id: "knowledge", label: "Knowledge", icon: Network },
@@ -50,13 +65,14 @@ function Home() {
   const risks = useMemo(() => findKnowledgeRisks(), []);
   const ranked = useMemo(() => rankDangerousScenarios(), []);
   const coso = useMemo(() => assessCoso(), []);
+  const portfolio = useMemo(() => portfolioSummary(), []);
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
   const sodGaps = controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
 
   function navigateDeepLink(target: DeepLinkTarget) {
     if (target.type === "tab") {
-      setTab(target.tab);
+      setTab(target.tab as TabId);
       return;
     }
     if (target.type === "sod") {
@@ -89,7 +105,7 @@ function Home() {
                 <Eye className="size-4" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-tight">Precog</p>
+                <p className="truncate text-sm font-semibold tracking-tight">Precog Pioneer</p>
                 <p className="truncate text-xs text-muted">{PRACTICE_NAME}</p>
               </div>
             </div>
@@ -142,37 +158,45 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">Core loop · COSO → evidence → decision</Badge>
+              <Badge variant="accent">Davy Crockett stack · pioneer LLM + residual engine</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                Score the control system. Drill into gaps. Project the future.
+                Score residual risk. Brief the frontier. Choose what to fix or accept.
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Start with the COSO heat map — five components scored from this practice's
-                SoD, knowledge continuity, staff composition, and Precog risk. Every finding
-                deep-links to the map, control conflict, or scenario that proves it.
+                Transparent inherent → effectiveness → residual scoring, tornado leverage, COSO
+                heat map, knowledge SPOFs, Precog scenarios, and a Grok-powered (or local) Pioneer
+                coach that only runs when you ask.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => setTab("coso")}>Open COSO heat map</Button>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    navigateDeepLink({
-                      type: "precog",
-                      scenarioId: top?.scenario.id,
-                    })
-                  }
-                >
-                  Run top Precog scenario
+                <Button onClick={() => setTab("pioneer")}>Open Pioneer coach</Button>
+                <Button variant="secondary" onClick={() => setTab("residual")}>
+                  Residual radar
+                </Button>
+                <Button variant="outline" onClick={() => setTab("coso")}>
+                  COSO heat map
                 </Button>
               </div>
               {!user && !isPending && (
                 <p className="mt-4 text-xs text-subtle">
-                  Guest demo mode — sign in to attach this map to your account later.
+                  Guest demo mode — sign in later to attach maps to your account.
                 </p>
               )}
             </section>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                label="Avg residual"
+                value={String(portfolio.averageResidual)}
+                hint={`${portfolio.criticalPath} critical path · ${portfolio.actNow} act now`}
+                tone={
+                  portfolio.averageResidual >= 60
+                    ? "danger"
+                    : portfolio.averageResidual >= 40
+                      ? "warn"
+                      : "primary"
+                }
+                onClick={() => setTab("residual")}
+              />
               <MetricCard
                 label="COSO overall"
                 value={String(coso.overall)}
@@ -194,7 +218,7 @@ function Home() {
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
-                label="Top scenario impact"
+                label="Top scenario"
                 value={top ? formatUsd(top.result.financialImpact.expected) : "—"}
                 hint={top ? `p50 ${top.result.timelineDays.p50} days` : ""}
                 tone="warn"
@@ -205,91 +229,98 @@ function Home() {
                   })
                 }
               />
-              <MetricCard
-                label="SoD gaps"
-                value={String(sodGaps)}
-                hint="Unsegregated high-risk duties"
-                tone="primary"
-                onClick={() => navigateDeepLink({ type: "sod" })}
-              />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>COSO component strip</CardTitle>
-                  <CardDescription>Click a component to open the heat map detail</CardDescription>
+                  <CardTitle>Top residual risks</CardTitle>
+                  <CardDescription>
+                    From the pioneer scoring engine · click to open residual anatomy
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-5 gap-2">
-                    {coso.components.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setTab("coso")}
-                        className={cn(
-                          "rounded-lg border p-2 text-center transition-colors hover:border-border-strong",
-                          c.status === "critical" && "border-danger/40 bg-danger/10",
-                          c.status === "weak" && "border-warn/40 bg-warn/10",
-                          c.status === "adequate" && "border-primary/30 bg-primary/10",
-                          c.status === "strong" && "border-ok/40 bg-ok/10",
-                        )}
-                      >
-                        <p className="text-[9px] tracking-wide text-subtle uppercase">
-                          {c.shortName}
-                        </p>
-                        <p className="mt-1 text-lg font-semibold tabular">{c.score}</p>
-                      </button>
-                    ))}
-                  </div>
-                  <Button
-                    className="mt-4 w-full"
-                    variant="secondary"
-                    onClick={() => setTab("coso")}
-                  >
-                    Full heat map & deep links
+                <CardContent className="space-y-2">
+                  {portfolio.top.slice(0, 5).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setTab("residual")}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{item.name}</span>
+                        <span className="text-xs text-muted">{item.bandLabel}</span>
+                      </span>
+                      <span className="text-lg font-semibold tabular">{item.residual}</span>
+                    </button>
+                  ))}
+                  <Button className="w-full" variant="secondary" onClick={() => setTab("residual")}>
+                    Full residual radar + tornado
                   </Button>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Most dangerous unmitigated futures</CardTitle>
-                  <CardDescription>
-                    Ranked under current staff composition — opens Precog on that scenario
-                  </CardDescription>
+                  <CardTitle>Pioneer stack</CardTitle>
+                  <CardDescription>Advanced modules now in the app</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {ranked.slice(0, 3).map((row, i) => (
+                <CardContent className="space-y-2 text-sm">
+                  {[
+                    {
+                      t: "Residual engine",
+                      d: "Inherent × (1 − effectiveness) × staff modifiers, action bands, drivers",
+                      tab: "residual" as TabId,
+                    },
+                    {
+                      t: "Tornado sensitivity",
+                      d: "Which lever drops average residual the most",
+                      tab: "residual" as TabId,
+                    },
+                    {
+                      t: "Pioneer LLM coach",
+                      d: "Context-packed Grok brief with local fallback engine",
+                      tab: "pioneer" as TabId,
+                    },
+                    {
+                      t: "COSO heat map",
+                      d: "Five components deep-linked to SoD, SPOF, Precog",
+                      tab: "coso" as TabId,
+                    },
+                    {
+                      t: `SoD gaps (${sodGaps})`,
+                      d: "Conflicts, compensating controls, residual acceptance",
+                      tab: "sod" as TabId,
+                    },
+                  ].map((row) => (
                     <button
-                      key={row.scenario.id}
+                      key={row.t}
                       type="button"
-                      onClick={() =>
-                        navigateDeepLink({
-                          type: "precog",
-                          scenarioId: row.scenario.id,
-                        })
-                      }
-                      className="flex w-full flex-col gap-1 rounded-xl border border-border bg-elevated px-4 py-3 text-left transition-colors hover:border-border-strong sm:flex-row sm:items-center sm:justify-between"
+                      onClick={() => setTab(row.tab)}
+                      className="w-full rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
                     >
-                      <div>
-                        <span className="text-xs text-subtle">#{i + 1}</span>
-                        <p className="font-medium">{row.scenario.title}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Badge variant="warn">
-                          {row.result.timelineDays.p95Low}–{row.result.timelineDays.p95High}d
-                          (95%)
-                        </Badge>
-                        <Badge variant="danger">
-                          {formatUsd(row.result.financialImpact.expected)} expected
-                        </Badge>
-                      </div>
+                      <span className="font-medium">{row.t}</span>
+                      <span className="mt-0.5 block text-xs text-muted">{row.d}</span>
                     </button>
                   ))}
                 </CardContent>
               </Card>
             </div>
+          </div>
+        )}
+
+        {tab === "pioneer" && <PioneerCoach />}
+
+        {tab === "residual" && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Residual risk radar</h2>
+              <p className="text-sm text-muted">
+                Transparent automated scoring — not a black box. Every residual shows drivers and
+                an action band.
+              </p>
+            </div>
+            <ResidualRadar onNavigate={navigateDeepLink} />
           </div>
         )}
 

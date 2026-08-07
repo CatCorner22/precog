@@ -3,7 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Precog";
+const APP_NAME = "Precog Pioneer";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
 const ogImage = host
   ? `https://og.grok.me/v1/card.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent(APP_NAME)}`
@@ -14,13 +14,11 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      {
-        title: APP_NAME,
-      },
+      { title: APP_NAME },
       {
         name: "description",
         content:
-          "Matrix-layered Lean + internal controls coach for small dental practices with Precog scenario projections.",
+          "Pioneer residual-risk and Lean internal-controls coach for small dental practices — COSO, knowledge SPOFs, Precog scenarios, and frontier LLM briefs.",
       },
       ...(ogImage
         ? [

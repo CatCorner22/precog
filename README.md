@@ -1,37 +1,34 @@
-# Precog
+# Precog Pioneer
 
-AI-assisted Lean + Internal Controls coach for small dental practices.
+Frontier Lean + Internal Controls coach for small dental practices — a **Davy Crockett LLM stack**: transparent residual risk scoring + context-packed decision coach.
+
+## Pioneer stack
+
+| Module | Path | Role |
+|--------|------|------|
+| Residual engine | `src/lib/precog/scoring/` | Inherent × (1 − effectiveness) × staff modifiers, action bands, drivers |
+| Tornado sensitivity | `scoring/residual-engine.ts` | Highest-leverage control levers |
+| COSO heat map | `coso.ts` + UI | 5 components, 17 principles, deep links |
+| Precog scenarios | `engine.ts` | p50 / 95% CI timelines + $ impact |
+| Knowledge SPOF map | knowledge UI | Continuity / single points of failure |
+| Pioneer LLM coach | `coach/` | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always |
 
 ## Core loop
 
-**COSO heat map → evidence → decision**
-
-1. Score the five COSO components from live practice signals  
-2. Deep-link findings into SoD conflicts, knowledge SPOFs, or Precog scenarios  
-3. Project timelines (95% CI), financial impact, and mitigations  
-4. Address the gap, install compensating controls, or accept residual risk deliberately  
-
-## Features
-
-- **COSO heat map** — 5 components, 17 principles, priority findings with deep links  
-- **Matrix process layers** — Surface, Process, Knowledge, Control, Source, Continuity  
-- **Knowledge continuity map** — who holds critical knowledge, SPOF detection  
-- **Precog scenarios** — statistical timelines, staff composition, crime/fraud base rates  
-- **Segregation of duties** — COSO-aligned conflicts and compensating controls  
-
-## Stack
-
-React 19 · TanStack Start · Vite · Tailwind v4 · Recharts · Better Auth
+1. **Score** residual risk (not vibes)  
+2. **Brief** with Pioneer (user-initiated)  
+3. **Deep-link** into SoD / Knowledge / Precog evidence  
+4. **Decide**: remediate, compensate, or accept residual on purpose  
 
 ## Develop
 
 ```bash
 npm install
-npm run dev   # 0.0.0.0:8080
+npm run dev
 ```
 
-## Demo data
+## Demo
 
-Ships with **Ridgeview Family Dental** sample practice data.
+**Ridgeview Family Dental** sample data ships with the app.
 
-Educational projections only — not actuarial advice or fraud predictions about individuals.
+Educational projections only — not actuarial advice; never scores people as “fraudulent.”
