@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { knowledge, people, relations } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +6,19 @@ import { cn } from "@/lib/utils";
 
 const STRONG = new Set(["expert", "proficient"]);
 
-export function KnowledgeMap() {
+export function KnowledgeMap({
+  initialKnowledgeId,
+}: {
+  initialKnowledgeId?: string | null;
+}) {
   const risks = useMemo(() => findKnowledgeRisks(), []);
-  const [selectedId, setSelectedId] = useState<string | null>(risks[0]?.knowledgeId ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialKnowledgeId ?? risks[0]?.knowledgeId ?? null,
+  );
+
+  useEffect(() => {
+    if (initialKnowledgeId) setSelectedId(initialKnowledgeId);
+  }, [initialKnowledgeId]);
 
   const selected = risks.find((r) => r.knowledgeId === selectedId);
   const item = knowledge.find((k) => k.id === selectedId);
@@ -106,7 +116,7 @@ export function KnowledgeMap() {
           {knowledgeNodes.map((k) => {
             const sole = k.risk?.soleOwner && k.criticality === "critical";
             const unowned = k.risk?.ownerCount === 0;
-            const selected = selectedId === k.id;
+            const isSelected = selectedId === k.id;
             return (
               <g
                 key={k.id}
@@ -125,7 +135,7 @@ export function KnowledgeMap() {
                       : "var(--color-elevated)"
                   }
                   stroke={
-                    selected
+                    isSelected
                       ? "var(--color-primary)"
                       : sole
                         ? "var(--color-danger)"
@@ -133,7 +143,7 @@ export function KnowledgeMap() {
                           ? "var(--color-warn)"
                           : "var(--color-border)"
                   }
-                  strokeWidth={selected || sole ? 2 : 1}
+                  strokeWidth={isSelected || sole ? 2 : 1}
                 />
                 <text
                   x={k.x + 10}

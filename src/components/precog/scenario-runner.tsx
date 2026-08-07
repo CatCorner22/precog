@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   crimeFraudStats,
   scenarios,
@@ -21,10 +21,25 @@ import {
   YAxis,
 } from "recharts";
 
-export function ScenarioRunner() {
-  const [scenarioId, setScenarioId] = useState(scenarios[0].id);
+export function ScenarioRunner({
+  initialScenarioId,
+}: {
+  initialScenarioId?: string | null;
+}) {
+  const [scenarioId, setScenarioId] = useState(
+    initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
+      ? initialScenarioId
+      : scenarios[0].id,
+  );
   const [mitigations, setMitigations] = useState<string[]>([]);
   const [staff, setStaff] = useState<StaffComposition>({ ...baseStaff });
+
+  useEffect(() => {
+    if (initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)) {
+      setScenarioId(initialScenarioId);
+      setMitigations([]);
+    }
+  }, [initialScenarioId]);
 
   const scenario = scenarios.find((s) => s.id === scenarioId)!;
   const result = useMemo(
