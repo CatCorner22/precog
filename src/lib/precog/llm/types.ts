@@ -1,6 +1,5 @@
 /**
  * Precog LLM stack types — tool-grounded multi-step reasoning.
- * This is the product differentiator vs static GRC dashboards.
  */
 
 export type ToolName =
@@ -14,7 +13,11 @@ export type ToolName =
   | "get_tornado_levers"
   | "get_insurance_cost_of_risk"
   | "get_sod_conflicts"
-  | "simulate_variable_cascades";
+  | "simulate_variable_cascades"
+  | "retrieve_guidance"
+  | "score_anomalies"
+  | "get_leading_indicators"
+  | "forecast_residual";
 
 export interface ToolCall {
   tool: ToolName;
@@ -27,7 +30,6 @@ export interface ToolResult {
   ok: boolean;
   summary: string;
   data: unknown;
-  /** Deep-link hints for UI */
   links?: { tab: string; id?: string; label: string }[];
 }
 
@@ -36,6 +38,7 @@ export type ReasoningPhase =
   | "retrieve"
   | "analyze"
   | "critique"
+  | "specialize"
   | "synthesize";
 
 export interface ReasoningStep {
@@ -55,7 +58,10 @@ export interface EvidenceRef {
     | "sod"
     | "insurance"
     | "lever"
-    | "cascade";
+    | "cascade"
+    | "rag"
+    | "ml"
+    | "forecast";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -67,7 +73,6 @@ export interface PioneerDecision {
   evidenceIds: string[];
   effort: "low" | "medium" | "high";
   horizonDays: number;
-  /** What else moves if this decision is taken */
   cascadeEffects?: string[];
 }
 
@@ -78,8 +83,8 @@ export interface StructuredBrief {
   decisions: PioneerDecision[];
   frontierNextMove: string;
   chickenLittleWarnings: string[];
-  /** Cross-variable ripple effects the coach must explain */
   variableCascades: string[];
+  specialistNotes: { agent: string; title: string; bullets: string[] }[];
   markdown: string;
   evidence: EvidenceRef[];
 }

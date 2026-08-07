@@ -1,7 +1,5 @@
 /**
- * Agentic reasoning loop for Precog Pioneer.
- * Plan → Retrieve (tools) → Analyze → Critique → Synthesize
- * Dynamic variables and cross-effects are first-class.
+ * Agentic reasoning loop: Plan → Retrieve → Analyze → Specialize → Critique → Synthesize
  */
 import {
   executeTool,
@@ -9,6 +7,7 @@ import {
   TOOL_CATALOG,
   type ToolContext,
 } from "./tools";
+import { runSpecialistAgents } from "./multi-agent";
 import type {
   AgentRunResult,
   EvidenceRef,
@@ -27,17 +26,16 @@ function usd(n: number) {
 }
 
 function fingerprintFromTools(tools: ToolResult[]): string {
-  const residual = tools.find((t) => t.tool === "get_residual_portfolio");
-  const coso = tools.find((t) => t.tool === "get_coso_assessment");
-  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk");
-  const cas = tools.find((t) => t.tool === "simulate_variable_cascades");
-  const rData = residual?.data as
-    | { averageResidual?: number; top?: { residual?: number }[] }
-    | null;
-  const cData = coso?.data as { overall?: number } | null;
-  const iData = ins?.data as { transfer?: { expectedAnnualCostOfRisk?: number } } | null;
-  const casData = cas?.data as { topByCostOfRisk?: { label?: string }[] } | null;
-  return `avg=${rData?.averageResidual ?? "?"};top=${rData?.top?.[0]?.residual ?? "?"};coso=${cData?.overall ?? "?"};cor=${iData?.transfer?.expectedAnnualCostOfRisk ?? "?"};cascade=${casData?.topByCostOfRisk?.[0]?.label?.slice(0, 24) ?? "?"};tools=${tools.length}`;
+  const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
+    | { averageResidual?: number }
+    | undefined;
+  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
+    | { overallScore?: number }
+    | undefined;
+  const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
+    | { pressureIndex?: number }
+    | undefined;
+  return `avg=${residual?.averageResidual ?? "?"};anom=${anomaly?.overallScore ?? "?"};lead=${leading?.pressureIndex ?? "?"};tools=${tools.length}`;
 }
 
 function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
@@ -50,7 +48,6 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     if (t.tool === "get_residual_portfolio") {
       const data = t.data as {
         top: {
-          id: string;
           name: string;
           residual: number;
           band: string;
@@ -58,7 +55,7 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           linkedKnowledgeId?: string;
         }[];
       };
-      for (const row of data.top.slice(0, 5)) {
+      for (const row of data.top.slice(0, 4)) {
         evidence.push({
           id: `ev-${++i}`,
           kind: "residual",
@@ -80,12 +77,12 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         riskScore: number;
         owners: { name: string }[];
       }[];
-      for (const row of rows.slice(0, 4)) {
+      for (const row of rows.slice(0, 3)) {
         evidence.push({
           id: `ev-${++i}`,
           kind: "spof",
           label: row.name,
-          metric: `SPOF · risk ${row.riskScore} · ${row.owners[0]?.name ?? "unowned"}`,
+          metric: `SPOF · ${row.riskScore} · ${row.owners[0]?.name ?? "unowned"}`,
           link: { tab: "knowledge", id: row.knowledgeId },
         });
       }
@@ -96,7 +93,7 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         scenarioId: string;
         title: string;
         retained: { expected: number };
-        timelineDays: { p50: number; p95Low: number; p95High: number };
+        timelineDays: { p50: number };
         dynamic: { expectedAnnualCostOfRisk: number } | null;
       };
       evidence.push({
@@ -109,33 +106,24 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     }
 
     if (t.tool === "get_coso_assessment") {
-      const d = t.data as {
-        overall: number;
-        status: string;
-        components: { name: string; score: number; status: string }[];
-      };
-      const worst = [...d.components].sort((a, b) => a.score - b.score)[0];
+      const d = t.data as { overall: number; status: string };
       evidence.push({
         id: `ev-${++i}`,
         kind: "coso",
-        label: `COSO overall ${d.overall}`,
-        metric: worst ? `Weakest: ${worst.name} ${worst.score}` : d.status,
+        label: `COSO ${d.overall}`,
+        metric: d.status,
         link: { tab: "coso" },
       });
     }
 
     if (t.tool === "get_sod_conflicts") {
-      const rows = t.data as {
-        id: string;
-        name: string;
-        residualRiskAccepted: boolean;
-      }[];
-      for (const row of rows.slice(0, 3)) {
+      const rows = t.data as { name: string; residualRiskAccepted: boolean }[];
+      for (const row of rows.slice(0, 2)) {
         evidence.push({
           id: `ev-${++i}`,
           kind: "sod",
           label: row.name,
-          metric: row.residualRiskAccepted ? "residual accepted" : "open gap",
+          metric: row.residualRiskAccepted ? "accepted" : "open",
           link: { tab: "sod" },
         });
       }
@@ -145,7 +133,6 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       const d = t.data as {
         transfer: {
           premiumAnnualNet: number;
-          retainedExpected: number;
           expectedAnnualCostOfRisk: number;
           discountPctApplied: number;
         };
@@ -153,23 +140,10 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "insurance",
-        label: "Insurance cost of risk",
+        label: "Cost of risk",
         metric: `premium ${usd(d.transfer.premiumAnnualNet)} (−${d.transfer.discountPctApplied}%) · CoR ${usd(d.transfer.expectedAnnualCostOfRisk)}`,
         link: { tab: "precog" },
       });
-    }
-
-    if (t.tool === "get_tornado_levers") {
-      const d = t.data as { levers: { id: string; label: string; delta: number }[] };
-      if (d.levers[0]) {
-        evidence.push({
-          id: `ev-${++i}`,
-          kind: "lever",
-          label: d.levers[0].label,
-          metric: `−${Math.round(d.levers[0].delta)} avg residual pts`,
-          link: { tab: "residual" },
-        });
-      }
     }
 
     if (t.tool === "simulate_variable_cascades") {
@@ -177,33 +151,70 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         topByCostOfRisk?: {
           label: string;
           deltaCor: number;
-          deltaRetained: number;
-          deltaPremium: number;
           deltaResidual: number;
-          improves: string[];
-          worsens: string[];
         }[];
-        simulation?: { lever: { label: string }; verdict: string };
       };
-      if (d.topByCostOfRisk) {
-        for (const row of d.topByCostOfRisk.slice(0, 4)) {
-          evidence.push({
-            id: `ev-${++i}`,
-            kind: "cascade",
-            label: row.label,
-            metric: `ΔCoR ${usd(row.deltaCor)} · Δretained ${usd(row.deltaRetained)} · Δpremium ${usd(row.deltaPremium)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
-            link: { tab: "precog" },
-          });
-        }
-      } else if (d.simulation) {
+      for (const row of (d.topByCostOfRisk ?? []).slice(0, 3)) {
         evidence.push({
           id: `ev-${++i}`,
           kind: "cascade",
-          label: d.simulation.lever.label,
-          metric: d.simulation.verdict,
+          label: row.label,
+          metric: `ΔCoR ${usd(row.deltaCor)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
           link: { tab: "precog" },
         });
       }
+    }
+
+    if (t.tool === "retrieve_guidance") {
+      const d = t.data as {
+        hits: { id: string; title: string; score: number; domain: string }[];
+      };
+      for (const h of d.hits.slice(0, 3)) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "rag",
+          label: h.title,
+          metric: `${h.domain} · score ${h.score}`,
+          link: { tab: "intel" },
+        });
+      }
+    }
+
+    if (t.tool === "score_anomalies") {
+      const d = t.data as { overallScore: number; band: string };
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "ml",
+        label: `Anomaly ${d.band}`,
+        metric: `${d.overallScore}/100`,
+        link: { tab: "intel" },
+      });
+    }
+
+    if (t.tool === "get_leading_indicators") {
+      const d = t.data as { pressureIndex: number; band: string };
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "ml",
+        label: `Leading pressure ${d.band}`,
+        metric: `${d.pressureIndex}/100`,
+        link: { tab: "intel" },
+      });
+    }
+
+    if (t.tool === "forecast_residual") {
+      const d = t.data as {
+        points: { residualDoNothing: number; residualWithPlan: number }[];
+        planLabel: string;
+      };
+      const end = d.points[d.points.length - 1];
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "forecast",
+        label: "12-week residual forecast",
+        metric: `neglect ${end?.residualDoNothing} vs plan ${end?.residualWithPlan} (${d.planLabel})`,
+        link: { tab: "intel" },
+      });
     }
   }
 
@@ -213,21 +224,6 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
 function extractVariableCascades(tools: ToolResult[]): string[] {
   const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
     | {
-        dependencyMap?: { from: string; to: string; effect: string }[];
-        topByCostOfRisk?: {
-          label: string;
-          affects: string[];
-          verdict: string;
-          secondOrderNotes: string[];
-          deltaCor: number;
-          deltaRetained: number;
-          deltaPremium: number;
-          deltaResidual: number;
-          deltaP50: number;
-          deltaLikelihood: number;
-          improves: string[];
-          worsens: string[];
-        }[];
         baseline?: {
           premiumAnnualNet: number;
           retainedExpected: number;
@@ -235,124 +231,86 @@ function extractVariableCascades(tools: ToolResult[]): string[] {
           residualAverage: number;
           likelihoodMultiplier: number;
         };
-        coachInstruction?: string;
+        topByCostOfRisk?: {
+          label: string;
+          affects: string[];
+          secondOrderNotes: string[];
+          deltaCor: number;
+          deltaRetained: number;
+          deltaPremium: number;
+          deltaResidual: number;
+          deltaP50: number;
+          deltaLikelihood: number;
+          worsens: string[];
+        }[];
+        dependencyMap?: { from: string; to: string; effect: string }[];
       }
     | undefined;
 
   if (!cas?.topByCostOfRisk?.length) {
-    return [
-      "No cascade simulation in this run — still treat premium, deductible, controls, and residual as coupled.",
-    ];
+    return ["Variables are coupled — re-run cascade simulation after profile changes."];
   }
 
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline now: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${usd(cas.baseline.premiumAnnualNet)}, retained EL ${usd(cas.baseline.retainedExpected)}, annual CoR ${usd(cas.baseline.expectedAnnualCostOfRisk)}, avg residual ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${usd(cas.baseline.premiumAnnualNet)}, retained ${usd(cas.baseline.retainedExpected)}, CoR ${usd(cas.baseline.expectedAnnualCostOfRisk)}, residual ${cas.baseline.residualAverage}.`,
     );
   }
-
-  for (const row of cas.topByCostOfRisk.slice(0, 5)) {
-    const trade =
-      row.worsens.length > 0
-        ? ` Tradeoffs: ${row.worsens.slice(0, 3).join("; ")}.`
-        : " No material in-model tradeoffs.";
+  for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: CoR ${usd(row.deltaCor)}, retained ${usd(row.deltaRetained)}, premium ${usd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d, likelihood ${row.deltaLikelihood >= 0 ? "+" : ""}${row.deltaLikelihood.toFixed(2)}. Also moves: ${row.affects.slice(0, 4).join("; ")}.${trade} ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: CoR ${usd(row.deltaCor)}, retained ${usd(row.deltaRetained)}, premium ${usd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
-
-  if (cas.dependencyMap?.length) {
-    lines.push(
-      `Dependency spine: ${cas.dependencyMap
-        .slice(0, 6)
-        .map((d) => `${d.from}→${d.to} (${d.effect})`)
-        .join(" · ")}`,
-    );
-  }
-
   return lines;
 }
 
 function chickenLittleCritique(tools: ToolResult[]): string[] {
   const warnings: string[] = [];
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
-    | {
-        averageResidual?: number;
-        criticalPath?: number;
-        top?: { residual: number; name: string }[];
-      }
+    | { averageResidual?: number; criticalPath?: number }
     | undefined;
-  const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
-    | { name: string; riskScore: number }[]
+  const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
+    | { pressureIndex?: number; band?: string }
     | undefined;
-  const sod = tools.find((t) => t.tool === "get_sod_conflicts")?.data as
-    | { residualRiskAccepted: boolean; compensatingControls: string[] }[]
+  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
+    | { band?: string; overallScore?: number }
+    | undefined;
+  const forecast = tools.find((t) => t.tool === "forecast_residual")?.data as
+    | { p50CrossingWeek?: number | null }
     | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
     | { retained: { expected: number }; timelineDays: { p50: number }; title: string }
     | undefined;
-  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk")?.data as
-    | {
-        variables?: { deductible?: number; policyLimit?: number; hasDualControl?: boolean };
-        transfer?: { retainedExpected: number; premiumAnnualNet: number };
-      }
-    | undefined;
-  const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
-    | {
-        topByCostOfRisk?: {
-          label: string;
-          worsens: string[];
-          deltaCor: number;
-        }[];
-      }
-    | undefined;
 
+  if ((residual?.averageResidual ?? 0) >= 60) {
+    warnings.push(`Avg residual ${residual!.averageResidual} is Act-now territory.`);
+  }
   if ((residual?.criticalPath ?? 0) >= 2) {
+    warnings.push(`Multiple critical-path residuals (${residual!.criticalPath}).`);
+  }
+  if (leading && (leading.pressureIndex ?? 0) >= 45) {
     warnings.push(
-      `Multiple critical-path residuals (${residual?.criticalPath}) — do not treat this as a single tidy fix.`,
+      `Leading-indicator pressure ${leading.pressureIndex}/100 (${leading.band}) — heat before the loss lands.`,
     );
   }
-  if ((spofs?.length ?? 0) >= 2) {
+  if (anomaly && (anomaly.band === "stressed" || anomaly.band === "critical")) {
     warnings.push(
-      `${spofs!.length} knowledge SPOFs — one vacation week can break process and control layers together.`,
+      `ML anomaly band ${anomaly.band} (${anomaly.overallScore}/100) vs healthy practice prior.`,
     );
   }
-  if (sod?.some((g) => !g.residualRiskAccepted && g.compensatingControls.length === 0)) {
+  if (forecast?.p50CrossingWeek != null) {
     warnings.push(
-      "Open SoD gap with no compensating control and no residual acceptance — audit-blind and fraud-open.",
+      `Forecast: residual may cross Act-now around week ${forecast.p50CrossingWeek} if neglected.`,
     );
   }
   if (scenario && scenario.retained.expected > 15000 && scenario.timelineDays.p50 < 90) {
     warnings.push(
-      `"${scenario.title}" can materialize in ~${scenario.timelineDays.p50} days at ~${usd(scenario.retained.expected)} retained — waiting is an active decision.`,
+      `"${scenario.title}" ~${scenario.timelineDays.p50}d / ${usd(scenario.retained.expected)} retained.`,
     );
   }
-  if ((residual?.averageResidual ?? 0) >= 60) {
-    warnings.push(
-      `Portfolio average residual ${residual!.averageResidual} is in Act-now territory — nice-to-haves can wait.`,
-    );
-  }
-  if (ins?.variables?.deductible && ins.variables.deductible >= 10000) {
-    warnings.push(
-      `Deductible ${usd(ins.variables.deductible)} keeps a large slice of every claim on the practice — premium savings elsewhere may not cover retained EL.`,
-    );
-  }
-  if (ins && !ins.variables?.hasDualControl) {
-    warnings.push(
-      "Dual control off: carrier credit not earned AND fraud opportunity stays high — insurance and control residual move together.",
-    );
-  }
-  if (cas?.topByCostOfRisk?.some((c) => c.worsens.length >= 2 && c.deltaCor > 0)) {
-    warnings.push(
-      "Some popular levers worsen annual cost-of-risk under current deductible/premium settings — read cascade tradeoffs before acting.",
-    );
-  }
-
-  if (warnings.length === 0) {
-    warnings.push(
-      "No single catastrophe signal — still re-score after any staff, deductible, or control change (variables are coupled).",
-    );
+  if (!warnings.length) {
+    warnings.push("No single red alert — still re-score after staff or insurance change.");
   }
   return warnings;
 }
@@ -363,6 +321,7 @@ function localSynthesize(
   evidence: EvidenceRef[],
   warnings: string[],
   variableCascades: string[],
+  specialistNotes: { agent: string; title: string; bullets: string[] }[],
 ): StructuredBrief {
   const snap = tools.find((t) => t.tool === "get_practice_snapshot")?.data as {
     practice: string;
@@ -371,11 +330,6 @@ function localSynthesize(
       segregationScore: number;
       dualControlPayments: boolean;
       independentBankRec: boolean;
-    };
-    riskVariables?: {
-      deductible: number;
-      basePremiumAnnual: number;
-      hasSecurityCameras: boolean;
     };
   } | null;
 
@@ -399,38 +353,29 @@ function localSynthesize(
     status: string;
   } | null;
 
-  const levers = tools.find((t) => t.tool === "get_tornado_levers")?.data as {
-    levers: { label: string; delta: number }[];
+  const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as {
+    pressureIndex: number;
+    band: string;
+    topActions: string[];
   } | null;
 
-  const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as {
-    title: string;
-    retained: { expected: number };
-    timelineDays: { p50: number; p95Low: number; p95High: number };
-    dynamic: {
-      expectedAnnualCostOfRisk: number;
-      premiumAnnualNet: number;
-      likelihoodMultiplier: number;
-      grossSeverityMultiplier: number;
-    } | null;
+  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as {
+    overallScore: number;
+    band: string;
   } | null;
 
-  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk")?.data as {
-    transfer: {
-      premiumAnnualNet: number;
-      retainedExpected: number;
-      expectedAnnualCostOfRisk: number;
-      discountPctApplied: number;
-    };
+  const forecast = tools.find((t) => t.tool === "forecast_residual")?.data as {
+    planLabel: string;
+    points: { residualDoNothing: number; residualWithPlan: number }[];
+    narrative: string[];
   } | null;
 
   const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as {
-    topByCostOfRisk?: {
-      label: string;
-      affects: string[];
-      secondOrderNotes: string[];
-      deltaCor: number;
-    }[];
+    topByCostOfRisk?: { label: string; deltaCor: number; affects: string[]; secondOrderNotes: string[] }[];
+  } | null;
+
+  const rag = tools.find((t) => t.tool === "retrieve_guidance")?.data as {
+    hits: { title: string; text: string }[];
   } | null;
 
   const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as {
@@ -439,47 +384,44 @@ function localSynthesize(
   }[] | null;
 
   const top = residual?.top ?? [];
-  const lever = levers?.levers?.[0];
   const bestCascade = cas?.topByCostOfRisk?.[0];
+  const endFc = forecast?.points[forecast.points.length - 1];
 
   const highestRisks = top.slice(0, 4).map((t) => {
     const drivers = t.drivers
       .slice(0, 2)
       .map((d) => d.label)
       .join("; ");
-    return `**${t.name}** — residual **${t.residual}/100** (${t.band}). I ${t.inherent} / E ${t.controlEffectiveness}. Drivers: ${drivers || "n/a"}.${
-      t.expectedLoss
-        ? ` Linked scenario EL ~${usd(t.expectedLoss)} (p50 ${t.p50Days}d).`
-        : ""
-    }`;
+    return `**${t.name}** — residual **${t.residual}/100** (${t.band}). Drivers: ${drivers || "n/a"}.`;
   });
 
   const tradeoffs = [
-    `Full SoD is unlikely at team size ${snap?.staff.teamSize ?? "?"}. Compensating controls + monitoring beat theater.`,
-    "Accept residual risk only when documented, monitored, and re-scored after staff **or insurance variable** changes.",
-    lever
-      ? `Highest residual lever: **${lever.label}** (≈ −${Math.round(lever.delta)} residual points).`
-      : "Re-run tornado levers after any control change.",
-    ins
-      ? `Insurance now: premium ${usd(ins.transfer.premiumAnnualNet)} (−${ins.transfer.discountPctApplied}% credits), retained EL ${usd(ins.transfer.retainedExpected)}, annual CoR ${usd(ins.transfer.expectedAnnualCostOfRisk)}.`
-      : "Open dynamic variables to price transfer terms against residual risk.",
-    scenario
-      ? `Top Precog path **${scenario.title}**: retained ~${usd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d (95% ${scenario.timelineDays.p95Low}–${scenario.timelineDays.p95High}), likelihood ×${scenario.dynamic?.likelihoodMultiplier?.toFixed(2) ?? "?"}, CoR ~${usd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
-      : "Run a Precog scenario before accepting cash-path residual risk.",
+    `Team size ${snap?.staff.teamSize ?? "?"} — full SoD unlikely; compensating controls + monitoring are the path.`,
+    leading
+      ? `Leading pressure **${leading.pressureIndex}/100** (${leading.band}). ${leading.topActions[0] ?? ""}`
+      : "Score leading indicators for early heat.",
+    anomaly
+      ? `ML anomaly **${anomaly.band}** (${anomaly.overallScore}/100) vs healthy prior.`
+      : "Run anomaly scorer.",
+    forecast && endFc
+      ? `12-week forecast: neglect residual **${endFc.residualDoNothing}** vs plan **${endFc.residualWithPlan}** (${forecast.planLabel}).`
+      : "Forecast residual under plan vs neglect.",
     bestCascade
-      ? `Best cascade on annual CoR: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). Second-order: ${bestCascade.secondOrderNotes[0] ?? bestCascade.affects.slice(0, 2).join("; ")}.`
-      : "Simulate variable cascades before changing deductible or stacking controls.",
+      ? `Best cascade: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
+      : "Simulate variable cascades.",
+    rag?.hits?.[0]
+      ? `RAG: _${rag.hits[0].title}_ — ${rag.hits[0].text.slice(0, 140)}…`
+      : "Retrieve control guidance for acceptance language.",
   ];
 
   const decisions: PioneerDecision[] = [
     {
-      action: bestCascade?.label ?? lever?.label ?? "Raise independent monitoring on cash path",
-      rationale:
-        bestCascade
-          ? `Cascade model: ${bestCascade.secondOrderNotes[0] ?? "improves coupled CoR and residual metrics."}`
-          : "Tornado / residual engine ranks this as high leverage on portfolio residual.",
+      action: bestCascade?.label ?? "Enable dual control + independent bank rec",
+      rationale: bestCascade
+        ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
+        : "Highest coupled impact on opportunity and detection.",
       evidenceIds: evidence
-        .filter((e) => e.kind === "cascade" || e.kind === "lever" || e.kind === "residual")
+        .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "forecast")
         .map((e) => e.id)
         .slice(0, 4),
       effort: "medium",
@@ -488,49 +430,39 @@ function localSynthesize(
     },
     {
       action:
-        spofs && spofs[0]
-          ? `Cross-train backup for ${spofs[0].name} (owner: ${spofs[0].owners[0]?.name ?? "none"})`
-          : "Document and cross-train top critical knowledge SPOF",
-      rationale:
-        "Knowledge continuity SPOFs cascade into process and control failures; insurance does not fix tribal knowledge.",
+        spofs?.[0]
+          ? `Cross-train backup for ${spofs[0].name}`
+          : "Cross-train top knowledge SPOF",
+      rationale: "Continuity SPOFs drive leading pressure and forecast drift.",
       evidenceIds: evidence.filter((e) => e.kind === "spof").map((e) => e.id).slice(0, 2),
       effort: "medium",
       horizonDays: 30,
-      cascadeEffects: [
-        "continuity residual ↓",
-        "scenario timelines lengthen if knowledge was on critical path",
-        "does not by itself unlock premium credits",
-      ],
+      cascadeEffects: ["continuity residual ↓", "forecast drift slows"],
     },
     {
-      action: "Re-check deductible vs retained EL after control changes",
-      rationale:
-        "Changing controls moves likelihood/severity; the same deductible can look smart or reckless after residual drops.",
+      action: "Log residual accept/remediate decisions with review dates",
+      rationale: "COSO monitoring requires a trail; ML will keep flagging open gaps.",
       evidenceIds: evidence
-        .filter((e) => e.kind === "insurance" || e.kind === "cascade")
+        .filter((e) => e.kind === "sod" || e.kind === "rag")
         .map((e) => e.id)
-        .slice(0, 3),
+        .slice(0, 2),
       effort: "low",
-      horizonDays: 21,
-      cascadeEffects: [
-        "retained EL ↔ deductible",
-        "annual CoR ↔ premium + annualized retained",
-        "real carriers may reprice premium (model holds base premium unless load changes)",
-      ],
+      horizonDays: 7,
     },
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${bestCascade.label}**, then re-open Dynamic variables + top Precog scenario and confirm annual CoR, retained EL, and residual all move the way the cascade promised. Variables are coupled — do not stop at one metric.`
-    : lever
-      ? `This week: execute **${lever.label}**, then re-run insurance cost-of-risk and cascade simulation.`
-      : "This week: turn on owner independent bank reconciliation and dual-release over threshold, then re-run cash SoD Precog and cascades.";
+    ? `This week: **${bestCascade.label}**, then re-open Intelligence (anomaly + forecast) and confirm leading pressure and 12-week residual path drop.`
+    : "This week: dual control + independent bank rec, then re-run Pioneer and Intelligence.";
 
-  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100** (${coso?.status ?? "n/a"}), average residual **${residual?.averageResidual ?? "?"}/100** (\`${residual?.scoringVersion ?? "n/a"}\`). Staff ${snap?.staff.teamSize ?? "?"}, segregation ${snap?.staff.segregationScore ?? "?"}/100, dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, independent bank rec ${snap?.staff.independentBankRec ? "on" : "off"}${
-    snap?.riskVariables
-      ? `, deductible ${usd(snap.riskVariables.deductible)}, base premium ${usd(snap.riskVariables.basePremiumAnnual)}, cameras ${snap.riskVariables.hasSecurityCameras ? "on" : "off"}`
-      : ""
-  }. Owner question grounded: _${question}_`;
+  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading **${leading?.pressureIndex ?? "?"}/100**, anomaly **${anomaly?.overallScore ?? "?"}/100**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
+
+  const specialistMd = specialistNotes
+    .map(
+      (n) =>
+        `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`,
+    )
+    .join("\n\n");
 
   const markdown = [
     "## Situation",
@@ -539,19 +471,28 @@ function localSynthesize(
     "## Highest residual risks",
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
+    "## ML signals (anomaly · leading · forecast)",
+    `- Anomaly: **${anomaly?.band ?? "n/a"}** (${anomaly?.overallScore ?? "?"}/100)`,
+    `- Leading pressure: **${leading?.band ?? "n/a"}** (${leading?.pressureIndex ?? "?"}/100)`,
+    forecast && endFc
+      ? `- Forecast week-12 residual: neglect **${endFc.residualDoNothing}** vs plan **${endFc.residualWithPlan}**`
+      : "- Forecast: n/a",
+    ...(forecast?.narrative ?? []).map((n) => `- ${n}`),
+    "",
     "## Variable cascades (what else moves)",
     ...variableCascades.map((c) => `- ${c}`),
+    "",
+    "## Specialist board",
+    specialistMd,
     "",
     "## Tradeoffs",
     ...tradeoffs.map((t) => `- ${t}`),
     "",
     "## Recommended moves",
     ...decisions.map((d, i) => {
-      const cascade =
-        d.cascadeEffects && d.cascadeEffects.length
-          ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.`
-          : "";
-      return `${i + 1}. **${d.action}** (${d.effort} effort · ${d.horizonDays}d) — ${d.rationale}${cascade}`;
+      const c =
+        d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
+      return `${i + 1}. **${d.action}** (${d.effort} · ${d.horizonDays}d) — ${d.rationale}${c}`;
     }),
     "",
     "## Chicken Little warnings",
@@ -562,7 +503,7 @@ function localSynthesize(
     "",
     "## Evidence anchors",
     ...evidence
-      .slice(0, 10)
+      .slice(0, 12)
       .map((e) => `- [${e.id}] **${e.label}** — ${e.metric ?? e.kind} → ${e.link.tab}`),
   ].join("\n");
 
@@ -574,6 +515,7 @@ function localSynthesize(
     frontierNextMove,
     chickenLittleWarnings: warnings,
     variableCascades,
+    specialistNotes,
     markdown,
     evidence,
   };
@@ -585,19 +527,22 @@ export function runLocalAgentLoop(
 ): AgentRunResult {
   const started = Date.now();
   const steps: ReasoningStep[] = [];
+  const toolCtx: ToolContext = { ...ctx, question };
 
   const planned = planTools(question);
   steps.push({
     phase: "plan",
     title: "Plan tool retrieval",
-    detail: `Selected ${planned.length} grounding tools (includes variable cascades): ${planned.join(", ")}`,
+    detail: `${planned.length} tools (RAG + ML + cascades): ${planned.join(", ")}`,
   });
 
-  const toolResults: ToolResult[] = planned.map((tool) => executeTool(tool, {}, ctx));
+  const toolResults = planned.map((tool) =>
+    executeTool(tool, tool === "retrieve_guidance" ? { query: question } : {}, toolCtx),
+  );
 
   steps.push({
     phase: "retrieve",
-    title: "Retrieve practice evidence + variable state",
+    title: "Retrieve evidence, RAG, and ML scores",
     detail: toolResults.map((t) => `${t.tool}: ${t.summary}`).join(" | "),
     toolResults,
   });
@@ -606,14 +551,21 @@ export function runLocalAgentLoop(
   const variableCascades = extractVariableCascades(toolResults);
   steps.push({
     phase: "analyze",
-    title: "Analyze residual pressure + cross-variable cascades",
-    detail: `${evidence.length} evidence anchors · ${variableCascades.length} cascade lines (how one change moves the rest).`,
+    title: "Analyze residual, cascades, anomaly, forecast",
+    detail: `${evidence.length} anchors · ${variableCascades.length} cascade lines`,
+  });
+
+  const specialistNotes = runSpecialistAgents(toolResults);
+  steps.push({
+    phase: "specialize",
+    title: "Multi-agent specialist board",
+    detail: specialistNotes.map((n) => n.agent).join(", "),
   });
 
   const warnings = chickenLittleCritique(toolResults);
   steps.push({
     phase: "critique",
-    title: "Chicken Little critique (incl. insurance coupling)",
+    title: "Chicken Little critique",
     detail: warnings.join(" · "),
   });
 
@@ -623,11 +575,12 @@ export function runLocalAgentLoop(
     evidence,
     warnings,
     variableCascades,
+    specialistNotes,
   );
   steps.push({
     phase: "synthesize",
-    title: "Synthesize frontier brief with cascade section",
-    detail: `Structured brief with ${brief.decisions.length} decisions, ${brief.variableCascades.length} cascade notes, ${brief.evidence.length} evidence links.`,
+    title: "Synthesize multi-agent brief",
+    detail: `${brief.decisions.length} decisions · ${brief.specialistNotes.length} specialists`,
   });
 
   return {
@@ -648,56 +601,53 @@ export function buildGrokAgentMessages(
   warnings: string[],
   evidence: EvidenceRef[],
   variableCascades: string[],
+  specialistNotes: { agent: string; title: string; bullets: string[] }[],
 ): { role: "system" | "user"; content: string }[] {
-  const system = `You are Precog Pioneer — the LLM differentiator for small dental practice control coaching.
-You ONLY reason from TOOL RESULTS provided. Never invent metrics, names, or losses not in tools.
-Never accuse individuals of fraud. Score control design, residual risk, and knowledge continuity only.
+  const system = `You are Precog Pioneer — tool-grounded multi-agent coach for small dental practices.
+ONLY use TOOL RESULTS. Never invent metrics or accuse people of fraud.
 
-CRITICAL — dynamic variables are coupled:
-- Changing dual control / bank rec / cameras moves likelihood, severity, detection lag, premium credits, retained loss, annual cost-of-risk, AND residual scores.
-- Deductible and policy limit change retained vs transferred without fixing process design.
-- Do not recommend a control or insurance change without saying what ELSE moves (use simulate_variable_cascades + get_insurance_cost_of_risk).
-- If premium falls but retained rises (or the reverse), call out the tradeoff explicitly.
+You must integrate:
+1) Residual + COSO + SoD facts
+2) Variable cascades (coupled insurance/control effects)
+3) ML signals: anomaly score, leading indicators, residual forecast
+4) RAG guidance snippets (cite chunk titles)
+5) Specialist board notes (Operator, Shield, Precog, Critic)
 
-You run after an agentic retrieve step. Your job is synthesize + coach:
-1. Situation (numbers from tools, include current insurance variables)
-2. Highest residual risks (cite tool metrics)
-3. Variable cascades (what else moves) — REQUIRED section
-4. Tradeoffs (SoD reality, insurance transfer, accept vs fix)
-5. Recommended moves (actionable, effort, horizon, cascade side-effects)
-6. Chicken Little warnings
-7. Frontier next move (ONE action for next 7 days; include re-measure step)
-8. Evidence anchors (reference evidence ids)
+Output markdown sections:
+## Situation
+## Highest residual risks
+## ML signals (anomaly · leading · forecast)
+## Variable cascades (what else moves)
+## Specialist board
+## Tradeoffs
+## Recommended moves
+## Chicken Little warnings
+## Frontier next move
+## Evidence anchors
 
-Style: plain-spoken, active voice, frontier scout — not corporate fog.
-Output markdown with those ## headings.`;
+Plain-spoken, active voice. Quantify from tools.`;
 
-  const toolPayload = toolResults.map((t) => ({
-    tool: t.tool,
-    ok: t.ok,
-    summary: t.summary,
-    data: t.data,
-  }));
+  const user = `QUESTION: ${question}
 
-  const user = `OWNER QUESTION:
-${question}
-
-TOOL CATALOG (for your awareness):
+TOOLS:
 ${TOOL_CATALOG.map((t) => `- ${t.name}: ${t.description}`).join("\n")}
 
-TOOL RESULTS (JSON):
-${JSON.stringify(toolPayload)}
+TOOL RESULTS JSON:
+${JSON.stringify(toolResults.map((t) => ({ tool: t.tool, ok: t.ok, summary: t.summary, data: t.data })))}
 
-PRE-COMPUTED VARIABLE CASCADE LINES (must use / refine, do not ignore):
-${variableCascades.map((w) => `- ${w}`).join("\n")}
+CASCADES:
+${variableCascades.map((c) => `- ${c}`).join("\n")}
 
-CHICKEN LITTLE CRITIQUE (must address):
+SPECIALISTS:
+${JSON.stringify(specialistNotes)}
+
+WARNINGS:
 ${warnings.map((w) => `- ${w}`).join("\n")}
 
-EVIDENCE ANCHORS (cite by id when relevant):
-${evidence.map((e) => `- ${e.id}: ${e.label} | ${e.metric} | tab=${e.link.tab}`).join("\n")}
+EVIDENCE:
+${evidence.map((e) => `- ${e.id}: ${e.label} | ${e.metric}`).join("\n")}
 
-Write the structured brief now. Include "## Variable cascades (what else moves)".`;
+Write the brief.`;
 
   return [
     { role: "system", content: system },
@@ -711,23 +661,18 @@ export async function runGrokAgentLoop(
 ): Promise<AgentRunResult> {
   const started = Date.now();
   const local = runLocalAgentLoop(question, ctx);
-
   const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) {
-    return { ...local, latencyMs: Date.now() - started };
-  }
+  if (!apiKey) return { ...local, latencyMs: Date.now() - started };
 
   const toolResults =
     local.steps.find((s) => s.phase === "retrieve")?.toolResults ?? [];
-  const warnings = local.brief.chickenLittleWarnings;
-  const evidence = local.brief.evidence;
-  const variableCascades = local.brief.variableCascades;
   const messages = buildGrokAgentMessages(
     question,
     toolResults,
-    warnings,
-    evidence,
-    variableCascades,
+    local.brief.chickenLittleWarnings,
+    local.brief.evidence,
+    local.brief.variableCascades,
+    local.brief.specialistNotes,
   );
 
   try {
@@ -739,45 +684,34 @@ export async function runGrokAgentLoop(
       },
       body: JSON.stringify({
         model: "grok-4.5",
-        max_tokens: 2000,
+        max_tokens: 2200,
         temperature: 0.3,
         messages,
       }),
     });
-
-    if (!res.ok) {
-      return { ...local, latencyMs: Date.now() - started };
-    }
-
+    if (!res.ok) return { ...local, latencyMs: Date.now() - started };
     const body = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
       model?: string;
     };
     const text = body.choices?.[0]?.message?.content?.trim();
-    if (!text) {
-      return { ...local, latencyMs: Date.now() - started };
-    }
-
-    const steps: ReasoningStep[] = [
-      ...local.steps.filter((s) => s.phase !== "synthesize"),
-      {
-        phase: "synthesize",
-        title: "Grok synthesis over grounded tools + cascades",
-        detail: `Model ${body.model ?? "grok-4.5"} wrote brief from ${toolResults.length} tool payloads including variable cascade coupling.`,
-      },
-    ];
+    if (!text) return { ...local, latencyMs: Date.now() - started };
 
     return {
       ok: true,
       source: "grok-agent",
       model: body.model ?? "grok-4.5",
       question,
-      steps,
+      steps: [
+        ...local.steps.filter((s) => s.phase !== "synthesize"),
+        {
+          phase: "synthesize",
+          title: "Grok multi-agent synthesis",
+          detail: `Model ${body.model ?? "grok-4.5"} over ${toolResults.length} tools incl. RAG/ML`,
+        },
+      ],
       toolsUsed: local.toolsUsed,
-      brief: {
-        ...local.brief,
-        markdown: text,
-      },
+      brief: { ...local.brief, markdown: text },
       contextFingerprint: local.contextFingerprint,
       latencyMs: Date.now() - started,
     };

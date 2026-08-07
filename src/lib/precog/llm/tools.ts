@@ -1,6 +1,5 @@
 /**
- * Grounding tools for the Pioneer LLM.
- * Every answer must pull from these — not freestyle hallucinations.
+ * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
 import { assessCoso } from "../coso";
 import {
@@ -22,9 +21,7 @@ import {
   portfolioSummary,
   tornadoSensitivity,
 } from "../scoring/residual-engine";
-import {
-  compareScenarioFutures,
-} from "../scoring/scenario-compare";
+import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
   DEFAULT_RISK_VARIABLES,
   evaluateDynamicRisk,
@@ -36,6 +33,10 @@ import {
   simulateCascadeLever,
   type CascadeLeverId,
 } from "../scoring/variable-cascade";
+import { retrieveKnowledge } from "../rag/retrieve";
+import { scoreAnomalies } from "../ml/anomaly";
+import { scoreLeadingIndicators } from "../ml/leading-indicators";
+import { forecastResidualTrajectory } from "../ml/forecast";
 import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
 
@@ -43,6 +44,7 @@ export interface ToolContext {
   riskVariables?: RiskVariableState;
   staff?: StaffComposition;
   practiceName?: string;
+  question?: string;
 }
 
 function usd(n: number) {
@@ -62,62 +64,21 @@ export const TOOL_CATALOG: {
   description: string;
   args: string;
 }[] = [
-  {
-    name: "get_practice_snapshot",
-    description: "Practice name, staff composition, crime priors.",
-    args: "none",
-  },
-  {
-    name: "get_coso_assessment",
-    description: "Five COSO component scores, weak principles, priority findings.",
-    args: "none",
-  },
-  {
-    name: "get_residual_portfolio",
-    description: "Ranked residual risks with inherent/effectiveness/drivers/action bands.",
-    args: "none",
-  },
-  {
-    name: "get_knowledge_spofs",
-    description: "Critical knowledge single points of failure with owners.",
-    args: "none",
-  },
-  {
-    name: "get_knowledge_graph",
-    description: "Person↔knowledge continuity graph edges for relationship map.",
-    args: "none",
-  },
-  {
-    name: "run_precog_scenario",
-    description: "Run one Precog scenario with timeline CI, gross/retained loss, insurance CoR.",
-    args: "{ scenarioId?: string }",
-  },
-  {
-    name: "compare_scenario_futures",
-    description: "Do-nothing vs mitigations side-by-side for a scenario.",
-    args: "{ scenarioId?: string }",
-  },
-  {
-    name: "get_tornado_levers",
-    description: "Highest-leverage control changes on average residual.",
-    args: "none",
-  },
-  {
-    name: "get_insurance_cost_of_risk",
-    description: "Premium, discounts, retained vs transferred under current variables.",
-    args: "{ scenarioId?: string }",
-  },
-  {
-    name: "get_sod_conflicts",
-    description: "Segregation of duties gaps and compensating controls.",
-    args: "none",
-  },
-  {
-    name: "simulate_variable_cascades",
-    description:
-      "What-if: change one dynamic variable and measure ripple effects on likelihood, severity, premium, retained, CoR, residual, timeline. Includes dependency map and second-order notes.",
-    args: "{ leverId?: string, scenarioId?: string }",
-  },
+  { name: "get_practice_snapshot", description: "Practice name, staff, risk variables, crime priors.", args: "none" },
+  { name: "get_coso_assessment", description: "Five COSO components and priority findings.", args: "none" },
+  { name: "get_residual_portfolio", description: "Ranked residual risks with drivers.", args: "none" },
+  { name: "get_knowledge_spofs", description: "Critical knowledge single points of failure.", args: "none" },
+  { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
+  { name: "run_precog_scenario", description: "Scenario timeline CI, retained loss, CoR.", args: "{ scenarioId? }" },
+  { name: "compare_scenario_futures", description: "Do-nothing vs mitigations.", args: "{ scenarioId? }" },
+  { name: "get_tornado_levers", description: "Highest residual leverage control changes.", args: "none" },
+  { name: "get_insurance_cost_of_risk", description: "Premium, discounts, retained, CoR.", args: "{ scenarioId? }" },
+  { name: "get_sod_conflicts", description: "SoD gaps and compensating controls.", args: "none" },
+  { name: "simulate_variable_cascades", description: "Cross-variable ripple effects.", args: "{ leverId?, scenarioId? }" },
+  { name: "retrieve_guidance", description: "TF-IDF RAG over COSO/SoD/Lean/fraud corpus.", args: "{ query? }" },
+  { name: "score_anomalies", description: "Multivariate anomaly score vs healthy practice prior.", args: "none" },
+  { name: "get_leading_indicators", description: "Leading-indicator pressure composite.", args: "none" },
+  { name: "forecast_residual", description: "12-week residual trajectory neglect vs plan.", args: "{ horizonWeeks? }" },
 ];
 
 export function executeTool(
@@ -148,13 +109,11 @@ export function executeTool(
               hasSecurityCameras: riskVars.hasSecurityCameras,
               claimsLoadFactor: riskVars.claimsLoadFactor,
               dailyCashExposure: riskVars.dailyCashExposure,
-              maxDiscountPct: riskVars.maxDiscountPct,
             },
             crimePrior: {
               annualExposureClass: crimeFraudStats.industryEmbezzlementRate,
               medianDetectionDays: crimeFraudStats.medianDetectionDays,
               midLossRef: crimeFraudStats.typicalLossMid,
-              source: crimeFraudStats.source,
             },
           },
           links: [{ tab: "command", label: "Command" }],
@@ -165,7 +124,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `COSO overall ${coso.overall}/100 (${coso.overallStatus}); ${coso.priorityFindings.length} priority findings`,
+          summary: `COSO ${coso.overall}/100 (${coso.overallStatus})`,
           data: {
             overall: coso.overall,
             status: coso.overallStatus,
@@ -174,13 +133,10 @@ export function executeTool(
               name: c.name,
               score: c.score,
               status: c.status,
-              weakPrinciples: c.principles
-                .filter((p) => p.status === "weak" || p.status === "critical")
-                .map((p) => `P${p.number} ${p.name}`),
             })),
             priorityFindings: coso.priorityFindings.slice(0, 6),
           },
-          links: [{ tab: "coso", label: "COSO heat map" }],
+          links: [{ tab: "coso", label: "COSO" }],
         };
       }
 
@@ -189,7 +145,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `Avg residual ${p.averageResidual}; ${p.criticalPath} critical path; top: ${p.top[0]?.name ?? "—"}`,
+          summary: `Avg residual ${p.averageResidual}; top ${p.top[0]?.name ?? "—"}`,
           data: {
             scoringVersion: p.scoringVersion,
             averageResidual: p.averageResidual,
@@ -210,7 +166,7 @@ export function executeTool(
               p50Days: t.p50Days,
             })),
           },
-          links: [{ tab: "residual", label: "Residual radar" }],
+          links: [{ tab: "residual", label: "Residual" }],
         };
       }
 
@@ -221,7 +177,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned critical knowledge item(s)`,
+          summary: `${risks.length} SPOF/unowned item(s)`,
           data: risks.map((r) => ({
             knowledgeId: r.knowledgeId,
             name: r.name,
@@ -230,11 +186,7 @@ export function executeTool(
             owners: r.owners.map((o) => ({ id: o.id, name: o.name, role: o.role })),
             riskScore: r.riskScore,
           })),
-          links: risks.slice(0, 3).map((r) => ({
-            tab: "knowledge",
-            id: r.knowledgeId,
-            label: r.name,
-          })),
+          links: [{ tab: "knowledge", label: "Knowledge map" }],
         };
       }
 
@@ -248,54 +200,25 @@ export function executeTool(
             return {
               personId: r.personId,
               personName: person?.name,
-              role: person?.role,
               knowledgeId: r.knowledgeId,
               knowledgeName: k?.name,
-              criticality: k?.criticality,
               level: r.level,
             };
           });
-        const risks = findKnowledgeRisks();
         return {
           tool,
           ok: true,
-          summary: `${edges.length} strong person→knowledge edges`,
-          data: {
-            people: people.map((p) => ({
-              id: p.id,
-              name: p.name,
-              role: p.role,
-              tenureYears: p.tenureYears,
-            })),
-            knowledge: knowledge.map((k) => {
-              const risk = risks.find((r) => r.knowledgeId === k.id);
-              return {
-                id: k.id,
-                name: k.name,
-                criticality: k.criticality,
-                category: k.category,
-                ownerCount: risk?.ownerCount ?? 0,
-                soleOwner: risk?.soleOwner ?? false,
-                riskScore: risk?.riskScore ?? 0,
-              };
-            }),
-            edges,
-          },
+          summary: `${edges.length} strong edges`,
+          data: { edges, peopleCount: people.length, knowledgeCount: knowledge.length },
           links: [{ tab: "knowledge", label: "Knowledge map" }],
         };
       }
 
       case "run_precog_scenario": {
-        const ranked = rankDangerousScenarios({
-          staff,
-          riskVariables: riskVars,
-        });
+        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
         const scenarioId =
           (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
-        const result = runPrecogScenario(scenarioId, {
-          staff,
-          riskVariables: riskVars,
-        });
+        const result = runPrecogScenario(scenarioId, { staff, riskVariables: riskVars });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
           return { tool, args, ok: false, summary: "Scenario not found", data: null };
@@ -304,7 +227,7 @@ export function executeTool(
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `${scenario.title}: retained ${usd(result.retainedImpact.expected)}, p50 ${result.timelineDays.p50}d, CoR ${usd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+          summary: `${scenario.title}: retained ${usd(result.retainedImpact.expected)}, CoR ${usd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
           data: {
             scenarioId,
             title: scenario.title,
@@ -320,16 +243,9 @@ export function executeTool(
                   discountPctApplied: result.dynamic.discountPctApplied,
                   expectedAnnualCostOfRisk: result.dynamic.expectedAnnualCostOfRisk,
                   transferredExpected: result.dynamic.transferredExpected,
-                  drivers: result.dynamic.drivers?.slice(0, 5),
                 }
               : null,
             cascade: result.cascade,
-            mitigations: result.mitigations.map((m) => ({
-              id: m.id,
-              label: m.label,
-              riskReduction: m.riskReduction,
-              costAnnual: m.costAnnual,
-            })),
           },
           links: [{ tab: "precog", id: scenarioId, label: scenario.title }],
         };
@@ -344,7 +260,7 @@ export function executeTool(
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `Compared ${report.columns.length} futures; best retained: ${report.columns.find((c) => c.id === report.winnerByRetained)?.label ?? "—"}`,
+          summary: `Compared ${report.columns.length} futures`,
           data: {
             scenarioId,
             winnerByRetained: report.winnerByRetained,
@@ -352,14 +268,11 @@ export function executeTool(
             columns: report.columns.map((c) => ({
               id: c.id,
               label: c.label,
-              p50: c.result.timelineDays.p50,
-              gross: c.result.financialImpact.expected,
               retained: c.result.retainedImpact?.expected,
               annualCor: c.result.dynamic?.expectedAnnualCostOfRisk,
-              premium: c.result.dynamic?.premiumAnnualNet,
             })),
           },
-          links: [{ tab: "precog", id: scenarioId, label: "Scenario compare" }],
+          links: [{ tab: "precog", id: scenarioId, label: "Compare" }],
         };
       }
 
@@ -368,7 +281,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `Base avg residual ${t.baseAverage}; top lever: ${t.levers[0]?.label ?? "—"} (−${Math.round(t.levers[0]?.delta ?? 0)})`,
+          summary: `Top lever: ${t.levers[0]?.label ?? "—"}`,
           data: { baseAverage: t.baseAverage, levers: t.levers },
           links: [{ tab: "residual", label: "Tornado" }],
         };
@@ -379,20 +292,23 @@ export function executeTool(
         const scenarioId =
           (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const scenario = scenarios.find((s) => s.id === scenarioId)!;
-        const flags = scenarioFlags(scenarioId);
-        const dyn = evaluateDynamicRisk(riskVars, scenario.baseFinancialImpact, flags);
+        const dyn = evaluateDynamicRisk(
+          riskVars,
+          scenario.baseFinancialImpact,
+          scenarioFlags(scenarioId),
+        );
         return {
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `Net premium ${usd(dyn.transfer.premiumAnnualNet)} (−${dyn.transfer.discountPctApplied}%); retained EL ${usd(dyn.transfer.retainedExpected)}; CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}`,
+          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}`,
           data: {
             scenarioId,
             variables: riskVars,
             likelihoodSeverity: dyn.likelihoodSeverity,
             transfer: dyn.transfer,
           },
-          links: [{ tab: "precog", id: scenarioId, label: "Dynamic variables" }],
+          links: [{ tab: "precog", label: "Insurance" }],
         };
       }
 
@@ -401,7 +317,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `${gaps.length} SoD gap(s); ${gaps.filter((g) => !g.residualRiskAccepted).length} without residual acceptance`,
+          summary: `${gaps.length} SoD gap(s)`,
           data: gaps.map((g) => ({
             id: g.id,
             name: g.name,
@@ -409,7 +325,7 @@ export function executeTool(
             compensatingControls: g.compensatingControls,
             residualRiskAccepted: g.residualRiskAccepted,
           })),
-          links: [{ tab: "sod", label: "SoD panel" }],
+          links: [{ tab: "sod", label: "SoD" }],
         };
       }
 
@@ -418,14 +334,13 @@ export function executeTool(
         const scenarioId =
           (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const leverId = args.leverId as CascadeLeverId | undefined;
-
         if (leverId) {
           const one = simulateCascadeLever(leverId, riskVars, staff, scenarioId);
           return {
             tool,
             args: { leverId, scenarioId },
             ok: true,
-            summary: `${one.lever.label}: ${one.overallVerdict}`,
+            summary: one.overallVerdict,
             data: {
               mode: "single",
               scenarioId,
@@ -433,22 +348,14 @@ export function executeTool(
                 lever: one.lever,
                 verdict: one.overallVerdict,
                 secondOrderNotes: one.secondOrderNotes,
-                deltas: one.deltas.map((d) => ({
-                  metric: d.label,
-                  before: d.before,
-                  after: d.after,
-                  delta: d.delta,
-                  pctChange: d.pctChange,
-                  direction: d.direction,
-                })),
+                deltas: one.deltas,
                 before: one.before,
                 after: one.after,
               },
             },
-            links: [{ tab: "precog", id: scenarioId, label: "Variable cascade" }],
+            links: [{ tab: "precog", label: "Cascades" }],
           };
         }
-
         const all = simulateAllCascades(riskVars, staff, scenarioId);
         const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
           leverId: s.lever.id,
@@ -456,39 +363,93 @@ export function executeTool(
           affects: s.lever.affects,
           verdict: s.overallVerdict,
           secondOrderNotes: s.secondOrderNotes,
-          deltaCor:
-            s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk,
+          deltaCor: s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk,
           deltaRetained: s.after.retainedExpected - s.before.retainedExpected,
           deltaPremium: s.after.premiumAnnualNet - s.before.premiumAnnualNet,
           deltaResidual: s.after.residualAverage - s.before.residualAverage,
           deltaP50: s.after.timelineP50 - s.before.timelineP50,
-          deltaLikelihood:
-            s.after.likelihoodMultiplier - s.before.likelihoodMultiplier,
+          deltaLikelihood: s.after.likelihoodMultiplier - s.before.likelihoodMultiplier,
           improves: s.deltas.filter((d) => d.direction === "improves").map((d) => d.label),
           worsens: s.deltas.filter((d) => d.direction === "worsens").map((d) => d.label),
         }));
-
         return {
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `Cascades on ${scenarioId}: best CoR lever "${topCor[0]?.label}" (ΔCoR ${usd(topCor[0]?.deltaCor ?? 0)})`,
+          summary: `Best CoR lever: ${topCor[0]?.label ?? "—"}`,
           data: {
             mode: "portfolio",
             scenarioId,
             baseline: all.baseline,
             dependencyMap: all.dependencyMap,
             topByCostOfRisk: topCor,
-            topByResidual: all.rankedByResidual.slice(0, 4).map((s) => ({
-              label: s.lever.label,
-              deltaResidual: s.after.residualAverage - s.before.residualAverage,
-              verdict: s.overallVerdict,
-              secondOrderNotes: s.secondOrderNotes.slice(0, 2),
-            })),
-            coachInstruction:
-              "Explain how each recommended change moves OTHER variables (premium credits, retained, residual, timeline). Never treat premium, deductible, or controls as independent.",
           },
-          links: [{ tab: "precog", label: "Dynamic variables / cascades" }],
+          links: [{ tab: "precog", label: "Cascades" }],
+        };
+      }
+
+      case "retrieve_guidance": {
+        const query =
+          (args.query as string) ||
+          ctx.question ||
+          "dental practice residual risk segregation of duties bank reconciliation COSO monitoring";
+        const hits = retrieveKnowledge(query, { topK: 4 });
+        return {
+          tool,
+          args: { query },
+          ok: true,
+          summary: hits.length
+            ? `RAG: ${hits.map((h) => h.chunk.id).join(", ")}`
+            : "RAG: no hits",
+          data: {
+            query,
+            hits: hits.map((h) => ({
+              id: h.chunk.id,
+              title: h.chunk.title,
+              domain: h.chunk.domain,
+              score: Math.round(h.score * 1000) / 1000,
+              text: h.chunk.text,
+              source: h.chunk.source,
+            })),
+          },
+          links: [{ tab: "intel", label: "Intelligence" }],
+        };
+      }
+
+      case "score_anomalies": {
+        const report = scoreAnomalies(staff, riskVars);
+        return {
+          tool,
+          ok: true,
+          summary: `Anomaly ${report.band} (${report.overallScore}/100)`,
+          data: report,
+          links: [{ tab: "intel", label: "ML anomalies" }],
+        };
+      }
+
+      case "get_leading_indicators": {
+        const report = scoreLeadingIndicators(staff, riskVars);
+        return {
+          tool,
+          ok: true,
+          summary: `Leading pressure ${report.pressureIndex}/100 (${report.band})`,
+          data: report,
+          links: [{ tab: "intel", label: "Leading indicators" }],
+        };
+      }
+
+      case "forecast_residual": {
+        const horizonWeeks = Number(args.horizonWeeks) || 12;
+        const forecast = forecastResidualTrajectory(staff, riskVars, {
+          horizonWeeks,
+        });
+        return {
+          tool,
+          args: { horizonWeeks },
+          ok: true,
+          summary: `Forecast: week ${horizonWeeks} residual neglect ${forecast.points.at(-1)?.residualDoNothing} vs plan ${forecast.points.at(-1)?.residualWithPlan}`,
+          data: forecast,
+          links: [{ tab: "intel", label: "Forecast" }],
         };
       }
 
@@ -506,51 +467,44 @@ export function executeTool(
   }
 }
 
-/** Plan which tools to run from the owner question. */
 export function planTools(question: string): ToolName[] {
   const q = question.toLowerCase();
   const tools = new Set<ToolName>([
     "get_practice_snapshot",
     "get_residual_portfolio",
     "get_knowledge_spofs",
-    // Always model how variables interact with the overall situation
     "get_insurance_cost_of_risk",
     "simulate_variable_cascades",
+    "retrieve_guidance",
+    "score_anomalies",
+    "get_leading_indicators",
+    "forecast_residual",
+    "get_coso_assessment",
+    "get_tornado_levers",
+    "run_precog_scenario",
   ]);
 
-  if (/coso|control environment|monitoring|principle/.test(q)) {
-    tools.add("get_coso_assessment");
-  }
-  if (/sod|segregat|duty|duties|write-?off|vendor|payment/.test(q)) {
+  if (/sod|segregat|duty|write-?off|vendor|payment/.test(q)) {
     tools.add("get_sod_conflicts");
   }
-  if (/knowledge|spof|leave|quit|cross-?train|tribal|continuity|who knows/.test(q)) {
+  if (/knowledge|spof|leave|quit|cross-?train|continuity/.test(q)) {
     tools.add("get_knowledge_graph");
-    tools.add("get_knowledge_spofs");
   }
-  if (/scenario|precog|timeline|impact|loss|embezzl|fraud|cash/.test(q)) {
-    tools.add("run_precog_scenario");
+  if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");
   }
-  if (
-    /insurance|premium|deductible|camera|discount|policy|cost of risk|variable|what if|change|affect|ripple|cascade|tradeoff/.test(
-      q,
-    )
-  ) {
-    tools.add("get_insurance_cost_of_risk");
-    tools.add("simulate_variable_cascades");
+  if (/forecast|trajectory|next month|12 week|drift|trend/.test(q)) {
+    tools.add("forecast_residual");
   }
-  if (/lever|tornado|priority|what first|this week|roi|where start/.test(q)) {
-    tools.add("get_tornado_levers");
+  if (/anomal|outlier|unusual|ml|machine/.test(q)) {
+    tools.add("score_anomalies");
   }
-  if (/accept|residual|tradeoff|trade-off/.test(q)) {
-    tools.add("get_sod_conflicts");
-    tools.add("get_tornado_levers");
+  if (/leading|early|signal|indicator/.test(q)) {
+    tools.add("get_leading_indicators");
   }
-
-  tools.add("get_coso_assessment");
-  tools.add("get_tornado_levers");
-  tools.add("run_precog_scenario");
+  if (/coso|guidance|what does|policy|best practice|rag/.test(q)) {
+    tools.add("retrieve_guidance");
+  }
 
   return Array.from(tools);
 }

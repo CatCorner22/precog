@@ -36,6 +36,7 @@ export type PioneerCoachResult = {
     effort: string;
     horizonDays: number;
   }[];
+  specialistNotes: { agent: string; title: string; bullets: string[] }[];
 };
 
 export type PioneerCoachError = {
@@ -62,19 +63,16 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<PioneerCoachResult | PioneerCoachError> => {
     const question =
       data.question ||
-      "Brief me like a frontier scout: where is residual risk worst, what should I do this week, and what can I safely accept for now?";
+      "Brief me with residual risk, ML leading indicators, variable cascades, and what to do this week.";
 
     const riskVariables: RiskVariableState = {
       ...DEFAULT_RISK_VARIABLES,
       ...(data.riskVariables ?? {}),
     };
-
     const staff: StaffComposition = {
       ...demoStaff,
       ...(data.staff ?? {}),
     };
-
-    // Align control flags
     riskVariables.hasDualControl = staff.dualControlPayments;
     riskVariables.hasIndependentBankRec = staff.independentBankRec;
 
@@ -82,6 +80,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       riskVariables,
       staff,
       practiceName: data.practiceName || undefined,
+      question,
     };
 
     try {
@@ -112,6 +111,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
           effort: d.effort,
           horizonDays: d.horizonDays,
         })),
+        specialistNotes: result.brief.specialistNotes,
       };
     } catch (e) {
       return {

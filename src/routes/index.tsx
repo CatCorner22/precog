@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   BookOpen,
+  Brain,
   Compass,
   Eye,
   Gauge,
@@ -18,10 +19,12 @@ import { controls } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { usePractice } from "@/lib/precog/practice-context";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { DecisionJournal } from "@/components/precog/decision-journal";
+import { IntelligencePanel } from "@/components/precog/intelligence-panel";
 import { KnowledgeMap } from "@/components/precog/knowledge-map";
 import { LayerDetail, LayersPanel } from "@/components/precog/layers-panel";
 import { PioneerCoach } from "@/components/precog/pioneer-coach";
@@ -41,6 +44,7 @@ export const Route = createFileRoute("/")({
 type TabId =
   | "command"
   | "pioneer"
+  | "intel"
   | "residual"
   | "coso"
   | "layers"
@@ -52,6 +56,7 @@ type TabId =
 const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
   { id: "command", label: "Command", icon: Activity },
   { id: "pioneer", label: "Pioneer", icon: Compass },
+  { id: "intel", label: "Intel", icon: Brain },
   { id: "residual", label: "Residual", icon: Gauge },
   { id: "coso", label: "COSO", icon: Grid3x3 },
   { id: "layers", label: "Layers", icon: Layers },
@@ -82,6 +87,10 @@ function Home() {
   const portfolio = useMemo(
     () => portfolioSummary(profile.staff),
     [profile.staff],
+  );
+  const leading = useMemo(
+    () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
+    [profile.staff, profile.riskVariables],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
   const sodGaps = controls.filter((c) => !c.segregated).length;
@@ -126,24 +135,16 @@ function Home() {
       setTab("precog");
       return;
     }
-    if (tabName === "residual") {
-      setTab("residual");
+    if (tabName === "intel") {
+      setTab("intel");
       return;
     }
-    if (tabName === "coso") {
-      setTab("coso");
-      return;
-    }
-    if (tabName === "sod") {
-      setTab("sod");
-      return;
-    }
-    if (tabName === "journal") {
-      setTab("journal");
-      return;
-    }
-    if (tabName === "command") {
-      setTab("command");
+    if (
+      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers"].includes(
+        tabName,
+      )
+    ) {
+      setTab(tabName as TabId);
     }
   }
 
@@ -221,64 +222,58 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">
-                Difference = tool-grounded LLM + residual truth
-              </Badge>
+              <Badge variant="accent">LLM · RAG · ML · residual truth</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                Score residual risk. Ground the coach in tools. Decide in writing.
+                Multi-agent coach with classical ML signals and cascade-aware insurance math
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Other platforms show checklists. Precog runs an agent loop over COSO, knowledge
-                SPOFs, SoD, insurance variables, and Precog scenarios — then hands you evidence
-                you can open.
+                Pioneer retrieves COSO/SoD guidance, scores anomalies and leading indicators,
+                forecasts residual drift, and explains what else moves when you change a control.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => setTab("pioneer")}>Run Pioneer agent</Button>
-                <Button variant="secondary" onClick={() => setTab("residual")}>
-                  Residual radar
+                <Button variant="secondary" onClick={() => setTab("intel")}>
+                  Intelligence
                 </Button>
-                <Button variant="outline" onClick={() => setTab("journal")}>
-                  Decision journal
+                <Button variant="outline" onClick={() => setTab("residual")}>
+                  Residual radar
                 </Button>
               </div>
             </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <MetricCard
                 label="Avg residual"
                 value={String(portfolio.averageResidual)}
-                hint={`${portfolio.criticalPath} critical · ${portfolio.actNow} act now`}
-                tone={
-                  portfolio.averageResidual >= 60
-                    ? "danger"
-                    : portfolio.averageResidual >= 40
-                      ? "warn"
-                      : "primary"
-                }
+                hint={`${portfolio.criticalPath} critical`}
+                tone={portfolio.averageResidual >= 60 ? "danger" : "warn"}
                 onClick={() => setTab("residual")}
               />
               <MetricCard
-                label="COSO overall"
-                value={String(coso.overall)}
-                hint={`${coso.overallStatus}`}
+                label="Leading pressure"
+                value={String(leading.pressureIndex)}
+                hint={leading.band}
                 tone={
-                  coso.overallStatus === "critical" || coso.overallStatus === "weak"
-                    ? "danger"
-                    : coso.overallStatus === "adequate"
-                      ? "warn"
-                      : "primary"
+                  leading.band === "red" || leading.band === "heat" ? "danger" : "primary"
                 }
+                onClick={() => setTab("intel")}
+              />
+              <MetricCard
+                label="COSO"
+                value={String(coso.overall)}
+                hint={coso.overallStatus}
+                tone="primary"
                 onClick={() => setTab("coso")}
               />
               <MetricCard
                 label="Critical SPOFs"
                 value={String(spofCount)}
-                hint="Sole-owner critical knowledge"
+                hint="Sole-owner knowledge"
                 tone="danger"
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
-                label="Top retained impact"
+                label="Top retained"
                 value={
                   top
                     ? formatUsd(
@@ -304,7 +299,7 @@ function Home() {
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>
                   <CardDescription>
-                    Scored from your saved staff profile · {sodGaps} SoD gaps in catalog
+                    Profile-driven · {sodGaps} SoD gaps · pressure {leading.band}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -329,7 +324,7 @@ function Home() {
                     variant="secondary"
                     onClick={() => setTab("pioneer")}
                   >
-                    Ask Pioneer what to do first
+                    Multi-agent brief
                   </Button>
                 </CardContent>
               </Card>
@@ -346,13 +341,15 @@ function Home() {
           />
         )}
 
+        {tab === "intel" && (
+          <IntelligencePanel onNavigate={(t) => navigateTab(t)} />
+        )}
+
         {tab === "residual" && (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Residual risk radar</h2>
-              <p className="text-sm text-muted">
-                Transparent scoring from your practice profile staff composition.
-              </p>
+              <p className="text-sm text-muted">Transparent scoring from practice profile.</p>
             </div>
             <ResidualRadar onNavigate={navigateDeepLink} />
           </div>
@@ -362,9 +359,7 @@ function Home() {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">COSO control system</h2>
-              <p className="text-sm text-muted">
-                Component health with deep links into SoD, knowledge, and Precog.
-              </p>
+              <p className="text-sm text-muted">Component health with deep links.</p>
             </div>
             <CosoHeatmap onNavigate={navigateDeepLink} />
           </div>
@@ -374,9 +369,7 @@ function Home() {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Matrix process layers</h2>
-              <p className="text-sm text-muted">
-                Peel layers independently. Cross-layer links stay visible.
-              </p>
+              <p className="text-sm text-muted">Peel layers independently.</p>
             </div>
             <LayersPanel
               active={layer}
@@ -394,9 +387,7 @@ function Home() {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Knowledge continuity map</h2>
-              <p className="text-sm text-muted">
-                Who holds critical knowledge — and where you have a single point of failure.
-              </p>
+              <p className="text-sm text-muted">Critical knowledge SPOFs.</p>
             </div>
             <KnowledgeMap initialKnowledgeId={knowledgeId} />
           </div>
@@ -407,8 +398,7 @@ function Home() {
             <div>
               <h2 className="text-lg font-semibold">Precog scenario engine</h2>
               <p className="text-sm text-muted">
-                Timelines, 95% CI, gross vs retained, insurance cost-of-risk, multi-scenario
-                compare.
+                Timelines, insurance CoR, multi-scenario compare, cascades.
               </p>
             </div>
             <ScenarioRunner initialScenarioId={scenarioId} />
@@ -419,9 +409,7 @@ function Home() {
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Segregation of duties</h2>
-              <p className="text-sm text-muted">
-                Conflicts, compensating controls, residual acceptance language.
-              </p>
+              <p className="text-sm text-muted">Gaps, compensating controls, residual acceptance.</p>
             </div>
             <SodPanel />
           </div>
