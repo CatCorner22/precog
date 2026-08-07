@@ -16,6 +16,52 @@ export type KnowledgeCategory =
   | "vendor"
   | "tribal";
 
+export type ProcessRiskKind =
+  | "control"
+  | "fraud"
+  | "continuity"
+  | "quality"
+  | "compliance"
+  | "revenue"
+  | "safety";
+
+export type LeanWasteKind =
+  | "muda_waiting"
+  | "muda_rework"
+  | "muda_motion"
+  | "muda_overprocessing"
+  | "mura"
+  | "muri";
+
+export interface ProcessRisk {
+  id: string;
+  title: string;
+  kind: ProcessRiskKind;
+  severity: 1 | 2 | 3 | 4 | 5;
+  likelihood: 1 | 2 | 3 | 4 | 5;
+  note: string;
+  linkedControlId?: string;
+  linkedScenarioId?: string;
+  linkedKnowledgeId?: string;
+}
+
+export interface ProcessIdea {
+  id: string;
+  title: string;
+  category: "control" | "lean" | "tech" | "training" | "policy";
+  effort: "low" | "medium" | "high";
+  impact: "low" | "medium" | "high";
+  note: string;
+  status: "backlog" | "exploring" | "planned" | "done";
+}
+
+export interface ProcessWaste {
+  id: string;
+  kind: LeanWasteKind;
+  label: string;
+  note: string;
+}
+
 export interface Person {
   id: string;
   name: string;
@@ -46,6 +92,14 @@ export interface ProcessNode {
   description: string;
   dependencies: string[];
   controlIds: string[];
+  /** Value-stream stage order (left-to-right) */
+  stage?: number;
+  ownerPersonIds?: string[];
+  risks?: ProcessRisk[];
+  ideas?: ProcessIdea[];
+  wastes?: ProcessWaste[];
+  inputs?: string[];
+  outputs?: string[];
 }
 
 export interface ControlItem {

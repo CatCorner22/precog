@@ -9,6 +9,7 @@ import {
   Gauge,
   Grid3x3,
   Layers,
+  Map,
   Network,
   Shield,
   Sparkles,
@@ -29,6 +30,7 @@ import { KnowledgeMap } from "@/components/precog/knowledge-map";
 import { LayerDetail, LayersPanel } from "@/components/precog/layers-panel";
 import { PioneerCoach } from "@/components/precog/pioneer-coach";
 import { PracticeSetup } from "@/components/precog/practice-setup";
+import { ProcessMap } from "@/components/precog/process-map";
 import { ResidualRadar } from "@/components/precog/residual-radar";
 import { ScenarioRunner } from "@/components/precog/scenario-runner";
 import { SodPanel } from "@/components/precog/sod-panel";
@@ -43,6 +45,7 @@ export const Route = createFileRoute("/")({
 
 type TabId =
   | "command"
+  | "map"
   | "pioneer"
   | "intel"
   | "residual"
@@ -55,6 +58,7 @@ type TabId =
 
 const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
   { id: "command", label: "Command", icon: Activity },
+  { id: "map", label: "Map", icon: Map },
   { id: "pioneer", label: "Pioneer", icon: Compass },
   { id: "intel", label: "Intel", icon: Brain },
   { id: "residual", label: "Residual", icon: Gauge },
@@ -71,6 +75,7 @@ function Home() {
   const [layer, setLayer] = useState<MatrixLayerId>("control");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
+  const [processId, setProcessId] = useState<string | null>(null);
   const { user, isPending } = useCurrentUserState();
   const { profile } = usePractice();
 
@@ -133,6 +138,11 @@ function Home() {
     if (tabName === "precog") {
       setScenarioId(id ?? null);
       setTab("precog");
+      return;
+    }
+    if (tabName === "map") {
+      setProcessId(id ?? null);
+      setTab("map");
       return;
     }
     if (tabName === "intel") {
@@ -222,18 +232,18 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">LLM · RAG · ML · residual truth</Badge>
+              <Badge variant="accent">Process map · residual · Pioneer</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                Multi-agent coach with classical ML signals and cascade-aware insurance math
+                See every process, risk, and idea on one interactive map
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Pioneer retrieves COSO/SoD guidance, scores anomalies and leading indicators,
-                forecasts residual drift, and explains what else moves when you change a control.
+                Drill the value stream: cash, claims, A/R, AP. Risks, Lean waste, SoD gaps, and
+                improvement ideas hang off each process with deep links into Precog and Knowledge.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => setTab("pioneer")}>Run Pioneer agent</Button>
-                <Button variant="secondary" onClick={() => setTab("intel")}>
-                  Intelligence
+                <Button onClick={() => setTab("map")}>Open process map</Button>
+                <Button variant="secondary" onClick={() => setTab("pioneer")}>
+                  Run Pioneer agent
                 </Button>
                 <Button variant="outline" onClick={() => setTab("residual")}>
                   Residual radar
@@ -319,17 +329,20 @@ function Home() {
                       <span className="text-lg font-semibold tabular">{item.residual}</span>
                     </button>
                   ))}
-                  <Button
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => setTab("pioneer")}
-                  >
-                    Multi-agent brief
+                  <Button className="w-full" variant="secondary" onClick={() => setTab("map")}>
+                    Explore on process map
                   </Button>
                 </CardContent>
               </Card>
             </div>
           </div>
+        )}
+
+        {tab === "map" && (
+          <ProcessMap
+            initialProcessId={processId}
+            onNavigate={(t, id) => navigateTab(t, id)}
+          />
         )}
 
         {tab === "pioneer" && (
@@ -377,6 +390,7 @@ function Home() {
                 setLayer(id);
                 if (id === "knowledge") setTab("knowledge");
                 if (id === "control") setTab("sod");
+                if (id === "process") setTab("map");
               }}
             />
             <LayerDetail layer={layer} />
