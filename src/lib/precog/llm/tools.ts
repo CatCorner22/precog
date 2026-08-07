@@ -38,6 +38,8 @@ import { scoreAnomalies } from "../ml/anomaly";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { forecastResidualTrajectory } from "../ml/forecast";
 import { runAdvancedReasoning } from "./reasoning/engine";
+import { runMetaAnalysis } from "./meta-analysis";
+import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
 
@@ -46,6 +48,18 @@ export interface ToolContext {
   staff?: StaffComposition;
   practiceName?: string;
   question?: string;
+  profile?: PracticeProfile;
+}
+
+function profileOf(ctx: ToolContext): PracticeProfile {
+  if (ctx.profile) return ctx.profile;
+  const base = defaultProfile();
+  return {
+    ...base,
+    practiceName: ctx.practiceName ?? base.practiceName,
+    staff: ctx.staff ?? base.staff,
+    riskVariables: ctx.riskVariables ?? base.riskVariables,
+  };
 }
 
 function usd(n: number) {
@@ -81,6 +95,7 @@ export const TOOL_CATALOG: {
   { name: "get_leading_indicators", description: "Leading-indicator pressure composite.", args: "none" },
   { name: "forecast_residual", description: "12-week residual trajectory neglect vs plan.", args: "{ horizonWeeks? }" },
   { name: "run_advanced_reasoning", description: "Bayesian + causal multi-hop + beam search + counterfactuals + EVOI.", args: "none" },
+  { name: "run_meta_analysis", description: "Epistemic meta-analysis: evaluation readiness, known/unknown unknowns, real-time capability.", args: "none" },
 ];
 
 export function executeTool(
@@ -467,6 +482,33 @@ export function executeTool(
         };
       }
 
+      case "run_meta_analysis": {
+        const report = runMetaAnalysis(profileOf(ctx));
+        return {
+          tool,
+          ok: true,
+          summary: `Meta readiness ${report.evaluationReadiness} · epistemic ${report.epistemicConfidence} · KU ${report.summary.knownUnknowns} · UU ${report.summary.unknownUnknowns}`,
+          data: {
+            evaluationReadiness: report.evaluationReadiness,
+            epistemicConfidence: report.epistemicConfidence,
+            realtimeScore: report.realtimeScore,
+            summary: report.summary,
+            narrative: report.narrative,
+            recommendations: report.recommendations,
+            topUnknownUnknowns: report.items
+              .filter((i) => i.classification === "unknown_unknown")
+              .slice(0, 5)
+              .map((i) => ({ id: i.id, title: i.title, severity: i.severity })),
+            topKnownUnknowns: report.items
+              .filter((i) => i.classification === "known_unknown")
+              .slice(0, 5)
+              .map((i) => ({ id: i.id, title: i.title, severity: i.severity })),
+            coverage: report.coverage,
+          },
+          links: [{ tab: "intel", label: "Meta-analysis" }],
+        };
+      }
+
       default:
         return { tool, ok: false, summary: "Unknown tool", data: null };
     }
@@ -494,6 +536,7 @@ export function planTools(question: string): ToolName[] {
     "get_leading_indicators",
     "forecast_residual",
     "run_advanced_reasoning",
+    "run_meta_analysis",
     "get_coso_assessment",
     "get_tornado_levers",
     "run_precog_scenario",
@@ -519,6 +562,9 @@ export function planTools(question: string): ToolName[] {
   }
   if (/coso|guidance|what does|policy|best practice|rag/.test(q)) {
     tools.add("retrieve_guidance");
+  }
+  if (/unknown|epistemic|meta|blind.?spot|rumsfeld|confidence|readiness|gap|what don.t we know/.test(q)) {
+    tools.add("run_meta_analysis");
   }
 
   return Array.from(tools);

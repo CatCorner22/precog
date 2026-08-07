@@ -620,6 +620,24 @@ export function runLocalAgentLoop(
     toolResults: advTool ? [advTool] : undefined,
   });
 
+  const metaTool = toolResults.find((t) => t.tool === "run_meta_analysis");
+  const metaData = metaTool?.data as
+    | {
+        evaluationReadiness?: number;
+        epistemicConfidence?: number;
+        summary?: { knownUnknowns?: number; unknownUnknowns?: number };
+        recommendations?: string[];
+      }
+    | undefined;
+  steps.push({
+    phase: "meta",
+    title: "Epistemic meta-analysis (known / unknown unknowns)",
+    detail: metaData
+      ? `Readiness ${metaData.evaluationReadiness} · epistemic ${metaData.epistemicConfidence} · KU ${metaData.summary?.knownUnknowns ?? "?"} · UU ${metaData.summary?.unknownUnknowns ?? "?"}`
+      : "Meta-analysis tool not in plan.",
+    toolResults: metaTool ? [metaTool] : undefined,
+  });
+
   const specialistNotes = runSpecialistAgents(toolResults);
   steps.push({
     phase: "specialize",

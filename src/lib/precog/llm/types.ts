@@ -18,7 +18,8 @@ export type ToolName =
   | "score_anomalies"
   | "get_leading_indicators"
   | "forecast_residual"
-  | "run_advanced_reasoning";
+  | "run_advanced_reasoning"
+  | "run_meta_analysis";
 
 export interface ToolCall {
   tool: ToolName;
@@ -41,7 +42,8 @@ export type ReasoningPhase =
   | "reason"
   | "critique"
   | "specialize"
-  | "synthesize";
+  | "synthesize"
+  | "meta";
 
 export interface ReasoningStep {
   phase: ReasoningPhase;
@@ -64,7 +66,8 @@ export interface EvidenceRef {
     | "rag"
     | "ml"
     | "forecast"
-    | "reasoning";
+    | "reasoning"
+    | "epistemic";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -89,6 +92,7 @@ export interface StructuredBrief {
   variableCascades: string[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
   advancedReasoning?: string[];
+  epistemicNote?: string;
   markdown: string;
   evidence: EvidenceRef[];
 }
