@@ -6,11 +6,12 @@ import { forecastResidualTrajectory } from "@/lib/precog/ml/forecast";
 import { retrieveKnowledge } from "@/lib/precog/rag/retrieve";
 import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-panel";
 import { MetaAnalysisPanel } from "@/components/precog/meta-analysis-panel";
+import { JohariPanel } from "@/components/precog/johari-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, Brain, LineChart, Radar, Search, Sparkles } from "lucide-react";
+import { Activity, Brain, Grid2x2, LineChart, Radar, Search, Sparkles } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -28,7 +29,9 @@ export function IntelligencePanel({
   onNavigate?: (tab: string) => void;
 }) {
   const { profile } = usePractice();
-  const [view, setView] = useState<"signals" | "reasoning" | "meta">("meta");
+  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">(
+    "johari",
+  );
   const [ragQuery, setRagQuery] = useState(
     "segregation of duties bank reconciliation residual risk",
   );
@@ -50,6 +53,14 @@ export function IntelligencePanel({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={view === "johari" ? "default" : "secondary"}
+          onClick={() => setView("johari")}
+        >
+          <Grid2x2 className="size-3.5" />
+          Johari
+        </Button>
         <Button
           size="sm"
           variant={view === "meta" ? "default" : "secondary"}
@@ -76,6 +87,10 @@ export function IntelligencePanel({
         </Button>
       </div>
 
+      {view === "johari" && (
+        <JohariPanel onNavigate={(t) => onNavigate?.(t)} />
+      )}
+
       {view === "meta" && (
         <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />
       )}
@@ -95,7 +110,6 @@ export function IntelligencePanel({
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
               Anomaly scoring, leading indicators, residual forecast, and TF-IDF retrieval.
-              Pioneer calls these plus the advanced reasoning stack and meta-analysis.
             </p>
           </section>
 
@@ -208,9 +222,6 @@ export function IntelligencePanel({
                     <div className="flex flex-wrap gap-2">
                       <span className="font-medium">{h.chunk.title}</span>
                       <Badge variant="default">{h.chunk.source}</Badge>
-                      <span className="text-[11px] text-subtle">
-                        score {(h.score * 100).toFixed(0)}
-                      </span>
                     </div>
                     <p className="mt-1 text-xs text-muted line-clamp-3">{h.chunk.text}</p>
                   </li>
