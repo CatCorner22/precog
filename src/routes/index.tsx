@@ -21,6 +21,7 @@ import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine"
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
+import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
@@ -97,6 +98,7 @@ function Home() {
     () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
     [profile.staff, profile.riskVariables],
   );
+  const sodReport = useMemo(() => detectSodConflicts(profile.staff), [profile.staff]);
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
   const sodGaps = controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
@@ -222,6 +224,11 @@ function Home() {
               >
                 <Icon className="size-4" />
                 {t.label}
+                {t.id === "sod" && sodReport.summary.critical > 0 && (
+                  <span className="rounded-full bg-danger/20 px-1.5 text-[10px] text-danger">
+                    {sodReport.summary.critical}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -232,21 +239,24 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">Process map · residual · Pioneer</Badge>
+              <Badge variant="accent">SoD detection · process map · Pioneer</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                See every process, risk, and idea on one interactive map
+                See every process, risk, and SoD conflict before it bites
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Drill the value stream: cash, claims, A/R, AP. Risks, Lean waste, SoD gaps, and
-                improvement ideas hang off each process with deep links into Precog and Knowledge.
+                Automated segregation-of-duties scanning finds who holds incompatible powers
+                (cash + recon, vendor + pay, write-off approve + post). Pair with the process map
+                and Precog scenarios for full residual picture.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => setTab("map")}>Open process map</Button>
-                <Button variant="secondary" onClick={() => setTab("pioneer")}>
-                  Run Pioneer agent
+                <Button onClick={() => setTab("sod")}>
+                  SoD conflicts ({sodReport.conflicts.length})
                 </Button>
-                <Button variant="outline" onClick={() => setTab("residual")}>
-                  Residual radar
+                <Button variant="secondary" onClick={() => setTab("map")}>
+                  Process map
+                </Button>
+                <Button variant="outline" onClick={() => setTab("pioneer")}>
+                  Run Pioneer
                 </Button>
               </div>
             </section>
@@ -260,13 +270,17 @@ function Home() {
                 onClick={() => setTab("residual")}
               />
               <MetricCard
-                label="Leading pressure"
-                value={String(leading.pressureIndex)}
-                hint={leading.band}
+                label="SoD health"
+                value={String(sodReport.summary.segregationHealth)}
+                hint={`${sodReport.summary.critical} critical conflicts`}
                 tone={
-                  leading.band === "red" || leading.band === "heat" ? "danger" : "primary"
+                  sodReport.summary.segregationHealth < 40
+                    ? "danger"
+                    : sodReport.summary.segregationHealth < 65
+                      ? "warn"
+                      : "primary"
                 }
-                onClick={() => setTab("intel")}
+                onClick={() => setTab("sod")}
               />
               <MetricCard
                 label="COSO"
@@ -309,7 +323,8 @@ function Home() {
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>
                   <CardDescription>
-                    Profile-driven · {sodGaps} SoD gaps · pressure {leading.band}
+                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length}{" "}
+                    detected conflicts · pressure {leading.band}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -329,8 +344,8 @@ function Home() {
                       <span className="text-lg font-semibold tabular">{item.residual}</span>
                     </button>
                   ))}
-                  <Button className="w-full" variant="secondary" onClick={() => setTab("map")}>
-                    Explore on process map
+                  <Button className="w-full" variant="secondary" onClick={() => setTab("sod")}>
+                    Open SoD detector
                   </Button>
                 </CardContent>
               </Card>
@@ -420,13 +435,7 @@ function Home() {
         )}
 
         {tab === "sod" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Segregation of duties</h2>
-              <p className="text-sm text-muted">Gaps, compensating controls, residual acceptance.</p>
-            </div>
-            <SodPanel />
-          </div>
+          <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />
         )}
 
         {tab === "journal" && (
