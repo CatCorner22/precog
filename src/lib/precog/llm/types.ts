@@ -13,7 +13,8 @@ export type ToolName =
   | "compare_scenario_futures"
   | "get_tornado_levers"
   | "get_insurance_cost_of_risk"
-  | "get_sod_conflicts";
+  | "get_sod_conflicts"
+  | "simulate_variable_cascades";
 
 export interface ToolCall {
   tool: ToolName;
@@ -46,7 +47,15 @@ export interface ReasoningStep {
 
 export interface EvidenceRef {
   id: string;
-  kind: "residual" | "spof" | "scenario" | "coso" | "sod" | "insurance" | "lever";
+  kind:
+    | "residual"
+    | "spof"
+    | "scenario"
+    | "coso"
+    | "sod"
+    | "insurance"
+    | "lever"
+    | "cascade";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -58,6 +67,8 @@ export interface PioneerDecision {
   evidenceIds: string[];
   effort: "low" | "medium" | "high";
   horizonDays: number;
+  /** What else moves if this decision is taken */
+  cascadeEffects?: string[];
 }
 
 export interface StructuredBrief {
@@ -67,6 +78,8 @@ export interface StructuredBrief {
   decisions: PioneerDecision[];
   frontierNextMove: string;
   chickenLittleWarnings: string[];
+  /** Cross-variable ripple effects the coach must explain */
+  variableCascades: string[];
   markdown: string;
   evidence: EvidenceRef[];
 }

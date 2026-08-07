@@ -1,9 +1,7 @@
 /**
  * Agentic reasoning loop for Precog Pioneer.
- * Plan → Retrieve (tools) → Analyze → Critique (Chicken Little) → Synthesize
- *
- * Local path is fully deterministic from tools.
- * Grok path receives tool payloads only (grounded), then writes the brief.
+ * Plan → Retrieve (tools) → Analyze → Critique → Synthesize
+ * Dynamic variables and cross-effects are first-class.
  */
 import {
   executeTool,
@@ -17,7 +15,6 @@ import type {
   PioneerDecision,
   ReasoningStep,
   StructuredBrief,
-  ToolName,
   ToolResult,
 } from "./types";
 
@@ -32,9 +29,15 @@ function usd(n: number) {
 function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio");
   const coso = tools.find((t) => t.tool === "get_coso_assessment");
-  const rData = residual?.data as { averageResidual?: number; top?: { residual?: number }[] } | null;
+  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk");
+  const cas = tools.find((t) => t.tool === "simulate_variable_cascades");
+  const rData = residual?.data as
+    | { averageResidual?: number; top?: { residual?: number }[] }
+    | null;
   const cData = coso?.data as { overall?: number } | null;
-  return `avg=${rData?.averageResidual ?? "?"};top=${rData?.top?.[0]?.residual ?? "?"};coso=${cData?.overall ?? "?"};tools=${tools.length}`;
+  const iData = ins?.data as { transfer?: { expectedAnnualCostOfRisk?: number } } | null;
+  const casData = cas?.data as { topByCostOfRisk?: { label?: string }[] } | null;
+  return `avg=${rData?.averageResidual ?? "?"};top=${rData?.top?.[0]?.residual ?? "?"};coso=${cData?.overall ?? "?"};cor=${iData?.transfer?.expectedAnnualCostOfRisk ?? "?"};cascade=${casData?.topByCostOfRisk?.[0]?.label?.slice(0, 24) ?? "?"};tools=${tools.length}`;
 }
 
 function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
@@ -106,7 +109,11 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     }
 
     if (t.tool === "get_coso_assessment") {
-      const d = t.data as { overall: number; status: string; components: { name: string; score: number; status: string }[] };
+      const d = t.data as {
+        overall: number;
+        status: string;
+        components: { name: string; score: number; status: string }[];
+      };
       const worst = [...d.components].sort((a, b) => a.score - b.score)[0];
       evidence.push({
         id: `ev-${++i}`,
@@ -118,7 +125,11 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     }
 
     if (t.tool === "get_sod_conflicts") {
-      const rows = t.data as { id: string; name: string; residualRiskAccepted: boolean }[];
+      const rows = t.data as {
+        id: string;
+        name: string;
+        residualRiskAccepted: boolean;
+      }[];
       for (const row of rows.slice(0, 3)) {
         evidence.push({
           id: `ev-${++i}`,
@@ -160,15 +171,117 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         });
       }
     }
+
+    if (t.tool === "simulate_variable_cascades") {
+      const d = t.data as {
+        topByCostOfRisk?: {
+          label: string;
+          deltaCor: number;
+          deltaRetained: number;
+          deltaPremium: number;
+          deltaResidual: number;
+          improves: string[];
+          worsens: string[];
+        }[];
+        simulation?: { lever: { label: string }; verdict: string };
+      };
+      if (d.topByCostOfRisk) {
+        for (const row of d.topByCostOfRisk.slice(0, 4)) {
+          evidence.push({
+            id: `ev-${++i}`,
+            kind: "cascade",
+            label: row.label,
+            metric: `ΔCoR ${usd(row.deltaCor)} · Δretained ${usd(row.deltaRetained)} · Δpremium ${usd(row.deltaPremium)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
+            link: { tab: "precog" },
+          });
+        }
+      } else if (d.simulation) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "cascade",
+          label: d.simulation.lever.label,
+          metric: d.simulation.verdict,
+          link: { tab: "precog" },
+        });
+      }
+    }
   }
 
   return evidence;
 }
 
+function extractVariableCascades(tools: ToolResult[]): string[] {
+  const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
+    | {
+        dependencyMap?: { from: string; to: string; effect: string }[];
+        topByCostOfRisk?: {
+          label: string;
+          affects: string[];
+          verdict: string;
+          secondOrderNotes: string[];
+          deltaCor: number;
+          deltaRetained: number;
+          deltaPremium: number;
+          deltaResidual: number;
+          deltaP50: number;
+          deltaLikelihood: number;
+          improves: string[];
+          worsens: string[];
+        }[];
+        baseline?: {
+          premiumAnnualNet: number;
+          retainedExpected: number;
+          expectedAnnualCostOfRisk: number;
+          residualAverage: number;
+          likelihoodMultiplier: number;
+        };
+        coachInstruction?: string;
+      }
+    | undefined;
+
+  if (!cas?.topByCostOfRisk?.length) {
+    return [
+      "No cascade simulation in this run — still treat premium, deductible, controls, and residual as coupled.",
+    ];
+  }
+
+  const lines: string[] = [];
+  if (cas.baseline) {
+    lines.push(
+      `Baseline now: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${usd(cas.baseline.premiumAnnualNet)}, retained EL ${usd(cas.baseline.retainedExpected)}, annual CoR ${usd(cas.baseline.expectedAnnualCostOfRisk)}, avg residual ${cas.baseline.residualAverage}.`,
+    );
+  }
+
+  for (const row of cas.topByCostOfRisk.slice(0, 5)) {
+    const trade =
+      row.worsens.length > 0
+        ? ` Tradeoffs: ${row.worsens.slice(0, 3).join("; ")}.`
+        : " No material in-model tradeoffs.";
+    lines.push(
+      `**If you ${row.label}**: CoR ${usd(row.deltaCor)}, retained ${usd(row.deltaRetained)}, premium ${usd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d, likelihood ${row.deltaLikelihood >= 0 ? "+" : ""}${row.deltaLikelihood.toFixed(2)}. Also moves: ${row.affects.slice(0, 4).join("; ")}.${trade} ${row.secondOrderNotes[0] ?? ""}`.trim(),
+    );
+  }
+
+  if (cas.dependencyMap?.length) {
+    lines.push(
+      `Dependency spine: ${cas.dependencyMap
+        .slice(0, 6)
+        .map((d) => `${d.from}→${d.to} (${d.effect})`)
+        .join(" · ")}`,
+    );
+  }
+
+  return lines;
+}
+
 function chickenLittleCritique(tools: ToolResult[]): string[] {
   const warnings: string[] = [];
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
-    | { averageResidual?: number; criticalPath?: number; top?: { residual: number; name: string }[] }
+    | {
+        averageResidual?: number;
+        criticalPath?: number;
+        top?: { residual: number; name: string }[];
+      }
     | undefined;
   const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
     | { name: string; riskScore: number }[]
@@ -178,6 +291,21 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
     | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
     | { retained: { expected: number }; timelineDays: { p50: number }; title: string }
+    | undefined;
+  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk")?.data as
+    | {
+        variables?: { deductible?: number; policyLimit?: number; hasDualControl?: boolean };
+        transfer?: { retainedExpected: number; premiumAnnualNet: number };
+      }
+    | undefined;
+  const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
+    | {
+        topByCostOfRisk?: {
+          label: string;
+          worsens: string[];
+          deltaCor: number;
+        }[];
+      }
     | undefined;
 
   if ((residual?.criticalPath ?? 0) >= 2) {
@@ -205,9 +333,25 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
       `Portfolio average residual ${residual!.averageResidual} is in Act-now territory — nice-to-haves can wait.`,
     );
   }
+  if (ins?.variables?.deductible && ins.variables.deductible >= 10000) {
+    warnings.push(
+      `Deductible ${usd(ins.variables.deductible)} keeps a large slice of every claim on the practice — premium savings elsewhere may not cover retained EL.`,
+    );
+  }
+  if (ins && !ins.variables?.hasDualControl) {
+    warnings.push(
+      "Dual control off: carrier credit not earned AND fraud opportunity stays high — insurance and control residual move together.",
+    );
+  }
+  if (cas?.topByCostOfRisk?.some((c) => c.worsens.length >= 2 && c.deltaCor > 0)) {
+    warnings.push(
+      "Some popular levers worsen annual cost-of-risk under current deductible/premium settings — read cascade tradeoffs before acting.",
+    );
+  }
+
   if (warnings.length === 0) {
     warnings.push(
-      "No single catastrophe signal — still re-score after any staff or insurance change.",
+      "No single catastrophe signal — still re-score after any staff, deductible, or control change (variables are coupled).",
     );
   }
   return warnings;
@@ -218,6 +362,7 @@ function localSynthesize(
   tools: ToolResult[],
   evidence: EvidenceRef[],
   warnings: string[],
+  variableCascades: string[],
 ): StructuredBrief {
   const snap = tools.find((t) => t.tool === "get_practice_snapshot")?.data as {
     practice: string;
@@ -226,6 +371,11 @@ function localSynthesize(
       segregationScore: number;
       dualControlPayments: boolean;
       independentBankRec: boolean;
+    };
+    riskVariables?: {
+      deductible: number;
+      basePremiumAnnual: number;
+      hasSecurityCameras: boolean;
     };
   } | null;
 
@@ -257,11 +407,30 @@ function localSynthesize(
     title: string;
     retained: { expected: number };
     timelineDays: { p50: number; p95Low: number; p95High: number };
-    dynamic: { expectedAnnualCostOfRisk: number; premiumAnnualNet: number } | null;
+    dynamic: {
+      expectedAnnualCostOfRisk: number;
+      premiumAnnualNet: number;
+      likelihoodMultiplier: number;
+      grossSeverityMultiplier: number;
+    } | null;
   } | null;
 
-  const compare = tools.find((t) => t.tool === "compare_scenario_futures")?.data as {
-    columns: { label: string; retained?: number; annualCor?: number }[];
+  const ins = tools.find((t) => t.tool === "get_insurance_cost_of_risk")?.data as {
+    transfer: {
+      premiumAnnualNet: number;
+      retainedExpected: number;
+      expectedAnnualCostOfRisk: number;
+      discountPctApplied: number;
+    };
+  } | null;
+
+  const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as {
+    topByCostOfRisk?: {
+      label: string;
+      affects: string[];
+      secondOrderNotes: string[];
+      deltaCor: number;
+    }[];
   } | null;
 
   const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as {
@@ -271,6 +440,7 @@ function localSynthesize(
 
   const top = residual?.top ?? [];
   const lever = levers?.levers?.[0];
+  const bestCascade = cas?.topByCostOfRisk?.[0];
 
   const highestRisks = top.slice(0, 4).map((t) => {
     const drivers = t.drivers
@@ -286,58 +456,81 @@ function localSynthesize(
 
   const tradeoffs = [
     `Full SoD is unlikely at team size ${snap?.staff.teamSize ?? "?"}. Compensating controls + monitoring beat theater.`,
-    "Accept residual risk only when documented, monitored, and re-scored after staff or insurance changes.",
+    "Accept residual risk only when documented, monitored, and re-scored after staff **or insurance variable** changes.",
     lever
-      ? `Highest-leverage lever: **${lever.label}** (≈ −${Math.round(lever.delta)} residual points on portfolio average).`
+      ? `Highest residual lever: **${lever.label}** (≈ −${Math.round(lever.delta)} residual points).`
       : "Re-run tornado levers after any control change.",
+    ins
+      ? `Insurance now: premium ${usd(ins.transfer.premiumAnnualNet)} (−${ins.transfer.discountPctApplied}% credits), retained EL ${usd(ins.transfer.retainedExpected)}, annual CoR ${usd(ins.transfer.expectedAnnualCostOfRisk)}.`
+      : "Open dynamic variables to price transfer terms against residual risk.",
     scenario
-      ? `Top Precog path **${scenario.title}**: retained ~${usd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d (95% ${scenario.timelineDays.p95Low}–${scenario.timelineDays.p95High}), annual CoR ~${usd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
+      ? `Top Precog path **${scenario.title}**: retained ~${usd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d (95% ${scenario.timelineDays.p95Low}–${scenario.timelineDays.p95High}), likelihood ×${scenario.dynamic?.likelihoodMultiplier?.toFixed(2) ?? "?"}, CoR ~${usd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
       : "Run a Precog scenario before accepting cash-path residual risk.",
+    bestCascade
+      ? `Best cascade on annual CoR: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). Second-order: ${bestCascade.secondOrderNotes[0] ?? bestCascade.affects.slice(0, 2).join("; ")}.`
+      : "Simulate variable cascades before changing deductible or stacking controls.",
   ];
-
-  if (compare?.columns?.length) {
-    const best = [...compare.columns].sort(
-      (a, b) => (a.retained ?? 1e12) - (b.retained ?? 1e12),
-    )[0];
-    if (best) {
-      tradeoffs.push(
-        `Futures compare winner on retained loss: **${best.label}** (~${usd(best.retained ?? 0)} retained; CoR ~${usd(best.annualCor ?? 0)}).`,
-      );
-    }
-  }
 
   const decisions: PioneerDecision[] = [
     {
-      action: lever?.label ?? "Raise independent monitoring on cash path",
-      rationale: "Tornado / residual engine ranks this as high leverage on portfolio residual.",
-      evidenceIds: evidence.filter((e) => e.kind === "lever" || e.kind === "residual").map((e) => e.id).slice(0, 3),
+      action: bestCascade?.label ?? lever?.label ?? "Raise independent monitoring on cash path",
+      rationale:
+        bestCascade
+          ? `Cascade model: ${bestCascade.secondOrderNotes[0] ?? "improves coupled CoR and residual metrics."}`
+          : "Tornado / residual engine ranks this as high leverage on portfolio residual.",
+      evidenceIds: evidence
+        .filter((e) => e.kind === "cascade" || e.kind === "lever" || e.kind === "residual")
+        .map((e) => e.id)
+        .slice(0, 4),
       effort: "medium",
       horizonDays: 14,
+      cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
     {
       action:
         spofs && spofs[0]
           ? `Cross-train backup for ${spofs[0].name} (owner: ${spofs[0].owners[0]?.name ?? "none"})`
           : "Document and cross-train top critical knowledge SPOF",
-      rationale: "Knowledge continuity SPOFs cascade into process and control failures.",
+      rationale:
+        "Knowledge continuity SPOFs cascade into process and control failures; insurance does not fix tribal knowledge.",
       evidenceIds: evidence.filter((e) => e.kind === "spof").map((e) => e.id).slice(0, 2),
       effort: "medium",
       horizonDays: 30,
+      cascadeEffects: [
+        "continuity residual ↓",
+        "scenario timelines lengthen if knowledge was on critical path",
+        "does not by itself unlock premium credits",
+      ],
     },
     {
-      action: "Close or formally accept each open SoD gap with a review date",
-      rationale: "COSO control activities require either design effectiveness or deliberate residual acceptance.",
-      evidenceIds: evidence.filter((e) => e.kind === "sod" || e.kind === "coso").map((e) => e.id).slice(0, 2),
+      action: "Re-check deductible vs retained EL after control changes",
+      rationale:
+        "Changing controls moves likelihood/severity; the same deductible can look smart or reckless after residual drops.",
+      evidenceIds: evidence
+        .filter((e) => e.kind === "insurance" || e.kind === "cascade")
+        .map((e) => e.id)
+        .slice(0, 3),
       effort: "low",
       horizonDays: 21,
+      cascadeEffects: [
+        "retained EL ↔ deductible",
+        "annual CoR ↔ premium + annualized retained",
+        "real carriers may reprice premium (model holds base premium unless load changes)",
+      ],
     },
   ];
 
-  const frontierNextMove = lever
-    ? `This week: execute **${lever.label}**, then re-open the top Precog scenario and confirm retained loss and annual cost-of-risk drop. That is the sharpest single cut.`
-    : "This week: turn on owner independent bank reconciliation and dual-release over threshold, then re-run cash SoD Precog.";
+  const frontierNextMove = bestCascade
+    ? `This week: **${bestCascade.label}**, then re-open Dynamic variables + top Precog scenario and confirm annual CoR, retained EL, and residual all move the way the cascade promised. Variables are coupled — do not stop at one metric.`
+    : lever
+      ? `This week: execute **${lever.label}**, then re-run insurance cost-of-risk and cascade simulation.`
+      : "This week: turn on owner independent bank reconciliation and dual-release over threshold, then re-run cash SoD Precog and cascades.";
 
-  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100** (${coso?.status ?? "n/a"}), average residual **${residual?.averageResidual ?? "?"}/100** (\`${residual?.scoringVersion ?? "n/a"}\`). Staff ${snap?.staff.teamSize ?? "?"}, segregation ${snap?.staff.segregationScore ?? "?"}/100, dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, independent bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Owner question grounded: _${question}_`;
+  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100** (${coso?.status ?? "n/a"}), average residual **${residual?.averageResidual ?? "?"}/100** (\`${residual?.scoringVersion ?? "n/a"}\`). Staff ${snap?.staff.teamSize ?? "?"}, segregation ${snap?.staff.segregationScore ?? "?"}/100, dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, independent bank rec ${snap?.staff.independentBankRec ? "on" : "off"}${
+    snap?.riskVariables
+      ? `, deductible ${usd(snap.riskVariables.deductible)}, base premium ${usd(snap.riskVariables.basePremiumAnnual)}, cameras ${snap.riskVariables.hasSecurityCameras ? "on" : "off"}`
+      : ""
+  }. Owner question grounded: _${question}_`;
 
   const markdown = [
     "## Situation",
@@ -346,14 +539,20 @@ function localSynthesize(
     "## Highest residual risks",
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
+    "## Variable cascades (what else moves)",
+    ...variableCascades.map((c) => `- ${c}`),
+    "",
     "## Tradeoffs",
     ...tradeoffs.map((t) => `- ${t}`),
     "",
     "## Recommended moves",
-    ...decisions.map(
-      (d, i) =>
-        `${i + 1}. **${d.action}** (${d.effort} effort · ${d.horizonDays}d) — ${d.rationale}`,
-    ),
+    ...decisions.map((d, i) => {
+      const cascade =
+        d.cascadeEffects && d.cascadeEffects.length
+          ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.`
+          : "";
+      return `${i + 1}. **${d.action}** (${d.effort} effort · ${d.horizonDays}d) — ${d.rationale}${cascade}`;
+    }),
     "",
     "## Chicken Little warnings",
     ...warnings.map((w) => `- ${w}`),
@@ -362,7 +561,9 @@ function localSynthesize(
     frontierNextMove,
     "",
     "## Evidence anchors",
-    ...evidence.slice(0, 8).map((e) => `- [${e.id}] **${e.label}** — ${e.metric ?? e.kind} → ${e.link.tab}`),
+    ...evidence
+      .slice(0, 10)
+      .map((e) => `- [${e.id}] **${e.label}** — ${e.metric ?? e.kind} → ${e.link.tab}`),
   ].join("\n");
 
   return {
@@ -372,6 +573,7 @@ function localSynthesize(
     decisions,
     frontierNextMove,
     chickenLittleWarnings: warnings,
+    variableCascades,
     markdown,
     evidence,
   };
@@ -388,43 +590,44 @@ export function runLocalAgentLoop(
   steps.push({
     phase: "plan",
     title: "Plan tool retrieval",
-    detail: `Selected ${planned.length} grounding tools from question intent: ${planned.join(", ")}`,
+    detail: `Selected ${planned.length} grounding tools (includes variable cascades): ${planned.join(", ")}`,
   });
 
-  const toolResults: ToolResult[] = planned.map((tool) => {
-    const args: Record<string, unknown> = {};
-    if (tool === "run_precog_scenario" || tool === "compare_scenario_futures" || tool === "get_insurance_cost_of_risk") {
-      // leave scenarioId empty → tools pick top ranked
-    }
-    return executeTool(tool, args, ctx);
-  });
+  const toolResults: ToolResult[] = planned.map((tool) => executeTool(tool, {}, ctx));
 
   steps.push({
     phase: "retrieve",
-    title: "Retrieve practice evidence",
+    title: "Retrieve practice evidence + variable state",
     detail: toolResults.map((t) => `${t.tool}: ${t.summary}`).join(" | "),
     toolResults,
   });
 
   const evidence = extractEvidence(toolResults);
+  const variableCascades = extractVariableCascades(toolResults);
   steps.push({
     phase: "analyze",
-    title: "Analyze residual, SPOF, and scenario pressure",
-    detail: `Extracted ${evidence.length} evidence anchors from tool payloads for citation.`,
+    title: "Analyze residual pressure + cross-variable cascades",
+    detail: `${evidence.length} evidence anchors · ${variableCascades.length} cascade lines (how one change moves the rest).`,
   });
 
   const warnings = chickenLittleCritique(toolResults);
   steps.push({
     phase: "critique",
-    title: "Chicken Little critique",
+    title: "Chicken Little critique (incl. insurance coupling)",
     detail: warnings.join(" · "),
   });
 
-  const brief = localSynthesize(question, toolResults, evidence, warnings);
+  const brief = localSynthesize(
+    question,
+    toolResults,
+    evidence,
+    warnings,
+    variableCascades,
+  );
   steps.push({
     phase: "synthesize",
-    title: "Synthesize frontier brief",
-    detail: `Structured brief with ${brief.decisions.length} decisions and ${brief.evidence.length} evidence links.`,
+    title: "Synthesize frontier brief with cascade section",
+    detail: `Structured brief with ${brief.decisions.length} decisions, ${brief.variableCascades.length} cascade notes, ${brief.evidence.length} evidence links.`,
   });
 
   return {
@@ -444,19 +647,27 @@ export function buildGrokAgentMessages(
   toolResults: ToolResult[],
   warnings: string[],
   evidence: EvidenceRef[],
+  variableCascades: string[],
 ): { role: "system" | "user"; content: string }[] {
   const system = `You are Precog Pioneer — the LLM differentiator for small dental practice control coaching.
 You ONLY reason from TOOL RESULTS provided. Never invent metrics, names, or losses not in tools.
 Never accuse individuals of fraud. Score control design, residual risk, and knowledge continuity only.
 
+CRITICAL — dynamic variables are coupled:
+- Changing dual control / bank rec / cameras moves likelihood, severity, detection lag, premium credits, retained loss, annual cost-of-risk, AND residual scores.
+- Deductible and policy limit change retained vs transferred without fixing process design.
+- Do not recommend a control or insurance change without saying what ELSE moves (use simulate_variable_cascades + get_insurance_cost_of_risk).
+- If premium falls but retained rises (or the reverse), call out the tradeoff explicitly.
+
 You run after an agentic retrieve step. Your job is synthesize + coach:
-1. Situation (numbers from tools)
+1. Situation (numbers from tools, include current insurance variables)
 2. Highest residual risks (cite tool metrics)
-3. Tradeoffs (SoD reality, insurance transfer, accept vs fix)
-4. Recommended moves (actionable, effort, horizon)
-5. Chicken Little warnings (use the provided critique list; you may sharpen wording)
-6. Frontier next move (ONE action for next 7 days)
-7. Evidence anchors (reference evidence ids)
+3. Variable cascades (what else moves) — REQUIRED section
+4. Tradeoffs (SoD reality, insurance transfer, accept vs fix)
+5. Recommended moves (actionable, effort, horizon, cascade side-effects)
+6. Chicken Little warnings
+7. Frontier next move (ONE action for next 7 days; include re-measure step)
+8. Evidence anchors (reference evidence ids)
 
 Style: plain-spoken, active voice, frontier scout — not corporate fog.
 Output markdown with those ## headings.`;
@@ -477,13 +688,16 @@ ${TOOL_CATALOG.map((t) => `- ${t.name}: ${t.description}`).join("\n")}
 TOOL RESULTS (JSON):
 ${JSON.stringify(toolPayload)}
 
+PRE-COMPUTED VARIABLE CASCADE LINES (must use / refine, do not ignore):
+${variableCascades.map((w) => `- ${w}`).join("\n")}
+
 CHICKEN LITTLE CRITIQUE (must address):
 ${warnings.map((w) => `- ${w}`).join("\n")}
 
 EVIDENCE ANCHORS (cite by id when relevant):
 ${evidence.map((e) => `- ${e.id}: ${e.label} | ${e.metric} | tab=${e.link.tab}`).join("\n")}
 
-Write the structured brief now.`;
+Write the structured brief now. Include "## Variable cascades (what else moves)".`;
 
   return [
     { role: "system", content: system },
@@ -507,7 +721,14 @@ export async function runGrokAgentLoop(
     local.steps.find((s) => s.phase === "retrieve")?.toolResults ?? [];
   const warnings = local.brief.chickenLittleWarnings;
   const evidence = local.brief.evidence;
-  const messages = buildGrokAgentMessages(question, toolResults, warnings, evidence);
+  const variableCascades = local.brief.variableCascades;
+  const messages = buildGrokAgentMessages(
+    question,
+    toolResults,
+    warnings,
+    evidence,
+    variableCascades,
+  );
 
   try {
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
@@ -518,17 +739,14 @@ export async function runGrokAgentLoop(
       },
       body: JSON.stringify({
         model: "grok-4.5",
-        max_tokens: 1800,
+        max_tokens: 2000,
         temperature: 0.3,
         messages,
       }),
     });
 
     if (!res.ok) {
-      return {
-        ...local,
-        latencyMs: Date.now() - started,
-      };
+      return { ...local, latencyMs: Date.now() - started };
     }
 
     const body = (await res.json()) as {
@@ -544,8 +762,8 @@ export async function runGrokAgentLoop(
       ...local.steps.filter((s) => s.phase !== "synthesize"),
       {
         phase: "synthesize",
-        title: "Grok synthesis over grounded tools",
-        detail: `Model ${body.model ?? "grok-4.5"} wrote brief from ${toolResults.length} tool payloads (no freestyle inventing).`,
+        title: "Grok synthesis over grounded tools + cascades",
+        detail: `Model ${body.model ?? "grok-4.5"} wrote brief from ${toolResults.length} tool payloads including variable cascade coupling.`,
       },
     ];
 
@@ -567,5 +785,3 @@ export async function runGrokAgentLoop(
     return { ...local, latencyMs: Date.now() - started };
   }
 }
-
-export type { ToolName };

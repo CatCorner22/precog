@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Compass,
   Copy,
+  GitBranch,
   Loader2,
   Sparkles,
   TriangleAlert,
@@ -15,10 +16,11 @@ import {
 
 const PROMPTS = [
   "Where is residual risk worst this week, and what should I do first?",
+  "If I turn on dual control and cameras, what else moves — premium, retained loss, residual?",
+  "What happens to annual cost of risk if I raise the deductible to $10,000?",
   "What can I safely accept for now, and what must I not accept?",
   "If my front desk lead leaves, what fails first across Matrix layers?",
-  "Give me a 7-day frontier plan using COSO control activities and monitoring.",
-  "How do my deductible and camera discounts change retained loss on cash SoD failure?",
+  "Give me a 7-day frontier plan that accounts for insurance credits and SoD together.",
 ];
 
 function renderInline(text: string): ReactNode[] {
@@ -70,7 +72,7 @@ export function PioneerCoach({
   onNavigate?: (tab: string, id?: string) => void;
 }) {
   const { profile, addDecision } = usePractice();
-  const [question, setQuestion] = useState(PROMPTS[0]);
+  const [question, setQuestion] = useState(PROMPTS[1]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
@@ -136,21 +138,24 @@ export function PioneerCoach({
     });
   }
 
+  const usedCascade = result?.toolsUsed?.includes("simulate_variable_cascades");
+  const cascadeEvidence = result?.evidence?.filter((e) => e.kind === "cascade") ?? [];
+
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">LLM differentiator</Badge>
-          <Badge variant="primary">Tool-grounded agent loop</Badge>
+          <Badge variant="primary">Variables are coupled</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" />
           Precog Pioneer
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Not a chat wrapper. Plan → retrieve (COSO, residual, knowledge SPOFs, Precog,
-          insurance) → critique → brief with evidence you can open. That is the product
-          difference.
+          Every brief runs insurance cost-of-risk and <strong className="text-fg">variable cascades</strong>.
+          Dual control, cameras, deductible, and residual are not separate knobs — the coach
+          says what else moves when you turn one.
         </p>
       </section>
 
@@ -158,8 +163,7 @@ export function PioneerCoach({
         <CardHeader>
           <CardTitle>Ask the frontier</CardTitle>
           <CardDescription>
-            Uses your saved practice profile (staff + insurance variables). User-initiated
-            only.
+            Uses your saved practice profile. Cascade tool runs on every brief.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -184,21 +188,30 @@ export function PioneerCoach({
             onChange={(e) => setQuestion(e.target.value)}
             rows={3}
             className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm text-fg outline-none ring-primary/40 focus:ring-2"
-            placeholder="What should I tackle this week?"
+            placeholder="What if I change dual control / deductible / cameras?"
           />
-          <Button onClick={run} disabled={loading || !question.trim()}>
-            {loading ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Running agent loop…
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-4" />
-                Run Pioneer agent
-              </>
-            )}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={run} disabled={loading || !question.trim()}>
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Running agent + cascades…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" />
+                  Run Pioneer agent
+                </>
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => onNavigate?.("precog")}
+            >
+              <GitBranch className="size-3.5" />
+              Open cascade panel
+            </Button>
+          </div>
           {error && (
             <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {error}
@@ -217,7 +230,8 @@ export function PioneerCoach({
                   Reasoning trace
                 </CardTitle>
                 <CardDescription>
-                  {result.toolsUsed?.length ?? 0} tools · {result.latencyMs ?? "—"}ms ·{" "}
+                  {result.toolsUsed?.length ?? 0} tools
+                  {usedCascade ? " · cascades on" : ""} · {result.latencyMs ?? "—"}ms ·{" "}
                   {result.source}
                   {result.model ? ` · ${result.model}` : ""}
                 </CardDescription>
@@ -235,12 +249,42 @@ export function PioneerCoach({
                     <p className="mt-1 text-xs text-muted">{s.detail}</p>
                     {s.toolSummaries && s.toolSummaries.length > 0 && (
                       <ul className="mt-2 space-y-0.5 text-[11px] text-subtle">
-                        {s.toolSummaries.slice(0, 6).map((t) => (
+                        {s.toolSummaries.slice(0, 8).map((t) => (
                           <li key={t}>· {t}</li>
                         ))}
                       </ul>
                     )}
                   </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {cascadeEvidence.length > 0 && (
+            <Card className="border-primary/25">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <GitBranch className="size-4 text-primary" />
+                  Cascade evidence (what else moves)
+                </CardTitle>
+                <CardDescription>
+                  From simulate_variable_cascades — open Precog → Cascades to explore
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {cascadeEvidence.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => onNavigate?.(e.link.tab, e.link.id)}
+                    className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm"
+                  >
+                    <span className="text-[10px] text-subtle">{e.id}</span>
+                    <span className="block font-medium">{e.label}</span>
+                    {e.metric && (
+                      <span className="block text-xs text-muted">{e.metric}</span>
+                    )}
+                  </button>
                 ))}
               </CardContent>
             </Card>
@@ -267,10 +311,7 @@ export function PioneerCoach({
           {(result.evidence?.length ?? 0) > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Evidence anchors</CardTitle>
-                <CardDescription>
-                  Open the map, scenario, or control that proves each claim
-                </CardDescription>
+                <CardTitle className="text-base">All evidence anchors</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {result.evidence!.map((e) => (
@@ -280,7 +321,9 @@ export function PioneerCoach({
                     onClick={() => onNavigate?.(e.link.tab, e.link.id)}
                     className="rounded-xl border border-border bg-elevated px-3 py-2 text-left text-sm transition-colors hover:border-border-strong"
                   >
-                    <span className="text-[10px] text-subtle">{e.id}</span>
+                    <span className="text-[10px] text-subtle">
+                      {e.id} · {e.kind}
+                    </span>
                     <span className="block font-medium">{e.label}</span>
                     {e.metric && (
                       <span className="block text-xs text-muted">{e.metric}</span>
@@ -295,9 +338,6 @@ export function PioneerCoach({
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Actionable decisions</CardTitle>
-                <CardDescription>
-                  From the agent — log the first into your journal
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {result.decisions!.map((d) => (
@@ -348,12 +388,19 @@ export function PioneerCoach({
               <article className="max-w-none space-y-3 text-sm leading-relaxed">
                 {result.markdown.split("\n").map((line, i) => {
                   if (line.startsWith("## ")) {
+                    const title = line.replace(/^## /, "");
+                    const isCascade = /cascade|what else moves/i.test(title);
                     return (
                       <h3
                         key={i}
-                        className="pt-2 text-base font-semibold tracking-tight text-fg"
+                        className={
+                          isCascade
+                            ? "flex items-center gap-2 pt-2 text-base font-semibold tracking-tight text-primary"
+                            : "pt-2 text-base font-semibold tracking-tight text-fg"
+                        }
                       >
-                        {line.replace(/^## /, "")}
+                        {isCascade && <GitBranch className="size-4" />}
+                        {title}
                       </h3>
                     );
                   }

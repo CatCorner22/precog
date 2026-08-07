@@ -10,6 +10,7 @@ import {
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
 import { usePractice } from "@/lib/precog/practice-context";
+import { CascadePanel } from "@/components/precog/cascade-panel";
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
+import { GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 
 export function ScenarioRunner({
   initialScenarioId,
@@ -35,7 +36,9 @@ export function ScenarioRunner({
 }) {
   const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } =
     usePractice();
-  const [view, setView] = useState<"single" | "compare" | "variables">("single");
+  const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">(
+    "single",
+  );
   const [scenarioId, setScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
       ? initialScenarioId
@@ -47,7 +50,6 @@ export function ScenarioRunner({
     ...profile.riskVariables,
   });
 
-  // Sync from profile when it loads / changes externally
   useEffect(() => {
     setStaff({ ...profile.staff });
     setRiskVars({ ...profile.riskVariables });
@@ -136,6 +138,14 @@ export function ScenarioRunner({
           <SlidersHorizontal className="size-3.5" />
           Dynamic variables
         </Button>
+        <Button
+          size="sm"
+          variant={view === "cascades" ? "default" : "secondary"}
+          onClick={() => setView("cascades")}
+        >
+          <GitBranch className="size-3.5" />
+          Cascades
+        </Button>
       </div>
 
       {view === "compare" ? (
@@ -145,6 +155,8 @@ export function ScenarioRunner({
           onStaffChange={updateStaff}
           riskVariables={riskVars}
         />
+      ) : view === "cascades" ? (
+        <CascadePanel />
       ) : view === "variables" ? (
         <div className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -198,6 +210,10 @@ export function ScenarioRunner({
               </CardContent>
             </Card>
           )}
+          <Button variant="secondary" size="sm" onClick={() => setView("cascades")}>
+            <GitBranch className="size-3.5" />
+            See how levers cascade across metrics
+          </Button>
         </div>
       ) : !result ? null : (
         <>
@@ -227,7 +243,7 @@ export function ScenarioRunner({
               <CardHeader>
                 <CardTitle>Precog projection</CardTitle>
                 <CardDescription>
-                  Dynamic likelihood & severity · gross vs retained · insurance cost-of-risk
+                  Coupled to dynamic variables — change one input, likelihood and cost both move
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -333,7 +349,11 @@ export function ScenarioRunner({
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" size="sm" onClick={() => setView("variables")}>
                     <SlidersHorizontal className="size-3.5" />
-                    Tune premium / deductible / discounts
+                    Tune variables
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setView("cascades")}>
+                    <GitBranch className="size-3.5" />
+                    Cross-variable cascades
                   </Button>
                   <Button variant="secondary" size="sm" onClick={() => setView("compare")}>
                     <GitCompare className="size-3.5" />
@@ -347,7 +367,7 @@ export function ScenarioRunner({
               <Card>
                 <CardHeader>
                   <CardTitle>Staff composition</CardTitle>
-                  <CardDescription>Synced to practice profile</CardDescription>
+                  <CardDescription>Synced to practice profile · feeds residual + cascades</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow

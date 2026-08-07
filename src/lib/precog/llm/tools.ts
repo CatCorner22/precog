@@ -31,6 +31,11 @@ import {
   scenarioFlags,
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
+import {
+  simulateAllCascades,
+  simulateCascadeLever,
+  type CascadeLeverId,
+} from "../scoring/variable-cascade";
 import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
 
@@ -107,6 +112,12 @@ export const TOOL_CATALOG: {
     description: "Segregation of duties gaps and compensating controls.",
     args: "none",
   },
+  {
+    name: "simulate_variable_cascades",
+    description:
+      "What-if: change one dynamic variable and measure ripple effects on likelihood, severity, premium, retained, CoR, residual, timeline. Includes dependency map and second-order notes.",
+    args: "{ leverId?: string, scenarioId?: string }",
+  },
 ];
 
 export function executeTool(
@@ -128,6 +139,17 @@ export function executeTool(
           data: {
             practice: practiceName,
             staff,
+            riskVariables: {
+              basePremiumAnnual: riskVars.basePremiumAnnual,
+              deductible: riskVars.deductible,
+              policyLimit: riskVars.policyLimit,
+              hasDualControl: riskVars.hasDualControl,
+              hasIndependentBankRec: riskVars.hasIndependentBankRec,
+              hasSecurityCameras: riskVars.hasSecurityCameras,
+              claimsLoadFactor: riskVars.claimsLoadFactor,
+              dailyCashExposure: riskVars.dailyCashExposure,
+              maxDiscountPct: riskVars.maxDiscountPct,
+            },
             crimePrior: {
               annualExposureClass: crimeFraudStats.industryEmbezzlementRate,
               medianDetectionDays: crimeFraudStats.medianDetectionDays,
@@ -188,18 +210,7 @@ export function executeTool(
               p50Days: t.p50Days,
             })),
           },
-          links: [
-            { tab: "residual", label: "Residual radar" },
-            ...(p.top[0]?.linkedScenarioId
-              ? [
-                  {
-                    tab: "precog",
-                    id: p.top[0].linkedScenarioId,
-                    label: "Top linked scenario",
-                  },
-                ]
-              : []),
-          ],
+          links: [{ tab: "residual", label: "Residual radar" }],
         };
       }
 
@@ -248,7 +259,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `${edges.length} strong person→knowledge edges; ${people.length} people; ${knowledge.length} knowledge nodes`,
+          summary: `${edges.length} strong person→knowledge edges`,
           data: {
             people: people.map((p) => ({
               id: p.id,
@@ -287,13 +298,7 @@ export function executeTool(
         });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
-          return {
-            tool,
-            args,
-            ok: false,
-            summary: "Scenario not found",
-            data: null,
-          };
+          return { tool, args, ok: false, summary: "Scenario not found", data: null };
         }
         return {
           tool,
@@ -315,6 +320,7 @@ export function executeTool(
                   discountPctApplied: result.dynamic.discountPctApplied,
                   expectedAnnualCostOfRisk: result.dynamic.expectedAnnualCostOfRisk,
                   transferredExpected: result.dynamic.transferredExpected,
+                  drivers: result.dynamic.drivers?.slice(0, 5),
                 }
               : null,
             cascade: result.cascade,
@@ -333,12 +339,7 @@ export function executeTool(
         const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
         const scenarioId =
           (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
-        const report = compareScenarioFutures(
-          scenarioId,
-          staff,
-          [],
-          riskVars,
-        );
+        const report = compareScenarioFutures(scenarioId, staff, [], riskVars);
         return {
           tool,
           args: { scenarioId },
@@ -368,10 +369,7 @@ export function executeTool(
           tool,
           ok: true,
           summary: `Base avg residual ${t.baseAverage}; top lever: ${t.levers[0]?.label ?? "—"} (−${Math.round(t.levers[0]?.delta ?? 0)})`,
-          data: {
-            baseAverage: t.baseAverage,
-            levers: t.levers,
-          },
+          data: { baseAverage: t.baseAverage, levers: t.levers },
           links: [{ tab: "residual", label: "Tornado" }],
         };
       }
@@ -390,14 +388,7 @@ export function executeTool(
           summary: `Net premium ${usd(dyn.transfer.premiumAnnualNet)} (−${dyn.transfer.discountPctApplied}%); retained EL ${usd(dyn.transfer.retainedExpected)}; CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}`,
           data: {
             scenarioId,
-            variables: {
-              basePremiumAnnual: riskVars.basePremiumAnnual,
-              deductible: riskVars.deductible,
-              policyLimit: riskVars.policyLimit,
-              hasSecurityCameras: riskVars.hasSecurityCameras,
-              hasDualControl: riskVars.hasDualControl,
-              hasIndependentBankRec: riskVars.hasIndependentBankRec,
-            },
+            variables: riskVars,
             likelihoodSeverity: dyn.likelihoodSeverity,
             transfer: dyn.transfer,
           },
@@ -422,13 +413,87 @@ export function executeTool(
         };
       }
 
-      default:
+      case "simulate_variable_cascades": {
+        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+        const scenarioId =
+          (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const leverId = args.leverId as CascadeLeverId | undefined;
+
+        if (leverId) {
+          const one = simulateCascadeLever(leverId, riskVars, staff, scenarioId);
+          return {
+            tool,
+            args: { leverId, scenarioId },
+            ok: true,
+            summary: `${one.lever.label}: ${one.overallVerdict}`,
+            data: {
+              mode: "single",
+              scenarioId,
+              simulation: {
+                lever: one.lever,
+                verdict: one.overallVerdict,
+                secondOrderNotes: one.secondOrderNotes,
+                deltas: one.deltas.map((d) => ({
+                  metric: d.label,
+                  before: d.before,
+                  after: d.after,
+                  delta: d.delta,
+                  pctChange: d.pctChange,
+                  direction: d.direction,
+                })),
+                before: one.before,
+                after: one.after,
+              },
+            },
+            links: [{ tab: "precog", id: scenarioId, label: "Variable cascade" }],
+          };
+        }
+
+        const all = simulateAllCascades(riskVars, staff, scenarioId);
+        const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
+          leverId: s.lever.id,
+          label: s.lever.label,
+          affects: s.lever.affects,
+          verdict: s.overallVerdict,
+          secondOrderNotes: s.secondOrderNotes,
+          deltaCor:
+            s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk,
+          deltaRetained: s.after.retainedExpected - s.before.retainedExpected,
+          deltaPremium: s.after.premiumAnnualNet - s.before.premiumAnnualNet,
+          deltaResidual: s.after.residualAverage - s.before.residualAverage,
+          deltaP50: s.after.timelineP50 - s.before.timelineP50,
+          deltaLikelihood:
+            s.after.likelihoodMultiplier - s.before.likelihoodMultiplier,
+          improves: s.deltas.filter((d) => d.direction === "improves").map((d) => d.label),
+          worsens: s.deltas.filter((d) => d.direction === "worsens").map((d) => d.label),
+        }));
+
         return {
           tool,
-          ok: false,
-          summary: "Unknown tool",
-          data: null,
+          args: { scenarioId },
+          ok: true,
+          summary: `Cascades on ${scenarioId}: best CoR lever "${topCor[0]?.label}" (ΔCoR ${usd(topCor[0]?.deltaCor ?? 0)})`,
+          data: {
+            mode: "portfolio",
+            scenarioId,
+            baseline: all.baseline,
+            dependencyMap: all.dependencyMap,
+            topByCostOfRisk: topCor,
+            topByResidual: all.rankedByResidual.slice(0, 4).map((s) => ({
+              label: s.lever.label,
+              deltaResidual: s.after.residualAverage - s.before.residualAverage,
+              verdict: s.overallVerdict,
+              secondOrderNotes: s.secondOrderNotes.slice(0, 2),
+            })),
+            coachInstruction:
+              "Explain how each recommended change moves OTHER variables (premium credits, retained, residual, timeline). Never treat premium, deductible, or controls as independent.",
+          },
+          links: [{ tab: "precog", label: "Dynamic variables / cascades" }],
         };
+      }
+
+      default:
+        return { tool, ok: false, summary: "Unknown tool", data: null };
     }
   } catch (e) {
     return {
@@ -441,13 +506,16 @@ export function executeTool(
   }
 }
 
-/** Plan which tools to run from the owner question (keyword + always-on core). */
+/** Plan which tools to run from the owner question. */
 export function planTools(question: string): ToolName[] {
   const q = question.toLowerCase();
   const tools = new Set<ToolName>([
     "get_practice_snapshot",
     "get_residual_portfolio",
     "get_knowledge_spofs",
+    // Always model how variables interact with the overall situation
+    "get_insurance_cost_of_risk",
+    "simulate_variable_cascades",
   ]);
 
   if (/coso|control environment|monitoring|principle/.test(q)) {
@@ -464,8 +532,13 @@ export function planTools(question: string): ToolName[] {
     tools.add("run_precog_scenario");
     tools.add("compare_scenario_futures");
   }
-  if (/insurance|premium|deductible|camera|discount|policy|cost of risk/.test(q)) {
+  if (
+    /insurance|premium|deductible|camera|discount|policy|cost of risk|variable|what if|change|affect|ripple|cascade|tradeoff/.test(
+      q,
+    )
+  ) {
     tools.add("get_insurance_cost_of_risk");
+    tools.add("simulate_variable_cascades");
   }
   if (/lever|tornado|priority|what first|this week|roi|where start/.test(q)) {
     tools.add("get_tornado_levers");
@@ -477,6 +550,7 @@ export function planTools(question: string): ToolName[] {
 
   tools.add("get_coso_assessment");
   tools.add("get_tornado_levers");
+  tools.add("run_precog_scenario");
 
   return Array.from(tools);
 }
