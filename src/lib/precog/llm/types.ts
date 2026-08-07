@@ -17,7 +17,8 @@ export type ToolName =
   | "retrieve_guidance"
   | "score_anomalies"
   | "get_leading_indicators"
-  | "forecast_residual";
+  | "forecast_residual"
+  | "run_advanced_reasoning";
 
 export interface ToolCall {
   tool: ToolName;
@@ -37,6 +38,7 @@ export type ReasoningPhase =
   | "plan"
   | "retrieve"
   | "analyze"
+  | "reason"
   | "critique"
   | "specialize"
   | "synthesize";
@@ -61,7 +63,8 @@ export interface EvidenceRef {
     | "cascade"
     | "rag"
     | "ml"
-    | "forecast";
+    | "forecast"
+    | "reasoning";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -85,6 +88,7 @@ export interface StructuredBrief {
   chickenLittleWarnings: string[];
   variableCascades: string[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
+  advancedReasoning?: string[];
   markdown: string;
   evidence: EvidenceRef[];
 }

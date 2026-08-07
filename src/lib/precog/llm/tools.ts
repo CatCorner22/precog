@@ -37,6 +37,7 @@ import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreAnomalies } from "../ml/anomaly";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { forecastResidualTrajectory } from "../ml/forecast";
+import { runAdvancedReasoning } from "./reasoning/engine";
 import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
 
@@ -79,6 +80,7 @@ export const TOOL_CATALOG: {
   { name: "score_anomalies", description: "Multivariate anomaly score vs healthy practice prior.", args: "none" },
   { name: "get_leading_indicators", description: "Leading-indicator pressure composite.", args: "none" },
   { name: "forecast_residual", description: "12-week residual trajectory neglect vs plan.", args: "{ horizonWeeks? }" },
+  { name: "run_advanced_reasoning", description: "Bayesian + causal multi-hop + beam search + counterfactuals + EVOI.", args: "none" },
 ];
 
 export function executeTool(
@@ -453,6 +455,18 @@ export function executeTool(
         };
       }
 
+
+      case "run_advanced_reasoning": {
+        const report = runAdvancedReasoning(staff, riskVars);
+        return {
+          tool,
+          ok: true,
+          summary: `Advanced reasoning: beam "${report.beam.bestSequence || "status quo"}" · P(fail) ${(report.bayesian.pFail * 100).toFixed(1)}% · conf ${report.confidence.score}`,
+          data: report,
+          links: [{ tab: "intel", label: "Advanced reasoning" }],
+        };
+      }
+
       default:
         return { tool, ok: false, summary: "Unknown tool", data: null };
     }
@@ -479,6 +493,7 @@ export function planTools(question: string): ToolName[] {
     "score_anomalies",
     "get_leading_indicators",
     "forecast_residual",
+    "run_advanced_reasoning",
     "get_coso_assessment",
     "get_tornado_levers",
     "run_precog_scenario",

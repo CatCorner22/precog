@@ -202,6 +202,44 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       });
     }
 
+
+    if (t.tool === "run_advanced_reasoning") {
+      const d = t.data as {
+        beam: { bestSequence: string; utility: number };
+        bayesian: { pFail: number; expectedAnnualLoss: number };
+        evoi: { topObservation: string };
+        confidence: { score: number; label: string };
+      };
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "reasoning",
+        label: "Beam-optimal sequence",
+        metric: d.beam.bestSequence || "status quo",
+        link: { tab: "intel" },
+      });
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "reasoning",
+        label: "Bayesian P(fail)",
+        metric: `${(d.bayesian.pFail * 100).toFixed(1)}% · EAL ${usd(d.bayesian.expectedAnnualLoss)}`,
+        link: { tab: "intel" },
+      });
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "reasoning",
+        label: "Top EVOI observation",
+        metric: d.evoi.topObservation,
+        link: { tab: "intel" },
+      });
+      evidence.push({
+        id: `ev-${++i}`,
+        kind: "reasoning",
+        label: "Reasoning confidence",
+        metric: `${d.confidence.score} · ${d.confidence.label}`,
+        link: { tab: "intel" },
+      });
+    }
+
     if (t.tool === "forecast_residual") {
       const d = t.data as {
         points: { residualDoNothing: number; residualWithPlan: number }[];
@@ -322,6 +360,7 @@ function localSynthesize(
   warnings: string[],
   variableCascades: string[],
   specialistNotes: { agent: string; title: string; bullets: string[] }[],
+  advancedReasoning: string[],
 ): StructuredBrief {
   const snap = tools.find((t) => t.tool === "get_practice_snapshot")?.data as {
     practice: string;
@@ -385,6 +424,14 @@ function localSynthesize(
 
   const top = residual?.top ?? [];
   const bestCascade = cas?.topByCostOfRisk?.[0];
+  const adv = tools.find((t) => t.tool === "run_advanced_reasoning")?.data as {
+    beam?: { bestSequence?: string; utility?: number };
+    recommendedSequence?: string[];
+    synthesis?: string[];
+    evoi?: { topObservation?: string };
+    confidence?: { score?: number; label?: string };
+  } | null;
+  const advancedLines = advancedReasoning;
   const endFc = forecast?.points[forecast.points.length - 1];
 
   const highestRisks = top.slice(0, 4).map((t) => {
@@ -414,12 +461,15 @@ function localSynthesize(
       : "Retrieve control guidance for acceptance language.",
   ];
 
+  const beamAction = adv?.recommendedSequence?.join(" → ") || adv?.beam?.bestSequence;
   const decisions: PioneerDecision[] = [
     {
-      action: bestCascade?.label ?? "Enable dual control + independent bank rec",
-      rationale: bestCascade
-        ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
-        : "Highest coupled impact on opportunity and detection.",
+      action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
+      rationale: beamAction
+        ? `Beam search + Bayesian/counterfactual stack selected this sequence (utility ${adv?.beam?.utility?.toFixed(3) ?? "n/a"}; conf ${adv?.confidence?.score ?? "?"}).`
+        : bestCascade
+          ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
+          : "Highest coupled impact on opportunity and detection.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "forecast")
         .map((e) => e.id)
@@ -482,6 +532,9 @@ function localSynthesize(
     "## Variable cascades (what else moves)",
     ...variableCascades.map((c) => `- ${c}`),
     "",
+    "## Advanced reasoning",
+    ...advancedReasoning.map((x) => `- ${x}`),
+    "",
     "## Specialist board",
     specialistMd,
     "",
@@ -516,6 +569,7 @@ function localSynthesize(
     chickenLittleWarnings: warnings,
     variableCascades,
     specialistNotes,
+    advancedReasoning,
     markdown,
     evidence,
   };
@@ -555,6 +609,17 @@ export function runLocalAgentLoop(
     detail: `${evidence.length} anchors · ${variableCascades.length} cascade lines`,
   });
 
+  const advTool = toolResults.find((t) => t.tool === "run_advanced_reasoning");
+  const advancedReasoning =
+    (advTool?.data as { synthesis?: string[] } | undefined)?.synthesis ??
+    ["Advanced reasoning tool not in plan."];
+  steps.push({
+    phase: "reason",
+    title: "Advanced reasoning (Bayesian · causal · beam · CF · EVOI)",
+    detail: advancedReasoning.join(" · "),
+    toolResults: advTool ? [advTool] : undefined,
+  });
+
   const specialistNotes = runSpecialistAgents(toolResults);
   steps.push({
     phase: "specialize",
@@ -576,6 +641,7 @@ export function runLocalAgentLoop(
     warnings,
     variableCascades,
     specialistNotes,
+    advancedReasoning,
   );
   steps.push({
     phase: "synthesize",
@@ -602,6 +668,7 @@ export function buildGrokAgentMessages(
   evidence: EvidenceRef[],
   variableCascades: string[],
   specialistNotes: { agent: string; title: string; bullets: string[] }[],
+  advancedReasoning: string[],
 ): { role: "system" | "user"; content: string }[] {
   const system = `You are Precog Pioneer — tool-grounded multi-agent coach for small dental practices.
 ONLY use TOOL RESULTS. Never invent metrics or accuse people of fraud.
@@ -612,12 +679,14 @@ You must integrate:
 3) ML signals: anomaly score, leading indicators, residual forecast
 4) RAG guidance snippets (cite chunk titles)
 5) Specialist board notes (Operator, Shield, Precog, Critic)
+6) Advanced reasoning (Bayesian P(fail), beam sequence, counterfactuals, EVOI)
 
 Output markdown sections:
 ## Situation
 ## Highest residual risks
 ## ML signals (anomaly · leading · forecast)
 ## Variable cascades (what else moves)
+## Advanced reasoning
 ## Specialist board
 ## Tradeoffs
 ## Recommended moves
@@ -637,6 +706,9 @@ ${JSON.stringify(toolResults.map((t) => ({ tool: t.tool, ok: t.ok, summary: t.su
 
 CASCADES:
 ${variableCascades.map((c) => `- ${c}`).join("\n")}
+
+ADVANCED REASONING:
+${advancedReasoning.map((x) => `- ${x}`).join("\n")}
 
 SPECIALISTS:
 ${JSON.stringify(specialistNotes)}
@@ -673,6 +745,7 @@ export async function runGrokAgentLoop(
     local.brief.evidence,
     local.brief.variableCascades,
     local.brief.specialistNotes,
+    local.brief.advancedReasoning ?? [],
   );
 
   try {

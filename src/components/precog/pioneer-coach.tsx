@@ -17,11 +17,11 @@ import {
 } from "lucide-react";
 
 const PROMPTS = [
+  "Run advanced reasoning: Bayesian P(fail), beam-optimal control sequence, and EVOI.",
+  "What counterfactual intervention most reduces Bayesian expected annual loss?",
   "Where is residual risk worst, and what do leading indicators say?",
-  "If I turn on dual control and cameras, what else moves — premium, retained, residual?",
-  "Forecast residual for 12 weeks if I do nothing vs dual control + bank rec.",
-  "What COSO language should I use when I accept residual risk on write-offs?",
-  "Give me a multi-agent board brief: ops, controls, precog, and critic.",
+  "If I turn on dual control and cameras, what else moves?",
+  "Give me a multi-agent board brief with the beam search plan.",
 ];
 
 function renderInline(text: string): ReactNode[] {
@@ -148,21 +148,25 @@ export function PioneerCoach({
     });
   }
 
+  const usedReasoning = result?.toolsUsed?.includes("run_advanced_reasoning");
+  const reasoningEvidence =
+    result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
+
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">LLM + RAG + ML</Badge>
-          <Badge variant="primary">Multi-agent board</Badge>
+          <Badge variant="accent">Advanced reasoning</Badge>
+          <Badge variant="primary">Bayesian · Beam · CF · EVOI</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" />
           Precog Pioneer
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Tool-grounded agent loop: residual, cascades, TF-IDF guidance retrieval, anomaly
-          scoring, leading indicators, residual forecast, then Operator / Shield / Precog /
-          Critic specialists.
+          Not a chat wrapper. Every run can fire Bayesian posteriors, causal multi-hop paths,
+          beam search over control sequences, twin-world counterfactuals, and EVOI — then the
+          multi-agent board writes the scout brief.
         </p>
       </section>
 
@@ -170,7 +174,7 @@ export function PioneerCoach({
         <CardHeader>
           <CardTitle>Ask the frontier</CardTitle>
           <CardDescription>
-            Always retrieves RAG + ML tools. Opens Intelligence for charts.
+            Advanced reasoning tool runs by default with RAG, ML, and cascades.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -201,7 +205,7 @@ export function PioneerCoach({
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Multi-agent run…
+                  Reasoning…
                 </>
               ) : (
                 <>
@@ -212,7 +216,7 @@ export function PioneerCoach({
             </Button>
             <Button variant="secondary" onClick={() => onNavigate?.("intel")}>
               <Brain className="size-3.5" />
-              Intelligence
+              Reasoning panel
             </Button>
             <Button variant="secondary" onClick={() => onNavigate?.("precog")}>
               <GitBranch className="size-3.5" />
@@ -237,22 +241,56 @@ export function PioneerCoach({
                   Reasoning trace
                 </CardTitle>
                 <CardDescription>
-                  {result.toolsUsed?.length ?? 0} tools · {result.latencyMs ?? "—"}ms ·{" "}
-                  {result.source}
+                  {result.toolsUsed?.length ?? 0} tools
+                  {usedReasoning ? " · advanced reasoning on" : ""} ·{" "}
+                  {result.latencyMs ?? "—"}ms · {result.source}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {result.steps!.map((s, i) => (
                   <div
                     key={`${s.phase}-${i}`}
-                    className="rounded-lg border border-border bg-elevated px-3 py-2"
+                    className={
+                      s.phase === "reason"
+                        ? "rounded-lg border border-primary/40 bg-primary/5 px-3 py-2"
+                        : "rounded-lg border border-border bg-elevated px-3 py-2"
+                    }
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="default">{s.phase}</Badge>
+                      <Badge variant={s.phase === "reason" ? "primary" : "default"}>
+                        {s.phase}
+                      </Badge>
                       <span className="text-sm font-medium">{s.title}</span>
                     </div>
                     <p className="mt-1 text-xs text-muted">{s.detail}</p>
                   </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {reasoningEvidence.length > 0 && (
+            <Card className="border-primary/25">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="size-4 text-primary" />
+                  Advanced reasoning outputs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {reasoningEvidence.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => onNavigate?.(e.link.tab, e.link.id)}
+                    className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm"
+                  >
+                    <span className="text-[10px] text-subtle">{e.id}</span>
+                    <span className="block font-medium">{e.label}</span>
+                    {e.metric && (
+                      <span className="block text-xs text-muted">{e.metric}</span>
+                    )}
+                  </button>
                 ))}
               </CardContent>
             </Card>
@@ -381,12 +419,19 @@ export function PioneerCoach({
                     );
                   }
                   if (line.startsWith("## ")) {
+                    const title = line.replace(/^## /, "");
+                    const highlight = /advanced reasoning/i.test(title);
                     return (
                       <h3
                         key={i}
-                        className="pt-2 text-base font-semibold tracking-tight text-fg"
+                        className={
+                          highlight
+                            ? "flex items-center gap-2 pt-2 text-base font-semibold text-primary"
+                            : "pt-2 text-base font-semibold tracking-tight text-fg"
+                        }
                       >
-                        {line.replace(/^## /, "")}
+                        {highlight && <Sparkles className="size-4" />}
+                        {title}
                       </h3>
                     );
                   }
