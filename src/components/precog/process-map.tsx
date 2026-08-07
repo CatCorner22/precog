@@ -5,6 +5,7 @@ import {
   Handle,
   MarkerType,
   MiniMap,
+  Panel,
   Position,
   ReactFlow,
   type Edge,
@@ -27,6 +28,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Lightbulb,
   Network,
   Recycle,
@@ -43,12 +46,123 @@ function asMapNode(data: unknown): MapGraphNode {
   return data as MapGraphNode;
 }
 
+/** Shared heat scale — keep legend and node borders in sync. */
+export const HEAT_SCALE = [
+  {
+    id: "cool",
+    label: "Cool",
+    range: "0–24",
+    meaning: "Stable process · low residual heat",
+    color: "var(--color-border-strong)",
+    swatchClass: "bg-border-strong",
+    min: 0,
+    max: 24,
+  },
+  {
+    id: "watch",
+    label: "Watch",
+    range: "25–44",
+    meaning: "Elevated · monitor & document",
+    color: "var(--color-primary)",
+    swatchClass: "bg-primary",
+    min: 25,
+    max: 44,
+  },
+  {
+    id: "warm",
+    label: "Warm",
+    range: "45–69",
+    meaning: "Material risk · plan remediation",
+    color: "var(--color-warn)",
+    swatchClass: "bg-warn",
+    min: 45,
+    max: 69,
+  },
+  {
+    id: "hot",
+    label: "Hot",
+    range: "70–100",
+    meaning: "Critical path · act this week",
+    color: "var(--color-danger)",
+    swatchClass: "bg-danger",
+    min: 70,
+    max: 100,
+  },
+] as const;
+
+const NODE_TYPE_LEGEND = [
+  {
+    id: "process",
+    label: "Process",
+    meaning: "Value-stream step (inputs → outputs)",
+    color: "var(--color-primary)",
+    icon: Workflow,
+  },
+  {
+    id: "risk",
+    label: "Risk",
+    meaning: "Severity × likelihood tagged risk",
+    color: "var(--color-danger)",
+    icon: AlertTriangle,
+  },
+  {
+    id: "idea",
+    label: "Idea",
+    meaning: "Improvement / control opportunity",
+    color: "var(--color-warn)",
+    icon: Lightbulb,
+  },
+  {
+    id: "waste",
+    label: "Waste",
+    meaning: "Lean muda / mura / muri",
+    color: "var(--color-muted)",
+    icon: Recycle,
+  },
+  {
+    id: "control",
+    label: "SoD gap",
+    meaning: "Open segregation-of-duties issue",
+    color: "var(--color-danger)",
+    icon: ShieldAlert,
+  },
+  {
+    id: "knowledge",
+    label: "Knowledge",
+    meaning: "Critical skill · SPOF if sole owner",
+    color: "var(--color-primary)",
+    icon: Network,
+  },
+  {
+    id: "person",
+    label: "Owner",
+    meaning: "Person accountable for the process",
+    color: "var(--color-ok)",
+    icon: User,
+  },
+] as const;
+
+const EDGE_LEGEND = [
+  { id: "depends", label: "Feeds / depends", style: "solid", color: "var(--color-primary)" },
+  { id: "has_risk", label: "Has risk / SoD", style: "solid", color: "var(--color-danger)" },
+  { id: "has_idea", label: "Has idea / knowledge", style: "dashed", color: "var(--color-warn)" },
+  { id: "owns", label: "Owns / expert", style: "solid", color: "var(--color-ok)" },
+] as const;
+
 function heatColor(sev?: number) {
   const s = sev ?? 0;
-  if (s >= 70) return "var(--color-danger)";
-  if (s >= 45) return "var(--color-warn)";
-  if (s >= 25) return "var(--color-primary)";
-  return "var(--color-border-strong)";
+  if (s >= 70) return HEAT_SCALE[3].color;
+  if (s >= 45) return HEAT_SCALE[2].color;
+  if (s >= 25) return HEAT_SCALE[1].color;
+  return HEAT_SCALE[0].color;
+}
+
+function heatBandLabel(sev?: number) {
+  const s = sev ?? 0;
+  if (s >= 70) return HEAT_SCALE[3].label;
+  if (s >= 45) return HEAT_SCALE[2].label;
+  if (s >= 25) return HEAT_SCALE[1].label;
+  return HEAT_SCALE[0].label;
 }
 
 function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
@@ -64,7 +178,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       <Handle type="target" position={Position.Left} className="!bg-primary" />
       <div className="flex items-center gap-1.5 text-[10px] tracking-wide text-subtle uppercase">
         <Workflow className="size-3" />
-        process · heat {d.severity ?? 0}
+        process · {heatBandLabel(d.severity)} {d.severity ?? 0}
       </div>
       <p className="mt-1 text-sm font-semibold leading-tight text-fg">{d.label}</p>
       <p className="mt-1 line-clamp-2 text-[11px] text-muted">{d.subtitle}</p>
@@ -187,6 +301,134 @@ const EDGE_STYLE: Record<string, { stroke: string; dashed?: boolean }> = {
   owns: { stroke: "var(--color-ok)" },
   feeds: { stroke: "var(--color-primary)" },
 };
+
+function ProcessMapLegend({ compact = false }: { compact?: boolean }) {
+  const [open, setOpen] = useState(!compact);
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-surface/95 shadow-lg backdrop-blur",
+        compact ? "max-w-[280px]" : "w-full",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-xs font-semibold tracking-wide text-fg uppercase">
+          Risk color legend
+        </span>
+        {open ? (
+          <ChevronUp className="size-3.5 text-muted" />
+        ) : (
+          <ChevronDown className="size-3.5 text-muted" />
+        )}
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t border-border px-3 py-3">
+          {/* Heat continuum */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-medium tracking-wide text-subtle uppercase">
+              Process heat (border + minimap)
+            </p>
+            <div
+              className="mb-2 h-2.5 w-full overflow-hidden rounded-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, var(--color-border-strong) 0%, var(--color-primary) 33%, var(--color-warn) 66%, var(--color-danger) 100%)",
+              }}
+              role="img"
+              aria-label="Heat scale from cool to hot"
+            />
+            <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {HEAT_SCALE.map((band) => (
+                <li
+                  key={band.id}
+                  className="rounded-lg border border-border bg-elevated px-2 py-1.5"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="size-3 shrink-0 rounded-full ring-1 ring-black/20"
+                      style={{ background: band.color }}
+                      aria-hidden
+                    />
+                    <span className="text-[11px] font-semibold text-fg">{band.label}</span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] tabular text-muted">{band.range}</p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-subtle">{band.meaning}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Node types */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-medium tracking-wide text-subtle uppercase">
+              Node types
+            </p>
+            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {NODE_TYPE_LEGEND.map((n) => {
+                const Icon = n.icon;
+                return (
+                  <li
+                    key={n.id}
+                    className="flex items-start gap-2 rounded-md border border-border/80 bg-elevated/60 px-2 py-1"
+                  >
+                    <span
+                      className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border"
+                      style={{ borderColor: n.color, color: n.color }}
+                    >
+                      <Icon className="size-3" />
+                    </span>
+                    <span>
+                      <span className="block text-[11px] font-medium text-fg">{n.label}</span>
+                      <span className="block text-[10px] text-muted">{n.meaning}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Edges */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-medium tracking-wide text-subtle uppercase">
+              Edges
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {EDGE_LEGEND.map((e) => (
+                <li
+                  key={e.id}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1 text-[10px] text-muted"
+                >
+                  <span
+                    className="inline-block w-7"
+                    style={{
+                      borderTopWidth: 2,
+                      borderTopStyle: e.style === "dashed" ? "dashed" : "solid",
+                      borderTopColor: e.color,
+                    }}
+                    aria-hidden
+                  />
+                  {e.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="text-[10px] leading-snug text-subtle">
+            Heat = process risk scores + open SoD gaps + knowledge SPOFs + residual signals.
+            Educational — not an actuarial rating.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ProcessMap({
   onNavigate,
@@ -327,6 +569,35 @@ export function ProcessMap({
             label="Knowledge"
           />
         </div>
+
+        {/* Always-visible compact heat strip under filters */}
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-elevated/50 px-3 py-2">
+          <span className="text-[10px] font-semibold tracking-wide text-subtle uppercase">
+            Heat
+          </span>
+          <div
+            className="h-2 w-24 shrink-0 rounded-full sm:w-32"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--color-border-strong), var(--color-primary), var(--color-warn), var(--color-danger))",
+            }}
+            aria-hidden
+          />
+          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+            {HEAT_SCALE.map((band) => (
+              <li key={band.id} className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+                <span
+                  className="size-2.5 rounded-full ring-1 ring-black/15"
+                  style={{ background: band.color }}
+                  aria-hidden
+                />
+                <span className="font-medium text-fg">{band.label}</span>
+                <span className="tabular text-subtle">{band.range}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
         <p className="mt-3 text-xs text-subtle">
           {graph.snapshots.length} processes · {hotCount} hot · pan/zoom · minimap
         </p>
@@ -356,11 +627,19 @@ export function ProcessMap({
                 maskColor="rgba(0,0,0,0.55)"
                 nodeColor={(n) => heatColor(asMapNode(n.data)?.severity)}
               />
+              <Panel position="top-left" className="m-2!">
+                <ProcessMapLegend compact />
+              </Panel>
             </ReactFlow>
           </div>
         </Card>
 
         <div className="space-y-3">
+          {/* Full legend also in sidebar for mobile / print readability */}
+          <div className="xl:hidden">
+            <ProcessMapLegend />
+          </div>
+
           {snapshot ? (
             <ProcessDetail
               snapshot={snapshot}
@@ -398,13 +677,21 @@ export function ProcessMap({
                     }}
                     className="flex w-full items-center justify-between rounded-lg border border-border bg-elevated px-2.5 py-2 text-left text-sm hover:border-border-strong"
                   >
-                    <span className="truncate font-medium">{s.process.name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-full ring-1 ring-black/15"
+                        style={{ background: heatColor(s.heat) }}
+                        title={heatBandLabel(s.heat)}
+                        aria-hidden
+                      />
+                      <span className="truncate font-medium">{s.process.name}</span>
+                    </span>
                     <Badge
                       variant={
                         s.heat >= 70 ? "danger" : s.heat >= 45 ? "warn" : "default"
                       }
                     >
-                      {s.heat}
+                      {heatBandLabel(s.heat)} {s.heat}
                     </Badge>
                   </button>
                 ))}
@@ -457,8 +744,13 @@ function ProcessDetail({
     <Card>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="size-3 rounded-full ring-1 ring-black/15"
+            style={{ background: heatColor(snapshot.heat) }}
+            aria-hidden
+          />
           <Badge variant={snapshot.heat >= 70 ? "danger" : "primary"}>
-            heat {snapshot.heat}
+            {heatBandLabel(snapshot.heat)} · heat {snapshot.heat}
           </Badge>
           {snapshot.residualScore != null && (
             <Badge variant="warn">residual {snapshot.residualScore}</Badge>
@@ -523,40 +815,49 @@ function ProcessDetail({
             <AlertTriangle className="size-3" /> Risks ({snapshot.risks.length})
           </p>
           <ul className="space-y-1.5">
-            {snapshot.risks.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-lg border border-danger/20 bg-danger/5 px-2 py-1.5 text-xs"
-              >
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="font-medium">{r.title}</span>
-                  <Badge variant="danger">
-                    S{r.severity}×L{r.likelihood}
-                  </Badge>
-                </div>
-                <p className="mt-0.5 text-muted">{r.note}</p>
-                {r.linkedScenarioId && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-1 h-7 px-2 text-[11px]"
-                    onClick={() => onNavigate?.("precog", r.linkedScenarioId)}
-                  >
-                    Open Precog scenario
-                  </Button>
-                )}
-                {r.linkedKnowledgeId && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-1 h-7 px-2 text-[11px]"
-                    onClick={() => onNavigate?.("knowledge", r.linkedKnowledgeId)}
-                  >
-                    Knowledge map
-                  </Button>
-                )}
-              </li>
-            ))}
+            {snapshot.risks.map((r) => {
+              const score = r.severity * r.likelihood * 4;
+              return (
+                <li
+                  key={r.id}
+                  className="rounded-lg border border-danger/20 bg-danger/5 px-2 py-1.5 text-xs"
+                >
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span
+                      className="size-2.5 rounded-full ring-1 ring-black/15"
+                      style={{ background: heatColor(score) }}
+                      aria-hidden
+                    />
+                    <span className="font-medium">{r.title}</span>
+                    <Badge variant="danger">
+                      S{r.severity}×L{r.likelihood}
+                    </Badge>
+                    <span className="text-[10px] text-subtle">{heatBandLabel(score)}</span>
+                  </div>
+                  <p className="mt-0.5 text-muted">{r.note}</p>
+                  {r.linkedScenarioId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1 h-7 px-2 text-[11px]"
+                      onClick={() => onNavigate?.("precog", r.linkedScenarioId)}
+                    >
+                      Open Precog scenario
+                    </Button>
+                  )}
+                  {r.linkedKnowledgeId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1 h-7 px-2 text-[11px]"
+                      onClick={() => onNavigate?.("knowledge", r.linkedKnowledgeId)}
+                    >
+                      Knowledge map
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
             {snapshot.risks.length === 0 && (
               <li className="text-xs text-muted">No tagged risks.</li>
             )}
