@@ -6,6 +6,11 @@ import {
 } from "@/lib/precog/demo-data";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
+import {
+  DEFAULT_RISK_VARIABLES,
+  type RiskVariableState,
+} from "@/lib/precog/scoring/dynamic-variables";
+import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,14 +26,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { GitCompare, LineChart } from "lucide-react";
+import { GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 
 export function ScenarioRunner({
   initialScenarioId,
 }: {
   initialScenarioId?: string | null;
 }) {
-  const [view, setView] = useState<"single" | "compare">("single");
+  const [view, setView] = useState<"single" | "compare" | "variables">("single");
   const [scenarioId, setScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
       ? initialScenarioId
@@ -36,6 +41,11 @@ export function ScenarioRunner({
   );
   const [mitigations, setMitigations] = useState<string[]>([]);
   const [staff, setStaff] = useState<StaffComposition>({ ...baseStaff });
+  const [riskVars, setRiskVars] = useState<RiskVariableState>({
+    ...DEFAULT_RISK_VARIABLES,
+    hasDualControl: baseStaff.dualControlPayments,
+    hasIndependentBankRec: baseStaff.independentBankRec,
+  });
 
   useEffect(() => {
     if (initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)) {
@@ -44,10 +54,34 @@ export function ScenarioRunner({
     }
   }, [initialScenarioId]);
 
+  // Keep staff toggles mirrored into risk variables for dual control / bank rec
+  function updateStaff(next: StaffComposition) {
+    setStaff(next);
+    setRiskVars((v) => ({
+      ...v,
+      hasDualControl: next.dualControlPayments,
+      hasIndependentBankRec: next.independentBankRec,
+    }));
+  }
+
+  function updateRiskVars(next: RiskVariableState) {
+    setRiskVars(next);
+    setStaff((s) => ({
+      ...s,
+      dualControlPayments: next.hasDualControl,
+      independentBankRec: next.hasIndependentBankRec,
+    }));
+  }
+
   const scenario = scenarios.find((s) => s.id === scenarioId)!;
   const result = useMemo(
-    () => runPrecogScenario(scenarioId, { mitigationIds: mitigations, staff }),
-    [scenarioId, mitigations, staff],
+    () =>
+      runPrecogScenario(scenarioId, {
+        mitigationIds: mitigations,
+        staff,
+        riskVariables: riskVars,
+      }),
+    [scenarioId, mitigations, staff, riskVars],
   );
 
   const chartData = useMemo(() => {
@@ -87,14 +121,77 @@ export function ScenarioRunner({
           <GitCompare className="size-3.5" />
           Multi-scenario compare
         </Button>
+        <Button
+          size="sm"
+          variant={view === "variables" ? "default" : "secondary"}
+          onClick={() => setView("variables")}
+        >
+          <SlidersHorizontal className="size-3.5" />
+          Dynamic variables
+        </Button>
       </div>
 
       {view === "compare" ? (
         <ScenarioCompare
           initialScenarioId={scenarioId}
           sharedStaff={staff}
-          onStaffChange={setStaff}
+          onStaffChange={updateStaff}
+          riskVariables={riskVars}
         />
+      ) : view === "variables" ? (
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {scenarios.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setScenarioId(s.id)}
+                className={
+                  scenarioId === s.id
+                    ? "rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-left text-sm"
+                    : "rounded-xl border border-border bg-elevated px-3 py-2 text-left text-sm"
+                }
+              >
+                {s.title}
+              </button>
+            ))}
+          </div>
+          <DynamicVariablesPanel
+            value={riskVars}
+            onChange={updateRiskVars}
+            result={result}
+          />
+          {result && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Live outcome for selected scenario</CardTitle>
+                <CardDescription>{scenario.title}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <Outcome
+                  label="p50 timeline"
+                  value={`${result.timelineDays.p50}d`}
+                  sub={`${result.timelineDays.p95Low}–${result.timelineDays.p95High}d 95%`}
+                />
+                <Outcome
+                  label="Gross expected"
+                  value={formatUsd(result.financialImpact.expected)}
+                  sub="before insurance"
+                />
+                <Outcome
+                  label="Retained expected"
+                  value={formatUsd(result.retainedImpact.expected)}
+                  sub="after deductible / limit"
+                />
+                <Outcome
+                  label="Annual cost of risk"
+                  value={formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}
+                  sub="premium + annualized retained"
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       ) : !result ? null : (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -123,15 +220,15 @@ export function ScenarioRunner({
               <CardHeader>
                 <CardTitle>Precog projection</CardTitle>
                 <CardDescription>
-                  Statistically grounded timeline + financial impact (educational demo model)
+                  Dynamic likelihood & severity · gross vs retained · insurance cost-of-risk
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <Stat
                     label="Most likely timeline"
                     value={`${result.timelineDays.p50} days`}
-                    hint="p50 to material impact"
+                    hint="p50 · detection lag applied"
                   />
                   <Stat
                     label="95% confidence range"
@@ -139,11 +236,43 @@ export function ScenarioRunner({
                     hint={result.confidenceLabel}
                   />
                   <Stat
-                    label="Expected financial impact"
+                    label="Gross financial impact"
                     value={formatUsd(result.financialImpact.expected)}
                     hint={`${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
                   />
+                  <Stat
+                    label="Retained by practice"
+                    value={formatUsd(result.retainedImpact.expected)}
+                    hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)} after deductible/limit`}
+                  />
+                  <Stat
+                    label="Net premium / year"
+                    value={formatUsd(result.dynamic?.premiumAnnualNet ?? 0)}
+                    hint={`−${result.dynamic?.discountPctApplied ?? 0}% control credits`}
+                  />
+                  <Stat
+                    label="Annual cost of risk"
+                    value={formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}
+                    hint="Premium + annualized retained EL"
+                  />
                 </div>
+
+                {result.dynamic && (
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="primary">
+                      Likelihood ×{result.dynamic.likelihoodMultiplier.toFixed(2)}
+                    </Badge>
+                    <Badge variant="warn">
+                      Severity ×{result.dynamic.grossSeverityMultiplier.toFixed(2)}
+                    </Badge>
+                    <Badge variant="default">
+                      Detection lag ×{result.dynamic.detectionLagMultiplier.toFixed(2)}
+                    </Badge>
+                    <Badge variant="ok">
+                      Transferred {formatUsd(result.dynamic.transferredExpected)}
+                    </Badge>
+                  </div>
+                )}
 
                 <div className="h-48 w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -200,10 +329,16 @@ export function ScenarioRunner({
                   </ul>
                 </div>
 
-                <Button variant="secondary" size="sm" onClick={() => setView("compare")}>
-                  <GitCompare className="size-3.5" />
-                  Compare futures of this scenario
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setView("variables")}>
+                    <SlidersHorizontal className="size-3.5" />
+                    Tune premium / deductible / discounts
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setView("compare")}>
+                    <GitCompare className="size-3.5" />
+                    Compare futures
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -211,7 +346,7 @@ export function ScenarioRunner({
               <Card>
                 <CardHeader>
                   <CardTitle>Staff composition modifiers</CardTitle>
-                  <CardDescription>Adjust to see risk recompute</CardDescription>
+                  <CardDescription>Syncs dual control & bank rec into insurance variables</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow
@@ -219,7 +354,7 @@ export function ScenarioRunner({
                     value={staff.teamSize}
                     min={2}
                     max={20}
-                    onChange={(v) => setStaff((s) => ({ ...s, teamSize: v }))}
+                    onChange={(v) => updateStaff({ ...staff, teamSize: v })}
                   />
                   <SliderRow
                     label="Sole-owner knowledge items"
@@ -227,7 +362,7 @@ export function ScenarioRunner({
                     min={0}
                     max={8}
                     onChange={(v) =>
-                      setStaff((s) => ({ ...s, soleOwnerKnowledgeCount: v }))
+                      updateStaff({ ...staff, soleOwnerKnowledgeCount: v })
                     }
                   />
                   <SliderRow
@@ -235,14 +370,14 @@ export function ScenarioRunner({
                     value={staff.segregationScore}
                     min={0}
                     max={100}
-                    onChange={(v) => setStaff((s) => ({ ...s, segregationScore: v }))}
+                    onChange={(v) => updateStaff({ ...staff, segregationScore: v })}
                   />
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
                       checked={staff.dualControlPayments}
                       onChange={(e) =>
-                        setStaff((s) => ({ ...s, dualControlPayments: e.target.checked }))
+                        updateStaff({ ...staff, dualControlPayments: e.target.checked })
                       }
                       className="size-4 accent-[var(--color-primary)]"
                     />
@@ -253,13 +388,13 @@ export function ScenarioRunner({
                       type="checkbox"
                       checked={staff.independentBankRec}
                       onChange={(e) =>
-                        setStaff((s) => ({ ...s, independentBankRec: e.target.checked }))
+                        updateStaff({ ...staff, independentBankRec: e.target.checked })
                       }
                       className="size-4 accent-[var(--color-primary)]"
                     />
                     Independent bank reconciliation
                   </label>
-                  <ul className="space-y-1 text-xs text-muted">
+                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted">
                     {result.staffModifiers.map((m) => (
                       <li key={m}>· {m}</li>
                     ))}
@@ -269,8 +404,8 @@ export function ScenarioRunner({
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Crime / fraud statistics</CardTitle>
-                  <CardDescription>Published-pattern base rates (demo)</CardDescription>
+                  <CardTitle>Crime / transfer notes</CardTitle>
+                  <CardDescription>Base rates + dynamic insurance reasoning</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
@@ -290,9 +425,9 @@ export function ScenarioRunner({
 
           <Card>
             <CardHeader>
-              <CardTitle>Mitigations — compare futures</CardTitle>
+              <CardTitle>Mitigations</CardTitle>
               <CardDescription>
-                Toggle actions here, or open multi-scenario compare for full side-by-side
+                Operational mitigations stack with insurance variables and staff controls
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -333,20 +468,39 @@ export function ScenarioRunner({
                   size="sm"
                   onClick={() => {
                     setMitigations([]);
-                    setStaff({ ...baseStaff });
+                    updateStaff({ ...baseStaff });
+                    setRiskVars({
+                      ...DEFAULT_RISK_VARIABLES,
+                      hasDualControl: baseStaff.dualControlPayments,
+                      hasIndependentBankRec: baseStaff.independentBankRec,
+                    });
                   }}
                 >
-                  Reset scenario
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setView("compare")}>
-                  <GitCompare className="size-3.5" />
-                  Open full comparison
+                  Reset all variables
                 </Button>
               </div>
             </CardContent>
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+function Outcome({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-elevated p-3">
+      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="text-lg font-semibold tabular">{value}</p>
+      <p className="text-xs text-muted">{sub}</p>
     </div>
   );
 }

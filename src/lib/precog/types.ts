@@ -27,9 +27,9 @@ export interface Person {
 export interface KnowledgeItem {
   id: string;
   name: string;
-  description: string;
   criticality: Criticality;
   category: KnowledgeCategory;
+  description: string;
   linkedProcessIds: string[];
 }
 
@@ -97,11 +97,30 @@ export interface MitigationOption {
   costAnnual: number;
 }
 
+export interface DynamicRiskSlice {
+  likelihoodMultiplier: number;
+  grossSeverityMultiplier: number;
+  detectionLagMultiplier: number;
+  grossExpected: number;
+  retainedExpected: number;
+  transferredExpected: number;
+  premiumAnnualNet: number;
+  discountPctApplied: number;
+  expectedAnnualCostOfRisk: number;
+  eventPlusPremiumExpected: number;
+  drivers: { id: string; label: string; effect: string; on: string }[];
+  discountLines: { label: string; pct: number; active: boolean; reason: string }[];
+  notes: string[];
+}
+
 export interface PrecogResult {
   scenarioId: string;
   timelineDays: { p50: number; p95Low: number; p95High: number };
   confidenceLabel: string;
+  /** Gross loss before insurance retention */
   financialImpact: { expected: number; low: number; high: number };
+  /** Practice-retained severity after deductible/limit */
+  retainedImpact: { expected: number; low: number; high: number };
   staffModifiers: string[];
   crimeModifiers: string[];
   cascade: { layer: MatrixLayerId; effect: string }[];
@@ -109,6 +128,7 @@ export interface PrecogResult {
   residualIfNothing: string;
   sources: string[];
   assumptions: string[];
+  dynamic?: DynamicRiskSlice;
 }
 
 export interface KnowledgeRisk {

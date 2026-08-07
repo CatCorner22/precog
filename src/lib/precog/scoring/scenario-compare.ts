@@ -2,6 +2,7 @@ import { scenarios } from "../demo-data";
 import { runPrecogScenario } from "../engine";
 import type { PrecogResult, StaffComposition } from "../types";
 import { staffComposition as defaultStaff } from "../demo-data";
+import type { RiskVariableState } from "./dynamic-variables";
 
 export interface CompareColumn {
   id: string;
@@ -18,10 +19,12 @@ export interface CompareDelta {
   columnId: string;
   vsBaseline: {
     expectedLossDelta: number;
+    retainedDelta: number;
     p50DaysDelta: number;
     p95HighDelta: number;
     priorityIndexDelta: number;
     expectedLossPct: number;
+    annualCorDelta: number;
   };
 }
 
@@ -30,17 +33,23 @@ export interface CompareReport {
   columns: CompareColumn[];
   deltas: CompareDelta[];
   winnerByLoss: string;
-  winnerBySpeed: string; // longest p50 = worst; winner = longest delay / safest time
+  winnerByRetained: string;
+  winnerBySpeed: string;
   winnerByPriority: string;
+  winnerByAnnualCor: string;
   staff: StaffComposition;
 }
 
+function lossMetric(result: PrecogResult): number {
+  return result.retainedImpact?.expected ?? result.financialImpact.expected;
+}
+
+function annualCor(result: PrecogResult): number {
+  return result.dynamic?.expectedAnnualCostOfRisk ?? lossMetric(result);
+}
+
 function priorityIndex(result: PrecogResult): number {
-  // Higher = more urgent/dangerous
-  return (
-    result.financialImpact.expected *
-    (1 / Math.max(14, result.timelineDays.p50))
-  );
+  return lossMetric(result) * (1 / Math.max(14, result.timelineDays.p50));
 }
 
 export function buildCompareColumn(
@@ -48,9 +57,14 @@ export function buildCompareColumn(
   mitigationIds: string[],
   staff: StaffComposition,
   label?: string,
+  riskVariables?: RiskVariableState,
 ): CompareColumn | null {
   const scenario = scenarios.find((s) => s.id === scenarioId);
-  const result = runPrecogScenario(scenarioId, { mitigationIds, staff });
+  const result = runPrecogScenario(scenarioId, {
+    mitigationIds,
+    staff,
+    riskVariables,
+  });
   if (!scenario || !result) return null;
 
   const annualMitigationCost = scenario.mitigations
@@ -76,28 +90,26 @@ export function buildCompareColumn(
   };
 }
 
-/** Compare multiple scenarios under shared staff (default: do-nothing for each). */
 export function compareScenarios(
   scenarioIds: string[],
   staff: StaffComposition = defaultStaff,
   mitigationByScenario: Record<string, string[]> = {},
+  riskVariables?: RiskVariableState,
 ): CompareReport {
   const columns = scenarioIds
     .map((id) =>
-      buildCompareColumn(id, mitigationByScenario[id] ?? [], staff),
+      buildCompareColumn(id, mitigationByScenario[id] ?? [], staff, undefined, riskVariables),
     )
     .filter(Boolean) as CompareColumn[];
 
   return finalizeReport(columns, staff);
 }
 
-/**
- * Futures for one scenario: do nothing, each mitigation alone, and best single mitigation.
- */
 export function compareScenarioFutures(
   scenarioId: string,
   staff: StaffComposition = defaultStaff,
   selectedMitigationIds: string[] = [],
+  riskVariables?: RiskVariableState,
 ): CompareReport {
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) {
@@ -106,11 +118,11 @@ export function compareScenarioFutures(
 
   const columns: CompareColumn[] = [];
 
-  const base = buildCompareColumn(scenarioId, [], staff, "Do nothing");
+  const base = buildCompareColumn(scenarioId, [], staff, "Do nothing", riskVariables);
   if (base) columns.push(base);
 
   for (const m of scenario.mitigations) {
-    const col = buildCompareColumn(scenarioId, [m.id], staff, m.label);
+    const col = buildCompareColumn(scenarioId, [m.id], staff, m.label, riskVariables);
     if (col) columns.push(col);
   }
 
@@ -120,20 +132,9 @@ export function compareScenarioFutures(
       selectedMitigationIds,
       staff,
       "Selected package",
+      riskVariables,
     );
     if (combined) columns.push(combined);
-  }
-
-  // Best single mitigation by expected loss
-  const singles = columns.filter((c) => c.mitigationIds.length === 1);
-  if (singles.length > 0) {
-    const best = singles.reduce((a, b) =>
-      a.result.financialImpact.expected <= b.result.financialImpact.expected
-        ? a
-        : b,
-    );
-    // annotate is already a column
-    void best;
   }
 
   return finalizeReport(columns, staff);
@@ -149,8 +150,10 @@ function finalizeReport(
       columns: [],
       deltas: [],
       winnerByLoss: "",
+      winnerByRetained: "",
       winnerBySpeed: "",
       winnerByPriority: "",
+      winnerByAnnualCor: "",
       staff,
     };
   }
@@ -160,9 +163,11 @@ function finalizeReport(
 
   const deltas: CompareDelta[] = columns.map((c) => {
     const el = c.result.financialImpact.expected - baseline.result.financialImpact.expected;
+    const ret = lossMetric(c.result) - lossMetric(baseline.result);
     const p50 = c.result.timelineDays.p50 - baseline.result.timelineDays.p50;
     const p95 = c.result.timelineDays.p95High - baseline.result.timelineDays.p95High;
     const pri = c.priorityIndex - baseline.priorityIndex;
+    const cor = annualCor(c.result) - annualCor(baseline.result);
     const pct =
       baseline.result.financialImpact.expected === 0
         ? 0
@@ -171,10 +176,12 @@ function finalizeReport(
       columnId: c.id,
       vsBaseline: {
         expectedLossDelta: el,
+        retainedDelta: ret,
         p50DaysDelta: p50,
         p95HighDelta: p95,
         priorityIndexDelta: pri,
         expectedLossPct: pct,
+        annualCorDelta: cor,
       },
     };
   });
@@ -183,8 +190,10 @@ function finalizeReport(
     a.result.financialImpact.expected <= b.result.financialImpact.expected ? a : b,
   ).id;
 
-  // Safer = longer p50 (delay material impact) when comparing futures of same scenario;
-  // for multi-scenario, longer p50 can mean slower failure — still "better" for delay.
+  const winnerByRetained = columns.reduce((a, b) =>
+    lossMetric(a.result) <= lossMetric(b.result) ? a : b,
+  ).id;
+
   const winnerBySpeed = columns.reduce((a, b) =>
     a.result.timelineDays.p50 >= b.result.timelineDays.p50 ? a : b,
   ).id;
@@ -193,18 +202,23 @@ function finalizeReport(
     a.priorityIndex <= b.priorityIndex ? a : b,
   ).id;
 
+  const winnerByAnnualCor = columns.reduce((a, b) =>
+    annualCor(a.result) <= annualCor(b.result) ? a : b,
+  ).id;
+
   return {
     baselineId,
     columns,
     deltas,
     winnerByLoss,
+    winnerByRetained,
     winnerBySpeed,
     winnerByPriority,
+    winnerByAnnualCor,
     staff,
   };
 }
 
-/** Chart series: risk trajectory points per column */
 export function compareChartSeries(report: CompareReport) {
   const maxDay = Math.max(
     30,

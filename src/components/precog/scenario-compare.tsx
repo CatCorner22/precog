@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { scenarios, staffComposition as baseStaff } from "@/lib/precog/demo-data";
 import type { StaffComposition } from "@/lib/precog/types";
+import type { RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
 import {
   COMPARE_PALETTE,
   compareChartSeries,
@@ -30,10 +31,12 @@ export function ScenarioCompare({
   initialScenarioId,
   sharedStaff,
   onStaffChange,
+  riskVariables,
 }: {
   initialScenarioId?: string | null;
   sharedStaff?: StaffComposition;
   onStaffChange?: (s: StaffComposition) => void;
+  riskVariables?: RiskVariableState;
 }) {
   const [mode, setMode] = useState<Mode>("futures");
   const [focusScenarioId, setFocusScenarioId] = useState(
@@ -52,10 +55,15 @@ export function ScenarioCompare({
 
   const report: CompareReport = useMemo(() => {
     if (mode === "futures") {
-      return compareScenarioFutures(focusScenarioId, staff, packageMits);
+      return compareScenarioFutures(
+        focusScenarioId,
+        staff,
+        packageMits,
+        riskVariables,
+      );
     }
-    return compareScenarios(selectedScenarios, staff, crossMits);
-  }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits]);
+    return compareScenarios(selectedScenarios, staff, crossMits, riskVariables);
+  }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
 
   const chartData = useMemo(() => compareChartSeries(report), [report]);
   const focusScenario = scenarios.find((s) => s.id === focusScenarioId)!;
@@ -120,7 +128,7 @@ export function ScenarioCompare({
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Scenario under test</CardTitle>
             <CardDescription>
-              Side-by-side: do nothing vs each mitigation vs optional package
+              Side-by-side under current insurance / control variables
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -175,7 +183,9 @@ export function ScenarioCompare({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Scenarios to compare (max 4)</CardTitle>
-            <CardDescription>Shared staff composition · optional mitigations per column</CardDescription>
+            <CardDescription>
+              Shared staff + insurance variables · optional mitigations per column
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
@@ -237,7 +247,7 @@ export function ScenarioCompare({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Shared staff composition</CardTitle>
-          <CardDescription>Applied to every column in this comparison</CardDescription>
+          <CardDescription>Applied to every column (mirrors dual control / bank rec into variables)</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Slider
@@ -284,22 +294,21 @@ export function ScenarioCompare({
           <div className="flex flex-wrap gap-2">
             <WinnerChip
               icon
-              label="Lowest expected loss"
+              label="Lowest retained loss"
               value={
-                report.columns.find((c) => c.id === report.winnerByLoss)?.label ?? "—"
+                report.columns.find((c) => c.id === report.winnerByRetained)?.label ?? "—"
+              }
+            />
+            <WinnerChip
+              label="Lowest annual cost of risk"
+              value={
+                report.columns.find((c) => c.id === report.winnerByAnnualCor)?.label ?? "—"
               }
             />
             <WinnerChip
               label="Lowest priority pressure"
               value={
-                report.columns.find((c) => c.id === report.winnerByPriority)?.label ??
-                "—"
-              }
-            />
-            <WinnerChip
-              label="Longest p50 delay"
-              value={
-                report.columns.find((c) => c.id === report.winnerBySpeed)?.label ?? "—"
+                report.columns.find((c) => c.id === report.winnerByPriority)?.label ?? "—"
               }
             />
           </div>
@@ -308,14 +317,14 @@ export function ScenarioCompare({
             {report.columns.map((col, i) => {
               const d = deltaMap.get(col.id);
               const isBase = col.id === report.baselineId;
-              const isLossWinner = col.id === report.winnerByLoss;
+              const isWinner = col.id === report.winnerByRetained;
+              const retained =
+                col.result.retainedImpact?.expected ?? col.result.financialImpact.expected;
+              const cor = col.result.dynamic?.expectedAnnualCostOfRisk ?? retained;
               return (
                 <Card
                   key={col.id}
-                  className={cn(
-                    isLossWinner && "border-ok/40 glow-primary",
-                    isBase && !isLossWinner && "border-border",
-                  )}
+                  className={cn(isWinner && "border-ok/40 glow-primary")}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -324,35 +333,43 @@ export function ScenarioCompare({
                         style={{ background: COMPARE_PALETTE[i % COMPARE_PALETTE.length] }}
                       />
                       {isBase && <Badge variant="default">Baseline</Badge>}
-                      {isLossWinner && (
+                      {isWinner && (
                         <Badge variant="ok">
                           <Trophy className="mr-1 inline size-3" />
-                          Best loss
+                          Best retained
                         </Badge>
                       )}
                     </div>
                     <CardTitle className="text-sm leading-snug">{col.label}</CardTitle>
-                    {col.annualMitigationCost > 0 && (
-                      <CardDescription>
-                        Mitigation cost {formatUsd(col.annualMitigationCost)}/yr
-                      </CardDescription>
-                    )}
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <Metric
-                      label="Expected impact"
+                      label="Gross expected"
                       value={formatUsd(col.result.financialImpact.expected)}
                       sub={`${formatUsd(col.result.financialImpact.low)} – ${formatUsd(col.result.financialImpact.high)}`}
+                    />
+                    <Metric
+                      label="Retained expected"
+                      value={formatUsd(retained)}
+                      sub={
+                        col.result.dynamic
+                          ? `transferred ${formatUsd(col.result.dynamic.transferredExpected)}`
+                          : "after deductible/limit"
+                      }
+                    />
+                    <Metric
+                      label="Annual cost of risk"
+                      value={formatUsd(cor)}
+                      sub={
+                        col.result.dynamic
+                          ? `premium ${formatUsd(col.result.dynamic.premiumAnnualNet)}`
+                          : "incl. premium when modeled"
+                      }
                     />
                     <Metric
                       label="Timeline p50"
                       value={`${col.result.timelineDays.p50} days`}
                       sub={`95% ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High}d`}
-                    />
-                    <Metric
-                      label="Priority index"
-                      value={col.priorityIndex.toFixed(1)}
-                      sub="expected $ × 1/p50"
                     />
                     {!isBase && d && (
                       <div className="rounded-lg border border-border bg-elevated px-2 py-2 text-xs">
@@ -360,15 +377,20 @@ export function ScenarioCompare({
                         <p
                           className={cn(
                             "mt-1 font-medium",
-                            d.vsBaseline.expectedLossDelta < 0 ? "text-ok" : "text-danger",
+                            d.vsBaseline.retainedDelta < 0 ? "text-ok" : "text-danger",
                           )}
                         >
-                          Loss {fmtDeltaMoney(d.vsBaseline.expectedLossDelta)} (
-                          {d.vsBaseline.expectedLossPct.toFixed(0)}%)
+                          Retained {fmtDeltaMoney(d.vsBaseline.retainedDelta)}
+                        </p>
+                        <p
+                          className={cn(
+                            d.vsBaseline.annualCorDelta < 0 ? "text-ok" : "text-muted",
+                          )}
+                        >
+                          Annual CoR {fmtDeltaMoney(d.vsBaseline.annualCorDelta)}
                         </p>
                         <p className="text-muted">
-                          p50 {fmtDeltaDays(d.vsBaseline.p50DaysDelta)} · p95 high{" "}
-                          {fmtDeltaDays(d.vsBaseline.p95HighDelta)}
+                          p50 {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
                         </p>
                       </div>
                     )}
@@ -381,9 +403,7 @@ export function ScenarioCompare({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Impact risk trajectories</CardTitle>
-              <CardDescription>
-                Overlay of risk build-up over days (model curves for comparison)
-              </CardDescription>
+              <CardDescription>Overlay under shared staff + insurance variables</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64 w-full">
@@ -393,13 +413,6 @@ export function ScenarioCompare({
                     <XAxis
                       dataKey="day"
                       tick={{ fill: "var(--color-muted)", fontSize: 11 }}
-                      label={{
-                        value: "Days",
-                        position: "insideBottom",
-                        offset: -2,
-                        fill: "var(--color-subtle)",
-                        fontSize: 11,
-                      }}
                     />
                     <YAxis
                       domain={[0, 100]}
@@ -442,28 +455,31 @@ export function ScenarioCompare({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Comparison table</CardTitle>
-              <CardDescription>Baseline is the first column (do nothing / first scenario)</CardDescription>
+              <CardDescription>Gross vs retained vs annual cost of risk</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-[720px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs text-subtle">
                     <th className="py-2 pr-3 font-medium">Future</th>
-                    <th className="py-2 pr-3 font-medium">Expected $</th>
+                    <th className="py-2 pr-3 font-medium">Gross $</th>
+                    <th className="py-2 pr-3 font-medium">Retained $</th>
+                    <th className="py-2 pr-3 font-medium">Annual CoR</th>
                     <th className="py-2 pr-3 font-medium">p50</th>
-                    <th className="py-2 pr-3 font-medium">95% CI</th>
-                    <th className="py-2 pr-3 font-medium">Δ loss</th>
-                    <th className="py-2 font-medium">Mit. cost/yr</th>
+                    <th className="py-2 font-medium">Δ retained</th>
                   </tr>
                 </thead>
                 <tbody>
                   {report.columns.map((c) => {
                     const d = deltaMap.get(c.id);
+                    const retained =
+                      c.result.retainedImpact?.expected ?? c.result.financialImpact.expected;
+                    const cor = c.result.dynamic?.expectedAnnualCostOfRisk ?? retained;
                     return (
                       <tr key={c.id} className="border-b border-border/70">
                         <td className="py-2.5 pr-3 font-medium">
                           {c.label}
-                          {c.id === report.winnerByLoss && (
+                          {c.id === report.winnerByRetained && (
                             <Badge variant="ok" className="ml-2">
                               best
                             </Badge>
@@ -472,27 +488,21 @@ export function ScenarioCompare({
                         <td className="py-2.5 pr-3 tabular">
                           {formatUsd(c.result.financialImpact.expected)}
                         </td>
+                        <td className="py-2.5 pr-3 tabular">{formatUsd(retained)}</td>
+                        <td className="py-2.5 pr-3 tabular">{formatUsd(cor)}</td>
                         <td className="py-2.5 pr-3 tabular">
                           {c.result.timelineDays.p50}d
                         </td>
-                        <td className="py-2.5 pr-3 tabular text-muted">
-                          {c.result.timelineDays.p95Low}–{c.result.timelineDays.p95High}d
-                        </td>
                         <td
                           className={cn(
-                            "py-2.5 pr-3 tabular",
-                            d && d.vsBaseline.expectedLossDelta < 0 && "text-ok",
-                            d && d.vsBaseline.expectedLossDelta > 0 && "text-danger",
+                            "py-2.5 tabular",
+                            d && d.vsBaseline.retainedDelta < 0 && "text-ok",
+                            d && d.vsBaseline.retainedDelta > 0 && "text-danger",
                           )}
                         >
                           {c.id === report.baselineId
                             ? "—"
-                            : fmtDeltaMoney(d?.vsBaseline.expectedLossDelta ?? 0)}
-                        </td>
-                        <td className="py-2.5 tabular text-muted">
-                          {c.annualMitigationCost
-                            ? formatUsd(c.annualMitigationCost)
-                            : "—"}
+                            : fmtDeltaMoney(d?.vsBaseline.retainedDelta ?? 0)}
                         </td>
                       </tr>
                     );
