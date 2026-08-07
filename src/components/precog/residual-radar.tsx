@@ -4,7 +4,7 @@ import {
   tornadoSensitivity,
   type ResidualRiskScore,
 } from "@/lib/precog/scoring/residual-engine";
-import { staffComposition as baseStaff } from "@/lib/precog/demo-data";
+import { usePractice } from "@/lib/precog/practice-context";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,17 @@ export function ResidualRadar({
 }: {
   onNavigate: (target: DeepLinkTarget) => void;
 }) {
-  const summary = useMemo(() => portfolioSummary(baseStaff), []);
-  const tornado = useMemo(() => tornadoSensitivity(baseStaff), []);
-  const [selected, setSelected] = useState<ResidualRiskScore | null>(summary.top[0] ?? null);
+  const { profile } = usePractice();
+  const summary = useMemo(
+    () => portfolioSummary(profile.staff),
+    [profile.staff],
+  );
+  const tornado = useMemo(
+    () => tornadoSensitivity(profile.staff),
+    [profile.staff],
+  );
+  const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
+  const active = selected ?? summary.top[0] ?? null;
 
   const tornadoData = tornado.levers.map((l) => ({
     name: l.label.length > 28 ? l.label.slice(0, 27) + "…" : l.label,
@@ -52,7 +60,7 @@ export function ResidualRadar({
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Scoring engine" value={summary.scoringVersion.replace("precog-", "")} hint="Transparent weights" />
-        <Stat label="Avg residual" value={String(summary.averageResidual)} hint="Portfolio 0–100" />
+        <Stat label="Avg residual" value={String(summary.averageResidual)} hint="From practice profile" />
         <Stat label="Critical path" value={String(summary.criticalPath)} hint="Band ≥ 80" />
         <Stat label="Act now" value={String(summary.actNow)} hint="Band 60–79" />
       </div>
@@ -73,7 +81,7 @@ export function ResidualRadar({
                 onClick={() => setSelected(item)}
                 className={cn(
                   "flex w-full flex-col gap-2 rounded-xl border px-3 py-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between",
-                  selected?.id === item.id
+                  active?.id === item.id
                     ? "border-primary/50 bg-primary/10"
                     : "border-border bg-elevated hover:border-border-strong",
                 )}
@@ -123,17 +131,17 @@ export function ResidualRadar({
               <CardDescription>Drivers that move this residual score</CardDescription>
             </CardHeader>
             <CardContent>
-              {selected ? (
+              {active ? (
                 <div className="space-y-3">
-                  <p className="font-medium">{selected.name}</p>
-                  <p className="text-sm text-muted">{selected.bandGuidance}</p>
+                  <p className="font-medium">{active.name}</p>
+                  <p className="text-sm text-muted">{active.bandGuidance}</p>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <Mini n={selected.inherent} l="Inherent" />
-                    <Mini n={selected.controlEffectiveness} l="Effectiveness" />
-                    <Mini n={selected.residual} l="Residual" />
+                    <Mini n={active.inherent} l="Inherent" />
+                    <Mini n={active.controlEffectiveness} l="Effectiveness" />
+                    <Mini n={active.residual} l="Residual" />
                   </div>
                   <ul className="space-y-2">
-                    {selected.drivers.map((d) => (
+                    {active.drivers.map((d) => (
                       <li
                         key={d.id}
                         className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
@@ -148,15 +156,17 @@ export function ResidualRadar({
                       </li>
                     ))}
                   </ul>
-                  {(selected.expectedLoss || selected.linkedScenarioId || selected.linkedKnowledgeId) && (
-                    <Button size="sm" variant="secondary" onClick={() => openLinked(selected)}>
+                  {(active.expectedLoss ||
+                    active.linkedScenarioId ||
+                    active.linkedKnowledgeId) && (
+                    <Button size="sm" variant="secondary" onClick={() => openLinked(active)}>
                       Open linked evidence
                     </Button>
                   )}
-                  {selected.expectedLoss != null && (
+                  {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
-                      Scenario expected loss {formatUsd(selected.expectedLoss)}
-                      {selected.p50Days != null ? ` · p50 ${selected.p50Days}d` : ""}
+                      Scenario expected loss {formatUsd(active.expectedLoss)}
+                      {active.p50Days != null ? ` · p50 ${active.p50Days}d` : ""}
                     </p>
                   )}
                 </div>

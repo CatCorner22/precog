@@ -1,5 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
+import { PracticeProvider } from "@/lib/precog/practice-context";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import appCss from "../styles.css?url";
 
@@ -18,7 +19,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Pioneer residual-risk and Lean internal-controls coach for small dental practices — COSO, knowledge SPOFs, Precog scenarios, and frontier LLM briefs.",
+          "Tool-grounded Pioneer LLM coach for small dental practices — residual risk, COSO, knowledge SPOFs, Precog scenarios, insurance cost-of-risk.",
       },
       ...(ogImage
         ? [
@@ -42,7 +43,9 @@ function RootDocument() {
       <body className="min-h-dvh bg-bg text-fg antialiased">
         <CreatedWithGrokBanner />
         <AuthProvider>
-          <Outlet />
+          <PracticeProvider>
+            <Outlet />
+          </PracticeProvider>
         </AuthProvider>
         <Scripts />
       </body>

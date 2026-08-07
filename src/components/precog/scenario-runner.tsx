@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   crimeFraudStats,
   scenarios,
-  staffComposition as baseStaff,
 } from "@/lib/precog/demo-data";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
@@ -10,6 +9,7 @@ import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
+import { usePractice } from "@/lib/precog/practice-context";
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,8 @@ export function ScenarioRunner({
 }: {
   initialScenarioId?: string | null;
 }) {
+  const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } =
+    usePractice();
   const [view, setView] = useState<"single" | "compare" | "variables">("single");
   const [scenarioId, setScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
@@ -40,12 +42,16 @@ export function ScenarioRunner({
       : scenarios[0].id,
   );
   const [mitigations, setMitigations] = useState<string[]>([]);
-  const [staff, setStaff] = useState<StaffComposition>({ ...baseStaff });
+  const [staff, setStaff] = useState<StaffComposition>({ ...profile.staff });
   const [riskVars, setRiskVars] = useState<RiskVariableState>({
-    ...DEFAULT_RISK_VARIABLES,
-    hasDualControl: baseStaff.dualControlPayments,
-    hasIndependentBankRec: baseStaff.independentBankRec,
+    ...profile.riskVariables,
   });
+
+  // Sync from profile when it loads / changes externally
+  useEffect(() => {
+    setStaff({ ...profile.staff });
+    setRiskVars({ ...profile.riskVariables });
+  }, [profile.staff, profile.riskVariables]);
 
   useEffect(() => {
     if (initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)) {
@@ -54,7 +60,6 @@ export function ScenarioRunner({
     }
   }, [initialScenarioId]);
 
-  // Keep staff toggles mirrored into risk variables for dual control / bank rec
   function updateStaff(next: StaffComposition) {
     setStaff(next);
     setRiskVars((v) => ({
@@ -62,6 +67,7 @@ export function ScenarioRunner({
       hasDualControl: next.dualControlPayments,
       hasIndependentBankRec: next.independentBankRec,
     }));
+    setProfileStaff(next);
   }
 
   function updateRiskVars(next: RiskVariableState) {
@@ -71,6 +77,7 @@ export function ScenarioRunner({
       dualControlPayments: next.hasDualControl,
       independentBankRec: next.hasIndependentBankRec,
     }));
+    setProfileRisk(next);
   }
 
   const scenario = scenarios.find((s) => s.id === scenarioId)!;
@@ -164,7 +171,7 @@ export function ScenarioRunner({
           {result && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Live outcome for selected scenario</CardTitle>
+                <CardTitle className="text-base">Live outcome</CardTitle>
                 <CardDescription>{scenario.title}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -243,7 +250,7 @@ export function ScenarioRunner({
                   <Stat
                     label="Retained by practice"
                     value={formatUsd(result.retainedImpact.expected)}
-                    hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)} after deductible/limit`}
+                    hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
                   />
                   <Stat
                     label="Net premium / year"
@@ -284,14 +291,8 @@ export function ScenarioRunner({
                         </linearGradient>
                       </defs>
                       <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fill: "var(--color-muted)", fontSize: 11 }}
-                      />
-                      <YAxis
-                        tick={{ fill: "var(--color-muted)", fontSize: 11 }}
-                        domain={[0, 100]}
-                      />
+                      <XAxis dataKey="day" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
+                      <YAxis tick={{ fill: "var(--color-muted)", fontSize: 11 }} domain={[0, 100]} />
                       <Tooltip
                         contentStyle={{
                           background: "var(--color-elevated)",
@@ -345,8 +346,8 @@ export function ScenarioRunner({
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Staff composition modifiers</CardTitle>
-                  <CardDescription>Syncs dual control & bank rec into insurance variables</CardDescription>
+                  <CardTitle>Staff composition</CardTitle>
+                  <CardDescription>Synced to practice profile</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow
@@ -394,23 +395,17 @@ export function ScenarioRunner({
                     />
                     Independent bank reconciliation
                   </label>
-                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted">
-                    {result.staffModifiers.map((m) => (
-                      <li key={m}>· {m}</li>
-                    ))}
-                  </ul>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
                   <CardTitle>Crime / transfer notes</CardTitle>
-                  <CardDescription>Base rates + dynamic insurance reasoning</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
-                    Exposure class ~{Math.round(crimeFraudStats.industryEmbezzlementRate * 100)}% ·
-                    median detect {crimeFraudStats.medianDetectionDays}d · mid loss ref{" "}
+                    Exposure ~{Math.round(crimeFraudStats.industryEmbezzlementRate * 100)}% ·
+                    median detect {crimeFraudStats.medianDetectionDays}d · mid loss{" "}
                     {formatUsd(crimeFraudStats.typicalLossMid)}
                   </p>
                   <ul className="space-y-1 text-xs text-muted">
@@ -426,9 +421,6 @@ export function ScenarioRunner({
           <Card>
             <CardHeader>
               <CardTitle>Mitigations</CardTitle>
-              <CardDescription>
-                Operational mitigations stack with insurance variables and staff controls
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 md:grid-cols-3">
@@ -462,21 +454,20 @@ export function ScenarioRunner({
               <p className="mt-4 rounded-lg border border-border bg-panel p-3 text-sm text-muted">
                 {result.residualIfNothing}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4">
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => {
                     setMitigations([]);
-                    updateStaff({ ...baseStaff });
-                    setRiskVars({
+                    updateStaff({ ...profile.staff });
+                    updateRiskVars({
                       ...DEFAULT_RISK_VARIABLES,
-                      hasDualControl: baseStaff.dualControlPayments,
-                      hasIndependentBankRec: baseStaff.independentBankRec,
+                      ...profile.riskVariables,
                     });
                   }}
                 >
-                  Reset all variables
+                  Reset mitigations
                 </Button>
               </div>
             </CardContent>
