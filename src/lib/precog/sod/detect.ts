@@ -5,7 +5,7 @@
  * 1. Expand each person → set of entitlements (role template + overrides)
  * 2. For each person, test all unordered pairs of entitlements against CONFLICT_RULES
  * 3. Also flag family-level conflicts when no specific rule but matrix says conflict
- * 4. Score severity with risk weights + residual acceptance + compensating strength
+ * 4. Score severity with risk weights + residual acceptance + dual-release mitigation
  * 5. Build N×N entitlement matrix for UI
  */
 import { people } from "../demo-data";
@@ -43,6 +43,7 @@ export interface DetectedConflict {
   score: number; // 0–100
   compensatingControls: string[];
   residualRiskAccepted: boolean;
+  dualReleaseMitigated: boolean;
   linkedScenarioId?: string;
   linkedControlId?: string;
   processIds: string[];
@@ -69,7 +70,8 @@ export interface SodDetectionReport {
     family: number;
     peopleWithConflicts: number;
     openWithoutAcceptance: number;
-    segregationHealth: number; // 0–100 inverse of conflict pressure
+    dualReleaseMitigated: number;
+    segregationHealth: number;
   };
   recommendations: string[];
 }
@@ -138,7 +140,6 @@ function findRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined 
 
 function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
   if (fa === fb) {
-    // same family can still conflict for master_data + self, but skip same-id
     return fa === "master_data" || fa === "custody";
   }
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
@@ -150,6 +151,7 @@ function scoreConflict(
   b: EntitlementId,
   residualAccepted: boolean,
   compensatingCount: number,
+  dualMitigated: boolean,
   staff?: StaffComposition,
 ): number {
   const base =
@@ -158,14 +160,24 @@ function scoreConflict(
   let s = base + weightBoost;
   if (residualAccepted) s -= 18;
   s -= Math.min(20, compensatingCount * 6);
-  if (staff && !staff.dualControlPayments && (a.includes("pay") || b.includes("pay") || a === "collect_cash" || b === "collect_cash")) {
+  if (dualMitigated) s -= 28; // dual release is a strong compensating control
+  if (
+    staff &&
+    !staff.dualControlPayments &&
+    (a.includes("pay") ||
+      b.includes("pay") ||
+      a === "collect_cash" ||
+      b === "collect_cash" ||
+      a === "release_payment" ||
+      b === "release_payment")
+  ) {
     s += 6;
   }
   if (staff && !staff.independentBankRec && (a === "bank_reconcile" || b === "bank_reconcile")) {
     s += 8;
   }
   if (staff && staff.segregationScore < 50) s += 5;
-  return Math.max(15, Math.min(100, Math.round(s)));
+  return Math.max(12, Math.min(100, Math.round(s)));
 }
 
 export function buildAssignments(
@@ -188,14 +200,17 @@ export function detectSodConflicts(
   staff?: StaffComposition,
   options?: {
     assignments?: RoleAssignment[];
-    /** Control IDs marked residual accepted (from demo controls) */
     residualAcceptedControlIds?: Set<string>;
     compensatingByControlId?: Record<string, string[]>;
+    /** SoD rule IDs mitigated by dual-release policy */
+    dualReleaseMitigatedRuleIds?: Set<string>;
   },
 ): SodDetectionReport {
   const assignments = options?.assignments ?? buildAssignments();
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
+  const dualMitigatedRules =
+    options?.dualReleaseMitigatedRuleIds ?? new Set<string>();
 
   const conflicts: DetectedConflict[] = [];
 
@@ -210,14 +225,17 @@ export function detectSodConflicts(
         const fb = entFamily(b);
 
         if (!rule && !familiesConflict(fa, fb)) continue;
-        // Skip pure report-only pairings
         if (a === "view_reports_only" || b === "view_reports_only") continue;
 
         if (rule) {
+          const dualMitigated = dualMitigatedRules.has(rule.id);
           const comps = [
             ...rule.compensatingDefaults,
             ...(rule.linkedControlId
               ? compensatingByControl[rule.linkedControlId] ?? []
+              : []),
+            ...(dualMitigated
+              ? ["Dual-release policy active on related channel"]
               : []),
           ];
           const accepted = rule.linkedControlId
@@ -243,10 +261,12 @@ export function detectSodConflicts(
               b,
               accepted,
               comps.length,
+              dualMitigated,
               staff,
             ),
             compensatingControls: Array.from(new Set(comps)),
             residualRiskAccepted: accepted,
+            dualReleaseMitigated: dualMitigated,
             linkedScenarioId: rule.linkedScenarioId,
             linkedControlId: rule.linkedControlId,
             processIds: Array.from(
@@ -254,7 +274,6 @@ export function detectSodConflicts(
             ),
           });
         } else {
-          // Family-level residual conflict
           conflicts.push({
             id: `${person.personId}:family:${a}:${b}`,
             ruleId: `family-${fa}-${fb}`,
@@ -269,12 +288,13 @@ export function detectSodConflicts(
             title: `${fa} + ${fb} combination`,
             why: "Duty families are classically incompatible under COSO-style SoD.",
             fraudPath: "Opportunity from combined incompatible duty families",
-            score: scoreConflict("family", a, b, false, 0, staff),
+            score: scoreConflict("family", a, b, false, 0, false, staff),
             compensatingControls: [
               "Document residual acceptance",
               "Add independent review cadence",
             ],
             residualRiskAccepted: false,
+            dualReleaseMitigated: false,
             processIds: Array.from(
               new Set([...entProcesses(a), ...entProcesses(b)]),
             ),
@@ -286,7 +306,6 @@ export function detectSodConflicts(
 
   conflicts.sort((a, b) => b.score - a.score);
 
-  // Matrix for UI (entitlement × entitlement)
   const entitlementOrder = ENTITLEMENTS.map((e) => e.id);
   const matrix: SodMatrixCell[] = [];
   for (const row of entitlementOrder) {
@@ -318,46 +337,80 @@ export function detectSodConflicts(
     }
   }
 
-  const critical = conflicts.filter((c) => c.severity === "critical").length;
-  const high = conflicts.filter((c) => c.severity === "high").length;
+  const critical = conflicts.filter(
+    (c) => c.severity === "critical" && !c.dualReleaseMitigated,
+  ).length;
+  const high = conflicts.filter(
+    (c) => c.severity === "high" && !c.dualReleaseMitigated,
+  ).length;
   const medium = conflicts.filter((c) => c.severity === "medium").length;
   const family = conflicts.filter((c) => c.severity === "family").length;
   const peopleWithConflicts = new Set(conflicts.map((c) => c.personId)).size;
-  const openWithoutAcceptance = conflicts.filter((c) => !c.residualRiskAccepted).length;
+  const openWithoutAcceptance = conflicts.filter(
+    (c) => !c.residualRiskAccepted && !c.dualReleaseMitigated,
+  ).length;
+  const dualReleaseMitigated = conflicts.filter((c) => c.dualReleaseMitigated).length;
 
   const pressure =
-    critical * 14 + high * 8 + medium * 4 + family * 2 + openWithoutAcceptance * 1.5;
+    critical * 14 +
+    high * 8 +
+    medium * 4 +
+    family * 2 +
+    openWithoutAcceptance * 1.5 -
+    dualReleaseMitigated * 4;
   const segregationHealth = Math.max(5, Math.min(100, Math.round(100 - pressure)));
 
   const recommendations: string[] = [];
   if (critical > 0) {
     recommendations.push(
-      `Resolve or compensate ${critical} critical conflict(s) first (cash/vendor/write-off paths).`,
+      `Resolve or dual-release-compensate ${critical} unmitigated critical conflict(s) first.`,
     );
   }
-  if (conflicts.some((c) => c.ruleId === "rule-cash-rec" || c.ruleId === "rule-custody-rec")) {
+  if (dualReleaseMitigated > 0) {
     recommendations.push(
-      "Highest ROI: move bank reconciliation to the owner (or outsourced bookkeeper) this week.",
+      `${dualReleaseMitigated} conflict(s) mitigated by dual-release policy — keep thresholds enforced in bank/PMS.`,
     );
   }
-  if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay")) {
-    recommendations.push("Enable dual ACH release and freeze vendor master changes without owner sign-off.");
-  }
-  if (conflicts.some((c) => c.ruleId === "rule-writeoff" || c.ruleId === "rule-claims-writeoff")) {
-    recommendations.push("Set write-off approval threshold and monthly exception report.");
-  }
-  if (openWithoutAcceptance > 0) {
+  if (
+    conflicts.some(
+      (c) =>
+        (c.ruleId === "rule-cash-rec" || c.ruleId === "rule-custody-rec") &&
+        !c.dualReleaseMitigated,
+    )
+  ) {
     recommendations.push(
-      `${openWithoutAcceptance} conflict(s) lack residual acceptance — document accept/remediate in the journal.`,
+      "Enable deposit dual-count + owner bank rec — highest ROI for cash SoD.",
+    );
+  }
+  if (
+    conflicts.some(
+      (c) => c.ruleId === "rule-vendor-create-pay" && !c.dualReleaseMitigated,
+    )
+  ) {
+    recommendations.push(
+      "Turn on ACH dual release ≥ $500 and owner sign-off on new vendors.",
+    );
+  }
+  if (
+    conflicts.some(
+      (c) =>
+        (c.ruleId === "rule-writeoff" || c.ruleId === "rule-claims-writeoff") &&
+        !c.dualReleaseMitigated,
+    )
+  ) {
+    recommendations.push(
+      "Require dual release on write-offs above $150 (owner/OM second).",
     );
   }
   if (!recommendations.length) {
-    recommendations.push("No high-severity conflicts detected — re-run after any role or staff change.");
+    recommendations.push(
+      "Dual release + SoD look healthy — re-scan after any role change.",
+    );
   }
 
   return {
     method:
-      "Entitlement pair scan vs rulebook + duty-family matrix (COSO-style SoD)",
+      "Entitlement pair scan vs rulebook + duty-family matrix + dual-release mitigation",
     assignments,
     conflicts,
     matrix,
@@ -369,6 +422,7 @@ export function detectSodConflicts(
       family,
       peopleWithConflicts,
       openWithoutAcceptance,
+      dualReleaseMitigated,
       segregationHealth,
     },
     recommendations,

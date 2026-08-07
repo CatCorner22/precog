@@ -10,6 +10,11 @@ import {
 import type { StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
+  mergeDualReleasePolicy,
+  staffFlagsFromDualRelease,
+  type DualReleasePolicy,
+} from "./controls/dual-release";
+import {
   defaultProfile,
   loadProfile,
   makeDecisionId,
@@ -26,6 +31,9 @@ interface PracticeContextValue {
   setStaff: (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => void;
   setRiskVariables: (
     v: RiskVariableState | ((r: RiskVariableState) => RiskVariableState),
+  ) => void;
+  setDualRelease: (
+    v: DualReleasePolicy | ((d: DualReleasePolicy) => DualReleasePolicy),
   ) => void;
   addDecision: (input: {
     subject: string;
@@ -64,9 +72,14 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
       setProfile((p) => {
         const next = typeof staff === "function" ? staff(p.staff) : staff;
+        const dualRelease = {
+          ...p.dualRelease,
+          enabled: next.dualControlPayments,
+        };
         return {
           ...p,
           staff: next,
+          dualRelease,
           riskVariables: {
             ...p.riskVariables,
             hasDualControl: next.dualControlPayments,
@@ -89,6 +102,36 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
             ...p.staff,
             dualControlPayments: next.hasDualControl,
             independentBankRec: next.hasIndependentBankRec,
+          },
+          dualRelease: {
+            ...p.dualRelease,
+            enabled: next.hasDualControl,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const setDualRelease = useCallback(
+    (v: DualReleasePolicy | ((d: DualReleasePolicy) => DualReleasePolicy)) => {
+      setProfile((p) => {
+        const raw = typeof v === "function" ? v(p.dualRelease) : v;
+        const dualRelease = mergeDualReleasePolicy(raw, p.staff);
+        const flags = staffFlagsFromDualRelease(dualRelease);
+        return {
+          ...p,
+          dualRelease: {
+            ...dualRelease,
+            updatedAt: new Date().toISOString(),
+          },
+          staff: {
+            ...p.staff,
+            dualControlPayments: flags.dualControlPayments,
+          },
+          riskVariables: {
+            ...p.riskVariables,
+            hasDualControl: flags.dualControlPayments,
           },
         };
       });
@@ -140,6 +183,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setPracticeName,
       setStaff,
       setRiskVariables,
+      setDualRelease,
       addDecision,
       removeDecision,
       resetProfile,
@@ -150,6 +194,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setPracticeName,
       setStaff,
       setRiskVariables,
+      setDualRelease,
       addDecision,
       removeDecision,
       resetProfile,

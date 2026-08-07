@@ -22,6 +22,7 @@ import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
@@ -98,7 +99,13 @@ function Home() {
     () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
     [profile.staff, profile.riskVariables],
   );
-  const sodReport = useMemo(() => detectSodConflicts(profile.staff), [profile.staff]);
+  const sodReport = useMemo(
+    () =>
+      detectSodConflicts(profile.staff, {
+        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+      }),
+    [profile.staff, profile.dualRelease],
+  );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
   const sodGaps = controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
@@ -318,7 +325,7 @@ function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <PracticeSetup />
+              <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
               <Card>
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>

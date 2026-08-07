@@ -3,6 +3,11 @@ import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
+import {
+  defaultDualReleasePolicy,
+  mergeDualReleasePolicy,
+  type DualReleasePolicy,
+} from "./controls/dual-release";
 import { PRACTICE_NAME, staffComposition as demoStaff } from "./demo-data";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
@@ -23,21 +28,25 @@ export interface PracticeProfile {
   practiceName: string;
   staff: StaffComposition;
   riskVariables: RiskVariableState;
+  dualRelease: DualReleasePolicy;
   decisions: DecisionEntry[];
   updatedAt: string;
 }
 
-const STORAGE_KEY = "precog.practiceProfile.v1";
+const STORAGE_KEY = "precog.practiceProfile.v2";
 
 export function defaultProfile(): PracticeProfile {
+  const staff = { ...demoStaff };
+  const dualRelease = defaultDualReleasePolicy(staff);
   return {
     practiceName: PRACTICE_NAME,
-    staff: { ...demoStaff },
+    staff,
     riskVariables: {
       ...DEFAULT_RISK_VARIABLES,
-      hasDualControl: demoStaff.dualControlPayments,
-      hasIndependentBankRec: demoStaff.independentBankRec,
+      hasDualControl: staff.dualControlPayments,
+      hasIndependentBankRec: staff.independentBankRec,
     },
+    dualRelease,
     decisions: [],
     updatedAt: new Date().toISOString(),
   };
@@ -46,17 +55,35 @@ export function defaultProfile(): PracticeProfile {
 export function loadProfile(): PracticeProfile {
   if (typeof window === "undefined") return defaultProfile();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    // migrate v1
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return defaultProfile();
-    const parsed = JSON.parse(raw) as PracticeProfile;
+    const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
+    const base = defaultProfile();
+    const staff = { ...base.staff, ...parsed.staff };
+    const dualRelease = mergeDualReleasePolicy(
+      parsed.dualRelease as DualReleasePolicy | undefined,
+      staff,
+    );
+    // Keep dual release master switch in sync with staff flag if policy missing
+    if (!parsed.dualRelease) {
+      dualRelease.enabled = staff.dualControlPayments;
+    } else {
+      staff.dualControlPayments = dualRelease.enabled;
+    }
     return {
-      ...defaultProfile(),
+      ...base,
       ...parsed,
-      staff: { ...defaultProfile().staff, ...parsed.staff },
+      staff,
       riskVariables: {
-        ...defaultProfile().riskVariables,
+        ...base.riskVariables,
         ...parsed.riskVariables,
+        hasDualControl: dualRelease.enabled,
+        hasIndependentBankRec: staff.independentBankRec,
       },
+      dualRelease,
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
     };
   } catch {

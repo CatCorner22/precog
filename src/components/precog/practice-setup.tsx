@@ -2,11 +2,11 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings2 } from "lucide-react";
+import { Settings2, ShieldCheck } from "lucide-react";
 
 /** Lightweight practice profile editor — feeds staff into residual & LLM tools. */
-export function PracticeSetup() {
-  const { profile, setPracticeName, setStaff, resetProfile } = usePractice();
+export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
+  const { profile, setPracticeName, setStaff, setDualRelease, resetProfile } = usePractice();
   const s = profile.staff;
 
   return (
@@ -20,7 +20,7 @@ export function PracticeSetup() {
           <Badge variant="default">Saved on this device</Badge>
         </div>
         <CardDescription>
-          Name and staff composition drive residual scores, Precog, and the Pioneer LLM tools.
+          Name and staff composition drive residual scores, Precog, dual release, and Pioneer.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -66,13 +66,15 @@ export function PracticeSetup() {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={s.dualControlPayments}
-            onChange={(e) =>
-              setStaff({ ...s, dualControlPayments: e.target.checked })
-            }
+            checked={s.dualControlPayments || profile.dualRelease.enabled}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setStaff({ ...s, dualControlPayments: on });
+              setDualRelease({ ...profile.dualRelease, enabled: on });
+            }}
             className="size-4 accent-[var(--color-primary)]"
           />
-          Dual control on payments
+          Dual control / dual release (master)
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -85,6 +87,12 @@ export function PracticeSetup() {
           />
           Independent bank reconciliation
         </label>
+        {onOpenDualRelease && (
+          <Button size="sm" variant="secondary" onClick={onOpenDualRelease}>
+            <ShieldCheck className="size-3.5" />
+            Configure dual-release thresholds
+          </Button>
+        )}
         <Button size="sm" variant="secondary" onClick={resetProfile}>
           Reset to demo defaults
         </Button>
@@ -110,10 +118,10 @@ function Slider({
 }) {
   return (
     <label className="block text-sm">
-      <div className="mb-1 flex justify-between">
-        <span className="text-muted">{label}</span>
-        <span className="tabular font-medium">{value}</span>
-      </div>
+      <span className="flex justify-between text-muted">
+        <span>{label}</span>
+        <span className="tabular text-fg">{value}</span>
+      </span>
       <input
         type="range"
         min={min}
@@ -121,7 +129,7 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--color-primary)]"
+        className="mt-1 w-full accent-[var(--color-primary)]"
       />
     </label>
   );

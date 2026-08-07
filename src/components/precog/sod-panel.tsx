@@ -2,12 +2,14 @@ import { useMemo, useState } from "react";
 import { controls } from "@/lib/precog/demo-data";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
+import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Grid3x3, Shield, Users } from "lucide-react";
+import { AlertTriangle, Grid3x3, Shield, ShieldCheck, Users } from "lucide-react";
 
 const FRAMEWORK = [
   {
@@ -36,16 +38,15 @@ type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile } = usePractice();
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles">("conflicts");
+  const [view, setView] = useState<
+    "conflicts" | "matrix" | "roles" | "dual"
+  >("dual");
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
   >("all");
 
   const residualAccepted = useMemo(
-    () =>
-      new Set(
-        controls.filter((c) => c.residualRiskAccepted).map((c) => c.id),
-      ),
+    () => new Set(controls.filter((c) => c.residualRiskAccepted).map((c) => c.id)),
     [],
   );
   const compensatingByControl = useMemo(() => {
@@ -56,27 +57,27 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     return m;
   }, []);
 
+  const dualMitigated = useMemo(
+    () => mitigatedSodRuleIds(profile.dualRelease),
+    [profile.dualRelease],
+  );
+
   const report = useMemo(
     () =>
       detectSodConflicts(profile.staff, {
         residualAcceptedControlIds: residualAccepted,
         compensatingByControlId: compensatingByControl,
+        dualReleaseMitigatedRuleIds: dualMitigated,
       }),
-    [profile.staff, residualAccepted, compensatingByControl],
+    [profile.staff, residualAccepted, compensatingByControl, dualMitigated],
   );
 
   const filtered = report.conflicts.filter((c) =>
     filterSeverity === "all" ? true : c.severity === filterSeverity,
   );
 
-  // Compact matrix: only entitlements that appear in rules
   const matrixIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const e of ENTITLEMENTS) {
-      if (e.id === "view_reports_only") continue;
-      ids.add(e.id);
-    }
-    return Array.from(ids);
+    return ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => e.id);
   }, []);
 
   const cellMap = useMemo(() => {
@@ -97,21 +98,22 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">SoD conflict detection</Badge>
-          <Badge variant="primary">Rule matrix engine</Badge>
+          <Badge variant="accent">SoD + dual release</Badge>
+          <Badge variant={profile.dualRelease.enabled ? "ok" : "warn"}>
+            Dual release {profile.dualRelease.enabled ? "ON" : "OFF"}
+          </Badge>
         </div>
         <h2 className="mt-3 text-xl font-semibold tracking-tight">
-          Who holds incompatible powers?
+          Who holds incompatible powers — and what dual release fixes
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Automated scan of role entitlements against a dental SoD rulebook (custody × recording
-          × authorization × reconciliation × master data). Small teams will have conflicts —
-          detection makes them explicit so you can compensate or accept residual risk.
+          Automated entitlement scan plus dual-release mitigation. When dual ACH, write-off,
+          deposit, or vendor gates are on, matching conflicts drop in score and show mitigated.
         </p>
         <p className="mt-2 text-xs text-subtle">{report.method}</p>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Stat
           label="Segregation health"
           value={String(report.summary.segregationHealth)}
@@ -125,21 +127,27 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           }
         />
         <Stat
-          label="Critical"
+          label="Critical open"
           value={String(report.summary.critical)}
-          hint="Act first"
+          hint="Unmitigated"
           tone="danger"
         />
         <Stat
-          label="High"
+          label="High open"
           value={String(report.summary.high)}
-          hint="Plan this month"
+          hint="Unmitigated"
           tone="warn"
         />
         <Stat
-          label="People with conflicts"
+          label="Dual-mitigated"
+          value={String(report.summary.dualReleaseMitigated)}
+          hint="By dual release"
+          tone="ok"
+        />
+        <Stat
+          label="People"
           value={String(report.summary.peopleWithConflicts)}
-          hint={`of ${report.assignments.length} staff`}
+          hint={`of ${report.assignments.length}`}
           tone="primary"
         />
         <Stat
@@ -167,6 +175,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
+          variant={view === "dual" ? "default" : "secondary"}
+          onClick={() => setView("dual")}
+        >
+          <ShieldCheck className="size-3.5" />
+          Dual release
+        </Button>
+        <Button
+          size="sm"
           variant={view === "conflicts" ? "default" : "secondary"}
           onClick={() => setView("conflicts")}
         >
@@ -191,6 +207,10 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         </Button>
       </div>
 
+      {view === "dual" && (
+        <DualReleasePanel onOpenSod={() => setView("conflicts")} />
+      )}
+
       {view === "conflicts" && (
         <Card>
           <CardHeader>
@@ -199,7 +219,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
               Detected conflicts
             </CardTitle>
             <CardDescription>
-              Pairwise entitlement scan · scored with residual acceptance & staff profile
+              Pairwise scan · dual-release mitigation · residual acceptance
             </CardDescription>
             <div className="flex flex-wrap gap-1.5 pt-2">
               {(["all", "critical", "high", "medium", "family"] as const).map((s) => (
@@ -228,25 +248,32 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 key={c.id}
                 className={cn(
                   "rounded-xl border px-3 py-3 text-sm",
-                  c.severity === "critical"
-                    ? "border-danger/30 bg-danger/5"
-                    : c.severity === "high"
-                      ? "border-warn/30 bg-warn/5"
-                      : "border-border bg-elevated",
+                  c.dualReleaseMitigated
+                    ? "border-ok/30 bg-ok/5"
+                    : c.severity === "critical"
+                      ? "border-danger/30 bg-danger/5"
+                      : c.severity === "high"
+                        ? "border-warn/30 bg-warn/5"
+                        : "border-border bg-elevated",
                 )}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     variant={
-                      c.severity === "critical"
-                        ? "danger"
-                        : c.severity === "high"
-                          ? "warn"
-                          : "default"
+                      c.dualReleaseMitigated
+                        ? "ok"
+                        : c.severity === "critical"
+                          ? "danger"
+                          : c.severity === "high"
+                            ? "warn"
+                            : "default"
                     }
                   >
                     {c.severity} · {c.score}
                   </Badge>
+                  {c.dualReleaseMitigated && (
+                    <Badge variant="ok">Dual release mitigates</Badge>
+                  )}
                   {c.residualRiskAccepted && (
                     <Badge variant="warn">Residual accepted</Badge>
                   )}
@@ -261,9 +288,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   <span className="text-fg">{c.labelB}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted">{c.why}</p>
-                <p className="mt-1 text-[11px] text-subtle">
-                  Fraud path: {c.fraudPath}
-                </p>
+                <p className="mt-1 text-[11px] text-subtle">Fraud path: {c.fraudPath}</p>
                 {c.compensatingControls.length > 0 && (
                   <p className="mt-2 text-xs text-ok">
                     Compensate: {c.compensatingControls.join("; ")}
@@ -288,6 +313,16 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       onClick={() => onNavigate?.("map", c.processIds[0])}
                     >
                       Process map
+                    </Button>
+                  )}
+                  {!c.dualReleaseMitigated && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[11px]"
+                      onClick={() => setView("dual")}
+                    >
+                      Configure dual release
                     </Button>
                   )}
                 </div>
@@ -383,17 +418,6 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 ))}
               </tbody>
             </table>
-            <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted">
-              <span className="inline-flex items-center gap-1">
-                <span className="size-3 rounded bg-danger/40" /> Critical pair
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="size-3 rounded bg-warn/40" /> High / medium
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="size-3 rounded bg-ok/15" /> Compatible
-              </span>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -403,13 +427,16 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <CardHeader>
             <CardTitle>Role → entitlement map</CardTitle>
             <CardDescription>
-              Templates used for detection (demo practice). Conflicts fire when one person holds
-              both sides of a rule.
+              Templates used for detection. Dual release does not remove entitlements — it
+              compensates when two people must sign.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {report.assignments.map((a) => {
               const n = report.conflicts.filter((c) => c.personId === a.personId).length;
+              const mitigated = report.conflicts.filter(
+                (c) => c.personId === a.personId && c.dualReleaseMitigated,
+              ).length;
               return (
                 <div
                   key={a.personId}
@@ -420,9 +447,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       <p className="font-medium">{a.personName}</p>
                       <p className="text-xs text-muted">{a.role}</p>
                     </div>
-                    <Badge variant={n > 0 ? "danger" : "ok"}>
-                      {n} conflict{n === 1 ? "" : "s"}
-                    </Badge>
+                    <div className="flex gap-1">
+                      <Badge variant={n > 0 ? "danger" : "ok"}>
+                        {n} conflict{n === 1 ? "" : "s"}
+                      </Badge>
+                      {mitigated > 0 && (
+                        <Badge variant="ok">{mitigated} dual-mitigated</Badge>
+                      )}
+                    </div>
                   </div>
                   <ul className="mt-2 flex flex-wrap gap-1">
                     {a.entitlements.map((e) => (
