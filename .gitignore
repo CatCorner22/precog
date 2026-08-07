@@ -1,0 +1,11 @@
+node_modules
+.vercel
+dist
+.output
+screenshots
+artifacts
+.tmp
+*.log
+.env
+.env.*
+.DS_Store

@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #12141a;
+  --color-elevated: #1a1d26;
+  --color-panel: #151820;
+  --color-fg: #e8eaef;
+  --color-muted: #8b92a5;
+  --color-subtle: #5c6478;
+  --color-border: #2a2f3d;
+  --color-border-strong: #3a4155;
+  --color-primary: #3d9cfd;
+  --color-primary-fg: #061018;
+  --color-accent: #5eead4;
+  --color-accent-dim: #134e4a;
+  --color-danger: #f87171;
+  --color-danger-dim: #450a0a;
+  --color-warn: #fbbf24;
+  --color-warn-dim: #422006;
+  --color-ok: #34d399;
+  --color-ok-dim: #064e3b;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Subtle scanline + grid for Matrix construct feel — restrained */
+.matrix-grid {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-primary) 6%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.glow-primary {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
+    0 0 24px color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
