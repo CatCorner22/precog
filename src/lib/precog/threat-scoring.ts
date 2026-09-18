@@ -5,22 +5,25 @@
  * Educational decision-support for dental practice owners.
  * "Threat" = control failure / residual risk / continuity exposure — never people.
  */
-import { controls } from "../demo-data";
-import { findKnowledgeRisks, rankDangerousScenarios } from "../engine";
-import { detectSodConflicts } from "../sod/detect";
-import { portfolioSummary } from "../scoring/residual-engine";
-import { scoreLeadingIndicators } from "../ml/leading-indicators";
+import { controls } from "./demo-data";
+import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { detectSodConflicts } from "./sod/detect";
+import { portfolioSummary } from "./scoring/residual-engine";
+import { scoreLeadingIndicators } from "./ml/leading-indicators";
 import {
   PRIORITY_BAND_LABEL,
   priorityBand,
   scorePriority,
   type PriorityBand,
   type PriorityTarget,
-} from "../map-vision";
-import type { StaffComposition } from "../types";
-import type { RiskVariableState } from "../scoring/dynamic-variables";
-import { mitigatedSodRuleIds } from "../controls/dual-release";
-import type { DualReleasePolicy } from "../controls/dual-release";
+} from "./map-vision";
+import type { StaffComposition } from "./types";
+import {
+  DEFAULT_RISK_VARIABLES,
+  type RiskVariableState,
+} from "./scoring/dynamic-variables";
+import { mitigatedSodRuleIds } from "./controls/dual-release";
+import type { DualReleasePolicy } from "./controls/dual-release";
 
 export type ThreatDomain =
   | "control"
@@ -78,19 +81,13 @@ export function buildThreatAssessment(input: {
     staff,
     riskVariables,
   });
-  const leading = scoreLeadingIndicators(
-    staff,
-    riskVariables ?? {
-      basePremiumAnnual: 2400,
-      deductible: 2500,
-      policyLimit: 100000,
-      hasDualControl: staff.dualControlPayments,
-      hasIndependentBankRec: staff.independentBankRec,
-      hasSecurityCameras: false,
-      claimsLoadFactor: 1,
-      dailyCashExposure: 3500,
-    },
-  );
+  const leading = scoreLeadingIndicators(staff, {
+    ...DEFAULT_RISK_VARIABLES,
+    ...(riskVariables ?? {}),
+    hasDualControl: riskVariables?.hasDualControl ?? staff.dualControlPayments,
+    hasIndependentBankRec:
+      riskVariables?.hasIndependentBankRec ?? staff.independentBankRec,
+  });
 
   const targets: ThreatTarget[] = [];
 
