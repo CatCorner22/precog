@@ -59,6 +59,25 @@ import type { MapReview } from "@/lib/precog/builder/review";
 import type { MapVersion } from "@/lib/precog/practice-profile";
 import { Camera, ClipboardCheck, History, RotateCw } from "lucide-react";
 import {
+  busFactor,
+  rankDepartureRisk,
+  type DepartureImpact,
+} from "@/lib/precog/builder/departure";
+import {
+  FREQUENCY_LABEL,
+  evidenceStatus,
+  suggestEvidence,
+  summarizeEvidence,
+} from "@/lib/precog/builder/evidence";
+import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
+import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
+import { buildSharePayload } from "@/lib/precog/builder/share-payload";
+import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { Link } from "@tanstack/react-router";
+import { CheckCircle2, Clock, Copy, Link2, UserMinus } from "lucide-react";
+import {
   blocksForIndustry,
   instantiateBlock,
   processToSavedBlock,
@@ -150,7 +169,15 @@ export function ProcessBuilder({
   const [showVersions, setShowVersions] = useState(false);
   const [review, setReview] = useState<MapReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [showDeparture, setShowDeparture] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const tour = useBuilderTour();
+
+  const departures = useMemo(
+    () => (showDeparture ? rankDepartureRisk(processes, tpl.people, profile.staff) : []),
+    [showDeparture, processes, tpl.people, profile.staff],
+  );
+  const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
 
   const currentHealth = useMemo(
     () =>
@@ -493,6 +520,7 @@ export function ProcessBuilder({
           wastes: Array.isArray(p.wastes) ? p.wastes : [],
           inputs: Array.isArray(p.inputs) ? p.inputs : [],
           outputs: Array.isArray(p.outputs) ? p.outputs : [],
+          evidence: Array.isArray(p.evidence) ? p.evidence : [],
         }));
       if (Array.isArray(parsed.people) && parsed.people.length) {
         setCustomPeople(
@@ -658,6 +686,22 @@ export function ProcessBuilder({
           >
             <ClipboardCheck className="size-3.5" /> Review
           </Button>
+          <Button
+            size="sm"
+            variant={showDeparture ? "default" : "secondary"}
+            onClick={() => setShowDeparture((v) => !v)}
+            title="What breaks if someone leaves"
+          >
+            <UserMinus className="size-3.5" /> Bus factor
+          </Button>
+          <Button
+            size="sm"
+            variant={showShare ? "default" : "secondary"}
+            onClick={() => setShowShare((v) => !v)}
+            title="Create a read-only link for an advisor or lender"
+          >
+            <Link2 className="size-3.5" /> Share
+          </Button>
           <Button size="sm" variant="secondary" onClick={snapshotVersion} title="Save a named snapshot of this map">
             <Camera className="size-3.5" /> Snapshot
           </Button>
@@ -698,6 +742,59 @@ export function ProcessBuilder({
             </Button>
           )}
         </div>
+
+        {showDeparture && (
+          <DeparturePanel
+            impacts={departures}
+            onSelectProcess={onSelectProcess}
+            onAddBackup={(processId, excludePersonId) => {
+              const proc = processes.find((p) => p.id === processId);
+              if (!proc) return;
+              const candidates = tpl.people.filter((p) => p.id !== excludePersonId && p.active);
+              const backup = suggestOwnerForProcess({ ...proc, ownerPersonIds: [] }, processes, candidates);
+              if (!backup) return;
+              update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), backup.id] });
+              toast.success(`${backup.name} added as backup owner on ${proc.name}`);
+            }}
+          />
+        )}
+
+        {showShare && (
+          <SharePanel
+            buildPayload={(note) => {
+              const { snapshots } = buildProcessMapGraph(profile.staff);
+              const actions = buildWeeklyActions({
+                staff: profile.staff,
+                dualRelease: profile.dualRelease,
+                mapSnapshots: snapshots,
+              });
+              return buildSharePayload(profile, actions, note);
+            }}
+          />
+        )}
+
+        {evidenceSummary.total > 0 && evidenceSummary.overdue + evidenceSummary.never > 0 && !showValidation && (
+          <button
+            type="button"
+            onClick={() => {
+              const first = evidenceSummary.overdueItems[0];
+              if (first) onSelectProcess(first.process.id);
+            }}
+            className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-[11px] text-fg hover:border-warn/60"
+          >
+            <Clock className="size-3.5 shrink-0 text-warn" />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">
+                {evidenceSummary.overdue + evidenceSummary.never} evidence item(s) need attention
+              </span>
+              <span className="text-muted">
+                {" "}
+                · {evidenceSummary.coverage}% of control evidence is current
+              </span>
+            </span>
+            <ChevronRight className="size-3 shrink-0 text-subtle" />
+          </button>
+        )}
 
         {showReview && (
           <ReviewPanel
@@ -1110,6 +1207,414 @@ function SuggestPanel({
               })}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeparturePanel({
+  impacts,
+  onSelectProcess,
+  onAddBackup,
+}: {
+  impacts: DepartureImpact[];
+  onSelectProcess: (id: string) => void;
+  onAddBackup: (processId: string, excludePersonId: string) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(impacts[0]?.person.id ?? null);
+  const bus = busFactor(impacts);
+  const impactColor = (v: number) =>
+    v >= 60 ? "var(--color-danger)" : v >= 30 ? "var(--color-warn)" : "var(--color-ok)";
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="text-muted">
+        If one person left tomorrow, what breaks?{" "}
+        <span className="font-medium text-fg">
+          {bus} of {impacts.length}
+        </span>{" "}
+        people would orphan a process or critical knowledge.
+      </p>
+      <ul className="space-y-1">
+        {impacts.map((d) => {
+          const expanded = open === d.person.id;
+          return (
+            <li key={d.person.id} className="rounded-md border border-border bg-elevated">
+              <button
+                type="button"
+                onClick={() => setOpen(expanded ? null : d.person.id)}
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left"
+              >
+                <ChevronRight
+                  className={cn("size-3 shrink-0 text-subtle transition-transform", expanded && "rotate-90")}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">
+                    <span className="font-medium text-fg">{d.person.name}</span>
+                    <span className="text-subtle"> · {d.person.role}</span>
+                  </span>
+                  <span className="block text-[10px] text-subtle">
+                    {d.orphanedProcesses.length} process(es) orphaned · {d.orphanedKnowledge.length} knowledge ·
+                    health {d.healthDelta === 0 ? "±0" : d.healthDelta > 0 ? `+${d.healthDelta}` : d.healthDelta}
+                  </span>
+                </span>
+                <span className="flex w-20 shrink-0 items-center gap-1.5">
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+                    <span className="block h-full rounded-full" style={{ width: `${d.impact}%`, background: impactColor(d.impact) }} />
+                  </span>
+                  <span className="w-6 text-right tabular text-subtle">{d.impact}</span>
+                </span>
+              </button>
+              {expanded && (
+                <div className="space-y-1.5 border-t border-border px-2 py-1.5">
+                  {d.orphanedProcesses.length > 0 && (
+                    <div>
+                      <p className={labelCls}>Would lose their only owner</p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {d.orphanedProcesses.map((p) => (
+                          <li key={p.id} className="flex items-center gap-1.5">
+                            <button type="button" onClick={() => onSelectProcess(p.id)} className="min-w-0 flex-1 truncate text-left text-fg hover:underline">
+                              {p.name}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onAddBackup(p.id, d.person.id)}
+                              className="shrink-0 text-[10px] text-primary hover:underline"
+                            >
+                              Add backup
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {d.orphanedKnowledge.length > 0 && (
+                    <div>
+                      <p className={labelCls}>Knowledge with no other strong holder</p>
+                      <ul className="mt-0.5 flex flex-wrap gap-1">
+                        {d.orphanedKnowledge.map((k) => (
+                          <li
+                            key={k.id}
+                            className={cn(
+                              "rounded border px-1.5 py-0.5 text-[10px]",
+                              k.criticality === "critical" ? "border-danger/40 bg-danger/10 text-fg" : "border-warn/30 bg-warn/10 text-fg",
+                            )}
+                          >
+                            {k.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <ul className="list-disc space-y-0.5 pl-4 text-muted">
+                    {d.recommendations.map((r) => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const FREQUENCIES: EvidenceFrequency[] = ["daily", "weekly", "monthly", "quarterly", "annual"];
+
+function EvidenceList({
+  process,
+  people,
+  onChange,
+}: {
+  process: ProcessNode;
+  people: Person[];
+  onChange: (evidence: EvidenceItem[]) => void;
+}) {
+  const items = process.evidence ?? [];
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [frequency, setFrequency] = useState<EvidenceFrequency>("monthly");
+  const [reviewer, setReviewer] = useState("");
+
+  function commit() {
+    if (!label.trim()) return;
+    onChange([
+      ...items,
+      { id: uid("ev"), label: label.trim().slice(0, 100), frequency, reviewerPersonId: reviewer || undefined },
+    ]);
+    setLabel("");
+    setAdding(false);
+  }
+
+  function markDone(id: string) {
+    onChange(items.map((e) => (e.id === id ? { ...e, lastDoneAt: new Date().toISOString() } : e)));
+  }
+
+  function addSuggested() {
+    const existing = new Set(items.map((e) => e.label.toLowerCase()));
+    const fresh = suggestEvidence(process)
+      .filter((s) => !existing.has(s.label.toLowerCase()))
+      .map((s) => ({ ...s, id: uid("ev") }));
+    if (!fresh.length) {
+      toast("No new suggestions for this process");
+      return;
+    }
+    onChange([...items, ...fresh]);
+    toast.success(`Added ${fresh.length} evidence item(s)`);
+  }
+
+  const summary = summarizeEvidence([process]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className={cn(labelCls, "flex items-center gap-1")}>
+          <CheckCircle2 className="size-3 text-ok" />
+          Evidence ({items.length})
+          {items.length > 0 && (
+            <span className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}>
+              · {summary.coverage}% current
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-2">
+          <button type="button" onClick={addSuggested} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+            <Sparkles className="size-3" /> Suggest evidence
+          </button>
+          <button type="button" onClick={() => setAdding((v) => !v)} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+            {adding ? <X className="size-3" /> : <Plus className="size-3" />}
+            {adding ? "Cancel" : "Add"}
+          </button>
+        </span>
+      </div>
+      {items.length === 0 && !adding && (
+        <p className="text-[11px] text-subtle">
+          What proves this control runs? Add the review, its cadence, and who does it.
+        </p>
+      )}
+      {items.map((e) => {
+        const { status, daysLeft } = evidenceStatus(e);
+        const reviewerName = e.reviewerPersonId ? people.find((p) => p.id === e.reviewerPersonId)?.name : undefined;
+        return (
+          <div
+            key={e.id}
+            className={cn(
+              "flex items-start gap-2 rounded-md border px-2 py-1.5 text-[11px]",
+              status === "overdue"
+                ? "border-danger/40 bg-danger/10"
+                : status === "never"
+                  ? "border-warn/40 bg-warn/10"
+                  : status === "due_soon"
+                    ? "border-warn/30 bg-elevated"
+                    : "border-border bg-elevated",
+            )}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-fg">{e.label}</p>
+              <p className="text-subtle">
+                {FREQUENCY_LABEL[e.frequency]}
+                {reviewerName ? ` · ${reviewerName}` : ""}
+                {" · "}
+                {status === "never"
+                  ? "never recorded"
+                  : status === "overdue"
+                    ? `overdue by ${Math.abs(daysLeft ?? 0)}d`
+                    : status === "due_soon"
+                      ? `due in ${daysLeft}d`
+                      : `current · next in ${daysLeft}d`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => markDone(e.id)}
+              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-fg hover:border-ok/50 hover:text-ok"
+              title="Record that this review was completed today"
+            >
+              Done today
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((x) => x.id !== e.id))}
+              className="text-subtle hover:text-danger"
+              aria-label="Remove evidence"
+            >
+              <Trash2 className="size-3" />
+            </button>
+          </div>
+        );
+      })}
+      {adding && (
+        <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
+          <input className={inputCls} placeholder="e.g. Owner signs off bank reconciliation" value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
+          <div className="grid grid-cols-2 gap-1.5">
+            <select className={inputCls} value={frequency} onChange={(e) => setFrequency(e.target.value as EvidenceFrequency)}>
+              {FREQUENCIES.map((f) => (
+                <option key={f} value={f}>
+                  {FREQUENCY_LABEL[f]}
+                </option>
+              ))}
+            </select>
+            <select className={inputCls} value={reviewer} onChange={(e) => setReviewer(e.target.value)}>
+              <option value="">Reviewer (optional)</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button size="sm" onClick={commit} disabled={!label.trim()}>
+            Add evidence
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SharePanel({
+  buildPayload,
+}: {
+  buildPayload: (note?: string) => import("@/lib/precog/builder/share-server").SharedMapPayload;
+}) {
+  const { user, isPending } = useCurrentUserState();
+  const [note, setNote] = useState("");
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState(false);
+  const [links, setLinks] = useState<{ token: string; createdAt: string; expiresAt: string | null; revoked: boolean }[] | null>(null);
+  const [latest, setLatest] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    void listMapShares()
+      .then(setLinks)
+      .catch(() => setLinks([]));
+  }, [user]);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const urlFor = (token: string) => `${origin}/share/${token}`;
+
+  async function create() {
+    setBusy(true);
+    try {
+      const res = await createMapShare({ data: { payload: buildPayload(note), expiresInDays: days } });
+      setLatest(res.token);
+      setLinks((cur) => [{ token: res.token, createdAt: new Date().toISOString(), expiresAt: res.expiresAt, revoked: false }, ...(cur ?? [])]);
+      await copy(urlFor(res.token));
+      toast.success("Share link created and copied", { description: `Expires in ${days} days.` });
+    } catch (e) {
+      toast.error("Couldn't create link", { description: e instanceof Error ? e.message : "Try again" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // clipboard may be blocked; the link is still shown
+    }
+  }
+
+  async function revoke(token: string) {
+    await revokeMapShare({ data: { token } });
+    setLinks((cur) => (cur ?? []).map((l) => (l.token === token ? { ...l, revoked: true } : l)));
+    toast("Link revoked");
+  }
+
+  if (isPending) return <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">Checking sign-in…</div>;
+  if (user?.isDevFallback) {
+    return (
+      <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
+        Share links need a real account so they can be revoked later. Sign-in is turned off in
+        this build, so sharing is unavailable here — it works once the app is published with
+        sign-in enabled.
+      </div>
+    );
+  }
+  if (!user) {
+    return (
+      <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+        <p className="text-muted">
+          Share links are tied to your account so you can revoke them later.{" "}
+          <Link to="/login" className="text-primary hover:underline">
+            Sign in
+          </Link>{" "}
+          to create one.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="text-muted">
+        Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to view.
+        Edits you make later are not shown; create a new link when you want to share an update.
+      </p>
+      <textarea
+        className={cn(inputCls, "min-h-[44px] resize-y")}
+        placeholder="Optional note to the reader (e.g. 'Draft for our Q3 lender review — please focus on cash controls.')"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1 text-muted">
+          Expires in
+          <select className={cn(inputCls, "w-auto")} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            {[7, 30, 90, 180].map((d) => (
+              <option key={d} value={d}>
+                {d} days
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button size="sm" onClick={() => void create()} disabled={busy}>
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+          Create link
+        </Button>
+      </div>
+      {latest && (
+        <div className="flex items-center gap-1.5 rounded-md border border-ok/40 bg-ok/10 px-2 py-1.5">
+          <code className="min-w-0 flex-1 truncate text-[10px] text-fg">{urlFor(latest)}</code>
+          <button type="button" onClick={() => void copy(urlFor(latest))} className="text-primary hover:underline" title="Copy">
+            <Copy className="size-3" />
+          </button>
+          <a href={urlFor(latest)} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+            Open
+          </a>
+        </div>
+      )}
+      {links && links.length > 0 && (
+        <div>
+          <p className={labelCls}>Your links</p>
+          <ul className="mt-1 space-y-1">
+            {links.slice(0, 6).map((l) => (
+              <li key={l.token} className={cn("flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1", l.revoked && "opacity-50")}>
+                <code className="min-w-0 flex-1 truncate text-[10px]">…{l.token.slice(-10)}</code>
+                <span className="text-[10px] text-subtle">
+                  {new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  {l.expiresAt ? ` → ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                </span>
+                {l.revoked ? (
+                  <span className="text-[10px] text-subtle">revoked</span>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => void copy(urlFor(l.token))} className="text-[10px] text-primary hover:underline">
+                      Copy
+                    </button>
+                    <button type="button" onClick={() => void revoke(l.token)} className="text-[10px] text-danger hover:underline">
+                      Revoke
+                    </button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
@@ -1951,6 +2456,11 @@ function ProcessForm({
       />
       <IdeaList ideas={process.ideas ?? []} onChange={(ideas) => onChange({ ideas })} />
       <WasteList wastes={process.wastes ?? []} onChange={(wastes) => onChange({ wastes })} />
+      <EvidenceList
+        process={process}
+        people={tpl.people}
+        onChange={(evidence) => onChange({ evidence })}
+      />
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-2">
         <Button size="sm" variant="secondary" onClick={onSaveAsBlock}>
