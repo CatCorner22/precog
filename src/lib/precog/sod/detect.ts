@@ -8,7 +8,7 @@
  * 4. Score severity with risk weights + residual acceptance + dual-release mitigation
  * 5. Build N×N entitlement matrix for UI
  */
-import { people } from "../demo-data";
+import { getActiveTemplate } from "../active-template";
 import {
   CONFLICT_RULES,
   ENTITLEMENTS,
@@ -76,46 +76,6 @@ export interface SodDetectionReport {
   recommendations: string[];
 }
 
-/** Default dental role → entitlement templates. */
-export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": [
-    "approve_writeoffs",
-    "approve_vendor",
-    "approve_payroll",
-    "bank_reconcile",
-    "view_reports_only",
-    "pms_admin_roles",
-  ],
-  "Office Manager": [
-    "post_payments",
-    "prepare_deposit",
-    "post_adjustments",
-    "create_vendor",
-    "release_payment",
-    "enter_payroll",
-    "approve_writeoffs",
-    "pms_admin_roles",
-    "submit_claims",
-    "view_reports_only",
-  ],
-  "Front Desk Lead": [
-    "collect_cash",
-    "post_payments",
-    "prepare_deposit",
-    "submit_claims",
-    "post_adjustments",
-  ],
-  Hygienist: ["view_reports_only"],
-  "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "approve_writeoffs",
-    "view_reports_only",
-  ],
-};
-
 function entLabel(id: EntitlementId) {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
 }
@@ -180,24 +140,13 @@ function scoreConflict(
   return Math.max(12, Math.min(100, Math.round(s)));
 }
 
-/**
- * Build the who-does-what table.
- *
- * `source` lets an industry pack supply its own team and role templates. It is
- * optional so that the existing callers, which assume the dental data set,
- * keep working unchanged.
- */
 export function buildAssignments(
   overrides?: Partial<Record<string, EntitlementId[]>>,
-  source?: {
-    people?: { id: string; name: string; role: string }[];
-    roleTemplates?: Record<string, EntitlementId[]>;
-  },
 ): RoleAssignment[] {
-  const roster = source?.people ?? people;
-  const templates = source?.roleTemplates ?? ROLE_TEMPLATES;
-  return roster.map((p) => {
-    const fromRole = templates[p.role] ?? ["view_reports_only"];
+  const { people, roleTemplates } = getActiveTemplate();
+  return people.map((p) => {
+    const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
+    const fromRole = (fromPerson ?? roleTemplates[p.role] ?? ["view_reports_only"]) as EntitlementId[];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {
@@ -217,20 +166,9 @@ export function detectSodConflicts(
     compensatingByControlId?: Record<string, string[]>;
     /** SoD rule IDs mitigated by dual-release policy */
     dualReleaseMitigatedRuleIds?: Set<string>;
-    /**
-     * Team and role templates for a given trade. The conflict rules and the
-     * scoring stay shared across industries — a fake-vendor scheme works the
-     * same way behind a bar as in a dental office — so a pack changes only who
-     * holds which duty.
-     */
-    source?: {
-      people?: { id: string; name: string; role: string }[];
-      roleTemplates?: Record<string, EntitlementId[]>;
-    };
   },
 ): SodDetectionReport {
-  const assignments =
-    options?.assignments ?? buildAssignments(undefined, options?.source);
+  const assignments = options?.assignments ?? buildAssignments();
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
   const dualMitigatedRules =

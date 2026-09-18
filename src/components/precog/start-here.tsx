@@ -11,11 +11,10 @@ import {
   observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
+  sectorForIndustry,
   type CaseStudy,
 } from "@/lib/precog/evidence";
 import { CaseCard } from "./case-card";
-import { IndustryPicker } from "./industry-picker";
-import { packById } from "@/lib/precog/industries/packs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
@@ -35,15 +34,14 @@ import { formatUsd } from "@/lib/utils";
  */
 export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => void }) {
   const { profile } = usePractice();
-  const pack = useMemo(() => packById(profile.industryId), [profile.industryId]);
+  const sector = sectorForIndustry(profile.industry);
 
   const sod = useMemo(
     () =>
       detectSodConflicts(profile.staff, {
         dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
-        source: { people: pack.people, roleTemplates: pack.roleTemplates },
       }),
-    [profile.staff, profile.dualRelease, pack],
+    [profile.staff, profile.dualRelease],
   );
 
   /** Live gaps only: anything already mitigated or consciously accepted is out. */
@@ -92,10 +90,6 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [],
   );
 
-  /** Trade wording for a duty, falling back to the shared label. */
-  const dutyLabel = (id: string, fallback: string) =>
-    pack.entitlementLabels[id as keyof typeof pack.entitlementLabels] ?? fallback;
-
   const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];
   const delayCurve = BENCHMARK_BY_ID["bm-duration-cost-curve"];
@@ -111,28 +105,6 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           the case or study it came from.
         </p>
       </header>
-
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,18rem)_1fr]">
-        <IndustryPicker />
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">What goes wrong in this trade</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <ul className="space-y-1.5">
-              {pack.watchFor.map((w) => (
-                <li key={w} className="flex gap-2 text-sm leading-relaxed text-muted">
-                  <span
-                    aria-hidden
-                    className="mt-1.5 size-1.5 shrink-0 rounded-full bg-warn"
-                  />
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* 1. Where you are exposed. */}
       <section className="space-y-3">
@@ -185,25 +157,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </span>
                     </div>
                     <CardTitle className="leading-snug">
-                      {people.length === 1
-                        ? `${people[0]} holds two duties that belong apart`
-                        : "These people each hold two duties that belong apart"}
+                      {people.length === 1 ? `${people[0]} can` : "These people each can"}{" "}
+                      both {lower(conflict.labelA)} and {lower(conflict.labelB)}
                     </CardTitle>
-                    {/*
-                      Rendered as a pair rather than an "X and Y" sentence.
-                      Several trade labels contain their own "and" — "set up
-                      subcontractors and suppliers" — which made the sentence
-                      form unreadable the moment the vocabulary changed.
-                    */}
-                    <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                      <span className="rounded border border-border bg-elevated px-2 py-1 text-xs text-fg">
-                        {dutyLabel(conflict.entitlementA, conflict.labelA)}
-                      </span>
-                      <span className="text-xs text-subtle">together with</span>
-                      <span className="rounded border border-border bg-elevated px-2 py-1 text-xs text-fg">
-                        {dutyLabel(conflict.entitlementB, conflict.labelB)}
-                      </span>
-                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <p className="leading-relaxed text-muted">{conflict.why}</p>
@@ -435,22 +391,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         </Card>
       </section>
 
-      <EvidenceFooter cases={evidence} sector={pack.sector} />
+      <EvidenceFooter cases={evidence} sector={sector} />
     </div>
   );
 }
 
-function EvidenceFooter({
-  cases,
-  sector,
-}: {
-  cases: CaseStudy[];
-  sector: string;
-}) {
+function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string }) {
   if (cases.length === 0) return null;
-  // Cases from the reader's own trade land harder, so they lead. The rest stay
-  // because the mechanism of a scheme does not change between industries, and
-  // the mechanism is the part worth learning.
+  // Cases from the reader's own trade lead, because they land harder. The rest
+  // stay, because the mechanism of a scheme does not change between industries
+  // and the mechanism is the part worth learning.
   const ordered = [
     ...cases.filter((c) => c.sector === sector),
     ...cases.filter((c) => c.sector !== sector),
@@ -523,3 +473,7 @@ function StatTile({
   );
 }
 
+/** Lower-cases an entitlement label for mid-sentence use, keeping acronyms. */
+function lower(label: string): string {
+  return label.replace(/^([A-Z])(?=[a-z])/, (m) => m.toLowerCase());
+}

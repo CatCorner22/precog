@@ -17,7 +17,8 @@
  *      missing figure is never mistaken for a small one.
  *   6. Every SoD rule maps to at least one fraud scheme, and the map cites no
  *      rule that does not exist. Case matching runs off that map.
- *   7. Every industry pack's sector has at least one case behind it.
+ *   7. Every industry the app offers resolves to a case-library sector that
+ *      has at least one real case behind it.
  *
  * Run: npm run verify:evidence
  */
@@ -108,16 +109,34 @@ if (!mapBody) {
   }
 }
 
-// 7. Every industry pack's sector has at least one case behind it. A pack
-//    whose "what goes wrong in this trade" list cites nothing the library can
-//    show is the hypothetical-risk failure this product exists to avoid.
-const packSrc = read("src/lib/precog/industries/packs.ts");
+// 7. Every industry the app offers resolves to a case-library sector that has
+//    at least one real case behind it. An industry whose findings cite nothing
+//    the library can show is the hypothetical-risk failure this product exists
+//    to avoid.
+const industrySrc = read("src/lib/precog/industry.ts");
+const evidenceIndexSrc = read("src/lib/precog/evidence/index.ts");
 const caseSectors = new Set(
   [...casesSrc.matchAll(/sector:\s*"([a-z-]+)"/g)].map((m) => m[1]),
 );
-for (const m of packSrc.matchAll(/sector:\s*"([a-z-]+)"/g)) {
-  if (!caseSectors.has(m[1])) {
-    fail(`Industry pack sector "${m[1]}" has no real case in the library.`);
+const industryIds = [
+  ...(industrySrc.match(/export type IndustryId =([\s\S]*?);/)?.[1] ?? "").matchAll(
+    /"([a-z_]+)"/g,
+  ),
+].map((m) => m[1]);
+if (industryIds.length === 0) fail("No IndustryId values found — parser out of date.");
+const mapBodySector =
+  evidenceIndexSrc.match(/export function sectorForIndustry[\s\S]*?\n\}\n/)?.[0] ?? "";
+if (!mapBodySector) fail("sectorForIndustry not found — parser out of date.");
+for (const id of industryIds) {
+  const mapped = mapBodySector.includes(`case "${id}":`);
+  // An unmapped industry falls through to "any", which must itself have cases.
+  const sector = mapped
+    ? mapBodySector
+        .split(`case "${id}":`)[1]
+        .match(/return\s+"([a-z-]+)"/)?.[1]
+    : "any";
+  if (!sector || !caseSectors.has(sector)) {
+    fail(`Industry "${id}" resolves to sector "${sector}", which has no real case.`);
   }
 }
 

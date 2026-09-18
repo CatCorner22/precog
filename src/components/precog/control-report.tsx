@@ -1,0 +1,325 @@
+import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
+import { usePractice } from "@/lib/precog/practice-context";
+import { useTemplate } from "@/lib/precog/use-template";
+import { industryMeta } from "@/lib/precog/industry";
+import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
+import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { findKnowledgeRisks } from "@/lib/precog/engine";
+import { assessCoso } from "@/lib/precog/coso";
+import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import {
+  buildProcessMapGraph,
+  computeMapHealth,
+  validateProcessMap,
+} from "@/lib/precog/process-graph";
+import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
+import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
+import { Button } from "@/components/ui/button";
+import { formatUsd } from "@/lib/utils";
+import { ArrowLeft, Printer } from "lucide-react";
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Print-friendly control priorities report — File → Print → Save as PDF. */
+export function ControlReport() {
+  const { profile, templateRevision, mapCustomized } = usePractice();
+  const tpl = useTemplate();
+  const industry = industryMeta(profile.industry);
+
+  const data = useMemo(() => {
+    const threat = buildThreatAssessment({
+      practiceName: profile.practiceName,
+      staff: profile.staff,
+      riskVariables: profile.riskVariables,
+      dualRelease: profile.dualRelease,
+    });
+    const portfolio = portfolioSummary(profile.staff);
+    const sod = detectSodConflicts(profile.staff, {
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+    });
+    const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
+    const coso = assessCoso();
+    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const actions = buildWeeklyActions({
+      staff: profile.staff,
+      dualRelease: profile.dualRelease,
+      mapSnapshots: snapshots,
+    });
+    const issues = validateProcessMap(
+      tpl.processes,
+      tpl.people,
+      new Set(tpl.controls.map((c) => c.id)),
+      profile.mapLayout ?? {},
+    );
+    const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
+    return { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, templateRevision]);
+
+  const { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues } = data;
+  const history = profile.mapHealthHistory ?? [];
+  const firstPoint = history[0];
+  const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
+  const top = threat.targetDeck.slice(0, 12);
+  const openDecisions = profile.decisions.slice(0, 10);
+  const generated = new Date();
+
+  return (
+    <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
+      <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
+          >
+            <ArrowLeft className="size-4" /> Back to dashboard
+          </Link>
+          <Button size="sm" onClick={() => window.print()}>
+            <Printer className="size-3.5" /> Print / Save as PDF
+          </Button>
+        </div>
+      </div>
+
+      <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
+        <header className="border-b-2 border-neutral-900 pb-4">
+          <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500 uppercase">
+            Internal control priorities
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">{profile.practiceName}</h1>
+          <p className="mt-1 text-sm text-neutral-600">
+            {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
+            {mapCustomized ? "custom process map" : "industry template map"} · generated{" "}
+            {generated.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
+        </header>
+
+        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Kpi label="Map health" value={String(mapHealth.score)} hint={mapHealth.bandLabel} />
+          <Kpi label="Threat index" value={String(threat.overallThreatIndex)} hint={threat.classificationLabel} />
+          <Kpi label="Avg residual" value={String(portfolio.averageResidual)} hint={`${portfolio.criticalPath} on critical path`} />
+          <Kpi label="SoD health" value={String(sod.summary.segregationHealth)} hint={`${sod.summary.critical} critical conflicts`} />
+          <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
+        </section>
+
+        <Section title="Process map health">
+          <p className="text-sm text-neutral-700">
+            {mapHealth.summary}{" "}
+            {healthDelta !== null && healthDelta !== 0 && firstPoint
+              ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
+              : ""}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {mapHealth.dimensions.map((d) => (
+              <div key={d.id} className="rounded border border-neutral-300 p-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium">{d.label}</span>
+                  <span className="text-sm font-bold tabular">{d.score}</span>
+                </div>
+                <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+                  <div
+                    className="h-full rounded-full bg-neutral-800"
+                    style={{ width: `${d.score}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
+              </div>
+            ))}
+          </div>
+          {issues.filter((i) => i.severity !== "info").length > 0 && (
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
+              {issues
+                .filter((i) => i.severity !== "info")
+                .slice(0, 6)
+                .map((i) => (
+                  <li key={i.id}>{i.message}</li>
+                ))}
+            </ul>
+          )}
+        </Section>
+
+        <Section title="Executive summary">
+          <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">
+            {threat.missionBrief.slice(0, 5).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title="This week's actions">
+          <ol className="space-y-2">
+            {actions.map((a, i) => (
+              <li key={a.id} className="flex gap-3 text-sm">
+                <span className="w-5 shrink-0 font-semibold tabular text-neutral-500">{i + 1}.</span>
+                <div>
+                  <p className="font-medium">
+                    {a.title}{" "}
+                    <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-600">
+                      {a.effort} effort
+                    </span>
+                  </p>
+                  <p className="text-neutral-600">{a.why}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Section>
+
+        <Section title="Priority stack">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-neutral-300 text-left text-[11px] tracking-wide text-neutral-500 uppercase">
+                <th className="py-1.5 pr-2">#</th>
+                <th className="py-1.5 pr-2">Target</th>
+                <th className="py-1.5 pr-2">Type</th>
+                <th className="py-1.5 pr-2">Band</th>
+                <th className="py-1.5 pr-2 text-right">Priority</th>
+                <th className="py-1.5 text-right">Exposure</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top.map((t, i) => (
+                <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
+                  <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
+                  <td className="py-1.5 pr-2">
+                    <p className="font-medium">{t.label}</p>
+                    <p className="text-xs text-neutral-600">{t.impactHint}</p>
+                  </td>
+                  <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
+                  <td className="py-1.5 pr-2">
+                    <span
+                      className={
+                        t.band === "white_hot" || t.band === "critical"
+                          ? "font-semibold text-red-700"
+                          : t.band === "elevated"
+                            ? "font-medium text-amber-700"
+                            : "text-neutral-600"
+                      }
+                    >
+                      {PRIORITY_BAND_LABEL[t.band]}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
+                  <td className="py-1.5 text-right tabular text-neutral-700">
+                    {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+
+        <Section title="Segregation of duties">
+          <p className="text-sm text-neutral-700">
+            {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
+            conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length} people.{" "}
+            {sod.summary.dualReleaseMitigated} mitigated by dual release.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+            {sod.recommendations.slice(0, 4).map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title="Knowledge single points of failure">
+          {spofs.length === 0 ? (
+            <p className="text-sm text-neutral-600">No critical sole-owner knowledge detected.</p>
+          ) : (
+            <ul className="grid gap-1 text-sm sm:grid-cols-2">
+              {spofs.map((s) => (
+                <li key={s.knowledgeId} className="flex justify-between gap-2 border-b border-neutral-200 py-1">
+                  <span>
+                    {s.name}
+                    <span className="text-neutral-500"> · {s.owners[0]?.name ?? "unowned"}</span>
+                  </span>
+                  <span className="tabular text-neutral-600">{s.riskScore}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+
+        <Section title="Process map">
+          <ul className="grid gap-1 text-sm sm:grid-cols-2">
+            {tpl.processes
+              .slice()
+              .sort((a, b) => (a.stage ?? 0) - (b.stage ?? 0))
+              .map((p) => (
+                <li key={p.id} className="border-b border-neutral-200 py-1">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-neutral-500">
+                    {" "}
+                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas ·{" "}
+                    {(p.ownerPersonIds ?? [])
+                      .map((id) => tpl.people.find((x) => x.id === id)?.name.split(" ")[0])
+                      .filter(Boolean)
+                      .join(", ") || "no owner"}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </Section>
+
+        {openDecisions.length > 0 && (
+          <Section title="Decision log">
+            <ul className="space-y-1.5 text-sm">
+              {openDecisions.map((d) => (
+                <li key={d.id} className="border-b border-neutral-200 pb-1.5">
+                  <p>
+                    <span className="font-medium">{DECISION_KIND_LABEL[d.kind]}</span> · {d.subject}
+                    <span className="text-neutral-500">
+                      {" "}
+                      · {fmtDate(d.createdAt)}
+                      {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
+                    </span>
+                  </p>
+                  {d.note && <p className="text-neutral-600">{d.note}</p>}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        <footer className="mt-8 border-t border-neutral-300 pt-3 text-[11px] leading-relaxed text-neutral-500">
+          {threat.caveats.slice(0, 2).join(" ")} Educational internal-control decision support —
+          not actuarial, legal, or forensic advice, and never an accusation against any person.
+          Generated by Precog Pioneer.
+        </footer>
+      </article>
+    </div>
+  );
+}
+
+function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-lg border border-neutral-300 p-3">
+      <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">{label}</p>
+      <p className="mt-1 text-2xl font-bold tabular">{value}</p>
+      <p className="text-xs text-neutral-600 capitalize">{hint}</p>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-6 break-inside-avoid">
+      <h2 className="mb-2 border-b border-neutral-300 pb-1 text-sm font-semibold tracking-wide text-neutral-800 uppercase">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}

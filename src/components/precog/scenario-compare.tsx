@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { scenarios, staffComposition as baseStaff } from "@/lib/precog/demo-data";
+import { useTemplate } from "@/lib/precog/use-template";
 import type { StaffComposition } from "@/lib/precog/types";
 import type { RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
 import {
@@ -38,6 +38,7 @@ export function ScenarioCompare({
   onStaffChange?: (s: StaffComposition) => void;
   riskVariables?: RiskVariableState;
 }) {
+  const { scenarios, staffComposition: baseStaff } = useTemplate();
   const [mode, setMode] = useState<Mode>("futures");
   const [focusScenarioId, setFocusScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)

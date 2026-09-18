@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { people } from "@/lib/precog/demo-data";
+import { useEffect, useMemo, useState } from "react";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
   dualReleaseCoverage,
@@ -64,14 +65,30 @@ export function DualReleasePanel({
 }: {
   onOpenSod?: () => void;
 }) {
+  const { people } = useTemplate();
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
+  const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
-  const [initiatorId, setInitiatorId] = useState("p2");
-  const [secondId, setSecondId] = useState<string>("p1");
-  const [payee, setPayee] = useState("Apex Dental Lab");
+  const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
+  const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
+  const [payee, setPayee] = useState(seed.defaultPayee);
+
+  useEffect(() => {
+    setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
+  }, [profile.industry]);
+
+  // Keep signer picks valid when the team changes (industry switch or team editor).
+  useEffect(() => {
+    if (!people.some((p) => p.id === initiatorId)) {
+      setInitiatorId(people[1]?.id ?? people[0]?.id ?? "");
+    }
+    if (secondId && !people.some((p) => p.id === secondId)) {
+      setSecondId(people[0]?.id ?? "");
+    }
+  }, [people, initiatorId, secondId]);
   const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
   const [showExForm, setShowExForm] = useState(false);
 
@@ -333,7 +350,7 @@ export function DualReleasePanel({
                   <input
                     value={exPayee}
                     onChange={(e) => setExPayee(e.target.value)}
-                    placeholder="Apex Dental Lab"
+                    placeholder={seed.defaultPayee}
                     className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                   />
                 </label>
@@ -614,7 +631,7 @@ export function DualReleasePanel({
               Release simulator
             </CardTitle>
             <CardDescription>
-              Includes payee matching for exceptions (try “Apex Dental Lab”)
+              Includes payee matching for exceptions (try “{seed.defaultPayee}”)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

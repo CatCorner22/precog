@@ -5,7 +5,7 @@
 import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { initBayesianState } from "./bayesian";
-import { crimeFraudStats } from "../../demo-data";
+import { getActiveTemplate } from "../../active-template";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
@@ -39,7 +39,7 @@ export function computeEvoi(
     : null;
 
   const bayes = initBayesianState({
-    industryBaseRate: crimeFraudStats.industryEmbezzlementRate,
+    industryBaseRate: getActiveTemplate().crimeFraudStats.industryEmbezzlementRate,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,

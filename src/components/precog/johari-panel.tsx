@@ -176,7 +176,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <div>
                 <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  Dental examples
+                  Examples (dental office reference)
                 </p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
                   {guide.dentalExamples.map((e) => (
@@ -324,7 +324,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 {domainApp.primaryMove}
               </p>
               <p className="text-xs text-muted">
-                <span className="font-medium text-fg">Why it matters for dental · </span>
+                <span className="font-medium text-fg">Why it matters for small teams · </span>
                 {domainApp.valueForDental}
               </p>
             </CardContent>

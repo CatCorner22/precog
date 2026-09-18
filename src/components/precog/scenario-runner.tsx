@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  crimeFraudStats,
-  scenarios,
-} from "@/lib/precog/demo-data";
+import { LAYER_META } from "@/lib/precog/templates/layer-meta";
+import { useTemplate } from "@/lib/precog/use-template";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
 import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
+import { industryMeta } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { CascadePanel } from "@/components/precog/cascade-panel";
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
@@ -17,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
-import { LAYER_META } from "@/lib/precog/demo-data";
 import {
   Area,
   AreaChart,
@@ -34,15 +32,17 @@ export function ScenarioRunner({
 }: {
   initialScenarioId?: string | null;
 }) {
+  const tpl = useTemplate();
   const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } =
     usePractice();
+  const teamLabel = industryMeta(profile.industry).teamLabel;
   const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">(
     "single",
   );
   const [scenarioId, setScenarioId] = useState(
-    initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
+    initialScenarioId && tpl.scenarios.some((s) => s.id === initialScenarioId)
       ? initialScenarioId
-      : scenarios[0].id,
+      : tpl.scenarios[0].id,
   );
   const [mitigations, setMitigations] = useState<string[]>([]);
   const [staff, setStaff] = useState<StaffComposition>({ ...profile.staff });
@@ -56,7 +56,7 @@ export function ScenarioRunner({
   }, [profile.staff, profile.riskVariables]);
 
   useEffect(() => {
-    if (initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)) {
+    if (initialScenarioId && tpl.scenarios.some((s) => s.id === initialScenarioId)) {
       setScenarioId(initialScenarioId);
       setMitigations([]);
     }
@@ -82,7 +82,7 @@ export function ScenarioRunner({
     setProfileRisk(next);
   }
 
-  const scenario = scenarios.find((s) => s.id === scenarioId)!;
+  const scenario = tpl.scenarios.find((s) => s.id === scenarioId)!;
   const result = useMemo(
     () =>
       runPrecogScenario(scenarioId, {
@@ -160,7 +160,7 @@ export function ScenarioRunner({
       ) : view === "variables" ? (
         <div className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {scenarios.map((s) => (
+            {tpl.scenarios.map((s) => (
               <button
                 key={s.id}
                 type="button"
@@ -218,7 +218,7 @@ export function ScenarioRunner({
       ) : !result ? null : (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {scenarios.map((s) => (
+            {tpl.scenarios.map((s) => (
               <button
                 key={s.id}
                 type="button"
@@ -264,7 +264,7 @@ export function ScenarioRunner({
                     hint={`${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
                   />
                   <Stat
-                    label="Retained by practice"
+                    label={`Retained by ${teamLabel}`}
                     value={formatUsd(result.retainedImpact.expected)}
                     hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
                   />
@@ -367,7 +367,7 @@ export function ScenarioRunner({
               <Card>
                 <CardHeader>
                   <CardTitle>Staff composition</CardTitle>
-                  <CardDescription>Synced to practice profile · feeds residual + cascades</CardDescription>
+                  <CardDescription>Synced to business profile · feeds residual + cascades</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow
@@ -424,9 +424,9 @@ export function ScenarioRunner({
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
-                    Exposure ~{Math.round(crimeFraudStats.industryEmbezzlementRate * 100)}% ·
-                    median detect {crimeFraudStats.medianDetectionDays}d · mid loss{" "}
-                    {formatUsd(crimeFraudStats.typicalLossMid)}
+                    Exposure ~{Math.round(tpl.crimeFraudStats.industryEmbezzlementRate * 100)}% ·
+                    median detect {tpl.crimeFraudStats.medianDetectionDays}d · mid loss{" "}
+                    {formatUsd(tpl.crimeFraudStats.typicalLossMid)}
                   </p>
                   <ul className="space-y-1 text-xs text-muted">
                     {result.crimeModifiers.map((m) => (

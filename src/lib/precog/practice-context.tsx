@@ -4,16 +4,30 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import type { StaffComposition } from "./types";
+import { authEnabled } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import type { Person, ProcessNode, StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
+import { INDUSTRIES, industryMeta, type IndustryId } from "./industry";
+import {
+  loadBusinessProfile,
+  saveBusinessProfile,
+} from "./profile-server";
+import {
+  setActiveIndustry,
+  setPeopleOverrides,
+  setProcessOverrides,
+} from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import {
   defaultProfile,
   loadProfile,
@@ -21,15 +35,21 @@ import {
   saveProfile,
   type DecisionEntry,
   type DecisionKind,
+  type MapVersion,
   type PracticeProfile,
 } from "./practice-profile";
-import type { IndustryPackId } from "./industries/types";
-import { SAMPLE_NAMES, packById } from "./industries/packs";
+import type { SavedProcessBlock } from "./builder/process-blocks";
+
+export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error";
 
 interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
+  syncStatus: SyncStatus;
+  /** Bumps when the active industry template swaps — drives useTemplate() re-renders. */
+  templateRevision: number;
   setPracticeName: (name: string) => void;
+  setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => void;
   setRiskVariables: (
     v: RiskVariableState | ((r: RiskVariableState) => RiskVariableState),
@@ -47,42 +67,212 @@ interface PracticeContextValue {
     linkedId?: string;
   }) => void;
   removeDecision: (id: string) => void;
-  setIndustry: (id: IndustryPackId) => void;
   resetProfile: () => void;
+  /** First-visit picker: load the template and mark onboarding done. */
+  completeOnboarding: (industry: IndustryId) => void;
+  /** Map builder: replace the process map (null = back to industry template). */
+  setCustomProcesses: (
+    v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
+  ) => void;
+  /** Map builder: replace the demo team with real people (null = template people). */
+  setCustomPeople: (
+    v: Person[] | null | ((current: Person[]) => Person[] | null),
+  ) => void;
+  /** Map builder: pin canvas positions for process nodes. */
+  setMapLayout: (
+    v:
+      | Record<string, { x: number; y: number }>
+      | ((l: Record<string, { x: number; y: number }>) => Record<string, { x: number; y: number }>),
+  ) => void;
+  /** True when the process map differs from the industry template. */
+  mapCustomized: boolean;
+  /** Save or replace user-defined reusable process blocks. */
+  setSavedProcessBlocks: (
+    v:
+      | SavedProcessBlock[]
+      | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
+  ) => void;
+  /** Append a map health snapshot when the score changes (deduped, capped). */
+  recordMapHealth: (score: number) => void;
+  /** Map builder undo/redo over processes + team edits. */
+  undoMap: () => void;
+  redoMap: () => void;
+  canUndoMap: boolean;
+  canRedoMap: boolean;
+  /** Named map snapshots. */
+  saveMapVersion: (name: string, healthScore: number) => MapVersion;
+  deleteMapVersion: (id: string) => void;
+  restoreMapVersion: (id: string) => void;
 }
+
+const MAX_VERSIONS = 12;
+
+interface MapSnapshot {
+  customProcesses: ProcessNode[] | null | undefined;
+  customPeople: Person[] | null | undefined;
+}
+
+const MAX_UNDO = 50;
+const MAX_HEALTH_POINTS = 90;
 
 const PracticeContext = createContext<PracticeContextValue | null>(null);
 
+const SAVE_DEBOUNCE_MS = 1200;
+
 export function PracticeProvider({ children }: { children: ReactNode }) {
+  const { user, isPending } = useCurrentUserState();
   const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
   const [ready, setReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [templateRevision, setTemplateRevision] = useState(0);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudLoadedFor = useRef<string | null>(null);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const undoStack = useRef<MapSnapshot[]>([]);
+  const redoStack = useRef<MapSnapshot[]>([]);
+  const [historyVersion, setHistoryVersion] = useState(0);
 
+  const pushUndo = useCallback(() => {
+    const p = profileRef.current;
+    undoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    if (undoStack.current.length > MAX_UNDO) undoStack.current.shift();
+    redoStack.current = [];
+    setHistoryVersion((v) => v + 1);
+  }, []);
+
+  const applySnapshot = useCallback((snap: MapSnapshot) => {
+    setProcessOverrides(snap.customProcesses ?? null);
+    setPeopleOverrides(snap.customPeople ?? null);
+    setTemplateRevision((r) => r + 1);
+    setProfile((p) => ({
+      ...p,
+      customProcesses: snap.customProcesses ?? null,
+      customPeople: snap.customPeople ?? null,
+    }));
+  }, []);
+
+  const undoMap = useCallback(() => {
+    const snap = undoStack.current.pop();
+    if (!snap) return;
+    const p = profileRef.current;
+    redoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    applySnapshot(snap);
+    setHistoryVersion((v) => v + 1);
+  }, [applySnapshot]);
+
+  const redoMap = useCallback(() => {
+    const snap = redoStack.current.pop();
+    if (!snap) return;
+    const p = profileRef.current;
+    undoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    applySnapshot(snap);
+    setHistoryVersion((v) => v + 1);
+  }, [applySnapshot]);
+
+  const clearHistory = useCallback(() => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistoryVersion((v) => v + 1);
+  }, []);
+
+  // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
-    setProfile(loadProfile());
+    const loaded = loadProfile();
+    setActiveIndustry(loaded.industry);
+    setProcessOverrides(loaded.customProcesses ?? null);
+    setPeopleOverrides(loaded.customPeople ?? null);
+    setTemplateRevision((r) => r + 1);
+    setProfile(loaded);
     setReady(true);
   }, []);
 
   useEffect(() => {
+    if (!ready || isPending) return;
+    if (!authEnabled || !user || user.isDevFallback) {
+      setSyncStatus("local");
+      cloudLoadedFor.current = null;
+      return;
+    }
+    if (cloudLoadedFor.current === user.id) return;
+
+    let cancelled = false;
+    setSyncStatus("loading");
+    void loadBusinessProfile()
+      .then((res) => {
+        if (cancelled) return;
+        cloudLoadedFor.current = user.id;
+        if (res.found && res.profile) {
+          setActiveIndustry(res.profile.industry);
+          setProcessOverrides(res.profile.customProcesses ?? null);
+          setPeopleOverrides(res.profile.customPeople ?? null);
+          setTemplateRevision((r) => r + 1);
+          setProfile(res.profile);
+          saveProfile(res.profile);
+        }
+        setSyncStatus("synced");
+      })
+      .catch(() => {
+        if (!cancelled) setSyncStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, isPending, user?.id, user?.isDevFallback]);
+
+  // Persist locally + debounced cloud save
+  useEffect(() => {
     if (!ready) return;
     saveProfile(profile);
-  }, [profile, ready]);
+
+    if (!authEnabled || !user || user.isDevFallback) {
+      setSyncStatus("local");
+      return;
+    }
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void saveBusinessProfile({ data: { profile, industry: profile.industry } })
+        .then(() => setSyncStatus("synced"))
+        .catch(() => setSyncStatus("error"));
+    }, SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [profile, ready, user?.id, user?.isDevFallback]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
   }, []);
 
-  const setIndustry = useCallback((id: IndustryPackId) => {
+  const setIndustry = useCallback((industry: IndustryId) => {
+    clearHistory();
+    setActiveIndustry(industry);
+    setProcessOverrides(null);
+    setPeopleOverrides(null);
+    setTemplateRevision((r) => r + 1);
+    const meta = industryMeta(industry);
+    const tpl = getIndustryTemplate(industry);
+    const staff = { ...tpl.staffComposition };
+    const fresh = defaultProfile(industry);
     setProfile((p) => ({
-      ...p,
-      industryId: id,
-      // Carry the sample name across so the header stops contradicting the
-      // selected trade. A name the owner typed themselves is never touched.
-      practiceName: SAMPLE_NAMES.has(p.practiceName)
-        ? packById(id).sampleName
-        : p.practiceName,
-      updatedAt: new Date().toISOString(),
+      ...fresh,
+      practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
+      decisions: p.decisions,
+      onboardingComplete: true,
     }));
-  }, []);
+  }, [clearHistory]);
 
   const setStaff = useCallback(
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
@@ -189,13 +379,167 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetProfile = useCallback(() => {
-    setProfile(defaultProfile());
+    clearHistory();
+    setProfile((p) => {
+      setActiveIndustry(p.industry);
+      setProcessOverrides(null);
+      setPeopleOverrides(null);
+      setTemplateRevision((r) => r + 1);
+      return defaultProfile(p.industry);
+    });
+  }, [clearHistory]);
+
+  const completeOnboarding = useCallback((industry: IndustryId) => {
+    clearHistory();
+    setActiveIndustry(industry);
+    setProcessOverrides(null);
+    setPeopleOverrides(null);
+    setTemplateRevision((r) => r + 1);
+    setProfile((p) => ({
+      ...defaultProfile(industry),
+      decisions: p.decisions,
+      onboardingComplete: true,
+    }));
+  }, [clearHistory]);
+
+  const setCustomPeople = useCallback(
+    (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
+      pushUndo();
+      setProfile((p) => {
+        const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
+        const next = typeof v === "function" ? v(current) : v;
+        setPeopleOverrides(next);
+        setTemplateRevision((r) => r + 1);
+        return { ...p, customPeople: next };
+      });
+    },
+    [],
+  );
+
+  const setCustomProcesses = useCallback(
+    (
+      v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
+    ) => {
+      pushUndo();
+      setProfile((p) => {
+        const current =
+          p.customProcesses ?? getIndustryTemplate(p.industry).processes;
+        const next = typeof v === "function" ? v(current) : v;
+        setProcessOverrides(next);
+        setTemplateRevision((r) => r + 1);
+        return { ...p, customProcesses: next };
+      });
+    },
+    [],
+  );
+
+  const setMapLayout = useCallback(
+    (
+      v:
+        | Record<string, { x: number; y: number }>
+        | ((
+            l: Record<string, { x: number; y: number }>,
+          ) => Record<string, { x: number; y: number }>),
+    ) => {
+      setProfile((p) => {
+        const cur = p.mapLayout ?? {};
+        const next = typeof v === "function" ? v(cur) : v;
+        return { ...p, mapLayout: next };
+      });
+    },
+    [],
+  );
+
+  const mapCustomized = Boolean(
+    profile.customProcesses ||
+      profile.customPeople ||
+      Object.keys(profile.mapLayout ?? {}).length > 0,
+  );
+
+  const setSavedProcessBlocks = useCallback(
+    (
+      v: SavedProcessBlock[] | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
+    ) => {
+      setProfile((p) => {
+        const cur = p.savedProcessBlocks ?? [];
+        const next = typeof v === "function" ? v(cur) : v;
+        return { ...p, savedProcessBlocks: next.slice(0, 24) };
+      });
+    },
+    [],
+  );
+
+  const recordMapHealth = useCallback((score: number) => {
+    setProfile((p) => {
+      const history = p.mapHealthHistory ?? [];
+      const last = history[history.length - 1];
+      if (last && last.score === score) return p;
+      const now = new Date();
+      // Collapse rapid edits within the same minute into one point.
+      const trimmed =
+        last && now.getTime() - new Date(last.at).getTime() < 60_000
+          ? history.slice(0, -1)
+          : history;
+      const next = [...trimmed, { at: now.toISOString(), score }].slice(-MAX_HEALTH_POINTS);
+      return { ...p, mapHealthHistory: next };
+    });
   }, []);
+
+  const saveMapVersion = useCallback((name: string, healthScore: number): MapVersion => {
+    const p = profileRef.current;
+    const tpl = getIndustryTemplate(p.industry);
+    const version: MapVersion = {
+      id: `ver_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      name: name.trim().slice(0, 60) || `Version ${new Date().toLocaleDateString()}`,
+      createdAt: new Date().toISOString(),
+      healthScore,
+      processes: structuredClone(p.customProcesses ?? tpl.processes),
+      people: structuredClone(p.customPeople ?? tpl.people),
+      layout: { ...(p.mapLayout ?? {}) },
+    };
+    setProfile((cur) => ({
+      ...cur,
+      mapVersions: [version, ...(cur.mapVersions ?? [])].slice(0, MAX_VERSIONS),
+    }));
+    return version;
+  }, []);
+
+  const deleteMapVersion = useCallback((id: string) => {
+    setProfile((p) => ({
+      ...p,
+      mapVersions: (p.mapVersions ?? []).filter((v) => v.id !== id),
+    }));
+  }, []);
+
+  const restoreMapVersion = useCallback(
+    (id: string) => {
+      const v = profileRef.current.mapVersions?.find((x) => x.id === id);
+      if (!v) return;
+      pushUndo();
+      const processes = structuredClone(v.processes);
+      const people = structuredClone(v.people);
+      setProcessOverrides(processes);
+      setPeopleOverrides(people);
+      setTemplateRevision((r) => r + 1);
+      setProfile((p) => ({
+        ...p,
+        customProcesses: processes,
+        customPeople: people,
+        mapLayout: { ...v.layout },
+      }));
+    },
+    [pushUndo],
+  );
+
+  const canUndoMap = undoStack.current.length > 0;
+  const canRedoMap = redoStack.current.length > 0;
 
   const value = useMemo(
     () => ({
       profile,
       ready,
+      syncStatus,
+      templateRevision,
       setPracticeName,
       setIndustry,
       setStaff,
@@ -204,10 +548,26 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       resetProfile,
+      completeOnboarding,
+      setCustomProcesses,
+      setCustomPeople,
+      setMapLayout,
+      mapCustomized,
+      setSavedProcessBlocks,
+      recordMapHealth,
+      undoMap,
+      redoMap,
+      canUndoMap,
+      canRedoMap,
+      saveMapVersion,
+      deleteMapVersion,
+      restoreMapVersion,
     }),
     [
       profile,
       ready,
+      syncStatus,
+      templateRevision,
       setPracticeName,
       setIndustry,
       setStaff,
@@ -216,6 +576,22 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       resetProfile,
+      completeOnboarding,
+      setCustomProcesses,
+      setCustomPeople,
+      setMapLayout,
+      mapCustomized,
+      setSavedProcessBlocks,
+      recordMapHealth,
+      undoMap,
+      redoMap,
+      canUndoMap,
+      canRedoMap,
+      saveMapVersion,
+      deleteMapVersion,
+      restoreMapVersion,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      historyVersion,
     ],
   );
 
@@ -223,6 +599,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>
   );
 }
+
+const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 export function usePractice() {
   const ctx = useContext(PracticeContext);

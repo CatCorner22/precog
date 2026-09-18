@@ -1,11 +1,4 @@
-import {
-  crimeFraudStats,
-  knowledge,
-  people,
-  relations,
-  scenarios,
-  staffComposition,
-} from "./demo-data";
+import { getActiveTemplate } from "./active-template";
 import type {
   KnowledgeLevel,
   KnowledgeRisk,
@@ -24,6 +17,7 @@ import {
 const STRONG: KnowledgeLevel[] = ["expert", "proficient"];
 
 export function findKnowledgeRisks(): KnowledgeRisk[] {
+  const { knowledge, people, relations } = getActiveTemplate();
   const byK = new Map<string, typeof relations>();
   for (const r of relations) {
     if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
@@ -66,6 +60,7 @@ function staffRiskMultiplier(staff: StaffComposition): number {
 }
 
 function fraudMultiplier(scenario: ScenarioTemplate): number {
+  const { crimeFraudStats } = getActiveTemplate();
   const fraudRelated =
     scenario.id.includes("cash") ||
     scenario.id.includes("writeoff") ||
@@ -82,6 +77,7 @@ export function runPrecogScenario(
     riskVariables?: RiskVariableState;
   },
 ): PrecogResult | null {
+  const { scenarios, staffComposition, crimeFraudStats } = getActiveTemplate();
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) return null;
 
@@ -246,7 +242,7 @@ export function runPrecogScenario(
 }
 
 export function getScenario(id: string): ScenarioTemplate | undefined {
-  return scenarios.find((s) => s.id === id);
+  return getActiveTemplate().scenarios.find((s) => s.id === id);
 }
 
 export function rankDangerousScenarios(options?: {
@@ -257,6 +253,7 @@ export function rankDangerousScenarios(options?: {
   score: number;
   result: PrecogResult;
 }[] {
+  const { scenarios, staffComposition } = getActiveTemplate();
   return scenarios
     .map((scenario) => {
       const result = runPrecogScenario(scenario.id, options)!;

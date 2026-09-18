@@ -13,7 +13,7 @@ import {
   updateBayesianWithLever,
   type BayesianState,
 } from "./bayesian";
-import { crimeFraudStats } from "../../demo-data";
+import { getActiveTemplate } from "../../active-template";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { runPrecogScenario } from "../../engine";
@@ -93,7 +93,7 @@ export function runCounterfactuals(
     : null;
 
   const baseBayes = initBayesianState({
-    industryBaseRate: crimeFraudStats.industryEmbezzlementRate,
+    industryBaseRate: getActiveTemplate().crimeFraudStats.industryEmbezzlementRate,
     retainedExpected: topResult?.retainedImpact.expected ?? 25000,
     residualAverage: portfolioSummary(staff).averageResidual,
     leadingPressure: leading.pressureIndex,

@@ -217,7 +217,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "critical",
     title: "Approve + post write-offs",
-    why: "An adjustment that needs nobody else\u2019s approval can erase a balance that was actually paid, and the payment goes with it.",
+    why: "An adjustment that needs nobody else’s approval can erase a balance that was actually paid, and the payment goes with it.",
     fraudPath: "Write off a balance that was paid, and keep the payment",
     compensatingDefaults: [
       "Owner approves any write-off above $150",
@@ -281,7 +281,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_payroll",
     severity: "high",
     title: "Enter + approve payroll",
-    why: "Whoever runs payroll can change what payroll says, including their own pay. Two cases in this application\u2019s library ran on exactly that.",
+    why: "Whoever runs payroll can change what payroll says, including their own pay. Two cases in this application’s library ran on exactly that.",
     fraudPath: "Add hours, a raise, or a reimbursement to your own pay",
     compensatingDefaults: ["Owner always approves final file", "Exception report"],
     linkedControlId: "c-payroll",
