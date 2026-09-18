@@ -66,7 +66,12 @@ function fraudMultiplier(scenario: ScenarioTemplate): number {
     scenario.id.includes("writeoff") ||
     scenario.id.includes("vendor") ||
     scenario.controlId?.includes("sod");
-  return fraudRelated ? 1 + crimeFraudStats.industryEmbezzlementRate * 0.5 : 1;
+  if (!fraudRelated) return 1;
+  // Small organizations carry a higher median loss than the study population
+  // as a whole ($126,000 against $104,000), so a fraud-related scenario is
+  // scaled by that observed ratio. The previous multiplier was derived from an
+  // invented annual embezzlement rate and had no source behind it.
+  return crimeFraudStats.medianLossSmallOrgUsd / crimeFraudStats.medianLossAllUsd;
 }
 
 export function runPrecogScenario(
@@ -82,9 +87,7 @@ export function runPrecogScenario(
   if (!scenario) return null;
 
   const staff = options?.staff ?? staffComposition;
-  let vars = options?.riskVariables
-    ? { ...options.riskVariables }
-    : { ...DEFAULT_RISK_VARIABLES };
+  let vars = options?.riskVariables ? { ...options.riskVariables } : { ...DEFAULT_RISK_VARIABLES };
 
   // Keep staff toggles and variable booleans aligned when staff is provided
   vars = mergeStaffIntoVariables(vars, staff);
@@ -126,10 +129,7 @@ export function runPrecogScenario(
 
   const p50 = Math.round(scenario.baseTimelineDays.p50 * timelineMult);
   const p95Low = Math.round(scenario.baseTimelineDays.p95Low * timelineMult);
-  const p95High = Math.max(
-    p50 + 5,
-    Math.round(scenario.baseTimelineDays.p95High * timelineMult),
-  );
+  const p95High = Math.max(p50 + 5, Math.round(scenario.baseTimelineDays.p95High * timelineMult));
 
   const expected = Math.round(dynamic.transfer.grossLossExpected);
   const low = Math.round(dynamic.transfer.grossLossLow);
@@ -137,7 +137,9 @@ export function runPrecogScenario(
 
   const staffModifiers: string[] = [];
   if (staff.teamSize <= 6)
-    staffModifiers.push(`Small team (n=${staff.teamSize}) reduces natural SoD — risk uplift applied.`);
+    staffModifiers.push(
+      `Small team (n=${staff.teamSize}) reduces natural SoD — risk uplift applied.`,
+    );
   if (staff.soleOwnerKnowledgeCount >= 1)
     staffModifiers.push(
       `${staff.soleOwnerKnowledgeCount} critical knowledge item(s) with sole strong owner.`,
@@ -158,13 +160,13 @@ export function runPrecogScenario(
   const crimeModifiers: string[] = [];
   if (fMult > 1) {
     crimeModifiers.push(
-      `Industry-oriented small-entity fraud base rate ~${Math.round(crimeFraudStats.industryEmbezzlementRate * 100)}% annual exposure class (illustrative).`,
+      `Small organizations carry the higher median loss: $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Literature median detection lag ~${crimeFraudStats.medianDetectionDays} days; p95 ~${crimeFraudStats.detectionDaysP95} days when controls are weak.`,
+      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,
     );
     crimeModifiers.push(
-      `Typical mid-case loss reference ~$${crimeFraudStats.typicalLossMid.toLocaleString()} (demo calibration, not a prediction of this practice).`,
+      `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,
     );
   } else {
     crimeModifiers.push(

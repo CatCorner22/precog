@@ -3,15 +3,8 @@
  */
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
-import {
-  findKnowledgeRisks,
-  rankDangerousScenarios,
-  runPrecogScenario,
-} from "../engine";
-import {
-  portfolioSummary,
-  tornadoSensitivity,
-} from "../scoring/residual-engine";
+import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
+import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -70,23 +63,84 @@ export const TOOL_CATALOG: {
   description: string;
   args: string;
 }[] = [
-  { name: "get_practice_snapshot", description: "Practice name, staff, risk variables, crime priors.", args: "none" },
-  { name: "get_coso_assessment", description: "Five COSO components and priority findings.", args: "none" },
-  { name: "get_residual_portfolio", description: "Ranked residual risks with drivers.", args: "none" },
-  { name: "get_knowledge_spofs", description: "Critical knowledge single points of failure.", args: "none" },
+  {
+    name: "get_practice_snapshot",
+    description: "Practice name, staff, risk variables, crime priors.",
+    args: "none",
+  },
+  {
+    name: "get_coso_assessment",
+    description: "Five COSO components and priority findings.",
+    args: "none",
+  },
+  {
+    name: "get_residual_portfolio",
+    description: "Ranked residual risks with drivers.",
+    args: "none",
+  },
+  {
+    name: "get_knowledge_spofs",
+    description: "Critical knowledge single points of failure.",
+    args: "none",
+  },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
-  { name: "run_precog_scenario", description: "Scenario timeline CI, retained loss, CoR.", args: "{ scenarioId? }" },
-  { name: "compare_scenario_futures", description: "Do-nothing vs mitigations.", args: "{ scenarioId? }" },
-  { name: "get_tornado_levers", description: "Highest residual leverage control changes.", args: "none" },
-  { name: "get_insurance_cost_of_risk", description: "Premium, discounts, retained, CoR.", args: "{ scenarioId? }" },
+  {
+    name: "run_precog_scenario",
+    description: "Scenario timeline CI, retained loss, CoR.",
+    args: "{ scenarioId? }",
+  },
+  {
+    name: "compare_scenario_futures",
+    description: "Do-nothing vs mitigations.",
+    args: "{ scenarioId? }",
+  },
+  {
+    name: "get_tornado_levers",
+    description: "Highest residual leverage control changes.",
+    args: "none",
+  },
+  {
+    name: "get_insurance_cost_of_risk",
+    description: "Premium, discounts, retained, CoR.",
+    args: "{ scenarioId? }",
+  },
   { name: "get_sod_conflicts", description: "SoD gaps and compensating controls.", args: "none" },
-  { name: "simulate_variable_cascades", description: "Cross-variable ripple effects.", args: "{ leverId?, scenarioId? }" },
-  { name: "retrieve_guidance", description: "TF-IDF RAG over COSO/SoD/Lean/fraud corpus.", args: "{ query? }" },
-  { name: "score_anomalies", description: "Multivariate anomaly score vs healthy practice prior.", args: "none" },
-  { name: "get_leading_indicators", description: "Leading-indicator pressure composite.", args: "none" },
-  { name: "forecast_residual", description: "12-week residual trajectory neglect vs plan.", args: "{ horizonWeeks? }" },
-  { name: "run_advanced_reasoning", description: "Bayesian + causal multi-hop + beam search + counterfactuals + EVOI.", args: "none" },
-  { name: "run_meta_analysis", description: "Epistemic meta-analysis: evaluation readiness, known/unknown unknowns, real-time capability.", args: "none" },
+  {
+    name: "simulate_variable_cascades",
+    description: "Cross-variable ripple effects.",
+    args: "{ leverId?, scenarioId? }",
+  },
+  {
+    name: "retrieve_guidance",
+    description: "TF-IDF RAG over COSO/SoD/Lean/fraud corpus.",
+    args: "{ query? }",
+  },
+  {
+    name: "score_anomalies",
+    description: "Multivariate anomaly score vs healthy practice prior.",
+    args: "none",
+  },
+  {
+    name: "get_leading_indicators",
+    description: "Leading-indicator pressure composite.",
+    args: "none",
+  },
+  {
+    name: "forecast_residual",
+    description: "12-week residual trajectory neglect vs plan.",
+    args: "{ horizonWeeks? }",
+  },
+  {
+    name: "run_advanced_reasoning",
+    description: "Bayesian + causal multi-hop + beam search + counterfactuals + EVOI.",
+    args: "none",
+  },
+  {
+    name: "run_meta_analysis",
+    description:
+      "Epistemic meta-analysis: evaluation readiness, known/unknown unknowns, real-time capability.",
+    args: "none",
+  },
 ];
 
 export function executeTool(
@@ -120,10 +174,11 @@ export function executeTool(
               claimsLoadFactor: riskVars.claimsLoadFactor,
               dailyCashExposure: riskVars.dailyCashExposure,
             },
-            crimePrior: {
-              annualExposureClass: crimeFraudStats.industryEmbezzlementRate,
-              medianDetectionDays: crimeFraudStats.medianDetectionDays,
-              midLossRef: crimeFraudStats.typicalLossMid,
+            publishedFraudStats: {
+              medianLossSmallOrgUsd: crimeFraudStats.medianLossSmallOrgUsd,
+              medianDetectionMonths: crimeFraudStats.medianDetectionMonths,
+              medianLossAllUsd: crimeFraudStats.medianLossAllUsd,
+              statsSource: crimeFraudStats.source,
             },
           },
           links: [{ tab: "command", label: "Command" }],
@@ -181,9 +236,7 @@ export function executeTool(
       }
 
       case "get_knowledge_spofs": {
-        const risks = findKnowledgeRisks().filter(
-          (r) => r.soleOwner || r.ownerCount === 0,
-        );
+        const risks = findKnowledgeRisks().filter((r) => r.soleOwner || r.ownerCount === 0);
         return {
           tool,
           ok: true,
@@ -226,8 +279,7 @@ export function executeTool(
 
       case "run_precog_scenario": {
         const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
-        const scenarioId =
-          (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const result = runPrecogScenario(scenarioId, { staff, riskVariables: riskVars });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
@@ -263,8 +315,7 @@ export function executeTool(
 
       case "compare_scenario_futures": {
         const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
-        const scenarioId =
-          (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const report = compareScenarioFutures(scenarioId, staff, [], riskVars);
         return {
           tool,
@@ -299,8 +350,7 @@ export function executeTool(
 
       case "get_insurance_cost_of_risk": {
         const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
-        const scenarioId =
-          (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const scenario = scenarios.find((s) => s.id === scenarioId)!;
         const dyn = evaluateDynamicRisk(
           riskVars,
@@ -341,8 +391,7 @@ export function executeTool(
 
       case "simulate_variable_cascades": {
         const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
-        const scenarioId =
-          (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const leverId = args.leverId as CascadeLeverId | undefined;
         if (leverId) {
           const one = simulateCascadeLever(leverId, riskVars, staff, scenarioId);
@@ -408,9 +457,7 @@ export function executeTool(
           tool,
           args: { query },
           ok: true,
-          summary: hits.length
-            ? `RAG: ${hits.map((h) => h.chunk.id).join(", ")}`
-            : "RAG: no hits",
+          summary: hits.length ? `RAG: ${hits.map((h) => h.chunk.id).join(", ")}` : "RAG: no hits",
           data: {
             query,
             hits: hits.map((h) => ({
@@ -462,7 +509,6 @@ export function executeTool(
           links: [{ tab: "intel", label: "Forecast" }],
         };
       }
-
 
       case "run_advanced_reasoning": {
         const report = runAdvancedReasoning(staff, riskVars);
@@ -556,7 +602,11 @@ export function planTools(question: string): ToolName[] {
   if (/coso|guidance|what does|policy|best practice|rag/.test(q)) {
     tools.add("retrieve_guidance");
   }
-  if (/unknown|epistemic|meta|blind.?spot|rumsfeld|confidence|readiness|gap|what don.t we know/.test(q)) {
+  if (
+    /unknown|epistemic|meta|blind.?spot|rumsfeld|confidence|readiness|gap|what don.t we know/.test(
+      q,
+    )
+  ) {
     tools.add("run_meta_analysis");
   }
 

@@ -6,11 +6,6 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-const fraudStats = {
-  ...DEFAULT_FRAUD_STATS,
-  source:
-    "Illustrative retail shrinkage and employee theft patterns (NRF, ACFE small retail orgs). Educational demo only.",
-};
 
 export const retailTemplate: IndustryTemplate = {
   id: "retail",
@@ -504,8 +499,8 @@ export const retailTemplate: IndustryTemplate = {
   ],
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF },
-  crimeFraudStats: fraudStats,
-  scenarios: baseFraudScenarios(fraudStats.source, {
+  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
     keyPersonTitle: "Lead cashier leaves with sole POS/returns knowledge",
     keyPersonDesc:
       "Jordan (sole expert on POS overrides and return policy) resigns with 2 weeks notice. No cross-training documented.",

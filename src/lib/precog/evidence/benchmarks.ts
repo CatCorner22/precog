@@ -65,26 +65,50 @@ export const BENCHMARKS: Benchmark[] = [
   },
   {
     id: "bm-small-org-hotline-gap",
-    label: "Small organizations with a reporting mechanism",
-    value: "25%, against 85% of large organizations",
-    numeric: 0.25,
+    label: "Organizations under 100 employees with a reporting mechanism",
+    value: "24%, against 85% of large organizations",
+    numeric: 0.24,
     soWhat:
-      "Three quarters of small businesses lack the one control that detects the most fraud. This is the widest and cheapest gap to close on this list.",
+      "Three quarters of small businesses lack the one control that detects the most fraud, while relying on tips at the same rate as everyone else. This is the widest and cheapest gap to close on this list.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
   },
   {
     id: "bm-small-org-losses",
-    label: "Losses by organization size",
-    value: "Smallest organizations carry the highest median losses of any size band",
+    label: "Median loss, organizations under 100 employees",
+    value: "$126,000, against $123,000 for organizations over 10,000",
+    numeric: 126000,
     soWhat:
-      "Small businesses do not lose less because they are small. They lose the most, because fewer people means fewer independent checks and a single role covering the whole cash cycle.",
+      "Small businesses do not lose less because they are small. They lose slightly more than the largest organizations in absolute terms, and vastly more relative to what they can absorb.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
     caveat:
-      "Organizations with more than 10,000 employees are a close second in the same table, so the relationship with size is U-shaped rather than linear.",
+      "The two figures are close, so size matters far less than it appears. What separates them is capacity to survive the loss, which this table does not measure.",
+  },
+  {
+    id: "bm-revenue-share",
+    label: "Share of annual revenue organizations lose to fraud",
+    value: "5%, as estimated by Certified Fraud Examiners",
+    numeric: 0.05,
+    soWhat:
+      "The most useful figure for sizing your own exposure, because it scales to your business rather than to a study population. On $1M of revenue that is $50,000 a year.",
+    study: "Occupational Fraud 2026: A Report to the Nations",
+    studyYear: 2026,
+    source: ACFE_2026_RTTN,
+    caveat:
+      "An estimate by practitioners, not a measurement, and the ACFE describes it as conservative because undetected fraud cannot be counted. Treat it as an order of magnitude.",
+  },
+  {
+    id: "bm-duration-distribution",
+    label: "How long schemes actually run",
+    value: "A third are found within six months; 5% run beyond five years",
+    soWhat:
+      "Most schemes are caught reasonably early. The damage concentrates in the small share that are not, which is why detection speed matters more than detection certainty.",
+    study: "Occupational Fraud 2026: A Report to the Nations",
+    studyYear: 2026,
+    source: ACFE_2026_RTTN,
   },
   {
     id: "bm-asset-misappropriation",
@@ -122,7 +146,7 @@ export const BENCHMARKS: Benchmark[] = [
   {
     id: "bm-case-scale",
     label: "Study basis",
-    value: "2,402 cases, 143 countries, over $3.4 billion in documented losses",
+    value: "2,402 cases, 143 countries, over $3.4 billion in documented losses, investigated and closed between January 2024 and September 2025",
     soWhat:
       "These figures come from cases that were investigated and substantiated, not from a survey of opinions.",
     study: "Occupational Fraud 2026: A Report to the Nations",

@@ -93,7 +93,7 @@ export function runCounterfactuals(
     : null;
 
   const baseBayes = initBayesianState({
-    industryBaseRate: getActiveTemplate().crimeFraudStats.industryEmbezzlementRate,
+    assumedPrior: getActiveTemplate().crimeFraudStats.assumedControlFailurePrior,
     retainedExpected: topResult?.retainedImpact.expected ?? 25000,
     residualAverage: portfolioSummary(staff).averageResidual,
     leadingPressure: leading.pressureIndex,
