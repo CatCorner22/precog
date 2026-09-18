@@ -29,6 +29,10 @@ import {
 } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 import { getBaseTemplate } from "@/lib/precog/active-template";
+import { industryMeta } from "@/lib/precog/industry";
+import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
+import type { SuggestionResult } from "@/lib/precog/builder/suggest";
+import { GitCompare, Loader2, Sparkles } from "lucide-react";
 
 const RISK_KINDS: ProcessRiskKind[] = [
   "fraud",
@@ -87,6 +91,7 @@ export function ProcessBuilder({
     usePractice();
   const processes = tpl.processes;
   const [showTeam, setShowTeam] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
   const selected = processes.find((p) => p.id === selectedProcessId) ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -275,11 +280,24 @@ export function ProcessBuilder({
             <Users className="size-3.5" /> Team ({tpl.people.length})
           </Button>
           {mapCustomized && (
+            <Button
+              size="sm"
+              variant={showChanges ? "default" : "secondary"}
+              onClick={() => setShowChanges((v) => !v)}
+            >
+              <GitCompare className="size-3.5" /> Changes
+            </Button>
+          )}
+          {mapCustomized && (
             <Button size="sm" variant="ghost" onClick={resetToTemplate}>
               <RotateCcw className="size-3.5" /> Template
             </Button>
           )}
         </div>
+
+        {showChanges && mapCustomized && (
+          <ChangesView processes={processes} people={tpl.people} onSelectProcess={onSelectProcess} />
+        )}
 
         {showTeam && (
           <TeamEditor
@@ -325,6 +343,308 @@ export function ProcessBuilder({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ChangesView({
+  processes,
+  people,
+  onSelectProcess,
+}: {
+  processes: ProcessNode[];
+  people: Person[];
+  onSelectProcess: (id: string) => void;
+}) {
+  const base = getBaseTemplate();
+  const baseById = new Map(base.processes.map((p) => [p.id, p]));
+  const curById = new Map(processes.map((p) => [p.id, p]));
+
+  const added = processes.filter((p) => !baseById.has(p.id));
+  const removed = base.processes.filter((p) => !curById.has(p.id));
+  const modified = processes
+    .filter((p) => baseById.has(p.id))
+    .map((p) => {
+      const b = baseById.get(p.id)!;
+      const changes: string[] = [];
+      if (p.name !== b.name) changes.push("renamed");
+      if (p.description !== b.description) changes.push("description");
+      if ((p.stage ?? 0) !== (b.stage ?? 0)) changes.push("stage");
+      if (p.dependencies.join("|") !== b.dependencies.join("|")) changes.push("dependencies");
+      if ((p.ownerPersonIds ?? []).join("|") !== (b.ownerPersonIds ?? []).join("|"))
+        changes.push("owners");
+      if (p.controlIds.join("|") !== b.controlIds.join("|")) changes.push("controls");
+      const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
+      const dr = d(p.risks, b.risks);
+      const di = d(p.ideas, b.ideas);
+      const dw = d(p.wastes, b.wastes);
+      if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
+      if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
+      if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);
+      return { p, changes };
+    })
+    .filter((x) => x.changes.length);
+
+  const basePeople = new Set(base.people.map((p) => p.id));
+  const curPeople = new Set(people.map((p) => p.id));
+  const peopleAdded = people.filter((p) => !basePeople.has(p.id));
+  const peopleRemoved = base.people.filter((p) => !curPeople.has(p.id));
+
+  const total =
+    added.length + removed.length + modified.length + peopleAdded.length + peopleRemoved.length;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="text-muted">
+        <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs the{" "}
+        {industryMeta(base.id).label} template.
+      </p>
+      {added.length > 0 && (
+        <ChangeGroup label="Added processes" tone="ok">
+          {added.map((p) => (
+            <ChangeRow key={p.id} label={p.name} onClick={() => onSelectProcess(p.id)} />
+          ))}
+        </ChangeGroup>
+      )}
+      {removed.length > 0 && (
+        <ChangeGroup label="Removed processes" tone="danger">
+          {removed.map((p) => (
+            <ChangeRow key={p.id} label={p.name} />
+          ))}
+        </ChangeGroup>
+      )}
+      {modified.length > 0 && (
+        <ChangeGroup label="Edited processes" tone="warn">
+          {modified.map(({ p, changes }) => (
+            <ChangeRow
+              key={p.id}
+              label={p.name}
+              detail={changes.join(" · ")}
+              onClick={() => onSelectProcess(p.id)}
+            />
+          ))}
+        </ChangeGroup>
+      )}
+      {(peopleAdded.length > 0 || peopleRemoved.length > 0) && (
+        <ChangeGroup label="Team" tone="primary">
+          {peopleAdded.map((p) => (
+            <ChangeRow key={p.id} label={`+ ${p.name}`} detail={p.role} />
+          ))}
+          {peopleRemoved.map((p) => (
+            <ChangeRow key={p.id} label={`− ${p.name}`} detail={p.role} />
+          ))}
+        </ChangeGroup>
+      )}
+    </div>
+  );
+}
+
+function ChangeGroup({
+  label,
+  tone,
+  children,
+}: {
+  label: string;
+  tone: "ok" | "danger" | "warn" | "primary";
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <Badge variant={tone}>{label}</Badge>
+      <ul className="mt-1 space-y-0.5">{children}</ul>
+    </div>
+  );
+}
+
+function ChangeRow({
+  label,
+  detail,
+  onClick,
+}: {
+  label: string;
+  detail?: string;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      <span className="font-medium text-fg">{label}</span>
+      {detail && <span className="text-subtle"> · {detail}</span>}
+    </>
+  );
+  return (
+    <li>
+      {onClick ? (
+        <button type="button" onClick={onClick} className="text-left hover:underline">
+          {inner}
+        </button>
+      ) : (
+        <span>{inner}</span>
+      )}
+    </li>
+  );
+}
+
+function SuggestPanel({
+  process,
+  onChange,
+}: {
+  process: ProcessNode;
+  onChange: (patch: Partial<ProcessNode>) => void;
+}) {
+  const tpl = useTemplate();
+  const { profile } = usePractice();
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<SuggestionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await suggestForProcess({
+        data: {
+          processName: process.name,
+          description: process.description,
+          industryLabel: industryMeta(profile.industry).label,
+          existingRiskTitles: (process.risks ?? []).map((r) => r.title),
+          existingIdeaTitles: (process.ideas ?? []).map((i) => i.title),
+          availableControls: tpl.controls.map((c) => ({ id: c.id, name: c.name })),
+          ownerRoles: (process.ownerPersonIds ?? [])
+            .map((id) => tpl.people.find((p) => p.id === id)?.role)
+            .filter((r): r is string => Boolean(r)),
+        },
+      });
+      setResult(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suggestion failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const existingRisk = new Set((process.risks ?? []).map((r) => r.title.toLowerCase()));
+  const existingIdea = new Set((process.ideas ?? []).map((i) => i.title.toLowerCase()));
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed border-accent/40 bg-accent/5 p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className={cn(labelCls, "flex items-center gap-1")}>
+          <Sparkles className="size-3 text-accent" />
+          Suggest risks & controls
+        </span>
+        <Button size="sm" variant="secondary" onClick={run} disabled={loading}>
+          {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+          {result ? "Again" : "Suggest"}
+        </Button>
+      </div>
+      {!result && !loading && (
+        <p className="text-[11px] text-muted">
+          Get starter risks, improvement ideas, and matching controls for this process based on
+          its name and description.
+        </p>
+      )}
+      {error && <p className="text-[11px] text-danger">{error}</p>}
+      {result && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-subtle">
+            <Badge variant={result.source === "grok" ? "accent" : "default"}>
+              {result.source === "grok" ? `Grok · ${result.model ?? ""}` : "Rule-based"}
+            </Badge>{" "}
+            {result.rationale}
+          </p>
+          {result.risks.length > 0 && (
+            <ul className="space-y-1">
+              {result.risks.map((r) => {
+                const added = existingRisk.has(r.title.toLowerCase());
+                return (
+                  <li
+                    key={r.title}
+                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+                  >
+                    <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-fg">{r.title}</p>
+                      <p className="text-subtle">
+                        {r.kind} · S{r.severity}×L{r.likelihood}
+                        {r.note ? ` · ${r.note}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={added}
+                      onClick={() =>
+                        onChange({ risks: [...(process.risks ?? []), { ...r, id: uid("r") }] })
+                      }
+                      className="text-[10px] font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
+                    >
+                      {added ? "Added" : "Add"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {result.ideas.length > 0 && (
+            <ul className="space-y-1">
+              {result.ideas.map((i) => {
+                const added = existingIdea.has(i.title.toLowerCase());
+                return (
+                  <li
+                    key={i.title}
+                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+                  >
+                    <Lightbulb className="mt-0.5 size-3 shrink-0 text-warn" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-fg">{i.title}</p>
+                      <p className="text-subtle">
+                        {i.category} · {i.effort} effort · {i.impact} impact
+                        {i.note ? ` · ${i.note}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={added}
+                      onClick={() =>
+                        onChange({ ideas: [...(process.ideas ?? []), { ...i, id: uid("i") }] })
+                      }
+                      className="text-[10px] font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
+                    >
+                      {added ? "Added" : "Add"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {result.controlIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+              <span className="text-subtle">Link controls:</span>
+              {result.controlIds.map((cid) => {
+                const c = tpl.controls.find((x) => x.id === cid);
+                if (!c) return null;
+                const on = process.controlIds.includes(cid);
+                return (
+                  <button
+                    key={cid}
+                    type="button"
+                    disabled={on}
+                    onClick={() => onChange({ controlIds: [...process.controlIds, cid] })}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5",
+                      on
+                        ? "border-primary/40 bg-primary/10 text-subtle"
+                        : "border-border bg-elevated text-muted hover:text-fg",
+                    )}
+                  >
+                    {on ? "✓ " : "+ "}
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -552,6 +872,8 @@ function ProcessForm({
         selected={process.controlIds}
         onToggle={(id) => onChange({ controlIds: toggleIn(process.controlIds, id) })}
       />
+
+      <SuggestPanel process={process} onChange={onChange} />
 
       <RiskList
         risks={process.risks ?? []}

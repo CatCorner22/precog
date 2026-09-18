@@ -67,6 +67,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Print: the /report route is a clean white document ── */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .report {
+    min-height: auto !important;
+  }
+  .report a {
+    text-decoration: none;
+    color: inherit;
+  }
+}
+
 /* ── React Flow chrome (minimap + controls) on the dark canvas ── */
 .react-flow .react-flow__minimap {
   background: rgba(21, 24, 32, 0.92);

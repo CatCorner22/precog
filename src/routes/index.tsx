@@ -8,6 +8,7 @@ import {
   Compass,
   Crosshair,
   Eye,
+  FileText,
   Gauge,
   Grid3x3,
   Hammer,
@@ -342,7 +343,14 @@ function Home() {
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
                 >
                   <Crosshair className="size-4" />
-                  Priority report
+                  Threat view
+                </Link>
+                <Link
+                  to="/report"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+                >
+                  <FileText className="size-4" />
+                  PDF report
                 </Link>
               </div>
             </section>
