@@ -10,6 +10,7 @@ import {
   Eye,
   Gauge,
   Grid3x3,
+  Hammer,
   Layers,
   Map,
   Network,
@@ -121,6 +122,7 @@ function Home() {
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
+  const [mapBuild, setMapBuild] = useState(false);
   const { user, isPending } = useCurrentUserState();
   const { profile, ready, templateRevision } = usePractice();
   const industry = industryMeta(profile.industry);
@@ -313,8 +315,24 @@ function Home() {
                 <Button onClick={() => setTab("sod")}>
                   Review SoD ({sodReport.conflicts.length})
                 </Button>
-                <Button variant="secondary" onClick={() => setTab("map")}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setMapBuild(false);
+                    setTab("map");
+                  }}
+                >
                   Process map
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setMapBuild(true);
+                    setTab("map");
+                  }}
+                >
+                  <Hammer className="size-4" />
+                  Build your map
                 </Button>
                 <Button variant="outline" onClick={() => setTab("pioneer")}>
                   Ask advisor
@@ -427,7 +445,9 @@ function Home() {
 
         {tab === "map" && (
           <ProcessMap
+            key={mapBuild ? "build" : "view"}
             initialProcessId={processId}
+            initialBuild={mapBuild}
             onNavigate={(t, id) => navigateTab(t, id)}
           />
         )}

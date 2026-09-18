@@ -359,20 +359,22 @@ function layerForKind(kind: string): MapLayerId {
 export function ProcessMap({
   onNavigate,
   initialProcessId,
+  initialBuild = false,
 }: {
   onNavigate?: NavFn;
   initialProcessId?: string | null;
+  initialBuild?: boolean;
 }) {
   const { processes } = useTemplate();
   const { profile, setMapLayout, mapCustomized, templateRevision } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
-  const [build, setBuild] = useState(false);
+  const [build, setBuild] = useState(initialBuild);
+  const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
   /** Live positions while dragging; committed to the profile on drag stop. */
   const [liveLayout, setLiveLayout] = useState<Record<string, { x: number; y: number }>>({});
   const [layers, setLayers] = useState<LayerConfig[]>(() =>
     DEFAULT_LAYERS.map((l) => ({ ...l })),
   );
-  const [showLayerPanel, setShowLayerPanel] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialProcessId ?? "proc-cash",
   );
