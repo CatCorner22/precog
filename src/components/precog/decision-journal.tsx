@@ -74,7 +74,7 @@ export function DecisionJournal({
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or
-          insure decisions with a review date. Stored on this device for the demo profile.
+          insure decisions with a review date. Syncs to your account when signed in.
         </p>
         {overdue.length > 0 && (
           <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">

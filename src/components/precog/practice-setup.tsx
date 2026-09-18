@@ -1,12 +1,14 @@
 import { usePractice } from "@/lib/precog/practice-context";
-import { Badge } from "@/components/ui/badge";
+import { INDUSTRIES } from "@/lib/precog/industry";
+import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings2, ShieldCheck } from "lucide-react";
 
-/** Lightweight practice profile editor — feeds staff into residual & LLM tools. */
+/** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
-  const { profile, setPracticeName, setStaff, setDualRelease, resetProfile } = usePractice();
+  const { profile, setPracticeName, setIndustry, setStaff, setDualRelease, resetProfile } =
+    usePractice();
   const s = profile.staff;
 
   return (
@@ -15,17 +17,32 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Settings2 className="size-4 text-primary" />
-            Practice profile
+            Business profile
           </CardTitle>
-          <Badge variant="default">Saved on this device</Badge>
+          <SyncStatusBadge />
         </div>
         <CardDescription>
-          Name and staff composition drive residual scores, Precog, dual release, and Pioneer.
+          Team size and control posture drive residual scores, scenarios, and your AI advisor.
+          Sign in to sync across devices.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <label className="block text-sm">
-          <span className="text-muted">Practice name</span>
+          <span className="text-muted">Industry</span>
+          <select
+            value={profile.industry}
+            onChange={(e) => setIndustry(e.target.value as typeof profile.industry)}
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+          >
+            {INDUSTRIES.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="text-muted">Business name</span>
           <input
             value={profile.practiceName}
             onChange={(e) => setPracticeName(e.target.value)}

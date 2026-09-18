@@ -4,9 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { authEnabled } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
@@ -14,6 +17,11 @@ import {
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
+import { INDUSTRIES, industryMeta, type IndustryId } from "./industry";
+import {
+  loadBusinessProfile,
+  saveBusinessProfile,
+} from "./profile-server";
 import {
   defaultProfile,
   loadProfile,
@@ -24,10 +32,14 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 
+export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error";
+
 interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
+  syncStatus: SyncStatus;
   setPracticeName: (name: string) => void;
+  setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => void;
   setRiskVariables: (
     v: RiskVariableState | ((r: RiskVariableState) => RiskVariableState),
@@ -50,22 +62,85 @@ interface PracticeContextValue {
 
 const PracticeContext = createContext<PracticeContextValue | null>(null);
 
+const SAVE_DEBOUNCE_MS = 1200;
+
 export function PracticeProvider({ children }: { children: ReactNode }) {
+  const { user, isPending } = useCurrentUserState();
   const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
   const [ready, setReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudLoadedFor = useRef<string | null>(null);
 
+  // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
     setProfile(loadProfile());
     setReady(true);
   }, []);
 
   useEffect(() => {
+    if (!ready || isPending) return;
+    if (!authEnabled || !user || user.isDevFallback) {
+      setSyncStatus("local");
+      cloudLoadedFor.current = null;
+      return;
+    }
+    if (cloudLoadedFor.current === user.id) return;
+
+    let cancelled = false;
+    setSyncStatus("loading");
+    void loadBusinessProfile()
+      .then((res) => {
+        if (cancelled) return;
+        cloudLoadedFor.current = user.id;
+        if (res.found && res.profile) {
+          setProfile(res.profile);
+          saveProfile(res.profile);
+        }
+        setSyncStatus("synced");
+      })
+      .catch(() => {
+        if (!cancelled) setSyncStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, isPending, user?.id, user?.isDevFallback]);
+
+  // Persist locally + debounced cloud save
+  useEffect(() => {
     if (!ready) return;
     saveProfile(profile);
-  }, [profile, ready]);
+
+    if (!authEnabled || !user || user.isDevFallback) {
+      setSyncStatus("local");
+      return;
+    }
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void saveBusinessProfile({ data: { profile, industry: profile.industry } })
+        .then(() => setSyncStatus("synced"))
+        .catch(() => setSyncStatus("error"));
+    }, SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [profile, ready, user?.id, user?.isDevFallback]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
+  }, []);
+
+  const setIndustry = useCallback((industry: IndustryId) => {
+    const meta = industryMeta(industry);
+    setProfile((p) => ({
+      ...p,
+      industry,
+      practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
+    }));
   }, []);
 
   const setStaff = useCallback(
@@ -180,7 +255,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     () => ({
       profile,
       ready,
+      syncStatus,
       setPracticeName,
+      setIndustry,
       setStaff,
       setRiskVariables,
       setDualRelease,
@@ -191,7 +268,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [
       profile,
       ready,
+      syncStatus,
       setPracticeName,
+      setIndustry,
       setStaff,
       setRiskVariables,
       setDualRelease,
@@ -205,6 +284,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>
   );
 }
+
+const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 export function usePractice() {
   const ctx = useContext(PracticeContext);

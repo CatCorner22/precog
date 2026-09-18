@@ -37,6 +37,9 @@ import { ProcessMap } from "@/components/precog/process-map";
 import { ResidualRadar } from "@/components/precog/residual-radar";
 import { ScenarioRunner } from "@/components/precog/scenario-runner";
 import { SodPanel } from "@/components/precog/sod-panel";
+import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
+import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
+import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,9 +63,9 @@ type TabId =
   | "journal";
 
 const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
-  { id: "command", label: "Command", icon: Activity },
-  { id: "map", label: "Map", icon: Map },
-  { id: "pioneer", label: "Pioneer", icon: Compass },
+  { id: "command", label: "Dashboard", icon: Activity },
+  { id: "map", label: "Process map", icon: Map },
+  { id: "pioneer", label: "Advisor", icon: Compass },
   { id: "intel", label: "Intel", icon: Brain },
   { id: "residual", label: "Residual", icon: Gauge },
   { id: "coso", label: "COSO", icon: Grid3x3 },
@@ -186,6 +189,7 @@ function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <SyncStatusBadge className="hidden sm:inline-flex" />
             {overdueDecisions > 0 && (
               <button
                 type="button"
@@ -247,58 +251,36 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">SoD detection · process map · Pioneer</Badge>
+              <Badge variant="accent">
+                {industryMeta(profile.industry).label} · internal controls
+              </Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                See every process, risk, and SoD conflict before it bites
+                Know your residual risk before it becomes a loss
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Automated segregation-of-duties scanning finds who holds incompatible powers
-                (cash + recon, vendor + pay, write-off approve + post). Pair with the process map
-                and Precog scenarios for full residual picture.
+                Precog Pioneer scores segregation-of-duties gaps, knowledge single points of
+                failure, and financial scenarios — then tells you what to fix this week. Built for
+                owner-operated teams with 2–20 people.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => setTab("sod")}>
-                  SoD conflicts ({sodReport.conflicts.length})
+                  Review SoD ({sodReport.conflicts.length})
                 </Button>
                 <Button variant="secondary" onClick={() => setTab("map")}>
                   Process map
                 </Button>
                 <Button variant="outline" onClick={() => setTab("pioneer")}>
-                  Run Pioneer
+                  Ask advisor
                 </Button>
                 <Link
                   to="/threat"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-elevated"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
                 >
                   <Crosshair className="size-4" />
-                  Threat Assessment
+                  Priority report
                 </Link>
               </div>
             </section>
-
-            {/* SOF Threat Assessment entry */}
-            <Link
-              to="/threat"
-              className="block rounded-2xl border border-danger/30 bg-danger/5 p-5 transition-colors hover:border-danger/50 hover:bg-danger/10"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Badge variant="danger">OPS · THREAT ASSESSMENT</Badge>
-                  <p className="mt-2 text-lg font-semibold tracking-tight">
-                    Military-style residual threat HUD
-                  </p>
-                  <p className="mt-1 max-w-xl text-sm text-muted">
-                    Special-operations aesthetic for priority control gaps, SoD conflicts,
-                    knowledge SPOFs, and Precog scenarios. Rules of engagement = dual-release,
-                    bank rec, and owner review — educational only.
-                  </p>
-                </div>
-                <span className="inline-flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-                  <Crosshair className="size-4" />
-                  Open /threat
-                </span>
-              </div>
-            </Link>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <MetricCard
@@ -357,7 +339,11 @@ function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
+              <WeeklyActionPlan onNavigate={(t) => navigateTab(t)} />
               <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>

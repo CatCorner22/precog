@@ -4,7 +4,7 @@ import { PracticeProvider } from "@/lib/precog/practice-context";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Precog Pioneer";
+const APP_NAME = "Precog Pioneer — Small Business Risk";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
 const ogImage = host
   ? `https://og.grok.me/v1/card.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent(APP_NAME)}`
@@ -19,7 +19,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Tool-grounded Pioneer LLM coach for small dental practices — residual risk, COSO, knowledge SPOFs, Precog scenarios, insurance cost-of-risk.",
+          "Internal controls and residual risk management for small businesses — SoD detection, knowledge SPOFs, scenario modeling, and an AI advisor grounded in your data.",
       },
       ...(ogImage
         ? [

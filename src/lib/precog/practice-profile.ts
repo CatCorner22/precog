@@ -9,6 +9,7 @@ import {
   type DualReleasePolicy,
 } from "./controls/dual-release";
 import { PRACTICE_NAME, staffComposition as demoStaff } from "./demo-data";
+import { industryMeta, type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -26,6 +27,7 @@ export interface DecisionEntry {
 
 export interface PracticeProfile {
   practiceName: string;
+  industry: IndustryId;
   staff: StaffComposition;
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
@@ -35,11 +37,13 @@ export interface PracticeProfile {
 
 const STORAGE_KEY = "precog.practiceProfile.v2";
 
-export function defaultProfile(): PracticeProfile {
+export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
   const staff = { ...demoStaff };
   const dualRelease = defaultDualReleasePolicy(staff);
+  const meta = industryMeta(industry);
   return {
-    practiceName: PRACTICE_NAME,
+    practiceName: industry === "dental" ? PRACTICE_NAME : meta.demoName,
+    industry,
     staff,
     riskVariables: {
       ...DEFAULT_RISK_VARIABLES,
@@ -76,6 +80,7 @@ export function loadProfile(): PracticeProfile {
     return {
       ...base,
       ...parsed,
+      industry: (parsed.industry as IndustryId) ?? base.industry,
       staff,
       riskVariables: {
         ...base.riskVariables,
