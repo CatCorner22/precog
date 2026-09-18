@@ -180,11 +180,24 @@ function scoreConflict(
   return Math.max(12, Math.min(100, Math.round(s)));
 }
 
+/**
+ * Build the who-does-what table.
+ *
+ * `source` lets an industry pack supply its own team and role templates. It is
+ * optional so that the existing callers, which assume the dental data set,
+ * keep working unchanged.
+ */
 export function buildAssignments(
   overrides?: Partial<Record<string, EntitlementId[]>>,
+  source?: {
+    people?: { id: string; name: string; role: string }[];
+    roleTemplates?: Record<string, EntitlementId[]>;
+  },
 ): RoleAssignment[] {
-  return people.map((p) => {
-    const fromRole = ROLE_TEMPLATES[p.role] ?? ["view_reports_only"];
+  const roster = source?.people ?? people;
+  const templates = source?.roleTemplates ?? ROLE_TEMPLATES;
+  return roster.map((p) => {
+    const fromRole = templates[p.role] ?? ["view_reports_only"];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {
@@ -204,9 +217,20 @@ export function detectSodConflicts(
     compensatingByControlId?: Record<string, string[]>;
     /** SoD rule IDs mitigated by dual-release policy */
     dualReleaseMitigatedRuleIds?: Set<string>;
+    /**
+     * Team and role templates for a given trade. The conflict rules and the
+     * scoring stay shared across industries — a fake-vendor scheme works the
+     * same way behind a bar as in a dental office — so a pack changes only who
+     * holds which duty.
+     */
+    source?: {
+      people?: { id: string; name: string; role: string }[];
+      roleTemplates?: Record<string, EntitlementId[]>;
+    };
   },
 ): SodDetectionReport {
-  const assignments = options?.assignments ?? buildAssignments();
+  const assignments =
+    options?.assignments ?? buildAssignments(undefined, options?.source);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
   const dualMitigatedRules =

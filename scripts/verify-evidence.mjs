@@ -17,6 +17,7 @@
  *      missing figure is never mistaken for a small one.
  *   6. Every SoD rule maps to at least one fraud scheme, and the map cites no
  *      rule that does not exist. Case matching runs off that map.
+ *   7. Every industry pack's sector has at least one case behind it.
  *
  * Run: npm run verify:evidence
  */
@@ -104,6 +105,19 @@ if (!mapBody) {
     if (!definedRules.has(m[1])) {
       fail(`RULE_SCHEMES maps ${m[1]}, which no conflict rule defines.`);
     }
+  }
+}
+
+// 7. Every industry pack's sector has at least one case behind it. A pack
+//    whose "what goes wrong in this trade" list cites nothing the library can
+//    show is the hypothetical-risk failure this product exists to avoid.
+const packSrc = read("src/lib/precog/industries/packs.ts");
+const caseSectors = new Set(
+  [...casesSrc.matchAll(/sector:\s*"([a-z-]+)"/g)].map((m) => m[1]),
+);
+for (const m of packSrc.matchAll(/sector:\s*"([a-z-]+)"/g)) {
+  if (!caseSectors.has(m[1])) {
+    fail(`Industry pack sector "${m[1]}" has no real case in the library.`);
   }
 }
 

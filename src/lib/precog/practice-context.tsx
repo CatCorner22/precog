@@ -23,6 +23,8 @@ import {
   type DecisionKind,
   type PracticeProfile,
 } from "./practice-profile";
+import type { IndustryPackId } from "./industries/types";
+import { SAMPLE_NAMES, packById } from "./industries/packs";
 
 interface PracticeContextValue {
   profile: PracticeProfile;
@@ -45,6 +47,7 @@ interface PracticeContextValue {
     linkedId?: string;
   }) => void;
   removeDecision: (id: string) => void;
+  setIndustry: (id: IndustryPackId) => void;
   resetProfile: () => void;
 }
 
@@ -66,6 +69,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
+  }, []);
+
+  const setIndustry = useCallback((id: IndustryPackId) => {
+    setProfile((p) => ({
+      ...p,
+      industryId: id,
+      // Carry the sample name across so the header stops contradicting the
+      // selected trade. A name the owner typed themselves is never touched.
+      practiceName: SAMPLE_NAMES.has(p.practiceName)
+        ? packById(id).sampleName
+        : p.practiceName,
+      updatedAt: new Date().toISOString(),
+    }));
   }, []);
 
   const setStaff = useCallback(
@@ -181,6 +197,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       setPracticeName,
+      setIndustry,
       setStaff,
       setRiskVariables,
       setDualRelease,
@@ -192,6 +209,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       setPracticeName,
+      setIndustry,
       setStaff,
       setRiskVariables,
       setDualRelease,

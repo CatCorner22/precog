@@ -9,6 +9,8 @@ import {
   type DualReleasePolicy,
 } from "./controls/dual-release";
 import { PRACTICE_NAME, staffComposition as demoStaff } from "./demo-data";
+import { DEFAULT_PACK_ID } from "./industries/packs";
+import type { IndustryPackId } from "./industries/types";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -26,6 +28,13 @@ export interface DecisionEntry {
 
 export interface PracticeProfile {
   practiceName: string;
+  /**
+   * Which trade this business is in. Drives the duty vocabulary, the role
+   * templates the conflict detector works from, and which real cases the app
+   * shows. Profiles saved before this field existed fall back to the default
+   * pack, so an existing user loses nothing.
+   */
+  industryId: IndustryPackId;
   staff: StaffComposition;
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
@@ -40,6 +49,7 @@ export function defaultProfile(): PracticeProfile {
   const dualRelease = defaultDualReleasePolicy(staff);
   return {
     practiceName: PRACTICE_NAME,
+    industryId: DEFAULT_PACK_ID,
     staff,
     riskVariables: {
       ...DEFAULT_RISK_VARIABLES,
@@ -76,6 +86,7 @@ export function loadProfile(): PracticeProfile {
     return {
       ...base,
       ...parsed,
+      industryId: parsed.industryId ?? base.industryId,
       staff,
       riskVariables: {
         ...base.riskVariables,
