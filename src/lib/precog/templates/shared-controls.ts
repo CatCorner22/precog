@@ -1,4 +1,4 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
+import type { ControlItem, ScenarioTemplate, CrimeFraudStats } from "../types";
 
 /** Core financial SoD controls reused across industry templates. */
 export function baseFinancialControls(): ControlItem[] {
@@ -117,8 +117,7 @@ export function baseFraudScenarios(
     {
       id: "sc-cash-sod-failure",
       title: "Unsegregated cash + reconciliation control fails",
-      description:
-        "Same person posts payments and reconciles bank with weak independent review.",
+      description: "Same person posts payments and reconciles bank with weak independent review.",
       controlId: "c-sod-cash",
       baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
       baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
@@ -192,12 +191,32 @@ export const DEFAULT_STAFF = {
   independentBankRec: false,
 };
 
-export const DEFAULT_FRAUD_STATS = {
-  industryEmbezzlementRate: 0.18,
-  typicalLossMid: 35000,
-  typicalLossHigh: 125000,
-  medianDetectionDays: 90,
-  detectionDaysP95: 210,
+/**
+ * Published fraud statistics, shared by every industry.
+ *
+ * Every figure below comes from the ACFE's Occupational Fraud 2026: A Report
+ * to the Nations — 2,402 cases across 143 countries, investigated and closed
+ * between January 2024 and September 2025. The one exception is the prior,
+ * which is labelled as the assumption it is.
+ *
+ * This record is deliberately identical across industries. The previous
+ * per-industry rates (dental 18%, professional services 16%, restaurant 22%)
+ * implied a precision no study supports, and the variation between them was
+ * invented.
+ */
+export const DEFAULT_FRAUD_STATS: CrimeFraudStats = {
+  // Not a measurement. See CrimeFraudStats for why this is an assumption and
+  // why it does not vary by industry.
+  assumedControlFailurePrior: 0.15,
+  medianLossSmallOrgUsd: 126_000,
+  medianLossAllUsd: 104_000,
+  revenueLossRateAnnual: 0.05,
+  medianDetectionMonths: 12,
+  lossIfCaughtEarlyUsd: 40_000,
+  lossIfRunsLongUsd: 1_120_000,
+  shareFoundUnderSixMonths: 0.33,
+  shareRunningOverFiveYears: 0.05,
   source:
-    "Illustrative synthesis of ACFE Report to the Nations patterns for small organizations. Educational demo rates — not actuarial pricing.",
+    "ACFE, Occupational Fraud 2026: A Report to the Nations (2,402 cases, 143 countries). Figures describe organizations that suffered an investigated fraud; they are not a forecast for any particular business.",
+  sourceUrl: "https://www.acfe.com/fraud-resources/report-to-the-nations",
 };

@@ -10,6 +10,7 @@ import type {
   StaffComposition,
 } from "../types";
 import type { IndustryTemplate } from "./types";
+import { DEFAULT_FRAUD_STATS } from "./shared-controls";
 
 const people: Person[] = [
   { id: "p1", name: "Dr. Elena Vargas", role: "Owner / Dentist", active: true, tenureYears: 12 },
@@ -585,15 +586,6 @@ const staffComposition: StaffComposition = {
 };
 
 /** Industry-oriented illustrative base rates for demo (educational, not actuarial advice). */
-const crimeFraudStats: CrimeFraudStats = {
-  industryEmbezzlementRate: 0.18,
-  typicalLossMid: 35000,
-  typicalLossHigh: 125000,
-  medianDetectionDays: 90,
-  detectionDaysP95: 210,
-  source:
-    "Illustrative synthesis of small professional practice fraud / embezzlement studies (e.g. ACFE Report to the Nations patterns for small orgs; dental practice management fraud case literature). Educational demo rates — not firm-specific actuarial pricing.",
-};
 
 const scenarios: ScenarioTemplate[] = [
   {
@@ -643,7 +635,7 @@ const scenarios: ScenarioTemplate[] = [
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
     statSources: [
-      crimeFraudStats.source,
+      DEFAULT_FRAUD_STATS.source,
       "ACFE-style small organization fraud: longer detection when custody + recording combined",
     ],
     cascadeLayers: ["control", "process", "surface", "continuity"],
@@ -681,7 +673,7 @@ const scenarios: ScenarioTemplate[] = [
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
     statSources: [
-      crimeFraudStats.source,
+      DEFAULT_FRAUD_STATS.source,
       "Revenue leakage studies: undocumented adjustments and weak dual control",
     ],
     cascadeLayers: ["control", "knowledge", "process", "continuity"],
@@ -711,7 +703,7 @@ const scenarios: ScenarioTemplate[] = [
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
     statSources: [
-      crimeFraudStats.source,
+      DEFAULT_FRAUD_STATS.source,
       "Billing schemes / fictitious vendor patterns in small entity fraud literature",
     ],
     cascadeLayers: ["control", "source", "process", "continuity"],
@@ -752,7 +744,7 @@ export const dentalTemplate: IndustryTemplate = {
   processes,
   controls,
   staffComposition,
-  crimeFraudStats,
+  crimeFraudStats: DEFAULT_FRAUD_STATS,
   scenarios,
   roleTemplates,
 };

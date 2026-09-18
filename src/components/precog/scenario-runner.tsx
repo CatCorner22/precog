@@ -424,9 +424,9 @@ export function ScenarioRunner({
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
-                    Exposure ~{Math.round(tpl.crimeFraudStats.industryEmbezzlementRate * 100)}% ·
-                    median detect {tpl.crimeFraudStats.medianDetectionDays}d · mid loss{" "}
-                    {formatUsd(tpl.crimeFraudStats.typicalLossMid)}
+                    Median time to detection {tpl.crimeFraudStats.medianDetectionMonths} months ·
+                    median loss under 100 staff{" "}
+                    {formatUsd(tpl.crimeFraudStats.medianLossSmallOrgUsd)}
                   </p>
                   <ul className="space-y-1 text-xs text-muted">
                     {result.crimeModifiers.map((m) => (

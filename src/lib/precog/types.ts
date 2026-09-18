@@ -137,13 +137,46 @@ export interface StaffComposition {
   independentBankRec: boolean;
 }
 
+/**
+ * Published fraud statistics, and the one modelling assumption the app makes.
+ *
+ * These figures used to be invented — an "industryEmbezzlementRate" of 18%,
+ * varied per industry (16%, 18%, 22%) to look precise. No published source
+ * gives an annual probability of occupational fraud for a small business in a
+ * given industry, so those numbers asserted something nobody knows. They are
+ * replaced here by what the research does establish, and the one number that
+ * remains a judgement call is named as such rather than dressed as a measurement.
+ *
+ * Because no source supports per-industry variation, this record is shared
+ * across every industry template rather than differing between them.
+ */
 export interface CrimeFraudStats {
-  industryEmbezzlementRate: number; // annual probability base
-  typicalLossMid: number;
-  typicalLossHigh: number;
-  medianDetectionDays: number;
-  detectionDaysP95: number;
+  /**
+   * A modelling assumption, NOT an observed rate: the prior probability the
+   * Bayesian reasoning module starts from before it sees anything about a
+   * specific business. Deliberately weak, so evidence about the actual
+   * business moves it quickly, and deliberately uniform across industries.
+   */
+  assumedControlFailurePrior: number;
+  /** Median loss, organizations under 100 employees. */
+  medianLossSmallOrgUsd: number;
+  /** Median loss across all cases studied, any size. */
+  medianLossAllUsd: number;
+  /** Estimated share of annual revenue organizations lose to fraud. */
+  revenueLossRateAnnual: number;
+  /** Median months from when a scheme starts to when it is found. */
+  medianDetectionMonths: number;
+  /** Median loss where a scheme is caught inside six months. */
+  lossIfCaughtEarlyUsd: number;
+  /** Median loss where a scheme runs beyond five years. */
+  lossIfRunsLongUsd: number;
+  /** Share of cases found within six months. */
+  shareFoundUnderSixMonths: number;
+  /** Share of cases that ran beyond five years. */
+  shareRunningOverFiveYears: number;
   source: string;
+  /** Link to the study, so a reader can check any figure above. */
+  sourceUrl: string;
 }
 
 export interface ScenarioTemplate {

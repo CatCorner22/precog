@@ -49,11 +49,12 @@ export function buildPioneerContextPack() {
         .slice(0, 6)
         .map((i) => i.message),
     },
-    crimePrior: {
-      annualExposureClass: crimeFraudStats.industryEmbezzlementRate,
-      medianDetectionDays: crimeFraudStats.medianDetectionDays,
-      midLossRef: crimeFraudStats.typicalLossMid,
-      note: "Educational industry-oriented priors, not actuarial quotes.",
+    publishedFraudStats: {
+      medianLossSmallOrgUsd: crimeFraudStats.medianLossSmallOrgUsd,
+      medianDetectionMonths: crimeFraudStats.medianDetectionMonths,
+      medianLossAllUsd: crimeFraudStats.medianLossAllUsd,
+      statsSource: crimeFraudStats.source,
+      note: "Published medians among organizations that suffered an investigated fraud. Not a forecast for this business, and not an actuarial quote.",
     },
     coso: {
       overall: coso.overall,

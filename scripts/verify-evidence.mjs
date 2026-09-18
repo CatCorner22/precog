@@ -19,6 +19,8 @@
  *      rule that does not exist. Case matching runs off that map.
  *   7. Every industry the app offers resolves to a case-library sector that
  *      has at least one real case behind it.
+ *   8. No unsourceable fraud rate reappears, and the shared statistics record
+ *      carries a source URL.
  *
  * Run: npm run verify:evidence
  */
@@ -138,6 +140,43 @@ for (const id of industryIds) {
   if (!sector || !caseSectors.has(sector)) {
     fail(`Industry "${id}" resolves to sector "${sector}", which has no real case.`);
   }
+}
+
+// 8. No fabricated fraud rate reappears, and the shared statistics record
+//    carries a source URL.
+//
+//    The app previously asserted an "industryEmbezzlementRate" of 18%, varied
+//    per industry to look precise. No published study gives an annual
+//    probability of occupational fraud for a small business in a given
+//    industry. A figure of that shape cannot be sourced, so it must not come
+//    back under any name.
+const sharedSrc = read("src/lib/precog/templates/shared-controls.ts");
+const BANNED = [
+  "industryEmbezzlementRate",
+  "embezzlementRate",
+  "fraudProbability",
+  "annualFraudRate",
+];
+const searched = {
+  "src/lib/precog/types.ts": read("src/lib/precog/types.ts"),
+  "src/lib/precog/templates/shared-controls.ts": sharedSrc,
+  "src/lib/precog/engine.ts": read("src/lib/precog/engine.ts"),
+};
+for (const [file, body] of Object.entries(searched)) {
+  // Strip comments so the explanation of why the field was removed does not
+  // trip the check that removed it.
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  for (const banned of BANNED) {
+    if (code.includes(banned)) {
+      fail(`${file} declares "${banned}" — an unsourceable fraud rate.`);
+    }
+  }
+}
+if (!/sourceUrl:\s*"https:\/\//.test(sharedSrc)) {
+  fail("DEFAULT_FRAUD_STATS carries no sourceUrl.");
+}
+if (/per-industry|industryEmbezzlement/.test(sharedSrc.replace(/\/\*[\s\S]*?\*\//g, ""))) {
+  fail("shared fraud statistics appear to vary by industry, which no source supports.");
 }
 
 const benchIds = [...benchSrc.matchAll(/id:\s*"(bm-[a-z0-9-]+)"/g)].map((m) => m[1]);

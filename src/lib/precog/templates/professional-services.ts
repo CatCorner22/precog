@@ -6,12 +6,6 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-const fraudStats = {
-  ...DEFAULT_FRAUD_STATS,
-  industryEmbezzlementRate: 0.16,
-  source:
-    "Illustrative professional services firm fraud patterns (billing, trust/IOLTA, expense abuse). Educational demo only.",
-};
 
 export const professionalServicesTemplate: IndustryTemplate = {
   id: "professional_services",
@@ -509,8 +503,8 @@ export const professionalServicesTemplate: IndustryTemplate = {
   ],
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF, segregationScore: 38 },
-  crimeFraudStats: fraudStats,
-  scenarios: baseFraudScenarios(fraudStats.source, {
+  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
     keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
     keyPersonDesc:
       "Sam (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",

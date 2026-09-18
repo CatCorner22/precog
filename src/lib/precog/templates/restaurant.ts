@@ -6,13 +6,6 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-const fraudStats = {
-  ...DEFAULT_FRAUD_STATS,
-  industryEmbezzlementRate: 0.22,
-  typicalLossMid: 28000,
-  source:
-    "Illustrative restaurant/hospitality cash and vendor fraud patterns. Educational demo only.",
-};
 
 export const restaurantTemplate: IndustryTemplate = {
   id: "restaurant",
@@ -506,8 +499,8 @@ export const restaurantTemplate: IndustryTemplate = {
   ],
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF, teamSize: 6, segregationScore: 35 },
-  crimeFraudStats: fraudStats,
-  scenarios: baseFraudScenarios(fraudStats.source, {
+  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
     keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
     keyPersonDesc:
       "Jordan (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",

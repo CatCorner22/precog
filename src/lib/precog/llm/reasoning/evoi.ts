@@ -39,7 +39,7 @@ export function computeEvoi(
     : null;
 
   const bayes = initBayesianState({
-    industryBaseRate: getActiveTemplate().crimeFraudStats.industryEmbezzlementRate,
+    assumedPrior: getActiveTemplate().crimeFraudStats.assumedControlFailurePrior,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,

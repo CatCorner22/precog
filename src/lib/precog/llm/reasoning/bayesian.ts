@@ -56,7 +56,13 @@ function lognormalMoments(mean: number, cv = 0.55) {
 }
 
 export function initBayesianState(opts: {
-  industryBaseRate: number;
+  /**
+   * Starting assumption, not an observed rate. No published study gives an
+   * annual probability of occupational fraud for a small business, so this is
+   * deliberately weak (Beta strength 20) and the evidence the app has about a
+   * specific business moves it quickly.
+   */
+  assumedPrior: number;
   retainedExpected: number;
   residualAverage: number;
   leadingPressure: number; // 0-100
@@ -64,12 +70,12 @@ export function initBayesianState(opts: {
   independentBankRec: boolean;
 }): BayesianState {
   // Prior: industry rate as mean of Beta with strength ~20
-  const priorMean = Math.min(0.45, Math.max(0.02, opts.industryBaseRate));
+  const priorMean = Math.min(0.45, Math.max(0.02, opts.assumedPrior));
   const strength = 20;
   let alpha = priorMean * strength;
   let beta = (1 - priorMean) * strength;
   const updates: string[] = [
-    `Prior failure rate ~${(priorMean * 100).toFixed(1)}% (industry-oriented Beta strength ${strength}).`,
+    `Starting assumption ~${(priorMean * 100).toFixed(1)}% (a stated prior, not a measured rate; Beta strength ${strength} so evidence moves it quickly).`,
   ];
 
   // Pseudo-observations from residual / leading pressure
