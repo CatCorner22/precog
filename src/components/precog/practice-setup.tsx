@@ -1,5 +1,7 @@
+import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
-import { INDUSTRIES } from "@/lib/precog/industry";
+import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +41,14 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
               const ok = window.confirm(
                 `Switch to ${label}? This loads that industry's demo processes, people, scenarios, and staff defaults. Your decision log is kept.`,
               );
-              if (ok) setIndustry(next);
+              if (ok) {
+                setIndustry(next);
+                const tpl = getIndustryTemplate(next);
+                const meta = industryMeta(next);
+                toast.success(`Loaded ${meta.label} template`, {
+                  description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
+                });
+              }
             }}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
           >

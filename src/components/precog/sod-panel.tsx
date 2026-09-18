@@ -4,6 +4,7 @@ import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,34 +12,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Grid3x3, Shield, ShieldCheck, Users } from "lucide-react";
 
-const FRAMEWORK = [
-  {
-    duty: "Authorization",
-    meaning: "Approve before money or adjustments move",
-    dental: "Owner approves write-offs, large AP, payroll",
-  },
-  {
-    duty: "Custody",
-    meaning: "Handle assets (cash, checks, bank release)",
-    dental: "Drawer, deposits, ACH initiation",
-  },
-  {
-    duty: "Recording",
-    meaning: "Post transactions in PMS / books",
-    dental: "Payment posting, invoices, claim adjustments",
-  },
-  {
-    duty: "Reconciliation",
-    meaning: "Independent verification",
-    dental: "Bank rec, deposit vs PMS, adjustment review",
-  },
-];
+const FRAMEWORK_DUTIES = [
+  { duty: "Authorization", meaning: "Approve before money or adjustments move" },
+  { duty: "Custody", meaning: "Handle assets (cash, checks, bank release)" },
+  { duty: "Recording", meaning: "Post transactions in books / systems" },
+  { duty: "Reconciliation", meaning: "Independent verification" },
+] as const;
 
 type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { controls } = useTemplate();
   const { profile } = usePractice();
+  const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [view, setView] = useState<
     "conflicts" | "matrix" | "roles" | "dual"
   >("dual");
@@ -160,14 +146,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        {FRAMEWORK.map((f) => (
+        {FRAMEWORK_DUTIES.map((f, i) => (
           <Card key={f.duty}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">{f.duty}</CardTitle>
               <CardDescription>{f.meaning}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted">{f.dental}</p>
+              <p className="text-xs text-muted">{sodExamples[i]}</p>
             </CardContent>
           </Card>
         ))}

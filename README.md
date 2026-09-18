@@ -35,6 +35,14 @@ npm run typecheck
 
 ## Demo data
 
-**Ridgeview Family Dental** ships as the default dental-office template. Switch industry in Business profile to see alternate demo names; process templates remain dental-oriented until custom templates are added.
+Five industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
+
+- **Dental** — Ridgeview Family Dental (default)
+- **Retail** — Harbor Lane Boutique
+- **Restaurant** — Ember & Oak Kitchen
+- **Professional services** — Northgate Advisory Group
+- **General SMB** — Main Street Business Co.
+
+Switch industry in **Business profile** to load the full template (process map, SoD, scenarios, dual-release defaults).
 
 Educational projections only — not actuarial, legal, or forensic advice. Never scores people as fraudulent; targets are control gaps and residual exposures.

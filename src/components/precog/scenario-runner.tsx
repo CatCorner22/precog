@@ -7,6 +7,7 @@ import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
+import { industryMeta } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { CascadePanel } from "@/components/precog/cascade-panel";
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
@@ -34,6 +35,7 @@ export function ScenarioRunner({
   const tpl = useTemplate();
   const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } =
     usePractice();
+  const teamLabel = industryMeta(profile.industry).teamLabel;
   const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">(
     "single",
   );
@@ -262,7 +264,7 @@ export function ScenarioRunner({
                     hint={`${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
                   />
                   <Stat
-                    label="Retained by practice"
+                    label={`Retained by ${teamLabel}`}
                     value={formatUsd(result.retainedImpact.expected)}
                     hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
                   />
@@ -365,7 +367,7 @@ export function ScenarioRunner({
               <Card>
                 <CardHeader>
                   <CardTitle>Staff composition</CardTitle>
-                  <CardDescription>Synced to practice profile · feeds residual + cascades</CardDescription>
+                  <CardDescription>Synced to business profile · feeds residual + cascades</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow

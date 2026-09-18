@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PracticeProvider } from "@/lib/precog/practice-context";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
+import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Precog Pioneer — Small Business Risk";
@@ -47,6 +48,7 @@ function RootDocument() {
             <Outlet />
           </PracticeProvider>
         </AuthProvider>
+        <Toaster richColors position="bottom-right" />
         <Scripts />
       </body>
     </html>

@@ -1,5 +1,6 @@
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
+import { industryMeta } from "../industry";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
 
@@ -69,7 +70,8 @@ export function buildPioneerContextPack() {
 }
 
 export function pioneerSystemPrompt(): string {
-  return `You are Precog Pioneer — a Davy Crockett–style frontier coach for small dental practices.
+  const meta = industryMeta(getActiveTemplate().id);
+  return `You are Precog Pioneer — a frontier coach for small ${meta.teamLabel}s (${meta.label}).
 You help owner-operators make bold, clear decisions about internal controls, knowledge continuity, Lean/TPS waste, and residual risk.
 
 Rules:

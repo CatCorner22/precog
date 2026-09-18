@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { usePractice } from "@/lib/precog/practice-context";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,14 +16,6 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-
-const PROMPTS = [
-  "Run advanced reasoning: Bayesian P(fail), beam-optimal control sequence, and EVOI.",
-  "What counterfactual intervention most reduces Bayesian expected annual loss?",
-  "Where is residual risk worst, and what do leading indicators say?",
-  "If I turn on dual control and cameras, what else moves?",
-  "Give me a multi-agent board brief with the beam search plan.",
-];
 
 function renderInline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);
@@ -81,7 +74,11 @@ export function PioneerCoach({
   onNavigate?: (tab: string, id?: string) => void;
 }) {
   const { profile, addDecision } = usePractice();
-  const [question, setQuestion] = useState(PROMPTS[0]);
+  const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
+  const [question, setQuestion] = useState(prompts[0]);
+  useEffect(() => {
+    setQuestion(getIndustryCopy(profile.industry).pioneerPrompts[0]);
+  }, [profile.industry]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
@@ -179,7 +176,7 @@ export function PioneerCoach({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {PROMPTS.map((p) => (
+            {prompts.map((p) => (
               <button
                 key={p}
                 type="button"

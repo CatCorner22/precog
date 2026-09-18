@@ -84,21 +84,28 @@ function Home() {
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
   const { user, isPending } = useCurrentUserState();
-  const { profile } = usePractice();
+  const { profile, templateRevision } = usePractice();
+  const industry = industryMeta(profile.industry);
 
-  const risks = useMemo(() => findKnowledgeRisks(), []);
+  const risks = useMemo(
+    () => findKnowledgeRisks(),
+    [profile.industry, templateRevision],
+  );
   const ranked = useMemo(
     () =>
       rankDangerousScenarios({
         staff: profile.staff,
         riskVariables: profile.riskVariables,
       }),
-    [profile.staff, profile.riskVariables],
+    [profile.staff, profile.riskVariables, profile.industry, templateRevision],
   );
-  const coso = useMemo(() => assessCoso(), []);
+  const coso = useMemo(
+    () => assessCoso(),
+    [profile.industry, templateRevision],
+  );
   const portfolio = useMemo(
     () => portfolioSummary(profile.staff),
-    [profile.staff],
+    [profile.staff, profile.industry, templateRevision],
   );
   const leading = useMemo(
     () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
@@ -109,7 +116,7 @@ function Home() {
       detectSodConflicts(profile.staff, {
         dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
       }),
-    [profile.staff, profile.dualRelease],
+    [profile.staff, profile.dualRelease, profile.industry, templateRevision],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
@@ -253,15 +260,15 @@ function Home() {
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
               <Badge variant="accent">
-                {industryMeta(profile.industry).label} · internal controls
+                {industry.label} · internal controls
               </Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
                 Know your residual risk before it becomes a loss
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Precog Pioneer scores segregation-of-duties gaps, knowledge single points of
+                {industry.tagline}. Precog Pioneer scores SoD gaps, knowledge single points of
                 failure, and financial scenarios — then tells you what to fix this week. Built for
-                owner-operated teams with 2–20 people.
+                owner-operated {industry.teamLabel}s with 2–20 people.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => setTab("sod")}>

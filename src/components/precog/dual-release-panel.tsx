@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
@@ -67,12 +68,17 @@ export function DualReleasePanel({
   const { people } = useTemplate();
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
+  const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
   const [initiatorId, setInitiatorId] = useState("p2");
   const [secondId, setSecondId] = useState<string>("p1");
-  const [payee, setPayee] = useState("Apex Dental Lab");
+  const [payee, setPayee] = useState(seed.defaultPayee);
+
+  useEffect(() => {
+    setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
+  }, [profile.industry]);
   const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
   const [showExForm, setShowExForm] = useState(false);
 
@@ -334,7 +340,7 @@ export function DualReleasePanel({
                   <input
                     value={exPayee}
                     onChange={(e) => setExPayee(e.target.value)}
-                    placeholder="Apex Dental Lab"
+                    placeholder={seed.defaultPayee}
                     className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                   />
                 </label>
@@ -615,7 +621,7 @@ export function DualReleasePanel({
               Release simulator
             </CardTitle>
             <CardDescription>
-              Includes payee matching for exceptions (try “Apex Dental Lab”)
+              Includes payee matching for exceptions (try “{seed.defaultPayee}”)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

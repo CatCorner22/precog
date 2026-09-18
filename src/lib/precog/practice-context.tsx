@@ -150,20 +150,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     const meta = industryMeta(industry);
     const tpl = getIndustryTemplate(industry);
     const staff = { ...tpl.staffComposition };
+    const fresh = defaultProfile(industry);
     setProfile((p) => ({
-      ...p,
-      industry,
+      ...fresh,
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
-      staff,
-      riskVariables: {
-        ...p.riskVariables,
-        hasDualControl: staff.dualControlPayments,
-        hasIndependentBankRec: staff.independentBankRec,
-      },
-      dualRelease: {
-        ...p.dualRelease,
-        enabled: staff.dualControlPayments,
-      },
+      decisions: p.decisions,
     }));
   }, []);
 
