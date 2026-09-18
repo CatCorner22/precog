@@ -10,8 +10,10 @@
 import { CASE_LIBRARY } from "./cases";
 import { BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
 import type { CaseStudy, IndustrySector, SchemeKind } from "./types";
+import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
 
 export * from "./types";
+export * from "./controls";
 export { CASE_LIBRARY, BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS };
 
 /** Cases demonstrating the failure of a given segregation-of-duties rule. */
@@ -188,26 +190,53 @@ export function observedDurationMonths(
 }
 
 /**
- * The concrete steps that recur across the cases matching these rules, ordered
- * by how many cases each one would have addressed.
+ * Controls that recur across the cases matching these rules, ordered by how
+ * many of those cases each one would have stopped.
  *
- * This is the app's answer to "what do I actually do on Monday." It is derived
- * from the case library rather than from a control framework checklist, so
+ * Aggregation runs on the canonical control id, not on the prose. Each case
+ * phrases a control in its own terms — "the owner opens the bank statement
+ * before the controller sees it" and "the bank statement goes to a partner,
+ * not the administrator" are the same control — so counting the strings gave
+ * every control a count of one and made the ordering meaningless.
+ *
+ * This is the app's answer to "what do I actually do on Monday", and it is
+ * derived from the case library rather than from a framework checklist, so
  * every item on it has already failed somewhere for real.
  */
 export function recommendedStepsForRules(
   ruleIds: readonly string[],
-): { step: string; supportingCaseIds: string[] }[] {
+): {
+  control: ControlDefinition;
+  supportingCaseIds: string[];
+  /** How this control was phrased in the most relevant supporting case. */
+  asApplied: string;
+}[] {
   const relevant = casesForSodRules(ruleIds);
-  const tally = new Map<string, string[]>();
+  const tally = new Map<ControlId, { caseIds: string[]; asApplied: string }>();
+
   for (const c of relevant) {
     for (const step of c.wouldHaveCaughtIt) {
-      const existing = tally.get(step);
-      if (existing) existing.push(c.id);
-      else tally.set(step, [c.id]);
+      const existing = tally.get(step.control);
+      if (existing) {
+        // One case can phrase the same control twice; count the case once.
+        if (!existing.caseIds.includes(c.id)) existing.caseIds.push(c.id);
+      } else {
+        // `relevant` is already ordered most-relevant first, so the first
+        // phrasing seen is the one from the most apt case.
+        tally.set(step.control, { caseIds: [c.id], asApplied: step.asApplied });
+      }
     }
   }
+
   return [...tally.entries()]
-    .map(([step, supportingCaseIds]) => ({ step, supportingCaseIds }))
-    .sort((a, b) => b.supportingCaseIds.length - a.supportingCaseIds.length);
+    .map(([control, v]) => ({
+      control: CONTROL_CATALOG[control],
+      supportingCaseIds: v.caseIds,
+      asApplied: v.asApplied,
+    }))
+    .sort(
+      (a, b) =>
+        b.supportingCaseIds.length - a.supportingCaseIds.length ||
+        a.control.label.localeCompare(b.control.label),
+    );
 }
