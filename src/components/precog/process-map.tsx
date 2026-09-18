@@ -18,7 +18,9 @@ import "@xyflow/react/dist/style.css";
 import {
   buildProcessMapGraph,
   enrichProcess,
+  graphNodeIdForPriority,
   layoutProcessMap,
+  priorityKeyForNode,
   type MapGraphNode,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
@@ -376,7 +378,7 @@ export function ProcessMap({
     DEFAULT_LAYERS.map((l) => ({ ...l })),
   );
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialProcessId ?? "proc-cash",
+    initialProcessId ?? processes[0]?.id ?? null,
   );
   const [focusProcessId, setFocusProcessId] = useState<string | null>(
     initialProcessId ?? null,
@@ -518,7 +520,12 @@ export function ProcessMap({
 
   const priorityById = useMemo(() => {
     const m = new Map<string, PriorityTarget>();
-    for (const t of priorities) m.set(t.id, t);
+    for (const t of priorities) {
+      m.set(t.id, t);
+      if (t.processId && t.kind !== "process") {
+        m.set(`${t.processId}::${t.kind}::${t.id}`, t);
+      }
+    }
     return m;
   }, [priorities]);
 
@@ -535,27 +542,13 @@ export function ProcessMap({
       .map((n) => {
         const p = positions.get(n.id) ?? { x: 0, y: 0 };
         const layer = layerMap.get(layerForKind(n.kind));
-        const pt =
-          priorityById.get(n.id) ||
-          (n.kind === "process" ? priorityById.get(n.id) : undefined) ||
-          (n.processId ? priorityById.get(n.id) : undefined);
-        // try match by data id for risks stored as risk-${id}
-        let pri = pt;
-        if (!pri && n.kind === "risk") {
-          const raw = String(n.data?.riskId ?? n.id.replace(/^risk-/, ""));
-          pri = priorityById.get(raw);
-        }
-        if (!pri && n.kind === "control") {
-          pri = priorityById.get(String(n.data?.controlId ?? n.id.replace(/^ctrl-/, "")));
-        }
-        if (!pri && n.kind === "knowledge") {
-          pri = priorityById.get(
-            String(n.data?.knowledgeId ?? n.id.replace(/^know-/, "")),
+        const pri =
+          priorityById.get(n.id) ??
+          priorityById.get(
+            n.processId && n.kind !== "process"
+              ? `${n.processId}::${n.kind}::${priorityKeyForNode(n)}`
+              : priorityKeyForNode(n),
           );
-        }
-        if (!pri && n.kind === "process") {
-          pri = priorityById.get(n.id);
-        }
         const priority = pri?.priority ?? n.severity ?? 0;
         return {
           id: n.id,
@@ -963,17 +956,7 @@ export function ProcessMap({
                   key={`${t.kind}-${t.processId ?? ""}-${t.id}`}
                   type="button"
                   onClick={() => {
-                    setSelectedId(
-                      t.kind === "process"
-                        ? t.id
-                        : graph.nodes.find(
-                            (n) =>
-                              n.id.includes(t.id) ||
-                              String(n.data?.riskId) === t.id ||
-                              String(n.data?.controlId) === t.id ||
-                              String(n.data?.knowledgeId) === t.id,
-                          )?.id ?? t.processId ?? t.id,
-                    );
+                    setSelectedId(graphNodeIdForPriority(t, graph.nodes));
                     if (t.processId) setFocusProcessId(t.processId);
                   }}
                   className={cn(

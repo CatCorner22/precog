@@ -145,7 +145,8 @@ export function buildAssignments(
 ): RoleAssignment[] {
   const { people, roleTemplates } = getActiveTemplate();
   return people.map((p) => {
-    const fromRole = roleTemplates[p.role] ?? ["view_reports_only"];
+    const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
+    const fromRole = (fromPerson ?? roleTemplates[p.role] ?? ["view_reports_only"]) as EntitlementId[];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {

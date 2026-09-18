@@ -6,11 +6,214 @@ import { getActiveTemplate } from "./active-template";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type {
+  Person,
   ProcessIdea,
   ProcessNode,
   ProcessRisk,
   ProcessWaste,
 } from "./types";
+
+export interface MapValidationIssue {
+  id: string;
+  severity: "error" | "warn" | "info";
+  message: string;
+  processId?: string;
+}
+
+function normalizeIoToken(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Match output tokens from upstream processes to downstream inputs. */
+function inferFeedEdges(processes: ProcessNode[]): MapGraphEdge[] {
+  const edges: MapGraphEdge[] = [];
+  const seen = new Set<string>();
+  const outputIndex = new Map<string, string[]>();
+
+  for (const p of processes) {
+    for (const out of p.outputs ?? []) {
+      const tok = normalizeIoToken(out);
+      if (tok.length < 3) continue;
+      const list = outputIndex.get(tok) ?? [];
+      list.push(p.id);
+      outputIndex.set(tok, list);
+    }
+  }
+
+  for (const target of processes) {
+    for (const inp of target.inputs ?? []) {
+      const tok = normalizeIoToken(inp);
+      if (tok.length < 3) continue;
+
+      const sources = new Set<string>();
+      for (const [outTok, ids] of outputIndex) {
+        if (tok === outTok || tok.includes(outTok) || outTok.includes(tok)) {
+          for (const id of ids) sources.add(id);
+        }
+      }
+
+      for (const src of sources) {
+        if (src === target.id || target.dependencies.includes(src)) continue;
+        const key = `feed-${src}-${target.id}-${tok}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({
+          id: key,
+          source: src,
+          target: target.id,
+          kind: "feeds",
+          label: inp.slice(0, 28),
+        });
+      }
+    }
+  }
+
+  return edges;
+}
+
+function detectDependencyCycle(processes: ProcessNode[]): string[] | null {
+  const ids = new Set(processes.map((p) => p.id));
+  const deps = new Map<string, string[]>();
+  for (const p of processes) {
+    deps.set(
+      p.id,
+      p.dependencies.filter((d) => ids.has(d)),
+    );
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  let cyclePath: string[] | null = null;
+
+  function dfs(id: string, path: string[]): boolean {
+    if (visiting.has(id)) {
+      const idx = path.indexOf(id);
+      cyclePath = [...path.slice(idx), id];
+      return true;
+    }
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    for (const dep of deps.get(id) ?? []) {
+      if (dfs(dep, [...path, id])) return true;
+    }
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  }
+
+  for (const p of processes) {
+    if (dfs(p.id, [])) return cyclePath;
+  }
+  return null;
+}
+
+export function validateProcessMap(
+  processes: ProcessNode[],
+  people: Person[],
+  controlIds: Set<string>,
+  mapLayout: Record<string, { x: number; y: number }> = {},
+): MapValidationIssue[] {
+  const issues: MapValidationIssue[] = [];
+  const ids = new Set(processes.map((p) => p.id));
+  const personIds = new Set(people.map((p) => p.id));
+
+  const cycle = detectDependencyCycle(processes);
+  if (cycle?.length) {
+    issues.push({
+      id: "cycle",
+      severity: "error",
+      message: `Dependency cycle detected: ${cycle.map((id) => processes.find((p) => p.id === id)?.name ?? id).join(" → ")}`,
+    });
+  }
+
+  for (const p of processes) {
+    for (const dep of p.dependencies) {
+      if (!ids.has(dep)) {
+        issues.push({
+          id: `dep-${p.id}-${dep}`,
+          severity: "error",
+          message: `"${p.name}" depends on missing process "${dep}"`,
+          processId: p.id,
+        });
+      }
+    }
+    for (const cid of p.controlIds) {
+      if (!controlIds.has(cid)) {
+        issues.push({
+          id: `ctrl-${p.id}-${cid}`,
+          severity: "warn",
+          message: `"${p.name}" references unknown control "${cid}"`,
+          processId: p.id,
+        });
+      }
+    }
+    if (!(p.ownerPersonIds ?? []).length) {
+      issues.push({
+        id: `owner-${p.id}`,
+        severity: "warn",
+        message: `"${p.name}" has no owner assigned`,
+        processId: p.id,
+      });
+    } else {
+      for (const oid of p.ownerPersonIds ?? []) {
+        if (!personIds.has(oid)) {
+          issues.push({
+            id: `owner-ref-${p.id}-${oid}`,
+            severity: "error",
+            message: `"${p.name}" owner "${oid}" is not on the team`,
+            processId: p.id,
+          });
+        }
+      }
+    }
+    if (p.controlIds.length === 0 && (p.risks ?? []).some((r) => r.kind === "fraud")) {
+      issues.push({
+        id: `fraud-nocontrol-${p.id}`,
+        severity: "warn",
+        message: `"${p.name}" has fraud risks but no controls mapped`,
+        processId: p.id,
+      });
+    }
+  }
+
+  for (const key of Object.keys(mapLayout)) {
+    if (!ids.has(key)) {
+      issues.push({
+        id: `layout-${key}`,
+        severity: "info",
+        message: `Saved layout position for removed process "${key}"`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** Resolve a graph node id for a priority-stack target. */
+export function graphNodeIdForPriority(
+  target: { kind: string; id: string; processId?: string },
+  nodes: MapGraphNode[],
+): string {
+  if (target.kind === "process") return target.id;
+  if (!target.processId) return target.id;
+  const suffix =
+    target.kind === "risk"
+      ? `::risk::${target.id}`
+      : target.kind === "control"
+        ? `::ctrl::${target.id}`
+        : target.kind === "knowledge"
+          ? `::know::${target.id}`
+          : null;
+  if (!suffix) return target.processId;
+  return nodes.find((n) => n.id === `${target.processId}${suffix}`)?.id ?? target.processId;
+}
+
+/** Map a graph node to its priority-stack lookup key. */
+export function priorityKeyForNode(n: MapGraphNode): string {
+  if (n.kind === "process") return n.id;
+  const d = n.data as { id?: string };
+  return String(d.id ?? n.id);
+}
 
 export type MapNodeKind =
   | "process"
@@ -193,7 +396,7 @@ export function buildProcessMapGraph(
         source: dep,
         target: p.id,
         kind: "depends",
-        label: "feeds",
+        label: "depends",
       });
     }
 
@@ -330,6 +533,11 @@ export function buildProcessMapGraph(
         label: "owns",
       });
     }
+  }
+
+  // Semantic value-stream links from inputs/outputs (when not already a dependency)
+  for (const feed of inferFeedEdges(processes)) {
+    if (!edges.some((e) => e.id === feed.id)) edges.push(feed);
   }
 
   // Cross-link knowledge people for context (not all relations)

@@ -10,6 +10,7 @@ import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { assessCoso } from "@/lib/precog/coso";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -43,9 +44,11 @@ export function ControlReport() {
     });
     const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
     const coso = assessCoso();
+    const { snapshots } = buildProcessMapGraph(profile.staff);
     const actions = buildWeeklyActions({
       staff: profile.staff,
       dualRelease: profile.dualRelease,
+      mapSnapshots: snapshots,
     });
     return { threat, portfolio, sod, spofs, coso, actions };
     // eslint-disable-next-line react-hooks/exhaustive-deps

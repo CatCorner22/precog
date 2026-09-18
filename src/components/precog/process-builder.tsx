@@ -32,7 +32,12 @@ import { getBaseTemplate } from "@/lib/precog/active-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
-import { GitCompare, Loader2, Sparkles } from "lucide-react";
+import { GitCompare, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  validateProcessMap,
+  type MapValidationIssue,
+} from "@/lib/precog/process-graph";
+import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 
 const RISK_KINDS: ProcessRiskKind[] = [
   "fraud",
@@ -92,6 +97,18 @@ export function ProcessBuilder({
   const processes = tpl.processes;
   const [showTeam, setShowTeam] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+
+  const validationIssues = useMemo(
+    () =>
+      validateProcessMap(
+        processes,
+        tpl.people,
+        new Set(tpl.controls.map((c) => c.id)),
+        profile.mapLayout ?? {},
+      ),
+    [processes, tpl.people, tpl.controls, profile.mapLayout],
+  );
   const selected = processes.find((p) => p.id === selectedProcessId) ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -184,6 +201,11 @@ export function ProcessBuilder({
       if (!Array.isArray(parsed.processes) || parsed.processes.length === 0) {
         throw new Error("File has no processes");
       }
+      const procIds = new Set(
+        parsed.processes
+          .filter((p) => p && typeof p.id === "string")
+          .map((p) => p.id as string),
+      );
       const cleaned: ProcessNode[] = parsed.processes
         .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
         .map((p) => ({
@@ -191,7 +213,9 @@ export function ProcessBuilder({
           name: p.name,
           layer: "process",
           description: p.description ?? "",
-          dependencies: Array.isArray(p.dependencies) ? p.dependencies : [],
+          dependencies: Array.isArray(p.dependencies)
+            ? p.dependencies.filter((d) => procIds.has(d))
+            : [],
           controlIds: Array.isArray(p.controlIds) ? p.controlIds : [],
           stage: typeof p.stage === "number" ? p.stage : 0,
           ownerPersonIds: Array.isArray(p.ownerPersonIds) ? p.ownerPersonIds : [],
@@ -211,13 +235,28 @@ export function ProcessBuilder({
               role: p.role ?? "Team member",
               active: p.active ?? true,
               tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : 1,
+              entitlements: Array.isArray(p.entitlements) ? p.entitlements : undefined,
             })),
         );
       }
+      const importIssues = validateProcessMap(
+        cleaned,
+        Array.isArray(parsed.people) ? parsed.people : tpl.people,
+        new Set(tpl.controls.map((c) => c.id)),
+        parsed.layout ?? {},
+      );
       setCustomProcesses(cleaned);
       setMapLayout(parsed.layout ?? {});
       onSelectProcess(cleaned[0].id);
-      toast.success(`Imported ${cleaned.length} processes`);
+      const errs = importIssues.filter((i) => i.severity === "error").length;
+      toast.success(`Imported ${cleaned.length} processes`, {
+        description:
+          errs > 0
+            ? `${errs} issue(s) found — open Validate to review`
+            : importIssues.length
+              ? `${importIssues.length} warning(s) — open Validate`
+              : undefined,
+      });
     } catch (e) {
       toast.error("Import failed", {
         description: e instanceof Error ? e.message : "Invalid file",
@@ -279,6 +318,19 @@ export function ProcessBuilder({
           >
             <Users className="size-3.5" /> Team ({tpl.people.length})
           </Button>
+          <Button
+            size="sm"
+            variant={showValidation ? "default" : "secondary"}
+            onClick={() => setShowValidation((v) => !v)}
+          >
+            <ShieldCheck className="size-3.5" />
+            Validate
+            {validationIssues.filter((i) => i.severity === "error").length > 0 && (
+              <Badge variant="warn" className="ml-1 px-1 py-0 text-[9px]">
+                {validationIssues.filter((i) => i.severity === "error").length}
+              </Badge>
+            )}
+          </Button>
           {mapCustomized && (
             <Button
               size="sm"
@@ -294,6 +346,23 @@ export function ProcessBuilder({
             </Button>
           )}
         </div>
+
+        {showValidation && (
+          <ValidationPanel
+            issues={validationIssues}
+            onSelectProcess={(id) => {
+              onSelectProcess(id);
+              setShowValidation(false);
+            }}
+            onCleanLayout={() => {
+              const ids = new Set(processes.map((p) => p.id));
+              setMapLayout((l) =>
+                Object.fromEntries(Object.entries(l).filter(([k]) => ids.has(k))),
+              );
+              toast.success("Removed stale layout positions");
+            }}
+          />
+        )}
 
         {showChanges && mapCustomized && (
           <ChangesView processes={processes} people={tpl.people} onSelectProcess={onSelectProcess} />
@@ -648,6 +717,96 @@ function SuggestPanel({
   );
 }
 
+function ValidationPanel({
+  issues,
+  onSelectProcess,
+  onCleanLayout,
+}: {
+  issues: MapValidationIssue[];
+  onSelectProcess: (id: string) => void;
+  onCleanLayout: () => void;
+}) {
+  const errors = issues.filter((i) => i.severity === "error");
+  const warns = issues.filter((i) => i.severity === "warn");
+  const infos = issues.filter((i) => i.severity === "info");
+
+  if (issues.length === 0) {
+    return (
+      <div className="rounded-lg border border-ok/30 bg-ok/5 p-2.5 text-[11px] text-ok">
+        Map looks healthy — no broken dependencies, missing owners, or stale references.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
+      <p className="text-[11px] text-muted">
+        {errors.length} error(s), {warns.length} warning(s), {infos.length} info
+      </p>
+      <ul className="max-h-40 space-y-1 overflow-y-auto">
+        {[...errors, ...warns, ...infos].map((i) => (
+          <li key={i.id}>
+            <button
+              type="button"
+              onClick={() => i.processId && onSelectProcess(i.processId)}
+              disabled={!i.processId}
+              className={cn(
+                "w-full rounded-md border px-2 py-1 text-left text-[11px]",
+                i.severity === "error"
+                  ? "border-danger/40 bg-danger/10 text-fg"
+                  : i.severity === "warn"
+                    ? "border-warn/40 bg-warn/10 text-fg"
+                    : "border-border bg-elevated text-muted",
+                i.processId && "hover:border-border-strong",
+              )}
+            >
+              {i.message}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {infos.some((i) => i.id.startsWith("layout-")) && (
+        <Button size="sm" variant="secondary" onClick={onCleanLayout}>
+          Clean stale layout positions
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function EntitlementPicker({
+  selected,
+  onChange,
+}: {
+  selected: EntitlementId[];
+  onChange: (next: EntitlementId[]) => void;
+}) {
+  const toggle = (id: EntitlementId) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => {
+        const on = selected.includes(e.id);
+        return (
+          <button
+            key={e.id}
+            type="button"
+            onClick={() => toggle(e.id)}
+            className={cn(
+              "rounded-md border px-1.5 py-0.5 text-[10px]",
+              on ? "border-primary/50 bg-primary/15 text-fg" : "border-border bg-elevated text-muted",
+            )}
+            title={e.label}
+          >
+            {e.label.split(" / ")[0].slice(0, 28)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TeamEditor({
   people,
   onChange,
@@ -660,6 +819,8 @@ function TeamEditor({
   const [role, setRole] = useState(roleOptions[0] ?? "Team member");
   const [customRole, setCustomRole] = useState("");
   const [tenure, setTenure] = useState(2);
+  const [entitlements, setEntitlements] = useState<EntitlementId[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const useCustom = role === "__custom";
 
   function add() {
@@ -670,11 +831,23 @@ function TeamEditor({
     while (people.some((p) => p.id === id)) id = `p-${slug(name)}-${n++}`;
     onChange([
       ...people,
-      { id, name: name.trim().slice(0, 60), role: finalRole.slice(0, 40), active: true, tenureYears: tenure },
+      {
+        id,
+        name: name.trim().slice(0, 60),
+        role: finalRole.slice(0, 40),
+        active: true,
+        tenureYears: tenure,
+        entitlements: useCustom && entitlements.length ? entitlements : undefined,
+      },
     ]);
     setName("");
     setCustomRole("");
+    setEntitlements([]);
     toast.success(`${name.trim()} added to the team`);
+  }
+
+  function updatePerson(id: string, patch: Partial<Person>) {
+    onChange(people.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
   function remove(id: string) {
@@ -694,25 +867,49 @@ function TeamEditor({
         Roles drive SoD detection — pick the closest match so conflicts are scored correctly.
       </p>
       <ul className="space-y-1">
-        {people.map((p) => (
-          <li
-            key={p.id}
-            className="flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1 text-[11px]"
-          >
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium text-fg">{p.name}</span>
-              <span className="text-subtle"> · {p.role}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => remove(p.id)}
-              className="text-subtle hover:text-danger"
-              aria-label={`Remove ${p.name}`}
+        {people.map((p) => {
+          const knownRole = roleOptions.includes(p.role);
+          const editing = editingId === p.id;
+          return (
+            <li
+              key={p.id}
+              className="rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
             >
-              <Trash2 className="size-3" />
-            </button>
-          </li>
-        ))}
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium text-fg">{p.name}</span>
+                  <span className="text-subtle"> · {p.role}</span>
+                  {!knownRole && !(p.entitlements?.length) && (
+                    <span className="text-warn"> · needs duties</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(editing ? null : p.id)}
+                  className="text-subtle hover:text-primary"
+                >
+                  {editing ? "Done" : "Duties"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(p.id)}
+                  className="text-subtle hover:text-danger"
+                  aria-label={`Remove ${p.name}`}
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
+              {editing && (
+                <EntitlementPicker
+                  selected={(p.entitlements ?? []) as EntitlementId[]}
+                  onChange={(next) =>
+                    updatePerson(p.id, { entitlements: next.length ? next : undefined })
+                  }
+                />
+              )}
+            </li>
+          );
+        })}
       </ul>
       <div className="grid gap-1.5 sm:grid-cols-[1fr_1fr_64px]">
         <input
@@ -741,12 +938,18 @@ function TeamEditor({
         />
       </div>
       {useCustom && (
-        <input
-          className={inputCls}
-          placeholder="Role title (scored as read-only unless it matches a known role)"
-          value={customRole}
-          onChange={(e) => setCustomRole(e.target.value)}
-        />
+        <>
+          <input
+            className={inputCls}
+            placeholder="Role title"
+            value={customRole}
+            onChange={(e) => setCustomRole(e.target.value)}
+          />
+          <div>
+            <span className={labelCls}>Duty entitlements (for SoD scoring)</span>
+            <EntitlementPicker selected={entitlements} onChange={setEntitlements} />
+          </div>
+        </>
       )}
       <Button size="sm" variant="secondary" onClick={add} disabled={!name.trim()}>
         <Plus className="size-3.5" /> Add team member
@@ -879,6 +1082,8 @@ function ProcessForm({
         risks={process.risks ?? []}
         onChange={(risks) => onChange({ risks })}
         knowledgeOptions={tpl.knowledge.map((k) => ({ id: k.id, label: k.name }))}
+        controlOptions={tpl.controls.map((c) => ({ id: c.id, label: c.name }))}
+        scenarioOptions={tpl.scenarios.map((s) => ({ id: s.id, label: s.title }))}
       />
       <IdeaList ideas={process.ideas ?? []} onChange={(ideas) => onChange({ ideas })} />
       <WasteList wastes={process.wastes ?? []} onChange={(wastes) => onChange({ wastes })} />
@@ -968,10 +1173,14 @@ function RiskList({
   risks,
   onChange,
   knowledgeOptions,
+  controlOptions,
+  scenarioOptions,
 }: {
   risks: ProcessRisk[];
   onChange: (r: ProcessRisk[]) => void;
   knowledgeOptions: { id: string; label: string }[];
+  controlOptions: { id: string; label: string }[];
+  scenarioOptions: { id: string; label: string }[];
 }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -980,6 +1189,8 @@ function RiskList({
   const [lik, setLik] = useState(3);
   const [note, setNote] = useState("");
   const [knowledgeId, setKnowledgeId] = useState("");
+  const [controlId, setControlId] = useState("");
+  const [scenarioId, setScenarioId] = useState("");
 
   function commit() {
     if (!title.trim()) return;
@@ -993,12 +1204,20 @@ function RiskList({
         likelihood: lik as ProcessRisk["likelihood"],
         note: note.trim().slice(0, 200),
         linkedKnowledgeId: knowledgeId || undefined,
+        linkedControlId: controlId || undefined,
+        linkedScenarioId: scenarioId || undefined,
       },
     ]);
     setTitle("");
     setNote("");
     setKnowledgeId("");
+    setControlId("");
+    setScenarioId("");
     setAdding(false);
+  }
+
+  function updateRisk(id: string, patch: Partial<ProcessRisk>) {
+    onChange(risks.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   return (
@@ -1013,23 +1232,69 @@ function RiskList({
       {risks.map((r) => (
         <div
           key={r.id}
-          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
         >
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-fg">{r.title}</p>
-            <p className="text-subtle">
-              {r.kind} · S{r.severity}×L{r.likelihood}
-              {r.note ? ` · ${r.note}` : ""}
-            </p>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-fg">{r.title}</p>
+              <p className="text-subtle">
+                {r.kind} · S{r.severity}×L{r.likelihood}
+                {r.note ? ` · ${r.note}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange(risks.filter((x) => x.id !== r.id))}
+              className="text-subtle hover:text-danger"
+              aria-label="Remove risk"
+            >
+              <Trash2 className="size-3" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => onChange(risks.filter((x) => x.id !== r.id))}
-            className="text-subtle hover:text-danger"
-            aria-label="Remove risk"
-          >
-            <Trash2 className="size-3" />
-          </button>
+          <div className="grid gap-1 sm:grid-cols-3">
+            <select
+              className={inputCls}
+              value={r.linkedControlId ?? ""}
+              onChange={(e) =>
+                updateRisk(r.id, { linkedControlId: e.target.value || undefined })
+              }
+            >
+              <option value="">Link control…</option>
+              {controlOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputCls}
+              value={r.linkedScenarioId ?? ""}
+              onChange={(e) =>
+                updateRisk(r.id, { linkedScenarioId: e.target.value || undefined })
+              }
+            >
+              <option value="">Link scenario…</option>
+              {scenarioOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputCls}
+              value={r.linkedKnowledgeId ?? ""}
+              onChange={(e) =>
+                updateRisk(r.id, { linkedKnowledgeId: e.target.value || undefined })
+              }
+            >
+              <option value="">Link knowledge…</option>
+              {knowledgeOptions.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       ))}
       {adding && (
@@ -1074,18 +1339,44 @@ function RiskList({
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <select
-            className={inputCls}
-            value={knowledgeId}
-            onChange={(e) => setKnowledgeId(e.target.value)}
-          >
-            <option value="">Link knowledge item (optional)</option>
-            {knowledgeOptions.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.label}
-              </option>
-            ))}
-          </select>
+          <div className="grid gap-1 sm:grid-cols-3">
+            <select
+              className={inputCls}
+              value={controlId}
+              onChange={(e) => setControlId(e.target.value)}
+            >
+              <option value="">Link control (optional)</option>
+              {controlOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputCls}
+              value={scenarioId}
+              onChange={(e) => setScenarioId(e.target.value)}
+            >
+              <option value="">Link scenario (optional)</option>
+              {scenarioOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={inputCls}
+              value={knowledgeId}
+              onChange={(e) => setKnowledgeId(e.target.value)}
+            >
+              <option value="">Link knowledge (optional)</option>
+              {knowledgeOptions.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <Button size="sm" onClick={commit} disabled={!title.trim()}>
             Add risk
           </Button>

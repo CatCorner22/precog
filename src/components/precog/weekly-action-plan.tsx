@@ -4,6 +4,7 @@ import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/resid
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
+import { buildProcessMapGraph, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +17,14 @@ export interface WeeklyAction {
   effort: "low" | "medium" | "high";
   tab: string;
   priority: number;
+  /** Deep-link to a process on the map tab. */
+  processId?: string;
 }
 
 export function buildWeeklyActions(input: {
   staff: ReturnType<typeof usePractice>["profile"]["staff"];
   dualRelease: ReturnType<typeof usePractice>["profile"]["dualRelease"];
+  mapSnapshots?: ProcessMapSnapshot[];
 }): WeeklyAction[] {
   const portfolio = portfolioSummary(input.staff);
   const sod = detectSodConflicts(input.staff, {
@@ -98,6 +102,34 @@ export function buildWeeklyActions(input: {
     });
   }
 
+  if (input.mapSnapshots?.length) {
+    for (const snap of input.mapSnapshots.filter((s) => s.heat >= 68).slice(0, 2)) {
+      const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
+      actions.push({
+        id: `map-heat-${snap.process.id}`,
+        title: `Review hot process: ${snap.process.name}`,
+        why: `Heat ${snap.heat} — ${snap.risks.length} risk(s)${gaps ? `, ${gaps} SoD gap(s)` : ""}. Open the map builder to assign owners and controls.`,
+        effort: gaps > 0 ? "medium" : "low",
+        tab: "map",
+        processId: snap.process.id,
+        priority: Math.min(92, snap.heat + 5),
+      });
+    }
+
+    const unowned = input.mapSnapshots.filter((s) => !s.owners.length).slice(0, 1);
+    for (const snap of unowned) {
+      actions.push({
+        id: `map-owner-${snap.process.id}`,
+        title: `Assign owner: ${snap.process.name}`,
+        why: "Processes without owners don't get SoD or continuity scoring — assign someone on your team.",
+        effort: "low",
+        tab: "map",
+        processId: snap.process.id,
+        priority: 75,
+      });
+    }
+  }
+
   const seen = new Set<string>();
   return actions
     .filter((a) => {
@@ -113,13 +145,17 @@ export function buildWeeklyActions(input: {
 export function WeeklyActionPlan({
   onNavigate,
 }: {
-  onNavigate: (tab: string) => void;
+  onNavigate: (tab: string, processId?: string) => void;
 }) {
-  const { profile } = usePractice();
-  const actions = useMemo(
-    () => buildWeeklyActions({ staff: profile.staff, dualRelease: profile.dualRelease }),
-    [profile.staff, profile.dualRelease],
-  );
+  const { profile, templateRevision } = usePractice();
+  const actions = useMemo(() => {
+    const { snapshots } = buildProcessMapGraph(profile.staff);
+    return buildWeeklyActions({
+      staff: profile.staff,
+      dualRelease: profile.dualRelease,
+      mapSnapshots: snapshots,
+    });
+  }, [profile.staff, profile.dualRelease, profile.industry, templateRevision]);
 
   return (
     <Card>
@@ -143,7 +179,7 @@ export function WeeklyActionPlan({
             <button
               key={a.id}
               type="button"
-              onClick={() => onNavigate(a.tab)}
+              onClick={() => onNavigate(a.tab, a.processId)}
               className="flex w-full items-start gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left transition-colors hover:border-border-strong"
             >
               <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">

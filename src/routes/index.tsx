@@ -412,7 +412,7 @@ function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <WeeklyActionPlan onNavigate={(t) => navigateTab(t)} />
+              <WeeklyActionPlan onNavigate={(t, id) => navigateTab(t, id)} />
               <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
             </div>
 

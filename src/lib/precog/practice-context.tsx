@@ -356,7 +356,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const mapCustomized = Boolean(profile.customProcesses || profile.customPeople);
+  const mapCustomized = Boolean(
+    profile.customProcesses ||
+      profile.customPeople ||
+      Object.keys(profile.mapLayout ?? {}).length > 0,
+  );
 
   const value = useMemo(
     () => ({
