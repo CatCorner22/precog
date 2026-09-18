@@ -53,6 +53,11 @@ import {
 } from "@/lib/precog/builder/what-if";
 import { Activity, ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
 import { BuilderTour, useBuilderTour } from "@/components/precog/builder-tour";
+import { diffMaps } from "@/lib/precog/builder/diff";
+import { reviewMap } from "@/lib/precog/builder/review-server";
+import type { MapReview } from "@/lib/precog/builder/review";
+import type { MapVersion } from "@/lib/precog/practice-profile";
+import { Camera, ClipboardCheck, History, RotateCw } from "lucide-react";
 import {
   blocksForIndustry,
   instantiateBlock,
@@ -61,6 +66,7 @@ import {
   type SavedProcessBlock,
 } from "@/lib/precog/builder/process-blocks";
 import {
+  enrichProcess,
   validateProcessMap,
   type MapValidationIssue,
 } from "@/lib/precog/process-graph";
@@ -130,6 +136,9 @@ export function ProcessBuilder({
     redoMap,
     canUndoMap,
     canRedoMap,
+    saveMapVersion,
+    deleteMapVersion,
+    restoreMapVersion,
   } = usePractice();
   const processes = tpl.processes;
   const [showTeam, setShowTeam] = useState(false);
@@ -137,6 +146,10 @@ export function ProcessBuilder({
   const [showValidation, setShowValidation] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
   const [showWorkload, setShowWorkload] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [review, setReview] = useState<MapReview | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const tour = useBuilderTour();
 
   const currentHealth = useMemo(
@@ -186,6 +199,70 @@ export function ProcessBuilder({
 
   function update(id: string, patch: Partial<ProcessNode>) {
     setCustomProcesses((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  async function runReview() {
+    setShowReview(true);
+    setReviewing(true);
+    try {
+      const wl = analyzeWorkload(processes, tpl.people, profile.staff, profile.dualRelease);
+      const enriched = processes.map((p) => {
+        const owners = (p.ownerPersonIds ?? [])
+          .map((id) => tpl.people.find((x) => x.id === id)?.name)
+          .filter((x): x is string => Boolean(x));
+        const snap = enrichProcess(p, profile.staff);
+        return {
+          id: p.id,
+          name: p.name,
+          stage: p.stage ?? 0,
+          owners,
+          controls: p.controlIds,
+          riskTitles: (p.risks ?? []).map((r) => r.title).slice(0, 4),
+          fraudRisks: (p.risks ?? []).filter((r) => r.kind === "fraud").length,
+          heat: snap.heat,
+          dependencyCount: p.dependencies.length,
+          openSodGaps: snap.controlGaps.filter((c) => !c.segregated).length,
+        };
+      });
+      const result = await reviewMap({
+        data: {
+          businessName: profile.practiceName,
+          industryLabel: industryMeta(profile.industry).label,
+          teamSize: tpl.people.filter((p) => p.active).length,
+          health: {
+            score: currentHealth.score,
+            band: currentHealth.bandLabel,
+            dimensions: currentHealth.dimensions.map((d) => ({
+              label: d.label,
+              score: d.score,
+              hint: d.hint,
+            })),
+          },
+          processes: enriched,
+          issues: validationIssues.filter((i) => i.severity !== "info").map((i) => i.message),
+          overburdened: wl
+            .filter((r) => r.load >= 70)
+            .map((r) => ({ name: r.person.name, role: r.person.role, flags: r.flags })),
+          unownedProcesses: processes.filter((p) => !(p.ownerPersonIds ?? []).length).map((p) => p.name),
+        },
+      });
+      setReview(result);
+    } catch {
+      toast.error("Review failed", { description: "Try again in a moment." });
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  function snapshotVersion() {
+    const name = window.prompt(
+      "Name this version",
+      `${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })} · health ${currentHealth.score}`,
+    );
+    if (name === null) return;
+    saveMapVersion(name, currentHealth.score);
+    setShowVersions(true);
+    toast.success("Version saved", { description: "Restore or compare it any time from Versions." });
   }
 
   /** Compute the process list a quick fix would produce, without applying it. */
@@ -576,6 +653,25 @@ export function ProcessBuilder({
           </Button>
           <Button
             size="sm"
+            variant={showReview ? "default" : "secondary"}
+            onClick={() => (review && !showReview ? setShowReview(true) : showReview ? setShowReview(false) : void runReview())}
+          >
+            <ClipboardCheck className="size-3.5" /> Review
+          </Button>
+          <Button size="sm" variant="secondary" onClick={snapshotVersion} title="Save a named snapshot of this map">
+            <Camera className="size-3.5" /> Snapshot
+          </Button>
+          {(profile.mapVersions?.length ?? 0) > 0 && (
+            <Button
+              size="sm"
+              variant={showVersions ? "default" : "secondary"}
+              onClick={() => setShowVersions((v) => !v)}
+            >
+              <History className="size-3.5" /> Versions ({profile.mapVersions!.length})
+            </Button>
+          )}
+          <Button
+            size="sm"
             variant={showValidation ? "default" : "secondary"}
             onClick={() => setShowValidation((v) => !v)}
           >
@@ -602,6 +698,32 @@ export function ProcessBuilder({
             </Button>
           )}
         </div>
+
+        {showReview && (
+          <ReviewPanel
+            review={review}
+            loading={reviewing}
+            onRefresh={() => void runReview()}
+            onSelectProcess={onSelectProcess}
+            processes={processes}
+          />
+        )}
+
+        {showVersions && (profile.mapVersions?.length ?? 0) > 0 && (
+          <VersionsPanel
+            versions={profile.mapVersions!}
+            current={{ processes, people: tpl.people, health: currentHealth.score }}
+            onRestore={(id) => {
+              const v = profile.mapVersions?.find((x) => x.id === id);
+              if (!v) return;
+              if (!window.confirm(`Restore "${v.name}"? Your current map goes into undo history.`)) return;
+              restoreMapVersion(id);
+              toast.success(`Restored "${v.name}"`, { description: "Ctrl+Z to go back." });
+            }}
+            onDelete={deleteMapVersion}
+            onSelectProcess={onSelectProcess}
+          />
+        )}
 
         {showWorkload && (
           <WorkloadView
@@ -721,53 +843,28 @@ function ChangesView({
   processes,
   people,
   onSelectProcess,
+  against,
+  label,
 }: {
   processes: ProcessNode[];
   people: Person[];
   onSelectProcess: (id: string) => void;
+  /** Baseline to compare with; defaults to the industry template. */
+  against?: { processes: ProcessNode[]; people: Person[] };
+  label?: string;
 }) {
   const base = getBaseTemplate();
-  const baseById = new Map(base.processes.map((p) => [p.id, p]));
-  const curById = new Map(processes.map((p) => [p.id, p]));
-
-  const added = processes.filter((p) => !baseById.has(p.id));
-  const removed = base.processes.filter((p) => !curById.has(p.id));
-  const modified = processes
-    .filter((p) => baseById.has(p.id))
-    .map((p) => {
-      const b = baseById.get(p.id)!;
-      const changes: string[] = [];
-      if (p.name !== b.name) changes.push("renamed");
-      if (p.description !== b.description) changes.push("description");
-      if ((p.stage ?? 0) !== (b.stage ?? 0)) changes.push("stage");
-      if (p.dependencies.join("|") !== b.dependencies.join("|")) changes.push("dependencies");
-      if ((p.ownerPersonIds ?? []).join("|") !== (b.ownerPersonIds ?? []).join("|"))
-        changes.push("owners");
-      if (p.controlIds.join("|") !== b.controlIds.join("|")) changes.push("controls");
-      const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
-      const dr = d(p.risks, b.risks);
-      const di = d(p.ideas, b.ideas);
-      const dw = d(p.wastes, b.wastes);
-      if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
-      if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
-      if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);
-      return { p, changes };
-    })
-    .filter((x) => x.changes.length);
-
-  const basePeople = new Set(base.people.map((p) => p.id));
-  const curPeople = new Set(people.map((p) => p.id));
-  const peopleAdded = people.filter((p) => !basePeople.has(p.id));
-  const peopleRemoved = base.people.filter((p) => !curPeople.has(p.id));
-
-  const total =
-    added.length + removed.length + modified.length + peopleAdded.length + peopleRemoved.length;
+  const baseline = against ?? { processes: base.processes, people: base.people };
+  const { added, removed, modified, peopleAdded, peopleRemoved, total } = diffMaps(baseline, {
+    processes,
+    people,
+  });
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
       <p className="text-muted">
-        <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs the{" "}
-        {industryMeta(base.id).label} template.
+        <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs{" "}
+        {label ?? `the ${industryMeta(base.id).label} template`}.
       </p>
       {added.length > 0 && (
         <ChangeGroup label="Added processes" tone="ok">
@@ -1014,6 +1111,190 @@ function SuggestPanel({
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+const GRADE_TONE: Record<MapReview["grade"], string> = {
+  A: "bg-ok/15 text-ok border-ok/40",
+  B: "bg-primary/15 text-primary border-primary/40",
+  C: "bg-warn/15 text-warn border-warn/40",
+  D: "bg-danger/15 text-danger border-danger/40",
+  F: "bg-danger/25 text-danger border-danger/60",
+};
+
+function ReviewPanel({
+  review,
+  loading,
+  onRefresh,
+  onSelectProcess,
+  processes,
+}: {
+  review: MapReview | null;
+  loading: boolean;
+  onRefresh: () => void;
+  onSelectProcess: (id: string) => void;
+  processes: ProcessNode[];
+}) {
+  if (loading && !review) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-panel p-3 text-[11px] text-muted">
+        <Loader2 className="size-3.5 animate-spin" /> Reviewing your value stream…
+      </div>
+    );
+  }
+  if (!review) return null;
+  const focus = review.focusProcessIds
+    .map((id) => processes.find((p) => p.id === id))
+    .filter((p): p is ProcessNode => Boolean(p));
+
+  return (
+    <div className="space-y-2.5 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <div className="flex items-start gap-2">
+        <span
+          className={cn(
+            "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-base font-bold",
+            GRADE_TONE[review.grade],
+          )}
+        >
+          {review.grade}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-fg">{review.headline}</p>
+          <p className="mt-0.5 text-[10px] text-subtle">
+            {review.source === "grok" ? `Reviewed by ${review.model ?? "Grok"}` : "Rule-based review"}
+            {" · "}
+            <button type="button" onClick={onRefresh} className="inline-flex items-center gap-1 text-primary hover:underline" disabled={loading}>
+              <RotateCw className={cn("size-3", loading && "animate-spin")} /> Re-run
+            </button>
+          </p>
+        </div>
+      </div>
+      {review.sections.map((s) => (
+        <div key={s.heading}>
+          <p className={labelCls}>{s.heading}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
+            {s.points.map((pt) => (
+              <li key={pt} className="text-fg/90">
+                {pt}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <div className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-2">
+        <p className="text-[10px] font-medium tracking-wide text-accent uppercase">Next move</p>
+        <p className="mt-0.5 text-fg">{review.nextMove}</p>
+      </div>
+      {focus.length > 0 && (
+        <div>
+          <p className={labelCls}>Open first</p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {focus.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onSelectProcess(p.id)}
+                className="rounded-md border border-border bg-elevated px-2 py-0.5 text-[11px] text-fg hover:border-primary/40"
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VersionsPanel({
+  versions,
+  current,
+  onRestore,
+  onDelete,
+  onSelectProcess,
+}: {
+  versions: MapVersion[];
+  current: { processes: ProcessNode[]; people: Person[]; health: number };
+  onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
+  onSelectProcess: (id: string) => void;
+}) {
+  const [compareId, setCompareId] = useState<string | null>(null);
+  const compare = versions.find((v) => v.id === compareId) ?? null;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="text-muted">
+        Saved snapshots of your map. Compare to see what changed, or restore (undoable).
+      </p>
+      <ul className="space-y-1">
+        {versions.map((v) => {
+          const delta = current.health - v.healthScore;
+          const d = diffMaps({ processes: v.processes, people: v.people }, current);
+          return (
+            <li
+              key={v.id}
+              className={cn(
+                "flex items-center gap-2 rounded-md border bg-elevated px-2 py-1.5",
+                compareId === v.id ? "border-primary/50" : "border-border",
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-fg">{v.name}</p>
+                <p className="text-[10px] text-subtle">
+                  {new Date(v.createdAt).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}{" "}
+                  · health {v.healthScore}
+                  {delta !== 0 && (
+                    <span className={delta > 0 ? "text-ok" : "text-danger"}>
+                      {" "}
+                      ({delta > 0 ? "+" : ""}
+                      {delta} now)
+                    </span>
+                  )}{" "}
+                  · {v.processes.length} proc · {d.total} change{d.total === 1 ? "" : "s"} since
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompareId(compareId === v.id ? null : v.id)}
+                className="text-[10px] text-primary hover:underline"
+              >
+                {compareId === v.id ? "Hide" : "Compare"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onRestore(v.id)}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(v.id)}
+                className="text-subtle hover:text-danger"
+                aria-label={`Delete ${v.name}`}
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {compare && (
+        <ChangesView
+          processes={current.processes}
+          people={current.people}
+          onSelectProcess={onSelectProcess}
+          against={{ processes: compare.processes, people: compare.people }}
+          label={`"${compare.name}"`}
+        />
       )}
     </div>
   );

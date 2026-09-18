@@ -45,7 +45,19 @@ export interface PracticeProfile {
   savedProcessBlocks?: SavedProcessBlock[];
   /** Map health score snapshots over time (newest last). */
   mapHealthHistory?: MapHealthPoint[];
+  /** Named snapshots of the map for restore/compare (newest first). */
+  mapVersions?: MapVersion[];
   updatedAt: string;
+}
+
+export interface MapVersion {
+  id: string;
+  name: string;
+  createdAt: string;
+  healthScore: number;
+  processes: ProcessNode[];
+  people: Person[];
+  layout: Record<string, { x: number; y: number }>;
 }
 
 export interface MapHealthPoint {
@@ -76,6 +88,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     mapLayout: {},
     savedProcessBlocks: [],
     mapHealthHistory: [],
+    mapVersions: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -124,6 +137,7 @@ export function loadProfile(): PracticeProfile {
         ? parsed.savedProcessBlocks
         : [],
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
+      mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
     };
   } catch {
     return defaultProfile();

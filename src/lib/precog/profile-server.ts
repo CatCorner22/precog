@@ -44,6 +44,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
         ? row.profile.mapHealthHistory
         : [],
+      mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
     };
     return {
       found: true as const,

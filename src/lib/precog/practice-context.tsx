@@ -35,6 +35,7 @@ import {
   saveProfile,
   type DecisionEntry,
   type DecisionKind,
+  type MapVersion,
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
@@ -98,7 +99,13 @@ interface PracticeContextValue {
   redoMap: () => void;
   canUndoMap: boolean;
   canRedoMap: boolean;
+  /** Named map snapshots. */
+  saveMapVersion: (name: string, healthScore: number) => MapVersion;
+  deleteMapVersion: (id: string) => void;
+  restoreMapVersion: (id: string) => void;
 }
+
+const MAX_VERSIONS = 12;
 
 interface MapSnapshot {
   customProcesses: ProcessNode[] | null | undefined;
@@ -478,6 +485,52 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const saveMapVersion = useCallback((name: string, healthScore: number): MapVersion => {
+    const p = profileRef.current;
+    const tpl = getIndustryTemplate(p.industry);
+    const version: MapVersion = {
+      id: `ver_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      name: name.trim().slice(0, 60) || `Version ${new Date().toLocaleDateString()}`,
+      createdAt: new Date().toISOString(),
+      healthScore,
+      processes: structuredClone(p.customProcesses ?? tpl.processes),
+      people: structuredClone(p.customPeople ?? tpl.people),
+      layout: { ...(p.mapLayout ?? {}) },
+    };
+    setProfile((cur) => ({
+      ...cur,
+      mapVersions: [version, ...(cur.mapVersions ?? [])].slice(0, MAX_VERSIONS),
+    }));
+    return version;
+  }, []);
+
+  const deleteMapVersion = useCallback((id: string) => {
+    setProfile((p) => ({
+      ...p,
+      mapVersions: (p.mapVersions ?? []).filter((v) => v.id !== id),
+    }));
+  }, []);
+
+  const restoreMapVersion = useCallback(
+    (id: string) => {
+      const v = profileRef.current.mapVersions?.find((x) => x.id === id);
+      if (!v) return;
+      pushUndo();
+      const processes = structuredClone(v.processes);
+      const people = structuredClone(v.people);
+      setProcessOverrides(processes);
+      setPeopleOverrides(people);
+      setTemplateRevision((r) => r + 1);
+      setProfile((p) => ({
+        ...p,
+        customProcesses: processes,
+        customPeople: people,
+        mapLayout: { ...v.layout },
+      }));
+    },
+    [pushUndo],
+  );
+
   const canUndoMap = undoStack.current.length > 0;
   const canRedoMap = redoStack.current.length > 0;
 
@@ -506,6 +559,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       redoMap,
       canUndoMap,
       canRedoMap,
+      saveMapVersion,
+      deleteMapVersion,
+      restoreMapVersion,
     }),
     [
       profile,
@@ -531,6 +587,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       redoMap,
       canUndoMap,
       canRedoMap,
+      saveMapVersion,
+      deleteMapVersion,
+      restoreMapVersion,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

@@ -41,6 +41,7 @@ import {
 } from "@/lib/precog/map-vision";
 import { usePractice } from "@/lib/precog/practice-context";
 import { ProcessBuilder } from "@/components/precog/process-builder";
+import { ExportMapImageButton } from "@/components/precog/export-map-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1018,6 +1019,21 @@ export function ProcessMap({
                   ) : (
                     <TerminatorLegend immediate={immediate} />
                   )}
+                </Panel>
+                <Panel position="top-right" className="m-2!">
+                  <ExportMapImageButton
+                    fileName={`${(profile.practiceName || "process-map")
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/^-+|-+$/g, "")}-map-${vision}`}
+                    background={
+                      vision === "terminator"
+                        ? "#0a0000"
+                        : vision === "predator"
+                          ? "#05070d"
+                          : "#151820"
+                    }
+                  />
                 </Panel>
               </ReactFlow>
             </div>
