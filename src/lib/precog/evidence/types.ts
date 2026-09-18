@@ -54,6 +54,8 @@ export type DetectionRoute =
   | "reconciliation"
   | "unknown";
 
+import type { ControlId } from "./controls";
+
 /** Confidence in the facts as recorded. */
 export type SourceGrade =
   /** Facts taken from the text of a government press release or court filing. */
@@ -107,10 +109,14 @@ export interface CaseStudy {
   /** IDs from sod/conflict-rules.ts that this case demonstrates. */
   sodRuleIds: string[];
   /**
-   * What would plausibly have caught it, stated concretely enough for an owner
-   * to act on this week.
+   * What would plausibly have caught it.
+   *
+   * Each entry names a canonical control plus the phrasing that fits this
+   * case. The canonical id is what lets the recommendation list count how many
+   * real cases a given control would have stopped; `asApplied` is what the
+   * case card shows, so the advice stays concrete rather than generic.
    */
-  wouldHaveCaughtIt: string[];
+  wouldHaveCaughtIt: { control: ControlId; asApplied: string }[];
   source: EvidenceSource;
   /** Anything a careful reader should know about the figures. */
   caveat?: string;

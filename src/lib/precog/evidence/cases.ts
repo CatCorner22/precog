@@ -41,9 +41,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      "Owner opens the bank statement unopened and reviews cleared-check images before anyone else handles it",
-      "Bank Positive Pay: the bank pays only checks on a list the owner uploads",
-      "Payroll register reviewed against the payroll bank debit each cycle",
+      { control: "owner-opens-bank-statement", asApplied: "Owner opens the bank statement unopened and reviews cleared-check images before anyone else handles it" },
+      { control: "positive-pay", asApplied: "Bank Positive Pay: the bank pays only checks on a list the owner uploads" },
+      { control: "payroll-register-review", asApplied: "Payroll register reviewed against the payroll bank debit each cycle" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Illinois",
@@ -69,9 +69,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2017,
     sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      "Insurance remittances routed to a lockbox or to electronic funds transfer, so no employee handles a payable check",
-      "Owner compares the practice-management system's insurance-payment report to the bank deposit total monthly",
-      "Someone other than the depositor reconciles the bank account",
+      { control: "electronic-remittance", asApplied: "Insurance remittances routed to a lockbox or to electronic funds transfer, so no employee handles a payable check" },
+      { control: "expected-receipts-vs-deposits", asApplied: "Owner compares the practice-management system's insurance-payment report to the bank deposit total monthly" },
+      { control: "independent-bank-reconciliation", asApplied: "Someone other than the depositor reconciles the bank account" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -96,9 +96,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2022,
     sodRuleIds: ["rule-vendor-create-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
-      "Owner reviews the list of new payees and vendors monthly — a five-minute report in any accounting package",
-      "Bank alerts on new payees and on any account change",
-      "Annual confirmation with major insurers of the remittance account on file",
+      { control: "new-payee-review", asApplied: "Owner reviews the list of new payees and vendors monthly — a five-minute report in any accounting package" },
+      { control: "bank-alerts-on-payee-change", asApplied: "Bank alerts on new payees and on any account change" },
+      { control: "confirm-remittance-account", asApplied: "Annual confirmation with major insurers of the remittance account on file" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Texas",
@@ -124,9 +124,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2019,
     sodRuleIds: ["rule-claims-writeoff", "rule-admin-writeoff"],
     wouldHaveCaughtIt: [
-      "Monthly production-by-provider report compared against the actual schedule",
-      "Provider credentialing list reviewed by the owner against claims submitted",
-      "Any claim naming a provider not on the day's schedule flagged before submission",
+      { control: "billing-matches-the-schedule", asApplied: "Monthly production-by-provider report compared against the actual schedule" },
+      { control: "billing-matches-the-schedule", asApplied: "Provider credentialing list reviewed by the owner against claims submitted" },
+      { control: "billing-matches-the-schedule", asApplied: "Any claim naming a provider not on the day's schedule flagged before submission" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Connecticut",
@@ -157,9 +157,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-payroll",
     ],
     wouldHaveCaughtIt: [
-      "A second person approves every new vendor before its first payment, checking a W-9 and a real business address",
-      "New-vendor report reviewed monthly by the owner",
-      "No vendor paid to a bank account that matches an employee's",
+      { control: "new-payee-second-approval", asApplied: "A second person approves every new vendor before its first payment, checking a W-9 and a real business address" },
+      { control: "new-payee-review", asApplied: "New-vendor report reviewed monthly by the owner" },
+      { control: "payee-account-not-an-employee", asApplied: "No vendor paid to a bank account that matches an employee's" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
@@ -192,9 +192,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-admin-pay",
     ],
     wouldHaveCaughtIt: [
-      "Owner receives the bank statement directly and reviews cleared-check images and the credit-card statement before the controller sees them",
-      "Any single duty moved out of the role — even just the bank reconciliation — breaks the cycle",
-      "Dual signature or dual electronic release on payments above a set threshold",
+      { control: "owner-opens-bank-statement", asApplied: "Owner receives the bank statement directly and reviews cleared-check images and the credit-card statement before the controller sees them" },
+      { control: "split-one-duty-out", asApplied: "Any single duty moved out of the role — even just the bank reconciliation — breaks the cycle" },
+      { control: "dual-release-above-threshold", asApplied: "Dual signature or dual electronic release on payments above a set threshold" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
@@ -217,9 +217,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     detection: "owner-review",
     sodRuleIds: ["rule-payroll", "rule-admin-pay"],
     wouldHaveCaughtIt: [
-      "Owner approves the payroll register every cycle — a one-page list of names and amounts",
-      "Anyone's own pay rate change requires a second person's approval, without exception for the person who runs payroll",
-      "Company credit card statements opened and reviewed by the owner",
+      { control: "payroll-register-review", asApplied: "Owner approves the payroll register every cycle — a one-page list of names and amounts" },
+      { control: "no-self-approval", asApplied: "Anyone's own pay rate change requires a second person's approval, without exception for the person who runs payroll" },
+      { control: "card-statement-line-review", asApplied: "Company credit card statements opened and reviewed by the owner" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Middle District of Florida",
@@ -245,9 +245,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2025,
     sodRuleIds: ["rule-payroll"],
     wouldHaveCaughtIt: [
-      "Every reimbursement over a small threshold requires a receipt and a second person's approval",
-      "Owner reviews gross-to-net payroll totals, not just the net amount leaving the bank",
-      "Reimbursements paid separately from payroll, so they are visible as their own line",
+      { control: "receipt-and-second-approval", asApplied: "Every reimbursement over a small threshold requires a receipt and a second person's approval" },
+      { control: "payroll-register-review", asApplied: "Owner reviews gross-to-net payroll totals, not just the net amount leaving the bank" },
+      { control: "receipt-and-second-approval", asApplied: "Reimbursements paid separately from payroll, so they are visible as their own line" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -272,8 +272,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2024,
     sodRuleIds: ["rule-cash-rec", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
-      "Per-location cash-to-deposit variance report reviewed weekly by the owner",
-      "Comparison of the same expense line across locations — an outlier site is the fastest signal a multi-unit owner has",
+      { control: "expected-receipts-vs-deposits", asApplied: "Per-location cash-to-deposit variance report reviewed weekly by the owner" },
+      { control: "compare-across-locations", asApplied: "Comparison of the same expense line across locations — an outlier site is the fastest signal a multi-unit owner has" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Idaho",
@@ -299,9 +299,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2019,
     sodRuleIds: ["rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
-      "A named board member reviews the executive director's card statement and expense claims monthly, line by line",
-      "The executive director does not approve their own expenses under any threshold",
-      "Annual independent financial review, even where an audit is not required",
+      { control: "card-statement-line-review", asApplied: "A named board member reviews the executive director's card statement and expense claims monthly, line by line" },
+      { control: "no-self-approval", asApplied: "The executive director does not approve their own expenses under any threshold" },
+      { control: "independent-financial-review", asApplied: "Annual independent financial review, even where an audit is not required" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
@@ -326,9 +326,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2026,
     sodRuleIds: ["rule-admin-pay"],
     wouldHaveCaughtIt: [
-      "Confirm that named directors or advisors know they hold the role and have actually met",
-      "Minutes signed by a second person who attended",
-      "Any approval a control relies on must leave evidence someone else can check",
+      { control: "verify-oversight-is-real", asApplied: "Confirm that named directors or advisors know they hold the role and have actually met" },
+      { control: "verify-oversight-is-real", asApplied: "Minutes signed by a second person who attended" },
+      { control: "verify-oversight-is-real", asApplied: "Any approval a control relies on must leave evidence someone else can check" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of New York",
@@ -352,8 +352,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
     detection: "unknown",
     sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      "A partner reviews the aged receivables list monthly and asks about anything written off",
-      "Bank statement delivered to a partner, not to the administrator",
+      { control: "adjustments-report-by-employee", asApplied: "A partner reviews the aged receivables list monthly and asks about anything written off" },
+      { control: "owner-opens-bank-statement", asApplied: "Bank statement delivered to a partner, not to the administrator" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Columbia",
@@ -379,9 +379,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
-      "Owner opens the company card statement and reads it line by line, every month",
-      "Review who holds which system permissions, not who holds which job title",
-      "Any card charge to a consumer marketplace matched to a business purpose before it is coded",
+      { control: "card-statement-line-review", asApplied: "Owner opens the company card statement and reads it line by line, every month" },
+      { control: "permission-review", asApplied: "Review who holds which system permissions, not who holds which job title" },
+      { control: "card-statement-line-review", asApplied: "Any card charge to a consumer marketplace matched to a business purpose before it is coded" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
@@ -407,9 +407,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2013,
     sodRuleIds: ["rule-collect-post", "rule-custody-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      "Incoming payments logged by whoever opens the mail, before they reach the person who posts them",
-      "Electronic remittance from insurers so no payable check passes through the office at all",
-      "Owner compares expected insurer payments against deposits monthly",
+      { control: "log-payments-at-the-mail", asApplied: "Incoming payments logged by whoever opens the mail, before they reach the person who posts them" },
+      { control: "electronic-remittance", asApplied: "Electronic remittance from insurers so no payable check passes through the office at all" },
+      { control: "expected-receipts-vs-deposits", asApplied: "Owner compares expected insurer payments against deposits monthly" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of New Jersey",
@@ -434,9 +434,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2014,
     sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-custody-rec"],
     wouldHaveCaughtIt: [
-      "Weekly report of voids, no-sales, and discounts grouped by employee — the outlier is visible at a glance",
-      "Voids above a small amount require a second person's code at the time, not an explanation later",
-      "Inventory or production volume compared against recorded sales",
+      { control: "adjustments-report-by-employee", asApplied: "Weekly report of voids, no-sales, and discounts grouped by employee — the outlier is visible at a glance" },
+      { control: "dual-release-above-threshold", asApplied: "Voids above a small amount require a second person's code at the time, not an explanation later" },
+      { control: "volume-vs-recorded-sales", asApplied: "Inventory or production volume compared against recorded sales" },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Western District of Missouri",
