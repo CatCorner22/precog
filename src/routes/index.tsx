@@ -46,6 +46,8 @@ import { ScenarioRunner } from "@/components/precog/scenario-runner";
 import { SodPanel } from "@/components/precog/sod-panel";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { MapHealthCard } from "@/components/precog/map-health-card";
+import { ControlCalendarCard } from "@/components/precog/control-calendar";
+import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
@@ -264,12 +266,7 @@ function Home() {
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Eye className="size-4" />
               </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold tracking-tight">
-                  Precog Pioneer
-                </p>
-                <p className="truncate text-xs text-muted">{profile.practiceName}</p>
-              </div>
+              <BusinessSwitcher />
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -478,10 +475,22 @@ function Home() {
 
             <div className="grid gap-4 lg:grid-cols-2">
               <WeeklyActionPlan onNavigate={(t, id) => navigateTab(t, id)} />
-              <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
+              <ControlCalendarCard
+                onOpenProcess={(id) => {
+                  setMapBuild(true);
+                  setProcessId(id);
+                  setTab("map");
+                }}
+                onOpenJournal={() => setTab("journal")}
+                onOpenBuilder={() => {
+                  setMapBuild(true);
+                  setTab("map");
+                }}
+              />
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
+              <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
               <Card>
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>

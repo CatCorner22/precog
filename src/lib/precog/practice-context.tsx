@@ -19,6 +19,9 @@ import {
 } from "./controls/dual-release";
 import { INDUSTRIES, industryMeta, type IndustryId } from "./industry";
 import {
+  deleteBusiness as deleteBusinessRemote,
+  listBusinesses,
+  loadBusiness,
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
@@ -30,9 +33,15 @@ import {
 import { getIndustryTemplate } from "./templates";
 import {
   defaultProfile,
+  loadPortfolio,
   loadProfile,
+  makeBusinessId,
   makeDecisionId,
+  removePortfolioEntry,
+  savePortfolioEntry,
   saveProfile,
+  summarizeBusiness,
+  type BusinessSummary,
   type DecisionEntry,
   type DecisionKind,
   type MapVersion,
@@ -103,6 +112,12 @@ interface PracticeContextValue {
   saveMapVersion: (name: string, healthScore: number) => MapVersion;
   deleteMapVersion: (id: string) => void;
   restoreMapVersion: (id: string) => void;
+  /** Multi-business portfolio (advisors, multi-location owners). */
+  businesses: BusinessSummary[];
+  switchBusiness: (id: string) => Promise<void>;
+  createBusiness: (industry: IndustryId, name?: string) => void;
+  deleteBusiness: (id: string) => Promise<void>;
+  switchingBusiness: boolean;
 }
 
 const MAX_VERSIONS = 12;
@@ -132,6 +147,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const undoStack = useRef<MapSnapshot[]>([]);
   const redoStack = useRef<MapSnapshot[]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [remoteBusinesses, setRemoteBusinesses] = useState<BusinessSummary[]>([]);
+  const [portfolioVersion, setPortfolioVersion] = useState(0);
+  const [switchingBusiness, setSwitchingBusiness] = useState(false);
 
   const pushUndo = useCallback(() => {
     const p = profileRef.current;
@@ -185,16 +203,24 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setHistoryVersion((v) => v + 1);
   }, []);
 
+  /** Swap the whole active business — template, overrides, history, profile. */
+  const activateProfile = useCallback((next: PracticeProfile) => {
+    setActiveIndustry(next.industry);
+    setProcessOverrides(next.customProcesses ?? null);
+    setPeopleOverrides(next.customPeople ?? null);
+    setTemplateRevision((r) => r + 1);
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistoryVersion((v) => v + 1);
+    setProfile(next);
+  }, []);
+
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
     const loaded = loadProfile();
-    setActiveIndustry(loaded.industry);
-    setProcessOverrides(loaded.customProcesses ?? null);
-    setPeopleOverrides(loaded.customPeople ?? null);
-    setTemplateRevision((r) => r + 1);
-    setProfile(loaded);
+    activateProfile(loaded);
     setReady(true);
-  }, []);
+  }, [activateProfile]);
 
   useEffect(() => {
     if (!ready || isPending) return;
@@ -207,18 +233,16 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     setSyncStatus("loading");
-    void loadBusinessProfile()
-      .then((res) => {
+    void Promise.all([loadBusinessProfile(), listBusinesses().catch(() => [])])
+      .then(([res, list]) => {
         if (cancelled) return;
         cloudLoadedFor.current = user.id;
         if (res.found && res.profile) {
-          setActiveIndustry(res.profile.industry);
-          setProcessOverrides(res.profile.customProcesses ?? null);
-          setPeopleOverrides(res.profile.customPeople ?? null);
-          setTemplateRevision((r) => r + 1);
-          setProfile(res.profile);
+          activateProfile(res.profile);
           saveProfile(res.profile);
+          savePortfolioEntry(res.profile);
         }
+        setRemoteBusinesses(list);
         setSyncStatus("synced");
       })
       .catch(() => {
@@ -228,12 +252,14 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, isPending, user?.id, user?.isDevFallback]);
+  }, [ready, isPending, user?.id, user?.isDevFallback, activateProfile]);
 
   // Persist locally + debounced cloud save
   useEffect(() => {
     if (!ready) return;
     saveProfile(profile);
+    savePortfolioEntry(profile);
+    setPortfolioVersion((v) => v + 1);
 
     if (!authEnabled || !user || user.isDevFallback) {
       setSyncStatus("local");
@@ -270,6 +296,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       ...fresh,
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
       decisions: p.decisions,
+      businessId: p.businessId,
       onboardingComplete: true,
     }));
   }, [clearHistory]);
@@ -385,7 +412,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProcessOverrides(null);
       setPeopleOverrides(null);
       setTemplateRevision((r) => r + 1);
-      return defaultProfile(p.industry);
+      return { ...defaultProfile(p.industry), businessId: p.businessId };
     });
   }, [clearHistory]);
 
@@ -398,6 +425,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => ({
       ...defaultProfile(industry),
       decisions: p.decisions,
+      businessId: p.businessId,
       onboardingComplete: true,
     }));
   }, [clearHistory]);
@@ -534,6 +562,81 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const canUndoMap = undoStack.current.length > 0;
   const canRedoMap = redoStack.current.length > 0;
 
+  const cloudUser = Boolean(authEnabled && user && !user.isDevFallback);
+
+  /** Local portfolio + cloud summaries merged by id; the active business always wins. */
+  const businesses = useMemo<BusinessSummary[]>(() => {
+    const byId = new Map<string, BusinessSummary>();
+    for (const b of remoteBusinesses) byId.set(b.id, b);
+    for (const p of Object.values(loadPortfolio())) {
+      const s = summarizeBusiness(p);
+      const existing = byId.get(s.id);
+      if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt)) byId.set(s.id, s);
+    }
+    byId.set(profile.businessId ?? "biz_default", summarizeBusiness(profile));
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteBusinesses, profile.businessId, profile.practiceName, profile.industry, profile.updatedAt, portfolioVersion]);
+
+  const flushActive = useCallback(async () => {
+    const cur = profileRef.current;
+    saveProfile(cur);
+    savePortfolioEntry(cur);
+    if (cloudUser) {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      await saveBusinessProfile({ data: { profile: cur, industry: cur.industry } }).catch(() => undefined);
+    }
+  }, [cloudUser]);
+
+  const switchBusiness = useCallback(
+    async (id: string) => {
+      if (id === (profileRef.current.businessId ?? "biz_default")) return;
+      setSwitchingBusiness(true);
+      try {
+        await flushActive();
+        let next: PracticeProfile | null = loadPortfolio()[id] ?? null;
+        if (cloudUser) {
+          const remote = await loadBusiness({ data: { id } }).catch(() => null);
+          if (remote?.found && remote.profile) {
+            if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt)) next = remote.profile;
+          }
+        }
+        if (!next) return;
+        activateProfile({ ...next, businessId: id, onboardingComplete: true });
+      } finally {
+        setSwitchingBusiness(false);
+      }
+    },
+    [activateProfile, cloudUser, flushActive],
+  );
+
+  const createBusiness = useCallback(
+    (industry: IndustryId, name?: string) => {
+      void flushActive();
+      const fresh = defaultProfile(industry);
+      const next: PracticeProfile = {
+        ...fresh,
+        businessId: makeBusinessId(),
+        practiceName: name?.trim().slice(0, 80) || fresh.practiceName,
+        onboardingComplete: true,
+      };
+      activateProfile(next);
+    },
+    [activateProfile, flushActive],
+  );
+
+  const deleteBusinessLocal = useCallback(
+    async (id: string) => {
+      const activeId = profileRef.current.businessId ?? "biz_default";
+      if (id === activeId) return;
+      removePortfolioEntry(id);
+      setRemoteBusinesses((cur) => cur.filter((b) => b.id !== id));
+      setPortfolioVersion((v) => v + 1);
+      if (cloudUser) await deleteBusinessRemote({ data: { id } }).catch(() => undefined);
+    },
+    [cloudUser],
+  );
+
   const value = useMemo(
     () => ({
       profile,
@@ -562,6 +665,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       saveMapVersion,
       deleteMapVersion,
       restoreMapVersion,
+      businesses,
+      switchBusiness,
+      createBusiness,
+      deleteBusiness: deleteBusinessLocal,
+      switchingBusiness,
     }),
     [
       profile,
@@ -590,6 +698,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       saveMapVersion,
       deleteMapVersion,
       restoreMapVersion,
+      businesses,
+      switchBusiness,
+      createBusiness,
+      deleteBusinessLocal,
+      switchingBusiness,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

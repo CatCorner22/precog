@@ -87,6 +87,19 @@ export interface KnowledgeRelation {
   level: KnowledgeLevel;
 }
 
+export type EvidenceFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "annual";
+
+/** A recurring review/attestation that proves a control is operating. */
+export interface EvidenceItem {
+  id: string;
+  label: string;
+  frequency: EvidenceFrequency;
+  reviewerPersonId?: string;
+  /** ISO timestamp of the last completed review. */
+  lastDoneAt?: string;
+  note?: string;
+}
+
 export interface ProcessNode {
   id: string;
   name: string;
@@ -102,6 +115,7 @@ export interface ProcessNode {
   wastes?: ProcessWaste[];
   inputs?: string[];
   outputs?: string[];
+  evidence?: EvidenceItem[];
 }
 
 export interface ControlItem {

@@ -47,7 +47,69 @@ export interface PracticeProfile {
   mapHealthHistory?: MapHealthPoint[];
   /** Named snapshots of the map for restore/compare (newest first). */
   mapVersions?: MapVersion[];
+  /** Stable id of this business within the user's portfolio. */
+  businessId?: string;
   updatedAt: string;
+}
+
+export interface BusinessSummary {
+  id: string;
+  name: string;
+  industry: IndustryId;
+  updatedAt: string;
+  processCount: number;
+  healthScore: number | null;
+}
+
+const PORTFOLIO_KEY = "precog.portfolio.v1";
+
+export function makeBusinessId(): string {
+  return `biz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
+  const tpl = getIndustryTemplate(p.industry);
+  const history = p.mapHealthHistory ?? [];
+  return {
+    id: p.businessId ?? "biz_default",
+    name: p.practiceName,
+    industry: p.industry,
+    updatedAt: p.updatedAt,
+    processCount: (p.customProcesses ?? tpl.processes).length,
+    healthScore: history.length ? history[history.length - 1].score : null,
+  };
+}
+
+/** Local portfolio: every business this device knows about, keyed by id (includes the active one). */
+export function loadPortfolio(): Record<string, PracticeProfile> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(PORTFOLIO_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, PracticeProfile>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function savePortfolioEntry(profile: PracticeProfile): void {
+  if (typeof window === "undefined") return;
+  const id = profile.businessId ?? "biz_default";
+  const all = loadPortfolio();
+  all[id] = { ...profile, businessId: id };
+  try {
+    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
+  } catch {
+    // quota — portfolio is a convenience cache; active profile is saved separately
+  }
+}
+
+export function removePortfolioEntry(id: string): void {
+  if (typeof window === "undefined") return;
+  const all = loadPortfolio();
+  delete all[id];
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
 }
 
 export interface MapVersion {
@@ -89,6 +151,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     savedProcessBlocks: [],
     mapHealthHistory: [],
     mapVersions: [],
+    businessId: makeBusinessId(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -138,6 +201,7 @@ export function loadProfile(): PracticeProfile {
         : [],
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
       mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
+      businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",
     };
   } catch {
     return defaultProfile();
