@@ -166,7 +166,7 @@ export function DecisionJournal({
           <CardContent className="space-y-2">
             {profile.decisions.length === 0 && (
               <p className="text-sm text-muted">
-                No decisions yet. Accepting residual risk without a log is how small practices get
+                No decisions yet. Accepting residual risk without a log is how small businesses get
                 surprised.
               </p>
             )}

@@ -7,6 +7,7 @@
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { getActiveTemplate } from "./active-template";
+import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { scoreLeadingIndicators } from "./ml/leading-indicators";
@@ -288,7 +289,7 @@ export function buildThreatAssessment(input: {
     targetDeck: deck,
     matrix,
     missionBrief: [
-      `AO: ${practiceName} — small dental practice residual & control assessment.`,
+      `AO: ${practiceName} — small ${industryMeta(getActiveTemplate().id).teamLabel} residual & control assessment.`,
       `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
       `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
       `Knowledge SPOFs: ${knowledgeRisks.length} sole-owner / unowned critical item(s).`,

@@ -10,7 +10,7 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 |------------|-------------|
 | **Dashboard** | Residual risk score, SoD health, COSO heat map, and weekly control priorities |
 | **SoD detector** | Finds incompatible duty combinations (cash + recon, vendor + pay, etc.) |
-| **Process map** | Interactive value stream with risks, controls, ideas, and lean waste |
+| **Process map builder** | Interactive value stream with risks, controls, ideas, and lean waste. **Build mode** lets you add/edit/delete your own processes, assign owners and controls, drag to arrange, and export/import the map as JSON — every edit re-scores residual risk live |
 | **Knowledge map** | Single points of failure in tribal knowledge |
 | **Scenarios** | Timeline and dollar impact projections with insurance cost-of-risk |
 | **Decision journal** | Document accept / remediate / monitor / insure with review dates |
@@ -19,10 +19,12 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 
 ## Core loop
 
-1. **Score** residual risk from your team size and control posture  
-2. **Prioritize** with the weekly action plan and SoD matrix  
-3. **Brief** with Pioneer (user-initiated)  
-4. **Decide** — remediate, compensate, monitor, or accept residual on purpose  
+1. **Pick an industry** on first visit — loads a full demo template  
+2. **Map your business** — Process map → Build: replace demo processes with your own  
+3. **Score** residual risk from your team size and control posture  
+4. **Prioritize** with the weekly action plan, priority stack, and SoD matrix  
+5. **Brief** with Pioneer (user-initiated)  
+6. **Decide** — remediate, compensate, monitor, or accept residual on purpose  
 
 ## Develop
 
