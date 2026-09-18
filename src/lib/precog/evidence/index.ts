@@ -19,12 +19,69 @@ export function casesForSodRule(ruleId: string): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.sodRuleIds.includes(ruleId));
 }
 
-/** Cases for any of several rules, de-duplicated, worst loss first. */
+/**
+ * The fraud schemes each segregation-of-duties conflict actually enables.
+ *
+ * This map is what makes case matching topical rather than arithmetic. Asking
+ * "who can create a vendor and also pay it" is asking about shell-vendor
+ * billing, so the cases worth showing are the shell-vendor cases — not
+ * whichever case happens to cite the fewest rules or carry the largest number.
+ */
+const RULE_SCHEMES: Record<string, SchemeKind[]> = {
+  "rule-cash-rec": ["skimming", "cash-larceny", "check-tampering"],
+  "rule-custody-rec": ["skimming", "cash-larceny", "receivables-diversion"],
+  "rule-collect-post": ["skimming", "cash-larceny"],
+  "rule-deposit-post": ["receivables-diversion", "skimming"],
+  "rule-writeoff": ["skimming", "receivables-diversion"],
+  "rule-claims-writeoff": ["billing-shell-vendor", "financial-statement"],
+  "rule-vendor-create-pay": ["billing-shell-vendor"],
+  "rule-vendor-create-approve": ["billing-shell-vendor"],
+  "rule-vendor-approve-pay": ["billing-shell-vendor", "corruption"],
+  "rule-payroll": ["payroll", "expense-reimbursement"],
+  "rule-admin-pay": ["check-tampering", "payroll", "corruption"],
+  "rule-admin-writeoff": ["financial-statement", "receivables-diversion"],
+};
+
+/** The schemes a set of open conflicts exposes the business to. */
+export function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
+  const out = new Set<SchemeKind>();
+  for (const id of ruleIds) for (const s of RULE_SCHEMES[id] ?? []) out.add(s);
+  return [...out];
+}
+
+/**
+ * Cases matching any of several rules, most relevant first.
+ *
+ * Ordering runs on three keys, in this priority:
+ *
+ *   1. Scheme overlap — does this case show the kind of fraud these conflicts
+ *      actually enable. This dominates, because an owner asked about vendor
+ *      payments learns nothing useful from an unrelated case that happens to
+ *      touch the same rule.
+ *   2. Rule overlap — how many of the asked-about rules the case demonstrates.
+ *   3. Loss amount — among equally apt cases, the costlier one leads.
+ *
+ * Ranking by loss alone would surface the same few large cases against every
+ * finding; ranking by rule count alone rewards cases for being narrow rather
+ * than for being on point.
+ */
 export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
-  const wanted = new Set(ruleIds);
-  return CASE_LIBRARY.filter((c) =>
-    c.sodRuleIds.some((id) => wanted.has(id)),
-  ).sort(byLossDescending);
+  const wantedRules = new Set(ruleIds);
+  const wantedSchemes = new Set(schemesForSodRules(ruleIds));
+
+  return CASE_LIBRARY.filter((c) => c.sodRuleIds.some((id) => wantedRules.has(id)))
+    .map((c) => ({
+      study: c,
+      schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
+      ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
+    }))
+    .sort(
+      (a, b) =>
+        b.schemeHits - a.schemeHits ||
+        b.ruleHits - a.ruleHits ||
+        byLossDescending(a.study, b.study),
+    )
+    .map((r) => r.study);
 }
 
 /**

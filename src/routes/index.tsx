@@ -11,6 +11,7 @@ import {
   Grid3x3,
   Layers,
   Map,
+  MessageSquare,
   Network,
   Shield,
   Sparkles,
@@ -25,8 +26,11 @@ import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
+import { StartHere } from "@/components/precog/start-here";
+import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { DecisionJournal } from "@/components/precog/decision-journal";
 import { IntelligencePanel } from "@/components/precog/intelligence-panel";
 import { KnowledgeMap } from "@/components/precog/knowledge-map";
@@ -47,6 +51,7 @@ export const Route = createFileRoute("/")({
 });
 
 type TabId =
+  | "start"
   | "command"
   | "map"
   | "pioneer"
@@ -59,28 +64,36 @@ type TabId =
   | "sod"
   | "journal";
 
-const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
-  { id: "command", label: "Command", icon: Activity },
-  { id: "map", label: "Map", icon: Map },
-  { id: "pioneer", label: "Pioneer", icon: Compass },
-  { id: "intel", label: "Intel", icon: Brain },
-  { id: "residual", label: "Residual", icon: Gauge },
-  { id: "coso", label: "COSO", icon: Grid3x3 },
-  { id: "layers", label: "Layers", icon: Layers },
-  { id: "knowledge", label: "Knowledge", icon: Network },
-  { id: "precog", label: "Precog", icon: Sparkles },
-  { id: "sod", label: "SoD", icon: Shield },
-  { id: "journal", label: "Journal", icon: BookOpen },
+/**
+ * Every tab carries both wordings. Plain is what a business owner reads by
+ * default; the framework and tactical terms stay one toggle away, because an
+ * owner who will sit across from an accountant, a lender, or an insurer is
+ * better off knowing both words for the same thing.
+ */
+const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] = [
+  { id: "start", label: "Start here", tactical: "Start here", icon: Compass },
+  { id: "command", label: "Overview", tactical: "Command", icon: Activity },
+  { id: "map", label: "How work flows", tactical: "Map", icon: Map },
+  { id: "pioneer", label: "Ask a question", tactical: "Pioneer", icon: MessageSquare },
+  { id: "intel", label: "Patterns", tactical: "Intel", icon: Brain },
+  { id: "residual", label: "What is still exposed", tactical: "Residual", icon: Gauge },
+  { id: "coso", label: "Coverage check", tactical: "COSO", icon: Grid3x3 },
+  { id: "layers", label: "Where risk sits", tactical: "Layers", icon: Layers },
+  { id: "knowledge", label: "Who knows what", tactical: "Knowledge", icon: Network },
+  { id: "precog", label: "What could happen", tactical: "Precog", icon: Sparkles },
+  { id: "sod", label: "Who controls what", tactical: "SoD", icon: Shield },
+  { id: "journal", label: "Decisions log", tactical: "Journal", icon: BookOpen },
 ];
 
 function Home() {
-  const [tab, setTab] = useState<TabId>("command");
+  const [tab, setTab] = useState<TabId>("start");
   const [layer, setLayer] = useState<MatrixLayerId>("control");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
   const { user, isPending } = useCurrentUserState();
   const { profile } = usePractice();
+  const { say } = usePresentation();
 
   const risks = useMemo(() => findKnowledgeRisks(), []);
   const ranked = useMemo(
@@ -160,7 +173,7 @@ function Home() {
       return;
     }
     if (
-      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers"].includes(
+      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers", "start"].includes(
         tabName,
       )
     ) {
@@ -186,6 +199,7 @@ function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <PresentationToggle className="hidden sm:inline-flex" />
             {overdueDecisions > 0 && (
               <button
                 type="button"
@@ -231,7 +245,7 @@ function Home() {
                 )}
               >
                 <Icon className="size-4" />
-                {t.label}
+                {say(t.label, t.tactical)}
                 {t.id === "sod" && sodReport.summary.critical > 0 && (
                   <span className="rounded-full bg-danger/20 px-1.5 text-[10px] text-danger">
                     {sodReport.summary.critical}
@@ -244,6 +258,8 @@ function Home() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {tab === "start" && <StartHere onOpenDetail={navigateTab} />}
+
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">

@@ -15,6 +15,8 @@
  *   4. Case IDs and benchmark IDs are unique.
  *   5. A case that states a loss of 0 carries a caveat explaining why, so a
  *      missing figure is never mistaken for a small one.
+ *   6. Every SoD rule maps to at least one fraud scheme, and the map cites no
+ *      rule that does not exist. Case matching runs off that map.
  *
  * Run: npm run verify:evidence
  */
@@ -40,9 +42,9 @@ if (definedRules.size === 0) fail("No conflict rules found — parser out of dat
 
 /** Split the case library into individual records. */
 const caseBlocks = casesSrc
-  .split(/\n  \{\n/)
+  .split(/\n {2}\{\n/)
   .slice(1)
-  .map((b) => b.split(/\n  \},\n/)[0]);
+  .map((b) => b.split(/\n {2}\},\n/)[0]);
 
 const seenCaseIds = new Set();
 const citedRules = new Set();
@@ -80,6 +82,31 @@ for (const rule of definedRules) {
   }
 }
 
+// 6. Every rule maps to at least one fraud scheme, and the map cites no rule
+//    that does not exist. Case matching runs off this map, so a hole in it
+//    silently degrades every recommendation the app makes.
+const indexSrc = read("src/lib/precog/evidence/index.ts");
+const mapBody = indexSrc.match(
+  /const RULE_SCHEMES: Record<string, SchemeKind\[\]> = \{([\s\S]*?)\n\};/,
+)?.[1];
+if (!mapBody) {
+  fail("RULE_SCHEMES map not found — parser out of date.");
+} else {
+  const mapped = new Set(
+    [...mapBody.matchAll(/"(rule-[a-z0-9-]+)":\s*\[([^\]]*)\]/g)]
+      .filter((m) => m[2].trim().length > 0)
+      .map((m) => m[1]),
+  );
+  for (const rule of definedRules) {
+    if (!mapped.has(rule)) fail(`Rule ${rule} has no fraud scheme mapped to it.`);
+  }
+  for (const m of mapBody.matchAll(/"(rule-[a-z0-9-]+)":/g)) {
+    if (!definedRules.has(m[1])) {
+      fail(`RULE_SCHEMES maps ${m[1]}, which no conflict rule defines.`);
+    }
+  }
+}
+
 const benchIds = [...benchSrc.matchAll(/id:\s*"(bm-[a-z0-9-]+)"/g)].map((m) => m[1]);
 const seenBench = new Set();
 for (const id of benchIds) {
@@ -97,5 +124,6 @@ if (failures.length > 0) {
 
 console.log(
   `Evidence library OK: ${seenCaseIds.size} cases, ${benchIds.length} benchmarks, ` +
-    `all ${definedRules.size} segregation-of-duties rules backed by at least one real case.`,
+    `all ${definedRules.size} segregation-of-duties rules backed by at least one real case ` +
+    "and mapped to a fraud scheme.",
 );

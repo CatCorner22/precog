@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PracticeProvider } from "@/lib/precog/practice-context";
+import { PresentationProvider } from "@/lib/precog/presentation";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import appCss from "../styles.css?url";
 
@@ -43,9 +44,11 @@ function RootDocument() {
       <body className="min-h-dvh bg-bg text-fg antialiased">
         <CreatedWithGrokBanner />
         <AuthProvider>
-          <PracticeProvider>
-            <Outlet />
-          </PracticeProvider>
+          <PresentationProvider>
+            <PracticeProvider>
+              <Outlet />
+            </PracticeProvider>
+          </PresentationProvider>
         </AuthProvider>
         <Scripts />
       </body>
