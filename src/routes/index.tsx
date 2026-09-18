@@ -41,7 +41,9 @@ import { ResidualRadar } from "@/components/precog/residual-radar";
 import { ScenarioRunner } from "@/components/precog/scenario-runner";
 import { SodPanel } from "@/components/precog/sod-panel";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
+import { MapHealthCard } from "@/components/precog/map-health-card";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
+import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,7 +127,7 @@ function Home() {
   const [processId, setProcessId] = useState<string | null>(null);
   const [mapBuild, setMapBuild] = useState(false);
   const { user, isPending } = useCurrentUserState();
-  const { profile, ready, templateRevision } = usePractice();
+  const { profile, ready, templateRevision, mapCustomized } = usePractice();
   const industry = industryMeta(profile.industry);
 
   const risks = useMemo(
@@ -165,6 +167,25 @@ function Home() {
   const overdueDecisions = profile.decisions.filter(
     (d) => d.reviewBy && new Date(d.reviewBy).getTime() < Date.now(),
   ).length;
+
+  const mapHealth = useMemo(() => {
+    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const issues = validateProcessMap(
+      tpl.processes,
+      tpl.people,
+      new Set(tpl.controls.map((c) => c.id)),
+      profile.mapLayout ?? {},
+    );
+    return computeMapHealth(snapshots, issues, { customized: mapCustomized });
+  }, [
+    profile.staff,
+    profile.mapLayout,
+    tpl.processes,
+    tpl.people,
+    tpl.controls,
+    mapCustomized,
+    templateRevision,
+  ]);
 
   function navigateDeepLink(target: DeepLinkTarget) {
     if (target.type === "tab") {
@@ -355,7 +376,35 @@ function Home() {
               </div>
             </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <MapHealthCard
+              onOpenMap={(id) => {
+                setMapBuild(false);
+                setProcessId(id ?? null);
+                setTab("map");
+              }}
+              onBuildMap={() => {
+                setMapBuild(true);
+                setTab("map");
+              }}
+            />
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <MetricCard
+                label="Map health"
+                value={String(mapHealth.score)}
+                hint={mapHealth.bandLabel}
+                tone={
+                  mapHealth.score >= 70
+                    ? "primary"
+                    : mapHealth.score >= 55
+                      ? "warn"
+                      : "danger"
+                }
+                onClick={() => {
+                  setMapBuild(true);
+                  setTab("map");
+                }}
+              />
               <MetricCard
                 label="Avg residual"
                 value={String(portfolio.averageResidual)}

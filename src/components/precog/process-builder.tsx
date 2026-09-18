@@ -32,7 +32,14 @@ import { getBaseTemplate } from "@/lib/precog/active-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
-import { GitCompare, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Blocks, GitCompare, Loader2, Save, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  blocksForIndustry,
+  instantiateBlock,
+  processToSavedBlock,
+  type ProcessBlock,
+  type SavedProcessBlock,
+} from "@/lib/precog/builder/process-blocks";
 import {
   validateProcessMap,
   type MapValidationIssue,
@@ -92,12 +99,19 @@ export function ProcessBuilder({
   onClose: () => void;
 }) {
   const tpl = useTemplate();
-  const { profile, setCustomProcesses, setCustomPeople, setMapLayout, mapCustomized } =
-    usePractice();
+  const {
+    profile,
+    setCustomProcesses,
+    setCustomPeople,
+    setMapLayout,
+    setSavedProcessBlocks,
+    mapCustomized,
+  } = usePractice();
   const processes = tpl.processes;
   const [showTeam, setShowTeam] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [showBlocks, setShowBlocks] = useState(false);
 
   const validationIssues = useMemo(
     () =>
@@ -114,6 +128,17 @@ export function ProcessBuilder({
 
   function update(id: string, patch: Partial<ProcessNode>) {
     setCustomProcesses((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  function insertBlock(block: ProcessBlock | SavedProcessBlock) {
+    const ids = new Set(processes.map((p) => p.id));
+    const maxStage = Math.max(0, ...processes.map((p) => p.stage ?? 0));
+    const node = instantiateBlock(block, ids, maxStage + 1);
+    setCustomProcesses((cur) => [...cur, node]);
+    onSelectProcess(node.id);
+    toast.success(`Inserted "${block.name}"`, {
+      description: "Assign owners and wire dependencies on the canvas.",
+    });
   }
 
   function addProcess() {
@@ -294,6 +319,13 @@ export function ProcessBuilder({
           <Button size="sm" onClick={addProcess}>
             <Plus className="size-3.5" /> Add process
           </Button>
+          <Button
+            size="sm"
+            variant={showBlocks ? "default" : "secondary"}
+            onClick={() => setShowBlocks((v) => !v)}
+          >
+            <Blocks className="size-3.5" /> Blocks
+          </Button>
           <Button size="sm" variant="secondary" onClick={exportMap}>
             <Download className="size-3.5" /> Export
           </Button>
@@ -346,6 +378,17 @@ export function ProcessBuilder({
             </Button>
           )}
         </div>
+
+        {showBlocks && (
+          <BlockLibrary
+            industry={profile.industry}
+            saved={profile.savedProcessBlocks ?? []}
+            onInsert={insertBlock}
+            onRemoveSaved={(id) =>
+              setSavedProcessBlocks((blocks) => blocks.filter((b) => b.id !== id))
+            }
+          />
+        )}
 
         {showValidation && (
           <ValidationPanel
@@ -406,6 +449,11 @@ export function ProcessBuilder({
             all={processes}
             onChange={(patch) => update(selected.id, patch)}
             onDelete={() => removeProcess(selected.id)}
+            onSaveAsBlock={() => {
+              const block = processToSavedBlock(selected);
+              setSavedProcessBlocks((blocks) => [block, ...blocks]);
+              toast.success(`Saved "${selected.name}" as reusable block`);
+            }}
           />
         ) : (
           <p className="text-xs text-muted">Select a process on the map to edit it.</p>
@@ -717,6 +765,74 @@ function SuggestPanel({
   );
 }
 
+function BlockLibrary({
+  industry,
+  saved,
+  onInsert,
+  onRemoveSaved,
+}: {
+  industry: import("@/lib/precog/industry").IndustryId;
+  saved: SavedProcessBlock[];
+  onInsert: (block: ProcessBlock | SavedProcessBlock) => void;
+  onRemoveSaved: (id: string) => void;
+}) {
+  const builtIn = useMemo(() => blocksForIndustry(industry), [industry]);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
+      <p className="text-[11px] text-muted">
+        Drop pre-built control patterns onto your map — risks, controls, and I/O included.
+      </p>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {builtIn.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onInsert(b)}
+            className="rounded-md border border-border bg-elevated px-2.5 py-2 text-left transition-colors hover:border-primary/40"
+          >
+            <p className="text-[11px] font-medium text-fg">{b.name}</p>
+            <p className="mt-0.5 line-clamp-2 text-[10px] text-muted">{b.description}</p>
+            <Badge variant="default" className="mt-1 text-[9px]">
+              {b.category}
+            </Badge>
+          </button>
+        ))}
+      </div>
+      {saved.length > 0 && (
+        <>
+          <p className={cn(labelCls, "mt-2")}>Your saved blocks</p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {saved.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-start gap-1 rounded-md border border-accent/30 bg-accent/5 px-2 py-1.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => onInsert(b)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="text-[11px] font-medium text-fg">{b.name}</p>
+                  <p className="line-clamp-1 text-[10px] text-muted">{b.description}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemoveSaved(b.id)}
+                  className="text-subtle hover:text-danger"
+                  aria-label={`Remove ${b.name}`}
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ValidationPanel({
   issues,
   onSelectProcess,
@@ -963,11 +1079,13 @@ function ProcessForm({
   all,
   onChange,
   onDelete,
+  onSaveAsBlock,
 }: {
   process: ProcessNode;
   all: ProcessNode[];
   onChange: (patch: Partial<ProcessNode>) => void;
   onDelete: () => void;
+  onSaveAsBlock: () => void;
 }) {
   const tpl = useTemplate();
   const [name, setName] = useState(process.name);
@@ -1088,7 +1206,10 @@ function ProcessForm({
       <IdeaList ideas={process.ideas ?? []} onChange={(ideas) => onChange({ ideas })} />
       <WasteList wastes={process.wastes ?? []} onChange={(wastes) => onChange({ wastes })} />
 
-      <div className="flex justify-end border-t border-border pt-2">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-2">
+        <Button size="sm" variant="secondary" onClick={onSaveAsBlock}>
+          <Save className="size-3.5" /> Save as block
+        </Button>
         <Button size="sm" variant="danger" onClick={onDelete}>
           <Trash2 className="size-3.5" /> Delete process
         </Button>

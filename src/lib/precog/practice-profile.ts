@@ -1,3 +1,4 @@
+import type { SavedProcessBlock } from "./builder/process-blocks";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
@@ -40,6 +41,8 @@ export interface PracticeProfile {
   customPeople?: Person[] | null;
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
+  /** User-saved process blocks for reuse in the map builder. */
+  savedProcessBlocks?: SavedProcessBlock[];
   updatedAt: string;
 }
 
@@ -64,6 +67,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     customProcesses: null,
     customPeople: null,
     mapLayout: {},
+    savedProcessBlocks: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -108,6 +112,9 @@ export function loadProfile(): PracticeProfile {
       customPeople: Array.isArray(parsed.customPeople) ? parsed.customPeople : null,
       mapLayout:
         parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
+      savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks)
+        ? parsed.savedProcessBlocks
+        : [],
     };
   } catch {
     return defaultProfile();

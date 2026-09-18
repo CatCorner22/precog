@@ -628,3 +628,113 @@ export function layoutProcessMap(
 
   return pos;
 }
+
+export type MapHealthBand = "excellent" | "healthy" | "fair" | "at_risk" | "critical";
+
+export interface MapHealthDimension {
+  id: string;
+  label: string;
+  score: number;
+  weight: number;
+  hint: string;
+}
+
+export interface MapHealthReport {
+  score: number;
+  band: MapHealthBand;
+  bandLabel: string;
+  summary: string;
+  dimensions: MapHealthDimension[];
+  issueCount: { errors: number; warns: number; infos: number };
+  hotProcesses: number;
+  unownedProcesses: number;
+  processCount: number;
+  avgHeat: number;
+  customized: boolean;
+}
+
+const HEALTH_BANDS: { min: number; band: MapHealthBand; label: string; summary: string }[] = [
+  { min: 85, band: "excellent", label: "Excellent", summary: "Your value stream is well-owned, controlled, and calm." },
+  { min: 70, band: "healthy", label: "Healthy", summary: "Strong foundation — a few targeted fixes will sharpen scoring." },
+  { min: 55, band: "fair", label: "Fair", summary: "Fixable gaps — assign owners and wire controls on hot processes." },
+  { min: 40, band: "at_risk", label: "At risk", summary: "Several processes need attention before residual risk stabilizes." },
+  { min: 0, band: "critical", label: "Critical", summary: "Act this week — broken links or unowned hot processes dominate risk." },
+];
+
+function healthBand(score: number) {
+  return HEALTH_BANDS.find((b) => score >= b.min) ?? HEALTH_BANDS[HEALTH_BANDS.length - 1];
+}
+
+/** Composite 0–100 map health score from graph snapshots + validation. Higher is better. */
+export function computeMapHealth(
+  snapshots: ProcessMapSnapshot[],
+  validationIssues: MapValidationIssue[],
+  opts: { customized?: boolean } = {},
+): MapHealthReport {
+  const total = Math.max(1, snapshots.length);
+  const errors = validationIssues.filter((i) => i.severity === "error").length;
+  const warns = validationIssues.filter((i) => i.severity === "warn").length;
+  const infos = validationIssues.filter((i) => i.severity === "info").length;
+
+  const integrity = Math.max(0, 100 - errors * 35 - warns * 8);
+  const owned = snapshots.filter((s) => s.owners.length > 0).length;
+  const ownership = Math.round((owned / total) * 100);
+  const withControls = snapshots.filter((s) => s.process.controlIds.length > 0).length;
+  const controls = Math.round((withControls / total) * 100);
+  const avgHeat = Math.round(
+    snapshots.reduce((sum, s) => sum + s.heat, 0) / total,
+  );
+  const calm = Math.max(0, 100 - avgHeat);
+  const hotProcesses = snapshots.filter((s) => s.heat >= 68).length;
+  const unownedProcesses = total - owned;
+
+  const dimensions: MapHealthDimension[] = [
+    {
+      id: "integrity",
+      label: "Integrity",
+      score: integrity,
+      weight: 0.25,
+      hint: errors ? `${errors} structural issue(s)` : "No broken dependencies or cycles",
+    },
+    {
+      id: "ownership",
+      label: "Ownership",
+      score: ownership,
+      weight: 0.2,
+      hint: unownedProcesses ? `${unownedProcesses} process(es) unowned` : "Every process has an owner",
+    },
+    {
+      id: "controls",
+      label: "Controls",
+      score: controls,
+      weight: 0.25,
+      hint: withControls < total ? `${total - withControls} without controls` : "Controls mapped across the stream",
+    },
+    {
+      id: "calm",
+      label: "Heat",
+      score: calm,
+      weight: 0.3,
+      hint: hotProcesses ? `${hotProcesses} hot process(es) · avg ${avgHeat}` : `Average heat ${avgHeat}`,
+    },
+  ];
+
+  const score = Math.round(
+    dimensions.reduce((sum, d) => sum + d.score * d.weight, 0),
+  );
+  const band = healthBand(score);
+
+  return {
+    score,
+    band: band.band,
+    bandLabel: band.label,
+    summary: band.summary,
+    dimensions,
+    issueCount: { errors, warns, infos },
+    hotProcesses,
+    unownedProcesses,
+    processCount: total,
+    avgHeat,
+    customized: opts.customized ?? false,
+  };
+}

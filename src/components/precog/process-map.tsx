@@ -9,11 +9,13 @@ import {
   Panel,
   Position,
   ReactFlow,
+  type Connection,
   type Edge,
   type Node,
   type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
+import { toast } from "sonner";
 import "@xyflow/react/dist/style.css";
 import {
   buildProcessMapGraph,
@@ -368,7 +370,8 @@ export function ProcessMap({
   initialBuild?: boolean;
 }) {
   const { processes } = useTemplate();
-  const { profile, setMapLayout, mapCustomized, templateRevision } = usePractice();
+  const { profile, setMapLayout, setCustomProcesses, mapCustomized, templateRevision } =
+    usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [build, setBuild] = useState(initialBuild);
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
@@ -555,6 +558,7 @@ export function ProcessMap({
           type: n.kind,
           position: p,
           draggable: build && n.kind === "process",
+          connectable: build && n.kind === "process",
           data: {
             ...n,
             vision,
@@ -589,6 +593,59 @@ export function ProcessMap({
       });
     },
     [setMapLayout],
+  );
+
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      if (!build || !connection.source || !connection.target) return false;
+      if (connection.source === connection.target) return false;
+      const source = graph.nodes.find((n) => n.id === connection.source);
+      const target = graph.nodes.find((n) => n.id === connection.target);
+      return source?.kind === "process" && target?.kind === "process";
+    },
+    [build, graph.nodes],
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      const source = connection.source;
+      const target = connection.target;
+      setCustomProcesses((cur) => {
+        const next = cur.map((p) => {
+          if (p.id !== target) return p;
+          if (p.dependencies.includes(source)) return p;
+          return { ...p, dependencies: [...p.dependencies, source] };
+        });
+        const targetProc = next.find((p) => p.id === target);
+        const sourceProc = next.find((p) => p.id === source);
+        if (targetProc && sourceProc) {
+          toast.success("Dependency linked", {
+            description: `${targetProc.name} now depends on ${sourceProc.name}`,
+          });
+        }
+        return next;
+      });
+    },
+    [setCustomProcesses],
+  );
+
+  const onEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      if (!build) return;
+      for (const edge of deleted) {
+        const ge = graph.edges.find((e) => e.id === edge.id);
+        if (ge?.kind !== "depends") continue;
+        setCustomProcesses((cur) =>
+          cur.map((p) =>
+            p.id === ge.target
+              ? { ...p, dependencies: p.dependencies.filter((d) => d !== ge.source) }
+              : p,
+          ),
+        );
+      }
+    },
+    [build, graph.edges, setCustomProcesses],
   );
 
   const rfEdges: Edge[] = useMemo(() => {
@@ -635,6 +692,7 @@ export function ProcessMap({
           id: e.id,
           source: e.source,
           target: e.target,
+          deletable: build && e.kind === "depends",
           label: vision === "standard" ? e.label : undefined,
           animated: isDep && depInteractive && vision !== "terminator",
           style: {
@@ -653,7 +711,7 @@ export function ProcessMap({
           interactionWidth: passiveDep ? 1 : 12,
         };
       });
-  }, [graph.edges, vision, layerMap, rfNodes]);
+  }, [graph.edges, vision, layerMap, rfNodes, build]);
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId);
   const processId =
@@ -765,8 +823,9 @@ export function ProcessMap({
         {build && (
           <div className="mt-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
             <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to
-            arrange your value stream (positions are saved). Click a process to edit it in the
-            builder panel — or add a new one.
+            arrange your value stream. Drag from the right handle of one process to the left
+            handle of another to wire dependencies. Click a process to edit it — or insert a
+            reusable block from the builder panel.
           </div>
         )}
 
@@ -882,8 +941,12 @@ export function ProcessMap({
                 onNodeClick={onNodeClick}
                 onNodesChange={onNodesChange}
                 onNodeDragStop={onNodeDragStop}
+                onConnect={onConnect}
+                onEdgesDelete={onEdgesDelete}
+                isValidConnection={isValidConnection}
                 nodesDraggable={build}
-                nodesConnectable={false}
+                nodesConnectable={build}
+                deleteKeyCode={build ? "Delete" : null}
                 fitView
                 fitViewOptions={{ padding: 0.15 }}
                 minZoom={0.25}

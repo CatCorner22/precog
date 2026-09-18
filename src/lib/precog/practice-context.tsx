@@ -37,6 +37,7 @@ import {
   type DecisionKind,
   type PracticeProfile,
 } from "./practice-profile";
+import type { SavedProcessBlock } from "./builder/process-blocks";
 
 export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error";
 
@@ -84,6 +85,12 @@ interface PracticeContextValue {
   ) => void;
   /** True when the process map differs from the industry template. */
   mapCustomized: boolean;
+  /** Save or replace user-defined reusable process blocks. */
+  setSavedProcessBlocks: (
+    v:
+      | SavedProcessBlock[]
+      | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
+  ) => void;
 }
 
 const PracticeContext = createContext<PracticeContextValue | null>(null);
@@ -362,6 +369,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       Object.keys(profile.mapLayout ?? {}).length > 0,
   );
 
+  const setSavedProcessBlocks = useCallback(
+    (
+      v: SavedProcessBlock[] | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
+    ) => {
+      setProfile((p) => {
+        const cur = p.savedProcessBlocks ?? [];
+        const next = typeof v === "function" ? v(cur) : v;
+        return { ...p, savedProcessBlocks: next.slice(0, 24) };
+      });
+    },
+    [],
+  );
+
   const value = useMemo(
     () => ({
       profile,
@@ -381,6 +401,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setCustomPeople,
       setMapLayout,
       mapCustomized,
+      setSavedProcessBlocks,
     }),
     [
       profile,
@@ -400,6 +421,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setCustomPeople,
       setMapLayout,
       mapCustomized,
+      setSavedProcessBlocks,
     ],
   );
 
