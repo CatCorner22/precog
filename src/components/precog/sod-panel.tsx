@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { casesForSodRules } from "@/lib/precog/evidence";
+import { CaseCard } from "./case-card";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -25,9 +27,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { controls } = useTemplate();
   const { profile } = usePractice();
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
-  const [view, setView] = useState<
-    "conflicts" | "matrix" | "roles" | "dual"
-  >("dual");
+  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual">("dual");
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
   >("all");
@@ -194,9 +194,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         </Button>
       </div>
 
-      {view === "dual" && (
-        <DualReleasePanel onOpenSod={() => setView("conflicts")} />
-      )}
+      {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
 
       {view === "conflicts" && (
         <Card>
@@ -258,12 +256,8 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   >
                     {c.severity} · {c.score}
                   </Badge>
-                  {c.dualReleaseMitigated && (
-                    <Badge variant="ok">Dual release mitigates</Badge>
-                  )}
-                  {c.residualRiskAccepted && (
-                    <Badge variant="warn">Residual accepted</Badge>
-                  )}
+                  {c.dualReleaseMitigated && <Badge variant="ok">Dual release mitigates</Badge>}
+                  {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
                   <span className="text-xs text-muted">
                     {c.personName} · {c.role}
                   </span>
@@ -281,6 +275,13 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     Compensate: {c.compensatingControls.join("; ")}
                   </p>
                 )}
+                {/*
+                  The case that makes this finding concrete. Without it a duty
+                  conflict reads as an auditor's preference; with it, the owner
+                  can see what the same arrangement cost a real business and
+                  how long it ran before anyone noticed.
+                */}
+                <ConflictEvidence ruleId={c.ruleId} />
                 <div className="mt-2 flex flex-wrap gap-1">
                   {c.linkedScenarioId && (
                     <Button
@@ -384,8 +385,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                                 cell?.severity === "high" &&
                                 "bg-warn/40 text-warn",
                               status === "conflict" &&
-                                (cell?.severity === "medium" ||
-                                  cell?.severity === "family") &&
+                                (cell?.severity === "medium" || cell?.severity === "family") &&
                                 "bg-warn/20 text-warn",
                             )}
                             title={
@@ -438,9 +438,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       <Badge variant={n > 0 ? "danger" : "ok"}>
                         {n} conflict{n === 1 ? "" : "s"}
                       </Badge>
-                      {mitigated > 0 && (
-                        <Badge variant="ok">{mitigated} dual-mitigated</Badge>
-                      )}
+                      {mitigated > 0 && <Badge variant="ok">{mitigated} dual-mitigated</Badge>}
                     </div>
                   </div>
                   <ul className="mt-2 flex flex-wrap gap-1">
@@ -495,5 +493,26 @@ function Stat({
         <p className="text-xs text-muted">{hint}</p>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The most relevant prosecuted case for a duty conflict.
+ *
+ * Renders nothing when the library has no match rather than showing a filler
+ * message: a finding with no case behind it should look exactly as bare as it
+ * is. In practice every conflict rule is covered, and verify-evidence.mjs
+ * fails the build if one stops being.
+ */
+function ConflictEvidence({ ruleId }: { ruleId: string }) {
+  const study = casesForSodRules([ruleId])[0];
+  if (!study) return null;
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+        This arrangement, somewhere real
+      </p>
+      <CaseCard study={study} />
+    </div>
   );
 }

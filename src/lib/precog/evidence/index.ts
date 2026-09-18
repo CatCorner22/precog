@@ -44,10 +44,62 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-admin-writeoff": ["financial-statement", "receivables-diversion"],
 };
 
+/**
+ * The schemes each pairing of duty families enables.
+ *
+ * The conflict detector emits two kinds of finding. Named rules describe a
+ * specific, well-understood combination. Everything else falls through to a
+ * duty-family check, which catches real problems but describes them only as
+ * "classically incompatible" — a framework assertion with no mechanism and no
+ * case behind it. That generic output is the weakest thing this application
+ * produces, so family findings are grounded here too: the ACFE scheme taxonomy
+ * maps onto duty families closely enough that a family pairing can name the
+ * schemes it actually opens up.
+ *
+ * Keys are unordered pairs joined with a hyphen, alphabetically, matching the
+ * `family-<a>-<b>` rule ids the detector produces.
+ */
+const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
+  // Approving a transaction and holding the asset: nothing stands between the
+  // decision to pay and the money leaving.
+  "authorization-custody": ["check-tampering", "billing-shell-vendor", "corruption"],
+  // Approving and recording: the approval can be written after the fact.
+  "authorization-recording": ["financial-statement", "expense-reimbursement"],
+  // Approving and maintaining the payee list: invent a payee, approve paying it.
+  "authorization-master_data": ["billing-shell-vendor", "corruption"],
+  // Holding the asset and writing the record of it.
+  "custody-recording": ["skimming", "cash-larceny", "receivables-diversion"],
+  // Holding the asset and confirming it arrived.
+  "custody-reconciliation": ["skimming", "cash-larceny"],
+  // Holding the asset and controlling who may be paid.
+  "custody-master_data": ["billing-shell-vendor", "check-tampering"],
+  // Writing the record and checking the record.
+  "reconciliation-recording": ["financial-statement", "receivables-diversion"],
+  // Writing the record and controlling the payee list.
+  "master_data-recording": ["billing-shell-vendor"],
+  // Two people needed to change the payee list; one is enough here.
+  "master_data-master_data": ["billing-shell-vendor"],
+  "custody-custody": ["skimming", "cash-larceny"],
+};
+
+/**
+ * Schemes for a family-derived rule id such as "family-custody-recording".
+ * Returns an empty list for anything that is not one.
+ */
+function schemesForFamilyRuleId(ruleId: string): SchemeKind[] {
+  if (!ruleId.startsWith("family-")) return [];
+  const [a, b] = ruleId.slice("family-".length).split("-");
+  if (!a || !b) return [];
+  const key = [a, b].sort().join("-");
+  return FAMILY_SCHEMES[key] ?? [];
+}
+
 /** The schemes a set of open conflicts exposes the business to. */
 export function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
   const out = new Set<SchemeKind>();
-  for (const id of ruleIds) for (const s of RULE_SCHEMES[id] ?? []) out.add(s);
+  for (const id of ruleIds) {
+    for (const s of RULE_SCHEMES[id] ?? schemesForFamilyRuleId(id)) out.add(s);
+  }
   return [...out];
 }
 
@@ -71,7 +123,16 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
   const wantedRules = new Set(ruleIds);
   const wantedSchemes = new Set(schemesForSodRules(ruleIds));
 
-  return CASE_LIBRARY.filter((c) => c.sodRuleIds.some((id) => wantedRules.has(id)))
+  // A named rule selects cases that cite it. A family-derived id cites nothing,
+  // so those select on scheme overlap instead — the case still demonstrates
+  // that combination of duties, which is what the finding is about.
+  const candidates = CASE_LIBRARY.filter(
+    (c) =>
+      c.sodRuleIds.some((id) => wantedRules.has(id)) ||
+      (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
+  );
+
+  return candidates
     .map((c) => ({
       study: c,
       schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
@@ -119,15 +180,13 @@ export function sectorForIndustry(industryId: string): IndustrySector {
  * learns more from the mechanism than from the industry label.
  */
 export function casesForSector(sector: IndustrySector): CaseStudy[] {
-  return CASE_LIBRARY.filter(
-    (c) => c.sector === sector || c.sector === "any",
-  ).sort(byLossDescending);
+  return CASE_LIBRARY.filter((c) => c.sector === sector || c.sector === "any").sort(
+    byLossDescending,
+  );
 }
 
 export function casesForScheme(scheme: SchemeKind): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.schemes.includes(scheme)).sort(
-    byLossDescending,
-  );
+  return CASE_LIBRARY.filter((c) => c.schemes.includes(scheme)).sort(byLossDescending);
 }
 
 export function caseById(id: string): CaseStudy | undefined {
@@ -158,10 +217,7 @@ export function observedLossRange(cases: readonly CaseStudy[]): {
   const mid = Math.floor(amounts.length / 2);
   return {
     low: amounts[0],
-    median:
-      amounts.length % 2 === 0
-        ? (amounts[mid - 1] + amounts[mid]) / 2
-        : amounts[mid],
+    median: amounts.length % 2 === 0 ? (amounts[mid - 1] + amounts[mid]) / 2 : amounts[mid],
     high: amounts[amounts.length - 1],
     n: amounts.length,
   };
@@ -182,8 +238,7 @@ export function observedDurationMonths(
   if (months.length === 0) return null;
   const mid = Math.floor(months.length / 2);
   return {
-    median:
-      months.length % 2 === 0 ? (months[mid - 1] + months[mid]) / 2 : months[mid],
+    median: months.length % 2 === 0 ? (months[mid - 1] + months[mid]) / 2 : months[mid],
     longest: months[months.length - 1],
     n: months.length,
   };
@@ -203,9 +258,7 @@ export function observedDurationMonths(
  * derived from the case library rather than from a framework checklist, so
  * every item on it has already failed somewhere for real.
  */
-export function recommendedStepsForRules(
-  ruleIds: readonly string[],
-): {
+export function recommendedStepsForRules(ruleIds: readonly string[]): {
   control: ControlDefinition;
   supportingCaseIds: string[];
   /** How this control was phrased in the most relevant supporting case. */

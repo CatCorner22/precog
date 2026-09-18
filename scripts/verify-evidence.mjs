@@ -21,6 +21,8 @@
  *      has at least one real case behind it.
  *   8. No unsourceable fraud rate reappears, and the shared statistics record
  *      carries a source URL.
+ *   9. Every duty-family pairing the detector can emit has schemes mapped, so
+ *      no finding reaches the user without a real case behind it.
  *
  * Run: npm run verify:evidence
  */
@@ -139,6 +141,39 @@ for (const id of industryIds) {
     : "any";
   if (!sector || !caseSectors.has(sector)) {
     fail(`Industry "${id}" resolves to sector "${sector}", which has no real case.`);
+  }
+}
+
+// 9. Every duty-family pairing the detector can emit has schemes mapped.
+//
+//    Family findings are the detector's catch-all: anything not covered by a
+//    named rule falls through to them. They used to carry no case at all,
+//    which made them read as framework assertion rather than evidence. A
+//    pairing with no schemes mapped goes straight back to that.
+const rulesBody = rulesSrc.replace(/\/\*[\s\S]*?\*\//g, "");
+const matrixBlock = rulesBody.match(
+  /FAMILY_CONFLICT_MATRIX[\s\S]*?=\s*\{([\s\S]*?)\n\};/,
+)?.[1];
+const familySchemesBlock = evidenceIndexSrc.match(
+  /const FAMILY_SCHEMES: Record<string, SchemeKind\[\]> = \{([\s\S]*?)\n\};/,
+)?.[1];
+if (!matrixBlock || !familySchemesBlock) {
+  fail("Duty-family matrix or FAMILY_SCHEMES not found — parser out of date.");
+} else {
+  const mappedPairs = new Set(
+    [...familySchemesBlock.matchAll(/"([a-z_]+-[a-z_]+)":\s*\[[^\]]+\]/g)].map(
+      (m) => m[1],
+    ),
+  );
+  // Rows look like:  custody: { authorization: true, recording: true, ... }
+  for (const row of matrixBlock.matchAll(/(\w+):\s*\{([^}]*)\}/g)) {
+    const from = row[1];
+    for (const col of row[2].matchAll(/(\w+):\s*true/g)) {
+      const key = [from, col[1]].sort().join("-");
+      if (!mappedPairs.has(key)) {
+        fail(`Duty-family pairing "${key}" has no schemes mapped, so it can produce a finding with no real case behind it.`);
+      }
+    }
   }
 }
 
