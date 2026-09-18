@@ -106,9 +106,9 @@ export function CaseCard({
           <Section title="What would have caught it">
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step) => (
-                <li key={step} className="flex gap-2 leading-relaxed text-muted">
+                <li key={step.control} className="flex gap-2 leading-relaxed text-muted">
                   <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />
-                  <span>{step}</span>
+                  <span>{step.asApplied}</span>
                 </li>
               ))}
             </ul>

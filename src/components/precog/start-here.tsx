@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { ArrowRight, Clock, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
+import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
@@ -34,6 +35,16 @@ import { formatUsd } from "@/lib/utils";
  */
 export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => void }) {
   const { profile } = usePractice();
+  /**
+   * Whether the findings describe this business or the loaded sample.
+   *
+   * The conflict detector works from the named people in the active
+   * template. Staff settings such as team size feed the scoring but cannot
+   * generate an assignment table — you cannot derive who does what from a
+   * headcount — so until someone edits the team, these are the sample's
+   * people and saying otherwise would misrepresent them.
+   */
+  const isSampleTeam = !profile.customPeople;
   const sector = sectorForIndustry(profile.industry);
 
   const sod = useMemo(
@@ -44,14 +55,64 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [profile.staff, profile.dualRelease],
   );
 
-  /** Live gaps only: anything already mitigated or consciously accepted is out. */
+  /**
+   * Gaps still open.
+   *
+   * A dual-release policy is treated as reducing a gap, not closing it. Its
+   * rules carry a threshold, so a policy requiring two people above $500 still
+   * leaves one person able to act alone below it, and exceptions can raise or
+   * waive the threshold entirely. Filtering those conflicts out would let this
+   * page report a gap as closed while the same person can still move smaller
+   * amounts unaccompanied. They stay, ranked below the unmitigated ones, with
+   * the remaining exposure named.
+   *
+   * A gap the owner has explicitly accepted is a decision they already made,
+   * so it does not reappear here as a finding.
+   */
   const openConflicts = useMemo(
     () =>
       sod.conflicts
-        .filter((c) => !c.dualReleaseMitigated && !c.residualRiskAccepted)
-        .sort((a, b) => b.score - a.score),
+        .filter((c) => !c.residualRiskAccepted)
+        .sort(
+          (a, b) =>
+            Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) ||
+            b.score - a.score,
+        ),
     [sod.conflicts],
   );
+
+  /**
+   * Which segregation-of-duties rules the dual-release policy only narrows.
+   *
+   * A policy rule with `thresholdUsd: 0` requires two people at every amount
+   * and genuinely closes what it covers. A rule with a threshold leaves a band
+   * beneath it where one person still acts alone. A duty conflict is therefore
+   * fully covered only when every policy rule addressing it has no threshold;
+   * otherwise a residual band remains, and the lowest such threshold is where
+   * it starts.
+   */
+  const partialCoverage = useMemo(() => {
+    const byRuleId = new Map<string, number[]>();
+    if (profile.dualRelease.enabled) {
+      for (const r of profile.dualRelease.rules) {
+        if (!r.enabled) continue;
+        for (const id of r.mitigatesRuleIds) {
+          const list = byRuleId.get(id) ?? [];
+          list.push(r.thresholdUsd);
+          byRuleId.set(id, list);
+        }
+      }
+    }
+    const partial = new Map<string, number>();
+    for (const [ruleId, thresholds] of byRuleId) {
+      const gapThresholds = thresholds.filter((t) => t > 0);
+      // Covered at every amount by at least one rule → nothing left beneath.
+      if (gapThresholds.length === thresholds.length && gapThresholds.length > 0) {
+        partial.set(ruleId, Math.min(...gapThresholds));
+      }
+    }
+    return partial;
+  }, [profile.dualRelease]);
 
   /**
    * Group by the gap, not by the person.
@@ -65,11 +126,19 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    * determines whether they act at all.
    */
   const gaps = useMemo(() => {
-    const byRule = new Map<string, { people: string[]; conflict: (typeof openConflicts)[number] }>();
+    const byRule = new Map<
+      string,
+      { people: string[]; conflict: (typeof openConflicts)[number] }
+    >();
     for (const c of openConflicts) {
       const existing = byRule.get(c.ruleId);
       if (existing) {
         if (!existing.people.includes(c.personName)) existing.people.push(c.personName);
+        // Keep the worst representative: an unmitigated instance outranks a
+        // mitigated one, so a gap is never shown as softer than it is.
+        if (existing.conflict.dualReleaseMitigated && !c.dualReleaseMitigated) {
+          existing.conflict = c;
+        }
       } else {
         byRule.set(c.ruleId, { people: [c.personName], conflict: c });
       }
@@ -78,6 +147,27 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   }, [openConflicts]);
 
   const topThree = gaps.slice(0, 3);
+  /**
+   * Gaps a dual-release policy narrows but does not close.
+   *
+   * They sort below the unmitigated ones and so rarely reach the top three,
+   * which would leave the residual band invisible on this page — the exact
+   * overstatement of safety that dropping them entirely used to cause. They
+   * get their own short section instead, outside the main ranking, so an owner
+   * sees what the policy still leaves open without having to go looking.
+   */
+  const narrowed = useMemo(
+    () =>
+      gaps.filter(
+        (g) =>
+          partialCoverage.has(g.conflict.ruleId) &&
+          !topThree.some((t) => t.conflict.ruleId === g.conflict.ruleId),
+      ),
+    [gaps, partialCoverage, topThree],
+  );
+  const narrowedCount = gaps.filter((g) =>
+    partialCoverage.has(g.conflict.ruleId),
+  ).length;
   const openRuleIds = useMemo(() => gaps.map((g) => g.conflict.ruleId), [gaps]);
 
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
@@ -100,11 +190,36 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          This page shows where your business is exposed, what that same exposure has
-          cost real organizations, and what to do about it first. Every figure links to
-          the case or study it came from.
+          This page shows where a business like yours is exposed, what that same
+          exposure has cost real organizations, and what to do about it first. Every
+          figure links to the case or study it came from.
         </p>
       </header>
+
+      {isSampleTeam && (
+        <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
+          <p className="text-sm font-medium text-warn">
+            These findings describe the sample team, not yours yet.
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-muted">
+            The names and duty assignments below come from the loaded{" "}
+            {industryMeta(profile.industry).label.toLowerCase()} example. Staff
+            settings such as team size affect the scoring but cannot say who does
+            what, so the conflicts shown are the example&rsquo;s until you enter your
+            own people and their duties.
+          </p>
+          {onOpenDetail && (
+            <button
+              type="button"
+              onClick={() => onOpenDetail("map")}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Enter your own team
+              <ArrowRight className="size-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 1. Where you are exposed. */}
       <section className="space-y-3">
@@ -114,7 +229,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           subtitle={
             gaps.length === 0
               ? "Nothing open right now."
-              : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.`
+              : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.` +
+                (narrowedCount > 0
+                  ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
+                  : "")
           }
         />
 
@@ -137,18 +255,22 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant={
-                          conflict.severity === "critical"
-                            ? "danger"
-                            : conflict.severity === "high"
-                              ? "warn"
-                              : "default"
+                          partialCoverage.has(conflict.ruleId)
+                            ? "primary"
+                            : conflict.severity === "critical"
+                              ? "danger"
+                              : conflict.severity === "high"
+                                ? "warn"
+                                : "default"
                         }
                       >
-                        {conflict.severity === "critical"
-                          ? "Fix first"
-                          : conflict.severity === "high"
-                            ? "Fix soon"
-                            : "Worth doing"}
+                        {partialCoverage.has(conflict.ruleId)
+                          ? "Reduced, not closed"
+                          : conflict.severity === "critical"
+                            ? "Fix first"
+                            : conflict.severity === "high"
+                              ? "Fix soon"
+                              : "Worth doing"}
                       </Badge>
                       <span className="text-xs text-subtle">
                         {people.length === 1
@@ -163,6 +285,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <p className="leading-relaxed text-muted">{conflict.why}</p>
+
+                    {partialCoverage.has(conflict.ruleId) && (
+                      <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
+                        Your dual-release policy covers this above{" "}
+                        {formatUsd(partialCoverage.get(conflict.ruleId) ?? 0)}. Below
+                        that, and wherever an exception raises or waives the threshold,
+                        one person can still act alone. Treat this as narrowed rather
+                        than closed.
+                      </p>
+                    )}
 
                     {conflict.compensatingControls.length > 0 && (
                       <div>
@@ -196,6 +328,33 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               );
             })}
 
+            {narrowed.length > 0 && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <p className="text-sm font-medium">
+                  Narrowed by your dual-release policy, not closed
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  Two people are required above the threshold. Beneath it, and wherever
+                  an exception raises or waives the threshold, one person can still act
+                  alone.
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {narrowed.map(({ conflict, people }) => (
+                    <li key={conflict.ruleId} className="text-sm">
+                      <span className="text-fg">
+                        {people.join(", ")} — {conflict.labelA} with {conflict.labelB}
+                      </span>
+                      <span className="text-subtle">
+                        {" "}
+                        · still single-handed below{" "}
+                        {formatUsd(partialCoverage.get(conflict.ruleId) ?? 0)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {gaps.length > topThree.length && onOpenDetail && (
               <button
                 type="button"
@@ -217,7 +376,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           title="What these gaps have cost other organizations"
           subtitle={
             evidence.length > 0
-              ? `Drawn from ${evidence.length} prosecuted cases matching your open gaps.`
+              ? `Drawn from ${evidence.length} prosecuted cases matching the gaps above.`
               : "No matching cases, because no gaps are open."
           }
         />
@@ -239,7 +398,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           )}
           {medianLoss && (
             <StatTile
-              label="Median loss, all cases studied"
+              label="Median loss, given an investigated fraud"
               value={medianLoss.value}
               detail={medianLoss.study}
               href={medianLoss.source.url}
@@ -257,13 +416,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
 
         {lossRange && medianLoss && (
           <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
-            <span className="font-medium text-muted">Read these two numbers together. </span>
-            The case figures above come from federal prosecutions, and federal
-            prosecutors do not charge small thefts. That selection pushes the case
-            median far above what a business should actually expect. Treat{" "}
-            {medianLoss.value} — the median across every case in the study, charged or
-            not — as the realistic figure, and the case range as what the same gap can
-            reach when nobody is watching for years.
+            <span className="font-medium text-muted">Read these numbers as conditional. </span>
+            Neither figure is a forecast for your business. Both describe what
+            happened <em>given</em> that a fraud occurred and was found: {medianLoss.value}{" "}
+            is the median across investigated cases, and the case range above is
+            higher still because federal prosecutors do not charge small thefts.
+            Nothing here estimates how likely any of it is to happen to you — that
+            depends on the gaps listed at the top of this page, not on a median.
           </p>
         )}
 
@@ -307,14 +466,18 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             ) : (
               <ol className="space-y-3">
                 {steps.slice(0, 6).map((s, i) => (
-                  <li key={s.step} className="flex gap-3">
+                  <li key={s.control.id} className="flex gap-3">
                     <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-[11px] text-muted">
                       {i + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm leading-relaxed">{s.step}</p>
-                      <p className="mt-0.5 text-xs text-subtle">
-                        Would have addressed {s.supportingCaseIds.length}{" "}
+                      <p className="text-sm leading-relaxed">{s.control.label}</p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-muted">
+                        {s.control.why}
+                      </p>
+                      <p className="mt-1 text-xs text-subtle">
+                        Takes {s.control.effort} · would have stopped{" "}
+                        {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
                     </div>
