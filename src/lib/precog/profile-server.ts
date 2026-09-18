@@ -41,6 +41,9 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
         ? row.profile.savedProcessBlocks
         : [],
+      mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
+        ? row.profile.mapHealthHistory
+        : [],
     };
     return {
       found: true as const,

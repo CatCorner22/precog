@@ -10,7 +10,11 @@ import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { assessCoso } from "@/lib/precog/coso";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
-import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import {
+  buildProcessMapGraph,
+  computeMapHealth,
+  validateProcessMap,
+} from "@/lib/precog/process-graph";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -50,11 +54,21 @@ export function ControlReport() {
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
     });
-    return { threat, portfolio, sod, spofs, coso, actions };
+    const issues = validateProcessMap(
+      tpl.processes,
+      tpl.people,
+      new Set(tpl.controls.map((c) => c.id)),
+      profile.mapLayout ?? {},
+    );
+    const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
+    return { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, templateRevision]);
 
-  const { threat, portfolio, sod, spofs, coso, actions } = data;
+  const { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues } = data;
+  const history = profile.mapHealthHistory ?? [];
+  const firstPoint = history[0];
+  const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
   const top = threat.targetDeck.slice(0, 12);
   const openDecisions = profile.decisions.slice(0, 10);
   const generated = new Date();
@@ -92,12 +106,49 @@ export function ControlReport() {
           </p>
         </header>
 
-        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Kpi label="Map health" value={String(mapHealth.score)} hint={mapHealth.bandLabel} />
           <Kpi label="Threat index" value={String(threat.overallThreatIndex)} hint={threat.classificationLabel} />
           <Kpi label="Avg residual" value={String(portfolio.averageResidual)} hint={`${portfolio.criticalPath} on critical path`} />
           <Kpi label="SoD health" value={String(sod.summary.segregationHealth)} hint={`${sod.summary.critical} critical conflicts`} />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
+
+        <Section title="Process map health">
+          <p className="text-sm text-neutral-700">
+            {mapHealth.summary}{" "}
+            {healthDelta !== null && healthDelta !== 0 && firstPoint
+              ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
+              : ""}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {mapHealth.dimensions.map((d) => (
+              <div key={d.id} className="rounded border border-neutral-300 p-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium">{d.label}</span>
+                  <span className="text-sm font-bold tabular">{d.score}</span>
+                </div>
+                <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+                  <div
+                    className="h-full rounded-full bg-neutral-800"
+                    style={{ width: `${d.score}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
+              </div>
+            ))}
+          </div>
+          {issues.filter((i) => i.severity !== "info").length > 0 && (
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
+              {issues
+                .filter((i) => i.severity !== "info")
+                .slice(0, 6)
+                .map((i) => (
+                  <li key={i.id}>{i.message}</li>
+                ))}
+            </ul>
+          )}
+        </Section>
 
         <Section title="Executive summary">
           <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">

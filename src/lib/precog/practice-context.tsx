@@ -91,7 +91,22 @@ interface PracticeContextValue {
       | SavedProcessBlock[]
       | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
   ) => void;
+  /** Append a map health snapshot when the score changes (deduped, capped). */
+  recordMapHealth: (score: number) => void;
+  /** Map builder undo/redo over processes + team edits. */
+  undoMap: () => void;
+  redoMap: () => void;
+  canUndoMap: boolean;
+  canRedoMap: boolean;
 }
+
+interface MapSnapshot {
+  customProcesses: ProcessNode[] | null | undefined;
+  customPeople: Person[] | null | undefined;
+}
+
+const MAX_UNDO = 50;
+const MAX_HEALTH_POINTS = 90;
 
 const PracticeContext = createContext<PracticeContextValue | null>(null);
 
@@ -105,6 +120,63 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [templateRevision, setTemplateRevision] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudLoadedFor = useRef<string | null>(null);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const undoStack = useRef<MapSnapshot[]>([]);
+  const redoStack = useRef<MapSnapshot[]>([]);
+  const [historyVersion, setHistoryVersion] = useState(0);
+
+  const pushUndo = useCallback(() => {
+    const p = profileRef.current;
+    undoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    if (undoStack.current.length > MAX_UNDO) undoStack.current.shift();
+    redoStack.current = [];
+    setHistoryVersion((v) => v + 1);
+  }, []);
+
+  const applySnapshot = useCallback((snap: MapSnapshot) => {
+    setProcessOverrides(snap.customProcesses ?? null);
+    setPeopleOverrides(snap.customPeople ?? null);
+    setTemplateRevision((r) => r + 1);
+    setProfile((p) => ({
+      ...p,
+      customProcesses: snap.customProcesses ?? null,
+      customPeople: snap.customPeople ?? null,
+    }));
+  }, []);
+
+  const undoMap = useCallback(() => {
+    const snap = undoStack.current.pop();
+    if (!snap) return;
+    const p = profileRef.current;
+    redoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    applySnapshot(snap);
+    setHistoryVersion((v) => v + 1);
+  }, [applySnapshot]);
+
+  const redoMap = useCallback(() => {
+    const snap = redoStack.current.pop();
+    if (!snap) return;
+    const p = profileRef.current;
+    undoStack.current.push({
+      customProcesses: p.customProcesses,
+      customPeople: p.customPeople,
+    });
+    applySnapshot(snap);
+    setHistoryVersion((v) => v + 1);
+  }, [applySnapshot]);
+
+  const clearHistory = useCallback(() => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistoryVersion((v) => v + 1);
+  }, []);
 
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
@@ -178,8 +250,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setIndustry = useCallback((industry: IndustryId) => {
+    clearHistory();
     setActiveIndustry(industry);
     setProcessOverrides(null);
+    setPeopleOverrides(null);
     setTemplateRevision((r) => r + 1);
     const meta = industryMeta(industry);
     const tpl = getIndustryTemplate(industry);
@@ -191,7 +265,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       decisions: p.decisions,
       onboardingComplete: true,
     }));
-  }, []);
+  }, [clearHistory]);
 
   const setStaff = useCallback(
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
@@ -298,27 +372,32 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetProfile = useCallback(() => {
+    clearHistory();
     setProfile((p) => {
       setActiveIndustry(p.industry);
       setProcessOverrides(null);
+      setPeopleOverrides(null);
       setTemplateRevision((r) => r + 1);
       return defaultProfile(p.industry);
     });
-  }, []);
+  }, [clearHistory]);
 
   const completeOnboarding = useCallback((industry: IndustryId) => {
+    clearHistory();
     setActiveIndustry(industry);
     setProcessOverrides(null);
+    setPeopleOverrides(null);
     setTemplateRevision((r) => r + 1);
     setProfile((p) => ({
       ...defaultProfile(industry),
       decisions: p.decisions,
       onboardingComplete: true,
     }));
-  }, []);
+  }, [clearHistory]);
 
   const setCustomPeople = useCallback(
     (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
+      pushUndo();
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
@@ -334,6 +413,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     (
       v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
     ) => {
+      pushUndo();
       setProfile((p) => {
         const current =
           p.customProcesses ?? getIndustryTemplate(p.industry).processes;
@@ -382,6 +462,25 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const recordMapHealth = useCallback((score: number) => {
+    setProfile((p) => {
+      const history = p.mapHealthHistory ?? [];
+      const last = history[history.length - 1];
+      if (last && last.score === score) return p;
+      const now = new Date();
+      // Collapse rapid edits within the same minute into one point.
+      const trimmed =
+        last && now.getTime() - new Date(last.at).getTime() < 60_000
+          ? history.slice(0, -1)
+          : history;
+      const next = [...trimmed, { at: now.toISOString(), score }].slice(-MAX_HEALTH_POINTS);
+      return { ...p, mapHealthHistory: next };
+    });
+  }, []);
+
+  const canUndoMap = undoStack.current.length > 0;
+  const canRedoMap = redoStack.current.length > 0;
+
   const value = useMemo(
     () => ({
       profile,
@@ -402,6 +501,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,
+      recordMapHealth,
+      undoMap,
+      redoMap,
+      canUndoMap,
+      canRedoMap,
     }),
     [
       profile,
@@ -422,6 +526,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,
+      recordMapHealth,
+      undoMap,
+      redoMap,
+      canUndoMap,
+      canRedoMap,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      historyVersion,
     ],
   );
 

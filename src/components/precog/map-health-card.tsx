@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
@@ -11,7 +11,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, AlertTriangle, Hammer, Map, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Hammer, Map, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) return null;
+  const w = 160;
+  const h = 36;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = Math.max(1, max - min);
+  const path = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((p - min) / span) * (h - 4) - 2;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-40" aria-hidden>
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function bandTone(band: MapHealthBand): "ok" | "primary" | "warn" | "danger" {
   if (band === "excellent" || band === "healthy") return "ok";
@@ -33,7 +54,7 @@ export function MapHealthCard({
   onOpenMap: (processId?: string) => void;
   onBuildMap: () => void;
 }) {
-  const { profile, mapCustomized, templateRevision } = usePractice();
+  const { profile, mapCustomized, templateRevision, recordMapHealth } = usePractice();
   const tpl = useTemplate();
 
   const health = useMemo(() => {
@@ -55,6 +76,16 @@ export function MapHealthCard({
     mapCustomized,
     templateRevision,
   ]);
+
+  useEffect(() => {
+    recordMapHealth(health.score);
+  }, [health.score, recordMapHealth]);
+
+  const history = profile.mapHealthHistory ?? [];
+  const trendPoints = history.map((h) => h.score);
+  const previous = history.length >= 2 ? history[history.length - 2].score : null;
+  const delta = previous === null ? null : health.score - previous;
+  const firstAt = history[0]?.at;
 
   const tone = bandTone(health.band);
   const topIssues = useMemo(() => {
@@ -117,7 +148,30 @@ export function MapHealthCard({
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
-            <p className="text-sm text-muted">{health.summary}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted">{health.summary}</p>
+              {trendPoints.length >= 2 && (
+                <div className="flex items-center gap-2">
+                  <Sparkline points={trendPoints} color={scoreColor(health.score)} />
+                  {delta !== null && delta !== 0 && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 text-[11px] font-medium tabular",
+                        delta > 0 ? "text-ok" : "text-danger",
+                      )}
+                    >
+                      {delta > 0 ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
+                      {delta > 0 ? "+" : ""}
+                      {delta}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {health.dimensions.map((d) => (
                 <div key={d.id} className="rounded-lg border border-border bg-elevated px-2.5 py-2">
@@ -185,6 +239,9 @@ export function MapHealthCard({
           {health.processCount} processes · avg heat {health.avgHeat}
           {health.hotProcesses > 0 ? ` · ${health.hotProcesses} hot` : ""}
           {mapCustomized ? " · custom map" : " · industry template"}
+          {firstAt && trendPoints.length >= 2
+            ? ` · tracked since ${new Date(firstAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+            : ""}
         </p>
       </CardContent>
     </Card>

@@ -43,7 +43,14 @@ export interface PracticeProfile {
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
   savedProcessBlocks?: SavedProcessBlock[];
+  /** Map health score snapshots over time (newest last). */
+  mapHealthHistory?: MapHealthPoint[];
   updatedAt: string;
+}
+
+export interface MapHealthPoint {
+  at: string;
+  score: number;
 }
 
 const STORAGE_KEY = "precog.practiceProfile.v2";
@@ -68,6 +75,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     customPeople: null,
     mapLayout: {},
     savedProcessBlocks: [],
+    mapHealthHistory: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -115,6 +123,7 @@ export function loadProfile(): PracticeProfile {
       savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks)
         ? parsed.savedProcessBlocks
         : [],
+      mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
     };
   } catch {
     return defaultProfile();

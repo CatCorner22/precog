@@ -370,8 +370,15 @@ export function ProcessMap({
   initialBuild?: boolean;
 }) {
   const { processes } = useTemplate();
-  const { profile, setMapLayout, setCustomProcesses, mapCustomized, templateRevision } =
-    usePractice();
+  const {
+    profile,
+    setMapLayout,
+    setCustomProcesses,
+    mapCustomized,
+    templateRevision,
+    undoMap,
+    redoMap,
+  } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [build, setBuild] = useState(initialBuild);
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
@@ -393,6 +400,31 @@ export function ProcessMap({
       setFocusProcessId(initialProcessId);
     }
   }, [initialProcessId]);
+
+  // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo — only in build mode, never inside inputs.
+  useEffect(() => {
+    if (!build) return;
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))
+        return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && e.shiftKey) {
+        e.preventDefault();
+        redoMap();
+      } else if (k === "z") {
+        e.preventDefault();
+        undoMap();
+      } else if (k === "y") {
+        e.preventDefault();
+        redoMap();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [build, undoMap, redoMap]);
 
   const layerMap = useMemo(() => {
     const m = new Map<MapLayerId, LayerConfig>();

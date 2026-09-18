@@ -32,7 +32,18 @@ import { getBaseTemplate } from "@/lib/precog/active-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
-import { Blocks, GitCompare, Loader2, Save, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  Blocks,
+  GitCompare,
+  Loader2,
+  Redo2,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Undo2,
+  Wand2,
+} from "lucide-react";
+import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
 import {
   blocksForIndustry,
   instantiateBlock,
@@ -106,6 +117,10 @@ export function ProcessBuilder({
     setMapLayout,
     setSavedProcessBlocks,
     mapCustomized,
+    undoMap,
+    redoMap,
+    canUndoMap,
+    canRedoMap,
   } = usePractice();
   const processes = tpl.processes;
   const [showTeam, setShowTeam] = useState(false);
@@ -128,6 +143,79 @@ export function ProcessBuilder({
 
   function update(id: string, patch: Partial<ProcessNode>) {
     setCustomProcesses((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  /** Apply one quick fix for a validation issue; returns true if something changed. */
+  function quickFix(issueId: string, processId: string): boolean {
+    const proc = processes.find((p) => p.id === processId);
+    if (!proc) return false;
+    if (issueId.startsWith("owner-")) {
+      const owner = suggestOwnerForProcess(proc, processes, tpl.people);
+      if (!owner) return false;
+      update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] });
+      toast.success(`${owner.name} assigned to ${proc.name}`);
+      return true;
+    }
+    if (issueId.startsWith("fraud-nocontrol-")) {
+      const control = suggestControlForProcess(proc, tpl.controls);
+      if (!control) return false;
+      update(processId, { controlIds: [...proc.controlIds, control.id] });
+      toast.success(`Mapped "${control.name}" to ${proc.name}`);
+      return true;
+    }
+    if (issueId.startsWith("dep-") || issueId.startsWith("owner-ref-")) {
+      const ids = new Set(processes.map((p) => p.id));
+      const pids = new Set(tpl.people.map((p) => p.id));
+      update(processId, {
+        dependencies: proc.dependencies.filter((d) => ids.has(d)),
+        ownerPersonIds: (proc.ownerPersonIds ?? []).filter((o) => pids.has(o)),
+      });
+      toast.success(`Removed broken references on ${proc.name}`);
+      return true;
+    }
+    return false;
+  }
+
+  function fixAllQuickWins() {
+    const fixable = validationIssues.filter(
+      (i) =>
+        i.processId &&
+        (i.id.startsWith("owner-") ||
+          i.id.startsWith("fraud-nocontrol-") ||
+          i.id.startsWith("dep-")),
+    );
+    if (!fixable.length) return;
+    // Batch into one state update so undo reverts the whole sweep.
+    const ids = new Set(processes.map((p) => p.id));
+    const pids = new Set(tpl.people.map((p) => p.id));
+    let touched = 0;
+    setCustomProcesses((cur) =>
+      cur.map((p) => {
+        const mine = fixable.filter((i) => i.processId === p.id);
+        if (!mine.length) return p;
+        let next = { ...p };
+        for (const i of mine) {
+          if (i.id.startsWith("owner-ref-") || i.id.startsWith("dep-")) {
+            next = {
+              ...next,
+              dependencies: next.dependencies.filter((d) => ids.has(d)),
+              ownerPersonIds: (next.ownerPersonIds ?? []).filter((o) => pids.has(o)),
+            };
+          } else if (i.id.startsWith("owner-")) {
+            const owner = suggestOwnerForProcess(next, cur, tpl.people);
+            if (owner) next = { ...next, ownerPersonIds: [...(next.ownerPersonIds ?? []), owner.id] };
+          } else if (i.id.startsWith("fraud-nocontrol-")) {
+            const control = suggestControlForProcess(next, tpl.controls);
+            if (control) next = { ...next, controlIds: [...next.controlIds, control.id] };
+          }
+          touched += 1;
+        }
+        return next;
+      }),
+    );
+    toast.success(`Applied ${touched} quick fix(es)`, {
+      description: "Review the suggestions — undo if anything looks off.",
+    });
   }
 
   function insertBlock(block: ProcessBlock | SavedProcessBlock) {
@@ -326,6 +414,28 @@ export function ProcessBuilder({
           >
             <Blocks className="size-3.5" /> Blocks
           </Button>
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            <button
+              type="button"
+              onClick={undoMap}
+              disabled={!canUndoMap}
+              title="Undo (Ctrl+Z)"
+              aria-label="Undo"
+              className="inline-flex h-8 items-center px-2 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Undo2 className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={redoMap}
+              disabled={!canRedoMap}
+              title="Redo (Ctrl+Shift+Z)"
+              aria-label="Redo"
+              className="inline-flex h-8 items-center border-l border-border px-2 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Redo2 className="size-3.5" />
+            </button>
+          </div>
           <Button size="sm" variant="secondary" onClick={exportMap}>
             <Download className="size-3.5" /> Export
           </Button>
@@ -397,6 +507,8 @@ export function ProcessBuilder({
               onSelectProcess(id);
               setShowValidation(false);
             }}
+            onQuickFix={quickFix}
+            onFixAll={fixAllQuickWins}
             onCleanLayout={() => {
               const ids = new Set(processes.map((p) => p.id));
               setMapLayout((l) =>
@@ -833,18 +945,32 @@ function BlockLibrary({
   );
 }
 
+function isQuickFixable(i: MapValidationIssue) {
+  return Boolean(
+    i.processId &&
+      (i.id.startsWith("owner-") ||
+        i.id.startsWith("fraud-nocontrol-") ||
+        i.id.startsWith("dep-")),
+  );
+}
+
 function ValidationPanel({
   issues,
   onSelectProcess,
   onCleanLayout,
+  onQuickFix,
+  onFixAll,
 }: {
   issues: MapValidationIssue[];
   onSelectProcess: (id: string) => void;
   onCleanLayout: () => void;
+  onQuickFix: (issueId: string, processId: string) => boolean;
+  onFixAll: () => void;
 }) {
   const errors = issues.filter((i) => i.severity === "error");
   const warns = issues.filter((i) => i.severity === "warn");
   const infos = issues.filter((i) => i.severity === "info");
+  const fixable = issues.filter(isQuickFixable).length;
 
   if (issues.length === 0) {
     return (
@@ -856,28 +982,47 @@ function ValidationPanel({
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
-      <p className="text-[11px] text-muted">
-        {errors.length} error(s), {warns.length} warning(s), {infos.length} info
-      </p>
-      <ul className="max-h-40 space-y-1 overflow-y-auto">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-muted">
+          {errors.length} error(s), {warns.length} warning(s), {infos.length} info
+        </p>
+        {fixable > 1 && (
+          <Button size="sm" variant="secondary" onClick={onFixAll}>
+            <Wand2 className="size-3.5" /> Fix {fixable} quick wins
+          </Button>
+        )}
+      </div>
+      <ul className="max-h-48 space-y-1 overflow-y-auto">
         {[...errors, ...warns, ...infos].map((i) => (
-          <li key={i.id}>
+          <li
+            key={i.id}
+            className={cn(
+              "flex items-stretch gap-1 rounded-md border text-[11px]",
+              i.severity === "error"
+                ? "border-danger/40 bg-danger/10 text-fg"
+                : i.severity === "warn"
+                  ? "border-warn/40 bg-warn/10 text-fg"
+                  : "border-border bg-elevated text-muted",
+            )}
+          >
             <button
               type="button"
               onClick={() => i.processId && onSelectProcess(i.processId)}
               disabled={!i.processId}
-              className={cn(
-                "w-full rounded-md border px-2 py-1 text-left text-[11px]",
-                i.severity === "error"
-                  ? "border-danger/40 bg-danger/10 text-fg"
-                  : i.severity === "warn"
-                    ? "border-warn/40 bg-warn/10 text-fg"
-                    : "border-border bg-elevated text-muted",
-                i.processId && "hover:border-border-strong",
-              )}
+              className={cn("min-w-0 flex-1 px-2 py-1 text-left", i.processId && "hover:underline")}
             >
               {i.message}
             </button>
+            {isQuickFixable(i) && (
+              <button
+                type="button"
+                onClick={() => onQuickFix(i.id, i.processId!)}
+                title="Apply suggested fix"
+                className="inline-flex shrink-0 items-center gap-1 border-l border-current/20 px-2 text-primary hover:bg-primary/10"
+              >
+                <Wand2 className="size-3" /> Fix
+              </button>
+            )}
           </li>
         ))}
       </ul>
