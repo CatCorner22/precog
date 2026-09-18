@@ -365,20 +365,23 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-bellingham-assistant-manager",
-    title: "Assistant office manager took $1.4 million from a Bellingham business",
-    sector: "professional-services",
-    schemes: ["check-tampering"],
+    title: "Assistant office manager took $1.4 million from a hardware retailer over nine years",
+    sector: "retail",
+    schemes: ["check-tampering", "expense-reimbursement"],
     howItWorked:
-      "The former assistant office manager of a business in Bellingham, Washington embezzled approximately $1.4 million and received a two-year federal sentence.",
+      "The assistant office manager of a regional hardware retail and leasing business ran a scheme from 2013 to 2022 using fraudulent company checks and unauthorized company credit card purchases, including more than 1,800 unauthorized transactions charged through her personal Amazon account. The total came to more than $1.4 million.",
     controlGap:
-      "The title is the point. Oversight is usually designed around the office manager, and the deputy role inherits the same system access with none of the attention.",
+      "Card spending was never reviewed line by line, and an ordinary-looking retail supplier name on a statement is indistinguishable from a personal order. The title is the other half of the problem: oversight tends to be designed around the office manager, while the deputy inherits the same system access with none of the attention.",
     lossUsd: 1400000,
-    lossIsFloor: false,
+    lossIsFloor: true,
+    durationMonths: 108,
     detection: "unknown",
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
+      "Owner opens the company card statement and reads it line by line, every month",
       "Review who holds which system permissions, not who holds which job title",
-      "Remove payment-release rights from anyone whose work does not require them",
+      "Any card charge to a consumer marketplace matched to a business purpose before it is coded",
     ],
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
@@ -386,7 +389,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The reported summary gives amount and sentence but not the mechanism or duration.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade.",
   },
   {
     id: "case-kearny-medical-receptionist",

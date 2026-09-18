@@ -8,24 +8,19 @@ import {
   Compass,
   Crosshair,
   Eye,
-  Gauge,
-  Grid3x3,
-  Layers,
-  Map,
-  MessageSquare,
   FileText,
   Gauge,
   Grid3x3,
   Hammer,
   Layers,
   Map,
+  MessageSquare,
   Network,
   Shield,
   Sparkles,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { controls } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
@@ -38,9 +33,6 @@ import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { StartHere } from "@/components/precog/start-here";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
-import { DecisionJournal } from "@/components/precog/decision-journal";
-import type { MatrixLayerId } from "@/lib/precog/types";
-import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { DecisionJournal } from "@/components/precog/decision-journal";
 import { IndustryOnboarding } from "@/components/precog/industry-onboarding";
 import { IntelligencePanel } from "@/components/precog/intelligence-panel";
@@ -61,13 +53,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/")({
-  component: Home,
-});
-
-type TabId =
-  | "start"
 import { useHydrated } from "@/lib/use-hydrated";
 
 export const Route = createFileRoute("/")({
@@ -111,6 +96,7 @@ function HomeShell() {
 }
 
 type TabId =
+  | "start"
   | "command"
   | "map"
   | "pioneer"
@@ -131,9 +117,9 @@ type TabId =
  */
 const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] = [
   { id: "start", label: "Start here", tactical: "Start here", icon: Compass },
-  { id: "command", label: "Overview", tactical: "Command", icon: Activity },
-  { id: "map", label: "How work flows", tactical: "Map", icon: Map },
-  { id: "pioneer", label: "Ask a question", tactical: "Pioneer", icon: MessageSquare },
+  { id: "command", label: "Dashboard", tactical: "Command", icon: Activity },
+  { id: "map", label: "How work flows", tactical: "Process map", icon: Map },
+  { id: "pioneer", label: "Ask a question", tactical: "Advisor", icon: MessageSquare },
   { id: "intel", label: "Patterns", tactical: "Intel", icon: Brain },
   { id: "residual", label: "What is still exposed", tactical: "Residual", icon: Gauge },
   { id: "coso", label: "Coverage check", tactical: "COSO", icon: Grid3x3 },
@@ -145,36 +131,16 @@ const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] =
 ];
 
 function Home() {
-  const [tab, setTab] = useState<TabId>("start");
-const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
-  { id: "command", label: "Dashboard", icon: Activity },
-  { id: "map", label: "Process map", icon: Map },
-  { id: "pioneer", label: "Advisor", icon: Compass },
-  { id: "intel", label: "Intel", icon: Brain },
-  { id: "residual", label: "Residual", icon: Gauge },
-  { id: "coso", label: "COSO", icon: Grid3x3 },
-  { id: "layers", label: "Layers", icon: Layers },
-  { id: "knowledge", label: "Knowledge", icon: Network },
-  { id: "precog", label: "Precog", icon: Sparkles },
-  { id: "sod", label: "SoD", icon: Shield },
-  { id: "journal", label: "Journal", icon: BookOpen },
-];
-
-function Home() {
   const tpl = useTemplate();
-  const [tab, setTab] = useState<TabId>("command");
+  const [tab, setTab] = useState<TabId>("start");
   const [layer, setLayer] = useState<MatrixLayerId>("control");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
-  const { user, isPending } = useCurrentUserState();
-  const { profile } = usePractice();
-  const { say } = usePresentation();
-
-  const risks = useMemo(() => findKnowledgeRisks(), []);
   const [mapBuild, setMapBuild] = useState(false);
   const { user, isPending } = useCurrentUserState();
   const { profile, ready, templateRevision, mapCustomized } = usePractice();
+  const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
   const risks = useMemo(
@@ -187,12 +153,6 @@ function Home() {
         staff: profile.staff,
         riskVariables: profile.riskVariables,
       }),
-    [profile.staff, profile.riskVariables],
-  );
-  const coso = useMemo(() => assessCoso(), []);
-  const portfolio = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff],
     [profile.staff, profile.riskVariables, profile.industry, templateRevision],
   );
   const coso = useMemo(
@@ -212,10 +172,6 @@ function Home() {
       detectSodConflicts(profile.staff, {
         dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
       }),
-    [profile.staff, profile.dualRelease],
-  );
-  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
-  const sodGaps = controls.filter((c) => !c.segregated).length;
     [profile.staff, profile.dualRelease, profile.industry, templateRevision],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
@@ -291,7 +247,6 @@ function Home() {
     }
     if (
       ["residual", "coso", "sod", "journal", "command", "pioneer", "layers", "start"].includes(
-      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers"].includes(
         tabName,
       )
     ) {
@@ -366,7 +321,6 @@ function Home() {
               >
                 <Icon className="size-4" />
                 {say(t.label, t.tactical)}
-                {t.label}
                 {t.id === "sod" && sodReport.summary.critical > 0 && (
                   <span className="rounded-full bg-danger/20 px-1.5 text-[10px] text-danger">
                     {sodReport.summary.critical}
@@ -381,34 +335,6 @@ function Home() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {tab === "start" && <StartHere onOpenDetail={navigateTab} />}
 
-        {tab === "command" && (
-          <div className="space-y-6">
-            <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">SoD detection · process map · Pioneer</Badge>
-              <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                See every process, risk, and SoD conflict before it bites
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                Automated segregation-of-duties scanning finds who holds incompatible powers
-                (cash + recon, vendor + pay, write-off approve + post). Pair with the process map
-                and Precog scenarios for full residual picture.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => setTab("sod")}>
-                  SoD conflicts ({sodReport.conflicts.length})
-                </Button>
-                <Button variant="secondary" onClick={() => setTab("map")}>
-                  Process map
-                </Button>
-                <Button variant="outline" onClick={() => setTab("pioneer")}>
-                  Run Pioneer
-                </Button>
-                <Link
-                  to="/threat"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-elevated"
-                >
-                  <Crosshair className="size-4" />
-                  Threat Assessment
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
@@ -466,31 +392,6 @@ function Home() {
               </div>
             </section>
 
-            {/* SOF Threat Assessment entry */}
-            <Link
-              to="/threat"
-              className="block rounded-2xl border border-danger/30 bg-danger/5 p-5 transition-colors hover:border-danger/50 hover:bg-danger/10"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Badge variant="danger">OPS · THREAT ASSESSMENT</Badge>
-                  <p className="mt-2 text-lg font-semibold tracking-tight">
-                    Military-style residual threat HUD
-                  </p>
-                  <p className="mt-1 max-w-xl text-sm text-muted">
-                    Special-operations aesthetic for priority control gaps, SoD conflicts,
-                    knowledge SPOFs, and Precog scenarios. Rules of engagement = dual-release,
-                    bank rec, and owner review — educational only.
-                  </p>
-                </div>
-                <span className="inline-flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-                  <Crosshair className="size-4" />
-                  Open /threat
-                </span>
-              </div>
-            </Link>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <MapHealthCard
               onOpenMap={(id) => {
                 setMapBuild(false);
@@ -576,7 +477,6 @@ function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
               <WeeklyActionPlan onNavigate={(t, id) => navigateTab(t, id)} />
               <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
             </div>
@@ -618,7 +518,6 @@ function Home() {
 
         {tab === "map" && (
           <ProcessMap
-            initialProcessId={processId}
             key={mapBuild ? "build" : "view"}
             initialProcessId={processId}
             initialBuild={mapBuild}

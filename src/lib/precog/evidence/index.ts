@@ -85,6 +85,31 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
 }
 
 /**
+ * Maps an industry template to the case-library sector.
+ *
+ * The template system and the case library were built against different
+ * vocabularies — a template describes a product vertical, a case describes the
+ * trade the victim was in — so the join is explicit rather than assumed.
+ * "general" resolving to the cross-sector cases is the honest answer: a
+ * business that has not named its trade should be shown the schemes that work
+ * anywhere.
+ */
+export function sectorForIndustry(industryId: string): IndustrySector {
+  switch (industryId) {
+    case "dental":
+      return "dental";
+    case "retail":
+      return "retail";
+    case "restaurant":
+      return "restaurant";
+    case "professional_services":
+      return "professional-services";
+    default:
+      return "any";
+  }
+}
+
+/**
  * Cases relevant to a sector, with cross-sector cases included.
  *
  * Cross-sector inclusion is deliberate: the mechanism of a fake-vendor scheme
