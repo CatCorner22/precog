@@ -7,6 +7,9 @@
  */
 import { controls } from "./demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { getActiveTemplate } from "./active-template";
+import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { scoreLeadingIndicators } from "./ml/leading-indicators";
@@ -89,6 +92,13 @@ export function buildThreatAssessment(input: {
       hasIndependentBankRec: staff.independentBankRec,
     },
   );
+  const leading = scoreLeadingIndicators(staff, {
+    ...DEFAULT_RISK_VARIABLES,
+    ...(riskVariables ?? {}),
+    hasDualControl: riskVariables?.hasDualControl ?? staff.dualControlPayments,
+    hasIndependentBankRec:
+      riskVariables?.hasIndependentBankRec ?? staff.independentBankRec,
+  });
 
   const targets: ThreatTarget[] = [];
 
@@ -276,7 +286,7 @@ export function buildThreatAssessment(input: {
     ),
   }));
 
-  const openSod = controls.filter((c) => !c.segregated).length;
+  const openSod = getActiveTemplate().controls.filter((c) => !c.segregated).length;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -289,7 +299,7 @@ export function buildThreatAssessment(input: {
     targetDeck: deck,
     matrix,
     missionBrief: [
-      `AO: ${practiceName} — small dental practice residual & control assessment.`,
+      `AO: ${practiceName} — small ${industryMeta(getActiveTemplate().id).teamLabel} residual & control assessment.`,
       `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
       `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
       `Knowledge SPOFs: ${knowledgeRisks.length} sole-owner / unowned critical item(s).`,

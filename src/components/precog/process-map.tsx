@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   Background,
   Controls,
@@ -8,19 +9,23 @@ import {
   Panel,
   Position,
   ReactFlow,
+  type Connection,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
+import { toast } from "sonner";
 import "@xyflow/react/dist/style.css";
 import {
   buildProcessMapGraph,
   enrichProcess,
+  graphNodeIdForPriority,
   layoutProcessMap,
+  priorityKeyForNode,
   type MapGraphNode,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
-import { processes } from "@/lib/precog/demo-data";
 import {
   DEFAULT_LAYERS,
   PRIORITY_BAND_LABEL,
@@ -35,6 +40,8 @@ import {
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
 import { usePractice } from "@/lib/precog/practice-context";
+import { ProcessBuilder } from "@/components/precog/process-builder";
+import { ExportMapImageButton } from "@/components/precog/export-map-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +52,7 @@ import {
   ChevronUp,
   Crosshair,
   Eye,
+  Hammer,
   Layers,
   Lightbulb,
   ListOrdered,
@@ -356,18 +364,32 @@ function layerForKind(kind: string): MapLayerId {
 export function ProcessMap({
   onNavigate,
   initialProcessId,
+  initialBuild = false,
 }: {
   onNavigate?: NavFn;
   initialProcessId?: string | null;
+  initialBuild?: boolean;
 }) {
-  const { profile } = usePractice();
+  const { processes } = useTemplate();
+  const {
+    profile,
+    setMapLayout,
+    setCustomProcesses,
+    mapCustomized,
+    templateRevision,
+    undoMap,
+    redoMap,
+  } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
+  const [build, setBuild] = useState(initialBuild);
+  const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
+  /** Live positions while dragging; committed to the profile on drag stop. */
+  const [liveLayout, setLiveLayout] = useState<Record<string, { x: number; y: number }>>({});
   const [layers, setLayers] = useState<LayerConfig[]>(() =>
     DEFAULT_LAYERS.map((l) => ({ ...l })),
   );
-  const [showLayerPanel, setShowLayerPanel] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialProcessId ?? "proc-cash",
+    initialProcessId ?? processes[0]?.id ?? null,
   );
   const [focusProcessId, setFocusProcessId] = useState<string | null>(
     initialProcessId ?? null,
@@ -379,6 +401,31 @@ export function ProcessMap({
       setFocusProcessId(initialProcessId);
     }
   }, [initialProcessId]);
+
+  // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo — only in build mode, never inside inputs.
+  useEffect(() => {
+    if (!build) return;
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))
+        return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && e.shiftKey) {
+        e.preventDefault();
+        redoMap();
+      } else if (k === "z") {
+        e.preventDefault();
+        undoMap();
+      } else if (k === "y") {
+        e.preventDefault();
+        redoMap();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [build, undoMap, redoMap]);
 
   const layerMap = useMemo(() => {
     const m = new Map<MapLayerId, LayerConfig>();
@@ -398,12 +445,26 @@ export function ProcessMap({
 
   const graph = useMemo(
     () => buildProcessMapGraph(profile.staff, graphOpts),
-    [profile.staff, graphOpts],
+    [profile.staff, graphOpts, templateRevision, profile.industry],
+  );
+
+  // Keep the selection valid when the template or custom map changes.
+  useEffect(() => {
+    if (selectedId && !graph.nodes.some((n) => n.id === selectedId)) {
+      const first = processes[0]?.id ?? null;
+      setSelectedId(first);
+      setFocusProcessId(first);
+    }
+  }, [graph.nodes, processes, selectedId]);
+
+  const pinned = useMemo(
+    () => ({ ...(profile.mapLayout ?? {}), ...liveLayout }),
+    [profile.mapLayout, liveLayout],
   );
 
   const positions = useMemo(
-    () => layoutProcessMap(graph.nodes, graph.edges),
-    [graph],
+    () => layoutProcessMap(graph.nodes, graph.edges, pinned),
+    [graph, pinned],
   );
 
   /** Priority targets for Predator / Terminator + priority list */
@@ -495,7 +556,12 @@ export function ProcessMap({
 
   const priorityById = useMemo(() => {
     const m = new Map<string, PriorityTarget>();
-    for (const t of priorities) m.set(t.id, t);
+    for (const t of priorities) {
+      m.set(t.id, t);
+      if (t.processId && t.kind !== "process") {
+        m.set(`${t.processId}::${t.kind}::${t.id}`, t);
+      }
+    }
     return m;
   }, [priorities]);
 
@@ -512,32 +578,20 @@ export function ProcessMap({
       .map((n) => {
         const p = positions.get(n.id) ?? { x: 0, y: 0 };
         const layer = layerMap.get(layerForKind(n.kind));
-        const pt =
-          priorityById.get(n.id) ||
-          (n.kind === "process" ? priorityById.get(n.id) : undefined) ||
-          (n.processId ? priorityById.get(n.id) : undefined);
-        // try match by data id for risks stored as risk-${id}
-        let pri = pt;
-        if (!pri && n.kind === "risk") {
-          const raw = String(n.data?.riskId ?? n.id.replace(/^risk-/, ""));
-          pri = priorityById.get(raw);
-        }
-        if (!pri && n.kind === "control") {
-          pri = priorityById.get(String(n.data?.controlId ?? n.id.replace(/^ctrl-/, "")));
-        }
-        if (!pri && n.kind === "knowledge") {
-          pri = priorityById.get(
-            String(n.data?.knowledgeId ?? n.id.replace(/^know-/, "")),
+        const pri =
+          priorityById.get(n.id) ??
+          priorityById.get(
+            n.processId && n.kind !== "process"
+              ? `${n.processId}::${n.kind}::${priorityKeyForNode(n)}`
+              : priorityKeyForNode(n),
           );
-        }
-        if (!pri && n.kind === "process") {
-          pri = priorityById.get(n.id);
-        }
         const priority = pri?.priority ?? n.severity ?? 0;
         return {
           id: n.id,
           type: n.kind,
           position: p,
+          draggable: build && n.kind === "process",
+          connectable: build && n.kind === "process",
           data: {
             ...n,
             vision,
@@ -552,7 +606,80 @@ export function ProcessMap({
               : undefined,
         };
       });
-  }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById]);
+  }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById, build]);
+
+  const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
+    const moves: Record<string, { x: number; y: number }> = {};
+    for (const c of changes) {
+      if (c.type === "position" && c.position) moves[c.id] = c.position;
+    }
+    if (Object.keys(moves).length) setLiveLayout((l) => ({ ...l, ...moves }));
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (_: unknown, node: ProcessFlowNode) => {
+      setMapLayout((l) => ({ ...l, [node.id]: node.position }));
+      setLiveLayout((l) => {
+        const next = { ...l };
+        delete next[node.id];
+        return next;
+      });
+    },
+    [setMapLayout],
+  );
+
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      if (!build || !connection.source || !connection.target) return false;
+      if (connection.source === connection.target) return false;
+      const source = graph.nodes.find((n) => n.id === connection.source);
+      const target = graph.nodes.find((n) => n.id === connection.target);
+      return source?.kind === "process" && target?.kind === "process";
+    },
+    [build, graph.nodes],
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      const source = connection.source;
+      const target = connection.target;
+      setCustomProcesses((cur) => {
+        const next = cur.map((p) => {
+          if (p.id !== target) return p;
+          if (p.dependencies.includes(source)) return p;
+          return { ...p, dependencies: [...p.dependencies, source] };
+        });
+        const targetProc = next.find((p) => p.id === target);
+        const sourceProc = next.find((p) => p.id === source);
+        if (targetProc && sourceProc) {
+          toast.success("Dependency linked", {
+            description: `${targetProc.name} now depends on ${sourceProc.name}`,
+          });
+        }
+        return next;
+      });
+    },
+    [setCustomProcesses],
+  );
+
+  const onEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      if (!build) return;
+      for (const edge of deleted) {
+        const ge = graph.edges.find((e) => e.id === edge.id);
+        if (ge?.kind !== "depends") continue;
+        setCustomProcesses((cur) =>
+          cur.map((p) =>
+            p.id === ge.target
+              ? { ...p, dependencies: p.dependencies.filter((d) => d !== ge.source) }
+              : p,
+          ),
+        );
+      }
+    },
+    [build, graph.edges, setCustomProcesses],
+  );
 
   const rfEdges: Edge[] = useMemo(() => {
     const depInteractive = layerMap.get("depends")?.interactive !== false;
@@ -598,6 +725,7 @@ export function ProcessMap({
           id: e.id,
           source: e.source,
           target: e.target,
+          deletable: build && e.kind === "depends",
           label: vision === "standard" ? e.label : undefined,
           animated: isDep && depInteractive && vision !== "terminator",
           style: {
@@ -616,7 +744,7 @@ export function ProcessMap({
           interactionWidth: passiveDep ? 1 : 12,
         };
       });
-  }, [graph.edges, vision, layerMap, rfNodes]);
+  }, [graph.edges, vision, layerMap, rfNodes, build]);
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId);
   const processId =
@@ -666,16 +794,17 @@ export function ProcessMap({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Interactive process map</Badge>
           <Badge variant="primary">Vision systems online</Badge>
+          {mapCustomized && <Badge variant="ok">Your custom map</Badge>}
         </div>
         <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-          Value stream · priorities · thermal & threat vision
+          Map your business · see risk light up · fix what matters
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Toggle layers that interact vs stay passive. Switch to{" "}
-          <strong className="text-fg">Risk Predator</strong> for thermal priority heat
-          (blue → white-hot), or <strong className="text-fg">Risk Terminator</strong> for
-          immediate threat lock-on — with a friendly chrome buddy who just wants residual
-          cut to a reasonable level.
+          Start from the industry template, then hit{" "}
+          <strong className="text-fg">Build</strong> to add your own processes, owners,
+          risks, and controls — every edit re-scores residual risk live. Switch to{" "}
+          <strong className="text-fg">Risk Predator</strong> for thermal priority heat or{" "}
+          <strong className="text-fg">Risk Terminator</strong> for immediate threat lock-on.
         </p>
 
         {/* Vision mode switcher */}
@@ -708,7 +837,30 @@ export function ProcessMap({
             <Layers className="size-3.5" />
             Layers
           </Button>
+          <Button
+            size="sm"
+            variant={build ? "default" : "secondary"}
+            onClick={() => {
+              setBuild((v) => !v);
+              if (!build) {
+                setVision("standard");
+                setShowLayerPanel(false);
+              }
+            }}
+          >
+            <Hammer className="size-3.5" />
+            {build ? "Building" : "Build"}
+          </Button>
         </div>
+
+        {build && (
+          <div className="mt-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
+            <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to
+            arrange your value stream. Drag from the right handle of one process to the left
+            handle of another to wire dependencies. Click a process to edit it — or insert a
+            reusable block from the builder panel.
+          </div>
+        )}
 
         {vision === "predator" && (
           <div className="mt-4 rounded-xl border border-border bg-black/40 p-3 predator-hud">
@@ -820,6 +972,14 @@ export function ProcessMap({
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 onNodeClick={onNodeClick}
+                onNodesChange={onNodesChange}
+                onNodeDragStop={onNodeDragStop}
+                onConnect={onConnect}
+                onEdgesDelete={onEdgesDelete}
+                isValidConnection={isValidConnection}
+                nodesDraggable={build}
+                nodesConnectable={build}
+                deleteKeyCode={build ? "Delete" : null}
                 fitView
                 fitViewOptions={{ padding: 0.15 }}
                 minZoom={0.25}
@@ -843,6 +1003,7 @@ export function ProcessMap({
                   nodeStrokeWidth={2}
                   pannable
                   zoomable
+                  bgColor="rgba(21, 24, 32, 0.92)"
                   maskColor={
                     vision === "terminator"
                       ? "rgba(40,0,0,0.65)"
@@ -859,12 +1020,37 @@ export function ProcessMap({
                     <TerminatorLegend immediate={immediate} />
                   )}
                 </Panel>
+                <Panel position="top-right" className="m-2!">
+                  <ExportMapImageButton
+                    fileName={`${(profile.practiceName || "process-map")
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/^-+|-+$/g, "")}-map-${vision}`}
+                    background={
+                      vision === "terminator"
+                        ? "#0a0000"
+                        : vision === "predator"
+                          ? "#05070d"
+                          : "#151820"
+                    }
+                  />
+                </Panel>
               </ReactFlow>
             </div>
           </Card>
         </div>
 
         <div className="space-y-3">
+          {build && (
+            <ProcessBuilder
+              selectedProcessId={processId ?? null}
+              onSelectProcess={(id) => {
+                setSelectedId(id);
+                setFocusProcessId(id);
+              }}
+              onClose={() => setBuild(false)}
+            />
+          )}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -878,20 +1064,10 @@ export function ProcessMap({
             <CardContent className="max-h-[320px] space-y-1.5 overflow-y-auto">
               {priorities.slice(0, 12).map((t, i) => (
                 <button
-                  key={`${t.kind}-${t.id}`}
+                  key={`${t.kind}-${t.processId ?? ""}-${t.id}`}
                   type="button"
                   onClick={() => {
-                    setSelectedId(
-                      t.kind === "process"
-                        ? t.id
-                        : graph.nodes.find(
-                            (n) =>
-                              n.id.includes(t.id) ||
-                              String(n.data?.riskId) === t.id ||
-                              String(n.data?.controlId) === t.id ||
-                              String(n.data?.knowledgeId) === t.id,
-                          )?.id ?? t.processId ?? t.id,
-                    );
+                    setSelectedId(graphNodeIdForPriority(t, graph.nodes));
                     if (t.processId) setFocusProcessId(t.processId);
                   }}
                   className={cn(
@@ -1079,6 +1255,7 @@ function ProcessDetail({
   onNavigate?: NavFn;
   onSelectProcess: (id: string) => void;
 }) {
+  const { processes } = useTemplate();
   const p = snapshot.process;
   return (
     <Card>

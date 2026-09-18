@@ -3,8 +3,8 @@
  * Pure TypeScript — no heavy deps.
  */
 import type { StaffComposition } from "../types";
+import { getActiveTemplate } from "../active-template";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
-import { controls } from "../demo-data";
 import { findKnowledgeRisks } from "../engine";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { assessCoso } from "../coso";
@@ -19,6 +19,7 @@ export function buildFeatureVector(
   staff: StaffComposition,
   riskVars: RiskVariableState,
 ): PracticeFeatureVector {
+  const { controls } = getActiveTemplate();
   const portfolio = portfolioSummary(staff);
   const coso = assessCoso();
   const spofs = findKnowledgeRisks().filter((r) => r.soleOwner);

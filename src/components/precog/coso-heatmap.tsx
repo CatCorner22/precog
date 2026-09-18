@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { usePractice } from "@/lib/precog/practice-context";
 import {
   assessCoso,
   type CosoComponentAssessment,
@@ -49,7 +50,11 @@ export function CosoHeatmap({
   onNavigate: (target: DeepLinkTarget) => void;
   initialComponentId?: CosoComponentId;
 }) {
-  const assessment = useMemo(() => assessCoso(), []);
+  const { profile, templateRevision } = usePractice();
+  const assessment = useMemo(
+    () => assessCoso(),
+    [profile.industry, templateRevision],
+  );
   const [activeId, setActiveId] = useState<CosoComponentId>(
     initialComponentId ??
       assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??

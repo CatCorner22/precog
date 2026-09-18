@@ -1,5 +1,5 @@
-import { controls, staffComposition } from "./demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { getActiveTemplate } from "./active-template";
 
 export type CosoComponentId =
   | "control_environment"
@@ -57,6 +57,7 @@ export function assessCoso(): {
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
+  const { controls, staffComposition } = getActiveTemplate();
   const risks = findKnowledgeRisks();
   const ranked = rankDangerousScenarios();
   const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= 65);

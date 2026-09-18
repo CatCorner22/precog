@@ -1,12 +1,16 @@
+import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
-import { Badge } from "@/components/ui/badge";
+import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
+import { getIndustryTemplate } from "@/lib/precog/templates";
+import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings2, ShieldCheck } from "lucide-react";
 
-/** Lightweight practice profile editor — feeds staff into residual & LLM tools. */
+/** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
-  const { profile, setPracticeName, setStaff, setDualRelease, resetProfile } = usePractice();
+  const { profile, setPracticeName, setIndustry, setStaff, setDualRelease, resetProfile } =
+    usePractice();
   const s = profile.staff;
 
   return (
@@ -15,17 +19,48 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Settings2 className="size-4 text-primary" />
-            Practice profile
+            Business profile
           </CardTitle>
-          <Badge variant="default">Saved on this device</Badge>
+          <SyncStatusBadge />
         </div>
         <CardDescription>
-          Name and staff composition drive residual scores, Precog, dual release, and Pioneer.
+          Industry sets the demo template (process map, knowledge graph, scenarios). Team size
+          and control posture drive residual scores and your AI advisor. Sign in to sync across
+          devices.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <label className="block text-sm">
-          <span className="text-muted">Practice name</span>
+          <span className="text-muted">Industry</span>
+          <select
+            value={profile.industry}
+            onChange={(e) => {
+              const next = e.target.value as typeof profile.industry;
+              if (next === profile.industry) return;
+              const label = INDUSTRIES.find((i) => i.id === next)?.label ?? next;
+              const ok = window.confirm(
+                `Switch to ${label}? This loads that industry's demo processes, people, scenarios, and staff defaults. Your decision log is kept.`,
+              );
+              if (ok) {
+                setIndustry(next);
+                const tpl = getIndustryTemplate(next);
+                const meta = industryMeta(next);
+                toast.success(`Loaded ${meta.label} template`, {
+                  description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
+                });
+              }
+            }}
+            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+          >
+            {INDUSTRIES.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="text-muted">Business name</span>
           <input
             value={profile.practiceName}
             onChange={(e) => setPracticeName(e.target.value)}

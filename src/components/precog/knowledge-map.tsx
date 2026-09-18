@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { knowledge, people, relations } from "@/lib/precog/demo-data";
+import { useTemplate } from "@/lib/precog/use-template";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,8 @@ export function KnowledgeMap({
 }: {
   initialKnowledgeId?: string | null;
 }) {
-  const risks = useMemo(() => findKnowledgeRisks(), []);
+  const { people, knowledge, relations } = useTemplate();
+  const risks = useMemo(() => findKnowledgeRisks(), [people, knowledge, relations]);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialKnowledgeId ?? risks[0]?.knowledgeId ?? null,
   );

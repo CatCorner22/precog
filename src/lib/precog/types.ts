@@ -68,6 +68,8 @@ export interface Person {
   role: string;
   active: boolean;
   tenureYears: number;
+  /** Explicit duty entitlements when role is custom or needs override. */
+  entitlements?: string[];
 }
 
 export interface KnowledgeItem {

@@ -1,4 +1,6 @@
-import type { StaffComposition } from "./types";
+import type { SavedProcessBlock } from "./builder/process-blocks";
+import type { Person, ProcessNode, StaffComposition } from "./types";
+import { getIndustryTemplate } from "./templates";
 import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
@@ -8,7 +10,7 @@ import {
   mergeDualReleasePolicy,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { PRACTICE_NAME, staffComposition as demoStaff } from "./demo-data";
+import { industryMeta, type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -26,20 +28,52 @@ export interface DecisionEntry {
 
 export interface PracticeProfile {
   practiceName: string;
+  industry: IndustryId;
   staff: StaffComposition;
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
   decisions: DecisionEntry[];
+  /** False on first visit until the user picks an industry template. */
+  onboardingComplete?: boolean;
+  /** User-built process map. Null/undefined = use the industry template as-is. */
+  customProcesses?: ProcessNode[] | null;
+  /** The user's real team. Null/undefined = template demo people. */
+  customPeople?: Person[] | null;
+  /** Pinned canvas positions for process nodes (from drag in build mode). */
+  mapLayout?: Record<string, { x: number; y: number }>;
+  /** User-saved process blocks for reuse in the map builder. */
+  savedProcessBlocks?: SavedProcessBlock[];
+  /** Map health score snapshots over time (newest last). */
+  mapHealthHistory?: MapHealthPoint[];
+  /** Named snapshots of the map for restore/compare (newest first). */
+  mapVersions?: MapVersion[];
   updatedAt: string;
+}
+
+export interface MapVersion {
+  id: string;
+  name: string;
+  createdAt: string;
+  healthScore: number;
+  processes: ProcessNode[];
+  people: Person[];
+  layout: Record<string, { x: number; y: number }>;
+}
+
+export interface MapHealthPoint {
+  at: string;
+  score: number;
 }
 
 const STORAGE_KEY = "precog.practiceProfile.v2";
 
-export function defaultProfile(): PracticeProfile {
-  const staff = { ...demoStaff };
+export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
+  const tpl = getIndustryTemplate(industry);
+  const staff = { ...tpl.staffComposition };
   const dualRelease = defaultDualReleasePolicy(staff);
   return {
-    practiceName: PRACTICE_NAME,
+    practiceName: tpl.businessName,
+    industry,
     staff,
     riskVariables: {
       ...DEFAULT_RISK_VARIABLES,
@@ -48,6 +82,13 @@ export function defaultProfile(): PracticeProfile {
     },
     dualRelease,
     decisions: [],
+    onboardingComplete: true,
+    customProcesses: null,
+    customPeople: null,
+    mapLayout: {},
+    savedProcessBlocks: [],
+    mapHealthHistory: [],
+    mapVersions: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -59,9 +100,10 @@ export function loadProfile(): PracticeProfile {
     const raw =
       localStorage.getItem(STORAGE_KEY) ??
       localStorage.getItem("precog.practiceProfile.v1");
-    if (!raw) return defaultProfile();
+    if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
-    const base = defaultProfile();
+    const industry = (parsed.industry as IndustryId) ?? "dental";
+    const base = defaultProfile(industry);
     const staff = { ...base.staff, ...parsed.staff };
     const dualRelease = mergeDualReleasePolicy(
       parsed.dualRelease as DualReleasePolicy | undefined,
@@ -76,6 +118,7 @@ export function loadProfile(): PracticeProfile {
     return {
       ...base,
       ...parsed,
+      industry,
       staff,
       riskVariables: {
         ...base.riskVariables,
@@ -85,6 +128,16 @@ export function loadProfile(): PracticeProfile {
       },
       dualRelease,
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+      onboardingComplete: parsed.onboardingComplete ?? true,
+      customProcesses: Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null,
+      customPeople: Array.isArray(parsed.customPeople) ? parsed.customPeople : null,
+      mapLayout:
+        parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
+      savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks)
+        ? parsed.savedProcessBlocks
+        : [],
+      mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
+      mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
     };
   } catch {
     return defaultProfile();
