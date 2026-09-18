@@ -5,8 +5,8 @@
  * Educational decision-support for dental practice owners.
  * "Threat" = control failure / residual risk / continuity exposure — never people.
  */
-import { controls } from "./demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { getActiveTemplate } from "./active-template";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { scoreLeadingIndicators } from "./ml/leading-indicators";
@@ -275,7 +275,7 @@ export function buildThreatAssessment(input: {
     ),
   }));
 
-  const openSod = controls.filter((c) => !c.segregated).length;
+  const openSod = getActiveTemplate().controls.filter((c) => !c.segregated).length;
 
   return {
     generatedAt: new Date().toISOString(),

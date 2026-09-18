@@ -1,15 +1,8 @@
 /**
  * Process map graph builder — merges processes, SoD, knowledge SPOFs, residuals, ideas.
  */
-import {
-  controls,
-  knowledge,
-  people,
-  processes,
-  relations,
-  scenarios,
-} from "./demo-data";
 import { findKnowledgeRisks } from "./engine";
+import { getActiveTemplate } from "./active-template";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type {
@@ -72,6 +65,7 @@ function riskHeat(r: ProcessRisk) {
 }
 
 export function enrichProcess(process: ProcessNode, staff?: StaffComposition): ProcessMapSnapshot {
+  const { controls, knowledge, people, scenarios } = getActiveTemplate();
   const risks = process.risks ?? [];
   const ideas = process.ideas ?? [];
   const wastes = process.wastes ?? [];
@@ -162,6 +156,7 @@ export function buildProcessMapGraph(
   const showWaste = opts.showWaste ?? true;
   const showKnowledge = opts.showKnowledge ?? true;
 
+  const { processes, controls, knowledge, people, scenarios, relations } = getActiveTemplate();
   const snapshots = processes.map((p) => enrichProcess(p, staff));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];

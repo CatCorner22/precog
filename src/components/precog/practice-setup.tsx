@@ -22,8 +22,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <SyncStatusBadge />
         </div>
         <CardDescription>
-          Team size and control posture drive residual scores, scenarios, and your AI advisor.
-          Sign in to sync across devices.
+          Industry sets the demo template (process map, knowledge graph, scenarios). Team size
+          and control posture drive residual scores and your AI advisor. Sign in to sync across
+          devices.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -31,7 +32,15 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <span className="text-muted">Industry</span>
           <select
             value={profile.industry}
-            onChange={(e) => setIndustry(e.target.value as typeof profile.industry)}
+            onChange={(e) => {
+              const next = e.target.value as typeof profile.industry;
+              if (next === profile.industry) return;
+              const label = INDUSTRIES.find((i) => i.id === next)?.label ?? next;
+              const ok = window.confirm(
+                `Switch to ${label}? This loads that industry's demo processes, people, scenarios, and staff defaults. Your decision log is kept.`,
+              );
+              if (ok) setIndustry(next);
+            }}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
           >
             {INDUSTRIES.map((i) => (

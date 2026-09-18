@@ -1,5 +1,6 @@
-import { LAYER_META, processes, controls, knowledge } from "@/lib/precog/demo-data";
 import type { MatrixLayerId } from "@/lib/precog/types";
+import { LAYER_META } from "@/lib/precog/templates/layer-meta";
+import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function LayersPanel({
   active: MatrixLayerId;
   onSelect: (id: MatrixLayerId) => void;
 }) {
+  const { processes, controls, knowledge } = useTemplate();
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {ORDER.map((id, index) => {
@@ -66,6 +68,7 @@ export function LayersPanel({
 }
 
 export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
+  const { processes, controls, knowledge } = useTemplate();
   const meta = LAYER_META[layer];
 
   if (layer === "process") {

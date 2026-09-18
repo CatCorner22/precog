@@ -22,6 +22,8 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
+import { setActiveIndustry } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import {
   defaultProfile,
   loadProfile,
@@ -38,6 +40,8 @@ interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
   syncStatus: SyncStatus;
+  /** Bumps when the active industry template swaps — drives useTemplate() re-renders. */
+  templateRevision: number;
   setPracticeName: (name: string) => void;
   setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => void;
@@ -69,12 +73,16 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [templateRevision, setTemplateRevision] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudLoadedFor = useRef<string | null>(null);
 
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
-    setProfile(loadProfile());
+    const loaded = loadProfile();
+    setActiveIndustry(loaded.industry);
+    setTemplateRevision((r) => r + 1);
+    setProfile(loaded);
     setReady(true);
   }, []);
 
@@ -94,6 +102,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         cloudLoadedFor.current = user.id;
         if (res.found && res.profile) {
+          setActiveIndustry(res.profile.industry);
+          setTemplateRevision((r) => r + 1);
           setProfile(res.profile);
           saveProfile(res.profile);
         }
@@ -135,11 +145,25 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setIndustry = useCallback((industry: IndustryId) => {
+    setActiveIndustry(industry);
+    setTemplateRevision((r) => r + 1);
     const meta = industryMeta(industry);
+    const tpl = getIndustryTemplate(industry);
+    const staff = { ...tpl.staffComposition };
     setProfile((p) => ({
       ...p,
       industry,
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
+      staff,
+      riskVariables: {
+        ...p.riskVariables,
+        hasDualControl: staff.dualControlPayments,
+        hasIndependentBankRec: staff.independentBankRec,
+      },
+      dualRelease: {
+        ...p.dualRelease,
+        enabled: staff.dualControlPayments,
+      },
     }));
   }, []);
 
@@ -248,7 +272,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetProfile = useCallback(() => {
-    setProfile(defaultProfile());
+    setProfile((p) => {
+      setActiveIndustry(p.industry);
+      setTemplateRevision((r) => r + 1);
+      return defaultProfile(p.industry);
+    });
   }, []);
 
   const value = useMemo(
@@ -256,6 +284,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
+      templateRevision,
       setPracticeName,
       setIndustry,
       setStaff,
@@ -269,6 +298,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
+      templateRevision,
       setPracticeName,
       setIndustry,
       setStaff,

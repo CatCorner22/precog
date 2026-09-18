@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -17,7 +18,6 @@ import {
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { controls } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
@@ -77,6 +77,7 @@ const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
 ];
 
 function Home() {
+  const tpl = useTemplate();
   const [tab, setTab] = useState<TabId>("command");
   const [layer, setLayer] = useState<MatrixLayerId>("control");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
@@ -111,7 +112,7 @@ function Home() {
     [profile.staff, profile.dualRelease],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
-  const sodGaps = controls.filter((c) => !c.segregated).length;
+  const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = profile.decisions.filter(
     (d) => d.reviewBy && new Date(d.reviewBy).getTime() < Date.now(),

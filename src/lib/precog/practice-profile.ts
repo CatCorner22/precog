@@ -1,4 +1,5 @@
 import type { StaffComposition } from "./types";
+import { getIndustryTemplate } from "./templates";
 import {
   DEFAULT_RISK_VARIABLES,
   type RiskVariableState,
@@ -8,7 +9,6 @@ import {
   mergeDualReleasePolicy,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { PRACTICE_NAME, staffComposition as demoStaff } from "./demo-data";
 import { industryMeta, type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
@@ -38,11 +38,11 @@ export interface PracticeProfile {
 const STORAGE_KEY = "precog.practiceProfile.v2";
 
 export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
-  const staff = { ...demoStaff };
+  const tpl = getIndustryTemplate(industry);
+  const staff = { ...tpl.staffComposition };
   const dualRelease = defaultDualReleasePolicy(staff);
-  const meta = industryMeta(industry);
   return {
-    practiceName: industry === "dental" ? PRACTICE_NAME : meta.demoName,
+    practiceName: tpl.businessName,
     industry,
     staff,
     riskVariables: {
@@ -65,7 +65,8 @@ export function loadProfile(): PracticeProfile {
       localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return defaultProfile();
     const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
-    const base = defaultProfile();
+    const industry = (parsed.industry as IndustryId) ?? "dental";
+    const base = defaultProfile(industry);
     const staff = { ...base.staff, ...parsed.staff };
     const dualRelease = mergeDualReleasePolicy(
       parsed.dualRelease as DualReleasePolicy | undefined,
@@ -80,7 +81,7 @@ export function loadProfile(): PracticeProfile {
     return {
       ...base,
       ...parsed,
-      industry: (parsed.industry as IndustryId) ?? base.industry,
+      industry,
       staff,
       riskVariables: {
         ...base.riskVariables,

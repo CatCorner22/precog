@@ -2,16 +2,7 @@
  * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
 import { assessCoso } from "../coso";
-import {
-  PRACTICE_NAME,
-  controls,
-  crimeFraudStats,
-  knowledge,
-  people,
-  relations,
-  scenarios,
-  staffComposition as demoStaff,
-} from "../demo-data";
+import { getActiveTemplate } from "../active-template";
 import {
   findKnowledgeRisks,
   rankDangerousScenarios,
@@ -71,7 +62,7 @@ function usd(n: number) {
 }
 
 function staffOf(ctx: ToolContext): StaffComposition {
-  return ctx.staff ?? demoStaff;
+  return ctx.staff ?? getActiveTemplate().staffComposition;
 }
 
 export const TOOL_CATALOG: {
@@ -103,8 +94,10 @@ export function executeTool(
   args: Record<string, unknown> = {},
   ctx: ToolContext = {},
 ): ToolResult {
+  const tpl = getActiveTemplate();
+  const { people, knowledge, relations, scenarios, controls, crimeFraudStats } = tpl;
   const staff = staffOf(ctx);
-  const practiceName = ctx.practiceName ?? PRACTICE_NAME;
+  const practiceName = ctx.practiceName ?? tpl.businessName;
   const riskVars = ctx.riskVariables ?? DEFAULT_RISK_VARIABLES;
 
   try {

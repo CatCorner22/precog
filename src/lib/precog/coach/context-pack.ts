@@ -1,10 +1,11 @@
-import { PRACTICE_NAME, staffComposition, crimeFraudStats } from "../demo-data";
 import { assessCoso } from "../coso";
+import { getActiveTemplate } from "../active-template";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
 
 /** Dense, structured context for the Pioneer LLM coach — token-efficient. */
 export function buildPioneerContextPack() {
+  const { businessName, staffComposition, crimeFraudStats } = getActiveTemplate();
   const portfolio = portfolioSummary();
   const coso = assessCoso();
   const ranked = rankDangerousScenarios().slice(0, 3);
@@ -12,7 +13,7 @@ export function buildPioneerContextPack() {
   const tornado = tornadoSensitivity();
 
   return {
-    practice: PRACTICE_NAME,
+    practice: businessName,
     scoringVersion: portfolio.scoringVersion,
     staff: staffComposition,
     crimePrior: {

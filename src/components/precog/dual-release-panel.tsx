@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { people } from "@/lib/precog/demo-data";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
   dualReleaseCoverage,
@@ -64,6 +64,7 @@ export function DualReleasePanel({
 }: {
   onOpenSod?: () => void;
 }) {
+  const { people } = useTemplate();
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
 

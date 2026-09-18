@@ -8,8 +8,8 @@
  *
  * Educational control design — not bank/PMS integration.
  */
-import { people } from "../demo-data";
 import type { StaffComposition } from "../types";
+import { getActiveTemplate } from "../active-template";
 
 export type ReleaseChannel =
   | "ach"
@@ -324,7 +324,7 @@ export function mergeDualReleasePolicy(
 }
 
 function personById(id: string) {
-  return people.find((p) => p.id === id);
+  return getActiveTemplate().people.find((p) => p.id === id);
 }
 
 function todayIso(asOf?: string) {
@@ -462,10 +462,11 @@ export function listEligibleApprovers(
   const rule = policy.rules.find((r) => r.channel === channel);
   if (!rule) return [];
 
+  const { people } = getActiveTemplate();
   return people
     .filter((p) => p.active)
     .map((p) => {
-      const isOwner = p.role === "Owner / Dentist";
+      const isOwner = /owner|managing partner/i.test(p.role);
       const canInitiate = rule.firstApproverRoles.includes(p.role);
       const canSecond =
         rule.secondApproverRoles.includes(p.role) ||

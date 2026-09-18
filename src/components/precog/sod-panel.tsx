@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { controls } from "@/lib/precog/demo-data";
+import { useTemplate } from "@/lib/precog/use-template";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
@@ -37,6 +37,7 @@ const FRAMEWORK = [
 type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
+  const { controls } = useTemplate();
   const { profile } = usePractice();
   const [view, setView] = useState<
     "conflicts" | "matrix" | "roles" | "dual"
@@ -47,7 +48,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
   const residualAccepted = useMemo(
     () => new Set(controls.filter((c) => c.residualRiskAccepted).map((c) => c.id)),
-    [],
+    [controls],
   );
   const compensatingByControl = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -55,7 +56,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       if (c.compensatingControls.length) m[c.id] = c.compensatingControls;
     }
     return m;
-  }, []);
+  }, [controls]);
 
   const dualMitigated = useMemo(
     () => mitigatedSodRuleIds(profile.dualRelease),

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   Background,
   Controls,
@@ -20,7 +21,6 @@ import {
   type MapGraphNode,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
-import { processes } from "@/lib/precog/demo-data";
 import {
   DEFAULT_LAYERS,
   PRIORITY_BAND_LABEL,
@@ -360,6 +360,7 @@ export function ProcessMap({
   onNavigate?: NavFn;
   initialProcessId?: string | null;
 }) {
+  const { processes } = useTemplate();
   const { profile } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [layers, setLayers] = useState<LayerConfig[]>(() =>
@@ -1079,6 +1080,7 @@ function ProcessDetail({
   onNavigate?: NavFn;
   onSelectProcess: (id: string) => void;
 }) {
+  const { processes } = useTemplate();
   const p = snapshot.process;
   return (
     <Card>

@@ -18,8 +18,8 @@
  *
  * Educational / decision-support — not actuarial or legal advice.
  */
-import { controls, knowledge, people, relations, scenarios } from "../demo-data";
 import { detectSodConflicts } from "../sod/detect";
+import { getActiveTemplate } from "../active-template";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
@@ -139,6 +139,7 @@ function clamp(n: number, lo = 0, hi = 100) {
  * Run epistemic meta-analysis over current practice profile + demo corpus.
  */
 export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
+  const { people, knowledge, relations } = getActiveTemplate();
   const staff = profile.staff;
   const vars = profile.riskVariables;
   const dual = profile.dualRelease;

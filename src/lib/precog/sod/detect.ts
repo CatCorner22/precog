@@ -8,7 +8,7 @@
  * 4. Score severity with risk weights + residual acceptance + dual-release mitigation
  * 5. Build N×N entitlement matrix for UI
  */
-import { people } from "../demo-data";
+import { getActiveTemplate } from "../active-template";
 import {
   CONFLICT_RULES,
   ENTITLEMENTS,
@@ -75,46 +75,6 @@ export interface SodDetectionReport {
   };
   recommendations: string[];
 }
-
-/** Default dental role → entitlement templates. */
-export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": [
-    "approve_writeoffs",
-    "approve_vendor",
-    "approve_payroll",
-    "bank_reconcile",
-    "view_reports_only",
-    "pms_admin_roles",
-  ],
-  "Office Manager": [
-    "post_payments",
-    "prepare_deposit",
-    "post_adjustments",
-    "create_vendor",
-    "release_payment",
-    "enter_payroll",
-    "approve_writeoffs",
-    "pms_admin_roles",
-    "submit_claims",
-    "view_reports_only",
-  ],
-  "Front Desk Lead": [
-    "collect_cash",
-    "post_payments",
-    "prepare_deposit",
-    "submit_claims",
-    "post_adjustments",
-  ],
-  Hygienist: ["view_reports_only"],
-  "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "approve_writeoffs",
-    "view_reports_only",
-  ],
-};
 
 function entLabel(id: EntitlementId) {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
@@ -183,8 +143,9 @@ function scoreConflict(
 export function buildAssignments(
   overrides?: Partial<Record<string, EntitlementId[]>>,
 ): RoleAssignment[] {
+  const { people, roleTemplates } = getActiveTemplate();
   return people.map((p) => {
-    const fromRole = ROLE_TEMPLATES[p.role] ?? ["view_reports_only"];
+    const fromRole = roleTemplates[p.role] ?? ["view_reports_only"];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {
