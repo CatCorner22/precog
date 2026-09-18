@@ -357,6 +357,7 @@ export function buildProcessMapGraph(
 export function layoutProcessMap(
   nodes: MapGraphNode[],
   edges: MapGraphEdge[],
+  pinned: Record<string, { x: number; y: number }> = {},
 ): Map<string, { x: number; y: number }> {
   const pos = new Map<string, { x: number; y: number }>();
   const processNodes = nodes.filter((n) => n.kind === "process");
@@ -376,7 +377,7 @@ export function layoutProcessMap(
   stageKeys.forEach((st, si) => {
     const col = stages.get(st)!;
     col.forEach((n, ri) => {
-      pos.set(n.id, { x: 80 + si * 280, y: 80 + ri * 140 });
+      pos.set(n.id, pinned[n.id] ?? { x: 80 + si * 280, y: 80 + ri * 140 });
     });
   });
 

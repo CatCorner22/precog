@@ -24,7 +24,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       return { found: false as const, profile: null, industry: "dental" as IndustryId };
     }
     const row = rows[0];
-    const base = defaultProfile();
+    const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
     const merged: PracticeProfile = {
       ...base,
       ...row.profile,
@@ -33,6 +33,10 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       riskVariables: { ...base.riskVariables, ...row.profile.riskVariables },
       dualRelease: { ...base.dualRelease, ...row.profile.dualRelease },
       decisions: Array.isArray(row.profile.decisions) ? row.profile.decisions : [],
+      customProcesses: Array.isArray(row.profile.customProcesses)
+        ? row.profile.customProcesses
+        : null,
+      mapLayout: row.profile.mapLayout ?? {},
     };
     return {
       found: true as const,

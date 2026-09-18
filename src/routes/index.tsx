@@ -28,6 +28,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { DecisionJournal } from "@/components/precog/decision-journal";
+import { IndustryOnboarding } from "@/components/precog/industry-onboarding";
 import { IntelligencePanel } from "@/components/precog/intelligence-panel";
 import { KnowledgeMap } from "@/components/precog/knowledge-map";
 import { LayerDetail, LayersPanel } from "@/components/precog/layers-panel";
@@ -84,7 +85,7 @@ function Home() {
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
   const { user, isPending } = useCurrentUserState();
-  const { profile, templateRevision } = usePractice();
+  const { profile, ready, templateRevision } = usePractice();
   const industry = industryMeta(profile.industry);
 
   const risks = useMemo(
@@ -181,6 +182,7 @@ function Home() {
 
   return (
     <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
+      {ready && profile.onboardingComplete === false && <IndustryOnboarding />}
       <header className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0">

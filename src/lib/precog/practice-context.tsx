@@ -10,7 +10,7 @@ import {
 } from "react";
 import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import type { StaffComposition } from "./types";
+import type { ProcessNode, StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
@@ -22,7 +22,7 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
-import { setActiveIndustry } from "./active-template";
+import { setActiveIndustry, setProcessOverrides } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import {
   defaultProfile,
@@ -62,6 +62,20 @@ interface PracticeContextValue {
   }) => void;
   removeDecision: (id: string) => void;
   resetProfile: () => void;
+  /** First-visit picker: load the template and mark onboarding done. */
+  completeOnboarding: (industry: IndustryId) => void;
+  /** Map builder: replace the process map (null = back to industry template). */
+  setCustomProcesses: (
+    v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
+  ) => void;
+  /** Map builder: pin canvas positions for process nodes. */
+  setMapLayout: (
+    v:
+      | Record<string, { x: number; y: number }>
+      | ((l: Record<string, { x: number; y: number }>) => Record<string, { x: number; y: number }>),
+  ) => void;
+  /** True when the process map differs from the industry template. */
+  mapCustomized: boolean;
 }
 
 const PracticeContext = createContext<PracticeContextValue | null>(null);
@@ -81,6 +95,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loaded = loadProfile();
     setActiveIndustry(loaded.industry);
+    setProcessOverrides(loaded.customProcesses ?? null);
     setTemplateRevision((r) => r + 1);
     setProfile(loaded);
     setReady(true);
@@ -103,6 +118,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         cloudLoadedFor.current = user.id;
         if (res.found && res.profile) {
           setActiveIndustry(res.profile.industry);
+          setProcessOverrides(res.profile.customProcesses ?? null);
           setTemplateRevision((r) => r + 1);
           setProfile(res.profile);
           saveProfile(res.profile);
@@ -146,6 +162,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const setIndustry = useCallback((industry: IndustryId) => {
     setActiveIndustry(industry);
+    setProcessOverrides(null);
     setTemplateRevision((r) => r + 1);
     const meta = industryMeta(industry);
     const tpl = getIndustryTemplate(industry);
@@ -155,6 +172,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       ...fresh,
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
       decisions: p.decisions,
+      onboardingComplete: true,
     }));
   }, []);
 
@@ -265,10 +283,57 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const resetProfile = useCallback(() => {
     setProfile((p) => {
       setActiveIndustry(p.industry);
+      setProcessOverrides(null);
       setTemplateRevision((r) => r + 1);
       return defaultProfile(p.industry);
     });
   }, []);
+
+  const completeOnboarding = useCallback((industry: IndustryId) => {
+    setActiveIndustry(industry);
+    setProcessOverrides(null);
+    setTemplateRevision((r) => r + 1);
+    setProfile((p) => ({
+      ...defaultProfile(industry),
+      decisions: p.decisions,
+      onboardingComplete: true,
+    }));
+  }, []);
+
+  const setCustomProcesses = useCallback(
+    (
+      v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
+    ) => {
+      setProfile((p) => {
+        const current =
+          p.customProcesses ?? getIndustryTemplate(p.industry).processes;
+        const next = typeof v === "function" ? v(current) : v;
+        setProcessOverrides(next);
+        setTemplateRevision((r) => r + 1);
+        return { ...p, customProcesses: next };
+      });
+    },
+    [],
+  );
+
+  const setMapLayout = useCallback(
+    (
+      v:
+        | Record<string, { x: number; y: number }>
+        | ((
+            l: Record<string, { x: number; y: number }>,
+          ) => Record<string, { x: number; y: number }>),
+    ) => {
+      setProfile((p) => {
+        const cur = p.mapLayout ?? {};
+        const next = typeof v === "function" ? v(cur) : v;
+        return { ...p, mapLayout: next };
+      });
+    },
+    [],
+  );
+
+  const mapCustomized = Boolean(profile.customProcesses);
 
   const value = useMemo(
     () => ({
@@ -284,6 +349,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       resetProfile,
+      completeOnboarding,
+      setCustomProcesses,
+      setMapLayout,
+      mapCustomized,
     }),
     [
       profile,
@@ -298,6 +367,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       resetProfile,
+      completeOnboarding,
+      setCustomProcesses,
+      setMapLayout,
+      mapCustomized,
     ],
   );
 

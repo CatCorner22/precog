@@ -11,6 +11,7 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -35,6 +36,7 @@ import {
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
 import { usePractice } from "@/lib/precog/practice-context";
+import { ProcessBuilder } from "@/components/precog/process-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +47,7 @@ import {
   ChevronUp,
   Crosshair,
   Eye,
+  Hammer,
   Layers,
   Lightbulb,
   ListOrdered,
@@ -361,8 +364,11 @@ export function ProcessMap({
   initialProcessId?: string | null;
 }) {
   const { processes } = useTemplate();
-  const { profile } = usePractice();
+  const { profile, setMapLayout, mapCustomized, templateRevision } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
+  const [build, setBuild] = useState(false);
+  /** Live positions while dragging; committed to the profile on drag stop. */
+  const [liveLayout, setLiveLayout] = useState<Record<string, { x: number; y: number }>>({});
   const [layers, setLayers] = useState<LayerConfig[]>(() =>
     DEFAULT_LAYERS.map((l) => ({ ...l })),
   );
@@ -399,12 +405,26 @@ export function ProcessMap({
 
   const graph = useMemo(
     () => buildProcessMapGraph(profile.staff, graphOpts),
-    [profile.staff, graphOpts],
+    [profile.staff, graphOpts, templateRevision, profile.industry],
+  );
+
+  // Keep the selection valid when the template or custom map changes.
+  useEffect(() => {
+    if (selectedId && !graph.nodes.some((n) => n.id === selectedId)) {
+      const first = processes[0]?.id ?? null;
+      setSelectedId(first);
+      setFocusProcessId(first);
+    }
+  }, [graph.nodes, processes, selectedId]);
+
+  const pinned = useMemo(
+    () => ({ ...(profile.mapLayout ?? {}), ...liveLayout }),
+    [profile.mapLayout, liveLayout],
   );
 
   const positions = useMemo(
-    () => layoutProcessMap(graph.nodes, graph.edges),
-    [graph],
+    () => layoutProcessMap(graph.nodes, graph.edges, pinned),
+    [graph, pinned],
   );
 
   /** Priority targets for Predator / Terminator + priority list */
@@ -539,6 +559,7 @@ export function ProcessMap({
           id: n.id,
           type: n.kind,
           position: p,
+          draggable: build && n.kind === "process",
           data: {
             ...n,
             vision,
@@ -553,7 +574,27 @@ export function ProcessMap({
               : undefined,
         };
       });
-  }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById]);
+  }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById, build]);
+
+  const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
+    const moves: Record<string, { x: number; y: number }> = {};
+    for (const c of changes) {
+      if (c.type === "position" && c.position) moves[c.id] = c.position;
+    }
+    if (Object.keys(moves).length) setLiveLayout((l) => ({ ...l, ...moves }));
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (_: unknown, node: ProcessFlowNode) => {
+      setMapLayout((l) => ({ ...l, [node.id]: node.position }));
+      setLiveLayout((l) => {
+        const next = { ...l };
+        delete next[node.id];
+        return next;
+      });
+    },
+    [setMapLayout],
+  );
 
   const rfEdges: Edge[] = useMemo(() => {
     const depInteractive = layerMap.get("depends")?.interactive !== false;
@@ -667,16 +708,17 @@ export function ProcessMap({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Interactive process map</Badge>
           <Badge variant="primary">Vision systems online</Badge>
+          {mapCustomized && <Badge variant="ok">Your custom map</Badge>}
         </div>
         <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-          Value stream · priorities · thermal & threat vision
+          Map your business · see risk light up · fix what matters
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Toggle layers that interact vs stay passive. Switch to{" "}
-          <strong className="text-fg">Risk Predator</strong> for thermal priority heat
-          (blue → white-hot), or <strong className="text-fg">Risk Terminator</strong> for
-          immediate threat lock-on — with a friendly chrome buddy who just wants residual
-          cut to a reasonable level.
+          Start from the industry template, then hit{" "}
+          <strong className="text-fg">Build</strong> to add your own processes, owners,
+          risks, and controls — every edit re-scores residual risk live. Switch to{" "}
+          <strong className="text-fg">Risk Predator</strong> for thermal priority heat or{" "}
+          <strong className="text-fg">Risk Terminator</strong> for immediate threat lock-on.
         </p>
 
         {/* Vision mode switcher */}
@@ -709,7 +751,26 @@ export function ProcessMap({
             <Layers className="size-3.5" />
             Layers
           </Button>
+          <Button
+            size="sm"
+            variant={build ? "default" : "secondary"}
+            onClick={() => {
+              setBuild((v) => !v);
+              if (!build) setVision("standard");
+            }}
+          >
+            <Hammer className="size-3.5" />
+            {build ? "Building" : "Build"}
+          </Button>
         </div>
+
+        {build && (
+          <div className="mt-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
+            <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to
+            arrange your value stream (positions are saved). Click a process to edit it in the
+            builder panel — or add a new one.
+          </div>
+        )}
 
         {vision === "predator" && (
           <div className="mt-4 rounded-xl border border-border bg-black/40 p-3 predator-hud">
@@ -821,6 +882,10 @@ export function ProcessMap({
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
                 onNodeClick={onNodeClick}
+                onNodesChange={onNodesChange}
+                onNodeDragStop={onNodeDragStop}
+                nodesDraggable={build}
+                nodesConnectable={false}
                 fitView
                 fitViewOptions={{ padding: 0.15 }}
                 minZoom={0.25}
@@ -866,6 +931,16 @@ export function ProcessMap({
         </div>
 
         <div className="space-y-3">
+          {build && (
+            <ProcessBuilder
+              selectedProcessId={processId ?? null}
+              onSelectProcess={(id) => {
+                setSelectedId(id);
+                setFocusProcessId(id);
+              }}
+              onClose={() => setBuild(false)}
+            />
+          )}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">

@@ -1,4 +1,4 @@
-import type { StaffComposition } from "./types";
+import type { ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -32,6 +32,12 @@ export interface PracticeProfile {
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
   decisions: DecisionEntry[];
+  /** False on first visit until the user picks an industry template. */
+  onboardingComplete?: boolean;
+  /** User-built process map. Null/undefined = use the industry template as-is. */
+  customProcesses?: ProcessNode[] | null;
+  /** Pinned canvas positions for process nodes (from drag in build mode). */
+  mapLayout?: Record<string, { x: number; y: number }>;
   updatedAt: string;
 }
 
@@ -52,6 +58,9 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     },
     dualRelease,
     decisions: [],
+    onboardingComplete: true,
+    customProcesses: null,
+    mapLayout: {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -63,7 +72,7 @@ export function loadProfile(): PracticeProfile {
     const raw =
       localStorage.getItem(STORAGE_KEY) ??
       localStorage.getItem("precog.practiceProfile.v1");
-    if (!raw) return defaultProfile();
+    if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
     const industry = (parsed.industry as IndustryId) ?? "dental";
     const base = defaultProfile(industry);
@@ -91,6 +100,10 @@ export function loadProfile(): PracticeProfile {
       },
       dualRelease,
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
+      onboardingComplete: parsed.onboardingComplete ?? true,
+      customProcesses: Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null,
+      mapLayout:
+        parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
     };
   } catch {
     return defaultProfile();
