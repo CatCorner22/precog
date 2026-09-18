@@ -45,10 +45,47 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export const Route = createFileRoute("/")({
-  component: Home,
+  component: HomeGate,
 });
+
+/**
+ * The dashboard is driven by client-only state (local profile + active template).
+ * Render a stable shell for SSR and the hydration pass, then the real app.
+ */
+function HomeGate() {
+  const hydrated = useHydrated();
+  if (!hydrated) return <HomeShell />;
+  return <Home />;
+}
+
+function HomeShell() {
+  return (
+    <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
+      <header className="border-b border-border bg-bg/90">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3 sm:px-6">
+          <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+            <Eye className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold tracking-tight">Precog Pioneer</p>
+            <p className="text-xs text-muted">Small business risk, mapped</p>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6" aria-busy="true">
+        <div className="h-40 animate-pulse rounded-2xl border border-border bg-surface" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-xl border border-border bg-surface" />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 type TabId =
   | "command"

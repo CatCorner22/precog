@@ -32,13 +32,21 @@ export function IndustryOnboarding() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="industry-onboarding-title"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") completeOnboarding("dental");
+      }}
+    >
       <Card className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto border-border bg-surface shadow-2xl">
         <CardHeader>
           <Badge variant="accent" className="w-fit">
             Welcome to Precog Pioneer
           </Badge>
-          <CardTitle className="text-xl sm:text-2xl">
+          <CardTitle id="industry-onboarding-title" className="text-xl sm:text-2xl">
             What kind of business are you exploring?
           </CardTitle>
           <CardDescription>
@@ -86,9 +94,13 @@ export function IndustryOnboarding() {
               );
             })}
           </div>
-          <Button className="w-full" onClick={start}>
+          <Button className="w-full" onClick={start} autoFocus>
             Load {INDUSTRIES.find((i) => i.id === selected)?.label} demo
           </Button>
+          <p className="text-center text-[11px] text-subtle">
+            Then open <span className="text-muted">Process map → Build</span> to replace the demo
+            with your own processes.
+          </p>
         </CardContent>
       </Card>
     </div>

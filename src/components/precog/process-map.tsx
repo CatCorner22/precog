@@ -756,7 +756,10 @@ export function ProcessMap({
             variant={build ? "default" : "secondary"}
             onClick={() => {
               setBuild((v) => !v);
-              if (!build) setVision("standard");
+              if (!build) {
+                setVision("standard");
+                setShowLayerPanel(false);
+              }
             }}
           >
             <Hammer className="size-3.5" />
@@ -954,7 +957,7 @@ export function ProcessMap({
             <CardContent className="max-h-[320px] space-y-1.5 overflow-y-auto">
               {priorities.slice(0, 12).map((t, i) => (
                 <button
-                  key={`${t.kind}-${t.id}`}
+                  key={`${t.kind}-${t.processId ?? ""}-${t.id}`}
                   type="button"
                   onClick={() => {
                     setSelectedId(
