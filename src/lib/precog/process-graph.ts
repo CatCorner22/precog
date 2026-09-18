@@ -377,7 +377,7 @@ export function layoutProcessMap(
   stageKeys.forEach((st, si) => {
     const col = stages.get(st)!;
     col.forEach((n, ri) => {
-      pos.set(n.id, pinned[n.id] ?? { x: 80 + si * 280, y: 80 + ri * 140 });
+      pos.set(n.id, pinned[n.id] ?? { x: 80 + si * 360, y: 80 + ri * 220 });
     });
   });
 
@@ -389,11 +389,13 @@ export function layoutProcessMap(
       .map((e) => nodes.find((n) => n.id === e.target))
       .filter(Boolean) as MapGraphNode[];
 
+    // Fan satellites in a right-facing arc; alternate two radii so labels don't stack.
     children.forEach((c, i) => {
-      const angle = (i / Math.max(1, children.length)) * Math.PI - Math.PI / 2;
-      const radius = 110 + (i % 3) * 18;
+      const n = Math.max(1, children.length);
+      const angle = -Math.PI / 2 + ((i + 0.5) / n) * Math.PI;
+      const radius = 130 + (i % 2) * 48;
       pos.set(c.id, {
-        x: origin.x + 160 + Math.cos(angle) * radius,
+        x: origin.x + 170 + Math.cos(angle) * radius,
         y: origin.y + 30 + Math.sin(angle) * radius,
       });
     });

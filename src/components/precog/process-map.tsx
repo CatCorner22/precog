@@ -914,6 +914,7 @@ export function ProcessMap({
                   nodeStrokeWidth={2}
                   pannable
                   zoomable
+                  bgColor="rgba(21, 24, 32, 0.92)"
                   maskColor={
                     vision === "terminator"
                       ? "rgba(40,0,0,0.65)"
