@@ -3,6 +3,7 @@
  * No external embedding API required — works offline and in SSR.
  */
 import { KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
+import { getActiveTemplate } from "../active-template";
 
 function tokenize(text: string): string[] {
   return text
@@ -122,6 +123,7 @@ export function retrieveKnowledge(
 ): RetrievalHit[] {
   const topK = opts.topK ?? 4;
   const qVec = tfidfVec(meaningful(tokenize(query)), IDF);
+  const industry = getActiveTemplate().id;
 
   const scored = KNOWLEDGE_CORPUS.map((chunk, i) => {
     if (opts.domain && chunk.domain !== opts.domain) {
@@ -132,6 +134,10 @@ export function retrieveKnowledge(
     const q = query.toLowerCase();
     for (const tag of chunk.tags) {
       if (q.includes(tag.toLowerCase())) score += 0.08;
+    }
+    // Prefer chunks written for the active industry; demote other verticals' ops content.
+    if (chunk.industry) {
+      score += chunk.industry === industry ? 0.12 : -0.15;
     }
     return { chunk, score, rank: 0 };
   })

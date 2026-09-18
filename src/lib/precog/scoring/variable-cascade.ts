@@ -5,8 +5,8 @@
  *
  * Educational decision model — not actuarial pricing.
  */
-import { scenarios, staffComposition as demoStaff } from "../demo-data";
 import { runPrecogScenario } from "../engine";
+import { getActiveTemplate } from "../active-template";
 import { portfolioSummary } from "./residual-engine";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -287,6 +287,7 @@ function snapshot(
   staff: StaffComposition,
   scenarioId: string,
 ): MetricSnapshot {
+  const { scenarios } = getActiveTemplate();
   const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0];
   const flags = scenarioFlags(scenario.id);
   const dyn = evaluateDynamicRisk(vars, scenario.baseFinancialImpact, flags);
@@ -507,9 +508,11 @@ function verdict(deltas: MetricDelta[]): string {
 export function simulateCascadeLever(
   leverId: CascadeLeverId,
   baseVars: RiskVariableState = DEFAULT_RISK_VARIABLES,
-  baseStaff: StaffComposition = demoStaff,
+  baseStaff?: StaffComposition,
   scenarioId?: string,
 ): CascadeSimulation {
+  const { scenarios, staffComposition: demoStaff } = getActiveTemplate();
+  const staffBase = baseStaff ?? demoStaff;
   const lever =
     CASCADE_LEVERS.find((l) => l.id === leverId) ?? CASCADE_LEVERS[0];
   const rankedScenario =
@@ -517,8 +520,8 @@ export function simulateCascadeLever(
     scenarios.find((s) => s.id.includes("cash"))?.id ||
     scenarios[0].id;
 
-  const before = snapshot(baseVars, baseStaff, rankedScenario);
-  const applied = applyLever(lever.id, baseVars, baseStaff);
+  const before = snapshot(baseVars, staffBase, rankedScenario);
+  const applied = applyLever(lever.id, baseVars, staffBase);
   const after = snapshot(applied.vars, applied.staff, rankedScenario);
   const deltas = buildDeltas(before, after);
 
@@ -537,7 +540,7 @@ export function simulateCascadeLever(
 /** Simulate all levers; rank by improvement in annual cost of risk then residual. */
 export function simulateAllCascades(
   baseVars: RiskVariableState = DEFAULT_RISK_VARIABLES,
-  baseStaff: StaffComposition = demoStaff,
+  baseStaff?: StaffComposition,
   scenarioId?: string,
 ): {
   scenarioId: string;
@@ -547,13 +550,15 @@ export function simulateAllCascades(
   rankedByResidual: CascadeSimulation[];
   dependencyMap: { from: string; to: string; effect: string }[];
 } {
+  const { scenarios, staffComposition: demoStaff } = getActiveTemplate();
+  const staffBase = baseStaff ?? demoStaff;
   const sid =
     scenarioId ||
     scenarios.find((s) => s.id.includes("cash"))?.id ||
     scenarios[0].id;
-  const baseline = snapshot(baseVars, baseStaff, sid);
+  const baseline = snapshot(baseVars, staffBase, sid);
   const simulations = CASCADE_LEVERS.map((l) =>
-    simulateCascadeLever(l.id, baseVars, baseStaff, sid),
+    simulateCascadeLever(l.id, baseVars, staffBase, sid),
   );
 
   const rankedByCor = [...simulations].sort((a, b) => {

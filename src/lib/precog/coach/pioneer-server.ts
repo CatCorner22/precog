@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getActiveTemplate } from "../active-template";
 import { runGrokAgentLoop, runLocalAgentLoop } from "../llm/agent-loop";
 import type { AgentRunResult } from "../llm/types";
 import {
@@ -6,7 +7,6 @@ import {
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
 import type { StaffComposition } from "../types";
-import { staffComposition as demoStaff } from "../demo-data";
 
 export type PioneerCoachResult = {
   ok: true;
@@ -70,7 +70,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       ...(data.riskVariables ?? {}),
     };
     const staff: StaffComposition = {
-      ...demoStaff,
+      ...getActiveTemplate().staffComposition,
       ...(data.staff ?? {}),
     };
     riskVariables.hasDualControl = staff.dualControlPayments;

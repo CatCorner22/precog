@@ -3,8 +3,8 @@
  * Weighted composite used by forecast drift and coach critique.
  */
 import type { StaffComposition } from "../types";
+import { getActiveTemplate } from "../active-template";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
-import { controls } from "../demo-data";
 import { findKnowledgeRisks } from "../engine";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { assessCoso } from "../coso";
@@ -32,6 +32,7 @@ export function scoreLeadingIndicators(
   staff: StaffComposition,
   riskVars: RiskVariableState,
 ): LeadingIndicatorReport {
+  const { controls } = getActiveTemplate();
   const portfolio = portfolioSummary(staff);
   const coso = assessCoso();
   const spofs = findKnowledgeRisks().filter(

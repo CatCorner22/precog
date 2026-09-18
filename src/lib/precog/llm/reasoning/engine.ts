@@ -9,7 +9,7 @@ import { summarizeCausalInfluence, type CausalNodeId } from "./causal-graph";
 import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals } from "./counterfactual";
 import { computeEvoi } from "./evoi";
-import { crimeFraudStats } from "../../demo-data";
+import { getActiveTemplate } from "../../active-template";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
@@ -77,7 +77,7 @@ export function runAdvancedReasoning(
     : null;
 
   const bayes = initBayesianState({
-    industryBaseRate: crimeFraudStats.industryEmbezzlementRate,
+    industryBaseRate: getActiveTemplate().crimeFraudStats.industryEmbezzlementRate,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,

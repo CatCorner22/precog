@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { scoreAnomalies } from "@/lib/precog/ml/anomaly";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { forecastResidualTrajectory } from "@/lib/precog/ml/forecast";
 import { retrieveKnowledge } from "@/lib/precog/rag/retrieve";
+import { defaultRagQuery } from "@/lib/precog/rag/industry-queries";
 import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-panel";
 import { MetaAnalysisPanel } from "@/components/precog/meta-analysis-panel";
 import { JohariPanel } from "@/components/precog/johari-panel";
@@ -32,9 +33,10 @@ export function IntelligencePanel({
   const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">(
     "johari",
   );
-  const [ragQuery, setRagQuery] = useState(
-    "segregation of duties bank reconciliation residual risk",
-  );
+  const [ragQuery, setRagQuery] = useState(() => defaultRagQuery(profile.industry));
+  useEffect(() => {
+    setRagQuery(defaultRagQuery(profile.industry));
+  }, [profile.industry]);
 
   const anomaly = useMemo(
     () => scoreAnomalies(profile.staff, profile.riskVariables),

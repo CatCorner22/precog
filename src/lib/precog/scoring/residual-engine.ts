@@ -1,6 +1,5 @@
-import { controls, knowledge, staffComposition } from "../demo-data";
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
-import { scenarios } from "../demo-data";
+import { getActiveTemplate } from "../active-template";
 import type { ControlItem, StaffComposition } from "../types";
 import {
   ACTION_BANDS,
@@ -298,53 +297,52 @@ function scoreKnowledge(
     bandGuidance: band.guidance,
     drivers: drivers.sort((a, b) => b.weight - a.weight).slice(0, 6),
     linkedKnowledgeId: knowledgeId,
-    linkedScenarioId:
-      knowledgeId === "k1"
-        ? "sc-front-desk-leaves"
-        : knowledgeId === "k7"
-          ? "sc-writeoff-abuse"
-          : undefined,
+    linkedScenarioId: getActiveTemplate().scenarios.find(
+      (s) => s.knowledgeId === knowledgeId,
+    )?.id,
     scoringVersion: SCORING_VERSION,
   };
 }
 
 export function scoreAllResidualRisks(
-  staff: StaffComposition = staffComposition,
+  staff?: StaffComposition,
 ): ResidualRiskScore[] {
+  const tpl = getActiveTemplate();
+  const staffResolved = staff ?? tpl.staffComposition;
   const risks = findKnowledgeRisks();
   const knowledgeRedundancy =
     risks.filter((r) => r.ownerCount >= 2).length /
     Math.max(1, risks.length);
 
-  const controlScores = controls.map((c) =>
-    scoreControl(c, staff, knowledgeRedundancy),
+  const controlScores = tpl.controls.map((c) =>
+    scoreControl(c, staffResolved, knowledgeRedundancy),
   );
 
   const knowledgeScores = risks.map((r) => {
-    const k = knowledge.find((x) => x.id === r.knowledgeId);
+    const k = tpl.knowledge.find((x) => x.id === r.knowledgeId);
     return scoreKnowledge(
       r.knowledgeId,
       r.name,
       r.soleOwner,
       r.ownerCount,
       k?.criticality ?? "important",
-      staff,
+      staffResolved,
     );
   });
 
-  const scenarioScores = scenarios.map((s) => {
-    const result = runPrecogScenario(s.id, { staff })!;
+  const scenarioScores = tpl.scenarios.map((s) => {
+    const result = runPrecogScenario(s.id, { staff: staffResolved })!;
     const lossNorm = clamp01(result.financialImpact.expected / 125000);
     const timeNorm = clamp01(1 - result.timelineDays.p50 / 240);
     const inherent = clamp01(0.55 * lossNorm + 0.45 * (0.5 + timeNorm * 0.5));
     const effectiveness = clamp01(
       0.2 +
-        (staff.dualControlPayments ? 0.15 : 0) +
-        (staff.independentBankRec ? 0.15 : 0) +
-        staff.segregationScore / 100 * 0.25,
+        (staffResolved.dualControlPayments ? 0.15 : 0) +
+        (staffResolved.independentBankRec ? 0.15 : 0) +
+        staffResolved.segregationScore / 100 * 0.25,
     );
     const residualRaw = inherent * (1 - effectiveness * 0.5);
-    const uplift = staffUplift(staff);
+    const uplift = staffUplift(staffResolved);
     const residual = clamp100(residualRaw * 100 * uplift.factor);
     const band = bandForScore(residual);
 
@@ -389,7 +387,7 @@ export function scoreAllResidualRisks(
 }
 
 export function portfolioSummary(staff?: StaffComposition) {
-  const scores = scoreAllResidualRisks(staff);
+  const scores = scoreAllResidualRisks(staff ?? getActiveTemplate().staffComposition);
   const top = scores.slice(0, 8);
   const avg =
     scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
@@ -408,35 +406,36 @@ export function portfolioSummary(staff?: StaffComposition) {
 }
 
 /** Tornado sensitivity: which staff/control lever moves average residual most */
-export function tornadoSensitivity(baseStaff: StaffComposition = staffComposition) {
-  const base = portfolioSummary(baseStaff).averageResidual;
+export function tornadoSensitivity(baseStaff?: StaffComposition) {
+  const baseStaffResolved = baseStaff ?? getActiveTemplate().staffComposition;
+  const base = portfolioSummary(baseStaffResolved).averageResidual;
   const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
 
   const trials: { id: string; label: string; staff: StaffComposition }[] = [
     {
       id: "dual",
       label: "Enable dual control on payments",
-      staff: { ...baseStaff, dualControlPayments: true },
+      staff: { ...baseStaffResolved, dualControlPayments: true },
     },
     {
       id: "bank",
       label: "Independent bank reconciliation",
-      staff: { ...baseStaff, independentBankRec: true },
+      staff: { ...baseStaffResolved, independentBankRec: true },
     },
     {
       id: "seg",
       label: "Raise segregation score to 75",
-      staff: { ...baseStaff, segregationScore: 75 },
+      staff: { ...baseStaffResolved, segregationScore: 75 },
     },
     {
       id: "spof",
       label: "Eliminate sole-owner knowledge",
-      staff: { ...baseStaff, soleOwnerKnowledgeCount: 0 },
+      staff: { ...baseStaffResolved, soleOwnerKnowledgeCount: 0 },
     },
     {
       id: "team",
       label: "Grow team to 10 (more SoD room)",
-      staff: { ...baseStaff, teamSize: 10 },
+      staff: { ...baseStaffResolved, teamSize: 10 },
     },
   ];
 

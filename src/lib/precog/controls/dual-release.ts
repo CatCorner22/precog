@@ -8,8 +8,9 @@
  *
  * Educational control design — not bank/PMS integration.
  */
-import { people } from "../demo-data";
-import type { StaffComposition } from "../types";
+import type { Person, StaffComposition } from "../types";
+import { getActiveTemplate } from "../active-template";
+import { getIndustryCopy } from "../templates/industry-copy";
 
 export type ReleaseChannel =
   | "ach"
@@ -232,24 +233,62 @@ export const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
   },
 ];
 
-/** Demo seed exceptions (owner-approved recurring lab payee + temporary raise). */
+const DENTAL_ROLE_SLOTS: Record<string, RegExp[]> = {
+  "Owner / Dentist": [/owner|dentist|managing partner|principal/i],
+  "Office Manager": [/manager|general manager/i],
+  "Front Desk Lead": [/front desk|cashier|lead cashier|host|shift lead/i],
+  "Billing Specialist": [/billing|bookkeeper|accounting|controller|specialist/i],
+};
+
+function rolesForSlot(people: Person[], patterns: RegExp[]): string[] {
+  return people.filter((p) => patterns.some((re) => re.test(p.role))).map((p) => p.role);
+}
+
+function localizeDualReleaseRules(rules: DualReleaseRule[]): DualReleaseRule[] {
+  const tpl = getActiveTemplate();
+  const processIds = new Set(tpl.processes.map((p) => p.id));
+  const slotMap = new Map<string, string[]>();
+  for (const [slot, patterns] of Object.entries(DENTAL_ROLE_SLOTS)) {
+    slotMap.set(slot, rolesForSlot(tpl.people, patterns));
+  }
+
+  const mapRoles = (roles: string[]) => {
+    const out: string[] = [];
+    for (const role of roles) {
+      const resolved = slotMap.get(role);
+      if (resolved?.length) out.push(...resolved);
+      else if (tpl.people.some((p) => p.role === role)) out.push(role);
+    }
+    return [...new Set(out.length ? out : tpl.people.slice(0, 1).map((p) => p.role))];
+  };
+
+  return rules.map((rule) => ({
+    ...rule,
+    firstApproverRoles: mapRoles(rule.firstApproverRoles),
+    secondApproverRoles: mapRoles(rule.secondApproverRoles),
+    processIds: rule.processIds.filter((id) => processIds.has(id)),
+  }));
+}
+
+/** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
 export function defaultExceptions(): ThresholdException[] {
+  const copy = getIndustryCopy(getActiveTemplate().id);
   const today = new Date();
   const in90 = new Date(today.getTime() + 90 * 86400000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return [
     {
-      id: "ex-lab-recurring",
-      label: "Trusted lab ACH raise",
+      id: "ex-vendor-recurring",
+      label: copy.dualReleaseSeed.exceptionLabel,
       channels: ["ach"],
       action: "raise_threshold",
       thresholdUsd: 3500,
-      payeeContains: "apex dental lab",
+      payeeContains: copy.dualReleaseSeed.exceptionPayeeContains,
       enabled: true,
-      reason: "Recurring lab with monthly invoice; owner reviewed 12 months clean history.",
+      reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
       approvedByPersonId: "p1",
       createdAt: iso(today),
-      residualNote: "Single release up to $3,500 for Apex only — sample monthly statements.",
+      residualNote: `Single release up to $3,500 for ${copy.dualReleaseSeed.defaultPayee} only — sample monthly statements.`,
     },
     {
       id: "ex-force-new-vendor-pay",
@@ -288,7 +327,7 @@ export function defaultDualReleasePolicy(
     enabled,
     ownerCanSecondAny: true,
     hardBlockWithoutSecond: true,
-    rules: DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
+    rules: localizeDualReleaseRules(DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r }))),
     exceptions: defaultExceptions(),
   };
 }
@@ -324,7 +363,7 @@ export function mergeDualReleasePolicy(
 }
 
 function personById(id: string) {
-  return people.find((p) => p.id === id);
+  return getActiveTemplate().people.find((p) => p.id === id);
 }
 
 function todayIso(asOf?: string) {
@@ -462,10 +501,11 @@ export function listEligibleApprovers(
   const rule = policy.rules.find((r) => r.channel === channel);
   if (!rule) return [];
 
+  const { people } = getActiveTemplate();
   return people
     .filter((p) => p.active)
     .map((p) => {
-      const isOwner = p.role === "Owner / Dentist";
+      const isOwner = /owner|managing partner/i.test(p.role);
       const canInitiate = rule.firstApproverRoles.includes(p.role);
       const canSecond =
         rule.secondApproverRoles.includes(p.role) ||
