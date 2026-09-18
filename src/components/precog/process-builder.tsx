@@ -45,6 +45,15 @@ import {
 } from "lucide-react";
 import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
 import {
+  analyzeWorkload,
+  healthDelta,
+  previewMapHealth,
+  type HealthDelta,
+  type PersonWorkload,
+} from "@/lib/precog/builder/what-if";
+import { Activity, ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
+import { BuilderTour, useBuilderTour } from "@/components/precog/builder-tour";
+import {
   blocksForIndustry,
   instantiateBlock,
   processToSavedBlock,
@@ -127,6 +136,40 @@ export function ProcessBuilder({
   const [showChanges, setShowChanges] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
+  const [showWorkload, setShowWorkload] = useState(false);
+  const tour = useBuilderTour();
+
+  const currentHealth = useMemo(
+    () =>
+      previewMapHealth(processes, profile.staff, {
+        people: tpl.people,
+        layout: profile.mapLayout ?? {},
+        customized: mapCustomized,
+      }),
+    [processes, profile.staff, tpl.people, profile.mapLayout, mapCustomized],
+  );
+  // Baseline when the builder opened — shows the session's net effect.
+  const sessionBaseline = useRef<number | null>(null);
+  if (sessionBaseline.current === null) sessionBaseline.current = currentHealth.score;
+
+  /** Score a hypothetical process list against the current one. */
+  const whatIf = (next: ProcessNode[]): HealthDelta =>
+    healthDelta(
+      currentHealth,
+      previewMapHealth(next, profile.staff, {
+        people: tpl.people,
+        layout: profile.mapLayout ?? {},
+        customized: true,
+      }),
+    );
+
+  const workload = useMemo(
+    () =>
+      showWorkload
+        ? analyzeWorkload(processes, tpl.people, profile.staff, profile.dualRelease)
+        : [],
+    [showWorkload, processes, tpl.people, profile.staff, profile.dualRelease],
+  );
 
   const validationIssues = useMemo(
     () =>
@@ -143,6 +186,42 @@ export function ProcessBuilder({
 
   function update(id: string, patch: Partial<ProcessNode>) {
     setCustomProcesses((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
+  /** Compute the process list a quick fix would produce, without applying it. */
+  function quickFixResult(issueId: string, processId: string): ProcessNode[] | null {
+    const proc = processes.find((p) => p.id === processId);
+    if (!proc) return null;
+    const replace = (patch: Partial<ProcessNode>) =>
+      processes.map((p) => (p.id === processId ? { ...p, ...patch } : p));
+    if (issueId.startsWith("owner-ref-") || issueId.startsWith("dep-")) {
+      const ids = new Set(processes.map((p) => p.id));
+      const pids = new Set(tpl.people.map((p) => p.id));
+      return replace({
+        dependencies: proc.dependencies.filter((d) => ids.has(d)),
+        ownerPersonIds: (proc.ownerPersonIds ?? []).filter((o) => pids.has(o)),
+      });
+    }
+    if (issueId.startsWith("owner-")) {
+      const owner = suggestOwnerForProcess(proc, processes, tpl.people);
+      return owner ? replace({ ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] }) : null;
+    }
+    if (issueId.startsWith("fraud-nocontrol-")) {
+      const control = suggestControlForProcess(proc, tpl.controls);
+      return control ? replace({ controlIds: [...proc.controlIds, control.id] }) : null;
+    }
+    return null;
+  }
+
+  function previewQuickFix(issueId: string, processId: string): HealthDelta | null {
+    const next = quickFixResult(issueId, processId);
+    return next ? whatIf(next) : null;
+  }
+
+  function previewBlock(block: ProcessBlock | SavedProcessBlock): HealthDelta {
+    const ids = new Set(processes.map((p) => p.id));
+    const maxStage = Math.max(0, ...processes.map((p) => p.stage ?? 0));
+    return whatIf([...processes, instantiateBlock(block, ids, maxStage + 1)]);
   }
 
   /** Apply one quick fix for a validation issue; returns true if something changed. */
@@ -391,18 +470,46 @@ export function ProcessBuilder({
               Build your real value stream. Every change re-scores residual risk, SoD, and
               scenarios live.
             </CardDescription>
+            <HealthPill
+              score={currentHealth.score}
+              band={currentHealth.bandLabel}
+              sessionDelta={currentHealth.score - (sessionBaseline.current ?? currentHealth.score)}
+            />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-muted hover:bg-elevated hover:text-fg"
-            aria-label="Close builder"
-          >
-            <X className="size-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {!tour.show && (
+              <button
+                type="button"
+                onClick={tour.restart}
+                className="rounded-md p-1 text-muted hover:bg-elevated hover:text-fg"
+                aria-label="Show builder tour"
+                title="Show quick tour"
+              >
+                <HelpCircle className="size-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-muted hover:bg-elevated hover:text-fg"
+              aria-label="Close builder"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {tour.show && (
+          <BuilderTour
+            onDismiss={tour.dismiss}
+            onAction={(a) => {
+              if (a === "blocks") setShowBlocks(true);
+              if (a === "validate") setShowValidation(true);
+              if (a === "add") addProcess();
+            }}
+          />
+        )}
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" onClick={addProcess}>
             <Plus className="size-3.5" /> Add process
@@ -462,6 +569,13 @@ export function ProcessBuilder({
           </Button>
           <Button
             size="sm"
+            variant={showWorkload ? "default" : "secondary"}
+            onClick={() => setShowWorkload((v) => !v)}
+          >
+            <Scale className="size-3.5" /> Workload
+          </Button>
+          <Button
+            size="sm"
             variant={showValidation ? "default" : "secondary"}
             onClick={() => setShowValidation((v) => !v)}
           >
@@ -489,11 +603,38 @@ export function ProcessBuilder({
           )}
         </div>
 
+        {showWorkload && (
+          <WorkloadView
+            rows={workload}
+            processCount={processes.length}
+            onSelectProcess={onSelectProcess}
+            onReassign={(fromId, processId) => {
+              const proc = processes.find((p) => p.id === processId);
+              if (!proc) return;
+              const others = tpl.people.filter((p) => p.id !== fromId && p.active);
+              const candidate = suggestOwnerForProcess(
+                { ...proc, ownerPersonIds: [] },
+                processes,
+                others,
+              );
+              if (!candidate) return;
+              update(processId, {
+                ownerPersonIds: [
+                  ...(proc.ownerPersonIds ?? []).filter((o) => o !== fromId),
+                  candidate.id,
+                ],
+              });
+              toast.success(`${proc.name} reassigned to ${candidate.name}`);
+            }}
+          />
+        )}
+
         {showBlocks && (
           <BlockLibrary
             industry={profile.industry}
             saved={profile.savedProcessBlocks ?? []}
             onInsert={insertBlock}
+            previewDelta={previewBlock}
             onRemoveSaved={(id) =>
               setSavedProcessBlocks((blocks) => blocks.filter((b) => b.id !== id))
             }
@@ -509,6 +650,7 @@ export function ProcessBuilder({
             }}
             onQuickFix={quickFix}
             onFixAll={fixAllQuickWins}
+            previewFix={previewQuickFix}
             onCleanLayout={() => {
               const ids = new Set(processes.map((p) => p.id));
               setMapLayout((l) =>
@@ -877,23 +1019,192 @@ function SuggestPanel({
   );
 }
 
+function HealthPill({
+  score,
+  band,
+  sessionDelta,
+}: {
+  score: number;
+  band: string;
+  sessionDelta: number;
+}) {
+  const tone =
+    score >= 70 ? "text-ok border-ok/40 bg-ok/10" : score >= 55 ? "text-warn border-warn/40 bg-warn/10" : "text-danger border-danger/40 bg-danger/10";
+  return (
+    <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]">
+      <span className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold tabular", tone)}>
+        <Gauge className="size-3" />
+        {score}
+      </span>
+      <span className="text-muted">Map health · {band}</span>
+      {sessionDelta !== 0 && (
+        <span className={cn("font-medium tabular", sessionDelta > 0 ? "text-ok" : "text-danger")}>
+          {sessionDelta > 0 ? "+" : ""}
+          {sessionDelta} this session
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Compact "+4" / "−2" badge for what-if previews. */
+function DeltaBadge({ delta, title }: { delta: HealthDelta | null; title?: string }) {
+  if (!delta || delta.delta === 0) return null;
+  const up = delta.delta > 0;
+  return (
+    <span
+      title={
+        title ??
+        (delta.driver
+          ? `Health ${delta.before} → ${delta.after} · ${delta.driver.label} ${delta.driver.delta > 0 ? "+" : ""}${delta.driver.delta}`
+          : `Health ${delta.before} → ${delta.after}`)
+      }
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold tabular",
+        up ? "bg-ok/15 text-ok" : "bg-danger/15 text-danger",
+      )}
+    >
+      <Activity className="size-2.5" />
+      {up ? "+" : ""}
+      {delta.delta}
+    </span>
+  );
+}
+
+function WorkloadView({
+  rows,
+  processCount,
+  onSelectProcess,
+  onReassign,
+}: {
+  rows: PersonWorkload[];
+  processCount: number;
+  onSelectProcess: (id: string) => void;
+  onReassign: (fromPersonId: string, processId: string) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(rows[0]?.person.id ?? null);
+  const overloaded = rows.filter((r) => r.load >= 70).length;
+  const idle = rows.filter((r) => !r.ownedProcesses.length).length;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
+      <p className="text-[11px] text-muted">
+        Who carries the risk. {overloaded ? `${overloaded} overburdened · ` : ""}
+        {idle ? `${idle} with no processes · ` : ""}
+        {processCount} processes across {rows.length} people.
+      </p>
+      <ul className="space-y-1">
+        {rows.map((r) => {
+          const expanded = open === r.person.id;
+          const loadColor =
+            r.load >= 70 ? "var(--color-danger)" : r.load >= 45 ? "var(--color-warn)" : "var(--color-ok)";
+          return (
+            <li key={r.person.id} className="rounded-md border border-border bg-elevated">
+              <button
+                type="button"
+                onClick={() => setOpen(expanded ? null : r.person.id)}
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]"
+              >
+                <ChevronRight
+                  className={cn("size-3 shrink-0 text-subtle transition-transform", expanded && "rotate-90")}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">
+                    <span className="font-medium text-fg">{r.person.name}</span>
+                    <span className="text-subtle"> · {r.person.role}</span>
+                  </span>
+                  <span className="block text-[10px] text-subtle">
+                    {r.ownedProcesses.length} proc · {r.entitlementCount} duties
+                    {r.criticalConflicts ? ` · ${r.criticalConflicts} critical SoD` : ""}
+                  </span>
+                </span>
+                <span className="flex w-20 shrink-0 items-center gap-1.5">
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+                    <span
+                      className="block h-full rounded-full"
+                      style={{ width: `${r.load}%`, background: loadColor }}
+                    />
+                  </span>
+                  <span className="w-6 text-right tabular text-subtle">{r.load}</span>
+                </span>
+              </button>
+              {expanded && (
+                <div className="space-y-1.5 border-t border-border px-2 py-1.5 text-[11px]">
+                  {r.flags.length > 0 && (
+                    <ul className="flex flex-wrap gap-1">
+                      {r.flags.map((f) => (
+                        <li
+                          key={f}
+                          className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-[10px] text-fg"
+                        >
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {r.ownedProcesses.length > 0 ? (
+                    <ul className="space-y-0.5">
+                      {r.ownedProcesses.map((p) => (
+                        <li key={p.id} className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onSelectProcess(p.id)}
+                            className="min-w-0 flex-1 truncate text-left text-fg hover:underline"
+                          >
+                            {p.name}
+                          </button>
+                          {r.load >= 70 && (
+                            <button
+                              type="button"
+                              onClick={() => onReassign(r.person.id, p.id)}
+                              className="shrink-0 text-[10px] text-primary hover:underline"
+                              title="Move to the next best owner"
+                            >
+                              Reassign
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-subtle">Owns no processes.</p>
+                  )}
+                  {r.conflicts.length > 0 && (
+                    <p className="text-subtle">
+                      SoD: {r.conflicts.slice(0, 2).map((c) => c.title).join(" · ")}
+                      {r.conflicts.length > 2 ? ` · +${r.conflicts.length - 2} more` : ""}
+                    </p>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function BlockLibrary({
   industry,
   saved,
   onInsert,
   onRemoveSaved,
+  previewDelta,
 }: {
   industry: import("@/lib/precog/industry").IndustryId;
   saved: SavedProcessBlock[];
   onInsert: (block: ProcessBlock | SavedProcessBlock) => void;
   onRemoveSaved: (id: string) => void;
+  previewDelta: (block: ProcessBlock | SavedProcessBlock) => HealthDelta;
 }) {
   const builtIn = useMemo(() => blocksForIndustry(industry), [industry]);
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-[11px] text-muted">
-        Drop pre-built control patterns onto your map — risks, controls, and I/O included.
+        Drop pre-built control patterns onto your map — risks, controls, and I/O included. The
+        badge previews the map-health change before you insert.
       </p>
       <div className="grid gap-1.5 sm:grid-cols-2">
         {builtIn.map((b) => (
@@ -903,7 +1214,10 @@ function BlockLibrary({
             onClick={() => onInsert(b)}
             className="rounded-md border border-border bg-elevated px-2.5 py-2 text-left transition-colors hover:border-primary/40"
           >
-            <p className="text-[11px] font-medium text-fg">{b.name}</p>
+            <div className="flex items-start justify-between gap-1">
+              <p className="text-[11px] font-medium text-fg">{b.name}</p>
+              <DeltaBadge delta={previewDelta(b)} />
+            </div>
             <p className="mt-0.5 line-clamp-2 text-[10px] text-muted">{b.description}</p>
             <Badge variant="default" className="mt-1 text-[9px]">
               {b.category}
@@ -925,7 +1239,10 @@ function BlockLibrary({
                   onClick={() => onInsert(b)}
                   className="min-w-0 flex-1 text-left"
                 >
-                  <p className="text-[11px] font-medium text-fg">{b.name}</p>
+                  <p className="flex items-center gap-1 text-[11px] font-medium text-fg">
+                    {b.name}
+                    <DeltaBadge delta={previewDelta(b)} />
+                  </p>
                   <p className="line-clamp-1 text-[10px] text-muted">{b.description}</p>
                 </button>
                 <button
@@ -960,12 +1277,14 @@ function ValidationPanel({
   onCleanLayout,
   onQuickFix,
   onFixAll,
+  previewFix,
 }: {
   issues: MapValidationIssue[];
   onSelectProcess: (id: string) => void;
   onCleanLayout: () => void;
   onQuickFix: (issueId: string, processId: string) => boolean;
   onFixAll: () => void;
+  previewFix: (issueId: string, processId: string) => HealthDelta | null;
 }) {
   const errors = issues.filter((i) => i.severity === "error");
   const warns = issues.filter((i) => i.severity === "warn");
@@ -1021,6 +1340,7 @@ function ValidationPanel({
                 className="inline-flex shrink-0 items-center gap-1 border-l border-current/20 px-2 text-primary hover:bg-primary/10"
               >
                 <Wand2 className="size-3" /> Fix
+                <DeltaBadge delta={previewFix(i.id, i.processId!)} />
               </button>
             )}
           </li>
