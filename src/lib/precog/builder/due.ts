@@ -66,7 +66,9 @@ export function collectDueItems(
         id: `ev-${p.id}-${e.id}`,
         kind: "evidence",
         title: e.label,
-        detail: `${p.name} · ${FREQUENCY_LABEL[e.frequency]}${reviewer ? ` · ${reviewer}` : ""}`,
+        detail: `${p.name} · ${FREQUENCY_LABEL[e.frequency]}${reviewer ? ` · ${reviewer}` : ""}${
+          e.lastDoneBy && e.lastDoneAt ? ` · last by ${e.lastDoneBy}` : ""
+        }`,
         dueAt: due,
         daysLeft,
         status: status === "never" ? "unscheduled" : classify(daysLeft),

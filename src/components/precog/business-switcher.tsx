@@ -4,7 +4,8 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Building2, Check, ChevronDown, LayoutGrid, Loader2, Plus, Trash2, X } from "lucide-react";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50 focus:outline-none";
@@ -128,6 +129,13 @@ export function BusinessSwitcher() {
           </ul>
 
           <div className="mt-2 border-t border-border pt-2">
+            <Link
+              to="/portfolio"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-muted hover:bg-elevated hover:text-fg"
+            >
+              <LayoutGrid className="size-3.5" /> Portfolio overview
+            </Link>
             {adding ? (
               <div className="space-y-1.5 px-1">
                 <input

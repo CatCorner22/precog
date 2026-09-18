@@ -97,6 +97,8 @@ export interface EvidenceItem {
   reviewerPersonId?: string;
   /** ISO timestamp of the last completed review. */
   lastDoneAt?: string;
+  /** Who recorded the last review (owner, or a reviewer via check-in link). */
+  lastDoneBy?: string;
   note?: string;
 }
 

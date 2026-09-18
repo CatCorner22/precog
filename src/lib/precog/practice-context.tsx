@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
@@ -25,6 +24,7 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
+import { listCheckins, type CheckinRecord } from "./builder/review-link-server";
 import {
   setActiveIndustry,
   setPeopleOverrides,
@@ -118,6 +118,39 @@ interface PracticeContextValue {
   createBusiness: (industry: IndustryId, name?: string) => void;
   deleteBusiness: (id: string) => Promise<void>;
   switchingBusiness: boolean;
+  /** True when signed in with a real account (cloud sync + sharing available). */
+  cloudUser: boolean;
+  /** Pull reviewer check-ins and merge into evidence; resolves with the number applied. */
+  refreshCheckins: () => Promise<number>;
+  /** Recent reviewer check-ins for the active business (after refresh). */
+  checkins: CheckinRecord[];
+}
+
+/** Apply check-ins to evidence: newest completion wins, whoever recorded it. */
+export function mergeCheckins(processes: ProcessNode[], checkins: CheckinRecord[]): { processes: ProcessNode[]; applied: number } {
+  if (!checkins.length) return { processes, applied: 0 };
+  const latest = new Map<string, CheckinRecord>();
+  for (const c of checkins) {
+    const k = `${c.processId}::${c.evidenceId}`;
+    const cur = latest.get(k);
+    if (!cur || new Date(c.doneAt) > new Date(cur.doneAt)) latest.set(k, c);
+  }
+  let applied = 0;
+  const next = processes.map((p) => {
+    if (!p.evidence?.length) return p;
+    let changed = false;
+    const evidence = p.evidence.map((e) => {
+      const c = latest.get(`${p.id}::${e.id}`);
+      if (!c) return e;
+      const have = e.lastDoneAt ? new Date(e.lastDoneAt).getTime() : 0;
+      if (new Date(c.doneAt).getTime() <= have) return e;
+      changed = true;
+      applied += 1;
+      return { ...e, lastDoneAt: c.doneAt, lastDoneBy: c.byName };
+    });
+    return changed ? { ...p, evidence } : p;
+  });
+  return { processes: next, applied };
 }
 
 const MAX_VERSIONS = 12;
@@ -150,6 +183,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [remoteBusinesses, setRemoteBusinesses] = useState<BusinessSummary[]>([]);
   const [portfolioVersion, setPortfolioVersion] = useState(0);
   const [switchingBusiness, setSwitchingBusiness] = useState(false);
+  const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
 
   const pushUndo = useCallback(() => {
     const p = profileRef.current;
@@ -224,7 +258,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready || isPending) return;
-    if (!authEnabled || !user || user.isDevFallback) {
+    if (!user) {
       setSyncStatus("local");
       cloudLoadedFor.current = null;
       return;
@@ -237,10 +271,24 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       .then(([res, list]) => {
         if (cancelled) return;
         cloudLoadedFor.current = user.id;
+        const local = profileRef.current;
         if (res.found && res.profile) {
-          activateProfile(res.profile);
-          saveProfile(res.profile);
-          savePortfolioEntry(res.profile);
+          // Newer side wins: a reload right after a local edit must not be clobbered by a stale cloud row.
+          const cloudNewer =
+            new Date(res.profile.updatedAt).getTime() > new Date(local.updatedAt).getTime();
+          if (cloudNewer) {
+            activateProfile(res.profile);
+            saveProfile(res.profile);
+            savePortfolioEntry(res.profile);
+          } else {
+            void saveBusinessProfile({ data: { profile: local, industry: local.industry } }).catch(
+              () => undefined,
+            );
+          }
+        } else {
+          void saveBusinessProfile({ data: { profile: local, industry: local.industry } }).catch(
+            () => undefined,
+          );
         }
         setRemoteBusinesses(list);
         setSyncStatus("synced");
@@ -257,18 +305,20 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   // Persist locally + debounced cloud save
   useEffect(() => {
     if (!ready) return;
-    saveProfile(profile);
-    savePortfolioEntry(profile);
+    // Stamp once so local, portfolio, and cloud copies agree on "when" for newer-wins merges.
+    const stamped: PracticeProfile = { ...profile, updatedAt: new Date().toISOString() };
+    saveProfile(stamped);
+    savePortfolioEntry(stamped);
     setPortfolioVersion((v) => v + 1);
 
-    if (!authEnabled || !user || user.isDevFallback) {
+    if (!user) {
       setSyncStatus("local");
       return;
     }
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void saveBusinessProfile({ data: { profile, industry: profile.industry } })
+      void saveBusinessProfile({ data: { profile: stamped, industry: stamped.industry } })
         .then(() => setSyncStatus("synced"))
         .catch(() => setSyncStatus("error"));
     }, SAVE_DEBOUNCE_MS);
@@ -562,7 +612,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const canUndoMap = undoStack.current.length > 0;
   const canRedoMap = redoStack.current.length > 0;
 
-  const cloudUser = Boolean(authEnabled && user && !user.isDevFallback);
+  const cloudUser = Boolean(user);
 
   /** Local portfolio + cloud summaries merged by id; the active business always wins. */
   const businesses = useMemo<BusinessSummary[]>(() => {
@@ -625,6 +675,29 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [activateProfile, flushActive],
   );
 
+  const refreshCheckins = useCallback(async (): Promise<number> => {
+    if (!cloudUser) return 0;
+    const businessId = profileRef.current.businessId ?? "biz_default";
+    const list = await listCheckins({ data: { businessId } }).catch(() => [] as CheckinRecord[]);
+    setCheckins(list);
+    if (!list.length) return 0;
+    const p = profileRef.current;
+    const base = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
+    const merged = mergeCheckins(base, list);
+    if (!merged.applied) return 0;
+    setProcessOverrides(merged.processes);
+    setTemplateRevision((r) => r + 1);
+    setProfile((cur) => ({ ...cur, customProcesses: merged.processes }));
+    return merged.applied;
+  }, [cloudUser]);
+
+  // Pull reviewer check-ins once the cloud profile is in place, and whenever the active business changes.
+  useEffect(() => {
+    if (!ready || !cloudUser || syncStatus === "loading") return;
+    void refreshCheckins();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cloudUser, syncStatus === "loading", profile.businessId]);
+
   const deleteBusinessLocal = useCallback(
     async (id: string) => {
       const activeId = profileRef.current.businessId ?? "biz_default";
@@ -670,6 +743,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       createBusiness,
       deleteBusiness: deleteBusinessLocal,
       switchingBusiness,
+      cloudUser,
+      refreshCheckins,
+      checkins,
     }),
     [
       profile,
@@ -703,6 +779,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       createBusiness,
       deleteBusinessLocal,
       switchingBusiness,
+      cloudUser,
+      refreshCheckins,
+      checkins,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

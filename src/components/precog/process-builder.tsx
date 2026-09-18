@@ -71,6 +71,7 @@ import {
 } from "@/lib/precog/builder/evidence";
 import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
 import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
+import { createReviewLink, listReviewLinks, revokeReviewLink } from "@/lib/precog/builder/review-link-server";
 import { buildSharePayload } from "@/lib/precog/builder/share-payload";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
@@ -760,17 +761,20 @@ export function ProcessBuilder({
         )}
 
         {showShare && (
-          <SharePanel
-            buildPayload={(note) => {
-              const { snapshots } = buildProcessMapGraph(profile.staff);
-              const actions = buildWeeklyActions({
-                staff: profile.staff,
-                dualRelease: profile.dualRelease,
-                mapSnapshots: snapshots,
-              });
-              return buildSharePayload(profile, actions, note);
-            }}
-          />
+          <>
+            <SharePanel
+              buildPayload={(note) => {
+                const { snapshots } = buildProcessMapGraph(profile.staff);
+                const actions = buildWeeklyActions({
+                  staff: profile.staff,
+                  dualRelease: profile.dualRelease,
+                  mapSnapshots: snapshots,
+                });
+                return buildSharePayload(profile, actions, note);
+              }}
+            />
+            <ReviewerLinksPanel businessId={profile.businessId ?? "biz_default"} />
+          </>
         )}
 
         {evidenceSummary.total > 0 && evidenceSummary.overdue + evidenceSummary.never > 0 && !showValidation && (
@@ -1350,7 +1354,11 @@ function EvidenceList({
   }
 
   function markDone(id: string) {
-    onChange(items.map((e) => (e.id === id ? { ...e, lastDoneAt: new Date().toISOString() } : e)));
+    onChange(
+      items.map((e) =>
+        e.id === id ? { ...e, lastDoneAt: new Date().toISOString(), lastDoneBy: undefined } : e,
+      ),
+    );
   }
 
   function addSuggested() {
@@ -1425,6 +1433,7 @@ function EvidenceList({
                     : status === "due_soon"
                       ? `due in ${daysLeft}d`
                       : `current · next in ${daysLeft}d`}
+                {e.lastDoneBy && e.lastDoneAt ? ` · by ${e.lastDoneBy}` : ""}
               </p>
             </div>
             <button
@@ -1527,15 +1536,6 @@ function SharePanel({
   }
 
   if (isPending) return <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">Checking sign-in…</div>;
-  if (user?.isDevFallback) {
-    return (
-      <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
-        Share links need a real account so they can be revoked later. Sign-in is turned off in
-        this build, so sharing is unavailable here — it works once the app is published with
-        sign-in enabled.
-      </div>
-    );
-  }
   if (!user) {
     return (
       <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
@@ -1616,6 +1616,120 @@ function SharePanel({
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewerLinksPanel({ businessId }: { businessId: string }) {
+  const { user, isPending } = useCurrentUserState();
+  const [label, setLabel] = useState("Bookkeeper");
+  const [days, setDays] = useState(90);
+  const [busy, setBusy] = useState(false);
+  const [links, setLinks] = useState<{ token: string; label: string; createdAt: string; expiresAt: string | null; revoked: boolean }[] | null>(null);
+  const [latest, setLatest] = useState<string | null>(null);
+  const eligible = Boolean(user);
+
+  useEffect(() => {
+    if (!eligible) return;
+    void listReviewLinks({ data: { businessId } })
+      .then(setLinks)
+      .catch(() => setLinks([]));
+  }, [eligible, businessId]);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const urlFor = (token: string) => `${origin}/checkin/${token}`;
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // clipboard may be blocked; link is shown inline
+    }
+  }
+
+  async function create() {
+    setBusy(true);
+    try {
+      const res = await createReviewLink({ data: { businessId, label, expiresInDays: days } });
+      setLatest(res.token);
+      setLinks((cur) => [{ token: res.token, label, createdAt: new Date().toISOString(), expiresAt: res.expiresAt, revoked: false }, ...(cur ?? [])]);
+      await copy(urlFor(res.token));
+      toast.success("Check-in link created and copied", { description: `${label} can tick evidence for ${days} days.` });
+    } catch (e) {
+      toast.error("Couldn't create link", { description: e instanceof Error ? e.message : "Try again" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (isPending || !eligible) return null;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="flex items-center gap-1.5 font-medium text-fg">
+        <ClipboardCheck className="size-3.5 text-primary" /> Reviewer check-in links
+      </p>
+      <p className="text-muted">
+        Give a bookkeeper or manager a link where they can tick off control reviews as done. They see only the
+        evidence checklist — never the map, scores, or people — and their check-ins show up here with their name.
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input className={cn(inputCls, "w-36")} placeholder="Role / name" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <select className={cn(inputCls, "w-auto")} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          {[30, 90, 180, 365].map((d) => (
+            <option key={d} value={d}>
+              {d} days
+            </option>
+          ))}
+        </select>
+        <Button size="sm" onClick={() => void create()} disabled={busy || !label.trim()}>
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+          Create check-in link
+        </Button>
+      </div>
+      {latest && (
+        <div className="flex items-center gap-1.5 rounded-md border border-ok/40 bg-ok/10 px-2 py-1.5">
+          <code className="min-w-0 flex-1 truncate text-[10px] text-fg">{urlFor(latest)}</code>
+          <button type="button" onClick={() => void copy(urlFor(latest))} className="text-primary hover:underline" title="Copy">
+            <Copy className="size-3" />
+          </button>
+          <a href={urlFor(latest)} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+            Open
+          </a>
+        </div>
+      )}
+      {links && links.length > 0 && (
+        <ul className="space-y-1">
+          {links.slice(0, 6).map((l) => (
+            <li key={l.token} className={cn("flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1", l.revoked && "opacity-50")}>
+              <span className="min-w-0 flex-1 truncate font-medium text-fg">{l.label}</span>
+              <span className="text-[10px] text-subtle">
+                {l.expiresAt ? `→ ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+              </span>
+              {l.revoked ? (
+                <span className="text-[10px] text-subtle">revoked</span>
+              ) : (
+                <>
+                  <button type="button" onClick={() => void copy(urlFor(l.token))} className="text-[10px] text-primary hover:underline">
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void revokeReviewLink({ data: { token: l.token } }).then(() => {
+                        setLinks((cur) => (cur ?? []).map((x) => (x.token === l.token ? { ...x, revoked: true } : x)));
+                        toast("Check-in link revoked");
+                      });
+                    }}
+                    className="text-[10px] text-danger hover:underline"
+                  >
+                    Revoke
+                  </button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

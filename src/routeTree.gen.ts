@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as CheckinTokenRouteImport } from './routes/checkin.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -26,6 +28,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
@@ -34,6 +41,11 @@ const ReportRoute = ReportRouteImport.update({
 const ThreatRoute = ThreatRouteImport.update({
   id: '/threat',
   path: '/threat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckinTokenRoute = CheckinTokenRouteImport.update({
+  id: '/checkin/$token',
+  path: '/checkin/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
@@ -50,16 +62,20 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
+  '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
+  '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -67,23 +83,42 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
+  '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/report' | '/threat' | '/share/$token' | '/api/auth/$'
+    | '/'
+    | '/login'
+    | '/portfolio'
+    | '/report'
+    | '/threat'
+    | '/checkin/$token'
+    | '/share/$token'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/report' | '/threat' | '/share/$token' | '/api/auth/$'
+  to:
+    | '/'
+    | '/login'
+    | '/portfolio'
+    | '/report'
+    | '/threat'
+    | '/checkin/$token'
+    | '/share/$token'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
     | '/login'
+    | '/portfolio'
     | '/report'
     | '/threat'
+    | '/checkin/$token'
     | '/share/$token'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -91,8 +126,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PortfolioRoute: typeof PortfolioRoute
   ReportRoute: typeof ReportRoute
   ThreatRoute: typeof ThreatRoute
+  CheckinTokenRoute: typeof CheckinTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -113,6 +150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/report': {
       id: '/report'
       path: '/report'
@@ -125,6 +169,13 @@ declare module '@tanstack/react-router' {
       path: '/threat'
       fullPath: '/threat'
       preLoaderRoute: typeof ThreatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkin/$token': {
+      id: '/checkin/$token'
+      path: '/checkin/$token'
+      fullPath: '/checkin/$token'
+      preLoaderRoute: typeof CheckinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share/$token': {
@@ -147,8 +198,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PortfolioRoute: PortfolioRoute,
   ReportRoute: ReportRoute,
   ThreatRoute: ThreatRoute,
+  CheckinTokenRoute: CheckinTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

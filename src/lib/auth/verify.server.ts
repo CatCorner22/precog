@@ -80,6 +80,30 @@ export async function getSessionUser(
  *   read/write everyone's rows.
  * - Auth disabled + no database -> the shared dev user id.
  */
+let devUserSeeded: Promise<void> | null = null;
+
+/**
+ * Auth-off mode runs only against the local PGLite database. Per-user tables
+ * reference "user"(id), so make sure the shared dev user row exists there —
+ * otherwise every insert scoped to DEV_USER_ID fails its foreign key.
+ */
+function ensureDevUser(): Promise<void> {
+  if (!devUserSeeded) {
+    devUserSeeded = (async () => {
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      await sql`
+        insert into "user" ("id", "name", "email", "emailVerified")
+        values (${DEV_USER_ID}, 'Dev User', 'dev@example.com', true)
+        on conflict ("id") do nothing
+      `;
+    })().catch(() => {
+      devUserSeeded = null;
+    });
+  }
+  return devUserSeeded;
+}
+
 export async function requireUserId(bearerToken?: string): Promise<string> {
   if (!authConfigured) {
     if (databaseConfigured) {
@@ -88,6 +112,7 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
           "refusing to fall back to the shared dev user against a real database.",
       );
     }
+    await ensureDevUser();
     return DEV_USER_ID;
   }
   const user = await getSessionUser(bearerToken);

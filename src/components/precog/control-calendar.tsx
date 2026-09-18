@@ -8,6 +8,8 @@ import {
   summarizeDue,
   type DueItem,
 } from "@/lib/precog/builder/due";
+import { buildIcs, downloadIcs } from "@/lib/precog/builder/ics";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +23,8 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  CalendarPlus,
+  RefreshCw,
 } from "lucide-react";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -62,7 +66,18 @@ export function ControlCalendarCard({
   onOpenJournal: () => void;
   onOpenBuilder: () => void;
 }) {
-  const { profile, setCustomProcesses, templateRevision } = usePractice();
+  const { profile, setCustomProcesses, templateRevision, cloudUser, refreshCheckins } = usePractice();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function pullCheckins() {
+    setRefreshing(true);
+    try {
+      const n = await refreshCheckins();
+      toast(n ? `${n} reviewer check-in(s) applied` : "No new check-ins");
+    } finally {
+      setRefreshing(false);
+    }
+  }
   const tpl = useTemplate();
   const [view, setView] = useState<"list" | "calendar">("list");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -77,6 +92,25 @@ export function ControlCalendarCard({
 
   const actionable = items.filter((i) => i.status !== "later");
   const hasEvidence = tpl.processes.some((p) => (p.evidence ?? []).length > 0);
+  const dated = items.filter((i) => i.dueAt);
+
+  function exportIcs() {
+    if (!dated.length) {
+      toast("Nothing dated to export yet", {
+        description: "Mark a first review done so each item has a next due date.",
+      });
+      return;
+    }
+    const ics = buildIcs(dated, {
+      businessName: profile.practiceName,
+      appUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+    });
+    const slug = profile.practiceName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    downloadIcs(ics, `${slug || "precog"}-control-reviews.ics`);
+    toast.success("Calendar exported", {
+      description: `${dated.length} event(s) · evidence reviews repeat on their cadence.`,
+    });
+  }
 
   function markDone(i: DueItem) {
     if (!i.processId || !i.evidenceId) return;
@@ -120,6 +154,26 @@ export function ControlCalendarCard({
               Evidence reviews, journal re-reviews, and map hygiene — what's due and when.
             </CardDescription>
           </div>
+          <div className="flex items-center gap-1.5">
+            {cloudUser && (
+              <button
+                type="button"
+                onClick={() => void pullCheckins()}
+                disabled={refreshing}
+                title="Pull check-ins recorded by reviewers via their links"
+                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-60"
+              >
+                <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} /> Check-ins
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={exportIcs}
+              title="Add these reviews to Google / Outlook / Apple Calendar"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg"
+            >
+              <CalendarPlus className="size-3.5" /> .ics
+            </button>
           <div className="inline-flex overflow-hidden rounded-md border border-border text-xs">
             <button
               type="button"
@@ -135,6 +189,7 @@ export function ControlCalendarCard({
             >
               Calendar
             </button>
+          </div>
           </div>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
