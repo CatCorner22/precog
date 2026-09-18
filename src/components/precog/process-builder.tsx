@@ -545,12 +545,12 @@ function SuggestPanel({
       {error && <p className="text-[11px] text-danger">{error}</p>}
       {result && (
         <div className="space-y-2">
-          <p className="text-[10px] text-subtle">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-subtle">
             <Badge variant={result.source === "grok" ? "accent" : "default"}>
               {result.source === "grok" ? `Grok · ${result.model ?? ""}` : "Rule-based"}
-            </Badge>{" "}
-            {result.rationale}
-          </p>
+            </Badge>
+            <span>{result.rationale}</span>
+          </div>
           {result.risks.length > 0 && (
             <ul className="space-y-1">
               {result.risks.map((r) => {
