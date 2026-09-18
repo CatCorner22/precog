@@ -1,4 +1,4 @@
-import type { ProcessNode, StaffComposition } from "./types";
+import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -36,6 +36,8 @@ export interface PracticeProfile {
   onboardingComplete?: boolean;
   /** User-built process map. Null/undefined = use the industry template as-is. */
   customProcesses?: ProcessNode[] | null;
+  /** The user's real team. Null/undefined = template demo people. */
+  customPeople?: Person[] | null;
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
   updatedAt: string;
@@ -60,6 +62,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     decisions: [],
     onboardingComplete: true,
     customProcesses: null,
+    customPeople: null,
     mapLayout: {},
     updatedAt: new Date().toISOString(),
   };
@@ -102,6 +105,7 @@ export function loadProfile(): PracticeProfile {
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
       onboardingComplete: parsed.onboardingComplete ?? true,
       customProcesses: Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null,
+      customPeople: Array.isArray(parsed.customPeople) ? parsed.customPeople : null,
       mapLayout:
         parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
     };

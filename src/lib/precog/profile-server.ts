@@ -36,6 +36,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       customProcesses: Array.isArray(row.profile.customProcesses)
         ? row.profile.customProcesses
         : null,
+      customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
       mapLayout: row.profile.mapLayout ?? {},
     };
     return {

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import type { ProcessNode, StaffComposition } from "./types";
+import type { Person, ProcessNode, StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
@@ -22,7 +22,11 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
-import { setActiveIndustry, setProcessOverrides } from "./active-template";
+import {
+  setActiveIndustry,
+  setPeopleOverrides,
+  setProcessOverrides,
+} from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import {
   defaultProfile,
@@ -68,6 +72,10 @@ interface PracticeContextValue {
   setCustomProcesses: (
     v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
   ) => void;
+  /** Map builder: replace the demo team with real people (null = template people). */
+  setCustomPeople: (
+    v: Person[] | null | ((current: Person[]) => Person[] | null),
+  ) => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (
     v:
@@ -96,6 +104,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     const loaded = loadProfile();
     setActiveIndustry(loaded.industry);
     setProcessOverrides(loaded.customProcesses ?? null);
+    setPeopleOverrides(loaded.customPeople ?? null);
     setTemplateRevision((r) => r + 1);
     setProfile(loaded);
     setReady(true);
@@ -119,6 +128,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         if (res.found && res.profile) {
           setActiveIndustry(res.profile.industry);
           setProcessOverrides(res.profile.customProcesses ?? null);
+          setPeopleOverrides(res.profile.customPeople ?? null);
           setTemplateRevision((r) => r + 1);
           setProfile(res.profile);
           saveProfile(res.profile);
@@ -300,6 +310,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setCustomPeople = useCallback(
+    (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
+      setProfile((p) => {
+        const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
+        const next = typeof v === "function" ? v(current) : v;
+        setPeopleOverrides(next);
+        setTemplateRevision((r) => r + 1);
+        return { ...p, customPeople: next };
+      });
+    },
+    [],
+  );
+
   const setCustomProcesses = useCallback(
     (
       v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
@@ -333,7 +356,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const mapCustomized = Boolean(profile.customProcesses);
+  const mapCustomized = Boolean(profile.customProcesses || profile.customPeople);
 
   const value = useMemo(
     () => ({
@@ -351,6 +374,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       setCustomProcesses,
+      setCustomPeople,
       setMapLayout,
       mapCustomized,
     }),
@@ -369,6 +393,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       setCustomProcesses,
+      setCustomPeople,
       setMapLayout,
       mapCustomized,
     ],

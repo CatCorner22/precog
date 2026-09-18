@@ -24,8 +24,11 @@ import {
   RotateCcw,
   Trash2,
   Upload,
+  Users,
   X,
 } from "lucide-react";
+import type { Person } from "@/lib/precog/types";
+import { getBaseTemplate } from "@/lib/precog/active-template";
 
 const RISK_KINDS: ProcessRiskKind[] = [
   "fraud",
@@ -80,8 +83,10 @@ export function ProcessBuilder({
   onClose: () => void;
 }) {
   const tpl = useTemplate();
-  const { profile, setCustomProcesses, setMapLayout, mapCustomized } = usePractice();
+  const { profile, setCustomProcesses, setCustomPeople, setMapLayout, mapCustomized } =
+    usePractice();
   const processes = tpl.processes;
+  const [showTeam, setShowTeam] = useState(false);
   const selected = processes.find((p) => p.id === selectedProcessId) ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -136,19 +141,22 @@ export function ProcessBuilder({
   }
 
   function resetToTemplate() {
-    if (!window.confirm("Discard your custom map and restore the industry template?")) return;
+    if (!window.confirm("Discard your custom map and team, and restore the industry template?"))
+      return;
     setCustomProcesses(null);
+    setCustomPeople(null);
     setMapLayout({});
     toast.success("Template restored");
   }
 
   function exportMap() {
     const payload = {
-      version: 1,
+      version: 2,
       industry: profile.industry,
       businessName: profile.practiceName,
       exportedAt: new Date().toISOString(),
       processes,
+      people: tpl.people,
       layout: profile.mapLayout ?? {},
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -165,6 +173,7 @@ export function ProcessBuilder({
     try {
       const parsed = JSON.parse(await file.text()) as {
         processes?: ProcessNode[];
+        people?: Person[];
         layout?: Record<string, { x: number; y: number }>;
       };
       if (!Array.isArray(parsed.processes) || parsed.processes.length === 0) {
@@ -187,6 +196,19 @@ export function ProcessBuilder({
           inputs: Array.isArray(p.inputs) ? p.inputs : [],
           outputs: Array.isArray(p.outputs) ? p.outputs : [],
         }));
+      if (Array.isArray(parsed.people) && parsed.people.length) {
+        setCustomPeople(
+          parsed.people
+            .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              role: p.role ?? "Team member",
+              active: p.active ?? true,
+              tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : 1,
+            })),
+        );
+      }
       setCustomProcesses(cleaned);
       setMapLayout(parsed.layout ?? {});
       onSelectProcess(cleaned[0].id);
@@ -245,12 +267,26 @@ export function ProcessBuilder({
               e.target.value = "";
             }}
           />
+          <Button
+            size="sm"
+            variant={showTeam ? "default" : "secondary"}
+            onClick={() => setShowTeam((v) => !v)}
+          >
+            <Users className="size-3.5" /> Team ({tpl.people.length})
+          </Button>
           {mapCustomized && (
             <Button size="sm" variant="ghost" onClick={resetToTemplate}>
               <RotateCcw className="size-3.5" /> Template
             </Button>
           )}
         </div>
+
+        {showTeam && (
+          <TeamEditor
+            people={tpl.people}
+            onChange={(next) => setCustomPeople(next)}
+          />
+        )}
 
         <div>
           <span className={labelCls}>Processes ({processes.length})</span>
@@ -289,6 +325,113 @@ export function ProcessBuilder({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function TeamEditor({
+  people,
+  onChange,
+}: {
+  people: Person[];
+  onChange: (next: Person[]) => void;
+}) {
+  const roleOptions = useMemo(() => Object.keys(getBaseTemplate().roleTemplates), []);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState(roleOptions[0] ?? "Team member");
+  const [customRole, setCustomRole] = useState("");
+  const [tenure, setTenure] = useState(2);
+  const useCustom = role === "__custom";
+
+  function add() {
+    const finalRole = (useCustom ? customRole : role).trim();
+    if (!name.trim() || !finalRole) return;
+    let id = `p-${slug(name)}`;
+    let n = 2;
+    while (people.some((p) => p.id === id)) id = `p-${slug(name)}-${n++}`;
+    onChange([
+      ...people,
+      { id, name: name.trim().slice(0, 60), role: finalRole.slice(0, 40), active: true, tenureYears: tenure },
+    ]);
+    setName("");
+    setCustomRole("");
+    toast.success(`${name.trim()} added to the team`);
+  }
+
+  function remove(id: string) {
+    const p = people.find((x) => x.id === id);
+    if (!p) return;
+    if (people.length <= 1) {
+      toast.error("Keep at least one person on the team.");
+      return;
+    }
+    if (!window.confirm(`Remove ${p.name}? They will be unassigned from any processes.`)) return;
+    onChange(people.filter((x) => x.id !== id));
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
+      <p className="text-[11px] text-muted">
+        Roles drive SoD detection — pick the closest match so conflicts are scored correctly.
+      </p>
+      <ul className="space-y-1">
+        {people.map((p) => (
+          <li
+            key={p.id}
+            className="flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1 text-[11px]"
+          >
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium text-fg">{p.name}</span>
+              <span className="text-subtle"> · {p.role}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => remove(p.id)}
+              className="text-subtle hover:text-danger"
+              aria-label={`Remove ${p.name}`}
+            >
+              <Trash2 className="size-3" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="grid gap-1.5 sm:grid-cols-[1fr_1fr_64px]">
+        <input
+          className={inputCls}
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
+          {roleOptions.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+          <option value="__custom">Other role…</option>
+        </select>
+        <input
+          className={inputCls}
+          type="number"
+          min={0}
+          max={40}
+          step={0.5}
+          value={tenure}
+          onChange={(e) => setTenure(Number(e.target.value))}
+          title="Tenure (years)"
+        />
+      </div>
+      {useCustom && (
+        <input
+          className={inputCls}
+          placeholder="Role title (scored as read-only unless it matches a known role)"
+          value={customRole}
+          onChange={(e) => setCustomRole(e.target.value)}
+        />
+      )}
+      <Button size="sm" variant="secondary" onClick={add} disabled={!name.trim()}>
+        <Plus className="size-3.5" /> Add team member
+      </Button>
+    </div>
   );
 }
 

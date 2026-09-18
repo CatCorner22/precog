@@ -72,13 +72,23 @@ export function DualReleasePanel({
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
-  const [initiatorId, setInitiatorId] = useState("p2");
-  const [secondId, setSecondId] = useState<string>("p1");
+  const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
+  const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
   const [payee, setPayee] = useState(seed.defaultPayee);
 
   useEffect(() => {
     setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
   }, [profile.industry]);
+
+  // Keep signer picks valid when the team changes (industry switch or team editor).
+  useEffect(() => {
+    if (!people.some((p) => p.id === initiatorId)) {
+      setInitiatorId(people[1]?.id ?? people[0]?.id ?? "");
+    }
+    if (secondId && !people.some((p) => p.id === secondId)) {
+      setSecondId(people[0]?.id ?? "");
+    }
+  }, [people, initiatorId, secondId]);
   const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
   const [showExForm, setShowExForm] = useState(false);
 
