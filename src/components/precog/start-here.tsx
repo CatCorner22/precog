@@ -11,6 +11,7 @@ import {
   observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
+  sectorForIndustry,
   type CaseStudy,
 } from "@/lib/precog/evidence";
 import { CaseCard } from "./case-card";
@@ -33,6 +34,7 @@ import { formatUsd } from "@/lib/utils";
  */
 export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => void }) {
   const { profile } = usePractice();
+  const sector = sectorForIndustry(profile.industry);
 
   const sod = useMemo(
     () =>
@@ -389,13 +391,20 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         </Card>
       </section>
 
-      <EvidenceFooter cases={evidence} />
+      <EvidenceFooter cases={evidence} sector={sector} />
     </div>
   );
 }
 
-function EvidenceFooter({ cases }: { cases: CaseStudy[] }) {
+function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string }) {
   if (cases.length === 0) return null;
+  // Cases from the reader's own trade lead, because they land harder. The rest
+  // stay, because the mechanism of a scheme does not change between industries
+  // and the mechanism is the part worth learning.
+  const ordered = [
+    ...cases.filter((c) => c.sector === sector),
+    ...cases.filter((c) => c.sector !== sector),
+  ];
   return (
     <section className="space-y-3">
       <SectionHeading
@@ -403,7 +412,7 @@ function EvidenceFooter({ cases }: { cases: CaseStudy[] }) {
         subtitle="Open any one to read what happened and confirm it at the source."
       />
       <div className="space-y-2">
-        {cases.map((c) => (
+        {ordered.map((c) => (
           <CaseCard key={c.id} study={c} />
         ))}
       </div>
