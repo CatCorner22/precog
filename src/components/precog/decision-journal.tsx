@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { DECISION_KIND_LABEL, type DecisionKind } from "@/lib/precog/practice-profile";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
+import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +27,30 @@ export function DecisionJournal({
   const [kind, setKind] = useState<DecisionKind>("remediate");
   const [note, setNote] = useState("");
   const [reviewDays, setReviewDays] = useState(30);
+
+  /**
+   * What accepting this particular gap has cost other businesses.
+   *
+   * Accepting residual risk is a legitimate decision, and the journal exists
+   * so it is a recorded one. When the subject is a control and the owner has
+   * chosen "accept residual", the prosecuted cases behind the duty conflicts
+   * that control addresses are put in front of them before they save, with
+   * the loss figures as stated in the sources. Subjects with no such cases
+   * get no note rather than a loosely related one.
+   */
+  const acceptEvidence = useMemo(() => {
+    if (kind !== "accept_residual") return null;
+    const match = portfolio.top.find((t) => t.name === subject);
+    if (!match?.linkedControlId) return null;
+    const ruleIds = CONFLICT_RULES.filter((r) => r.linkedControlId === match.linkedControlId).map(
+      (r) => r.id,
+    );
+    if (ruleIds.length === 0) return null;
+    const cases = casesForSodRules(ruleIds);
+    if (cases.length === 0) return null;
+    const largest = cases.reduce((best, c) => (c.lossUsd > best.lossUsd ? c : best), cases[0]);
+    return { count: cases.length, range: observedLossRange(cases), largest };
+  }, [kind, subject, portfolio.top]);
 
   const overdue = useMemo(() => {
     const now = Date.now();
@@ -112,6 +139,32 @@ export function DecisionJournal({
                 </button>
               ))}
             </div>
+            {acceptEvidence && (
+              <div className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm leading-relaxed text-muted">
+                <p className="font-medium text-warn">Before you accept this</p>
+                <p className="mt-1">
+                  {acceptEvidence.count} prosecuted{" "}
+                  {acceptEvidence.count === 1 ? "case involves" : "cases involve"} the duty
+                  conflicts this control addresses
+                  {acceptEvidence.range
+                    ? `; median stated loss ${formatUsd(acceptEvidence.range.median)}`
+                    : ""}
+                  . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
+                  {acceptEvidence.largest.lossIsFloor ? "at least " : ""}
+                  {formatUsd(acceptEvidence.largest.lossUsd)}). Accepting is a legitimate decision;
+                  write down which compensating control makes it acceptable and who reviews it.
+                </p>
+                {onOpenLinked && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenLinked("start")}
+                    className="mt-1.5 text-xs font-medium text-primary hover:underline"
+                  >
+                    Read the cases on Start here
+                  </button>
+                )}
+              </div>
+            )}
             <label className="block text-sm">
               <span className="text-muted">Note</span>
               <textarea
