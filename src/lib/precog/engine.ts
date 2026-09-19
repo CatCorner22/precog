@@ -1,4 +1,5 @@
 import type { IndustryTemplate } from "./templates";
+import { industryMeta } from "./industry";
 import type {
   KnowledgeLevel,
   KnowledgeRisk,
@@ -214,11 +215,12 @@ export function runPrecogScenario(
     `Insurance arithmetic on your premium and the assumed loss: premium ${dynamic.transfer.premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} net (−${dynamic.transfer.discountPctApplied}% assumed credits) · assumed retained loss ${dynamic.transfer.retainedExpected.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} · annual cost-of-risk figure ~${dynamic.transfer.expectedAnnualCostOfRisk.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}.`,
   );
 
+  const served = industryMeta(tpl.id).customerLabel;
   const cascade = scenario.cascadeLayers.map((layer) => {
     const effects: Record<string, string> = {
       knowledge: "Critical know-how concentrated or lost; training lag begins.",
       process: "Workflow throughput drops; workarounds and errors rise.",
-      surface: "Patients feel delays; schedule and cash flow noise increase.",
+      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays; schedule and cash flow noise increase.`,
       control: "Control design fails open; residual risk becomes default state.",
       source: "System access or vendor configuration becomes single-threaded.",
       continuity: "Exit or failure path exposes uninsured fragility.",
