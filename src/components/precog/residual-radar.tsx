@@ -19,20 +19,10 @@ function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
   return "ok";
 }
 
-export function ResidualRadar({
-  onNavigate,
-}: {
-  onNavigate: (target: DeepLinkTarget) => void;
-}) {
+export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { profile } = usePractice();
-  const summary = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff],
-  );
-  const tornado = useMemo(
-    () => tornadoSensitivity(profile.staff),
-    [profile.staff],
-  );
+  const summary = useMemo(() => portfolioSummary(profile.staff), [profile.staff]);
+  const tornado = useMemo(() => tornadoSensitivity(profile.staff), [profile.staff]);
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
   const active = selected ?? summary.top[0] ?? null;
 
@@ -59,8 +49,16 @@ export function ResidualRadar({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Scoring engine" value={summary.scoringVersion.replace("precog-", "")} hint="Transparent weights" />
-        <Stat label="Avg residual" value={String(summary.averageResidual)} hint="From practice profile" />
+        <Stat
+          label="Scoring engine"
+          value={summary.scoringVersion.replace("precog-", "")}
+          hint="Transparent weights"
+        />
+        <Stat
+          label="Avg residual"
+          value={String(summary.averageResidual)}
+          hint="From practice profile"
+        />
         <Stat label="Critical path" value={String(summary.criticalPath)} hint="Band ≥ 80" />
         <Stat label="Act now" value={String(summary.actNow)} hint="Band 60–79" />
       </div>
@@ -156,17 +154,15 @@ export function ResidualRadar({
                       </li>
                     ))}
                   </ul>
-                  {(active.expectedLoss ||
-                    active.linkedScenarioId ||
-                    active.linkedKnowledgeId) && (
+                  {(active.expectedLoss || active.linkedScenarioId || active.linkedKnowledgeId) && (
                     <Button size="sm" variant="secondary" onClick={() => openLinked(active)}>
                       Open linked evidence
                     </Button>
                   )}
                   {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
-                      Scenario expected loss {formatUsd(active.expectedLoss)}
-                      {active.p50Days != null ? ` · p50 ${active.p50Days}d` : ""}
+                      Scenario assumes a loss of {formatUsd(active.expectedLoss)}
+                      {active.p50Days != null ? ` about ${active.p50Days} days out` : ""}
                     </p>
                   )}
                 </div>

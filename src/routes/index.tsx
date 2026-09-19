@@ -49,7 +49,11 @@ import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
-import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
+import {
+  computeMapHealth,
+  buildProcessMapGraph,
+  validateProcessMap,
+} from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,7 +93,10 @@ function HomeShell() {
         <div className="h-40 animate-pulse rounded-2xl border border-border bg-surface" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl border border-border bg-surface" />
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-xl border border-border bg-surface"
+            />
           ))}
         </div>
       </main>
@@ -145,10 +152,7 @@ function Home() {
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
-  const risks = useMemo(
-    () => findKnowledgeRisks(),
-    [profile.industry, templateRevision],
-  );
+  const risks = useMemo(() => findKnowledgeRisks(), [profile.industry, templateRevision]);
   const ranked = useMemo(
     () =>
       rankDangerousScenarios({
@@ -157,10 +161,7 @@ function Home() {
       }),
     [profile.staff, profile.riskVariables, profile.industry, templateRevision],
   );
-  const coso = useMemo(
-    () => assessCoso(),
-    [profile.industry, templateRevision],
-  );
+  const coso = useMemo(() => assessCoso(), [profile.industry, templateRevision]);
   const portfolio = useMemo(
     () => portfolioSummary(profile.staff),
     [profile.staff, profile.industry, templateRevision],
@@ -335,9 +336,7 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">
-                {industry.label} · internal controls
-              </Badge>
+              <Badge variant="accent">{industry.label} · internal controls</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
                 Know your residual risk before it becomes a loss
               </h1>
@@ -406,13 +405,7 @@ function Home() {
                 label="Map health"
                 value={String(mapHealth.score)}
                 hint={mapHealth.bandLabel}
-                tone={
-                  mapHealth.score >= 70
-                    ? "primary"
-                    : mapHealth.score >= 55
-                      ? "warn"
-                      : "danger"
-                }
+                tone={mapHealth.score >= 70 ? "primary" : mapHealth.score >= 55 ? "warn" : "danger"}
                 onClick={() => {
                   setMapBuild(true);
                   setTab("map");
@@ -453,16 +446,17 @@ function Home() {
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
-                label="Top retained"
+                label="Largest assumed retained loss"
                 value={
                   top
                     ? formatUsd(
-                        top.result.retainedImpact?.expected ??
-                          top.result.financialImpact.expected,
+                        top.result.retainedImpact?.expected ?? top.result.financialImpact.expected,
                       )
                     : "—"
                 }
-                hint={top ? `p50 ${top.result.timelineDays.p50}d` : ""}
+                hint={
+                  top ? `scenario assumption · about ${top.result.timelineDays.p50} days out` : ""
+                }
                 tone="warn"
                 onClick={() =>
                   navigateDeepLink({
@@ -495,8 +489,8 @@ function Home() {
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>
                   <CardDescription>
-                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length}{" "}
-                    detected conflicts · pressure {leading.band}
+                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length} detected
+                    conflicts · pressure {leading.band}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -508,9 +502,7 @@ function Home() {
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium">
-                          {item.name}
-                        </span>
+                        <span className="block truncate text-sm font-medium">{item.name}</span>
                         <span className="text-xs text-muted">{item.bandLabel}</span>
                       </span>
                       <span className="text-lg font-semibold tabular">{item.residual}</span>
@@ -543,9 +535,7 @@ function Home() {
           />
         )}
 
-        {tab === "intel" && (
-          <IntelligencePanel onNavigate={(t) => navigateTab(t)} />
-        )}
+        {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
 
         {tab === "residual" && (
           <div className="space-y-4">
@@ -608,13 +598,9 @@ function Home() {
           </div>
         )}
 
-        {tab === "sod" && (
-          <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />
-        )}
+        {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
-        {tab === "journal" && (
-          <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
-        )}
+        {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
       </main>
     </div>
   );

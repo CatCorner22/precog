@@ -56,12 +56,7 @@ export function ScenarioCompare({
 
   const report: CompareReport = useMemo(() => {
     if (mode === "futures") {
-      return compareScenarioFutures(
-        focusScenarioId,
-        staff,
-        packageMits,
-        riskVariables,
-      );
+      return compareScenarioFutures(focusScenarioId, staff, packageMits, riskVariables);
     }
     return compareScenarios(selectedScenarios, staff, crossMits, riskVariables);
   }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
@@ -86,17 +81,13 @@ export function ScenarioCompare({
   }
 
   function togglePackageMit(id: string) {
-    setPackageMits((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setPackageMits((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   function toggleCrossMit(scenarioId: string, mitId: string) {
     setCrossMits((prev) => {
       const cur = prev[scenarioId] ?? [];
-      const next = cur.includes(mitId)
-        ? cur.filter((x) => x !== mitId)
-        : [...cur, mitId];
+      const next = cur.includes(mitId) ? cur.filter((x) => x !== mitId) : [...cur, mitId];
       return { ...prev, [scenarioId]: next };
     });
   }
@@ -248,7 +239,9 @@ export function ScenarioCompare({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Shared staff composition</CardTitle>
-          <CardDescription>Applied to every column (mirrors dual control / bank rec into variables)</CardDescription>
+          <CardDescription>
+            Applied to every column (mirrors dual control / bank rec into variables)
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Slider
@@ -269,9 +262,7 @@ export function ScenarioCompare({
             <input
               type="checkbox"
               checked={staff.dualControlPayments}
-              onChange={(e) =>
-                updateStaff({ ...staff, dualControlPayments: e.target.checked })
-              }
+              onChange={(e) => updateStaff({ ...staff, dualControlPayments: e.target.checked })}
               className="size-4 accent-[var(--color-primary)]"
             />
             Dual control payments
@@ -280,9 +271,7 @@ export function ScenarioCompare({
             <input
               type="checkbox"
               checked={staff.independentBankRec}
-              onChange={(e) =>
-                updateStaff({ ...staff, independentBankRec: e.target.checked })
-              }
+              onChange={(e) => updateStaff({ ...staff, independentBankRec: e.target.checked })}
               className="size-4 accent-[var(--color-primary)]"
             />
             Independent bank rec
@@ -296,21 +285,15 @@ export function ScenarioCompare({
             <WinnerChip
               icon
               label="Lowest retained loss"
-              value={
-                report.columns.find((c) => c.id === report.winnerByRetained)?.label ?? "—"
-              }
+              value={report.columns.find((c) => c.id === report.winnerByRetained)?.label ?? "—"}
             />
             <WinnerChip
               label="Lowest annual cost of risk"
-              value={
-                report.columns.find((c) => c.id === report.winnerByAnnualCor)?.label ?? "—"
-              }
+              value={report.columns.find((c) => c.id === report.winnerByAnnualCor)?.label ?? "—"}
             />
             <WinnerChip
               label="Lowest priority pressure"
-              value={
-                report.columns.find((c) => c.id === report.winnerByPriority)?.label ?? "—"
-              }
+              value={report.columns.find((c) => c.id === report.winnerByPriority)?.label ?? "—"}
             />
           </div>
 
@@ -323,10 +306,7 @@ export function ScenarioCompare({
                 col.result.retainedImpact?.expected ?? col.result.financialImpact.expected;
               const cor = col.result.dynamic?.expectedAnnualCostOfRisk ?? retained;
               return (
-                <Card
-                  key={col.id}
-                  className={cn(isWinner && "border-ok/40 glow-primary")}
-                >
+                <Card key={col.id} className={cn(isWinner && "border-ok/40 glow-primary")}>
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
@@ -345,12 +325,12 @@ export function ScenarioCompare({
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <Metric
-                      label="Gross expected"
+                      label="Assumed loss if it happens"
                       value={formatUsd(col.result.financialImpact.expected)}
-                      sub={`${formatUsd(col.result.financialImpact.low)} – ${formatUsd(col.result.financialImpact.high)}`}
+                      sub={`assumed range ${formatUsd(col.result.financialImpact.low)} – ${formatUsd(col.result.financialImpact.high)}`}
                     />
                     <Metric
-                      label="Retained expected"
+                      label="Assumed retained loss"
                       value={formatUsd(retained)}
                       sub={
                         col.result.dynamic
@@ -368,9 +348,9 @@ export function ScenarioCompare({
                       }
                     />
                     <Metric
-                      label="Timeline p50"
+                      label="Assumed time to impact"
                       value={`${col.result.timelineDays.p50} days`}
-                      sub={`95% ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High}d`}
+                      sub={`assumed range ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High}d`}
                     />
                     {!isBase && d && (
                       <div className="rounded-lg border border-border bg-elevated px-2 py-2 text-xs">
@@ -384,14 +364,12 @@ export function ScenarioCompare({
                           Retained {fmtDeltaMoney(d.vsBaseline.retainedDelta)}
                         </p>
                         <p
-                          className={cn(
-                            d.vsBaseline.annualCorDelta < 0 ? "text-ok" : "text-muted",
-                          )}
+                          className={cn(d.vsBaseline.annualCorDelta < 0 ? "text-ok" : "text-muted")}
                         >
                           Annual CoR {fmtDeltaMoney(d.vsBaseline.annualCorDelta)}
                         </p>
                         <p className="text-muted">
-                          p50 {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
+                          Time to impact {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
                         </p>
                       </div>
                     )}
@@ -411,14 +389,8 @@ export function ScenarioCompare({
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fill: "var(--color-muted)", fontSize: 11 }}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tick={{ fill: "var(--color-muted)", fontSize: 11 }}
-                    />
+                    <XAxis dataKey="day" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
+                    <YAxis domain={[0, 100]} tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
                     <Tooltip
                       contentStyle={{
                         background: "var(--color-elevated)",
@@ -466,7 +438,7 @@ export function ScenarioCompare({
                     <th className="py-2 pr-3 font-medium">Gross $</th>
                     <th className="py-2 pr-3 font-medium">Retained $</th>
                     <th className="py-2 pr-3 font-medium">Annual CoR</th>
-                    <th className="py-2 pr-3 font-medium">p50</th>
+                    <th className="py-2 pr-3 font-medium">Assumed days</th>
                     <th className="py-2 font-medium">Δ retained</th>
                   </tr>
                 </thead>
@@ -491,9 +463,7 @@ export function ScenarioCompare({
                         </td>
                         <td className="py-2.5 pr-3 tabular">{formatUsd(retained)}</td>
                         <td className="py-2.5 pr-3 tabular">{formatUsd(cor)}</td>
-                        <td className="py-2.5 pr-3 tabular">
-                          {c.result.timelineDays.p50}d
-                        </td>
+                        <td className="py-2.5 pr-3 tabular">{c.result.timelineDays.p50}d</td>
                         <td
                           className={cn(
                             "py-2.5 tabular",
@@ -518,15 +488,7 @@ export function ScenarioCompare({
   );
 }
 
-function WinnerChip({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon?: boolean;
-}) {
+function WinnerChip({ label, value, icon }: { label: string; value: string; icon?: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-surface px-3 py-2">
       <p className="text-[10px] tracking-wide text-subtle uppercase">{label}</p>
@@ -538,15 +500,7 @@ function WinnerChip({
   );
 }
 
-function Metric({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-}) {
+function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div>
       <p className="text-[11px] text-subtle">{label}</p>

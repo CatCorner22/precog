@@ -192,10 +192,12 @@ export function runPrecogScenario(
     return { layer, effect: effects[layer] ?? "Downstream impact." };
   });
 
+  // Not a statistical statement. The timeline and loss figures are the
+  // scenario template's assumptions, scaled by the multipliers above.
   const confidenceLabel =
-    reduction > 0.5
-      ? "95% CI after mitigations + dynamic variables (wider if base rates sparse)"
-      : "95% CI on time-to-material-impact (dynamic likelihood/severity model)";
+    reduction > 0
+      ? "written into the scenario, scaled by your settings and the mitigations you switched on"
+      : "written into the scenario, scaled by your staffing, detection, and insurance settings";
 
   return {
     scenarioId: scenario.id,
