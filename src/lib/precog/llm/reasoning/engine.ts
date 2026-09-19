@@ -102,13 +102,10 @@ export function runAdvancedReasoning(
   const cf = runCounterfactuals(staff, riskVars);
   const evoi = computeEvoi(staff, riskVars);
 
-  const recommendedSequence = beam.best.labels.length
-    ? beam.best.labels
-    : [cf.bestIntervention];
+  const recommendedSequence = beam.best.labels.length ? beam.best.labels : [cf.bestIntervention];
 
   // Confidence: tighter CI + more improving counterfactuals + beam utility
-  const ciWidth =
-    bayes.failureProbability.ci95.high - bayes.failureProbability.ci95.low;
+  const ciWidth = bayes.failureProbability.ci95.high - bayes.failureProbability.ci95.low;
   const improveCount = cf.counterfactuals.filter((c) => c.wouldImprove).length;
   let conf = 55;
   conf += Math.max(0, 15 - ciWidth * 40);
@@ -116,17 +113,19 @@ export function runAdvancedReasoning(
   conf += Math.min(10, beam.best.utility * 12);
   conf = Math.max(35, Math.min(88, Math.round(conf)));
 
+  // Qualitative on purpose. The probabilities, intervals, expected losses,
+  // and utilities computed above are this app's own weights, so the ordering
+  // is worth stating and the decimals are not.
   const synthesis = [
-    `Bayesian P(material failure) ≈ ${(bayes.failureProbability.mean * 100).toFixed(1)}% (95% CI ${(bayes.failureProbability.ci95.low * 100).toFixed(1)}–${(bayes.failureProbability.ci95.high * 100).toFixed(1)}%); EAL ≈ $${Math.round(bayes.expectedAnnualLoss).toLocaleString()}.`,
-    `Beam-optimal sequence (depth ${beam.depth}): ${beam.best.labels.join(" → ") || "status quo"} · utility ${beam.best.utility.toFixed(3)} · residual ${beam.best.residual} · CoR $${Math.round(beam.best.annualCor).toLocaleString()}.`,
-    `Best counterfactual twin: ${cf.bestIntervention} (factual P(fail) ${(cf.factual.bayesPFail * 100).toFixed(1)}%, EAL $${Math.round(cf.factual.bayesEal).toLocaleString()}).`,
-    `Highest EVOI observation: ${evoi.topObservation} (EVOI ≈ $${evoi.items[0]?.evoi.toLocaleString() ?? 0}).`,
-    `Strongest causal intervention to owner decision: ${[...causal].sort((a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision))[0]?.intervention ?? "n/a"}.`,
+    `Levers in the order this app's model prefers: ${beam.best.labels.join(" → ") || "status quo"}.`,
+    `Single lever that moves the residual index most in a side-by-side comparison: ${cf.bestIntervention}.`,
+    `Most useful thing to verify next: ${evoi.topObservation}.`,
+    `Strongest causal path to the owner's decision: ${[...causal].sort((a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision))[0]?.intervention ?? "n/a"}.`,
+    "Basis: every figure behind this ordering is one of this app's weights, not a measurement of this business.",
   ];
 
   return {
-    method:
-      "Bayesian Beta + causal multi-hop + beam search + twin counterfactuals + EVOI",
+    method: "Bayesian Beta + causal multi-hop + beam search + twin counterfactuals + EVOI",
     bayesian: {
       pFail: bayes.failureProbability.mean,
       pFailCi: bayes.failureProbability.ci95,

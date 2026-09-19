@@ -21,11 +21,9 @@
 import { detectSodConflicts } from "../sod/detect";
 import { getActiveTemplate } from "../active-template";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
-import type { DualReleasePolicy } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
-import { scoreAnomalies } from "../ml/anomaly";
 
 export type EpistemicClass = "known_known" | "known_unknown" | "unknown_unknown" | "unknown_known"; // tacit knowledge we fail to encode
 
@@ -145,7 +143,6 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   });
   const portfolio = portfolioSummary(staff);
   const leading = scoreLeadingIndicators(staff, vars);
-  const anomaly = scoreAnomalies(staff, vars);
 
   const items: EpistemicItem[] = [];
 
@@ -221,7 +218,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       description:
         "No imported daily cash-count vs PMS variance series. Lapping and skim detection stay prior-driven.",
       severity: "critical",
-      affects: ["precog", "ml-anomaly", "cash process"],
+      affects: ["precog", "watched conditions", "cash process"],
       confidenceDrag: 0.12,
       probe: {
         kind: "system_export",
@@ -269,13 +266,13 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       description:
         "Write-off dual release thresholds exist, but live void/adjustment velocity is not streamed.",
       severity: "high",
-      affects: ["ml-anomaly", "ar process", "sod"],
+      affects: ["watched conditions", "ar process", "sod"],
       confidenceDrag: 0.1,
       probe: {
         kind: "system_export",
         action: "Weekly export of voids, write-offs, and user who posted",
         effort: "hours",
-        expectedLift: "Enables real-time anomaly scoring on billing fraud path",
+        expectedLift: "Lets the app watch the billing path at transaction level",
       },
       link: { tab: "map", id: "proc-ar" },
     },
@@ -560,7 +557,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       label: "Practice profile → residual re-score",
       ready: true,
       latencyClass: "instant",
-      description: "Staff & variable sliders recompute residual, leading indicators, anomaly.",
+      description: "Staff & variable sliders recompute residual and leading indicators.",
       dependency: "local state",
     },
     {
@@ -601,7 +598,8 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       label: "Live PMS transaction stream",
       ready: false,
       latencyClass: "manual",
-      description: "No live webhook/import of payments, voids, claims — anomaly stays prior-based.",
+      description:
+        "No live import of payments, voids, or claims, so transaction-level conditions cannot be watched.",
       dependency: "PMS API or scheduled CSV",
     },
     {
@@ -659,7 +657,6 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   let epistemicConfidence =
     72 -
     drag * 100 * 0.55 +
-    (anomaly.overallScore < 40 ? 4 : anomaly.overallScore > 70 ? -6 : 0) +
     (leading.pressureIndex < 45 ? 3 : leading.pressureIndex > 70 ? -5 : 0) +
     Math.min(8, decisions.length);
   epistemicConfidence = clamp(epistemicConfidence);
@@ -728,7 +725,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       .slice(0, 6),
     blind: [
       "Dual-release exception residual accumulation",
-      "Anomaly pressure vs self-rated segregation mismatch",
+      "Watched conditions breached while segregation is self-rated as fine",
       "Scenario p50 timelines the owner may not have internalized",
     ],
     hidden: items.filter((i) => i.classification === "unknown_known").map((i) => i.title),
@@ -747,9 +744,8 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     "Capture independent bank recon dates and cash variance history";
 
   const narrative = [
-    `Evaluation readiness is ${evaluationReadiness}/100 (${bandReadiness(evaluationReadiness)}) — the platform can re-score ${rtReady}/${realtimeCapabilities.length} capability streams in real time from profile inputs.`,
-    `Epistemic confidence is ${epistemicConfidence}/100 (${bandConfidence(epistemicConfidence)}) after ${knownUnknowns} known unknowns and ${unknownUnknowns} unknown unknowns dragged confidence by ~${Math.round(drag * 100)} pts.`,
-    `Leading pressure ${leading.pressureIndex}/100 · anomaly ${anomaly.overallScore}/100 · SoD health ${sod.summary.segregationHealth}/100 · residual avg ${portfolio.averageResidual}.`,
+    `This app measures ${knownKnowns} of these items directly from your profile, admits ${knownUnknowns} gaps it knows about, and lists ${unknownUnknowns} areas outside what it models.`,
+    `${rtReady} of ${realtimeCapabilities.length} inputs re-score live from the profile; the rest need something imported or written down.`,
     `Highest-leverage probe: ${topProbe}.`,
     "Unknown unknowns are not failures of diligence — they mark edges of the model. Treat them as research backlog, not residual scores.",
   ];
@@ -757,11 +753,13 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const recommendations: string[] = [];
   if (evaluationReadiness < 55) {
     recommendations.push(
-      "Raise readiness: enable dual release, complete practice profile, log first decision.",
+      "Give the app more to work with: enable dual release, complete the profile, log a first decision.",
     );
   }
   if (epistemicConfidence < 55) {
-    recommendations.push("Trust outputs less until cash variance + bank rec evidence is loaded.");
+    recommendations.push(
+      "Read every index here with the gaps in mind until cash-variance and bank-reconciliation evidence is loaded.",
+    );
   }
   recommendations.push(
     `Convert top known unknown: ${sortedProbes.find((i) => i.classification === "known_unknown")?.title ?? "cash counts"}.`,
@@ -771,7 +769,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   );
   if (!realtimeCapabilities.find((c) => c.id === "rt-pms-stream")?.ready) {
     recommendations.push(
-      "Schedule weekly PMS export (voids, payments, write-offs) to unlock real-time anomaly.",
+      "Schedule a weekly export of voids, payments, and write-offs so the app can watch transaction-level conditions.",
     );
   }
   recommendations.push(

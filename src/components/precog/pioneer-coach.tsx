@@ -68,11 +68,7 @@ type CoachResult = {
   specialistNotes?: { agent: string; title: string; bullets: string[] }[];
 };
 
-export function PioneerCoach({
-  onNavigate,
-}: {
-  onNavigate?: (tab: string, id?: string) => void;
-}) {
+export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: string) => void }) {
   const { profile, addDecision } = usePractice();
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
   const [question, setQuestion] = useState(prompts[0]);
@@ -139,31 +135,28 @@ export function PioneerCoach({
       subject: d.action.slice(0, 120),
       kind: "remediate",
       note: d.rationale,
-      reviewBy: new Date(Date.now() + d.horizonDays * 86400000)
-        .toISOString()
-        .slice(0, 10),
+      reviewBy: new Date(Date.now() + d.horizonDays * 86400000).toISOString().slice(0, 10),
     });
   }
 
   const usedReasoning = result?.toolsUsed?.includes("run_advanced_reasoning");
-  const reasoningEvidence =
-    result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
+  const reasoningEvidence = result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
 
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Advanced reasoning</Badge>
-          <Badge variant="primary">Bayesian · Beam · CF · EVOI</Badge>
+          <Badge variant="accent">Coach</Badge>
+          <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" />
           Precog Pioneer
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Not a chat wrapper. Every run can fire Bayesian posteriors, causal multi-hop paths,
-          beam search over control sequences, twin-world counterfactuals, and EVOI — then the
-          multi-agent board writes the scout brief.
+          Every answer is built from this app&rsquo;s own tools: the residual register, duty
+          conflicts, scenarios, the guidance corpus, and the evidence library. Where it orders
+          levers it uses this app&rsquo;s weights and says so. It never invents a measurement.
         </p>
       </section>
 
@@ -239,8 +232,8 @@ export function PioneerCoach({
                 </CardTitle>
                 <CardDescription>
                   {result.toolsUsed?.length ?? 0} tools
-                  {usedReasoning ? " · advanced reasoning on" : ""} ·{" "}
-                  {result.latencyMs ?? "—"}ms · {result.source}
+                  {usedReasoning ? " · advanced reasoning on" : ""} · {result.latencyMs ?? "—"}ms ·{" "}
+                  {result.source}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -284,9 +277,7 @@ export function PioneerCoach({
                   >
                     <span className="text-[10px] text-subtle">{e.id}</span>
                     <span className="block font-medium">{e.label}</span>
-                    {e.metric && (
-                      <span className="block text-xs text-muted">{e.metric}</span>
-                    )}
+                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
                   </button>
                 ))}
               </CardContent>
@@ -355,9 +346,7 @@ export function PioneerCoach({
                       {e.kind} · {e.id}
                     </span>
                     <span className="block font-medium">{e.label}</span>
-                    {e.metric && (
-                      <span className="block text-xs text-muted">{e.metric}</span>
-                    )}
+                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
                   </button>
                 ))}
               </CardContent>

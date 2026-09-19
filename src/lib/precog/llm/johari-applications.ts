@@ -89,7 +89,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   },
   strategicGoals: [
     "Enlarge OPEN: document controls that both operate and are measured",
-    "Shrink BLIND: feed platform residual / SoD / anomaly findings back to owner weekly",
+    "Shrink BLIND: feed the app's residual, duty-conflict, and indicator findings back to the owner weekly",
     "Shrink HIDDEN: encode owner gut feel, informal rules, and trust maps into the knowledge graph",
     "Shrink UNKNOWN: run probes and ontology expansion (meta-analysis unknown unknowns)",
   ],
@@ -127,14 +127,14 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Blind spot",
       classicMeaning: "Unknown to self, known to others — needs feedback.",
       precogMeaning:
-        "What Precog / SoD / anomaly / residual engines see that the owner has not internalized (e.g., segregation health lagging self-rated score, dual-waive residual drag).",
+        "What the app's residual, duty-conflict, and indicator checks see that the owner has not internalized (e.g., segregation health lagging self-rated score, dual-waive residual drag).",
       axes: { self: false, others: true },
       riskIfLarge:
         "High — owner overconfidence; insurance and residual numbers diverge from self-story.",
       goal: "Convert BLIND → OPEN via structured feedback (Pioneer brief, residual radar, SoD badges).",
       dentalExamples: [
         "Platform flags OM vendor+pay conflict; owner thought 'we're fine because small'",
-        "Anomaly pressure high while owner rates culture as strong",
+        "Watched conditions breached while the owner rates culture as strong",
         "Exception raises stack until dual-control insurance credit is at risk",
       ],
       moves: [
@@ -273,7 +273,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       selfLabel: "Intended control design",
       othersLabel: "Evidence / operating effectiveness",
       openExample: "Policy + dual release + samples in journal",
-      blindExample: "Design looks good; anomaly shows void spikes",
+      blindExample: "Design looks good; the void-rate indicator is at breach",
       hiddenExample: "Compensating control only the OM knows",
       unknownExample: "New refund fraud path not in control matrix",
       primaryMove: "Map each critical control to OPEN evidence or a probe",
@@ -362,7 +362,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   ],
   controlCoachingLoop: [
     "1. Inventory OPEN (known knowns) — celebrate measured controls",
-    "2. Surface BLIND via platform feedback (residual, SoD, anomaly, meta readiness)",
+    "2. Surface BLIND via the app's feedback (residual, duty conflicts, indicators, known gaps)",
     "3. Invite HIDDEN disclosure (interviews, exception logging, trust map)",
     "4. Attack UNKNOWN with probes and scenario design (meta UU list)",
     "5. Re-score epistemic confidence — OPEN should grow each cycle",
@@ -405,9 +405,9 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
         "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
     {
-      name: "Epistemic confidence",
-      how: "Meta-analysis epistemicConfidence score",
-      target: "Trend up after each probe cycle",
+      name: "Known gaps closed",
+      how: "Known-unknown items converted to measured items per probe cycle",
+      target: "At least one per cycle",
       basis:
         "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },

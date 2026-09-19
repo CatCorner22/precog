@@ -15,9 +15,7 @@ export type ToolName =
   | "get_sod_conflicts"
   | "simulate_variable_cascades"
   | "retrieve_guidance"
-  | "score_anomalies"
   | "get_leading_indicators"
-  | "forecast_residual"
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
@@ -36,14 +34,7 @@ export interface ToolResult {
 }
 
 export type ReasoningPhase =
-  | "plan"
-  | "retrieve"
-  | "analyze"
-  | "reason"
-  | "critique"
-  | "specialize"
-  | "synthesize"
-  | "meta";
+  "plan" | "retrieve" | "analyze" | "reason" | "critique" | "specialize" | "synthesize" | "meta";
 
 export interface ReasoningStep {
   phase: ReasoningPhase;
@@ -65,7 +56,6 @@ export interface EvidenceRef {
     | "cascade"
     | "rag"
     | "ml"
-    | "forecast"
     | "reasoning"
     | "epistemic";
   label: string;

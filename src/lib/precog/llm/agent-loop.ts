@@ -23,11 +23,9 @@ function usd(n: number) {
 function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
     { averageResidual?: number } | undefined;
-  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
-    { overallScore?: number } | undefined;
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
-    { pressureIndex?: number } | undefined;
-  return `avg=${residual?.averageResidual ?? "?"};anom=${anomaly?.overallScore ?? "?"};lead=${leading?.pressureIndex ?? "?"};tools=${tools.length}`;
+    { breached?: number; watch?: number } | undefined;
+  return `avg=${residual?.averageResidual ?? "?"};lead=${leading?.breached ?? "?"}/${leading?.watch ?? "?"};tools=${tools.length}`;
 }
 
 function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
@@ -92,7 +90,7 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "scenario",
         label: d.title,
-        metric: `retained ${usd(d.retained.expected)} · p50 ${d.timelineDays.p50}d · CoR ${usd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+        metric: `assumed retained ${usd(d.retained.expected)} · about ${d.timelineDays.p50}d · CoR ${usd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
         link: { tab: "precog", id: d.scenarioId },
       });
     }
@@ -172,78 +170,38 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       }
     }
 
-    if (t.tool === "score_anomalies") {
-      const d = t.data as { overallScore: number; band: string };
-      evidence.push({
-        id: `ev-${++i}`,
-        kind: "ml",
-        label: `Anomaly ${d.band}`,
-        metric: `${d.overallScore}/100`,
-        link: { tab: "intel" },
-      });
-    }
-
     if (t.tool === "get_leading_indicators") {
-      const d = t.data as { pressureIndex: number; band: string };
+      const d = t.data as { breached: number; watch: number };
       evidence.push({
         id: `ev-${++i}`,
         kind: "ml",
-        label: `Leading pressure ${d.band}`,
-        metric: `${d.pressureIndex}/100`,
+        label: "Leading indicators",
+        metric: `${d.breached} breached · ${d.watch} at watch`,
         link: { tab: "intel" },
       });
     }
 
     if (t.tool === "run_advanced_reasoning") {
       const d = t.data as {
-        beam: { bestSequence: string; utility: number };
-        bayesian: { pFail: number; expectedAnnualLoss: number };
-        evoi: { topObservation: string };
-        confidence: { score: number; label: string };
+        recommendedSequence: string[];
+        verifyNext: { observation: string }[];
       };
       evidence.push({
         id: `ev-${++i}`,
         kind: "reasoning",
-        label: "Beam-optimal sequence",
-        metric: d.beam.bestSequence || "status quo",
+        label: "Lever order (this app's model)",
+        metric: d.recommendedSequence.join(" → ") || "status quo",
         link: { tab: "intel" },
       });
-      evidence.push({
-        id: `ev-${++i}`,
-        kind: "reasoning",
-        label: "Bayesian P(fail)",
-        metric: `${(d.bayesian.pFail * 100).toFixed(1)}% · EAL ${usd(d.bayesian.expectedAnnualLoss)}`,
-        link: { tab: "intel" },
-      });
-      evidence.push({
-        id: `ev-${++i}`,
-        kind: "reasoning",
-        label: "Top EVOI observation",
-        metric: d.evoi.topObservation,
-        link: { tab: "intel" },
-      });
-      evidence.push({
-        id: `ev-${++i}`,
-        kind: "reasoning",
-        label: "Reasoning confidence",
-        metric: `${d.confidence.score} · ${d.confidence.label}`,
-        link: { tab: "intel" },
-      });
-    }
-
-    if (t.tool === "forecast_residual") {
-      const d = t.data as {
-        points: { residualDoNothing: number; residualWithPlan: number }[];
-        planLabel: string;
-      };
-      const end = d.points[d.points.length - 1];
-      evidence.push({
-        id: `ev-${++i}`,
-        kind: "forecast",
-        label: "12-week residual forecast",
-        metric: `neglect ${end?.residualDoNothing} vs plan ${end?.residualWithPlan} (${d.planLabel})`,
-        link: { tab: "intel" },
-      });
+      if (d.verifyNext[0]) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "reasoning",
+          label: "Verify next",
+          metric: d.verifyNext[0].observation,
+          link: { tab: "intel" },
+        });
+      }
     }
   }
 
@@ -299,11 +257,7 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
     { averageResidual?: number; criticalPath?: number } | undefined;
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
-    { pressureIndex?: number; band?: string } | undefined;
-  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
-    { band?: string; overallScore?: number } | undefined;
-  const forecast = tools.find((t) => t.tool === "forecast_residual")?.data as
-    { p50CrossingWeek?: number | null } | undefined;
+    { breached?: number; watch?: number } | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
     { retained: { expected: number }; timelineDays: { p50: number }; title: string } | undefined;
 
@@ -313,24 +267,14 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
   if ((residual?.criticalPath ?? 0) >= 2) {
     warnings.push(`Multiple critical-path residuals (${residual!.criticalPath}).`);
   }
-  if (leading && (leading.pressureIndex ?? 0) >= 45) {
+  if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(
-      `Leading-indicator pressure ${leading.pressureIndex}/100 (${leading.band}) — heat before the loss lands.`,
-    );
-  }
-  if (anomaly && (anomaly.band === "stressed" || anomaly.band === "critical")) {
-    warnings.push(
-      `ML anomaly band ${anomaly.band} (${anomaly.overallScore}/100) vs healthy practice prior.`,
-    );
-  }
-  if (forecast?.p50CrossingWeek != null) {
-    warnings.push(
-      `Forecast: residual may cross Act-now around week ${forecast.p50CrossingWeek} if neglected.`,
+      `${leading.breached} leading indicator(s) breached — the conditions that precede a loss are present.`,
     );
   }
   if (scenario && scenario.retained.expected > 15000 && scenario.timelineDays.p50 < 90) {
     warnings.push(
-      `"${scenario.title}" ~${scenario.timelineDays.p50}d / ${usd(scenario.retained.expected)} retained.`,
+      `"${scenario.title}" assumes ${usd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
     );
   }
   if (!warnings.length) {
@@ -379,20 +323,9 @@ function localSynthesize(
   } | null;
 
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as {
-    pressureIndex: number;
-    band: string;
+    breached: number;
+    watch: number;
     topActions: string[];
-  } | null;
-
-  const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as {
-    overallScore: number;
-    band: string;
-  } | null;
-
-  const forecast = tools.find((t) => t.tool === "forecast_residual")?.data as {
-    planLabel: string;
-    points: { residualDoNothing: number; residualWithPlan: number }[];
-    narrative: string[];
   } | null;
 
   const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as {
@@ -418,14 +351,9 @@ function localSynthesize(
   const top = residual?.top ?? [];
   const bestCascade = cas?.topByCostOfRisk?.[0];
   const adv = tools.find((t) => t.tool === "run_advanced_reasoning")?.data as {
-    beam?: { bestSequence?: string; utility?: number };
     recommendedSequence?: string[];
     synthesis?: string[];
-    evoi?: { topObservation?: string };
-    confidence?: { score?: number; label?: string };
   } | null;
-  const advancedLines = advancedReasoning;
-  const endFc = forecast?.points[forecast.points.length - 1];
 
   const highestRisks = top.slice(0, 4).map((t) => {
     const drivers = t.drivers
@@ -445,14 +373,8 @@ function localSynthesize(
         : `Team size ${n} — enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
     })(),
     leading
-      ? `Leading pressure **${leading.pressureIndex}/100** (${leading.band}). ${leading.topActions[0] ?? ""}`
-      : "Score leading indicators for early heat.",
-    anomaly
-      ? `ML anomaly **${anomaly.band}** (${anomaly.overallScore}/100) vs healthy prior.`
-      : "Run anomaly scorer.",
-    forecast && endFc
-      ? `12-week forecast: neglect residual **${endFc.residualDoNothing}** vs plan **${endFc.residualWithPlan}** (${forecast.planLabel}).`
-      : "Forecast residual under plan vs neglect.",
+      ? `Leading indicators: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
+      : "Check the leading indicators for conditions that precede a loss.",
     bestCascade
       ? `Best cascade: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
       : "Simulate variable cascades.",
@@ -464,17 +386,17 @@ function localSynthesize(
   // Planning cadences, not measurements: how soon the coach suggests reviewing
   // each kind of decision. They become an editable "review by" date in the journal.
   const REVIEW_HORIZON_DAYS = { control: 14, crossTrain: 30, journal: 7 } as const;
-  const beamAction = adv?.recommendedSequence?.join(" → ") || adv?.beam?.bestSequence;
+  const beamAction = adv?.recommendedSequence?.join(" → ");
   const decisions: PioneerDecision[] = [
     {
       action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
       rationale: beamAction
-        ? `Beam search + Bayesian/counterfactual stack selected this sequence (utility ${adv?.beam?.utility?.toFixed(3) ?? "n/a"}; conf ${adv?.confidence?.score ?? "?"}).`
+        ? "The order this app's lever model prefers, using its own weights; read it as an ordering, not a measurement."
         : bestCascade
           ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
       evidenceIds: evidence
-        .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "forecast")
+        .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")
         .map((e) => e.id)
         .slice(0, 4),
       effort: "medium",
@@ -485,18 +407,19 @@ function localSynthesize(
       action: spofs?.[0]
         ? `Cross-train backup for ${spofs[0].name}`
         : "Cross-train top knowledge SPOF",
-      rationale: "Continuity SPOFs drive leading pressure and forecast drift.",
+      rationale: "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
       evidenceIds: evidence
         .filter((e) => e.kind === "spof")
         .map((e) => e.id)
         .slice(0, 2),
       effort: "medium",
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-      cascadeEffects: ["continuity residual ↓", "forecast drift slows"],
+      cascadeEffects: ["continuity residual index ↓"],
     },
     {
       action: "Log residual accept/remediate decisions with review dates",
-      rationale: "COSO monitoring requires a trail; ML will keep flagging open gaps.",
+      rationale:
+        "COSO monitoring requires a trail; an open gap stays flagged until a decision is recorded.",
       evidenceIds: evidence
         .filter((e) => e.kind === "sod" || e.kind === "rag")
         .map((e) => e.id)
@@ -507,10 +430,10 @@ function localSynthesize(
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${bestCascade.label}**, then re-open Intelligence (anomaly + forecast) and confirm leading pressure and 12-week residual path drop.`
-    : "This week: dual control + independent bank rec, then re-run Pioneer and Intelligence.";
+    ? `This week: **${bestCascade.label}**, then re-check the leading indicators and the residual register.`
+    : "This week: dual control + independent bank rec, then re-run Pioneer and re-check the leading indicators.";
 
-  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading **${leading?.pressureIndex ?? "?"}/100**, anomaly **${anomaly?.overallScore ?? "?"}/100**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
+  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading indicators **${leading?.breached ?? "?"} breached**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
 
   const specialistMd = specialistNotes
     .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)
@@ -523,18 +446,15 @@ function localSynthesize(
     "## Highest residual risks",
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
-    "## ML signals (anomaly · leading · forecast)",
-    `- Anomaly: **${anomaly?.band ?? "n/a"}** (${anomaly?.overallScore ?? "?"}/100)`,
-    `- Leading pressure: **${leading?.band ?? "n/a"}** (${leading?.pressureIndex ?? "?"}/100)`,
-    forecast && endFc
-      ? `- Forecast week-12 residual: neglect **${endFc.residualDoNothing}** vs plan **${endFc.residualWithPlan}**`
-      : "- Forecast: n/a",
-    ...(forecast?.narrative ?? []).map((n) => `- ${n}`),
+    "## Leading indicators",
+    leading
+      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in this app, not benchmarks)`
+      : "- Not checked in this run",
     "",
     "## Variable cascades (what else moves)",
     ...variableCascades.map((c) => `- ${c}`),
     "",
-    "## Advanced reasoning",
+    "## Lever ordering (this app's model)",
     ...advancedReasoning.map((x) => `- ${x}`),
     "",
     "## Specialist board",
@@ -594,7 +514,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
 
   steps.push({
     phase: "retrieve",
-    title: "Retrieve evidence, RAG, and ML scores",
+    title: "Retrieve evidence, guidance, and indicators",
     detail: toolResults.map((t) => `${t.tool}: ${t.summary}`).join(" | "),
     toolResults,
   });
@@ -603,17 +523,17 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
   const variableCascades = extractVariableCascades(toolResults);
   steps.push({
     phase: "analyze",
-    title: "Analyze residual, cascades, anomaly, forecast",
+    title: "Analyze residual, cascades, indicators",
     detail: `${evidence.length} anchors · ${variableCascades.length} cascade lines`,
   });
 
   const advTool = toolResults.find((t) => t.tool === "run_advanced_reasoning");
   const advancedReasoning = (advTool?.data as { synthesis?: string[] } | undefined)?.synthesis ?? [
-    "Advanced reasoning tool not in plan.",
+    "Lever ordering not in plan.",
   ];
   steps.push({
     phase: "reason",
-    title: "Advanced reasoning (Bayesian · causal · beam · CF · EVOI)",
+    title: "Lever ordering (this app's model)",
     detail: advancedReasoning.join(" · "),
     toolResults: advTool ? [advTool] : undefined,
   });
@@ -621,17 +541,15 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
   const metaTool = toolResults.find((t) => t.tool === "run_meta_analysis");
   const metaData = metaTool?.data as
     | {
-        evaluationReadiness?: number;
-        epistemicConfidence?: number;
-        summary?: { knownUnknowns?: number; unknownUnknowns?: number };
+        summary?: { knownKnowns?: number; knownUnknowns?: number; unknownUnknowns?: number };
         recommendations?: string[];
       }
     | undefined;
   steps.push({
     phase: "meta",
-    title: "Epistemic meta-analysis (known / unknown unknowns)",
+    title: "What this app can see (known / unknown unknowns)",
     detail: metaData
-      ? `Readiness ${metaData.evaluationReadiness} · epistemic ${metaData.epistemicConfidence} · KU ${metaData.summary?.knownUnknowns ?? "?"} · UU ${metaData.summary?.unknownUnknowns ?? "?"}`
+      ? `${metaData.summary?.knownKnowns ?? "?"} measured · ${metaData.summary?.knownUnknowns ?? "?"} known gaps · ${metaData.summary?.unknownUnknowns ?? "?"} outside the model`
       : "Meta-analysis tool not in plan.",
     toolResults: metaTool ? [metaTool] : undefined,
   });
@@ -692,17 +610,19 @@ ONLY use TOOL RESULTS. Never invent metrics or accuse people of fraud.
 You must integrate:
 1) Residual + COSO + SoD facts
 2) Variable cascades (coupled insurance/control effects)
-3) ML signals: anomaly score, leading indicators, residual forecast
+3) Leading indicators (conditions at watch or breach; thresholds are this app's, not benchmarks)
 4) RAG guidance snippets (cite chunk titles)
 5) Specialist board notes (Operator, Shield, Precog, Critic)
-6) Advanced reasoning (Bayesian P(fail), beam sequence, counterfactuals, EVOI)
+6) Lever ordering (this app's model: the order and the reasons, never a probability or dollar figure)
+
+Every scenario figure is an assumption written into the scenario; every 0–100 score is this app's own index. Say so whenever you use one, and never call either a measurement, forecast, expected value, or confidence interval.
 
 Output markdown sections:
 ## Situation
 ## Highest residual risks
-## ML signals (anomaly · leading · forecast)
+## Leading indicators
 ## Variable cascades (what else moves)
-## Advanced reasoning
+## Lever ordering (this app's model)
 ## Specialist board
 ## Tradeoffs
 ## Recommended moves
@@ -710,7 +630,7 @@ Output markdown sections:
 ## Frontier next move
 ## Evidence anchors
 
-Plain-spoken, active voice. Quantify from tools.`;
+Plain-spoken, active voice. Use only numbers the tools returned.`;
 
   const user = `QUESTION: ${question}
 
