@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
+import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
+import { CaseCard } from "@/components/precog/case-card";
 import { GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 
 export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
@@ -67,6 +70,23 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
   }
 
   const scenario = tpl.scenarios.find((s) => s.id === scenarioId)!;
+
+  /**
+   * The prosecuted cases behind this scenario.
+   *
+   * A scenario's figures are assumptions. The duty conflicts it models are
+   * not: each conflict rule that links to this scenario has real cases behind
+   * it, so the page can put the assumption next to what the same failure
+   * cost somewhere real. Scenarios no rule links to (a key person leaving)
+   * get no case list rather than a loosely related one.
+   */
+  const realCases = useMemo(() => {
+    const ruleIds = CONFLICT_RULES.filter((r) => r.linkedScenarioId === scenario.id).map(
+      (r) => r.id,
+    );
+    const cases = ruleIds.length ? casesForSodRules(ruleIds) : [];
+    return { cases, lossRange: observedLossRange(cases) };
+  }, [scenario.id]);
   const result = useMemo(
     () =>
       runPrecogScenario(scenarioId, {
@@ -203,6 +223,35 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
               </button>
             ))}
           </div>
+
+          {realCases.cases.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>What this looked like somewhere real</CardTitle>
+                <CardDescription>
+                  {realCases.cases.length} prosecuted{" "}
+                  {realCases.cases.length === 1 ? "case involves" : "cases involve"} the duty
+                  conflicts this scenario models
+                  {realCases.lossRange
+                    ? `; median stated loss ${formatUsd(realCases.lossRange.median)}, from ${formatUsd(realCases.lossRange.low)} to ${formatUsd(realCases.lossRange.high)}`
+                    : ""}
+                  . The assumed figures below are not drawn from these cases; the cases are what the
+                  same failure cost other organizations.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {realCases.cases.slice(0, 3).map((c) => (
+                  <CaseCard key={c.id} study={c} />
+                ))}
+                {realCases.cases.length > 3 && (
+                  <p className="text-xs text-subtle">
+                    {realCases.cases.length - 3} more on Start here, under &ldquo;Every case behind
+                    this page&rdquo;.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <Card>

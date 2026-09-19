@@ -1119,4 +1119,46 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       'Nathaniel Wills, 34, of Anderson, Indiana, pleaded guilty to wire fraud and was sentenced in October 2024 by U.S. District Judge James P. Hanlon to 41 months in prison, three years of supervised release, and $877,507 in restitution; the loss recorded here is the $952,237 the release says he took. The release names the employer only as an Indiana business; local reporting identifies it as a flooring company, which is the basis for the sector. Five years of tenure is the release\'s "nearly six years" rounded down. The release does not say how the theft was discovered, so the detection route is recorded as unknown.',
   },
+  {
+    id: "case-columbus-realty-office-manager-personal-amex",
+    title:
+      "Real estate brokerage's office manager of nine years paid her personal American Express from company accounts every month for almost six years, $454,000",
+    sector: "professional-services",
+    schemes: ["check-tampering", "expense-reimbursement"],
+    howItWorked:
+      "The office manager and bookkeeper of Keller Williams Realty River Cities in Columbus, Georgia, employed there for nine years, made monthly electronic payments from the brokerage's accounts to her personal American Express card from January 2017 to September 2022, $453,876.68 in all. In October 2022 the firm's representatives noticed discrepancies in one account and that she had moved money out of it to other accounts.",
+    controlGap:
+      "One person made the electronic payments and kept the books, so a monthly payment to a card issuer sat among ordinary payables for 68 months. A brokerage has no reason to pay an employee's personal card, and nothing outside the role compared the payees on the bank statement with the suppliers the firm actually had.",
+    lossUsd: 453876,
+    lossIsFloor: false,
+    durationMonths: 68,
+    tenureYearsStated: 9,
+    detection: "owner-review",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reads the bank statement first each month; a recurring payment to a card issuer the firm holds no card with stands out on the page",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied:
+          "Compare recurring electronic payees against the supplier list and against employees; a card account belonging to an employee is the finding",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the person who pays the bills reconciles the bank account, so a card payment coded as a payable must match a real supplier invoice",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Middle District of Georgia",
+      url: "https://www.justice.gov/usao-mdga/pr/former-georgia-bookkeeper-sentenced-embezzling-columbus-real-estate-brokerage-firm",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Lauren Williams Eldridge, 38, of Pine Mountain, Georgia, pleaded guilty on 29 January 2025 to five counts of wire fraud and was sentenced on 18 June 2025 by U.S. District Judge Clay Land to 27 months in prison, three years of supervised release, and restitution of $453,876.64; the loss recorded here is the $453,876.68 in payments the release states. The release says the firm's representatives noticed the discrepancies, which is recorded as the owner-review route: the business's own people looked, not an outside party. The employer is a franchise office of a national brokerage, not a national company; the release names it and describes her as its office manager and bookkeeper for nine years.",
+  },
 ];
