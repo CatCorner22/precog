@@ -1,6 +1,7 @@
 /**
  * Process map graph builder — merges processes, SoD, knowledge SPOFs, residuals, ideas.
  */
+import { HEALTH_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks } from "./engine";
 import { getActiveTemplate } from "./active-template";
 import { portfolioSummary } from "./scoring/residual-engine";
@@ -633,7 +634,7 @@ export function layoutProcessMap(
   return pos;
 }
 
-export type MapHealthBand = "excellent" | "healthy" | "fair" | "at_risk" | "critical";
+export type MapHealthBand = "healthy" | "fair" | "at_risk" | "critical";
 
 export interface MapHealthDimension {
   id: string;
@@ -657,27 +658,23 @@ export interface MapHealthReport {
   customized: boolean;
 }
 
+// Reads against the shared HEALTH_SCALE so the map, COSO, and segregation
+// indices band on the same cutoffs.
 const HEALTH_BANDS: { min: number; band: MapHealthBand; label: string; summary: string }[] = [
   {
-    min: 85,
-    band: "excellent",
-    label: "Excellent",
-    summary: "Your value stream is well-owned, controlled, and calm.",
-  },
-  {
-    min: 70,
+    min: HEALTH_SCALE.strong,
     band: "healthy",
     label: "Healthy",
-    summary: "Strong foundation — a few targeted fixes will sharpen scoring.",
+    summary: "Well-owned and controlled — a few targeted fixes will sharpen scoring.",
   },
   {
-    min: 55,
+    min: HEALTH_SCALE.adequate,
     band: "fair",
     label: "Fair",
     summary: "Fixable gaps — assign owners and wire controls on hot processes.",
   },
   {
-    min: 40,
+    min: HEALTH_SCALE.weak,
     band: "at_risk",
     label: "At risk",
     summary: "Several processes need attention before residual risk stabilizes.",

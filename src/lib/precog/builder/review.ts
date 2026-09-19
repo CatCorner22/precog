@@ -3,6 +3,7 @@
  * Shared input shape + deterministic fallback used when Grok isn't available.
  */
 import { HEAT_BANDS } from "../process-graph";
+import { HEALTH_SCALE } from "../scoring/bands";
 
 export interface ReviewProcessInput {
   id: string;
@@ -41,7 +42,7 @@ export interface MapReview {
   source: "grok" | "local";
   model?: string;
   headline: string;
-  grade: "A" | "B" | "C" | "D" | "F";
+  grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];
   nextMove: string;
   /** Process ids referenced so the UI can deep-link. */
@@ -49,10 +50,10 @@ export interface MapReview {
 }
 
 export function gradeFromScore(score: number): MapReview["grade"] {
-  if (score >= 85) return "A";
-  if (score >= 70) return "B";
-  if (score >= 55) return "C";
-  if (score >= 40) return "D";
+  // Same cutoffs as every other health index in the app.
+  if (score >= HEALTH_SCALE.strong) return "A";
+  if (score >= HEALTH_SCALE.adequate) return "B";
+  if (score >= HEALTH_SCALE.weak) return "C";
   return "F";
 }
 

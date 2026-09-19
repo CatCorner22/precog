@@ -95,6 +95,8 @@ export function ThreatAssessmentPanel() {
         <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 pb-2 font-mono text-[10px] tracking-[0.15em] text-[#5a9a68] sm:px-6">
           <span>CLASS · PRACTICE INTERNAL · EDUCATIONAL</span>
           <span>·</span>
+          <span>ALL INDICES ARE THIS APP&rsquo;S WEIGHTING, NOT MEASUREMENTS</span>
+          <span>·</span>
           <span>NO PHI</span>
           <span>·</span>
           <span>

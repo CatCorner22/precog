@@ -226,7 +226,11 @@ export function DynamicVariablesPanel({
             <>
               <div>
                 <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
-                  Active reasoning drivers
+                  Assumptions in play
+                </p>
+                <p className="mb-2 text-xs leading-relaxed text-subtle">
+                  Every multiplier and credit below is an assumption this app makes, listed so you
+                  can judge it. None comes from a carrier, a study, or your own loss history.
                 </p>
                 <ul className="space-y-1.5">
                   {d.drivers.map((dr) => (

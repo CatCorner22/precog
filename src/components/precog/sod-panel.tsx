@@ -1,3 +1,4 @@
+import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
@@ -104,11 +105,11 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <Stat
           label="Segregation health"
           value={String(report.summary.segregationHealth)}
-          hint="Higher is better"
+          hint="Higher is better · this app's index"
           tone={
-            report.summary.segregationHealth < 40
+            report.summary.segregationHealth < HEALTH_SCALE.weak
               ? "danger"
-              : report.summary.segregationHealth < 65
+              : report.summary.segregationHealth < HEALTH_SCALE.adequate
                 ? "warn"
                 : "ok"
           }

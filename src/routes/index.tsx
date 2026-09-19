@@ -1,3 +1,5 @@
+import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { IndexBasis } from "@/components/precog/index-basis";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -177,7 +179,7 @@ function Home() {
       }),
     [profile.staff, profile.dualRelease, profile.industry, templateRevision],
   );
-  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
+  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = profile.decisions.filter(
@@ -400,12 +402,19 @@ function Home() {
               }}
             />
 
+            <IndexBasis />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <MetricCard
                 label="Map health"
                 value={String(mapHealth.score)}
                 hint={mapHealth.bandLabel}
-                tone={mapHealth.score >= 70 ? "primary" : mapHealth.score >= 55 ? "warn" : "danger"}
+                tone={
+                  mapHealth.score >= HEALTH_SCALE.adequate
+                    ? "primary"
+                    : mapHealth.score >= HEALTH_SCALE.weak
+                      ? "warn"
+                      : "danger"
+                }
                 onClick={() => {
                   setMapBuild(true);
                   setTab("map");
@@ -415,7 +424,13 @@ function Home() {
                 label="Avg residual"
                 value={String(portfolio.averageResidual)}
                 hint={`${portfolio.criticalPath} critical`}
-                tone={portfolio.averageResidual >= 60 ? "danger" : "warn"}
+                tone={
+                  portfolio.averageResidual >= RISK_SCALE.actNow
+                    ? "danger"
+                    : portfolio.averageResidual >= RISK_SCALE.mitigate
+                      ? "warn"
+                      : "primary"
+                }
                 onClick={() => setTab("residual")}
               />
               <MetricCard
@@ -423,9 +438,9 @@ function Home() {
                 value={String(sodReport.summary.segregationHealth)}
                 hint={`${sodReport.summary.critical} critical conflicts`}
                 tone={
-                  sodReport.summary.segregationHealth < 40
+                  sodReport.summary.segregationHealth < HEALTH_SCALE.weak
                     ? "danger"
-                    : sodReport.summary.segregationHealth < 65
+                    : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
                       ? "warn"
                       : "primary"
                 }

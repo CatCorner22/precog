@@ -1,3 +1,5 @@
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { IndexBasis } from "@/components/precog/index-basis";
 import { useMemo, useState } from "react";
 import {
   portfolioSummary,
@@ -57,18 +59,28 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         <Stat
           label="Avg residual"
           value={String(summary.averageResidual)}
-          hint="From practice profile"
+          hint="This app's index, from your profile"
         />
-        <Stat label="Critical path" value={String(summary.criticalPath)} hint="Band ≥ 80" />
-        <Stat label="Act now" value={String(summary.actNow)} hint="Band 60–79" />
+        <Stat
+          label="Critical path"
+          value={String(summary.criticalPath)}
+          hint={`Index ≥ ${RISK_SCALE.critical}`}
+        />
+        <Stat
+          label="Act now"
+          value={String(summary.actNow)}
+          hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
+        />
       </div>
+      <IndexBasis />
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
             <CardTitle>Residual risk register</CardTitle>
             <CardDescription>
-              Inherent × (1 − control effectiveness) × staff modifiers — sorted by residual
+              Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app chose
+              — sorted by the resulting index
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">

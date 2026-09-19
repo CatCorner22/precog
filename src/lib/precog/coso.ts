@@ -1,3 +1,4 @@
+import { healthLevel, RISK_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { getActiveTemplate } from "./active-template";
 
@@ -45,10 +46,7 @@ export interface CosoComponentAssessment {
 }
 
 function statusFromScore(score: number): HealthStatus {
-  if (score >= 80) return "strong";
-  if (score >= 60) return "adequate";
-  if (score >= 40) return "weak";
-  return "critical";
+  return healthLevel(score);
 }
 
 export function assessCoso(): {
@@ -60,7 +58,7 @@ export function assessCoso(): {
   const { controls, staffComposition } = getActiveTemplate();
   const risks = findKnowledgeRisks();
   const ranked = rankDangerousScenarios();
-  const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= 65);
+  const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
   const sodGaps = controls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);
   const unaddressedGaps = sodGaps.filter((c) => !c.residualRiskAccepted);

@@ -1,3 +1,4 @@
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
@@ -34,7 +35,7 @@ export function buildWeeklyActions(input: {
   const sod = detectSodConflicts(input.staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
   });
-  const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
+  const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
   const tornado = tornadoSensitivity(input.staff);
   const actions: WeeklyAction[] = [];
 

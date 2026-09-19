@@ -1,3 +1,4 @@
+import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -1246,7 +1247,11 @@ function DeparturePanel({
   const [open, setOpen] = useState<string | null>(impacts[0]?.person.id ?? null);
   const bus = busFactor(impacts);
   const impactColor = (v: number) =>
-    v >= 60 ? "var(--color-danger)" : v >= 30 ? "var(--color-warn)" : "var(--color-ok)";
+    v >= RISK_SCALE.actNow
+      ? "var(--color-danger)"
+      : v >= RISK_SCALE.mitigate
+        ? "var(--color-warn)"
+        : "var(--color-ok)";
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
@@ -1747,7 +1752,6 @@ const GRADE_TONE: Record<MapReview["grade"], string> = {
   A: "bg-ok/15 text-ok border-ok/40",
   B: "bg-primary/15 text-primary border-primary/40",
   C: "bg-warn/15 text-warn border-warn/40",
-  D: "bg-danger/15 text-danger border-danger/40",
   F: "bg-danger/25 text-danger border-danger/60",
 };
 
@@ -1944,9 +1948,9 @@ function HealthPill({
   sessionDelta: number;
 }) {
   const tone =
-    score >= 70
+    score >= HEALTH_SCALE.adequate
       ? "text-ok border-ok/40 bg-ok/10"
-      : score >= 55
+      : score >= HEALTH_SCALE.weak
         ? "text-warn border-warn/40 bg-warn/10"
         : "text-danger border-danger/40 bg-danger/10";
   return (

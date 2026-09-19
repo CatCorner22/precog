@@ -1,3 +1,4 @@
+import { INDEX_BASIS, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -46,7 +47,9 @@ export function ControlReport() {
     const sod = detectSodConflicts(profile.staff, {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
     });
-    const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
+    const spofs = findKnowledgeRisks().filter(
+      (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
+    );
     const coso = assessCoso();
     const { snapshots } = buildProcessMapGraph(profile.staff);
     const actions = buildWeeklyActions({
@@ -125,6 +128,7 @@ export function ControlReport() {
           />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
+        <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
         <Section title="Process map health">
           <p className="text-sm text-neutral-700">
