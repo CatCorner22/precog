@@ -1,6 +1,7 @@
 /**
  * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
+import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
@@ -466,7 +467,7 @@ export function executeTool(
               domain: h.chunk.domain,
               score: Math.round(h.score * 1000) / 1000,
               text: h.chunk.text,
-              source: h.chunk.source,
+              basis: describeChunkBasis(h.chunk),
             })),
           },
           links: [{ tab: "intel", label: "Intelligence" }],

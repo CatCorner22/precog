@@ -12,7 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, Brain, Grid2x2, LineChart, Radar, Search, Sparkles } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  ExternalLink,
+  Grid2x2,
+  LineChart,
+  Radar,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -24,15 +33,9 @@ import {
   YAxis,
 } from "recharts";
 
-export function IntelligencePanel({
-  onNavigate,
-}: {
-  onNavigate?: (tab: string) => void;
-}) {
+export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { profile } = usePractice();
-  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">(
-    "johari",
-  );
+  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">("johari");
   const [ragQuery, setRagQuery] = useState(() => defaultRagQuery(profile.industry));
   useEffect(() => {
     setRagQuery(defaultRagQuery(profile.industry));
@@ -89,13 +92,9 @@ export function IntelligencePanel({
         </Button>
       </div>
 
-      {view === "johari" && (
-        <JohariPanel onNavigate={(t) => onNavigate?.(t)} />
-      )}
+      {view === "johari" && <JohariPanel onNavigate={(t) => onNavigate?.(t)} />}
 
-      {view === "meta" && (
-        <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />
-      )}
+      {view === "meta" && <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />}
 
       {view === "reasoning" && <AdvancedReasoningPanel />}
 
@@ -118,12 +117,8 @@ export function IntelligencePanel({
           <div className="grid gap-3 sm:grid-cols-3">
             <Card>
               <CardContent className="p-4">
-                <Badge variant={anomaly.overallScore >= 60 ? "danger" : "ok"}>
-                  Anomaly
-                </Badge>
-                <p className="mt-2 text-2xl font-semibold tabular">
-                  {anomaly.overallScore}
-                </p>
+                <Badge variant={anomaly.overallScore >= 60 ? "danger" : "ok"}>Anomaly</Badge>
+                <p className="mt-2 text-2xl font-semibold tabular">{anomaly.overallScore}</p>
                 <p className="text-xs text-muted">{anomaly.band}</p>
               </CardContent>
             </Card>
@@ -132,9 +127,7 @@ export function IntelligencePanel({
                 <Badge variant={leading.pressureIndex >= 60 ? "warn" : "primary"}>
                   Leading pressure
                 </Badge>
-                <p className="mt-2 text-2xl font-semibold tabular">
-                  {leading.pressureIndex}
-                </p>
+                <p className="mt-2 text-2xl font-semibold tabular">{leading.pressureIndex}</p>
                 <p className="text-xs text-muted">{leading.band}</p>
               </CardContent>
             </Card>
@@ -217,13 +210,32 @@ export function IntelligencePanel({
                 {rag.map((h) => (
                   <li
                     key={h.chunk.id}
-                    className={cn(
-                      "rounded-lg border border-border bg-elevated px-3 py-2 text-sm",
-                    )}
+                    className={cn("rounded-lg border border-border bg-elevated px-3 py-2 text-sm")}
                   >
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium">{h.chunk.title}</span>
-                      <Badge variant="default">{h.chunk.source}</Badge>
+                      {h.chunk.basis.kind === "cited" ? (
+                        <a
+                          href={h.chunk.basis.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          title={h.chunk.basis.document}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        >
+                          {h.chunk.basis.publisher}
+                          <ExternalLink className="size-3" aria-hidden />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-subtle" title={h.chunk.basis.note}>
+                          Practitioner guidance, no single source
+                        </span>
+                      )}
+                      {h.chunk.caseIds?.length ? (
+                        <span className="text-xs text-subtle">
+                          · shown in {h.chunk.caseIds.length} prosecuted{" "}
+                          {h.chunk.caseIds.length === 1 ? "case" : "cases"} on Start here
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-xs text-muted line-clamp-3">{h.chunk.text}</p>
                   </li>
