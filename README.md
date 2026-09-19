@@ -43,7 +43,10 @@ npm install
 npm run dev    # live preview on port 8080
 npm run build
 npm run typecheck
+npm test       # vitest unit tests for the engines (src/**/*.test.ts)
 ```
+
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evidence` and `verify:template` on every pull request.
 
 ## Demo data
 

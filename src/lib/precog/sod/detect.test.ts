@@ -1,0 +1,108 @@
+import { describe, expect, it } from "vitest";
+import { getBaseTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates/types";
+import type { Person } from "../types";
+import { CONFLICT_RULES } from "./conflict-rules";
+import { buildAssignments, detectSodConflicts } from "./detect";
+
+const dental = getBaseTemplate("dental");
+
+function oneClerk(entitlements: string[]): IndustryTemplate {
+  const clerk: Person = { id: "x1", name: "Solo Clerk", role: "Clerk", active: true, entitlements };
+  return { ...dental, people: [clerk], relations: [], roleTemplates: {} };
+}
+
+describe("buildAssignments", () => {
+  it("uses role templates and lets per-person entitlements override them", () => {
+    const a = buildAssignments(dental);
+    expect(a.map((x) => x.personId)).toEqual(dental.people.map((p) => p.id));
+    const owner = a.find((x) => x.role === "Owner / Dentist")!;
+    expect(owner.entitlements).toEqual(dental.roleTemplates["Owner / Dentist"]);
+
+    const explicit = buildAssignments(oneClerk(["collect_cash"]));
+    expect(explicit[0].entitlements).toEqual(["collect_cash"]);
+  });
+
+  it("falls back to view-only for an unknown role and de-duplicates overrides", () => {
+    const tpl = oneClerk([]);
+    const a = buildAssignments(tpl, { x1: ["collect_cash", "collect_cash"] });
+    expect(a[0].entitlements).toEqual(["view_reports_only", "collect_cash"]);
+  });
+});
+
+describe("detectSodConflicts", () => {
+  it("flags one person who can create a vendor and release payment", () => {
+    const report = detectSodConflicts(oneClerk(["create_vendor", "release_payment"]));
+    const hit = report.conflicts.find((c) => c.ruleId === "rule-vendor-create-pay");
+    expect(hit).toBeDefined();
+    expect(hit!.severity).toBe("critical");
+    expect(hit!.personId).toBe("x1");
+    expect(hit!.linkedScenarioId).toBe("sc-vendor-fraud");
+    expect(report.summary.critical).toBeGreaterThanOrEqual(1);
+    expect(report.summary.peopleWithConflicts).toBe(1);
+  });
+
+  it("finds nothing for a person with a single entitlement or view-only access", () => {
+    expect(detectSodConflicts(oneClerk(["release_payment"])).conflicts).toEqual([]);
+    expect(
+      detectSodConflicts(oneClerk(["view_reports_only", "release_payment"])).conflicts,
+    ).toEqual([]);
+  });
+
+  it("marks conflicts mitigated by dual release and lowers the open count", () => {
+    const tpl = oneClerk(["create_vendor", "release_payment"]);
+    const open = detectSodConflicts(tpl);
+    const mitigated = detectSodConflicts(tpl, undefined, {
+      dualReleaseMitigatedRuleIds: new Set(["rule-vendor-create-pay"]),
+    });
+    const hit = mitigated.conflicts.find((c) => c.ruleId === "rule-vendor-create-pay")!;
+    expect(hit.dualReleaseMitigated).toBe(true);
+    expect(hit.compensatingControls).toContain("Dual-release policy active on related channel");
+    expect(mitigated.summary.dualReleaseMitigated).toBe(1);
+    expect(mitigated.summary.openWithoutAcceptance).toBeLessThan(
+      open.summary.openWithoutAcceptance,
+    );
+  });
+
+  it("scores the same conflict higher for a team without independent reconciliation", () => {
+    const tpl = oneClerk(["collect_cash", "bank_reconcile"]);
+    const staffBase = {
+      ...dental.staffComposition,
+      independentBankRec: true,
+      segregationScore: 80,
+    };
+    const good = detectSodConflicts(tpl, staffBase).conflicts[0];
+    const bad = detectSodConflicts(tpl, {
+      ...staffBase,
+      independentBankRec: false,
+      segregationScore: 30,
+    }).conflicts[0];
+    expect(bad.ruleId).toBe(good.ruleId);
+    expect(bad.score).toBeGreaterThan(good.score);
+  });
+
+  it("every rule can be triggered and links only to scenarios that exist", () => {
+    for (const rule of CONFLICT_RULES) {
+      const report = detectSodConflicts(oneClerk([rule.a, rule.b]));
+      expect(
+        report.conflicts.some((c) => c.ruleId === rule.id),
+        `${rule.id} never fires`,
+      ).toBe(true);
+      if (rule.linkedScenarioId) {
+        expect(
+          dental.scenarios.some((s) => s.id === rule.linkedScenarioId),
+          `${rule.id} links to missing scenario ${rule.linkedScenarioId}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("reports the sample dental team's conflicts deterministically", () => {
+    const a = detectSodConflicts(dental);
+    const b = detectSodConflicts(dental);
+    expect(a.conflicts.map((c) => c.id)).toEqual(b.conflicts.map((c) => c.id));
+    expect(a.conflicts.length).toBeGreaterThan(0);
+    expect(a.summary.segregationHealth).toBeGreaterThanOrEqual(0);
+    expect(a.summary.segregationHealth).toBeLessThanOrEqual(100);
+  });
+});
