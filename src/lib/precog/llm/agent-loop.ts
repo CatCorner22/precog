@@ -119,6 +119,25 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       }
     }
 
+    if (t.tool === "get_case_evidence") {
+      const d = t.data as {
+        matchingCases: number;
+        lossRange: { median: number; n: number } | null;
+        cases: { title: string; lossUsd: number; lossIsFloor: boolean }[];
+      };
+      if (d.matchingCases > 0) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "sod",
+          label: "Prosecuted cases matching the open gaps",
+          metric: d.lossRange
+            ? `${d.matchingCases} cases; median stated loss ${usd(d.lossRange.median)}`
+            : `${d.matchingCases} cases`,
+          link: { tab: "start" },
+        });
+      }
+    }
+
     if (t.tool === "get_insurance_cost_of_risk") {
       const d = t.data as {
         transfer: {
@@ -363,6 +382,27 @@ function localSynthesize(
     return `**${t.name}** — residual **${t.residual}/100** (${t.band}). Drivers: ${drivers || "n/a"}.`;
   });
 
+  // Real losses behind the open gaps. Facts stated in cited sources, so the
+  // brief can say what this exposure has cost others without forecasting.
+  const caseEv = tools.find((t) => t.tool === "get_case_evidence")?.data as {
+    matchingCases: number;
+    lossRange: { median: number; low: number; high: number; n: number } | null;
+    largest: { title: string; lossUsd: number; lossIsFloor: boolean } | null;
+  } | null;
+  if (caseEv && caseEv.matchingCases > 0) {
+    const largest = caseEv.largest;
+    highestRisks.push(
+      `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${caseEv.matchingCases === 1 ? "case matches" : "cases match"} the open duty conflicts` +
+        (caseEv.lossRange
+          ? `; median stated loss ${usd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
+          : "") +
+        (largest
+          ? `. Largest: "${largest.title}" (${largest.lossIsFloor ? "at least " : ""}${usd(largest.lossUsd)}).`
+          : ".") +
+        " Other organizations, not this one; see Start here for the sources.",
+    );
+  }
+
   const tradeoffs = [
     (() => {
       const n = snap?.staff.teamSize;
@@ -604,7 +644,7 @@ export function buildGrokAgentMessages(
   specialistNotes: { agent: string; title: string; bullets: string[] }[],
   advancedReasoning: string[],
 ): { role: "system" | "user"; content: string }[] {
-  const system = `You are Precog Pioneer — tool-grounded multi-agent coach for small dental practices.
+  const system = `You are Precog Pioneer — tool-grounded multi-agent coach for small businesses.
 ONLY use TOOL RESULTS. Never invent metrics or accuse people of fraud.
 
 You must integrate:
@@ -614,12 +654,14 @@ You must integrate:
 4) RAG guidance snippets (cite chunk titles)
 5) Specialist board notes (Operator, Shield, Precog, Critic)
 6) Lever ordering (this app's model: the order and the reasons, never a probability or dollar figure)
+7) Prosecuted cases (get_case_evidence): real losses at other businesses with the same open duty conflicts. Cite a case by its title and publisher, with the loss as stated; never invent, merge, or round a case, and never imply this business has suffered one.
 
 Every scenario figure is an assumption written into the scenario; every 0–100 score is this app's own index. Say so whenever you use one, and never call either a measurement, forecast, expected value, or confidence interval.
 
 Output markdown sections:
 ## Situation
 ## Highest residual risks
+## What this has cost other businesses
 ## Leading indicators
 ## Variable cascades (what else moves)
 ## Lever ordering (this app's model)

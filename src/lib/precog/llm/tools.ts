@@ -20,6 +20,9 @@ import {
 } from "../scoring/variable-cascade";
 import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
+import { casesForSodRules, detectionBreakdown, observedLossRange } from "../evidence";
+import { detectSodConflicts } from "../sod/detect";
+import { mitigatedSodRuleIds } from "../controls/dual-release";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
@@ -113,6 +116,12 @@ export const TOOL_CATALOG: {
     name: "retrieve_guidance",
     description: "TF-IDF RAG over COSO/SoD/Lean/fraud corpus.",
     args: "{ query? }",
+  },
+  {
+    name: "get_case_evidence",
+    description:
+      "Prosecuted cases from the evidence library that match this business's open duty conflicts: title, sector, loss, duration, how it was found, what would have caught it, and the government source URL.",
+    args: "none",
   },
   {
     name: "get_leading_indicators",
@@ -463,6 +472,61 @@ export function executeTool(
         };
       }
 
+      case "get_case_evidence": {
+        const profile = profileOf(ctx);
+        const sod = detectSodConflicts(profile.staff, {
+          dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+        });
+        const openRuleIds = [
+          ...new Set(
+            sod.conflicts
+              .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated)
+              .map((c) => c.ruleId),
+          ),
+        ];
+        const cases = casesForSodRules(openRuleIds);
+        const range = observedLossRange(cases);
+        const found = detectionBreakdown(cases);
+        // The case list is ordered by relevance to the open rules, so the
+        // largest loss is found separately rather than read off the top.
+        const largest = cases.reduce<(typeof cases)[number] | null>(
+          (best, c) => (best === null || c.lossUsd > best.lossUsd ? c : best),
+          null,
+        );
+        return {
+          tool,
+          ok: true,
+          summary: cases.length
+            ? `${cases.length} prosecuted case(s) match the open duty conflicts; median stated loss ${range ? usd(range.median) : "n/a"}`
+            : "No prosecuted case in the library matches the open duty conflicts",
+          // Every field here is a fact stated in the cited source, or the
+          // library's own tagging of which control would have caught it.
+          // Nothing is a rate or a forecast.
+          data: {
+            matchingCases: cases.length,
+            openRuleIds,
+            lossRange: range,
+            largest: largest
+              ? { title: largest.title, lossUsd: largest.lossUsd, lossIsFloor: largest.lossIsFloor }
+              : null,
+            detection: { known: found.known, unknown: found.unknown, byRoute: found.byRoute },
+            cases: cases.slice(0, 8).map((c) => ({
+              id: c.id,
+              title: c.title,
+              sector: c.sector,
+              lossUsd: c.lossUsd,
+              lossIsFloor: c.lossIsFloor,
+              durationMonths: c.durationMonths ?? null,
+              detection: c.detection,
+              controlGap: c.controlGap,
+              wouldHaveCaughtIt: c.wouldHaveCaughtIt.map((w) => w.asApplied),
+              source: { publisher: c.source.publisher, url: c.source.url },
+            })),
+          },
+          links: [{ tab: "start", label: "Start here" }],
+        };
+      }
+
       case "get_leading_indicators": {
         const report = scoreLeadingIndicators(staff, riskVars);
         const breached = report.indicators.filter((i) => i.status === "breach").length;
@@ -561,6 +625,7 @@ export function planTools(question: string): ToolName[] {
     "simulate_variable_cascades",
     "retrieve_guidance",
     "get_leading_indicators",
+    "get_case_evidence",
     "run_advanced_reasoning",
     "run_meta_analysis",
     "get_coso_assessment",

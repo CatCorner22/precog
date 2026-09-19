@@ -10,6 +10,13 @@ import {
   HEAT_BANDS,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
+import {
+  casesForControl,
+  casesForSodRules,
+  type CaseStudy,
+  type ControlId,
+} from "@/lib/precog/evidence";
+import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +31,37 @@ export interface WeeklyAction {
   priority: number;
   /** Deep-link to a process on the map tab. */
   processId?: string;
+  /** The prosecuted cases this action rests on, where the library has any. */
+  evidence?: ActionEvidence;
+}
+
+export interface ActionEvidence {
+  caseCount: number;
+  /** The largest recorded loss among those cases. */
+  worst: { title: string; lossUsd: number; lossIsFloor: boolean } | null;
+}
+
+/** Summarise a case list for one action; null when nothing backs it. */
+function evidenceFor(cases: readonly CaseStudy[]): ActionEvidence | undefined {
+  if (cases.length === 0) return undefined;
+  const withLoss = cases.filter((c) => c.lossUsd > 0);
+  const worst = withLoss.reduce<CaseStudy | null>(
+    (best, c) => (best === null || c.lossUsd > best.lossUsd ? c : best),
+    null,
+  );
+  return {
+    caseCount: cases.length,
+    worst: worst
+      ? { title: worst.title, lossUsd: worst.lossUsd, lossIsFloor: worst.lossIsFloor }
+      : null,
+  };
+}
+
+/** Union of the cases behind several controls, each case once. */
+function casesForControls(ids: readonly ControlId[]): CaseStudy[] {
+  const seen = new Map<string, CaseStudy>();
+  for (const id of ids) for (const c of casesForControl(id)) seen.set(c.id, c);
+  return [...seen.values()];
 }
 
 export function buildWeeklyActions(input: {
@@ -47,6 +85,9 @@ export function buildWeeklyActions(input: {
       effort: "low",
       tab: "sod",
       priority: 95,
+      evidence: evidenceFor(
+        casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
+      ),
     });
   }
 
@@ -58,17 +99,21 @@ export function buildWeeklyActions(input: {
       effort: "medium",
       tab: "sod",
       priority: 90,
+      evidence: evidenceFor(
+        casesForControls(["dual-release-above-threshold", "new-payee-second-approval"]),
+      ),
     });
   }
 
   for (const c of sod.conflicts.filter((x) => x.severity === "critical").slice(0, 2)) {
     actions.push({
       id: `sod-${c.ruleId}`,
-      title: `Resolve SoD: ${c.title || c.ruleId}`,
-      why: c.why?.slice(0, 120) || "Incompatible duties are concentrated on one role.",
+      title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,
+      why: c.why || "Incompatible duties are concentrated on one role.",
       effort: "medium",
       tab: "sod",
       priority: 88,
+      evidence: evidenceFor(casesForSodRules([c.ruleId])),
     });
   }
 
@@ -200,6 +245,15 @@ export function WeeklyActionPlan({
                   </Badge>
                 </span>
                 <span className="mt-0.5 block text-xs text-muted">{a.why}</span>
+                {a.evidence && (
+                  <span className="mt-1 block text-xs text-subtle">
+                    {a.evidence.caseCount} prosecuted{" "}
+                    {a.evidence.caseCount === 1 ? "case" : "cases"} in the library
+                    {a.evidence.worst
+                      ? `; the largest cost ${a.evidence.worst.lossIsFloor ? "at least " : ""}${formatUsd(a.evidence.worst.lossUsd)}.`
+                      : "."}
+                  </span>
+                )}
               </span>
               <CircleAlert className="mt-0.5 size-4 shrink-0 text-muted" />
             </button>

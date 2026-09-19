@@ -16,6 +16,7 @@ export type ToolName =
   | "simulate_variable_cascades"
   | "retrieve_guidance"
   | "get_leading_indicators"
+  | "get_case_evidence"
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
