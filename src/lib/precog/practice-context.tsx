@@ -25,12 +25,8 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
-import {
-  setActiveIndustry,
-  setPeopleOverrides,
-  setProcessOverrides,
-} from "./active-template";
-import { getIndustryTemplate } from "./templates";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import {
   defaultProfile,
   loadPortfolio,
@@ -55,17 +51,13 @@ interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
   syncStatus: SyncStatus;
-  /** Bumps when the active industry template swaps — drives useTemplate() re-renders. */
-  templateRevision: number;
+  /** Industry template with this profile's custom people/processes applied. */
+  template: IndustryTemplate;
   setPracticeName: (name: string) => void;
   setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => void;
-  setRiskVariables: (
-    v: RiskVariableState | ((r: RiskVariableState) => RiskVariableState),
-  ) => void;
-  setDualRelease: (
-    v: DualReleasePolicy | ((d: DualReleasePolicy) => DualReleasePolicy),
-  ) => void;
+  setRiskVariables: (v: RiskVariableState | ((r: RiskVariableState) => RiskVariableState)) => void;
+  setDualRelease: (v: DualReleasePolicy | ((d: DualReleasePolicy) => DualReleasePolicy)) => void;
   addDecision: (input: {
     subject: string;
     kind: DecisionKind;
@@ -84,9 +76,7 @@ interface PracticeContextValue {
     v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
   ) => void;
   /** Map builder: replace the demo team with real people (null = template people). */
-  setCustomPeople: (
-    v: Person[] | null | ((current: Person[]) => Person[] | null),
-  ) => void;
+  setCustomPeople: (v: Person[] | null | ((current: Person[]) => Person[] | null)) => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (
     v:
@@ -97,9 +87,7 @@ interface PracticeContextValue {
   mapCustomized: boolean;
   /** Save or replace user-defined reusable process blocks. */
   setSavedProcessBlocks: (
-    v:
-      | SavedProcessBlock[]
-      | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
+    v: SavedProcessBlock[] | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
   ) => void;
   /** Append a map health snapshot when the score changes (deduped, capped). */
   recordMapHealth: (score: number) => void;
@@ -139,7 +127,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
-  const [templateRevision, setTemplateRevision] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudLoadedFor = useRef<string | null>(null);
   const profileRef = useRef(profile);
@@ -163,9 +150,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applySnapshot = useCallback((snap: MapSnapshot) => {
-    setProcessOverrides(snap.customProcesses ?? null);
-    setPeopleOverrides(snap.customPeople ?? null);
-    setTemplateRevision((r) => r + 1);
     setProfile((p) => ({
       ...p,
       customProcesses: snap.customProcesses ?? null,
@@ -205,10 +189,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   /** Swap the whole active business — template, overrides, history, profile. */
   const activateProfile = useCallback((next: PracticeProfile) => {
-    setActiveIndustry(next.industry);
-    setProcessOverrides(next.customProcesses ?? null);
-    setPeopleOverrides(next.customPeople ?? null);
-    setTemplateRevision((r) => r + 1);
     undoStack.current = [];
     redoStack.current = [];
     setHistoryVersion((v) => v + 1);
@@ -282,24 +262,21 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
   }, []);
 
-  const setIndustry = useCallback((industry: IndustryId) => {
-    clearHistory();
-    setActiveIndustry(industry);
-    setProcessOverrides(null);
-    setPeopleOverrides(null);
-    setTemplateRevision((r) => r + 1);
-    const meta = industryMeta(industry);
-    const tpl = getIndustryTemplate(industry);
-    const staff = { ...tpl.staffComposition };
-    const fresh = defaultProfile(industry);
-    setProfile((p) => ({
-      ...fresh,
-      practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
-      decisions: p.decisions,
-      businessId: p.businessId,
-      onboardingComplete: true,
-    }));
-  }, [clearHistory]);
+  const setIndustry = useCallback(
+    (industry: IndustryId) => {
+      clearHistory();
+      const meta = industryMeta(industry);
+      const fresh = defaultProfile(industry);
+      setProfile((p) => ({
+        ...fresh,
+        practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
+        decisions: p.decisions,
+        businessId: p.businessId,
+        onboardingComplete: true,
+      }));
+    },
+    [clearHistory],
+  );
 
   const setStaff = useCallback(
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
@@ -350,7 +327,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     (v: DualReleasePolicy | ((d: DualReleasePolicy) => DualReleasePolicy)) => {
       setProfile((p) => {
         const raw = typeof v === "function" ? v(p.dualRelease) : v;
-        const dualRelease = mergeDualReleasePolicy(raw, p.staff);
+        const dualRelease = mergeDualReleasePolicy(resolveTemplate(p), raw, p.staff);
         const flags = staffFlagsFromDualRelease(dualRelease);
         return {
           ...p,
@@ -407,28 +384,21 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const resetProfile = useCallback(() => {
     clearHistory();
-    setProfile((p) => {
-      setActiveIndustry(p.industry);
-      setProcessOverrides(null);
-      setPeopleOverrides(null);
-      setTemplateRevision((r) => r + 1);
-      return { ...defaultProfile(p.industry), businessId: p.businessId };
-    });
+    setProfile((p) => ({ ...defaultProfile(p.industry), businessId: p.businessId }));
   }, [clearHistory]);
 
-  const completeOnboarding = useCallback((industry: IndustryId) => {
-    clearHistory();
-    setActiveIndustry(industry);
-    setProcessOverrides(null);
-    setPeopleOverrides(null);
-    setTemplateRevision((r) => r + 1);
-    setProfile((p) => ({
-      ...defaultProfile(industry),
-      decisions: p.decisions,
-      businessId: p.businessId,
-      onboardingComplete: true,
-    }));
-  }, [clearHistory]);
+  const completeOnboarding = useCallback(
+    (industry: IndustryId) => {
+      clearHistory();
+      setProfile((p) => ({
+        ...defaultProfile(industry),
+        decisions: p.decisions,
+        businessId: p.businessId,
+        onboardingComplete: true,
+      }));
+    },
+    [clearHistory],
+  );
 
   const setCustomPeople = useCallback(
     (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
@@ -436,8 +406,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
-        setPeopleOverrides(next);
-        setTemplateRevision((r) => r + 1);
         return { ...p, customPeople: next };
       });
     },
@@ -445,16 +413,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const setCustomProcesses = useCallback(
-    (
-      v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
-    ) => {
+    (v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null)) => {
       pushUndo();
       setProfile((p) => {
-        const current =
-          p.customProcesses ?? getIndustryTemplate(p.industry).processes;
+        const current = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
         const next = typeof v === "function" ? v(current) : v;
-        setProcessOverrides(next);
-        setTemplateRevision((r) => r + 1);
         return { ...p, customProcesses: next };
       });
     },
@@ -480,14 +443,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const mapCustomized = Boolean(
     profile.customProcesses ||
-      profile.customPeople ||
-      Object.keys(profile.mapLayout ?? {}).length > 0,
+    profile.customPeople ||
+    Object.keys(profile.mapLayout ?? {}).length > 0,
   );
 
   const setSavedProcessBlocks = useCallback(
-    (
-      v: SavedProcessBlock[] | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[]),
-    ) => {
+    (v: SavedProcessBlock[] | ((blocks: SavedProcessBlock[]) => SavedProcessBlock[])) => {
       setProfile((p) => {
         const cur = p.savedProcessBlocks ?? [];
         const next = typeof v === "function" ? v(cur) : v;
@@ -546,9 +507,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       pushUndo();
       const processes = structuredClone(v.processes);
       const people = structuredClone(v.people);
-      setProcessOverrides(processes);
-      setPeopleOverrides(people);
-      setTemplateRevision((r) => r + 1);
       setProfile((p) => ({
         ...p,
         customProcesses: processes,
@@ -557,6 +515,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       }));
     },
     [pushUndo],
+  );
+
+  const { industry, customProcesses, customPeople } = profile;
+  const template = useMemo(
+    () => resolveTemplate({ industry, customProcesses, customPeople }),
+    [industry, customProcesses, customPeople],
   );
 
   const canUndoMap = undoStack.current.length > 0;
@@ -576,7 +540,14 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     byId.set(profile.businessId ?? "biz_default", summarizeBusiness(profile));
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteBusinesses, profile.businessId, profile.practiceName, profile.industry, profile.updatedAt, portfolioVersion]);
+  }, [
+    remoteBusinesses,
+    profile.businessId,
+    profile.practiceName,
+    profile.industry,
+    profile.updatedAt,
+    portfolioVersion,
+  ]);
 
   const flushActive = useCallback(async () => {
     const cur = profileRef.current;
@@ -584,7 +555,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     savePortfolioEntry(cur);
     if (cloudUser) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      await saveBusinessProfile({ data: { profile: cur, industry: cur.industry } }).catch(() => undefined);
+      await saveBusinessProfile({ data: { profile: cur, industry: cur.industry } }).catch(
+        () => undefined,
+      );
     }
   }, [cloudUser]);
 
@@ -598,7 +571,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         if (cloudUser) {
           const remote = await loadBusiness({ data: { id } }).catch(() => null);
           if (remote?.found && remote.profile) {
-            if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt)) next = remote.profile;
+            if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt))
+              next = remote.profile;
           }
         }
         if (!next) return;
@@ -642,7 +616,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
-      templateRevision,
+      template,
       setPracticeName,
       setIndustry,
       setStaff,
@@ -675,7 +649,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
-      templateRevision,
+      template,
       setPracticeName,
       setIndustry,
       setStaff,
@@ -708,9 +682,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return (
-    <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>
-  );
+  return <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>;
 }
 
 const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));

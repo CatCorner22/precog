@@ -1,21 +1,24 @@
 import { HEAT_BANDS } from "../process-graph";
 import { assessCoso } from "../coso";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
+import type { StaffComposition } from "../types";
 import { industryMeta } from "../industry";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 
 /** Dense, structured context for the Pioneer LLM coach — token-efficient. */
-export function buildPioneerContextPack() {
-  const tpl = getActiveTemplate();
-  const { businessName, staffComposition, crimeFraudStats } = tpl;
-  const portfolio = portfolioSummary();
-  const coso = assessCoso();
-  const ranked = rankDangerousScenarios().slice(0, 3);
-  const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
-  const tornado = tornadoSensitivity();
-  const { snapshots } = buildProcessMapGraph(staffComposition);
+export function buildPioneerContextPack(
+  tpl: IndustryTemplate,
+  staffComposition: StaffComposition = tpl.staffComposition,
+) {
+  const { businessName, crimeFraudStats } = tpl;
+  const portfolio = portfolioSummary(tpl, staffComposition);
+  const coso = assessCoso(tpl);
+  const ranked = rankDangerousScenarios(tpl, { staff: staffComposition }).slice(0, 3);
+  const spofs = findKnowledgeRisks(tpl).filter((r) => r.soleOwner && r.riskScore >= 65);
+  const tornado = tornadoSensitivity(tpl, staffComposition);
+  const { snapshots } = buildProcessMapGraph(tpl, staffComposition);
   const mapIssues = validateProcessMap(
     tpl.processes,
     tpl.people,
@@ -103,8 +106,8 @@ export function buildPioneerContextPack() {
   };
 }
 
-export function pioneerSystemPrompt(): string {
-  const meta = industryMeta(getActiveTemplate().id);
+export function pioneerSystemPrompt(tpl: IndustryTemplate): string {
+  const meta = industryMeta(tpl.id);
   return `You are Precog Pioneer — a frontier coach for small ${meta.teamLabel}s (${meta.label}).
 You help owner-operators make bold, clear decisions about internal controls, knowledge continuity, Lean/TPS waste, and residual risk.
 

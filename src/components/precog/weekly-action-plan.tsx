@@ -5,6 +5,7 @@ import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/resid
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
+import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import {
   buildProcessMapGraph,
   HEAT_BANDS,
@@ -65,16 +66,20 @@ function casesForControls(ids: readonly ControlId[]): CaseStudy[] {
 }
 
 export function buildWeeklyActions(input: {
+  tpl: IndustryTemplate;
   staff: ReturnType<typeof usePractice>["profile"]["staff"];
   dualRelease: ReturnType<typeof usePractice>["profile"]["dualRelease"];
   mapSnapshots?: ProcessMapSnapshot[];
 }): WeeklyAction[] {
-  const portfolio = portfolioSummary(input.staff);
-  const sod = detectSodConflicts(input.staff, {
+  const { tpl } = input;
+  const portfolio = portfolioSummary(tpl, input.staff);
+  const sod = detectSodConflicts(tpl, input.staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
   });
-  const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
-  const tornado = tornadoSensitivity(input.staff);
+  const spofs = findKnowledgeRisks(tpl).filter(
+    (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
+  );
+  const tornado = tornadoSensitivity(tpl, input.staff);
   const actions: WeeklyAction[] = [];
 
   if (!input.staff.independentBankRec) {
@@ -197,15 +202,16 @@ export function WeeklyActionPlan({
 }: {
   onNavigate: (tab: string, processId?: string) => void;
 }) {
-  const { profile, templateRevision } = usePractice();
+  const { profile, template } = usePractice();
   const actions = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const { snapshots } = buildProcessMapGraph(template, profile.staff);
     return buildWeeklyActions({
+      tpl: template,
       staff: profile.staff,
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
     });
-  }, [profile.staff, profile.dualRelease, profile.industry, templateRevision]);
+  }, [template, profile.staff, profile.dualRelease]);
 
   return (
     <Card>

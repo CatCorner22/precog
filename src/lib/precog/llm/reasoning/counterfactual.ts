@@ -6,7 +6,7 @@ import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { simulateCascadeLever, type CascadeLeverId } from "../../scoring/variable-cascade";
 import { initBayesianState, updateBayesianWithLever, type BayesianState } from "./bayesian";
-import { getActiveTemplate } from "../../active-template";
+import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { runPrecogScenario } from "../../engine";
@@ -44,15 +44,18 @@ export interface CounterfactualResult {
 }
 
 function worldFrom(
+  tpl: IndustryTemplate,
   label: string,
   staff: StaffComposition,
   vars: RiskVariableState,
   bayes: BayesianState,
 ): TwinWorld {
-  const portfolio = portfolioSummary(staff);
-  const ranked = rankDangerousScenarios({ staff, riskVariables: vars });
+  const portfolio = portfolioSummary(tpl, staff);
+  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: vars });
   const top = ranked[0];
-  const result = top ? runPrecogScenario(top.scenario.id, { staff, riskVariables: vars }) : null;
+  const result = top
+    ? runPrecogScenario(tpl, top.scenario.id, { staff, riskVariables: vars })
+    : null;
   return {
     label,
     residual: portfolio.averageResidual,
@@ -66,6 +69,7 @@ function worldFrom(
 }
 
 export function runCounterfactuals(
+  tpl: IndustryTemplate,
   staff: StaffComposition,
   vars: RiskVariableState,
   leverIds: CascadeLeverId[] = [
@@ -77,25 +81,25 @@ export function runCounterfactuals(
     "lower_deductible_1k",
   ],
 ): CounterfactualResult {
-  const leading = scoreLeadingIndicators(staff, vars);
-  const ranked = rankDangerousScenarios({ staff, riskVariables: vars });
+  const leading = scoreLeadingIndicators(tpl, staff, vars);
+  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: vars });
   const topResult = ranked[0]
-    ? runPrecogScenario(ranked[0].scenario.id, { staff, riskVariables: vars })
+    ? runPrecogScenario(tpl, ranked[0].scenario.id, { staff, riskVariables: vars })
     : null;
 
   const baseBayes = initBayesianState({
-    assumedPrior: getActiveTemplate().crimeFraudStats.assumedControlFailurePrior,
+    assumedPrior: tpl.crimeFraudStats.assumedControlFailurePrior,
     retainedExpected: topResult?.retainedImpact.expected ?? 25000,
-    residualAverage: portfolioSummary(staff).averageResidual,
+    residualAverage: portfolioSummary(tpl, staff).averageResidual,
     leadingPressure: leading.pressureIndex,
     dualControl: staff.dualControlPayments,
     independentBankRec: staff.independentBankRec,
   });
 
-  const factual = worldFrom("Factual (as-is)", staff, vars, baseBayes);
+  const factual = worldFrom(tpl, "Factual (as-is)", staff, vars, baseBayes);
 
   const counterfactuals = leverIds.map((leverId) => {
-    const sim = simulateCascadeLever(leverId, vars, staff);
+    const sim = simulateCascadeLever(tpl, leverId, vars, staff);
     const likelihoodDrop = Math.max(0, factual.likelihood - sim.after.likelihoodMultiplier);
     const severityDrop = Math.max(
       0,
@@ -106,7 +110,7 @@ export function runCounterfactuals(
       severityDrop: Math.min(0.5, severityDrop),
       label: sim.lever.label,
     });
-    const world = worldFrom(sim.lever.label, sim.staffAfter, sim.variablesAfter, bayes);
+    const world = worldFrom(tpl, sim.lever.label, sim.staffAfter, sim.variablesAfter, bayes);
     const delta = {
       residual: world.residual - factual.residual,
       annualCor: world.annualCor - factual.annualCor,

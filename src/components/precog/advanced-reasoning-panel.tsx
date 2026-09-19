@@ -16,10 +16,10 @@ import { GitBranch, Network, Search, Sparkles } from "lucide-react";
  * "Bayesian P(fail) 41.3% (95% CI …)" and "EAL $…", which read as findings.
  */
 export function AdvancedReasoningPanel() {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   const report = useMemo(
-    () => runAdvancedReasoning(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
+    () => runAdvancedReasoning(template, profile.staff, profile.riskVariables),
+    [template, profile.staff, profile.riskVariables],
   );
   const causal = [...report.causal].sort(
     (a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision),

@@ -1,7 +1,7 @@
 /**
  * One-click fixes for map validation issues — pick the most plausible owner or control.
  */
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { ControlItem, Person, ProcessNode } from "../types";
 
@@ -19,16 +19,19 @@ function overlap(a: string[], b: string[]): number {
 
 /** Best-guess owner: role entitlements touch this process, else most-related role, else least-loaded person. */
 export function suggestOwnerForProcess(
+  tpl: IndustryTemplate,
   process: ProcessNode,
   processes: ProcessNode[],
   people: Person[],
 ): Person | null {
   const active = people.filter((p) => p.active);
   if (!active.length) return null;
-  const { roleTemplates } = getActiveTemplate();
+  const { roleTemplates } = tpl;
 
   const scored = active.map((p) => {
-    const ents = (p.entitlements?.length ? p.entitlements : roleTemplates[p.role] ?? []) as string[];
+    const ents = (
+      p.entitlements?.length ? p.entitlements : (roleTemplates[p.role] ?? [])
+    ) as string[];
     let score = 0;
     for (const eid of ents) {
       const e = ENTITLEMENTS.find((x) => x.id === eid);

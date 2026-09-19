@@ -6,7 +6,7 @@
  * Educational decision model — not actuarial pricing.
  */
 import { runPrecogScenario } from "../engine";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import { portfolioSummary } from "./residual-engine";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -283,19 +283,20 @@ function applyLever(
 }
 
 function snapshot(
+  tpl: IndustryTemplate,
   vars: RiskVariableState,
   staff: StaffComposition,
   scenarioId: string,
 ): MetricSnapshot {
-  const { scenarios } = getActiveTemplate();
+  const { scenarios } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0];
   const flags = scenarioFlags(scenario.id);
   const dyn = evaluateDynamicRisk(vars, scenario.baseFinancialImpact, flags);
-  const result = runPrecogScenario(scenario.id, {
+  const result = runPrecogScenario(tpl, scenario.id, {
     staff,
     riskVariables: vars,
   })!;
-  const portfolio = portfolioSummary(staff);
+  const portfolio = portfolioSummary(tpl, staff);
 
   return {
     likelihoodMultiplier: dyn.likelihoodSeverity.likelihoodMultiplier,
@@ -466,7 +467,9 @@ function secondOrderNotes(
   }
 
   if (notes.length === 0) {
-    notes.push("Primary effects dominate; second-order interactions were small under current inputs.");
+    notes.push(
+      "Primary effects dominate; second-order interactions were small under current inputs.",
+    );
   }
   return notes;
 }
@@ -506,23 +509,21 @@ function verdict(deltas: MetricDelta[]): string {
 }
 
 export function simulateCascadeLever(
+  tpl: IndustryTemplate,
   leverId: CascadeLeverId,
   baseVars: RiskVariableState = DEFAULT_RISK_VARIABLES,
   baseStaff?: StaffComposition,
   scenarioId?: string,
 ): CascadeSimulation {
-  const { scenarios, staffComposition: demoStaff } = getActiveTemplate();
+  const { scenarios, staffComposition: demoStaff } = tpl;
   const staffBase = baseStaff ?? demoStaff;
-  const lever =
-    CASCADE_LEVERS.find((l) => l.id === leverId) ?? CASCADE_LEVERS[0];
+  const lever = CASCADE_LEVERS.find((l) => l.id === leverId) ?? CASCADE_LEVERS[0];
   const rankedScenario =
-    scenarioId ||
-    scenarios.find((s) => s.id.includes("cash"))?.id ||
-    scenarios[0].id;
+    scenarioId || scenarios.find((s) => s.id.includes("cash"))?.id || scenarios[0].id;
 
-  const before = snapshot(baseVars, staffBase, rankedScenario);
+  const before = snapshot(tpl, baseVars, staffBase, rankedScenario);
   const applied = applyLever(lever.id, baseVars, staffBase);
-  const after = snapshot(applied.vars, applied.staff, rankedScenario);
+  const after = snapshot(tpl, applied.vars, applied.staff, rankedScenario);
   const deltas = buildDeltas(before, after);
 
   return {
@@ -539,6 +540,7 @@ export function simulateCascadeLever(
 
 /** Simulate all levers; rank by improvement in annual cost of risk then residual. */
 export function simulateAllCascades(
+  tpl: IndustryTemplate,
   baseVars: RiskVariableState = DEFAULT_RISK_VARIABLES,
   baseStaff?: StaffComposition,
   scenarioId?: string,
@@ -550,22 +552,17 @@ export function simulateAllCascades(
   rankedByResidual: CascadeSimulation[];
   dependencyMap: { from: string; to: string; effect: string }[];
 } {
-  const { scenarios, staffComposition: demoStaff } = getActiveTemplate();
+  const { scenarios, staffComposition: demoStaff } = tpl;
   const staffBase = baseStaff ?? demoStaff;
-  const sid =
-    scenarioId ||
-    scenarios.find((s) => s.id.includes("cash"))?.id ||
-    scenarios[0].id;
-  const baseline = snapshot(baseVars, staffBase, sid);
+  const sid = scenarioId || scenarios.find((s) => s.id.includes("cash"))?.id || scenarios[0].id;
+  const baseline = snapshot(tpl, baseVars, staffBase, sid);
   const simulations = CASCADE_LEVERS.map((l) =>
-    simulateCascadeLever(l.id, baseVars, staffBase, sid),
+    simulateCascadeLever(tpl, l.id, baseVars, staffBase, sid),
   );
 
   const rankedByCor = [...simulations].sort((a, b) => {
-    const da =
-      a.after.expectedAnnualCostOfRisk - a.before.expectedAnnualCostOfRisk;
-    const db =
-      b.after.expectedAnnualCostOfRisk - b.before.expectedAnnualCostOfRisk;
+    const da = a.after.expectedAnnualCostOfRisk - a.before.expectedAnnualCostOfRisk;
+    const db = b.after.expectedAnnualCostOfRisk - b.before.expectedAnnualCostOfRisk;
     return da - db; // most negative first
   });
 

@@ -6,7 +6,7 @@
  * "Threat" = control failure / residual risk / continuity exposure — never people.
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
-import { getActiveTemplate } from "./active-template";
+import type { IndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
@@ -54,22 +54,23 @@ function bandToClassification(band: PriorityBand): ThreatTarget["classification"
 }
 
 export function buildThreatAssessment(input: {
+  tpl: IndustryTemplate;
   practiceName: string;
   staff: StaffComposition;
   riskVariables?: RiskVariableState;
   dualRelease?: DualReleasePolicy;
 }): ThreatAssessmentReport {
-  const { practiceName, staff, riskVariables, dualRelease } = input;
-  const portfolio = portfolioSummary(staff);
-  const sod = detectSodConflicts(staff, {
+  const { tpl, practiceName, staff, riskVariables, dualRelease } = input;
+  const portfolio = portfolioSummary(tpl, staff);
+  const sod = detectSodConflicts(tpl, staff, {
     dualReleaseMitigatedRuleIds: dualRelease ? mitigatedSodRuleIds(dualRelease) : undefined,
   });
-  const knowledgeRisks = findKnowledgeRisks().filter((r) => r.soleOwner || r.ownerCount === 0);
-  const ranked = rankDangerousScenarios({
+  const knowledgeRisks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
+  const ranked = rankDangerousScenarios(tpl, {
     staff,
     riskVariables,
   });
-  const leading = scoreLeadingIndicators(staff, {
+  const leading = scoreLeadingIndicators(tpl, staff, {
     ...DEFAULT_RISK_VARIABLES,
     ...(riskVariables ?? {}),
     hasDualControl: riskVariables?.hasDualControl ?? staff.dualControlPayments,
@@ -247,7 +248,7 @@ export function buildThreatAssessment(input: {
     likelihood: Math.min(100, Math.round(t.heat * 0.85 + (t.immediate ? 10 : 0))),
   }));
 
-  const openSod = getActiveTemplate().controls.filter((c) => !c.segregated).length;
+  const openSod = tpl.controls.filter((c) => !c.segregated).length;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -260,7 +261,7 @@ export function buildThreatAssessment(input: {
     targetDeck: deck,
     matrix,
     missionBrief: [
-      `AO: ${practiceName} — small ${industryMeta(getActiveTemplate().id).teamLabel} residual & control assessment.`,
+      `AO: ${practiceName} — small ${industryMeta(tpl.id).teamLabel} residual & control assessment.`,
       `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
       `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
       `Knowledge SPOFs: ${knowledgeRisks.length} sole-owner / unowned critical item(s).`,

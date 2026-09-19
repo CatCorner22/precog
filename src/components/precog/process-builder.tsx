@@ -172,19 +172,19 @@ export function ProcessBuilder({
   const tour = useBuilderTour();
 
   const departures = useMemo(
-    () => (showDeparture ? rankDepartureRisk(processes, tpl.people, profile.staff) : []),
-    [showDeparture, processes, tpl.people, profile.staff],
+    () => (showDeparture ? rankDepartureRisk(tpl, processes, tpl.people, profile.staff) : []),
+    [showDeparture, tpl, processes, profile.staff],
   );
   const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
 
   const currentHealth = useMemo(
     () =>
-      previewMapHealth(processes, profile.staff, {
+      previewMapHealth(tpl, processes, profile.staff, {
         people: tpl.people,
         layout: profile.mapLayout ?? {},
         customized: mapCustomized,
       }),
-    [processes, profile.staff, tpl.people, profile.mapLayout, mapCustomized],
+    [tpl, processes, profile.staff, profile.mapLayout, mapCustomized],
   );
   // Baseline when the builder opened — shows the session's net effect.
   const sessionBaseline = useRef<number | null>(null);
@@ -194,7 +194,7 @@ export function ProcessBuilder({
   const whatIf = (next: ProcessNode[]): HealthDelta =>
     healthDelta(
       currentHealth,
-      previewMapHealth(next, profile.staff, {
+      previewMapHealth(tpl, next, profile.staff, {
         people: tpl.people,
         layout: profile.mapLayout ?? {},
         customized: true,
@@ -204,9 +204,9 @@ export function ProcessBuilder({
   const workload = useMemo(
     () =>
       showWorkload
-        ? analyzeWorkload(processes, tpl.people, profile.staff, profile.dualRelease)
+        ? analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease)
         : [],
-    [showWorkload, processes, tpl.people, profile.staff, profile.dualRelease],
+    [showWorkload, tpl, processes, profile.staff, profile.dualRelease],
   );
 
   const validationIssues = useMemo(
@@ -230,12 +230,12 @@ export function ProcessBuilder({
     setShowReview(true);
     setReviewing(true);
     try {
-      const wl = analyzeWorkload(processes, tpl.people, profile.staff, profile.dualRelease);
+      const wl = analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease);
       const enriched = processes.map((p) => {
         const owners = (p.ownerPersonIds ?? [])
           .map((id) => tpl.people.find((x) => x.id === id)?.name)
           .filter((x): x is string => Boolean(x));
-        const snap = enrichProcess(p, profile.staff);
+        const snap = enrichProcess(tpl, p, profile.staff);
         return {
           id: p.id,
           name: p.name,
@@ -309,7 +309,7 @@ export function ProcessBuilder({
       });
     }
     if (issueId.startsWith("owner-")) {
-      const owner = suggestOwnerForProcess(proc, processes, tpl.people);
+      const owner = suggestOwnerForProcess(tpl, proc, processes, tpl.people);
       return owner ? replace({ ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] }) : null;
     }
     if (issueId.startsWith("fraud-nocontrol-")) {
@@ -335,7 +335,7 @@ export function ProcessBuilder({
     const proc = processes.find((p) => p.id === processId);
     if (!proc) return false;
     if (issueId.startsWith("owner-")) {
-      const owner = suggestOwnerForProcess(proc, processes, tpl.people);
+      const owner = suggestOwnerForProcess(tpl, proc, processes, tpl.people);
       if (!owner) return false;
       update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] });
       toast.success(`${owner.name} assigned to ${proc.name}`);
@@ -387,7 +387,7 @@ export function ProcessBuilder({
               ownerPersonIds: (next.ownerPersonIds ?? []).filter((o) => pids.has(o)),
             };
           } else if (i.id.startsWith("owner-")) {
-            const owner = suggestOwnerForProcess(next, cur, tpl.people);
+            const owner = suggestOwnerForProcess(tpl, next, cur, tpl.people);
             if (owner)
               next = { ...next, ownerPersonIds: [...(next.ownerPersonIds ?? []), owner.id] };
           } else if (i.id.startsWith("fraud-nocontrol-")) {
@@ -764,6 +764,7 @@ export function ProcessBuilder({
               if (!proc) return;
               const candidates = tpl.people.filter((p) => p.id !== excludePersonId && p.active);
               const backup = suggestOwnerForProcess(
+                tpl,
                 { ...proc, ownerPersonIds: [] },
                 processes,
                 candidates,
@@ -778,8 +779,9 @@ export function ProcessBuilder({
         {showShare && (
           <SharePanel
             buildPayload={(note) => {
-              const { snapshots } = buildProcessMapGraph(profile.staff);
+              const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
               const actions = buildWeeklyActions({
+                tpl,
                 staff: profile.staff,
                 dualRelease: profile.dualRelease,
                 mapSnapshots: snapshots,
@@ -851,6 +853,7 @@ export function ProcessBuilder({
               if (!proc) return;
               const others = tpl.people.filter((p) => p.id !== fromId && p.active);
               const candidate = suggestOwnerForProcess(
+                tpl,
                 { ...proc, ownerPersonIds: [] },
                 processes,
                 others,
@@ -968,8 +971,12 @@ function ChangesView({
   against?: { processes: ProcessNode[]; people: Person[] };
   label?: string;
 }) {
-  const base = getBaseTemplate();
-  const baseline = against ?? { processes: base.processes, people: base.people };
+  const { industry } = usePractice().profile;
+  const baseline = useMemo(() => {
+    if (against) return against;
+    const base = getBaseTemplate(industry);
+    return { processes: base.processes, people: base.people };
+  }, [against, industry]);
   const { added, removed, modified, peopleAdded, peopleRemoved, total } = diffMaps(baseline, {
     processes,
     people,
@@ -979,7 +986,7 @@ function ChangesView({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
       <p className="text-muted">
         <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs{" "}
-        {label ?? `the ${industryMeta(base.id).label} template`}.
+        {label ?? `the ${industryMeta(industry).label} template`}.
       </p>
       {added.length > 0 && (
         <ChangeGroup label="Added processes" tone="ok">
@@ -2334,7 +2341,8 @@ function TeamEditor({
   people: Person[];
   onChange: (next: Person[]) => void;
 }) {
-  const roleOptions = useMemo(() => Object.keys(getBaseTemplate().roleTemplates), []);
+  const { roleTemplates } = useTemplate();
+  const roleOptions = useMemo(() => Object.keys(roleTemplates), [roleTemplates]);
   const [name, setName] = useState("");
   const [role, setRole] = useState(roleOptions[0] ?? "Team member");
   const [customRole, setCustomRole] = useState("");

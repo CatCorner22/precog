@@ -8,7 +8,7 @@
  * 4. Score severity with risk weights + residual acceptance + dual-release mitigation
  * 5. Build N×N entitlement matrix for UI
  */
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import {
   CONFLICT_RULES,
   ENTITLEMENTS,
@@ -200,9 +200,10 @@ function scoreConflict(
 }
 
 export function buildAssignments(
+  tpl: IndustryTemplate,
   overrides?: Partial<Record<string, EntitlementId[]>>,
 ): RoleAssignment[] {
-  const { people, roleTemplates } = getActiveTemplate();
+  const { people, roleTemplates } = tpl;
   return people.map((p) => {
     const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
     const fromRole = (fromPerson ??
@@ -219,6 +220,7 @@ export function buildAssignments(
 }
 
 export function detectSodConflicts(
+  tpl: IndustryTemplate,
   staff?: StaffComposition,
   options?: {
     assignments?: RoleAssignment[];
@@ -228,7 +230,7 @@ export function detectSodConflicts(
     dualReleaseMitigatedRuleIds?: Set<string>;
   },
 ): SodDetectionReport {
-  const assignments = options?.assignments ?? buildAssignments();
+  const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
   const dualMitigatedRules = options?.dualReleaseMitigatedRuleIds ?? new Set<string>();

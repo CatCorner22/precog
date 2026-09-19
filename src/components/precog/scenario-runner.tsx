@@ -69,12 +69,12 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
   const scenario = tpl.scenarios.find((s) => s.id === scenarioId)!;
   const result = useMemo(
     () =>
-      runPrecogScenario(scenarioId, {
+      runPrecogScenario(tpl, scenarioId, {
         mitigationIds: mitigations,
         staff,
         riskVariables: riskVars,
       }),
-    [scenarioId, mitigations, staff, riskVars],
+    [tpl, scenarioId, mitigations, staff, riskVars],
   );
 
   function toggleMitigation(id: string) {

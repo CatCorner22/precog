@@ -1,31 +1,23 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import {
-  DECISION_KIND_LABEL,
-  type DecisionKind,
-} from "@/lib/precog/practice-profile";
+import { DECISION_KIND_LABEL, type DecisionKind } from "@/lib/precog/practice-profile";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 
-const KINDS: DecisionKind[] = [
-  "remediate",
-  "accept_residual",
-  "monitor",
-  "insure",
-];
+const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
 export function DecisionJournal({
   onOpenLinked,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
-  const { profile, addDecision, removeDecision } = usePractice();
+  const { profile, template, addDecision, removeDecision } = usePractice();
   const portfolio = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff],
+    () => portfolioSummary(template, profile.staff),
+    [template, profile.staff],
   );
 
   const [subject, setSubject] = useState(portfolio.top[0]?.name ?? "");
@@ -35,9 +27,7 @@ export function DecisionJournal({
 
   const overdue = useMemo(() => {
     const now = Date.now();
-    return profile.decisions.filter(
-      (d) => d.reviewBy && new Date(d.reviewBy).getTime() < now,
-    );
+    return profile.decisions.filter((d) => d.reviewBy && new Date(d.reviewBy).getTime() < now);
   }, [profile.decisions]);
 
   function submit() {
@@ -73,8 +63,8 @@ export function DecisionJournal({
           Write it down or it did not happen
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or
-          insure decisions with a review date. Syncs to your account when signed in.
+          COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or insure
+          decisions with a review date. Syncs to your account when signed in.
         </p>
         {overdue.length > 0 && (
           <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
@@ -156,12 +146,8 @@ export function DecisionJournal({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              Log ({profile.decisions.length})
-            </CardTitle>
-            <CardDescription>
-              Newest first · residual snapshot when available
-            </CardDescription>
+            <CardTitle className="text-base">Log ({profile.decisions.length})</CardTitle>
+            <CardDescription>Newest first · residual snapshot when available</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {profile.decisions.length === 0 && (
@@ -171,13 +157,9 @@ export function DecisionJournal({
               </p>
             )}
             {profile.decisions.map((d) => {
-              const past =
-                d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
+              const past = d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
               return (
-                <div
-                  key={d.id}
-                  className="rounded-xl border border-border bg-elevated px-3 py-3"
-                >
+                <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">

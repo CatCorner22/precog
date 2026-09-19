@@ -40,27 +40,29 @@ function fmtDate(iso: string) {
 
 /** Print-friendly control priorities report — File → Print → Save as PDF. */
 export function ControlReport() {
-  const { profile, templateRevision, mapCustomized } = usePractice();
+  const { profile, mapCustomized } = usePractice();
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
 
   const data = useMemo(() => {
     const threat = buildThreatAssessment({
+      tpl,
       practiceName: profile.practiceName,
       staff: profile.staff,
       riskVariables: profile.riskVariables,
       dualRelease: profile.dualRelease,
     });
-    const portfolio = portfolioSummary(profile.staff);
-    const sod = detectSodConflicts(profile.staff, {
+    const portfolio = portfolioSummary(tpl, profile.staff);
+    const sod = detectSodConflicts(tpl, profile.staff, {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
     });
-    const spofs = findKnowledgeRisks().filter(
+    const spofs = findKnowledgeRisks(tpl).filter(
       (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
     );
-    const coso = assessCoso();
-    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const coso = assessCoso(tpl);
+    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
+      tpl,
       staff: profile.staff,
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
@@ -104,8 +106,7 @@ export function ControlReport() {
       lossRange,
       found,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, templateRevision]);
+  }, [tpl, profile, mapCustomized]);
 
   const {
     threat,

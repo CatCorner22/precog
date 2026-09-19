@@ -1,12 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getActiveTemplate } from "../active-template";
 import { runGrokAgentLoop, runLocalAgentLoop } from "../llm/agent-loop";
+import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
-import {
-  DEFAULT_RISK_VARIABLES,
-  type RiskVariableState,
-} from "../scoring/dynamic-variables";
-import type { StaffComposition } from "../types";
+import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
 
 export type PioneerCoachResult = {
   ok: true;
@@ -46,18 +42,10 @@ export type PioneerCoachError = {
 
 export const runPioneerCoach = createServerFn({ method: "POST" })
   .validator(
-    (input: {
-      question?: string;
-      preferLocal?: boolean;
-      riskVariables?: Partial<RiskVariableState>;
-      staff?: Partial<StaffComposition>;
-      practiceName?: string;
-    }) => ({
+    (input: { question?: string; preferLocal?: boolean; profile?: PioneerProfileInput }) => ({
       question: (input.question ?? "").trim().slice(0, 1500),
       preferLocal: Boolean(input.preferLocal),
-      riskVariables: input.riskVariables,
-      staff: input.staff,
-      practiceName: (input.practiceName ?? "").trim().slice(0, 80),
+      profile: pioneerProfileFrom(input.profile ?? {}),
     }),
   )
   .handler(async ({ data }): Promise<PioneerCoachResult | PioneerCoachError> => {
@@ -65,23 +53,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       data.question ||
       "Brief me with residual risk, ML leading indicators, variable cascades, and what to do this week.";
 
-    const riskVariables: RiskVariableState = {
-      ...DEFAULT_RISK_VARIABLES,
-      ...(data.riskVariables ?? {}),
-    };
-    const staff: StaffComposition = {
-      ...getActiveTemplate().staffComposition,
-      ...(data.staff ?? {}),
-    };
-    riskVariables.hasDualControl = staff.dualControlPayments;
-    riskVariables.hasIndependentBankRec = staff.independentBankRec;
-
-    const ctx = {
-      riskVariables,
-      staff,
-      practiceName: data.practiceName || undefined,
-      question,
-    };
+    const ctx: ToolContext = { profile: data.profile, question };
 
     try {
       const result =
@@ -121,9 +93,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
     }
   });
 
-export const getLlmToolCatalog = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const { TOOL_CATALOG } = await import("../llm/tools");
-    return TOOL_CATALOG;
-  },
-);
+export const getLlmToolCatalog = createServerFn({ method: "GET" }).handler(async () => {
+  const { TOOL_CATALOG } = await import("../llm/tools");
+  return TOOL_CATALOG;
+});

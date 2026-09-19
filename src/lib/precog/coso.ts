@@ -1,6 +1,6 @@
 import { healthLevel, RISK_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
-import { getActiveTemplate } from "./active-template";
+import type { IndustryTemplate } from "./templates";
 
 export type CosoComponentId =
   | "control_environment"
@@ -49,15 +49,15 @@ function statusFromScore(score: number): HealthStatus {
   return healthLevel(score);
 }
 
-export function assessCoso(): {
+export function assessCoso(tpl: IndustryTemplate): {
   overall: number;
   overallStatus: HealthStatus;
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
-  const { controls, staffComposition } = getActiveTemplate();
-  const risks = findKnowledgeRisks();
-  const ranked = rankDangerousScenarios();
+  const { controls, staffComposition } = tpl;
+  const risks = findKnowledgeRisks(tpl);
+  const ranked = rankDangerousScenarios(tpl);
   const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
   const sodGaps = controls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);

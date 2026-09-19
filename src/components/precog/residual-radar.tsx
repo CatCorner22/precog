@@ -22,9 +22,15 @@ function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
 }
 
 export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
-  const { profile } = usePractice();
-  const summary = useMemo(() => portfolioSummary(profile.staff), [profile.staff]);
-  const tornado = useMemo(() => tornadoSensitivity(profile.staff), [profile.staff]);
+  const { profile, template } = usePractice();
+  const summary = useMemo(
+    () => portfolioSummary(template, profile.staff),
+    [template, profile.staff],
+  );
+  const tornado = useMemo(
+    () => tornadoSensitivity(template, profile.staff),
+    [template, profile.staff],
+  );
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
   const active = selected ?? summary.top[0] ?? null;
 

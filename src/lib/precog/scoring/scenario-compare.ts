@@ -1,5 +1,5 @@
 import { runPrecogScenario } from "../engine";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import type { PrecogResult, StaffComposition } from "../types";
 import type { RiskVariableState } from "./dynamic-variables";
 
@@ -52,15 +52,16 @@ function priorityIndex(result: PrecogResult): number {
 }
 
 export function buildCompareColumn(
+  tpl: IndustryTemplate,
   scenarioId: string,
   mitigationIds: string[],
   staff: StaffComposition,
   label?: string,
   riskVariables?: RiskVariableState,
 ): CompareColumn | null {
-  const { scenarios } = getActiveTemplate();
+  const { scenarios } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId);
-  const result = runPrecogScenario(scenarioId, {
+  const result = runPrecogScenario(tpl, scenarioId, {
     mitigationIds,
     staff,
     riskVariables,
@@ -91,15 +92,17 @@ export function buildCompareColumn(
 }
 
 export function compareScenarios(
+  tpl: IndustryTemplate,
   scenarioIds: string[],
   staff?: StaffComposition,
   mitigationByScenario: Record<string, string[]> = {},
   riskVariables?: RiskVariableState,
 ): CompareReport {
-  const staffResolved = staff ?? getActiveTemplate().staffComposition;
+  const staffResolved = staff ?? tpl.staffComposition;
   const columns = scenarioIds
     .map((id) =>
       buildCompareColumn(
+        tpl,
         id,
         mitigationByScenario[id] ?? [],
         staffResolved,
@@ -113,12 +116,13 @@ export function compareScenarios(
 }
 
 export function compareScenarioFutures(
+  tpl: IndustryTemplate,
   scenarioId: string,
   staff?: StaffComposition,
   selectedMitigationIds: string[] = [],
   riskVariables?: RiskVariableState,
 ): CompareReport {
-  const { scenarios, staffComposition: defaultStaff } = getActiveTemplate();
+  const { scenarios, staffComposition: defaultStaff } = tpl;
   const staffResolved = staff ?? defaultStaff;
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) {
@@ -127,16 +131,17 @@ export function compareScenarioFutures(
 
   const columns: CompareColumn[] = [];
 
-  const base = buildCompareColumn(scenarioId, [], staffResolved, "Do nothing", riskVariables);
+  const base = buildCompareColumn(tpl, scenarioId, [], staffResolved, "Do nothing", riskVariables);
   if (base) columns.push(base);
 
   for (const m of scenario.mitigations) {
-    const col = buildCompareColumn(scenarioId, [m.id], staffResolved, m.label, riskVariables);
+    const col = buildCompareColumn(tpl, scenarioId, [m.id], staffResolved, m.label, riskVariables);
     if (col) columns.push(col);
   }
 
   if (selectedMitigationIds.length > 1) {
     const combined = buildCompareColumn(
+      tpl,
       scenarioId,
       selectedMitigationIds,
       staffResolved,

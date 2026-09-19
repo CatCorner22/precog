@@ -27,7 +27,8 @@ export function ScenarioCompare({
   onStaffChange?: (s: StaffComposition) => void;
   riskVariables?: RiskVariableState;
 }) {
-  const { scenarios, staffComposition: baseStaff } = useTemplate();
+  const tpl = useTemplate();
+  const { scenarios, staffComposition: baseStaff } = tpl;
   const [mode, setMode] = useState<Mode>("futures");
   const [focusScenarioId, setFocusScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
@@ -45,10 +46,10 @@ export function ScenarioCompare({
 
   const report: CompareReport = useMemo(() => {
     if (mode === "futures") {
-      return compareScenarioFutures(focusScenarioId, staff, packageMits, riskVariables);
+      return compareScenarioFutures(tpl, focusScenarioId, staff, packageMits, riskVariables);
     }
-    return compareScenarios(selectedScenarios, staff, crossMits, riskVariables);
-  }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
+    return compareScenarios(tpl, selectedScenarios, staff, crossMits, riskVariables);
+  }, [tpl, mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
 
   const focusScenario = scenarios.find((s) => s.id === focusScenarioId)!;
 

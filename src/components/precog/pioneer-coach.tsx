@@ -87,9 +87,15 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
       const res = await runPioneerCoach({
         data: {
           question,
-          riskVariables: profile.riskVariables,
-          staff: profile.staff,
-          practiceName: profile.practiceName,
+          profile: {
+            industry: profile.industry,
+            practiceName: profile.practiceName,
+            staff: profile.staff,
+            riskVariables: profile.riskVariables,
+            dualRelease: profile.dualRelease,
+            customProcesses: profile.customProcesses ?? null,
+            customPeople: profile.customPeople ?? null,
+          },
         },
       });
       if (!res.ok) {

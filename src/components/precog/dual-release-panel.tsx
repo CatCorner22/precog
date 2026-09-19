@@ -54,7 +54,8 @@ const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
 ];
 
 export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
-  const { people } = useTemplate();
+  const tpl = useTemplate();
+  const { people } = tpl;
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
   const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
@@ -95,7 +96,10 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const [exResidual, setExResidual] = useState("");
 
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
-  const eligible = useMemo(() => listEligibleApprovers(policy, channel), [policy, channel]);
+  const eligible = useMemo(
+    () => listEligibleApprovers(tpl, policy, channel),
+    [tpl, policy, channel],
+  );
   const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
   const exceptions = policy.exceptions ?? [];
@@ -122,7 +126,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   }
 
   function runEval() {
-    const result = evaluateRelease(policy, {
+    const result = evaluateRelease(tpl, policy, {
       channel,
       amountUsd: amount,
       initiatorPersonId: initiatorId,
