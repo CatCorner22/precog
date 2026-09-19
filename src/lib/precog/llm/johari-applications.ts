@@ -74,7 +74,7 @@ export interface JohariApplicationPlaybook {
   domains: JohariDomainApp[];
   controlCoachingLoop: string[];
   antiPatterns: string[];
-  metrics: { name: string; how: string; target: string }[];
+  metrics: { name: string; how: string; target: string; basis: string }[];
 }
 
 export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
@@ -89,7 +89,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   },
   strategicGoals: [
     "Enlarge OPEN: document controls that both operate and are measured",
-    "Shrink BLIND: feed platform residual / SoD / anomaly findings back to owner weekly",
+    "Shrink BLIND: feed the app's residual, duty-conflict, and indicator findings back to the owner weekly",
     "Shrink HIDDEN: encode owner gut feel, informal rules, and trust maps into the knowledge graph",
     "Shrink UNKNOWN: run probes and ontology expansion (meta-analysis unknown unknowns)",
   ],
@@ -101,7 +101,8 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       precogMeaning:
         "Controls and facts that are both true in the practice and captured in Precog (staff size, dual-release policy on/off, tagged SoD conflicts, residual rankings).",
       axes: { self: true, others: true },
-      riskIfLarge: "Low — large open area is healthy. Risk only if OPEN is theater (documented but not operating).",
+      riskIfLarge:
+        "Low — large open area is healthy. Risk only if OPEN is theater (documented but not operating).",
       goal: "Grow this pane: more shared, evidenced control truth.",
       dentalExamples: [
         "Owner and platform both know bank rec is owner-only weekly",
@@ -126,14 +127,14 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Blind spot",
       classicMeaning: "Unknown to self, known to others — needs feedback.",
       precogMeaning:
-        "What Precog / SoD / anomaly / residual engines see that the owner has not internalized (e.g., segregation health lagging self-rated score, dual-waive residual drag).",
+        "What the app's residual, duty-conflict, and indicator checks see that the owner has not internalized (e.g., segregation health lagging self-rated score, dual-waive residual drag).",
       axes: { self: false, others: true },
       riskIfLarge:
         "High — owner overconfidence; insurance and residual numbers diverge from self-story.",
       goal: "Convert BLIND → OPEN via structured feedback (Pioneer brief, residual radar, SoD badges).",
       dentalExamples: [
         "Platform flags OM vendor+pay conflict; owner thought 'we're fine because small'",
-        "Anomaly pressure high while owner rates culture as strong",
+        "Watched conditions breached while the owner rates culture as strong",
         "Exception raises stack until dual-control insurance credit is at risk",
       ],
       moves: [
@@ -211,8 +212,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       precogMeaning:
         "Unknown unknowns and unmodeled domains: collusion graphs, cyber RTO, culture of silence, payer cliffs, owner impairment — neither practice nor Precog currently sees them.",
       axes: { self: false, others: false },
-      riskIfLarge:
-        "Critical for black-swan paths — residual looks fine until ontology expands.",
+      riskIfLarge: "Critical for black-swan paths — residual looks fine until ontology expands.",
       goal: "Convert UNKNOWN → known-unknown (admit gap) then OPEN via probes and new scenarios.",
       dentalExamples: [
         "No one has asked whether dual signers share household finances",
@@ -264,18 +264,16 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       hiddenExample: "Owner distrusts a specific employee but never changes access",
       unknownExample: "Neither party sees burnout leading to control shortcuts",
       primaryMove: "360-light: platform residual + one staff pulse monthly",
-      valueForDental:
-        "Owner is often the only second signer — blind spots here are control SPOFs.",
+      valueForDental: "Owner is often the only second signer — blind spots here are control SPOFs.",
     },
     {
       domain: "internal_control",
       title: "Internal control system design",
-      summary:
-        "Treat COSO components as Johari panes: documented vs operating vs measured.",
+      summary: "Treat COSO components as Johari panes: documented vs operating vs measured.",
       selfLabel: "Intended control design",
       othersLabel: "Evidence / operating effectiveness",
       openExample: "Policy + dual release + samples in journal",
-      blindExample: "Design looks good; anomaly shows void spikes",
+      blindExample: "Design looks good; the void-rate indicator is at breach",
       hiddenExample: "Compensating control only the OM knows",
       unknownExample: "New refund fraud path not in control matrix",
       primaryMove: "Map each critical control to OPEN evidence or a probe",
@@ -311,8 +309,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     {
       domain: "insurance_underwriting",
       title: "Insurance & cost of risk",
-      summary:
-        "Application answers are HIDDEN until disclosed; loss runs move UNKNOWN → OPEN.",
+      summary: "Application answers are HIDDEN until disclosed; loss runs move UNKNOWN → OPEN.",
       selfLabel: "Practice risk story",
       othersLabel: "Carrier / CoR model",
       openExample: "Dual control + cameras reflected in discount variables",
@@ -339,8 +336,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     {
       domain: "team_culture",
       title: "Psychological safety & reporting",
-      summary:
-        "Culture of silence keeps fraud signals in UNKNOWN or HIDDEN for observers.",
+      summary: "Culture of silence keeps fraud signals in UNKNOWN or HIDDEN for observers.",
       selfLabel: "Staff private concerns",
       othersLabel: "Escalation channels / journal / owner awareness",
       openExample: "Anonymous pulse + clear escalate path used once",
@@ -366,7 +362,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   ],
   controlCoachingLoop: [
     "1. Inventory OPEN (known knowns) — celebrate measured controls",
-    "2. Surface BLIND via platform feedback (residual, SoD, anomaly, meta readiness)",
+    "2. Surface BLIND via the app's feedback (residual, duty conflicts, indicators, known gaps)",
     "3. Invite HIDDEN disclosure (interviews, exception logging, trust map)",
     "4. Attack UNKNOWN with probes and scenario design (meta UU list)",
     "5. Re-score epistemic confidence — OPEN should grow each cycle",
@@ -384,26 +380,36 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       name: "Open control ratio",
       how: "Count of critical controls with both design + operating evidence / total critical",
       target: ">70% within 90 days",
+      basis:
+        "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
     {
       name: "Blind feedback cadence",
       how: "Days since last owner review of residual + SoD critical list",
       target: "≤14 days",
+      basis:
+        "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
     {
       name: "Hidden disclosure events",
       how: "Journal + knowledge edges + exceptions added from interviews",
       target: "≥2 per month during onboarding",
+      basis:
+        "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
     {
       name: "Unknown probe rate",
       how: "Meta UU items with a named probe in progress",
       target: "≥1 active probe always",
+      basis:
+        "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
     {
-      name: "Epistemic confidence",
-      how: "Meta-analysis epistemicConfidence score",
-      target: "Trend up after each probe cycle",
+      name: "Known gaps closed",
+      how: "Known-unknown items converted to measured items per probe cycle",
+      target: "At least one per cycle",
+      basis:
+        "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",
     },
   ],
 };
@@ -430,9 +436,7 @@ export function recommendJohariMoves(
   return moves.slice(0, 6);
 }
 
-export function johariQuadrantFromEpistemic(
-  classification: string,
-): JohariQuadrant {
+export function johariQuadrantFromEpistemic(classification: string): JohariQuadrant {
   switch (classification) {
     case "known_known":
       return "open";

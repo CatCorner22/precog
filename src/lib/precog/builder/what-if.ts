@@ -10,6 +10,7 @@ import { findKnowledgeRisks } from "../engine";
 import {
   computeMapHealth,
   enrichProcess,
+  HEAT_BANDS,
   validateProcessMap,
   type MapHealthReport,
 } from "../process-graph";
@@ -18,7 +19,11 @@ import type { Person, ProcessNode, StaffComposition } from "../types";
 export function previewMapHealth(
   processes: ProcessNode[],
   staff: StaffComposition,
-  opts: { people?: Person[]; layout?: Record<string, { x: number; y: number }>; customized?: boolean } = {},
+  opts: {
+    people?: Person[];
+    layout?: Record<string, { x: number; y: number }>;
+    customized?: boolean;
+  } = {},
 ): MapHealthReport {
   const tpl = getActiveTemplate();
   const people = opts.people ?? tpl.people;
@@ -60,10 +65,22 @@ export interface PersonWorkload {
   criticalConflicts: number;
   knowledgeExpert: number;
   soleOwnerKnowledge: number;
-  /** 0–100 load index; >70 = overburdened for a small team. */
+  /**
+   * 0–100 load index computed by analyzeWorkload from this app's own weights.
+   * Read it against LOAD_BANDS; it is an ordering device, not a measurement.
+   */
   load: number;
   flags: string[];
 }
+
+/**
+ * Bands for the composite load index that analyzeWorkload computes (ownership
+ * share, entitlement count, critical duty conflicts, sole-owner knowledge, and
+ * a hot-process bonus, weighted by this app). They order attention; no study
+ * sets them. "Overburdened" in the UI means the index is at or above the top
+ * band, nothing more.
+ */
+export const LOAD_BANDS = { overburdened: 70, elevated: 45 } as const;
 
 export function analyzeWorkload(
   processes: ProcessNode[],
@@ -85,8 +102,10 @@ export function analyzeWorkload(
       const owned = processes.filter((p) => (p.ownerPersonIds ?? []).includes(person.id));
       const ownedHeat = owned.length
         ? Math.round(
-            owned.reduce((s, p) => s + (snapshots.find((x) => x.process.id === p.id)?.heat ?? 0), 0) /
-              owned.length,
+            owned.reduce(
+              (s, p) => s + (snapshots.find((x) => x.process.id === p.id)?.heat ?? 0),
+              0,
+            ) / owned.length,
           )
         : 0;
       const assignment = sod.assignments.find((a) => a.personId === person.id);
@@ -110,15 +129,16 @@ export function analyzeWorkload(
             Math.min(6, entitlementCount) * 4 +
             criticalConflicts * 10 +
             soleOwnerKnowledge * 8 +
-            (ownedHeat >= 68 ? 8 : 0),
+            (ownedHeat >= HEAT_BANDS.hot ? 8 : 0),
         ),
       );
 
       const flags: string[] = [];
-      if (ownershipShare >= 0.4 && total >= 4) flags.push(`owns ${Math.round(ownershipShare * 100)}% of processes`);
+      if (ownershipShare >= 0.4 && total >= 4)
+        flags.push(`owns ${Math.round(ownershipShare * 100)}% of processes`);
       if (criticalConflicts) flags.push(`${criticalConflicts} critical SoD conflict(s)`);
       if (soleOwnerKnowledge) flags.push(`sole owner of ${soleOwnerKnowledge} knowledge item(s)`);
-      if (ownedHeat >= 68) flags.push("owns hot processes");
+      if (ownedHeat >= HEAT_BANDS.hot) flags.push("owns hot processes");
       if (!owned.length && entitlementCount === 0) flags.push("no processes or duties assigned");
 
       return {

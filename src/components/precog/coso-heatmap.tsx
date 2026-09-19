@@ -1,3 +1,4 @@
+import { IndexBasis } from "@/components/precog/index-basis";
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
@@ -51,18 +52,14 @@ export function CosoHeatmap({
   initialComponentId?: CosoComponentId;
 }) {
   const { profile, templateRevision } = usePractice();
-  const assessment = useMemo(
-    () => assessCoso(),
-    [profile.industry, templateRevision],
-  );
+  const assessment = useMemo(() => assessCoso(), [profile.industry, templateRevision]);
   const [activeId, setActiveId] = useState<CosoComponentId>(
     initialComponentId ??
       assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??
       "control_activities",
   );
 
-  const active =
-    assessment.components.find((c) => c.id === activeId) ?? assessment.components[0];
+  const active = assessment.components.find((c) => c.id === activeId) ?? assessment.components[0];
 
   return (
     <div className="space-y-4">
@@ -73,9 +70,10 @@ export function CosoHeatmap({
               <div>
                 <CardTitle>COSO internal control heat map</CardTitle>
                 <CardDescription>
-                  Five components · 17 principles · scored from this practice's controls,
-                  knowledge, staff composition, and Precog risk
+                  Five components · 17 principles · an index this app derives from your controls,
+                  knowledge, staff composition, and scenarios
                 </CardDescription>
+                <IndexBasis className="mt-1" />
               </div>
               <div className="text-right">
                 <p className="text-[11px] tracking-wide text-subtle uppercase">Overall</p>
@@ -189,10 +187,7 @@ function ComponentDetail({
           </p>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {component.principles.map((p) => (
-              <li
-                key={p.number}
-                className="rounded-lg border border-border bg-elevated px-3 py-2"
-              >
+              <li key={p.number} className="rounded-lg border border-border bg-elevated px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-subtle">P{p.number}</span>
                   <Badge variant={STATUS_META[p.status].badge} className="text-[10px]">
@@ -234,12 +229,7 @@ function ComponentDetail({
 
         <div className="flex flex-wrap gap-2">
           {component.primaryActions.map((a) => (
-            <Button
-              key={a.label}
-              variant="secondary"
-              size="sm"
-              onClick={() => onNavigate(a.link)}
-            >
+            <Button key={a.label} variant="secondary" size="sm" onClick={() => onNavigate(a.link)}>
               {a.label}
               <ArrowRight className="size-3.5" />
             </Button>

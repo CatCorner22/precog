@@ -1,3 +1,5 @@
+import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
+import { IndexBasis } from "@/components/precog/index-basis";
 import { useEffect, useMemo } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
@@ -11,7 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, AlertTriangle, Hammer, Map, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Hammer,
+  Map,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 
 function Sparkline({ points, color }: { points: number[]; color: string }) {
   if (points.length < 2) return null;
@@ -35,15 +45,15 @@ function Sparkline({ points, color }: { points: number[]; color: string }) {
 }
 
 function bandTone(band: MapHealthBand): "ok" | "primary" | "warn" | "danger" {
-  if (band === "excellent" || band === "healthy") return "ok";
+  if (band === "healthy") return "ok";
   if (band === "fair") return "warn";
   return "danger";
 }
 
 function scoreColor(score: number) {
-  if (score >= 85) return "var(--color-ok)";
-  if (score >= 70) return "var(--color-primary)";
-  if (score >= 55) return "var(--color-warn)";
+  if (score >= HEALTH_SCALE.strong) return "var(--color-ok)";
+  if (score >= HEALTH_SCALE.adequate) return "var(--color-primary)";
+  if (score >= HEALTH_SCALE.weak) return "var(--color-warn)";
   return "var(--color-danger)";
 }
 
@@ -150,6 +160,7 @@ export function MapHealthCard({
           <div className="min-w-0 flex-1 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-muted">{health.summary}</p>
+              <IndexBasis className="mt-1" />
               {trendPoints.length >= 2 && (
                 <div className="flex items-center gap-2">
                   <Sparkline points={trendPoints} color={scoreColor(health.score)} />

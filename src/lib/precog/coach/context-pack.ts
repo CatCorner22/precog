@@ -1,3 +1,4 @@
+import { HEAT_BANDS } from "../process-graph";
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
@@ -32,7 +33,7 @@ export function buildPioneerContextPack() {
       dimensions: mapHealth.dimensions.map((d) => ({ id: d.id, score: d.score, hint: d.hint })),
       processCount: mapHealth.processCount,
       hotProcesses: snapshots
-        .filter((s) => s.heat >= 68)
+        .filter((s) => s.heat >= HEAT_BANDS.hot)
         .sort((a, b) => b.heat - a.heat)
         .slice(0, 4)
         .map((s) => ({
@@ -94,9 +95,9 @@ export function buildPioneerContextPack() {
     topScenarios: ranked.map((r) => ({
       id: r.scenario.id,
       title: r.scenario.title,
-      expected: r.result.financialImpact.expected,
-      p50: r.result.timelineDays.p50,
-      p95: [r.result.timelineDays.p95Low, r.result.timelineDays.p95High],
+      assumedLossUsd: r.result.financialImpact.expected,
+      assumedDaysToImpact: r.result.timelineDays.p50,
+      assumedDayRange: [r.result.timelineDays.p95Low, r.result.timelineDays.p95High],
     })),
     highestLeverageLevers: tornado.levers.slice(0, 4),
   };
@@ -115,7 +116,7 @@ Rules:
 - Use COSO language lightly (control activities, monitoring, risk assessment).
 - When recommending action, tie to residual scores, drivers, and Precog scenarios.
 - Reference the process map health score and its weakest dimension; name specific hot or unowned processes when they drive the advice.
-- Quantify when the pack has numbers; show uncertainty (p50 / 95% ranges).
+- Scenario figures in the pack are assumptions written into the scenario, not measurements or forecasts; say so whenever you use one. Never describe them as expected values, medians, or confidence intervals.
 - End with a short "Frontier next move" — one primary action for the next 7 days.
 - Output structured markdown with sections: Situation, Highest residual risks, Tradeoffs, Recommended moves, Frontier next move.`;
 }

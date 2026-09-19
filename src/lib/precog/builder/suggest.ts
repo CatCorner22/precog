@@ -142,7 +142,8 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /billing|receivable|\bAR\b|collection|write.?off|credit|markdown|void|comp|adjust|refund|discount/i,
+    match:
+      /billing|receivable|\bAR\b|collection|write.?off|credit|markdown|void|comp|adjust|refund|discount/i,
     controls: ["c-sod-billing", "c-sod-ar", "c-ar"],
     risks: [
       {
@@ -173,7 +174,7 @@ const PATTERNS: Pattern[] = [
   },
   {
     match: /inventory|receiving|stock|warehouse|shrink|count|supplies/i,
-    controls: ["c-ar"],
+    controls: ["c-ap", "c-sod-ap"],
     risks: [
       {
         title: "Shrink absorbed as an inventory adjustment",
@@ -294,7 +295,10 @@ const GENERIC: Pick<Pattern, "risks" | "ideas"> = {
 };
 
 function norm(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export function suggestLocally(input: SuggestionInput): SuggestionResult {

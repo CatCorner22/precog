@@ -1,6 +1,7 @@
 /**
  * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
+import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
@@ -18,9 +19,7 @@ import {
   type CascadeLeverId,
 } from "../scoring/variable-cascade";
 import { retrieveKnowledge } from "../rag/retrieve";
-import { scoreAnomalies } from "../ml/anomaly";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
-import { forecastResidualTrajectory } from "../ml/forecast";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
@@ -86,7 +85,7 @@ export const TOOL_CATALOG: {
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
   {
     name: "run_precog_scenario",
-    description: "Scenario timeline CI, retained loss, CoR.",
+    description: "A scenario's assumed timeline, assumed retained loss, and cost-of-risk figure.",
     args: "{ scenarioId? }",
   },
   {
@@ -116,29 +115,20 @@ export const TOOL_CATALOG: {
     args: "{ query? }",
   },
   {
-    name: "score_anomalies",
-    description: "Multivariate anomaly score vs healthy practice prior.",
-    args: "none",
-  },
-  {
     name: "get_leading_indicators",
-    description: "Leading-indicator pressure composite.",
+    description: "Conditions this app watches (watch / breach), with the reason for each.",
     args: "none",
-  },
-  {
-    name: "forecast_residual",
-    description: "12-week residual trajectory neglect vs plan.",
-    args: "{ horizonWeeks? }",
   },
   {
     name: "run_advanced_reasoning",
-    description: "Bayesian + causal multi-hop + beam search + counterfactuals + EVOI.",
+    description:
+      "Lever ordering from this app's own model: which control or insurance lever first, and what to verify next. Weights, not measurements.",
     args: "none",
   },
   {
     name: "run_meta_analysis",
     description:
-      "Epistemic meta-analysis: evaluation readiness, known/unknown unknowns, real-time capability.",
+      "What this app measures directly, what it knows it cannot see, and what lies outside its model.",
     args: "none",
   },
 ];
@@ -466,47 +456,36 @@ export function executeTool(
               domain: h.chunk.domain,
               score: Math.round(h.score * 1000) / 1000,
               text: h.chunk.text,
-              source: h.chunk.source,
+              basis: describeChunkBasis(h.chunk),
             })),
           },
           links: [{ tab: "intel", label: "Intelligence" }],
         };
       }
 
-      case "score_anomalies": {
-        const report = scoreAnomalies(staff, riskVars);
-        return {
-          tool,
-          ok: true,
-          summary: `Anomaly ${report.band} (${report.overallScore}/100)`,
-          data: report,
-          links: [{ tab: "intel", label: "ML anomalies" }],
-        };
-      }
-
       case "get_leading_indicators": {
         const report = scoreLeadingIndicators(staff, riskVars);
+        const breached = report.indicators.filter((i) => i.status === "breach").length;
+        const watch = report.indicators.filter((i) => i.status === "watch").length;
         return {
           tool,
           ok: true,
-          summary: `Leading pressure ${report.pressureIndex}/100 (${report.band})`,
-          data: report,
+          summary: `Leading indicators: ${breached} breached, ${watch} at watch, of ${report.indicators.length}`,
+          // The composite index and its band are this app's weighting and are
+          // deliberately not passed on; the conditions and their reasons are.
+          data: {
+            breached,
+            watch,
+            indicators: report.indicators.map((i) => ({
+              id: i.id,
+              label: i.label,
+              status: i.status,
+              why: i.why,
+            })),
+            topActions: report.topActions,
+            basis: "Thresholds set in this app; not benchmarks.",
+          },
           links: [{ tab: "intel", label: "Leading indicators" }],
-        };
-      }
-
-      case "forecast_residual": {
-        const horizonWeeks = Number(args.horizonWeeks) || 12;
-        const forecast = forecastResidualTrajectory(staff, riskVars, {
-          horizonWeeks,
-        });
-        return {
-          tool,
-          args: { horizonWeeks },
-          ok: true,
-          summary: `Forecast: week ${horizonWeeks} residual neglect ${forecast.points.at(-1)?.residualDoNothing} vs plan ${forecast.points.at(-1)?.residualWithPlan}`,
-          data: forecast,
-          links: [{ tab: "intel", label: "Forecast" }],
         };
       }
 
@@ -515,9 +494,22 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `Advanced reasoning: beam "${report.beam.bestSequence || "status quo"}" · P(fail) ${(report.bayesian.pFail * 100).toFixed(1)}% · conf ${report.confidence.score}`,
-          data: report,
-          links: [{ tab: "intel", label: "Advanced reasoning" }],
+          summary: `Lever ordering: ${report.recommendedSequence.join(" → ") || "status quo"} · verify next: ${report.evoi.topObservation}`,
+          // Ordering and reasons only. The probabilities, intervals, expected
+          // losses, utilities, and confidence score behind the ordering are
+          // this app's weights and are not passed on as if measured.
+          data: {
+            recommendedSequence: report.recommendedSequence,
+            bestSingleLever: report.counterfactual.bestIntervention,
+            verifyNext: report.evoi.items.map((i) => ({
+              observation: i.observation,
+              effort: i.effort,
+              rationale: i.rationale,
+            })),
+            synthesis: report.synthesis,
+            basis: "This app's own weights, not measurements of this business.",
+          },
+          links: [{ tab: "intel", label: "Lever ordering" }],
         };
       }
 
@@ -526,11 +518,8 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `Meta readiness ${report.evaluationReadiness} · epistemic ${report.epistemicConfidence} · KU ${report.summary.knownUnknowns} · UU ${report.summary.unknownUnknowns}`,
+          summary: `What this app can see: ${report.summary.knownKnowns} measured, ${report.summary.knownUnknowns} known gaps, ${report.summary.unknownUnknowns} outside the model`,
           data: {
-            evaluationReadiness: report.evaluationReadiness,
-            epistemicConfidence: report.epistemicConfidence,
-            realtimeScore: report.realtimeScore,
             summary: report.summary,
             narrative: report.narrative,
             recommendations: report.recommendations,
@@ -571,9 +560,7 @@ export function planTools(question: string): ToolName[] {
     "get_insurance_cost_of_risk",
     "simulate_variable_cascades",
     "retrieve_guidance",
-    "score_anomalies",
     "get_leading_indicators",
-    "forecast_residual",
     "run_advanced_reasoning",
     "run_meta_analysis",
     "get_coso_assessment",
@@ -589,12 +576,6 @@ export function planTools(question: string): ToolName[] {
   }
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");
-  }
-  if (/forecast|trajectory|next month|12 week|drift|trend/.test(q)) {
-    tools.add("forecast_residual");
-  }
-  if (/anomal|outlier|unusual|ml|machine/.test(q)) {
-    tools.add("score_anomalies");
   }
   if (/leading|early|signal|indicator/.test(q)) {
     tools.add("get_leading_indicators");

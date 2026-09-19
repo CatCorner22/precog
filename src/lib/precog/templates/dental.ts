@@ -304,7 +304,7 @@ const processes: ProcessNode[] = [
         category: "control",
         effort: "low",
         impact: "high",
-        note: "Highest ROI detection control for small practices.",
+        note: "Owner sees bank activity without going through the person who posts payments, so a diverted payment cannot be hidden by adjusting the books. About twenty minutes a week.",
         status: "planned",
       },
       {
@@ -404,7 +404,7 @@ const processes: ProcessNode[] = [
     ideas: [
       {
         id: "i-ap-1",
-        title: "Dual ACH release > $500",
+        title: "Lower the dual ACH release threshold from $1,000 to $500",
         category: "control",
         effort: "medium",
         impact: "high",
@@ -597,10 +597,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-claims",
     baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
     baseFinancialImpact: { expected: 18500, low: 8000, high: 42000 },
-    statSources: [
-      "Denial aging / revenue cycle lag patterns in dental practice management literature",
-      "Key-person risk: revenue leakage when sole expert exits mid-cycle",
-    ],
     cascadeLayers: ["knowledge", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -634,10 +630,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-cash",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "ACFE-style small organization fraud: longer detection when custody + recording combined",
-    ],
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -672,10 +664,6 @@ const scenarios: ScenarioTemplate[] = [
     knowledgeId: "k7",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "Revenue leakage studies: undocumented adjustments and weak dual control",
-    ],
     cascadeLayers: ["control", "knowledge", "process", "continuity"],
     mitigations: [
       {
@@ -702,10 +690,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-ap",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "Billing schemes / fictitious vendor patterns in small entity fraud literature",
-    ],
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {
@@ -727,12 +711,42 @@ const scenarios: ScenarioTemplate[] = [
 ];
 
 const roleTemplates: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": ["approve_writeoffs", "approve_vendor", "approve_payroll", "bank_reconcile", "view_reports_only", "pms_admin_roles"],
-  "Office Manager": ["post_payments", "prepare_deposit", "post_adjustments", "create_vendor", "release_payment", "enter_payroll", "approve_writeoffs", "pms_admin_roles", "submit_claims", "view_reports_only"],
-  "Front Desk Lead": ["collect_cash", "post_payments", "prepare_deposit", "submit_claims", "post_adjustments"],
-  "Hygienist": ["view_reports_only"],
+  "Owner / Dentist": [
+    "approve_writeoffs",
+    "approve_vendor",
+    "approve_payroll",
+    "bank_reconcile",
+    "view_reports_only",
+    "pms_admin_roles",
+  ],
+  "Office Manager": [
+    "post_payments",
+    "prepare_deposit",
+    "post_adjustments",
+    "create_vendor",
+    "release_payment",
+    "enter_payroll",
+    "approve_writeoffs",
+    "pms_admin_roles",
+    "submit_claims",
+    "view_reports_only",
+  ],
+  "Front Desk Lead": [
+    "collect_cash",
+    "post_payments",
+    "prepare_deposit",
+    "submit_claims",
+    "post_adjustments",
+  ],
+  Hygienist: ["view_reports_only"],
   "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": ["submit_claims", "post_adjustments", "post_payments", "approve_writeoffs", "view_reports_only"],
+  "Billing Specialist": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "approve_writeoffs",
+    "view_reports_only",
+  ],
 };
 
 export const dentalTemplate: IndustryTemplate = {

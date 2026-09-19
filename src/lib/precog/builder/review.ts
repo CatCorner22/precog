@@ -2,6 +2,8 @@
  * Whole-map review: plain-English critique of the value stream.
  * Shared input shape + deterministic fallback used when Grok isn't available.
  */
+import { HEAT_BANDS } from "../process-graph";
+import { HEALTH_SCALE } from "../scoring/bands";
 
 export interface ReviewProcessInput {
   id: string;
@@ -40,7 +42,7 @@ export interface MapReview {
   source: "grok" | "local";
   model?: string;
   headline: string;
-  grade: "A" | "B" | "C" | "D" | "F";
+  grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];
   nextMove: string;
   /** Process ids referenced so the UI can deep-link. */
@@ -48,17 +50,19 @@ export interface MapReview {
 }
 
 export function gradeFromScore(score: number): MapReview["grade"] {
-  if (score >= 85) return "A";
-  if (score >= 70) return "B";
-  if (score >= 55) return "C";
-  if (score >= 40) return "D";
+  // Same cutoffs as every other health index in the app.
+  if (score >= HEALTH_SCALE.strong) return "A";
+  if (score >= HEALTH_SCALE.adequate) return "B";
+  if (score >= HEALTH_SCALE.weak) return "C";
   return "F";
 }
 
 export function reviewLocally(input: ReviewInput): MapReview {
   const grade = gradeFromScore(input.health.score);
   const weakest = [...input.health.dimensions].sort((a, b) => a.score - b.score)[0];
-  const hot = [...input.processes].filter((p) => p.heat >= 68).sort((a, b) => b.heat - a.heat);
+  const hot = [...input.processes]
+    .filter((p) => p.heat >= HEAT_BANDS.hot)
+    .sort((a, b) => b.heat - a.heat);
   const unowned = input.processes.filter((p) => !p.owners.length);
   const noControls = input.processes.filter((p) => !p.controls.length && p.fraudRisks > 0);
   const isolated = input.processes.filter(
@@ -79,9 +83,15 @@ export function reviewLocally(input: ReviewInput): MapReview {
   if (controlled / Math.max(1, input.processes.length) >= 0.75)
     strengths.push(`Controls are mapped on ${controlled} of ${input.processes.length} processes.`);
   if (stages.size >= 3)
-    strengths.push(`The map reads left-to-right across ${stages.size} stages — a real value stream, not a list.`);
-  if (!input.issues.length) strengths.push("No structural issues: no cycles, dangling links, or broken references.");
-  if (!strengths.length) strengths.push("You have a starting map — that alone puts you ahead of most owner-operated teams.");
+    strengths.push(
+      `The map reads left-to-right across ${stages.size} stages — a real value stream, not a list.`,
+    );
+  if (!input.issues.length)
+    strengths.push("No structural issues: no cycles, dangling links, or broken references.");
+  if (!strengths.length)
+    strengths.push(
+      "You have a starting map, which is what every other check in this tool works from.",
+    );
 
   const gaps: string[] = [];
   for (const p of hot.slice(0, 3)) {
@@ -101,7 +111,10 @@ export function reviewLocally(input: ReviewInput): MapReview {
     gaps.push(`"${p.name}" lists fraud risk but no control — the risk is described, not managed.`);
   }
   for (const issue of input.issues.slice(0, 2)) gaps.push(issue);
-  if (!gaps.length) gaps.push("No glaring gaps. The remaining work is tightening evidence: who reviews what, and how often.");
+  if (!gaps.length)
+    gaps.push(
+      "No glaring gaps. The remaining work is tightening evidence: who reviews what, and how often.",
+    );
 
   const people: string[] = [];
   for (const o of input.overburdened.slice(0, 2)) {
@@ -111,24 +124,38 @@ export function reviewLocally(input: ReviewInput): MapReview {
     people.push(
       "With a team this small, perfect segregation isn't realistic — lean on owner review, dual release on payments, and an independent bank reconciliation as compensating controls.",
     );
-  if (!people.length) people.push("Workload looks balanced; no single person concentrates the risk.");
+  if (!people.length)
+    people.push("Workload looks balanced; no single person concentrates the risk.");
 
   const moves: string[] = [];
-  if (unowned.length) moves.push(`Assign owners to ${unowned.length} unowned process(es) — use Validate → Fix.`);
-  if (noControls.length) moves.push(`Map at least one control to each fraud-exposed process (${noControls.length} today).`);
-  if (hot[0]) moves.push(`Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Journal.`);
-  if (input.overburdened[0]) moves.push(`Reassign one process away from ${input.overburdened[0].name} using Workload → Reassign.`);
-  if (weakest) moves.push(`Your weakest dimension is ${weakest.label} (${weakest.score}) — ${weakest.hint.toLowerCase()}.`);
-  if (!moves.length) moves.push("Snapshot this version, then revisit monthly as the team and processes change.");
+  if (unowned.length)
+    moves.push(`Assign owners to ${unowned.length} unowned process(es) — use Validate → Fix.`);
+  if (noControls.length)
+    moves.push(
+      `Map at least one control to each fraud-exposed process (${noControls.length} today).`,
+    );
+  if (hot[0])
+    moves.push(
+      `Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Journal.`,
+    );
+  if (input.overburdened[0])
+    moves.push(
+      `Reassign one process away from ${input.overburdened[0].name} using Workload → Reassign.`,
+    );
+  if (weakest)
+    moves.push(
+      `Your weakest dimension is ${weakest.label} (${weakest.score}) — ${weakest.hint.toLowerCase()}.`,
+    );
+  if (!moves.length)
+    moves.push("Snapshot this version, then revisit monthly as the team and processes change.");
 
-  const nextMove =
-    unowned.length
-      ? `Assign an owner to "${unowned[0].name}" this week.`
-      : hot[0]
-        ? `Decide how you'll treat the risk on "${hot[0].name}" — remediate, compensate, or accept — and journal it.`
-        : input.overburdened[0]
-          ? `Move one process off ${input.overburdened[0].name} to spread the load.`
-          : "Save a snapshot and schedule a 15-minute review in 30 days.";
+  const nextMove = unowned.length
+    ? `Assign an owner to "${unowned[0].name}" this week.`
+    : hot[0]
+      ? `Decide how you'll treat the risk on "${hot[0].name}" — remediate, compensate, or accept — and journal it.`
+      : input.overburdened[0]
+        ? `Move one process off ${input.overburdened[0].name} to spread the load.`
+        : "Save a snapshot and schedule a 15-minute review in 30 days.";
 
   const headline =
     grade === "A"

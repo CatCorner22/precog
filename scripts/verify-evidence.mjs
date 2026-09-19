@@ -23,6 +23,10 @@
  *      carries a source URL.
  *   9. Every duty-family pairing the detector can emit has schemes mapped, so
  *      no finding reaches the user without a real case behind it.
+ *  10. Every retrieval-corpus chunk declares what stands behind it: a cited
+ *      document with an https URL, or practitioner guidance marked as such.
+ *      Any case a chunk points at exists. No chunk carries the old free-text
+ *      "source" badge that named nothing a reader could open.
  *
  * Run: npm run verify:evidence
  */
@@ -41,9 +45,7 @@ const failures = [];
 const fail = (msg) => failures.push(msg);
 
 /** Rule IDs defined by the SoD engine. */
-const definedRules = new Set(
-  [...rulesSrc.matchAll(/id:\s*"(rule-[a-z0-9-]+)"/g)].map((m) => m[1]),
-);
+const definedRules = new Set([...rulesSrc.matchAll(/id:\s*"(rule-[a-z0-9-]+)"/g)].map((m) => m[1]));
 if (definedRules.size === 0) fail("No conflict rules found — parser out of date.");
 
 /** Split the case library into individual records. */
@@ -119,13 +121,9 @@ if (!mapBody) {
 //    to avoid.
 const industrySrc = read("src/lib/precog/industry.ts");
 const evidenceIndexSrc = read("src/lib/precog/evidence/index.ts");
-const caseSectors = new Set(
-  [...casesSrc.matchAll(/sector:\s*"([a-z-]+)"/g)].map((m) => m[1]),
-);
+const caseSectors = new Set([...casesSrc.matchAll(/sector:\s*"([a-z-]+)"/g)].map((m) => m[1]));
 const industryIds = [
-  ...(industrySrc.match(/export type IndustryId =([\s\S]*?);/)?.[1] ?? "").matchAll(
-    /"([a-z_]+)"/g,
-  ),
+  ...(industrySrc.match(/export type IndustryId =([\s\S]*?);/)?.[1] ?? "").matchAll(/"([a-z_]+)"/g),
 ].map((m) => m[1]);
 if (industryIds.length === 0) fail("No IndustryId values found — parser out of date.");
 const mapBodySector =
@@ -135,9 +133,7 @@ for (const id of industryIds) {
   const mapped = mapBodySector.includes(`case "${id}":`);
   // An unmapped industry falls through to "any", which must itself have cases.
   const sector = mapped
-    ? mapBodySector
-        .split(`case "${id}":`)[1]
-        .match(/return\s+"([a-z-]+)"/)?.[1]
+    ? mapBodySector.split(`case "${id}":`)[1].match(/return\s+"([a-z-]+)"/)?.[1]
     : "any";
   if (!sector || !caseSectors.has(sector)) {
     fail(`Industry "${id}" resolves to sector "${sector}", which has no real case.`);
@@ -151,9 +147,7 @@ for (const id of industryIds) {
 //    which made them read as framework assertion rather than evidence. A
 //    pairing with no schemes mapped goes straight back to that.
 const rulesBody = rulesSrc.replace(/\/\*[\s\S]*?\*\//g, "");
-const matrixBlock = rulesBody.match(
-  /FAMILY_CONFLICT_MATRIX[\s\S]*?=\s*\{([\s\S]*?)\n\};/,
-)?.[1];
+const matrixBlock = rulesBody.match(/FAMILY_CONFLICT_MATRIX[\s\S]*?=\s*\{([\s\S]*?)\n\};/)?.[1];
 const familySchemesBlock = evidenceIndexSrc.match(
   /const FAMILY_SCHEMES: Record<string, SchemeKind\[\]> = \{([\s\S]*?)\n\};/,
 )?.[1];
@@ -161,9 +155,7 @@ if (!matrixBlock || !familySchemesBlock) {
   fail("Duty-family matrix or FAMILY_SCHEMES not found — parser out of date.");
 } else {
   const mappedPairs = new Set(
-    [...familySchemesBlock.matchAll(/"([a-z_]+-[a-z_]+)":\s*\[[^\]]+\]/g)].map(
-      (m) => m[1],
-    ),
+    [...familySchemesBlock.matchAll(/"([a-z_]+-[a-z_]+)":\s*\[[^\]]+\]/g)].map((m) => m[1]),
   );
   // Rows look like:  custody: { authorization: true, recording: true, ... }
   for (const row of matrixBlock.matchAll(/(\w+):\s*\{([^}]*)\}/g)) {
@@ -171,7 +163,9 @@ if (!matrixBlock || !familySchemesBlock) {
     for (const col of row[2].matchAll(/(\w+):\s*true/g)) {
       const key = [from, col[1]].sort().join("-");
       if (!mappedPairs.has(key)) {
-        fail(`Duty-family pairing "${key}" has no schemes mapped, so it can produce a finding with no real case behind it.`);
+        fail(
+          `Duty-family pairing "${key}" has no schemes mapped, so it can produce a finding with no real case behind it.`,
+        );
       }
     }
   }
@@ -212,6 +206,27 @@ if (!/sourceUrl:\s*"https:\/\//.test(sharedSrc)) {
 }
 if (/per-industry|industryEmbezzlement/.test(sharedSrc.replace(/\/\*[\s\S]*?\*\//g, ""))) {
   fail("shared fraud statistics appear to vary by industry, which no source supports.");
+}
+
+// 10. Retrieval corpus provenance.
+const corpusSrc = read("src/lib/precog/rag/corpus.ts");
+const corpusBody = corpusSrc.slice(corpusSrc.indexOf("export const KNOWLEDGE_CORPUS"));
+const chunkBlocks = corpusBody.split(/\n {2}\{\n {4}id: "/).slice(1);
+if (chunkBlocks.length === 0) fail("No corpus chunks found — parser out of date.");
+for (const block of chunkBlocks) {
+  const id = block.match(/^([^"]+)"/)?.[1] ?? "?";
+  if (/^\s*source:/m.test(block))
+    fail(`Corpus chunk ${id} still carries a free-text source badge.`);
+  if (!/^\s*basis:/m.test(block)) fail(`Corpus chunk ${id} declares no basis.`);
+  for (const m of block.matchAll(/caseIds:\s*\[([^\]]*)\]/g)) {
+    for (const c of m[1].matchAll(/"([^"]+)"/g)) {
+      if (!seenCaseIds.has(c[1]))
+        fail(`Corpus chunk ${id} cites case ${c[1]}, which does not exist.`);
+    }
+  }
+}
+for (const m of corpusSrc.matchAll(/url:\s*"([^"]*)"/g)) {
+  if (!/^https:\/\//.test(m[1])) fail(`Corpus citation URL is not https: ${m[1]}`);
 }
 
 const benchIds = [...benchSrc.matchAll(/id:\s*"(bm-[a-z0-9-]+)"/g)].map((m) => m[1]);

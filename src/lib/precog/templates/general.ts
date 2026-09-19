@@ -299,7 +299,7 @@ export const generalTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Bank only clears checks matching the issued list; stops altered and forged checks.",
+          note: "Bank clears only checks on the issued file, which catches counterfeit serials and altered amounts. A forged signature on a check that is on the file still clears.",
           status: "planned",
         },
         {
@@ -444,7 +444,7 @@ export const generalTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "AR lead leaves with sole billing knowledge",
     keyPersonDesc:
       "Sam (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",

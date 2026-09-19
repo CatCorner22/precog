@@ -58,9 +58,7 @@ export function PresentationProvider({ children }: { children: React.ReactNode }
     };
   }, [mode]);
 
-  return (
-    <PresentationContext.Provider value={value}>{children}</PresentationContext.Provider>
-  );
+  return <PresentationContext.Provider value={value}>{children}</PresentationContext.Provider>;
 }
 
 export function usePresentation(): PresentationValue {
@@ -147,6 +145,6 @@ export const GLOSSARY: GlossaryEntry[] = [
     meaning:
       "Any route — a named outside accountant, a dedicated address, a simple form — by which an employee can report something without going through the person they are worried about.",
     whyItMatters:
-      "Tips account for 43% of all detections, more than every other method combined. Only about a quarter of small organizations have one.",
+      "Tips are the single largest route by which fraud comes to light, at 43% of detections — larger than any one control on its own, though controls and reviews together account for the rest. Only about a quarter of small organizations have one.",
   },
 ];

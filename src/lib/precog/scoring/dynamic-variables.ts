@@ -138,7 +138,8 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Unreimbursed share above deductible",
     category: "transfer",
     kind: "percent",
-    description: "Simplified coinsurance / gap % after deductible (0 if first-dollar after deductible).",
+    description:
+      "Simplified coinsurance / gap % after deductible (0 if first-dollar after deductible).",
     likelihoodEffect: "None.",
     severityEffect: "Increases retained severity on large losses.",
     min: 0,
@@ -335,7 +336,12 @@ export interface LikelihoodSeverityBreakdown {
   grossSeverityMultiplier: number;
   /** Detection lag multiplier (<1 = faster detection) */
   detectionLagMultiplier: number;
-  drivers: { id: string; label: string; effect: string; on: "likelihood" | "severity" | "detection" }[];
+  drivers: {
+    id: string;
+    label: string;
+    effect: string;
+    on: "likelihood" | "severity" | "detection";
+  }[];
 }
 
 export interface InsuranceTransferResult {
@@ -454,7 +460,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "cam-l",
       label: "Security cameras",
-      effect: "−12% opportunity likelihood; faster detection",
+      effect: "Assumed −12% opportunity likelihood; faster detection",
       on: "likelihood",
     });
   }
@@ -464,7 +470,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "dual-l",
       label: "Dual control",
-      effect: "−28% fraud likelihood; −15% scheme size",
+      effect: "Assumed −28% fraud likelihood; −15% scheme size",
       on: "likelihood",
     });
   }
@@ -475,7 +481,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "rec-d",
       label: "Independent bank rec",
-      effect: "−25% detection lag; −12% cumulative severity",
+      effect: "Assumed −25% detection lag; −12% cumulative severity",
       on: "detection",
     });
   }
@@ -484,7 +490,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "alarm-l",
       label: "Alarm / access",
-      effect: "−6% external theft likelihood",
+      effect: "Assumed −6% external theft likelihood",
       on: "likelihood",
     });
   }
@@ -494,12 +500,12 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "bond-l",
       label: "Bonded handlers",
-      effect: "−7% dishonesty likelihood",
+      effect: "Assumed −7% dishonesty likelihood",
       on: "likelihood",
     });
   }
 
-  // Cash intensity: relative to $2,500 baseline daily
+  // Cash intensity relative to an assumed $2,500/day reference (this app's choice, not a norm)
   if (cash && v.dailyCashExposure > 0) {
     const intensity = clamp(v.dailyCashExposure / 2500, 0.5, 3);
     if (intensity !== 1) {
@@ -508,7 +514,7 @@ export function computeLikelihoodSeverity(
       drivers.push({
         id: "cash-int",
         label: "Daily cash exposure",
-        effect: `×${intensity.toFixed(2)} severity; √ intensity on likelihood`,
+        effect: `Assumed ×${intensity.toFixed(2)} severity against a $2,500/day reference; √ on likelihood`,
         on: "severity",
       });
     }
@@ -520,7 +526,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "claims-load",
       label: "Claims load factor",
-      effect: `Underwriting history factor ${v.claimsLoadFactor.toFixed(2)}`,
+      effect: `Assumed uplift from a claims-load factor of ${v.claimsLoadFactor.toFixed(2)}`,
       on: "likelihood",
     });
   }
@@ -531,7 +537,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "ded-hi",
       label: "High deductible",
-      effect: "Slight risk that monitoring investment lags (+3% likelihood)",
+      effect: "Assumed +3% likelihood: a high deductible can let monitoring lag",
       on: "likelihood",
     });
   }
@@ -545,7 +551,10 @@ export function computeLikelihoodSeverity(
 }
 
 /** Retained loss after deductible, coinsurance, and limit */
-export function retainLoss(gross: number, v: RiskVariableState): {
+export function retainLoss(
+  gross: number,
+  v: RiskVariableState,
+): {
   retained: number;
   transferred: number;
 } {
@@ -577,9 +586,7 @@ export function applyInsuranceTransfer(
   const rL = retainLoss(grossLow, v);
   const rH = retainLoss(grossHigh, v);
 
-  const expectedAnnualCostOfRisk = Math.round(
-    premiumAnnualNet + rE.retained * annualFreqWeight,
-  );
+  const expectedAnnualCostOfRisk = Math.round(premiumAnnualNet + rE.retained * annualFreqWeight);
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
 
   const notes: string[] = [

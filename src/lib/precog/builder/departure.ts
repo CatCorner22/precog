@@ -61,7 +61,8 @@ export function simulateDeparture(
         STRONG.has(r.level) &&
         remainingPeople.some((p) => p.id === r.personId && p.active),
     );
-    if (others.length === 0) orphanedKnowledge.push({ id: k.id, name: k.name, criticality: k.criticality });
+    if (others.length === 0)
+      orphanedKnowledge.push({ id: k.id, name: k.name, criticality: k.criticality });
     else sharedKnowledge.push({ id: k.id, name: k.name });
   }
 
@@ -73,7 +74,7 @@ export function simulateDeparture(
         orphanedProcesses.length * 12 +
         criticalKnowledge * 15 +
         (orphanedKnowledge.length - criticalKnowledge) * 7 +
-        Math.min(10, person.tenureYears),
+        Math.min(10, person.tenureYears ?? 0),
     ),
   );
 
@@ -83,7 +84,9 @@ export function simulateDeparture(
       `Name a backup owner on ${orphanedProcesses
         .slice(0, 3)
         .map((p) => `"${p.name}"`)
-        .join(", ")}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+        .join(
+          ", ",
+        )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
     );
   if (orphanedKnowledge.length)
     recommendations.push(
@@ -92,8 +95,10 @@ export function simulateDeparture(
         .map((k) => k.name)
         .join(" and ")} — write the runbook while ${person.name.split(" ")[0]} is still here.`,
     );
-  if (person.tenureYears >= 5)
-    recommendations.push("Long tenure means tribal knowledge — schedule a documented handover walkthrough.");
+  if ((person.tenureYears ?? 0) >= 5 && (orphanedProcesses.length || orphanedKnowledge.length))
+    recommendations.push(
+      "Years in the role usually mean know-how nobody wrote down — walk through the processes and knowledge above with a successor and record what they say.",
+    );
   if (!recommendations.length)
     recommendations.push("Coverage looks good; keep backups current as processes change.");
 
@@ -126,6 +131,8 @@ export function rankDepartureRisk(
 /** Number of people whose loss would orphan at least one process or critical knowledge item. */
 export function busFactor(impacts: DepartureImpact[]): number {
   return impacts.filter(
-    (i) => i.orphanedProcesses.length > 0 || i.orphanedKnowledge.some((k) => k.criticality === "critical"),
+    (i) =>
+      i.orphanedProcesses.length > 0 ||
+      i.orphanedKnowledge.some((k) => k.criticality === "critical"),
   ).length;
 }

@@ -31,7 +31,15 @@ export const Route = createRootRoute({
           ]
         : []),
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      // Inline icon so the browser stops requesting a /favicon.ico that does not exist.
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2360a5fa' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%2360a5fa'/%3E%3C/svg%3E",
+      },
+    ],
   }),
   component: RootDocument,
 });

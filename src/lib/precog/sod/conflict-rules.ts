@@ -7,11 +7,7 @@
  */
 
 export type DutyFamily =
-  | "authorization"
-  | "custody"
-  | "recording"
-  | "reconciliation"
-  | "master_data";
+  "authorization" | "custody" | "recording" | "reconciliation" | "master_data";
 
 export type EntitlementId =
   | "collect_cash"
@@ -220,7 +216,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     why: "An adjustment that needs nobody else’s approval can erase a balance that was actually paid, and the payment goes with it.",
     fraudPath: "Write off a balance that was paid, and keep the payment",
     compensatingDefaults: [
-      "Owner approves any write-off above $150",
+      "Owner approves any write-off above the amount you set",
       "Monthly list of every write-off, reviewed by the owner",
     ],
     linkedScenarioId: "sc-writeoff-abuse",
@@ -244,10 +240,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "critical",
     title: "Create vendor + release payment",
-    why: "One person can invent a supplier and then pay it. This is the most common way money leaves a small business, and the payments look entirely ordinary in the accounts.",
+    why: "One person can invent a supplier and then pay it, and the payments look entirely ordinary in the accounts. Nothing in the books distinguishes an invented supplier from a real one.",
     fraudPath: "Set up a supplier that does not exist, then pay it",
     compensatingDefaults: [
-      "A second person releases any electronic payment above $500, using their own login",
+      "A second person releases any electronic payment above the amount you set, using their own login",
       "Owner reviews every supplier added that month",
     ],
     linkedScenarioId: "sc-vendor-fraud",
@@ -281,7 +277,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_payroll",
     severity: "high",
     title: "Enter + approve payroll",
-    why: "Whoever runs payroll can change what payroll says, including their own pay. Two cases in this application’s library ran on exactly that.",
+    why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to former employees whose records he reactivated. Both cases are in the library below.",
     fraudPath: "Add hours, a raise, or a reimbursement to your own pay",
     compensatingDefaults: ["Owner always approves final file", "Exception report"],
     linkedControlId: "c-payroll",
@@ -310,10 +306,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
 ];
 
 /** Family-level matrix: true = inherently conflicting when combined. */
-export const FAMILY_CONFLICT_MATRIX: Record<
-  DutyFamily,
-  Partial<Record<DutyFamily, boolean>>
-> = {
+export const FAMILY_CONFLICT_MATRIX: Record<DutyFamily, Partial<Record<DutyFamily, boolean>>> = {
   authorization: { custody: true, recording: true, master_data: true },
   custody: {
     authorization: true,

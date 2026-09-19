@@ -1,3 +1,5 @@
+import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { IndexBasis } from "@/components/precog/index-basis";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -49,7 +51,11 @@ import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
-import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
+import {
+  computeMapHealth,
+  buildProcessMapGraph,
+  validateProcessMap,
+} from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,7 +95,10 @@ function HomeShell() {
         <div className="h-40 animate-pulse rounded-2xl border border-border bg-surface" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl border border-border bg-surface" />
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-xl border border-border bg-surface"
+            />
           ))}
         </div>
       </main>
@@ -145,10 +154,7 @@ function Home() {
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
-  const risks = useMemo(
-    () => findKnowledgeRisks(),
-    [profile.industry, templateRevision],
-  );
+  const risks = useMemo(() => findKnowledgeRisks(), [profile.industry, templateRevision]);
   const ranked = useMemo(
     () =>
       rankDangerousScenarios({
@@ -157,10 +163,7 @@ function Home() {
       }),
     [profile.staff, profile.riskVariables, profile.industry, templateRevision],
   );
-  const coso = useMemo(
-    () => assessCoso(),
-    [profile.industry, templateRevision],
-  );
+  const coso = useMemo(() => assessCoso(), [profile.industry, templateRevision]);
   const portfolio = useMemo(
     () => portfolioSummary(profile.staff),
     [profile.staff, profile.industry, templateRevision],
@@ -176,7 +179,7 @@ function Home() {
       }),
     [profile.staff, profile.dualRelease, profile.industry, templateRevision],
   );
-  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
+  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = profile.decisions.filter(
@@ -335,9 +338,7 @@ function Home() {
         {tab === "command" && (
           <div className="space-y-6">
             <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">
-                {industry.label} · internal controls
-              </Badge>
+              <Badge variant="accent">{industry.label} · internal controls</Badge>
               <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
                 Know your residual risk before it becomes a loss
               </h1>
@@ -401,15 +402,16 @@ function Home() {
               }}
             />
 
+            <IndexBasis />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <MetricCard
                 label="Map health"
                 value={String(mapHealth.score)}
                 hint={mapHealth.bandLabel}
                 tone={
-                  mapHealth.score >= 70
+                  mapHealth.score >= HEALTH_SCALE.adequate
                     ? "primary"
-                    : mapHealth.score >= 55
+                    : mapHealth.score >= HEALTH_SCALE.weak
                       ? "warn"
                       : "danger"
                 }
@@ -422,7 +424,13 @@ function Home() {
                 label="Avg residual"
                 value={String(portfolio.averageResidual)}
                 hint={`${portfolio.criticalPath} critical`}
-                tone={portfolio.averageResidual >= 60 ? "danger" : "warn"}
+                tone={
+                  portfolio.averageResidual >= RISK_SCALE.actNow
+                    ? "danger"
+                    : portfolio.averageResidual >= RISK_SCALE.mitigate
+                      ? "warn"
+                      : "primary"
+                }
                 onClick={() => setTab("residual")}
               />
               <MetricCard
@@ -430,9 +438,9 @@ function Home() {
                 value={String(sodReport.summary.segregationHealth)}
                 hint={`${sodReport.summary.critical} critical conflicts`}
                 tone={
-                  sodReport.summary.segregationHealth < 40
+                  sodReport.summary.segregationHealth < HEALTH_SCALE.weak
                     ? "danger"
-                    : sodReport.summary.segregationHealth < 65
+                    : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
                       ? "warn"
                       : "primary"
                 }
@@ -453,16 +461,17 @@ function Home() {
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
-                label="Top retained"
+                label="Largest assumed retained loss"
                 value={
                   top
                     ? formatUsd(
-                        top.result.retainedImpact?.expected ??
-                          top.result.financialImpact.expected,
+                        top.result.retainedImpact?.expected ?? top.result.financialImpact.expected,
                       )
                     : "—"
                 }
-                hint={top ? `p50 ${top.result.timelineDays.p50}d` : ""}
+                hint={
+                  top ? `scenario assumption · about ${top.result.timelineDays.p50} days out` : ""
+                }
                 tone="warn"
                 onClick={() =>
                   navigateDeepLink({
@@ -495,8 +504,8 @@ function Home() {
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>
                   <CardDescription>
-                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length}{" "}
-                    detected conflicts · pressure {leading.band}
+                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length} detected
+                    conflicts · pressure {leading.band}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -508,9 +517,7 @@ function Home() {
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium">
-                          {item.name}
-                        </span>
+                        <span className="block truncate text-sm font-medium">{item.name}</span>
                         <span className="text-xs text-muted">{item.bandLabel}</span>
                       </span>
                       <span className="text-lg font-semibold tabular">{item.residual}</span>
@@ -543,9 +550,7 @@ function Home() {
           />
         )}
 
-        {tab === "intel" && (
-          <IntelligencePanel onNavigate={(t) => navigateTab(t)} />
-        )}
+        {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
 
         {tab === "residual" && (
           <div className="space-y-4">
@@ -608,13 +613,9 @@ function Home() {
           </div>
         )}
 
-        {tab === "sod" && (
-          <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />
-        )}
+        {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
-        {tab === "journal" && (
-          <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
-        )}
+        {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
       </main>
     </div>
   );

@@ -6,12 +6,17 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-
 export const restaurantTemplate: IndustryTemplate = {
   id: "restaurant",
   businessName: "Ember & Oak Kitchen",
   people: [
-    { id: "p1", name: "Elena Vargas", role: "Owner / Executive Chef", active: true, tenureYears: 11 },
+    {
+      id: "p1",
+      name: "Elena Vargas",
+      role: "Owner / Executive Chef",
+      active: true,
+      tenureYears: 11,
+    },
     { id: "p2", name: "Maya Chen", role: "General Manager", active: true, tenureYears: 6 },
     { id: "p3", name: "Jordan Blake", role: "Head Server", active: true, tenureYears: 5 },
     { id: "p4", name: "Sam Ortiz", role: "Line Cook Lead", active: true, tenureYears: 4 },
@@ -500,7 +505,7 @@ export const restaurantTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF, teamSize: 6, segregationScore: 35 },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
     keyPersonDesc:
       "Jordan (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",
@@ -528,11 +533,6 @@ export const restaurantTemplate: IndustryTemplate = {
     "Head Server": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
     "Line Cook Lead": ["view_reports_only"],
     "Bar Manager": ["collect_cash", "post_adjustments", "view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "bank_reconcile",
-      "post_adjustments",
-      "view_reports_only",
-    ],
+    Bookkeeper: ["post_payments", "bank_reconcile", "post_adjustments", "view_reports_only"],
   },
 };
