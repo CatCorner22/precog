@@ -76,6 +76,67 @@ export interface SodDetectionReport {
   recommendations: string[];
 }
 
+/**
+ * Plain wording for the duty families.
+ *
+ * These findings previously read "Duty families are classically incompatible
+ * under COSO-style SoD" with a fraud path of "Opportunity from combined
+ * incompatible duty families". That asserts a framework rather than explaining
+ * a mechanism, and it gave the owner nothing to act on — the suggested
+ * remedy was to "document residual acceptance", which is to write down that
+ * you are living with it. Plain language, and a remedy that names the actual
+ * duties, replace it.
+ */
+const FAMILY_LABEL: Record<DutyFamily, string> = {
+  authorization: "Approving",
+  custody: "Handling the money",
+  recording: "Writing the records",
+  reconciliation: "Checking the records",
+  master_data: "Controlling who can be paid",
+};
+
+const FAMILY_VERB: Record<DutyFamily, string> = {
+  authorization: "approves it",
+  custody: "handles the money",
+  recording: "writes the record",
+  reconciliation: "checks the record",
+  master_data: "controls who can be paid",
+};
+
+/**
+ * Wording for a pair drawn from the same family — two custody duties, say.
+ * The family labels cannot carry those on their own: rendering them gives
+ * "Handling the money and Handling the money", so the entitlement labels do
+ * the distinguishing work instead.
+ */
+const SAME_FAMILY_NOUN: Record<DutyFamily, string> = {
+  authorization: "approval",
+  custody: "money-handling",
+  recording: "record-keeping",
+  reconciliation: "checking",
+  master_data: "payee-list",
+};
+
+/** Mechanism for the pairings worth spelling out. Keys are sorted pairs. */
+const FAMILY_WHY: Record<string, string> = {
+  "authorization-custody":
+    "The same person approves a payment and then hands over the money, so the approval is the only check and it is their own.",
+  "custody-recording":
+    "The same person handles the money and writes down what was handled, so the books will always match whatever was actually taken.",
+  "custody-reconciliation":
+    "The same person holds the money and confirms it arrived, which leaves nobody able to notice a shortfall.",
+  "recording-reconciliation":
+    "The same person writes the records and checks them, so an error or an omission has no independent reader.",
+  "authorization-master_data":
+    "The same person decides who may be paid and approves paying them, so an invented payee passes both gates at once.",
+  "custody-master_data":
+    "The same person controls the payee list and moves the money, which is the shortest path to paying a supplier that does not exist.",
+  "master_data-recording":
+    "The same person can add a payee and write the entry that explains it, so the payment looks routine in the accounts.",
+  "authorization-recording":
+    "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
+};
+
 function entLabel(id: EntitlementId) {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
 }
@@ -93,9 +154,7 @@ function entProcesses(id: EntitlementId) {
 }
 
 function findRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined {
-  return CONFLICT_RULES.find(
-    (r) => (r.a === a && r.b === b) || (r.a === b && r.b === a),
-  );
+  return CONFLICT_RULES.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a));
 }
 
 function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
@@ -146,7 +205,8 @@ export function buildAssignments(
   const { people, roleTemplates } = getActiveTemplate();
   return people.map((p) => {
     const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
-    const fromRole = (fromPerson ?? roleTemplates[p.role] ?? ["view_reports_only"]) as EntitlementId[];
+    const fromRole = (fromPerson ??
+      roleTemplates[p.role] ?? ["view_reports_only"]) as EntitlementId[];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {
@@ -171,8 +231,7 @@ export function detectSodConflicts(
   const assignments = options?.assignments ?? buildAssignments();
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
-  const dualMitigatedRules =
-    options?.dualReleaseMitigatedRuleIds ?? new Set<string>();
+  const dualMitigatedRules = options?.dualReleaseMitigatedRuleIds ?? new Set<string>();
 
   const conflicts: DetectedConflict[] = [];
 
@@ -193,12 +252,8 @@ export function detectSodConflicts(
           const dualMitigated = dualMitigatedRules.has(rule.id);
           const comps = [
             ...rule.compensatingDefaults,
-            ...(rule.linkedControlId
-              ? compensatingByControl[rule.linkedControlId] ?? []
-              : []),
-            ...(dualMitigated
-              ? ["Dual-release policy active on related channel"]
-              : []),
+            ...(rule.linkedControlId ? (compensatingByControl[rule.linkedControlId] ?? []) : []),
+            ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
           ];
           const accepted = rule.linkedControlId
             ? residualAccepted.has(rule.linkedControlId)
@@ -217,23 +272,13 @@ export function detectSodConflicts(
             title: rule.title,
             why: rule.why,
             fraudPath: rule.fraudPath,
-            score: scoreConflict(
-              rule.severity,
-              a,
-              b,
-              accepted,
-              comps.length,
-              dualMitigated,
-              staff,
-            ),
+            score: scoreConflict(rule.severity, a, b, accepted, comps.length, dualMitigated, staff),
             compensatingControls: Array.from(new Set(comps)),
             residualRiskAccepted: accepted,
             dualReleaseMitigated: dualMitigated,
             linkedScenarioId: rule.linkedScenarioId,
             linkedControlId: rule.linkedControlId,
-            processIds: Array.from(
-              new Set([...entProcesses(a), ...entProcesses(b)]),
-            ),
+            processIds: Array.from(new Set([...entProcesses(a), ...entProcesses(b)])),
           });
         } else {
           conflicts.push({
@@ -247,19 +292,27 @@ export function detectSodConflicts(
             labelA: entLabel(a),
             labelB: entLabel(b),
             severity: "family",
-            title: `${fa} + ${fb} combination`,
-            why: "Duty families are classically incompatible under COSO-style SoD.",
-            fraudPath: "Opportunity from combined incompatible duty families",
+            title:
+              fa === fb
+                ? `Two ${SAME_FAMILY_NOUN[fa]} duties held by one person`
+                : `${FAMILY_LABEL[fa]} and ${FAMILY_LABEL[fb]} in one pair of hands`,
+            why:
+              fa === fb
+                ? `One person holds both of these ${SAME_FAMILY_NOUN[fa]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
+                : (FAMILY_WHY[[fa, fb].sort().join("-")] ??
+                  `One person both ${FAMILY_VERB[fa]} and ${FAMILY_VERB[fb]}, so no step in that sequence gets a second look.`),
+            fraudPath:
+              fa === fb
+                ? `Complete both steps alone, with no handover anyone would notice`
+                : `Act, then write or check the record of the act, unobserved`,
             score: scoreConflict("family", a, b, false, 0, false, staff),
             compensatingControls: [
-              "Document residual acceptance",
-              "Add independent review cadence",
+              `Move either "${entLabel(a)}" or "${entLabel(b)}" to someone else`,
+              "Have a second person review this sequence on a set cadence",
             ],
             residualRiskAccepted: false,
             dualReleaseMitigated: false,
-            processIds: Array.from(
-              new Set([...entProcesses(a), ...entProcesses(b)]),
-            ),
+            processIds: Array.from(new Set([...entProcesses(a), ...entProcesses(b)])),
           });
         }
       }
@@ -302,9 +355,7 @@ export function detectSodConflicts(
   const critical = conflicts.filter(
     (c) => c.severity === "critical" && !c.dualReleaseMitigated,
   ).length;
-  const high = conflicts.filter(
-    (c) => c.severity === "high" && !c.dualReleaseMitigated,
-  ).length;
+  const high = conflicts.filter((c) => c.severity === "high" && !c.dualReleaseMitigated).length;
   const medium = conflicts.filter((c) => c.severity === "medium").length;
   const family = conflicts.filter((c) => c.severity === "family").length;
   const peopleWithConflicts = new Set(conflicts.map((c) => c.personId)).size;
@@ -340,18 +391,10 @@ export function detectSodConflicts(
         !c.dualReleaseMitigated,
     )
   ) {
-    recommendations.push(
-      "Enable deposit dual-count + owner bank rec — highest ROI for cash SoD.",
-    );
+    recommendations.push("Enable deposit dual-count + owner bank rec — highest ROI for cash SoD.");
   }
-  if (
-    conflicts.some(
-      (c) => c.ruleId === "rule-vendor-create-pay" && !c.dualReleaseMitigated,
-    )
-  ) {
-    recommendations.push(
-      "Turn on ACH dual release ≥ $500 and owner sign-off on new vendors.",
-    );
+  if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && !c.dualReleaseMitigated)) {
+    recommendations.push("Turn on ACH dual release ≥ $500 and owner sign-off on new vendors.");
   }
   if (
     conflicts.some(
@@ -360,19 +403,14 @@ export function detectSodConflicts(
         !c.dualReleaseMitigated,
     )
   ) {
-    recommendations.push(
-      "Require dual release on write-offs above $150 (owner/OM second).",
-    );
+    recommendations.push("Require dual release on write-offs above $150 (owner/OM second).");
   }
   if (!recommendations.length) {
-    recommendations.push(
-      "Dual release + SoD look healthy — re-scan after any role change.",
-    );
+    recommendations.push("Dual release + SoD look healthy — re-scan after any role change.");
   }
 
   return {
-    method:
-      "Entitlement pair scan vs rulebook + duty-family matrix + dual-release mitigation",
+    method: "Entitlement pair scan vs rulebook + duty-family matrix + dual-release mitigation",
     assignments,
     conflicts,
     matrix,
