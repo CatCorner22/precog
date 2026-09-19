@@ -280,6 +280,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "The person who processed payroll could change her own rate, and nobody outside the role compared the payroll register against what the owner believed people were paid. Twenty-seven years of tenure had been allowed to substitute for a control.",
     lossUsd: 700000,
     lossIsFloor: true,
+    tenureYearsStated: 27,
     detection: "owner-review",
     resolvedYear: 2022,
     sodRuleIds: ["rule-payroll", "rule-admin-pay"],
@@ -797,6 +798,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 315000,
     lossIsFloor: true,
     durationMonths: 24,
+    tenureYearsStated: 0,
     detection: "by-accident",
     resolvedYear: 2018,
     sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
@@ -965,6 +967,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 540063,
     lossIsFloor: false,
     durationMonths: 60,
+    tenureYearsStated: 18,
     detection: "unknown",
     resolvedYear: 2018,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
@@ -1033,5 +1036,87 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Ralph L. Schippers pleaded guilty on 17 September 2012 to wire fraud and was sentenced in January 2013 to 41 months in prison, three years of supervised release, and restitution of $1,433,825.37, the loss figure used here. The release says the scheme was not discovered until May 2012 but not how, so the detection route is recorded as unknown. A later published opinion, United States v. Schippers, 982 F. Supp. 2d 948 (S.D. Iowa 2013), concerns collection of that restitution for Granger Motors and its insurer. This is the oldest case in the library; the mechanics have not changed.",
+  },
+  {
+    id: "case-marion-iowa-bookkeeper-paper-payroll-checks",
+    title:
+      "Bookkeeper wrote herself paper payroll checks for eight years while her real pay arrived by direct deposit, more than $500,000",
+    sector: "any",
+    schemes: ["payroll", "check-tampering"],
+    howItWorked:
+      "The bookkeeper of a small veteran-owned business in Marion, Iowa had access to all of the company's financial records, ran its payroll, and was the contact for its employee retirement plan. From 2013 to 2021 she wrote physical payroll checks to herself that she was not owed, even though her own pay already arrived electronically, forged signatures, changed her own pay rate, and made false entries in the books to hide the checks. She took more than $500,000. After the company found the theft and fired her, it recovered $373,732 of an inheritance from her in a state civil case.",
+    controlGap:
+      "One person entered payroll, approved it, signed checks, and kept the ledger, so a second paycheck to the payroll clerk looked like any other payroll entry. Nobody outside the role compared the payroll register against the people actually employed or against the bank's cleared-check images.",
+    lossUsd: 500000,
+    lossIsFloor: true,
+    durationMonths: 96,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-payroll", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each cycle; a second payment to the bookkeeper, or a paper check to someone paid by direct deposit, is visible on one page",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first and looks at the cleared-check images; a payroll check made out to the bookkeeper stands out",
+      },
+      {
+        control: "no-self-approval",
+        asApplied: "Nobody approves their own pay or changes their own pay rate, at any amount",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Northern District of Iowa",
+      url: "https://www.justice.gov/usao-ndia/pr/springville-woman-sent-federal-prison-embezzlement-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Debra Ann Vaughn, 67, of Springville, Iowa, pleaded guilty on 1 December 2025 to one count of bank fraud and was sentenced on 19 May 2026 to 41 months in prison and five years of supervised release. Restitution was set at $158,135.77 after credit for the $373,732.27 the company had already recovered in the civil case, so the loss recorded here is the release's figure of more than $500,000, not the restitution figure. The release does not say how the company discovered the theft, so the detection route is recorded as unknown. The eight-year duration is the span the release gives (2013 to 2021).",
+  },
+  {
+    id: "case-anderson-flooring-accountant-transfers-gambling",
+    title:
+      "Flooring company's accountant moved $952,000 to his own accounts in 18 months and reconciled the bank himself",
+    sector: "trades",
+    schemes: ["check-tampering", "financial-statement"],
+    howItWorked:
+      "The accountant and director of administration of an Indiana flooring business, employed there for nearly six years, wrote and signed checks, made electronic payments, reconciled the accounting records against the bank, and kept the ledgers. From August 2020 to at least February 2022 he transferred about $952,237 from the company's payroll and operating accounts to his personal accounts in 120 transactions and spent much of it on online gambling. He hid the transfers by recording them as invoice payments, falsifying inventory logs, listing paid jobs as unpaid, and voiding checks.",
+    controlGap:
+      "The person who moved the money also performed the bank reconciliation, so the one check that compares the books with the bank was done by the one person with a reason to make them agree. Every cover entry he made was in a record only he reviewed.",
+    lossUsd: 952237,
+    lossIsFloor: false,
+    durationMonths: 18,
+    tenureYearsStated: 5,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the person who pays the bills reconciles the bank account, so a transfer recorded as an invoice payment must match a real invoice",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied:
+          "Compare the destination accounts of outgoing transfers against employee payroll accounts every month",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first each month and questions transfers to any account that is not a known supplier",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Indiana",
+      url: "https://www.justice.gov/usao-sdin/pr/anderson-accountant-sentenced-over-three-years-federal-prison-embezzling-nearly-one",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      'Nathaniel Wills, 34, of Anderson, Indiana, pleaded guilty to wire fraud and was sentenced in October 2024 by U.S. District Judge James P. Hanlon to 41 months in prison, three years of supervised release, and $877,507 in restitution; the loss recorded here is the $952,237 the release says he took. The release names the employer only as an Indiana business; local reporting identifies it as a flooring company, which is the basis for the sector. Five years of tenure is the release\'s "nearly six years" rounded down. The release does not say how the theft was discovered, so the detection route is recorded as unknown.',
   },
 ];

@@ -118,6 +118,14 @@ export function CaseCard({
 
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-subtle">
             <span>How it was found: {DETECTION_LABEL[study.detection] ?? study.detection}</span>
+            {typeof study.tenureYearsStated === "number" ? (
+              <span>
+                Time with the employer:{" "}
+                {study.tenureYearsStated === 0
+                  ? "under a year"
+                  : `${study.tenureYearsStated} years`}
+              </span>
+            ) : null}
             {study.resolvedYear ? <span>Case resolved {study.resolvedYear}</span> : null}
           </div>
 

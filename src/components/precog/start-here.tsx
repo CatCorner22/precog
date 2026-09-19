@@ -7,6 +7,7 @@ import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
+  CASE_LIBRARY,
   METHOD_CAVEATS,
   casesForSodRules,
   detectionBreakdown,
@@ -14,8 +15,10 @@ import {
   observedLossRange,
   recommendedStepsForRules,
   sectorForIndustry,
+  tenureExamples,
   type CaseStudy,
 } from "@/lib/precog/evidence";
+import { getActiveTemplate } from "@/lib/precog/active-template";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,6 +178,30 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
   const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
 
+  /**
+   * Years of service for each named person, where the team record states it.
+   *
+   * The detector names people but not their tenure, and tenure is the fact an
+   * owner most often offers in place of a control ("she has been with us
+   * twenty years"). The note below answers that in the case library's terms.
+   * Five years is the same threshold the departure model uses for "long
+   * service", so the two screens agree on what long means.
+   */
+  const tenureByName = new Map<string, number>();
+  for (const person of getActiveTemplate().people) {
+    if (typeof person.tenureYears === "number") tenureByName.set(person.name, person.tenureYears);
+  }
+  const tenureCases = useMemo(() => tenureExamples(CASE_LIBRARY), []);
+  /**
+   * The gap card that carries the tenure note: the highest-ranked one naming a
+   * long-serving person. The point holds once; repeating it on every card
+   * would read as a lecture.
+   */
+  const tenureNoteRuleId =
+    topThree.find(({ people }) =>
+      people.some((name) => (tenureByName.get(name) ?? 0) >= LONG_SERVICE_YEARS),
+    )?.conflict.ruleId ?? null;
+
   const soleKnowledge = useMemo(() => findKnowledgeRisks().filter((r) => r.soleOwner), []);
 
   const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
@@ -244,7 +271,14 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         ) : (
           <div className="space-y-3">
             {topThree.map(({ conflict, people }) => {
-              const worst = casesForSodRules([conflict.ruleId])[0];
+              // Prefer a case from the owner's own line of business that cites
+              // this rule directly; a dentist reads a dental case differently
+              // from a construction one. Fall back to the best match overall.
+              const matches = casesForSodRules([conflict.ruleId]);
+              const ownSector = matches.find(
+                (c) => c.sector === sector && c.sodRuleIds.includes(conflict.ruleId),
+              );
+              const worst = ownSector ?? matches[0];
               return (
                 <Card key={conflict.ruleId}>
                   <CardHeader className="pb-2">
@@ -282,6 +316,39 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   <CardContent className="space-y-3 text-sm">
                     <p className="leading-relaxed text-muted">{conflict.why}</p>
 
+                    {(() => {
+                      const longServing = people
+                        .map((name) => ({ name, years: tenureByName.get(name) ?? 0 }))
+                        .filter((p) => p.years >= LONG_SERVICE_YEARS);
+                      const { longest, shortest, n } = tenureCases;
+                      if (
+                        conflict.ruleId !== tenureNoteRuleId ||
+                        longServing.length === 0 ||
+                        !longest
+                      )
+                        return null;
+                      return (
+                        <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
+                          {longServing.length === 1
+                            ? `${longServing[0].name} has ${longServing[0].years} years here.`
+                            : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
+                          Length of service is not a control. Of the {n} cases in the library whose
+                          source states how long the person had served, the longest,{" "}
+                          {longest.tenureYearsStated} years, cost the business{" "}
+                          {longest.lossIsFloor ? "at least " : ""}
+                          {formatUsd(longest.lossUsd)}
+                          {shortest
+                            ? `; the shortest began ${
+                                shortest.tenureYearsStated === 0
+                                  ? "within months of hire"
+                                  : `after ${shortest.tenureYearsStated} years`
+                              } and cost ${shortest.lossIsFloor ? "at least " : ""}${formatUsd(shortest.lossUsd)}`
+                            : ""}
+                          . The people in those cases were trusted for the same reason yours are.
+                        </p>
+                      );
+                    })()}
+
                     {partialCoverage.has(conflict.ruleId) && (
                       <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
                         Your dual-release policy covers this above{" "}
@@ -313,7 +380,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     {worst && (
                       <div>
                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
-                          This exact gap, somewhere real
+                          {ownSector
+                            ? "This exact gap, in your line of business"
+                            : "This exact gap, somewhere real"}
                         </p>
                         <CaseCard study={worst} />
                       </div>
@@ -625,6 +694,9 @@ function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string 
 }
 
 /** Plain wording for each detection route, matching the case card. */
+/** Years of service at which the departure model calls a person long-serving. */
+const LONG_SERVICE_YEARS = 5;
+
 const DETECTION_PHRASE: Record<string, string> = {
   tip: "Someone spoke up",
   "owner-review": "The owner looked",
