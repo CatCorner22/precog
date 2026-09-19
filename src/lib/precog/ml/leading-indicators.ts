@@ -35,12 +35,8 @@ export function scoreLeadingIndicators(
   const { controls } = getActiveTemplate();
   const portfolio = portfolioSummary(staff);
   const coso = assessCoso();
-  const spofs = findKnowledgeRisks().filter(
-    (r) => r.soleOwner && r.riskScore >= 65,
-  );
-  const openSod = controls.filter(
-    (c) => !c.segregated && !c.residualRiskAccepted,
-  ).length;
+  const spofs = findKnowledgeRisks().filter((r) => r.soleOwner && r.riskScore >= 65);
+  const openSod = controls.filter((c) => !c.segregated && !c.residualRiskAccepted).length;
 
   const indicators: LeadingIndicator[] = [
     {
@@ -80,7 +76,7 @@ export function scoreLeadingIndicators(
       threshold: 1,
       status: staff.dualControlPayments ? "ok" : "breach",
       weight: 1.2,
-      why: "Opportunity remains open; insurance credit not earned",
+      why: "One person can still move money alone, and there is nothing to show a carrier",
       linkedTab: "precog",
     },
     {
@@ -103,8 +99,7 @@ export function scoreLeadingIndicators(
       label: "COSO overall",
       value: coso.overall,
       threshold: 60,
-      status:
-        coso.overall < 50 ? "breach" : coso.overall < 65 ? "watch" : "ok",
+      status: coso.overall < 50 ? "breach" : coso.overall < 65 ? "watch" : "ok",
       weight: 0.9,
       why: "Weak control system reduces detection of other failures",
       linkedTab: "coso",
@@ -144,12 +139,7 @@ export function scoreLeadingIndicators(
       label: "Segregation score",
       value: staff.segregationScore,
       threshold: 55,
-      status:
-        staff.segregationScore < 40
-          ? "breach"
-          : staff.segregationScore < 55
-            ? "watch"
-            : "ok",
+      status: staff.segregationScore < 40 ? "breach" : staff.segregationScore < 55 ? "watch" : "ok",
       weight: 1.0,
       why: "Low segregation multiplies residual across cash paths",
       linkedTab: "residual",
@@ -177,8 +167,7 @@ export function scoreLeadingIndicators(
   const topActions = indicators
     .filter((i) => i.status !== "ok")
     .sort((a, b) => {
-      const rank = (s: LeadingIndicator["status"]) =>
-        s === "breach" ? 2 : s === "watch" ? 1 : 0;
+      const rank = (s: LeadingIndicator["status"]) => (s === "breach" ? 2 : s === "watch" ? 1 : 0);
       return rank(b.status) * b.weight - rank(a.status) * a.weight;
     })
     .slice(0, 4)

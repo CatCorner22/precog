@@ -85,9 +85,10 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
               Conditions this app watches
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Each condition below is a setting or pattern that, in the prosecuted cases this app
-              draws on, preceded a loss. The thresholds are set in this app; they are not
-              benchmarks, and none of this is a prediction.
+              Each condition below is either a setting in your profile that the prosecuted cases on
+              Start here turned on, or one of this app&rsquo;s own indices crossing a line this app
+              chose. The thresholds are set in this app; they are not benchmarks, and none of this
+              is a prediction.
             </p>
           </section>
 
