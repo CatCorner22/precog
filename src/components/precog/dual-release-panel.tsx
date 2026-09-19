@@ -28,14 +28,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-const CHANNELS: ReleaseChannel[] = [
-  "ach",
-  "check",
-  "writeoff",
-  "vendor_new",
-  "deposit",
-  "payroll",
-];
+const CHANNELS: ReleaseChannel[] = ["ach", "check", "writeoff", "vendor_new", "deposit", "payroll"];
 
 const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
   {
@@ -60,11 +53,7 @@ const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
   },
 ];
 
-export function DualReleasePanel({
-  onOpenSod,
-}: {
-  onOpenSod?: () => void;
-}) {
+export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const { people } = useTemplate();
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
@@ -106,10 +95,7 @@ export function DualReleasePanel({
   const [exResidual, setExResidual] = useState("");
 
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
-  const eligible = useMemo(
-    () => listEligibleApprovers(policy, channel),
-    [policy, channel],
-  );
+  const eligible = useMemo(() => listEligibleApprovers(policy, channel), [policy, channel]);
   const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
   const exceptions = policy.exceptions ?? [];
@@ -122,9 +108,7 @@ export function DualReleasePanel({
   function toggleChannel(ch: ReleaseChannel, enabled: boolean) {
     setDualRelease({
       ...policy,
-      rules: policy.rules.map((r) =>
-        r.channel === ch ? { ...r, enabled } : r,
-      ),
+      rules: policy.rules.map((r) => (r.channel === ch ? { ...r, enabled } : r)),
     });
   }
 
@@ -132,9 +116,7 @@ export function DualReleasePanel({
     setDualRelease({
       ...policy,
       rules: policy.rules.map((r) =>
-        r.channel === ch
-          ? { ...r, thresholdUsd: Math.max(0, Math.round(thresholdUsd)) }
-          : r,
+        r.channel === ch ? { ...r, thresholdUsd: Math.max(0, Math.round(thresholdUsd)) } : r,
       ),
     });
   }
@@ -166,9 +148,7 @@ export function DualReleasePanel({
   function toggleException(id: string, enabled: boolean) {
     setDualRelease({
       ...policy,
-      exceptions: exceptions.map((e) =>
-        e.id === id ? { ...e, enabled } : e,
-      ),
+      exceptions: exceptions.map((e) => (e.id === id ? { ...e, enabled } : e)),
     });
   }
 
@@ -223,9 +203,7 @@ export function DualReleasePanel({
   }
 
   function toggleExChannel(ch: ReleaseChannel) {
-    setExChannels((prev) =>
-      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
-    );
+    setExChannels((prev) => (prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]));
   }
 
   return (
@@ -248,9 +226,9 @@ export function DualReleasePanel({
           Dual-release controls
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Base thresholds plus <strong className="text-fg">exceptions</strong> for trusted
-          payees, temporary raises, force-dual bands, or rare waives. Exceptions are
-          time-bound, reason-coded, and feed the decision journal.
+          Base thresholds plus <strong className="text-fg">exceptions</strong> for trusted payees,
+          temporary raises, force-dual bands, or rare waives. Exceptions are time-bound,
+          reason-coded, and feed the decision journal.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
@@ -331,8 +309,7 @@ export function DualReleasePanel({
                     {ACTIONS.find((a) => a.id === exAction)?.hint}
                   </span>
                 </label>
-                {(exAction === "raise_threshold" ||
-                  exAction === "lower_threshold") && (
+                {(exAction === "raise_threshold" || exAction === "lower_threshold") && (
                   <label className="block text-xs text-muted">
                     Exception threshold (USD)
                     <input
@@ -459,9 +436,7 @@ export function DualReleasePanel({
               key={ex.id}
               className={cn(
                 "rounded-xl border px-3 py-3 text-sm",
-                ex.enabled
-                  ? "border-border bg-elevated"
-                  : "border-border/60 bg-panel opacity-70",
+                ex.enabled ? "border-border bg-elevated" : "border-border/60 bg-panel opacity-70",
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -486,9 +461,7 @@ export function DualReleasePanel({
                   </div>
                   <p className="mt-1 text-xs text-muted">{ex.reason}</p>
                   <p className="mt-1 text-[11px] text-subtle">
-                    {ex.channels.length
-                      ? ex.channels.join(", ")
-                      : "all channels"}
+                    {ex.channels.length ? ex.channels.join(", ") : "all channels"}
                     {ex.payeeContains ? ` · payee ~"${ex.payeeContains}"` : ""}
                     {ex.personId
                       ? ` · person ${people.find((p) => p.id === ex.personId)?.name ?? ex.personId}`
@@ -534,9 +507,7 @@ export function DualReleasePanel({
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="text-sm">{c.label}</CardTitle>
                 <div className="flex gap-1">
-                  {c.activeExceptions > 0 && (
-                    <Badge variant="warn">{c.activeExceptions} ex</Badge>
-                  )}
+                  {c.activeExceptions > 0 && <Badge variant="warn">{c.activeExceptions} ex</Badge>}
                   <Badge variant={c.covered ? "ok" : "default"}>
                     {c.covered ? "active" : "off"}
                   </Badge>
@@ -551,9 +522,7 @@ export function DualReleasePanel({
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
-                  checked={
-                    policy.rules.find((r) => r.channel === c.channel)?.enabled ?? false
-                  }
+                  checked={policy.rules.find((r) => r.channel === c.channel)?.enabled ?? false}
                   disabled={!policy.enabled}
                   onChange={(e) => toggleChannel(c.channel, e.target.checked)}
                   className="size-3.5 accent-[var(--color-primary)]"
@@ -567,12 +536,8 @@ export function DualReleasePanel({
                   min={0}
                   step={50}
                   disabled={!policy.enabled}
-                  value={
-                    policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0
-                  }
-                  onChange={(e) =>
-                    setThreshold(c.channel, Number(e.target.value) || 0)
-                  }
+                  value={policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0}
+                  onChange={(e) => setThreshold(c.channel, Number(e.target.value) || 0)}
                   className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1 text-sm text-fg"
                 />
               </label>
@@ -617,9 +582,8 @@ export function DualReleasePanel({
               Hard-block release if second signer missing
             </label>
             <p className="rounded-lg border border-border bg-panel p-3 text-xs text-muted">
-              Exceptions never hide themselves: the simulator shows base vs effective
-              threshold and residual notes. Active dual-waives reduce insurance dual-control
-              credit eligibility.
+              Exceptions never hide themselves: the simulator shows base vs effective threshold and
+              residual notes. Active dual-waives reduce insurance dual-control credit eligibility.
             </p>
           </CardContent>
         </Card>
@@ -766,23 +730,39 @@ function EvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
         )}
         <Badge variant={ok ? "ok" : "danger"}>{result.status}</Badge>
         <span className="text-xs text-muted">
-          {formatUsd(result.amountUsd)} · effective {formatUsd(result.thresholdUsd === Infinity ? 0 : result.thresholdUsd)}
-          {result.baseThresholdUsd !== result.thresholdUsd &&
-            result.thresholdUsd !== Infinity && (
-              <span className="text-subtle">
-                {" "}
-                (base {formatUsd(result.baseThresholdUsd)})
-              </span>
-            )}
+          {formatUsd(result.amountUsd)} ·{" "}
+          {/*
+            The weakest state and the strictest state must never render alike.
+            A waiver means one person can move any amount alone; "$0" means two
+            people are needed for every amount. Each is named in words, and the
+            base threshold is shown whenever an exception changed anything —
+            which is exactly what the "Exceptions never hide themselves" note
+            above promises.
+          */}
+          {result.dualWaived ? (
+            <span className="text-danger">
+              dual waived — no second signer required at any amount
+            </span>
+          ) : result.dualForced ? (
+            <span>dual required at every amount</span>
+          ) : (
+            <>
+              effective {formatUsd(result.thresholdUsd)}
+              {result.thresholdUsd === 0 && <span className="text-subtle"> (always dual)</span>}
+            </>
+          )}
+          {(result.dualWaived ||
+            result.dualForced ||
+            result.baseThresholdUsd !== result.thresholdUsd) && (
+            <span className="text-subtle"> (base {formatUsd(result.baseThresholdUsd)})</span>
+          )}
         </span>
       </div>
       {result.appliedException && (
         <p className="mt-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 text-xs text-fg">
           Exception: <strong>{result.appliedException.label}</strong> (
           {result.appliedException.action.replace("_", " ")})
-          {result.appliedException.residualNote
-            ? ` — ${result.appliedException.residualNote}`
-            : ""}
+          {result.appliedException.residualNote ? ` — ${result.appliedException.residualNote}` : ""}
         </p>
       )}
       <ul className="mt-2 space-y-1 text-xs text-muted">
