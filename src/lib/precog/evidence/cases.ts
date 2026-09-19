@@ -520,7 +520,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 1400000,
     lossIsFloor: true,
     durationMonths: 108,
-    detection: "unknown",
+    detection: "owner-review",
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
@@ -544,7 +544,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. The owner and manager reported the theft to Bellingham police in August 2022; the federal release puts the scheme at 2013 to 2022.",
   },
   {
     id: "case-kearny-medical-receptionist",
@@ -879,7 +879,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 400000,
     lossIsFloor: true,
     durationMonths: 60,
-    detection: "unknown",
+    detection: "owner-review",
     resolvedYear: 2024,
     sodRuleIds: ["rule-admin-pay"],
     wouldHaveCaughtIt: [
@@ -905,7 +905,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Jodi Hamrick was sentenced in April 2024 to three years after a jury trial; co-owner David M. Gluth was sentenced separately. The release states the loss as more than $400,000. This is a collusion case: two people, one of them an owner, defeated every control that depended on one person checking another.",
+      "Jodi Hamrick was sentenced in April 2024 to three years after a jury trial; co-owner David M. Gluth was sentenced separately. The release states the loss as more than $400,000. This is a collusion case: two people, one of them an owner, defeated every control that depended on one person checking another. The investing partner learned what had happened only by taking the company to court; the business went bankrupt in 2016. Gluth pleaded guilty in 2021 and was sentenced to two years.",
   },
   {
     id: "case-greenfield-contractor-payroll-and-payments",
@@ -920,7 +920,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 1000000,
     lossIsFloor: true,
     durationMonths: 84,
-    detection: "unknown",
+    detection: "owner-review",
     resolvedYear: 2025,
     sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-collect-post"],
     wouldHaveCaughtIt: [
@@ -950,6 +950,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Jennifer Lynn Horton, 49, was sentenced in January 2025 to 30 months after pleading guilty to two counts of wire fraud, with a $1 million judgment and forfeiture of four vehicles. The release states the loss as more than $1 million; the salary and payroll figures are the release's.",
+      "Jennifer Lynn Horton, 49, was sentenced in January 2025 to 30 months after pleading guilty to two counts of wire fraud, with a $1 million judgment and forfeiture of four vehicles. The release states the loss as more than $1 million; the salary and payroll figures are the release's. The owner went to investigators in February 2023 after working out that money was missing; court filings reported in the press put the total at $1,116,258.",
   },
 ];
