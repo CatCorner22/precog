@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
@@ -72,15 +72,22 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
   const { profile, addDecision } = usePractice();
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
   const [question, setQuestion] = useState(prompts[0]);
-  useEffect(() => {
-    setQuestion(getIndustryCopy(profile.industry).pioneerPrompts[0]);
-  }, [profile.industry]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
   const [copied, setCopied] = useState(false);
+  // A brief answers one business; a run whose business changed underneath it is discarded.
+  const runId = useRef(0);
+  useEffect(() => {
+    runId.current += 1;
+    setQuestion(getIndustryCopy(profile.industry).pioneerPrompts[0]);
+    setResult(null);
+    setError(null);
+    setLoading(false);
+  }, [profile.industry, profile.businessId]);
 
   async function run() {
+    const id = ++runId.current;
     setLoading(true);
     setError(null);
     try {
@@ -98,6 +105,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
           },
         },
       });
+      if (id !== runId.current) return;
       if (!res.ok) {
         setError(res.error);
         setResult(null);
@@ -117,9 +125,10 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
         });
       }
     } catch (e) {
+      if (id !== runId.current) return;
       setError(e instanceof Error ? e.message : "Coach failed");
     } finally {
-      setLoading(false);
+      if (id === runId.current) setLoading(false);
     }
   }
 

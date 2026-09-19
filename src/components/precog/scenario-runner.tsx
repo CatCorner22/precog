@@ -46,6 +46,14 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
     }
   }, [initialScenarioId]);
 
+  // Scenario picks belong to a template; when the template changes, start over.
+  useEffect(() => {
+    if (!tpl.scenarios.some((s) => s.id === scenarioId)) {
+      setScenarioId(tpl.scenarios[0].id);
+      setMitigations([]);
+    }
+  }, [tpl.scenarios, scenarioId]);
+
   function updateStaff(next: StaffComposition) {
     setStaff(next);
     setRiskVars((v) => ({
@@ -66,7 +74,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
     setProfileRisk(next);
   }
 
-  const scenario = tpl.scenarios.find((s) => s.id === scenarioId)!;
+  const scenario = tpl.scenarios.find((s) => s.id === scenarioId) ?? tpl.scenarios[0];
   const result = useMemo(
     () =>
       runPrecogScenario(tpl, scenarioId, {
