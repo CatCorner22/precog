@@ -75,8 +75,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         .filter((c) => !c.residualRiskAccepted)
         .sort(
           (a, b) =>
-            Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) ||
-            b.score - a.score,
+            Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
         ),
     [sod.conflicts],
   );
@@ -165,9 +164,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       ),
     [gaps, partialCoverage, topThree],
   );
-  const narrowedCount = gaps.filter((g) =>
-    partialCoverage.has(g.conflict.ruleId),
-  ).length;
+  const narrowedCount = gaps.filter((g) => partialCoverage.has(g.conflict.ruleId)).length;
   const openRuleIds = useMemo(() => gaps.map((g) => g.conflict.ruleId), [gaps]);
 
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
@@ -175,10 +172,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
   const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
 
-  const soleKnowledge = useMemo(
-    () => findKnowledgeRisks().filter((r) => r.soleOwner),
-    [],
-  );
+  const soleKnowledge = useMemo(() => findKnowledgeRisks().filter((r) => r.soleOwner), []);
 
   const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];
@@ -190,9 +184,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          This page shows where a business like yours is exposed, what that same
-          exposure has cost real organizations, and what to do about it first. Every
-          figure links to the case or study it came from.
+          This page shows where a business like yours is exposed, what that same exposure has cost
+          real organizations, and what to do about it first. Every figure links to the case or study
+          it came from.
         </p>
       </header>
 
@@ -203,10 +197,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
             The names and duty assignments below come from the loaded{" "}
-            {industryMeta(profile.industry).label.toLowerCase()} example. Staff
-            settings such as team size affect the scoring but cannot say who does
-            what, so the conflicts shown are the example&rsquo;s until you enter your
-            own people and their duties.
+            {industryMeta(profile.industry).label.toLowerCase()} example. Staff settings such as
+            team size affect the scoring but cannot say who does what, so the conflicts shown are
+            the example&rsquo;s until you enter your own people and their duties.
           </p>
           {onOpenDetail && (
             <button
@@ -239,10 +232,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         {gaps.length === 0 ? (
           <Card>
             <CardContent className="pt-5 text-sm leading-relaxed text-muted">
-              No unmitigated conflicts remain in the current setup. That is the right
-              outcome, and it is worth re-checking whenever someone joins, leaves, or
-              changes role — these gaps reopen through ordinary staffing changes far
-              more often than through any decision to remove a control.
+              No unmitigated conflicts remain in the current setup. That is the right outcome, and
+              it is worth re-checking whenever someone joins, leaves, or changes role — these gaps
+              reopen through ordinary staffing changes far more often than through any decision to
+              remove a control.
             </CardContent>
           </Card>
         ) : (
@@ -279,8 +272,8 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </span>
                     </div>
                     <CardTitle className="leading-snug">
-                      {people.length === 1 ? `${people[0]} can` : "These people each can"}{" "}
-                      both {lower(conflict.labelA)} and {lower(conflict.labelB)}
+                      {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
+                      {lower(conflict.labelA)} and {lower(conflict.labelB)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
@@ -289,10 +282,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     {partialCoverage.has(conflict.ruleId) && (
                       <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
                         Your dual-release policy covers this above{" "}
-                        {formatUsd(partialCoverage.get(conflict.ruleId) ?? 0)}. Below
-                        that, and wherever an exception raises or waives the threshold,
-                        one person can still act alone. Treat this as narrowed rather
-                        than closed.
+                        {formatUsd(partialCoverage.get(conflict.ruleId) ?? 0)}. Below that, and
+                        wherever an exception raises or waives the threshold, one person can still
+                        act alone. Treat this as narrowed rather than closed.
                       </p>
                     )}
 
@@ -334,9 +326,8 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   Narrowed by your dual-release policy, not closed
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-muted">
-                  Two people are required above the threshold. Beneath it, and wherever
-                  an exception raises or waives the threshold, one person can still act
-                  alone.
+                  Two people are required above the threshold. Beneath it, and wherever an exception
+                  raises or waives the threshold, one person can still act alone.
                 </p>
                 <ul className="mt-3 space-y-2">
                   {narrowed.map(({ conflict, people }) => (
@@ -417,12 +408,12 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         {lossRange && medianLoss && (
           <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
             <span className="font-medium text-muted">Read these numbers as conditional. </span>
-            Neither figure is a forecast for your business. Both describe what
-            happened <em>given</em> that a fraud occurred and was found: {medianLoss.value}{" "}
-            is the median across investigated cases, and the case range above is
-            higher still because federal prosecutors do not charge small thefts.
-            Nothing here estimates how likely any of it is to happen to you — that
-            depends on the gaps listed at the top of this page, not on a median.
+            Neither figure is a forecast for your business. Both describe what happened{" "}
+            <em>given</em> that a fraud occurred and was found: {medianLoss.value} is the median
+            across investigated cases, and the case range above is higher still because federal
+            prosecutors do not charge small thefts. Nothing here estimates how likely any of it is
+            to happen to you — that depends on the gaps listed at the top of this page, not on a
+            median.
           </p>
         )}
 
@@ -453,15 +444,15 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         <SectionHeading
           icon={<ArrowRight className="size-4" aria-hidden />}
           title="Do these first"
-          subtitle="Ordered by how many of the real cases above each one would have stopped."
+          subtitle="Ordered by how many of the real cases above each one would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
         />
 
         <Card>
           <CardContent className="pt-5">
             {steps.length === 0 ? (
               <p className="text-sm leading-relaxed text-muted">
-                Nothing outstanding from the duty-conflict findings. The two items below
-                still apply to every business regardless.
+                Nothing outstanding from the duty-conflict findings. The two items below still apply
+                to every business regardless.
               </p>
             ) : (
               <ol className="space-y-3">
@@ -472,11 +463,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm leading-relaxed">{s.control.label}</p>
-                      <p className="mt-0.5 text-sm leading-relaxed text-muted">
-                        {s.control.why}
-                      </p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        Takes {s.control.effort} · would have stopped{" "}
+                        Takes {s.control.effort} · would plausibly have caught{" "}
                         {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
@@ -492,8 +481,8 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           <Card>
             <CardContent className="space-y-1 pt-5">
               <p className="text-sm font-medium">
-                Give your staff a way to raise a concern that does not run through the
-                person they are worried about.
+                Give your staff a way to raise a concern that does not run through the person they
+                are worried about.
               </p>
               <p className="text-sm leading-relaxed text-muted">{tips.soWhat}</p>
               <a
@@ -514,13 +503,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             <CardContent className="space-y-2 pt-5">
               <p className="text-sm font-medium">
                 {soleKnowledge.length}{" "}
-                {soleKnowledge.length === 1 ? "task depends" : "tasks depend"} on exactly
-                one person.
+                {soleKnowledge.length === 1 ? "task depends" : "tasks depend"} on exactly one
+                person.
               </p>
               <p className="text-sm leading-relaxed text-muted">
-                This is a continuity problem and an oversight problem at the same time.
-                Nobody can review work they do not understand, so sole knowledge quietly
-                removes the second pair of eyes as well.
+                This is a continuity problem and an oversight problem at the same time. Nobody can
+                review work they do not understand, so sole knowledge quietly removes the second
+                pair of eyes as well.
               </p>
               <ul className="flex flex-wrap gap-1.5 pt-1">
                 {soleKnowledge.slice(0, 6).map((k) => (
@@ -542,10 +531,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             <ul className="space-y-2">
               {METHOD_CAVEATS.map((c) => (
                 <li key={c} className="flex gap-2 text-sm leading-relaxed text-muted">
-                  <span
-                    aria-hidden
-                    className="mt-1.5 size-1.5 shrink-0 rounded-full bg-subtle"
-                  />
+                  <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-subtle" />
                   <span>{c}</span>
                 </li>
               ))}

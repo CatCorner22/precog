@@ -163,7 +163,7 @@ export function runPrecogScenario(
       `Small organizations carry the higher median loss: $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,
+      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is more than $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,
     );
     crimeModifiers.push(
       `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,

@@ -213,7 +213,9 @@ export const DEFAULT_FRAUD_STATS: CrimeFraudStats = {
   revenueLossRateAnnual: 0.05,
   medianDetectionMonths: 12,
   lossIfCaughtEarlyUsd: 40_000,
-  lossIfRunsLongUsd: 1_120_000,
+  // Published as "exceeding $1.1 million" — an open-ended floor. Recorded as
+  // that floor rather than a manufactured precise figure.
+  lossIfRunsLongUsd: 1_100_000,
   shareFoundUnderSixMonths: 0.33,
   shareRunningOverFiveYears: 0.05,
   source:

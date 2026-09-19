@@ -7,11 +7,7 @@
  */
 
 export type DutyFamily =
-  | "authorization"
-  | "custody"
-  | "recording"
-  | "reconciliation"
-  | "master_data";
+  "authorization" | "custody" | "recording" | "reconciliation" | "master_data";
 
 export type EntitlementId =
   | "collect_cash"
@@ -244,7 +240,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "critical",
     title: "Create vendor + release payment",
-    why: "One person can invent a supplier and then pay it. This is the most common way money leaves a small business, and the payments look entirely ordinary in the accounts.",
+    why: "One person can invent a supplier and then pay it, and the payments look entirely ordinary in the accounts. Nothing in the books distinguishes an invented supplier from a real one.",
     fraudPath: "Set up a supplier that does not exist, then pay it",
     compensatingDefaults: [
       "A second person releases any electronic payment above $500, using their own login",
@@ -310,10 +306,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
 ];
 
 /** Family-level matrix: true = inherently conflicting when combined. */
-export const FAMILY_CONFLICT_MATRIX: Record<
-  DutyFamily,
-  Partial<Record<DutyFamily, boolean>>
-> = {
+export const FAMILY_CONFLICT_MATRIX: Record<DutyFamily, Partial<Record<DutyFamily, boolean>>> = {
   authorization: { custody: true, recording: true, master_data: true },
   custody: {
     authorization: true,
