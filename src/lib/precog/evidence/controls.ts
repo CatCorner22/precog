@@ -36,7 +36,10 @@ export type ControlId =
   | "compare-across-locations"
   | "volume-vs-recorded-sales"
   | "payee-account-not-an-employee"
-  | "confirm-remittance-account";
+  | "confirm-remittance-account"
+  | "terminated-staff-vs-payroll"
+  | "gift-card-purchases-controlled"
+  | "background-check-money-handlers";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -94,12 +97,13 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "new-payee-review": {
     id: "new-payee-review",
     label: "Owner reviews every payee and supplier added that month",
-    why: "Inventing a supplier is the most common way money leaves a small business, and the payments look entirely ordinary.",
+    why: "An invented supplier is paid like any other, and the payments look entirely ordinary in the accounts. The only place it shows is the list of who was added.",
     effort: "minutes",
   },
   "new-payee-second-approval": {
     id: "new-payee-second-approval",
-    label: "A second person approves each new supplier before its first payment, against a W-9 and a real address",
+    label:
+      "A second person approves each new supplier before its first payment, against a W-9 and a real address",
     why: "Documentation that arrives by email from the supplier proves nothing when the supplier is the one being invented.",
     effort: "minutes",
   },
@@ -159,7 +163,8 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "verify-oversight-is-real": {
     id: "verify-oversight-is-real",
-    label: "Confirm the people your controls rely on know they hold the role, and that approvals leave evidence",
+    label:
+      "Confirm the people your controls rely on know they hold the role, and that approvals leave evidence",
     why: "A control that is documented but never performed is worse than none, because it stops anyone asking the question.",
     effort: "an hour",
   },
@@ -191,6 +196,24 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "confirm-remittance-account",
     label: "Confirm annually with major payers which account they send money to",
     why: "Confirms with the party actually sending the money, which is the one record an insider cannot edit.",
+    effort: "an hour",
+  },
+  "terminated-staff-vs-payroll": {
+    id: "terminated-staff-vs-payroll",
+    label: "Compare the list of people who have left against everyone paid this month",
+    why: "A ghost employee is almost always a real former employee whose record was quietly reactivated. The departed list is the one thing the payroll operator does not control.",
+    effort: "minutes",
+  },
+  "gift-card-purchases-controlled": {
+    id: "gift-card-purchases-controlled",
+    label: "Gift cards on a company card need a second approval and a stated purpose",
+    why: "A gift card turns a traceable card charge into untraceable cash. They look like any other retailer line on a statement.",
+    effort: "minutes",
+  },
+  "background-check-money-handlers": {
+    id: "background-check-money-handlers",
+    label: "Reference and background checks on anyone who will touch money",
+    why: "A business that quietly fires an embezzler hands the problem to the next small business. The next one is sometimes you.",
     effort: "an hour",
   },
 };

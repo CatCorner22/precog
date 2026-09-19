@@ -41,9 +41,19 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      { control: "owner-opens-bank-statement", asApplied: "Owner opens the bank statement unopened and reviews cleared-check images before anyone else handles it" },
-      { control: "positive-pay", asApplied: "Bank Positive Pay: the bank pays only checks on a list the owner uploads" },
-      { control: "payroll-register-review", asApplied: "Payroll register reviewed against the payroll bank debit each cycle" },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement unopened and reviews cleared-check images before anyone else handles it",
+      },
+      {
+        control: "positive-pay",
+        asApplied: "Bank Positive Pay: the bank pays only checks on a list the owner uploads",
+      },
+      {
+        control: "payroll-register-review",
+        asApplied: "Payroll register reviewed against the payroll bank debit each cycle",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Illinois",
@@ -59,19 +69,30 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "dental",
     schemes: ["receivables-diversion"],
     howItWorked:
-      "The office manager of a Boston-area dental practice was responsible for tracking patient invoices, depositing insurance payments into the practice account, and recording those deposits in the books. She diverted at least 276 checks from insurers to herself and recorded the deposits as though they had been made.",
+      "The office manager of a Boston-area dental practice was responsible for tracking patient invoices, depositing insurance payments into the practice account, and recording those deposits in the books. She diverted at least 276 checks from insurers to herself and recorded the deposits as though they had been made. She made the insurers' checks payable to herself, forged the practice owner's signature on them, and deposited them into her own account.",
     controlGap:
       "Custody of incoming payments and the recording of those payments sat with the same person. When the person who opens the mail is also the person who says what arrived, the books will always agree with the deposit — because both are written by the same hand.",
     lossUsd: 348000,
     lossIsFloor: true,
     durationMonths: 72,
     detection: "unknown",
-    resolvedYear: 2017,
+    resolvedYear: 2020,
     sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      { control: "electronic-remittance", asApplied: "Insurance remittances routed to a lockbox or to electronic funds transfer, so no employee handles a payable check" },
-      { control: "expected-receipts-vs-deposits", asApplied: "Owner compares the practice-management system's insurance-payment report to the bank deposit total monthly" },
-      { control: "independent-bank-reconciliation", asApplied: "Someone other than the depositor reconciles the bank account" },
+      {
+        control: "electronic-remittance",
+        asApplied:
+          "Insurance remittances routed to a lockbox or to electronic funds transfer, so no employee handles a payable check",
+      },
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied:
+          "Owner compares the practice-management system's insurance-payment report to the bank deposit total monthly",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied: "Someone other than the depositor reconciles the bank account",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -79,26 +100,37 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The scheme ran from 2009 through December 2014. The figure is stated in the source as more than $348,000.",
+      "The scheme ran from 2009 through December 2014. The figure is stated in the source as more than $348,000. Yuliya Vaysglus was terminated in February 2015 and pled guilty in June 2020 to bank fraud, aggravated identity theft, and filing false tax returns; 41 months.",
   },
   {
     id: "case-houston-dental-shell",
-    title: "Dental practice payments rerouted to a shell company, found only when the owner prepared to retire",
+    title:
+      "Dental practice payments rerouted to a shell company, found only when the owner prepared to retire",
     sector: "dental",
-    schemes: ["billing-shell-vendor", "receivables-diversion"],
+    schemes: ["billing-shell-vendor", "receivables-diversion", "skimming"],
     howItWorked:
-      "The financial coordinator of a Houston dental practice formed a company named SGS Healthcare and directed practice revenue to it. Insurance checks written payable to the practice were deposited into accounts she controlled. The dentist had been in business 38 years. In July 2021 he began a detailed review of his own company accounts to prepare for retirement, and that review is what surfaced the scheme.",
+      "The financial coordinator of a Houston dental practice formed a company named SGS Healthcare and directed practice revenue to it. Insurance checks written payable to the practice were deposited into accounts she controlled. The dentist had been in business 38 years. In July 2021 he began a detailed review of his own company accounts to prepare for retirement, and that review is what surfaced the scheme. She also manipulated the books to conceal cash payments patients had made directly to the practice.",
     controlGap:
       "Nobody outside the role could see which entities the practice paid or received through, and no one independently confirmed that insurer payments landed in the practice's own account. The owner had not examined the accounts closely in years.",
     lossUsd: 243597,
     lossIsFloor: false,
     detection: "owner-review",
-    resolvedYear: 2022,
+    resolvedYear: 2023,
     sodRuleIds: ["rule-vendor-create-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
-      { control: "new-payee-review", asApplied: "Owner reviews the list of new payees and vendors monthly — a five-minute report in any accounting package" },
-      { control: "bank-alerts-on-payee-change", asApplied: "Bank alerts on new payees and on any account change" },
-      { control: "confirm-remittance-account", asApplied: "Annual confirmation with major insurers of the remittance account on file" },
+      {
+        control: "new-payee-review",
+        asApplied:
+          "Owner reviews the list of new payees and vendors monthly — a five-minute report in any accounting package",
+      },
+      {
+        control: "bank-alerts-on-payee-change",
+        asApplied: "Bank alerts on new payees and on any account change",
+      },
+      {
+        control: "confirm-remittance-account",
+        asApplied: "Annual confirmation with major insurers of the remittance account on file",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Texas",
@@ -106,7 +138,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The $243,597 figure is the loss the practice's own outside auditor identified; the charged conduct is described as more than $200,000. Sentence was 41 months. This is the clearest case in the library for how these schemes usually end: not through a control, but because an owner finally looked. An owner who only looks at retirement is choosing a detection window measured in decades.",
+      "The $243,597 figure is the loss the practice's own outside auditor identified; the charged conduct is described as more than $200,000. Sentence was 41 months. This is the clearest case in the library for how these schemes usually end: not through a control, but because an owner finally looked. An owner who only looks at retirement is choosing a detection window measured in decades. Jennifer Thornton pled guilty to wire fraud on 20 July 2023.",
   },
   {
     id: "case-stamford-dental-billing",
@@ -119,14 +151,24 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Claim submission authority sat with one person and no one verified that the rendering provider on a claim was a provider who actually worked that day. The practice bank account received the proceeds, which put the practice itself on the hook.",
     lossUsd: 581729,
     lossIsFloor: false,
-    durationMonths: 48,
+    durationMonths: 132,
     detection: "bank-or-insurer",
-    resolvedYear: 2019,
+    resolvedYear: 2017,
     sodRuleIds: ["rule-claims-writeoff", "rule-admin-writeoff"],
     wouldHaveCaughtIt: [
-      { control: "billing-matches-the-schedule", asApplied: "Monthly production-by-provider report compared against the actual schedule" },
-      { control: "billing-matches-the-schedule", asApplied: "Provider credentialing list reviewed by the owner against claims submitted" },
-      { control: "billing-matches-the-schedule", asApplied: "Any claim naming a provider not on the day's schedule flagged before submission" },
+      {
+        control: "billing-matches-the-schedule",
+        asApplied: "Monthly production-by-provider report compared against the actual schedule",
+      },
+      {
+        control: "billing-matches-the-schedule",
+        asApplied: "Provider credentialing list reviewed by the owner against claims submitted",
+      },
+      {
+        control: "billing-matches-the-schedule",
+        asApplied:
+          "Any claim naming a provider not on the day's schedule flagged before submission",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Connecticut",
@@ -134,7 +176,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "This case runs the other direction from embezzlement: the money flowed into the practice, and the practice carried the repayment and reputational exposure. Billing ran from 2005 to 2016; the $581,729 reflects insurer payments between 2011 and 2015.",
+      "This case runs the other direction from embezzlement: the money flowed into the practice, and the practice carried the repayment and reputational exposure. Billing ran from 2005 to 2016; the $581,729 reflects insurer payments between 2011 and 2015. The 132 months recorded is the full 2005 to 2016 billing period, which is how long the scheme ran; the $581,729 is what insurers paid during the 2011 to 2015 window within it. The provider whose identity was used was a retired dentist. Sentenced 2017 to twelve months and one day.",
   },
   {
     id: "case-dennys-franchise-vendors",
@@ -148,7 +190,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 356000,
     lossIsFloor: true,
     durationMonths: 63,
-    detection: "unknown",
+    detection: "owner-review",
     resolvedYear: 2022,
     sodRuleIds: [
       "rule-vendor-create-pay",
@@ -157,9 +199,21 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-payroll",
     ],
     wouldHaveCaughtIt: [
-      { control: "new-payee-second-approval", asApplied: "A second person approves every new vendor before its first payment, checking a W-9 and a real business address" },
+      {
+        control: "new-payee-second-approval",
+        asApplied:
+          "A second person approves every new vendor before its first payment, checking a W-9 and a real business address",
+      },
       { control: "new-payee-review", asApplied: "New-vendor report reviewed monthly by the owner" },
-      { control: "payee-account-not-an-employee", asApplied: "No vendor paid to a bank account that matches an employee's" },
+      {
+        control: "background-check-money-handlers",
+        asApplied:
+          "Reference and background checks on anyone who will touch money — she was fired for this and hired straight into the same role elsewhere",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied: "No vendor paid to a bank account that matches an employee's",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
@@ -167,7 +221,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The $356,000 recorded here is the sum of the two stated components — approximately $336,000 in bogus vendor payments plus approximately $20,000 in fraudulent payroll. The prosecution's overall figure for the embezzlement and tax scheme together is $881,000; the larger number includes tax offenses and is not a like-for-like measure of money taken from the employer. Scheme ran April 2014 to July 2019.",
+      "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
   },
   {
     id: "case-hutchinson-controller",
@@ -182,7 +236,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     durationMonths: 77,
     detection: "unknown",
-    resolvedYear: 2021,
+    resolvedYear: 2024,
     sodRuleIds: [
       "rule-cash-rec",
       "rule-custody-rec",
@@ -192,16 +246,28 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-admin-pay",
     ],
     wouldHaveCaughtIt: [
-      { control: "owner-opens-bank-statement", asApplied: "Owner receives the bank statement directly and reviews cleared-check images and the credit-card statement before the controller sees them" },
-      { control: "split-one-duty-out", asApplied: "Any single duty moved out of the role — even just the bank reconciliation — breaks the cycle" },
-      { control: "dual-release-above-threshold", asApplied: "Dual signature or dual electronic release on payments above a set threshold" },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner receives the bank statement directly and reviews cleared-check images and the credit-card statement before the controller sees them",
+      },
+      {
+        control: "split-one-duty-out",
+        asApplied:
+          "Any single duty moved out of the role — even just the bank reconciliation — breaks the cycle",
+      },
+      {
+        control: "dual-release-above-threshold",
+        asApplied: "Dual signature or dual electronic release on payments above a set threshold",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
       url: "https://www.justice.gov/usao-mn/pr/hutchinson-woman-sentenced-prison-embezzling-more-2-million-employer",
       grade: "primary-document-reported",
     },
-    caveat: "Scheme ran August 2013 through December 2019.",
+    caveat:
+      "Scheme ran August 2013 through December 2019. The employer was R&R Excavating, a family-owned highway construction company. Jennifer Rath pled guilty in September 2023 and was sentenced in June 2024 to nearly three and a half years, with restitution of the full $2,061,328.67. The loss was not only the money: the company could not pay vendors on time, its credit suffered, and employees lost their jobs.",
   },
   {
     id: "case-florida-construction-payroll",
@@ -215,11 +281,23 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 700000,
     lossIsFloor: true,
     detection: "owner-review",
+    resolvedYear: 2022,
     sodRuleIds: ["rule-payroll", "rule-admin-pay"],
     wouldHaveCaughtIt: [
-      { control: "payroll-register-review", asApplied: "Owner approves the payroll register every cycle — a one-page list of names and amounts" },
-      { control: "no-self-approval", asApplied: "Anyone's own pay rate change requires a second person's approval, without exception for the person who runs payroll" },
-      { control: "card-statement-line-review", asApplied: "Company credit card statements opened and reviewed by the owner" },
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner approves the payroll register every cycle — a one-page list of names and amounts",
+      },
+      {
+        control: "no-self-approval",
+        asApplied:
+          "Anyone's own pay rate change requires a second person's approval, without exception for the person who runs payroll",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied: "Company credit card statements opened and reviewed by the owner",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Middle District of Florida",
@@ -227,7 +305,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The source describes the credit-card payments as dating back to at least 2008 without giving an end date, so no duration is recorded. The escalation pattern — starting small, growing when nothing happens — is the part worth noticing.",
+      "The source describes the credit-card payments as dating back to at least 2008 without giving an end date, so no duration is recorded. The escalation pattern — starting small, growing when nothing happens — is the part worth noticing. Pamela Smith, 60, of Winter Park, was sentenced in December 2022 to three years.",
   },
   {
     id: "case-attleboro-expense-padding",
@@ -235,19 +313,36 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "professional-services",
     schemes: ["expense-reimbursement", "payroll"],
     howItWorked:
-      "Over roughly five years, the office manager of an environmental services business in Franklin, Massachusetts inflated her own compensation, including approximately $268,046 in expense reimbursements for expenses she had not incurred. The total embezzled exceeded $400,000.",
+      "Over roughly five years, the office manager of an environmental services business in Franklin, Massachusetts inflated her own compensation, including approximately $268,046 in expense reimbursements for expenses she had not incurred. The total embezzled exceeded $400,000. She also put more than $105,000 of personal spending on the company card — country club memberships, vacations, cruises, timeshares, costs of her home — and manipulated the accounting software so the records showed her drawing only her weekly salary. Among the phony reimbursements were uniform costs, for a role that had no uniform.",
     controlGap:
       "Expense reimbursements ran through payroll, where they are easy to miss: a reimbursement is not taxed and does not show up as a raise. The person entering them was the person receiving them.",
     lossUsd: 400000,
     lossIsFloor: true,
     durationMonths: 63,
     detection: "unknown",
-    resolvedYear: 2025,
+    resolvedYear: 2026,
     sodRuleIds: ["rule-payroll"],
     wouldHaveCaughtIt: [
-      { control: "receipt-and-second-approval", asApplied: "Every reimbursement over a small threshold requires a receipt and a second person's approval" },
-      { control: "payroll-register-review", asApplied: "Owner reviews gross-to-net payroll totals, not just the net amount leaving the bank" },
-      { control: "receipt-and-second-approval", asApplied: "Reimbursements paid separately from payroll, so they are visible as their own line" },
+      {
+        control: "receipt-and-second-approval",
+        asApplied:
+          "Every reimbursement over a small threshold requires a receipt and a second person's approval",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Owner reads the company card statement every month — the country club and the cruises were on it",
+      },
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reviews gross-to-net payroll totals, not just the net amount leaving the bank",
+      },
+      {
+        control: "receipt-and-second-approval",
+        asApplied:
+          "Reimbursements paid separately from payroll, so they are visible as their own line",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -255,33 +350,46 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Scheme ran December 2019 through March 2025; guilty plea entered October 2025. Sentencing followed the reported plea.",
+      "Marie Hobson, 55, was sentenced in January 2026 to 18 months, with $511,119 in restitution and $429,980 forfeited. Scheme ran December 2019 through March 2025.",
   },
   {
     id: "case-restaurant-franchisee-idaho",
-    title: "Restaurant franchise employee took $685,376 from a national-chain franchisee",
+    title: "Restaurant district manager paid ghost employees $685,376 over three years",
     sector: "restaurant",
-    schemes: ["cash-larceny", "billing-shell-vendor"],
+    schemes: ["payroll"],
     howItWorked:
-      "An employee of a franchisee operating locations of national restaurant chains diverted $685,376 from his employer, charged and sentenced as wire fraud.",
+      "As district manager for a franchisee of national restaurant chains, Javier Ruiz supervised several Idaho restaurants and oversaw their payroll. From at least April 2021 to April 2024 he took the employee numbers of people who had already left, changed the names and details attached to them, and entered hours that were never worked, so the payroll system issued real pay to employees who no longer existed. He collected it three ways: cashing the checks, loading fraudulent pay cards, and direct deposit.",
     controlGap:
-      "Multi-location franchise operations concentrate bookkeeping at one back office while the owner's attention is spread across sites. Volume of small transactions across locations is what hides the aggregate.",
+      "One person could reactivate a departed employee's record, enter their hours, and approve the run, with nobody comparing the payroll roster against who actually still worked there. Multi-site operations make this easy to hide: a district manager's headcount is spread across locations no single owner watches closely.",
     lossUsd: 685376,
     lossIsFloor: false,
+    durationMonths: 36,
     detection: "unknown",
-    resolvedYear: 2024,
-    sodRuleIds: ["rule-cash-rec", "rule-vendor-create-pay"],
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-payroll", "rule-admin-pay"],
     wouldHaveCaughtIt: [
-      { control: "expected-receipts-vs-deposits", asApplied: "Per-location cash-to-deposit variance report reviewed weekly by the owner" },
-      { control: "compare-across-locations", asApplied: "Comparison of the same expense line across locations — an outlier site is the fastest signal a multi-unit owner has" },
+      {
+        control: "terminated-staff-vs-payroll",
+        asApplied:
+          "A monthly comparison of the terminated-employee list against everyone paid that month — the ghost names were all former staff",
+      },
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner compares the number of people paid against the number of people scheduled across all locations each cycle",
+      },
+      {
+        control: "no-self-approval",
+        asApplied:
+          "Reactivating any employee record requires a second person's approval, not the same manager who runs the payroll",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Idaho",
       url: "https://www.justice.gov/usao-id/pr/mountain-home-man-sentenced-27-months-embezzlement",
       grade: "primary-document-reported",
     },
-    caveat:
-      "The reported summary gives the amount and the 27-month sentence but not the scheme mechanism in detail. The control-gap reading above is a general characteristic of multi-unit franchise bookkeeping, not a finding stated in the source.",
+    caveat: "Sentenced in December 2025 to 27 months, with $685,376 in restitution.",
   },
   {
     id: "case-nonprofit-human-first",
@@ -294,14 +402,24 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "A board that meets quarterly and reads a summary is not a control over the executive director's own spending. Without someone reviewing the ED's card statement line by line, the position reviews itself.",
     lossUsd: 836000,
     lossIsFloor: false,
-    durationMonths: 60,
+    durationMonths: 64,
     detection: "unknown",
     resolvedYear: 2019,
     sodRuleIds: ["rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
-      { control: "card-statement-line-review", asApplied: "A named board member reviews the executive director's card statement and expense claims monthly, line by line" },
-      { control: "no-self-approval", asApplied: "The executive director does not approve their own expenses under any threshold" },
-      { control: "independent-financial-review", asApplied: "Annual independent financial review, even where an audit is not required" },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "A named board member reviews the executive director's card statement and expense claims monthly, line by line",
+      },
+      {
+        control: "no-self-approval",
+        asApplied: "The executive director does not approve their own expenses under any threshold",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied: "Annual independent financial review, even where an audit is not required",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
@@ -309,26 +427,38 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentence was 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization.",
+      "Sentence was 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016 and acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
   },
   {
     id: "case-modest-needs-fake-board",
-    title: "Charity founder fabricated a board of directors to approve his own spending",
+    title:
+      "Charity founder took $2.5 million and invented a board — a bartender, a friend, his housekeeper — to approve it",
     sector: "nonprofit",
     schemes: ["corruption", "financial-statement"],
     howItWorked:
-      "The founder and chief executive of the Modest Needs Foundation diverted donations intended for low-income families to personal use, including a luxury Manhattan apartment and restaurant spending. To make the spending look authorized, he created a fictitious board of directors and represented that it had approved his expenses and was overseeing the organization.",
+      "Keith Taylor, founder and chief executive of the Modest Needs Foundation, used the charity's accounts as his own from at least 2015: more than $300,000 on rent for a high-rise Manhattan apartment, more than $320,000 at restaurants, more than $100,000 on food-delivery apps. To make the spending look authorized he listed a fictitious board of directors — a bartender, a friend, and his housekeeper — none of whom knew they had been named and none of whom ever attended a meeting.",
     controlGap:
-      "The oversight body existed only on paper. This is the failure mode that matters most for a very small organization: a control that is documented but never performed is worse than no control, because it stops anyone from asking the question.",
-    lossUsd: 0,
+      "The oversight body existed only on paper. This is the failure that matters most for a very small organization: a control that is documented but never performed is worse than none, because it stops anyone asking the question. Donors and staff saw a board; there was no board.",
+    lossUsd: 2500000,
     lossIsFloor: true,
     detection: "unknown",
-    resolvedYear: 2026,
+    resolvedYear: 2025,
     sodRuleIds: ["rule-admin-pay"],
     wouldHaveCaughtIt: [
-      { control: "verify-oversight-is-real", asApplied: "Confirm that named directors or advisors know they hold the role and have actually met" },
-      { control: "verify-oversight-is-real", asApplied: "Minutes signed by a second person who attended" },
-      { control: "verify-oversight-is-real", asApplied: "Any approval a control relies on must leave evidence someone else can check" },
+      {
+        control: "verify-oversight-is-real",
+        asApplied:
+          "Confirm that each named director knows they hold the role and has actually met — a single phone call to any of the three would have ended this",
+      },
+      {
+        control: "verify-oversight-is-real",
+        asApplied: "Minutes signed by a second person who was in the room",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An outside accountant reviewing the accounts annually, reporting to someone other than the executive",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of New York",
@@ -336,24 +466,39 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Charged as a multimillion-dollar scheme; no single reliable total is recorded here. This case is included for the fabricated-oversight mechanism rather than for its dollar figure.",
+      "Pled guilty in 2025 to wire fraud and to evading more than $1 million in federal income tax; sentencing was scheduled for 10 December 2025. The $2.5 million is stated as a floor.",
   },
   {
     id: "case-dc-architecture-firm",
-    title: "Architecture firm office manager took nearly $280,000",
+    title:
+      "Architecture firm bookkeeper put $167,000 of gift cards on the company card over eight years",
     sector: "professional-services",
-    schemes: ["check-tampering", "expense-reimbursement"],
+    schemes: ["expense-reimbursement"],
     howItWorked:
-      "The office manager of a Washington, D.C. architecture firm stole nearly $280,000 from the firm.",
+      "Jill Murray was the office manager and bookkeeper of a Washington, D.C. architecture firm, authorized to buy supplies, keep the books, and pay the firm's credit card bills. Between December 2005 and March 2014 she made about $112,630 in personal purchases on the company's account — Amazon, Best Buy, Staples, Target, Whole Foods, Office Depot, Crate & Barrel — and bought $83,511 of Staples gift cards and $83,469 of Office Depot gift cards in her own name, then manipulated the firm's books to hide it.",
     controlGap:
-      "Design and professional-services firms typically run a single administrative role covering billing, payables, and bookkeeping, with partners focused on client work. The billing cycle is irregular enough that a missing payment does not stand out.",
-    lossUsd: 280000,
-    lossIsFloor: true,
+      "The person making the purchases also paid the card bill and kept the books, so nobody outside the role ever read the statement. Gift cards are the detail that matters: they turn a company card into untraceable value, and $167,000 of them left the firm as ordinary-looking supplier lines.",
+    lossUsd: 279611,
+    lossIsFloor: false,
+    durationMonths: 100,
     detection: "unknown",
-    sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
+    resolvedYear: 2016,
+    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
-      { control: "adjustments-report-by-employee", asApplied: "A partner reviews the aged receivables list monthly and asks about anything written off" },
-      { control: "owner-opens-bank-statement", asApplied: "Bank statement delivered to a partner, not to the administrator" },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "A partner reads the company card statement line by line every month — eight years of Staples and Office Depot lines would have stood out in one",
+      },
+      {
+        control: "gift-card-purchases-controlled",
+        asApplied:
+          "Gift cards bought on a company card require a second person's approval and a stated business purpose, because they are cash that leaves no trail",
+      },
+      {
+        control: "split-one-duty-out",
+        asApplied: "The person who pays the card bill is not the person who keeps the books",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Columbia",
@@ -361,7 +506,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The reported summary states the amount and the firm type but not the mechanism. The control-gap reading is a general characteristic of professional-services back offices rather than a finding stated in the source.",
+      'Restitution and forfeiture were each ordered at $279,611, which is the figure recorded here; the charging office\'s headline of "nearly $280,000" is that number rounded up, so it is not a floor. Pled guilty November 2016; six months in prison.',
   },
   {
     id: "case-bellingham-assistant-manager",
@@ -369,7 +514,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "retail",
     schemes: ["check-tampering", "expense-reimbursement"],
     howItWorked:
-      "The assistant office manager of a regional hardware retail and leasing business ran a scheme from 2013 to 2022 using fraudulent company checks and unauthorized company credit card purchases, including more than 1,800 unauthorized transactions charged through her personal Amazon account. The total came to more than $1.4 million.",
+      "The assistant office manager of a regional hardware retail and leasing business ran a scheme from 2013 to 2022 using fraudulent company checks and unauthorized company credit card purchases, including more than 1,800 unauthorized transactions charged through her personal Amazon account. The total came to more than $1.4 million. She also forged signatures, or had people with signing authority sign blank checks, and altered the company's books to hide the theft.",
     controlGap:
       "Card spending was never reviewed line by line, and an ordinary-looking retail supplier name on a statement is indistinguishable from a personal order. The title is the other half of the problem: oversight tends to be designed around the office manager, while the deputy inherits the same system access with none of the attention.",
     lossUsd: 1400000,
@@ -379,9 +524,19 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
-      { control: "card-statement-line-review", asApplied: "Owner opens the company card statement and reads it line by line, every month" },
-      { control: "permission-review", asApplied: "Review who holds which system permissions, not who holds which job title" },
-      { control: "card-statement-line-review", asApplied: "Any card charge to a consumer marketplace matched to a business purpose before it is coded" },
+      {
+        control: "card-statement-line-review",
+        asApplied: "Owner opens the company card statement and reads it line by line, every month",
+      },
+      {
+        control: "permission-review",
+        asApplied: "Review who holds which system permissions, not who holds which job title",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Any card charge to a consumer marketplace matched to a business purpose before it is coded",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
@@ -389,7 +544,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025.",
   },
   {
     id: "case-kearny-medical-receptionist",
@@ -397,7 +552,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "medical",
     schemes: ["receivables-diversion", "skimming"],
     howItWorked:
-      "A receptionist at a medical practice in Kearny, New Jersey took, cashed, and concealed more than $446,000 in checks that insurance companies had paid to the practice for patient services, between 2007 and 2011. She separately obtained more than $200,000 in goods and services on fraudulent credit cards.",
+      "A receptionist at a medical practice in Kearny, New Jersey took, cashed, and concealed more than $446,000 in checks that insurance companies had paid to the practice for patient services, between 2007 and 2011. She separately obtained more than $200,000 in goods and services on fraudulent credit cards. She also fraudulently obtained ten credit cards in the name of one of the practice's principals and charged more than $218,000 to them.",
     controlGap:
       "The front-desk role received the mail. Where incoming payments and the record of incoming payments meet at the same desk, there is nothing to compare against anything. Seniority is not the variable here — a receptionist held enough access to run this for four years.",
     lossUsd: 446000,
@@ -407,16 +562,27 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2013,
     sodRuleIds: ["rule-collect-post", "rule-custody-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
-      { control: "log-payments-at-the-mail", asApplied: "Incoming payments logged by whoever opens the mail, before they reach the person who posts them" },
-      { control: "electronic-remittance", asApplied: "Electronic remittance from insurers so no payable check passes through the office at all" },
-      { control: "expected-receipts-vs-deposits", asApplied: "Owner compares expected insurer payments against deposits monthly" },
+      {
+        control: "log-payments-at-the-mail",
+        asApplied:
+          "Incoming payments logged by whoever opens the mail, before they reach the person who posts them",
+      },
+      {
+        control: "electronic-remittance",
+        asApplied:
+          "Electronic remittance from insurers so no payable check passes through the office at all",
+      },
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied: "Owner compares expected insurer payments against deposits monthly",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of New Jersey",
       url: "https://www.justice.gov/usao-nj/pr/medical-office-receptionist-sentenced-34-months-prison-embezzlement-credit-card-fraud-and",
       grade: "primary-document-reported",
     },
-    caveat: "Sentence was 34 months.",
+    caveat: "Sentence was 34 months. Gwendolyn Muller was ordered to pay $556,000 in restitution.",
   },
   {
     id: "case-void-no-sale-counter",
@@ -434,9 +600,20 @@ export const CASE_LIBRARY: CaseStudy[] = [
     resolvedYear: 2014,
     sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-custody-rec"],
     wouldHaveCaughtIt: [
-      { control: "adjustments-report-by-employee", asApplied: "Weekly report of voids, no-sales, and discounts grouped by employee — the outlier is visible at a glance" },
-      { control: "dual-release-above-threshold", asApplied: "Voids above a small amount require a second person's code at the time, not an explanation later" },
-      { control: "volume-vs-recorded-sales", asApplied: "Inventory or production volume compared against recorded sales" },
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Weekly report of voids, no-sales, and discounts grouped by employee — the outlier is visible at a glance",
+      },
+      {
+        control: "dual-release-above-threshold",
+        asApplied:
+          "Voids above a small amount require a second person's code at the time, not an explanation later",
+      },
+      {
+        control: "volume-vs-recorded-sales",
+        asApplied: "Inventory or production volume compared against recorded sales",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Western District of Missouri",

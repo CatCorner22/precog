@@ -45,9 +45,10 @@ export const BENCHMARKS: Benchmark[] = [
   {
     id: "bm-duration-cost-curve",
     label: "What delay costs",
-    value: "Caught within 6 months: $40,000 median. Running over 5 years: over $1.1 million median.",
+    value:
+      "Caught within 6 months: $40,000 median. Running over 5 years: over $1.1 million median.",
     soWhat:
-      "This is the single most actionable statistic in the field. A scheme found early costs roughly one twenty-eighth of one found late. Every control that shortens detection time is worth more than its face value suggests.",
+      "These are two different groups of schemes, not one scheme measured twice: the ones that ran longest were also the ones built to grow and to hide, so the gap is partly cause and partly selection. What it does establish is that the schemes which do the real damage are the ones nobody found for years, and that is the argument for detective controls.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
@@ -58,10 +59,12 @@ export const BENCHMARKS: Benchmark[] = [
     value: "43%",
     numeric: 0.43,
     soWhat:
-      "More cases are found by someone speaking up than by every audit, review, and control combined. A way for staff to raise a concern is the highest-return control a small business can put in place, and it costs almost nothing.",
+      "A tip is the single largest route by which fraud comes to light — larger than any one review, audit, or control on its own. A way for staff to raise a concern is one of the cheapest controls a small business can put in place.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
+    caveat:
+      "43% is a plurality, not a majority. The other 57% of cases were found by controls and reviews taken together — internal audit and management review alone account for over a quarter — so a reporting channel complements those controls rather than replacing them.",
   },
   {
     id: "bm-small-org-hotline-gap",
@@ -105,7 +108,7 @@ export const BENCHMARKS: Benchmark[] = [
     label: "How long schemes actually run",
     value: "A third are found within six months; 5% run beyond five years",
     soWhat:
-      "Most schemes are caught reasonably early. The damage concentrates in the small share that are not, which is why detection speed matters more than detection certainty.",
+      "A third are found within six months, which means two thirds are not — consistent with the twelve-month median above. The damage concentrates in the small share that run for years, which is why detection speed matters more than detection certainty.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
@@ -146,7 +149,8 @@ export const BENCHMARKS: Benchmark[] = [
   {
     id: "bm-case-scale",
     label: "Study basis",
-    value: "2,402 cases, 143 countries, over $3.4 billion in documented losses, investigated and closed between January 2024 and September 2025",
+    value:
+      "2,402 cases, 143 countries, over $3.4 billion in documented losses, investigated and closed between January 2024 and September 2025",
     soWhat:
       "These figures come from cases that were investigated and substantiated, not from a survey of opinions.",
     study: "Occupational Fraud 2026: A Report to the Nations",
@@ -171,5 +175,6 @@ export const METHOD_CAVEATS: string[] = [
   "The published medians cover cases that were detected and investigated. Schemes that were never found cannot be in the data, so real frequency runs higher than any study can measure.",
   "Loss figures are medians, not averages. Half of cases cost more. The distribution has a long tail.",
   "Nothing here scores a person. Every finding in this application describes a structural gap in how work is divided, which is a fact about the organization chart and not about anyone's character.",
+  "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; at least one case in this library was carried out with co-conspirators.",
   "This is decision support for prioritizing internal controls. It is not an audit, an actuarial estimate, or legal advice.",
 ];

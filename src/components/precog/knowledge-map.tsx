@@ -1,3 +1,4 @@
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
@@ -6,11 +7,7 @@ import { cn } from "@/lib/utils";
 
 const STRONG = new Set(["expert", "proficient"]);
 
-export function KnowledgeMap({
-  initialKnowledgeId,
-}: {
-  initialKnowledgeId?: string | null;
-}) {
+export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const { people, knowledge, relations } = useTemplate();
   const risks = useMemo(() => findKnowledgeRisks(), [people, knowledge, relations]);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -66,8 +63,7 @@ export function KnowledgeMap({
           aria-label="Knowledge continuity map"
         >
           {edges.map((e) => {
-            const isHot =
-              e.to.risk?.soleOwner && e.to.criticality === "critical";
+            const isHot = e.to.risk?.soleOwner && e.to.criticality === "critical";
             return (
               <line
                 key={`${e.personId}-${e.knowledgeId}`}
@@ -83,9 +79,7 @@ export function KnowledgeMap({
           })}
 
           {personNodes.map((p) => {
-            const sole = risks.some(
-              (r) => r.soleOwner && r.owners.some((o) => o.id === p.id),
-            );
+            const sole = risks.some((r) => r.soleOwner && r.owners.some((o) => o.id === p.id));
             return (
               <g key={p.id}>
                 <rect
@@ -119,11 +113,7 @@ export function KnowledgeMap({
             const unowned = k.risk?.ownerCount === 0;
             const isSelected = selectedId === k.id;
             return (
-              <g
-                key={k.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedId(k.id)}
-              >
+              <g key={k.id} className="cursor-pointer" onClick={() => setSelectedId(k.id)}>
                 <rect
                   x={k.x}
                   y={k.y}
@@ -173,9 +163,7 @@ export function KnowledgeMap({
       </div>
 
       <aside className="rounded-xl border border-border bg-surface p-4">
-        <p className="text-[11px] font-medium tracking-wide text-subtle uppercase">
-          Drill-down
-        </p>
+        <p className="text-[11px] font-medium tracking-wide text-subtle uppercase">Drill-down</p>
         {item && selected ? (
           <div className="mt-3 space-y-3">
             <div>
@@ -199,8 +187,7 @@ export function KnowledgeMap({
                 )}
                 {selected.owners.map((o) => (
                   <li key={o.id} className="text-sm">
-                    {o.name}{" "}
-                    <span className="text-muted">· {o.role}</span>
+                    {o.name} <span className="text-muted">· {o.role}</span>
                   </li>
                 ))}
               </ul>
@@ -221,7 +208,7 @@ export function KnowledgeMap({
           </p>
           <ul className="mt-2 space-y-2">
             {risks
-              .filter((r) => r.riskScore >= 65)
+              .filter((r) => r.riskScore >= RISK_SCALE.actNow)
               .map((r) => (
                 <li key={r.knowledgeId}>
                   <button

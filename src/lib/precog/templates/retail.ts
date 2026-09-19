@@ -6,7 +6,6 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-
 export const retailTemplate: IndustryTemplate = {
   id: "retail",
   businessName: "Harbor Lane Boutique",
@@ -305,7 +304,7 @@ export const retailTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Alex compares deposits to Z-reports; highest-ROI detection control.",
+          note: "Alex compares each deposit to the Z-report before the bookkeeper posts it, so a short deposit surfaces the same day.",
           status: "exploring",
         },
       ],
@@ -500,7 +499,7 @@ export const retailTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "Lead cashier leaves with sole POS/returns knowledge",
     keyPersonDesc:
       "Jordan (sole expert on POS overrides and return policy) resigns with 2 weeks notice. No cross-training documented.",
@@ -525,12 +524,7 @@ export const retailTemplate: IndustryTemplate = {
       "approve_writeoffs",
       "view_reports_only",
     ],
-    "Lead Cashier": [
-      "collect_cash",
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-    ],
+    "Lead Cashier": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
     "Inventory Lead": ["view_reports_only"],
     "E-commerce Fulfillment": ["post_adjustments", "view_reports_only"],
     Bookkeeper: [

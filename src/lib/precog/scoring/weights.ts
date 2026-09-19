@@ -1,7 +1,11 @@
 /**
  * Versioned weight tables for Precog residual risk scoring.
- * Transparent, documentable, and tunable — not a black box.
+ *
+ * Every number here is a weight this app chose. The residual index they
+ * produce is an ordering device, not a measurement; see scoring/bands.ts for
+ * the shared cutoffs and the sentence every index surface shows.
  */
+import { RISK_SCALE } from "./bands";
 export const SCORING_VERSION = "precog-residual-v1.0.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
@@ -43,27 +47,27 @@ export const ACTION_BANDS: {
   {
     band: "accept_monitor",
     min: 0,
-    max: 39,
+    max: RISK_SCALE.mitigate - 1,
     label: "Accept & monitor",
     guidance: "Residual risk is tolerable if monitoring stays live. Set a re-review date.",
   },
   {
     band: "mitigate",
-    min: 40,
-    max: 59,
+    min: RISK_SCALE.mitigate,
+    max: RISK_SCALE.actNow - 1,
     label: "Mitigate",
     guidance: "Install compensating controls or reduce likelihood within one planning cycle.",
   },
   {
     band: "act_now",
-    min: 60,
-    max: 79,
+    min: RISK_SCALE.actNow,
+    max: RISK_SCALE.critical - 1,
     label: "Act now",
     guidance: "Priority remediation. Do not accept residual risk without owner sign-off.",
   },
   {
     band: "critical_path",
-    min: 80,
+    min: RISK_SCALE.critical,
     max: 100,
     label: "Critical path",
     guidance: "Material control failure path. Address before other nice-to-haves.",
@@ -73,7 +77,6 @@ export const ACTION_BANDS: {
 export function bandForScore(score: number): (typeof ACTION_BANDS)[number] {
   const s = Math.max(0, Math.min(100, score));
   return (
-    ACTION_BANDS.find((b) => s >= b.min && s <= b.max) ??
-    ACTION_BANDS[ACTION_BANDS.length - 1]
+    ACTION_BANDS.find((b) => s >= b.min && s <= b.max) ?? ACTION_BANDS[ACTION_BANDS.length - 1]
   );
 }

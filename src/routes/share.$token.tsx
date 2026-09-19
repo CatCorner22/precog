@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
 import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
+import { HEAT_BANDS } from "@/lib/precog/process-graph";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
 
@@ -13,7 +14,8 @@ export const Route = createFileRoute("/share/$token")({
       { name: "robots", content: "noindex, nofollow" },
       {
         name: "description",
-        content: "Read-only view of a small business process map, control coverage, and map health.",
+        content:
+          "Read-only view of a small business process map, control coverage, and map health.",
       },
     ],
   }),
@@ -34,7 +36,13 @@ function SharePage() {
       .then((res) => {
         if (cancelled) return;
         if (!res.found) setState({ kind: "error", reason: res.reason });
-        else setState({ kind: "ok", payload: res.payload, createdAt: res.createdAt, expiresAt: res.expiresAt });
+        else
+          setState({
+            kind: "ok",
+            payload: res.payload,
+            createdAt: res.createdAt,
+            expiresAt: res.expiresAt,
+          });
       })
       .catch(() => !cancelled && setState({ kind: "error", reason: "network" }));
     return () => {
@@ -83,7 +91,11 @@ function SharePage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3 text-xs text-neutral-600">
           <span className="inline-flex items-center gap-1.5">
             <Eye className="size-3.5" /> Read-only share · generated{" "}
-            {generated.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            {generated.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
             {expiresAt
               ? ` · expires ${new Date(expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
               : ""}
@@ -117,7 +129,9 @@ function SharePage() {
 
         <section className="mt-6 grid gap-4 sm:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center justify-center rounded-lg border border-neutral-300 px-6 py-4">
-            <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">Map health</p>
+            <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">
+              Map health
+            </p>
             <p className="text-5xl font-bold tabular">{payload.health.score}</p>
             <p className="text-sm font-medium text-neutral-700">{payload.health.bandLabel}</p>
           </div>
@@ -131,7 +145,10 @@ function SharePage() {
                     <span className="text-sm font-bold tabular">{d.score}</span>
                   </div>
                   <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
-                    <div className="h-full rounded-full bg-neutral-800" style={{ width: `${d.score}%` }} />
+                    <div
+                      className="h-full rounded-full bg-neutral-800"
+                      style={{ width: `${d.score}%` }}
+                    />
                   </div>
                   <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
                 </div>
@@ -149,7 +166,9 @@ function SharePage() {
             <ol className="space-y-1.5 text-sm">
               {payload.actions.map((a, i) => (
                 <li key={a.title} className="flex gap-3">
-                  <span className="w-5 shrink-0 font-semibold tabular text-neutral-500">{i + 1}.</span>
+                  <span className="w-5 shrink-0 font-semibold tabular text-neutral-500">
+                    {i + 1}.
+                  </span>
                   <div>
                     <p className="font-medium">
                       {a.title}{" "}
@@ -179,21 +198,29 @@ function SharePage() {
             </thead>
             <tbody>
               {payload.processes.map((p) => {
-                const top = [...p.risks].sort((a, b) => b.severity * b.likelihood - a.severity * a.likelihood)[0];
-                const overdue = p.evidence.filter((e) => e.status === "overdue" || e.status === "never").length;
+                const top = [...p.risks].sort(
+                  (a, b) => b.severity * b.likelihood - a.severity * a.likelihood,
+                )[0];
+                const overdue = p.evidence.filter(
+                  (e) => e.status === "overdue" || e.status === "never",
+                ).length;
                 return (
                   <tr key={p.id} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2">
                       <p className="font-medium">{p.name}</p>
                       <p className="text-xs text-neutral-600">{p.description}</p>
                     </td>
-                    <td className="py-1.5 pr-2 text-neutral-700">{p.owners.join(", ") || <span className="text-red-700">unowned</span>}</td>
+                    <td className="py-1.5 pr-2 text-neutral-700">
+                      {p.owners.join(", ") || <span className="text-red-700">unowned</span>}
+                    </td>
                     <td className="py-1.5 pr-2 text-neutral-700">
                       {p.controls.length ? (
                         <ul className="space-y-0.5">
                           {p.controls.map((c) => (
                             <li key={c.name} className="flex items-center gap-1">
-                              <ShieldCheck className={`size-3 ${c.segregated ? "text-emerald-700" : "text-amber-600"}`} />
+                              <ShieldCheck
+                                className={`size-3 ${c.segregated ? "text-emerald-700" : "text-amber-600"}`}
+                              />
                               {c.name}
                             </li>
                           ))}
@@ -209,14 +236,24 @@ function SharePage() {
                       {p.evidence.length ? (
                         <span className={overdue ? "text-amber-700" : ""}>
                           {p.evidence.length - overdue}/{p.evidence.length} current
-                          {p.evidence[0] ? ` · ${FREQUENCY_LABEL[p.evidence[0].frequency as EvidenceFrequency] ?? p.evidence[0].frequency}` : ""}
+                          {p.evidence[0]
+                            ? ` · ${FREQUENCY_LABEL[p.evidence[0].frequency as EvidenceFrequency] ?? p.evidence[0].frequency}`
+                            : ""}
                         </span>
                       ) : (
                         <span className="text-neutral-400">—</span>
                       )}
                     </td>
                     <td className="py-1.5 text-right tabular">
-                      <span className={p.heat >= 70 ? "font-semibold text-red-700" : p.heat >= 45 ? "text-amber-700" : "text-neutral-600"}>
+                      <span
+                        className={
+                          p.heat >= HEAT_BANDS.hot
+                            ? "font-semibold text-red-700"
+                            : p.heat >= HEAT_BANDS.warm
+                              ? "text-amber-700"
+                              : "text-neutral-600"
+                        }
+                      >
                         {p.heat}
                       </span>
                     </td>
@@ -277,18 +314,36 @@ function ValueStreamSvg({
   }
   const pos = new Map<string, { x: number; y: number }>();
   stages.forEach((st, si) => {
-    (byStage.get(st) ?? []).forEach((p, ri) => pos.set(p.id, { x: 10 + si * colW, y: 10 + ri * rowH }));
+    (byStage.get(st) ?? []).forEach((p, ri) =>
+      pos.set(p.id, { x: 10 + si * colW, y: 10 + ri * rowH }),
+    );
   });
   const maxRows = Math.max(1, ...stages.map((s) => byStage.get(s)?.length ?? 0));
   const width = 20 + stages.length * colW;
   const height = 20 + maxRows * rowH;
-  const heatColor = (h: number) => (h >= 70 ? "#b91c1c" : h >= 45 ? "#b45309" : "#1f2937");
+  const heatColor = (h: number) =>
+    h >= HEAT_BANDS.hot ? "#b91c1c" : h >= HEAT_BANDS.warm ? "#b45309" : "#1f2937";
 
   return (
     <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2">
-      <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="max-w-none" role="img" aria-label="Value stream diagram">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        className="max-w-none"
+        role="img"
+        aria-label="Value stream diagram"
+      >
         <defs>
-          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker
+            id="arrow"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280" />
           </marker>
         </defs>
@@ -319,7 +374,14 @@ function ValueStreamSvg({
           if (!at) return null;
           return (
             <g key={p.id} transform={`translate(${at.x}, ${at.y})`}>
-              <rect width={boxW} height={boxH} rx="8" fill="#fff" stroke={heatColor(p.heat)} strokeWidth="2" />
+              <rect
+                width={boxW}
+                height={boxH}
+                rx="8"
+                fill="#fff"
+                stroke={heatColor(p.heat)}
+                strokeWidth="2"
+              />
               <text x="10" y="18" fontSize="11" fontWeight="600" fill="#111827">
                 {p.name.length > 22 ? `${p.name.slice(0, 21)}…` : p.name}
               </text>

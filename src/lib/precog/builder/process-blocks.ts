@@ -78,7 +78,8 @@ export const PROCESS_BLOCKS: ProcessBlock[] = [
   {
     id: "block-bank-rec",
     name: "Owner bank reconciliation",
-    description: "Weekly owner review of bank vs ledger — highest ROI detective control.",
+    description:
+      "Weekly owner review of bank vs ledger — catches unrecorded or altered payments before the person who posts them can adjust the books.",
     category: "cash",
     template: {
       name: "Bank reconciliation",
@@ -226,9 +227,7 @@ export const PROCESS_BLOCKS: ProcessBlock[] = [
 ];
 
 export function blocksForIndustry(industry: IndustryId): ProcessBlock[] {
-  return PROCESS_BLOCKS.filter(
-    (b) => !b.industries || b.industries.includes(industry),
-  );
+  return PROCESS_BLOCKS.filter((b) => !b.industries || b.industries.includes(industry));
 }
 
 function cloneNestedIds(template: Omit<ProcessNode, "id">): Omit<ProcessNode, "id"> {

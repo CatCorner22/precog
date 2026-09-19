@@ -391,10 +391,14 @@ export function detectSodConflicts(
         !c.dualReleaseMitigated,
     )
   ) {
-    recommendations.push("Enable deposit dual-count + owner bank rec — highest ROI for cash SoD.");
+    recommendations.push(
+      "Have two people count and sign each deposit, and have the owner reconcile the bank account — two records the same person can no longer make agree.",
+    );
   }
   if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && !c.dualReleaseMitigated)) {
-    recommendations.push("Turn on ACH dual release ≥ $500 and owner sign-off on new vendors.");
+    recommendations.push(
+      "Turn on dual release for electronic payments above the amount you set, and have the owner sign off on every new vendor.",
+    );
   }
   if (
     conflicts.some(
@@ -403,7 +407,9 @@ export function detectSodConflicts(
         !c.dualReleaseMitigated,
     )
   ) {
-    recommendations.push("Require dual release on write-offs above $150 (owner/OM second).");
+    recommendations.push(
+      "Require a second approval on write-offs above the amount you set, with the owner or office manager as the second.",
+    );
   }
   if (!recommendations.length) {
     recommendations.push("Dual release + SoD look healthy — re-scan after any role change.");

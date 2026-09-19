@@ -3,115 +3,96 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { runAdvancedReasoning } from "@/lib/precog/llm/reasoning/engine";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd } from "@/lib/utils";
-import { Binary, GitBranch, Network, Search, Sparkles } from "lucide-react";
+import { GitBranch, Network, Search, Sparkles } from "lucide-react";
 
+/**
+ * Orders the control and insurance levers by how much they move this app's
+ * own residual index and cost-of-risk figure.
+ *
+ * The engine behind this computes probabilities, intervals, expected losses,
+ * and utilities. None of them is a measurement of the business — every one
+ * rests on a weight this app chose — so the panel shows the order and the
+ * reasons and withholds the decimals. An earlier version printed them as
+ * "Bayesian P(fail) 41.3% (95% CI …)" and "EAL $…", which read as findings.
+ */
 export function AdvancedReasoningPanel() {
   const { profile } = usePractice();
   const report = useMemo(
     () => runAdvancedReasoning(profile.staff, profile.riskVariables),
     [profile.staff, profile.riskVariables],
   );
+  const causal = [...report.causal].sort(
+    (a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision),
+  );
 
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Advanced reasoning</Badge>
-          <Badge variant="primary">{report.method.split(" + ").length} algorithms</Badge>
+          <Badge variant="accent">Lever ordering</Badge>
+          <Badge variant="primary">This app&rsquo;s model</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Sparkles className="size-5 text-primary" />
-          Pioneer reasoning stack
+          Which lever first, and why
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Bayesian posteriors, multi-hop causal paths, beam search over lever sequences,
-          twin-world counterfactuals, and expected value of information. Educational decision
-          math — not actuarial pricing.
-        </p>
-        <p className="mt-3 text-sm">
-          Confidence:{" "}
-          <span className="font-semibold">{report.confidence.score}</span>{" "}
-          <span className="text-muted">({report.confidence.label})</span>
+          This page orders the control and insurance levers by how much they move this app&rsquo;s
+          own residual index and cost-of-risk figure. Every number behind it is one of this
+          app&rsquo;s weights, not a measurement of your business, so the order is worth reading and
+          the decimals are not shown.
         </p>
       </section>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label="Bayesian P(fail)"
-          value={`${(report.bayesian.pFail * 100).toFixed(1)}%`}
-          hint={`95% CI ${(report.bayesian.pFailCi.low * 100).toFixed(1)}–${(report.bayesian.pFailCi.high * 100).toFixed(1)}%`}
-        />
-        <Stat
-          label="Bayesian EAL"
-          value={formatUsd(report.bayesian.expectedAnnualLoss)}
-          hint={`severity mean ${formatUsd(report.bayesian.severityMean)}`}
-        />
-        <Stat
-          label="Beam residual"
-          value={String(report.beam.residual)}
-          hint={`utility ${report.beam.utility.toFixed(3)}`}
-        />
-        <Stat
-          label="Beam CoR"
-          value={formatUsd(report.beam.annualCor)}
-          hint={report.beam.bestSequence || "status quo"}
-        />
-      </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Binary className="size-4" />
-            Bayesian updates
+            <GitBranch className="size-4" />
+            Suggested order
           </CardTitle>
           <CardDescription>
-            Beta posterior on material control failure · lognormal severity
+            Sequences the model compared, best first. Each entry names what it would switch on.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ul className="space-y-1.5 text-sm text-muted">
-            {report.bayesian.updates.map((u) => (
-              <li key={u}>· {u}</li>
-            ))}
-          </ul>
+        <CardContent className="space-y-2">
+          {report.recommendedSequence.length > 0 ? (
+            <ol className="space-y-1.5 text-sm">
+              {report.recommendedSequence.map((step, i) => (
+                <li key={step} className="flex gap-3">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-[11px] text-muted">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-muted">
+              No lever improves on the current setup in this model.
+            </p>
+          )}
+          {report.beam.frontier.length > 1 && (
+            <div className="pt-2">
+              <p className="text-xs font-medium tracking-wide text-subtle uppercase">
+                Other sequences considered
+              </p>
+              <ul className="mt-1 space-y-1 text-xs text-muted">
+                {report.beam.frontier.slice(1, 4).map((f) => (
+                  <li key={f.sequence}>· {f.sequence || "status quo"}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <GitBranch className="size-4" />
-              Beam search frontier
-            </CardTitle>
-            <CardDescription>{report.beam.method}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {report.beam.frontier.map((f) => (
-              <div
-                key={f.sequence}
-                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{f.sequence}</span>
-                  <Badge variant="primary">U {f.utility}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted">
-                  residual {f.residual} · CoR {formatUsd(f.annualCor)}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              Twin-world counterfactuals
-            </CardTitle>
+            <CardTitle className="text-base">One lever at a time</CardTitle>
             <CardDescription>
-              Best twin: {report.counterfactual.bestIntervention}
+              Each lever switched on alone, against the current setup. Best single lever:{" "}
+              {report.counterfactual.bestIntervention}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -122,10 +103,27 @@ export function AdvancedReasoningPanel() {
               >
                 <p className="font-medium">{c.label}</p>
                 <p className="mt-1 text-xs text-muted">{c.narrative}</p>
-                <p className="mt-1 text-[11px] tabular text-subtle">
-                  Δres {c.deltaResidual.toFixed(1)} · ΔCoR {formatUsd(c.deltaCor)} · ΔEAL{" "}
-                  {formatUsd(c.deltaBayesEal)}
-                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Network className="size-4" />
+              How each lever reaches the decision
+            </CardTitle>
+            <CardDescription>Strongest path first</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {causal.map((c) => (
+              <div
+                key={c.intervention}
+                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+              >
+                <Badge variant="default">{c.intervention}</Badge>
+                <p className="mt-1 text-xs text-muted">{c.topPath}</p>
               </div>
             ))}
           </CardContent>
@@ -135,38 +133,12 @@ export function AdvancedReasoningPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Network className="size-4" />
-            Causal multi-hop → owner decision
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[...report.causal]
-            .sort((a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision))
-            .map((c) => (
-              <div
-                key={c.intervention}
-                className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="default">{c.intervention}</Badge>
-                  <span className="text-xs tabular text-muted">
-                    net path score {c.netToDecision}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted">{c.topPath}</p>
-              </div>
-            ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
             <Search className="size-4" />
-            Expected value of information
+            What to verify next
           </CardTitle>
           <CardDescription>
-            Baseline EAL {formatUsd(report.evoi.baselineEal)} · measure high-EVOI items first
+            The checks that would most change this ordering if they came back differently than the
+            model assumes. Most useful first.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -179,10 +151,7 @@ export function AdvancedReasoningPanel() {
                 <span className="font-medium">{i.observation}</span>
                 <span className="mt-0.5 block text-xs text-muted">{i.rationale}</span>
               </span>
-              <div className="flex items-center gap-2">
-                <Badge variant="ok">{i.effort}</Badge>
-                <span className="tabular font-semibold">{formatUsd(i.evoi)}</span>
-              </div>
+              <Badge variant="ok">{i.effort}</Badge>
             </div>
           ))}
         </CardContent>
@@ -190,7 +159,7 @@ export function AdvancedReasoningPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Synthesis</CardTitle>
+          <CardTitle className="text-base">In short</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm text-muted">
@@ -198,32 +167,8 @@ export function AdvancedReasoningPanel() {
               <li key={line}>· {line}</li>
             ))}
           </ul>
-          <p className="mt-3 text-sm font-medium">
-            Recommended sequence:{" "}
-            {report.recommendedSequence.join(" → ") || "status quo"}
-          </p>
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
-        <p className="mt-1 text-xl font-semibold tabular tracking-tight">{value}</p>
-        <p className="mt-1 text-xs text-muted">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }

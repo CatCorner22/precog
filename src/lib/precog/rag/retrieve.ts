@@ -135,8 +135,10 @@ export function retrieveKnowledge(
     for (const tag of chunk.tags) {
       if (q.includes(tag.toLowerCase())) score += 0.08;
     }
-    // Prefer chunks written for the active industry; demote other verticals' ops content.
-    if (chunk.industry) {
+    // Ranking heuristics only: hand-set weights that order results, not
+    // measured quantities. A chunk written for every vertical
+    // (industry: "general") is never demoted as if it were a competing one.
+    if (chunk.industry && chunk.industry !== "general") {
       score += chunk.industry === industry ? 0.12 : -0.15;
     }
     return { chunk, score, rank: 0 };

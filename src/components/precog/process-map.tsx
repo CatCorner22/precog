@@ -21,6 +21,7 @@ import {
   buildProcessMapGraph,
   enrichProcess,
   graphNodeIdForPriority,
+  HEAT_BANDS,
   layoutProcessMap,
   priorityKeyForNode,
   type MapGraphNode,
@@ -92,17 +93,13 @@ function asMapNode(data: unknown): MapGraphNode & {
 
 function heatColorStandard(sev?: number) {
   const s = sev ?? 0;
-  if (s >= 70) return "var(--color-danger)";
-  if (s >= 45) return "var(--color-warn)";
+  if (s >= HEAT_BANDS.hot) return "var(--color-danger)";
+  if (s >= HEAT_BANDS.warm) return "var(--color-warn)";
   if (s >= 25) return "var(--color-primary)";
   return "var(--color-border-strong)";
 }
 
-function nodeAccent(
-  vision: MapVisionMode,
-  heat: number,
-  priority: number,
-): string {
+function nodeAccent(vision: MapVisionMode, heat: number, priority: number): string {
   if (vision === "predator") return predatorThermalColor(Math.max(heat, priority));
   if (vision === "terminator") return terminatorThreatColor(priority);
   return heatColorStandard(heat);
@@ -207,10 +204,7 @@ function SatelliteNode({
   const vision = d.vision ?? "standard";
   const heat = d.severity ?? 40;
   const priority = d.priority ?? heat;
-  const accent =
-    vision === "standard"
-      ? accentDefault
-      : nodeAccent(vision, heat, priority);
+  const accent = vision === "standard" ? accentDefault : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
   const locked = vision === "terminator" && (d.immediate || priority >= 78);
 
@@ -241,9 +235,7 @@ function SatelliteNode({
       >
         {icon}
         {d.kind}
-        {vision !== "standard" && (
-          <span className="ml-auto tabular">{priority}</span>
-        )}
+        {vision !== "standard" && <span className="ml-auto tabular">{priority}</span>}
       </div>
       <p
         className={cn(
@@ -385,15 +377,11 @@ export function ProcessMap({
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
   /** Live positions while dragging; committed to the profile on drag stop. */
   const [liveLayout, setLiveLayout] = useState<Record<string, { x: number; y: number }>>({});
-  const [layers, setLayers] = useState<LayerConfig[]>(() =>
-    DEFAULT_LAYERS.map((l) => ({ ...l })),
-  );
+  const [layers, setLayers] = useState<LayerConfig[]>(() => DEFAULT_LAYERS.map((l) => ({ ...l })));
   const [selectedId, setSelectedId] = useState<string | null>(
     initialProcessId ?? processes[0]?.id ?? null,
   );
-  const [focusProcessId, setFocusProcessId] = useState<string | null>(
-    initialProcessId ?? null,
-  );
+  const [focusProcessId, setFocusProcessId] = useState<string | null>(initialProcessId ?? null);
 
   useEffect(() => {
     if (initialProcessId) {
@@ -407,7 +395,13 @@ export function ProcessMap({
     if (!build) return;
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      )
         return;
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
@@ -569,10 +563,8 @@ export function ProcessMap({
     return graph.nodes
       .filter((n) => {
         const layer = layerMap.get(layerForKind(n.kind));
-        if (n.kind === "person" && !(layerMap.get("person")?.visible ?? true))
-          return false;
-        if (n.kind === "control" && !(layerMap.get("control")?.visible ?? true))
-          return false;
+        if (n.kind === "person" && !(layerMap.get("person")?.visible ?? true)) return false;
+        if (n.kind === "control" && !(layerMap.get("control")?.visible ?? true)) return false;
         return layer?.visible !== false;
       })
       .map((n) => {
@@ -600,10 +592,7 @@ export function ProcessMap({
             immediate: pri?.immediate,
           },
           selected: n.id === selectedId,
-          style:
-            layer?.interactive === false
-              ? { opacity: 0.4 }
-              : undefined,
+          style: layer?.interactive === false ? { opacity: 0.4 } : undefined,
         };
       });
   }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById, build]);
@@ -691,8 +680,7 @@ export function ProcessMap({
         if (e.kind === "has_waste") return layerMap.get("waste")?.visible !== false;
         if (e.kind === "has_risk" || e.kind === "control")
           return (
-            layerMap.get("risk")?.visible !== false ||
-            layerMap.get("control")?.visible !== false
+            layerMap.get("risk")?.visible !== false || layerMap.get("control")?.visible !== false
           );
         if (e.kind === "knowledge" || e.kind === "owns")
           return (
@@ -716,9 +704,7 @@ export function ProcessMap({
             : predatorThermalColor(e.kind === "has_risk" || e.kind === "control" ? 80 : 40);
         } else if (vision === "terminator") {
           stroke =
-            e.kind === "has_risk" || e.kind === "control"
-              ? "rgb(255, 50, 40)"
-              : "rgb(120, 40, 35)";
+            e.kind === "has_risk" || e.kind === "control" ? "rgb(255, 50, 40)" : "rgb(120, 40, 35)";
         }
         const passiveDep = isDep && !depInteractive;
         return {
@@ -751,10 +737,7 @@ export function ProcessMap({
     selectedNode?.processId ??
     (selectedNode?.kind === "process" ? selectedNode.id : focusProcessId);
   const snapshot: ProcessMapSnapshot | null = processId
-    ? enrichProcess(
-        processes.find((p) => p.id === processId) ?? processes[0],
-        profile.staff,
-      )
+    ? enrichProcess(processes.find((p) => p.id === processId) ?? processes[0], profile.staff)
     : null;
 
   const onNodeClick = useCallback((_: unknown, node: ProcessFlowNode) => {
@@ -767,17 +750,10 @@ export function ProcessMap({
 
   const whiteHot = priorities.filter((p) => p.band === "white_hot").length;
   const immediate = priorities.filter((p) => p.immediate).length;
-  const hotCount = graph.snapshots.filter((s) => s.heat >= 70).length;
+  const hotCount = graph.snapshots.filter((s) => s.heat >= HEAT_BANDS.hot).length;
 
-  function toggleLayer(
-    id: MapLayerId,
-    field: "visible" | "interactive",
-  ) {
-    setLayers((prev) =>
-      prev.map((l) =>
-        l.id === id ? { ...l, [field]: !l[field] } : l,
-      ),
-    );
+  function toggleLayer(id: MapLayerId, field: "visible" | "interactive") {
+    setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: !l[field] } : l)));
   }
 
   function minimapColor(n: Node) {
@@ -800,11 +776,10 @@ export function ProcessMap({
           Map your business · see risk light up · fix what matters
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Start from the industry template, then hit{" "}
-          <strong className="text-fg">Build</strong> to add your own processes, owners,
-          risks, and controls — every edit re-scores residual risk live. Switch to{" "}
-          <strong className="text-fg">Risk Predator</strong> for thermal priority heat or{" "}
-          <strong className="text-fg">Risk Terminator</strong> for immediate threat lock-on.
+          Start from the industry template, then hit <strong className="text-fg">Build</strong> to
+          add your own processes, owners, risks, and controls — every edit re-scores residual risk
+          live. Switch to <strong className="text-fg">Risk Predator</strong> for thermal priority
+          heat or <strong className="text-fg">Risk Terminator</strong> for immediate threat lock-on.
         </p>
 
         {/* Vision mode switcher */}
@@ -829,11 +804,7 @@ export function ProcessMap({
             label="Risk Terminator"
             accent="terminator"
           />
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setShowLayerPanel((v) => !v)}
-          >
+          <Button size="sm" variant="secondary" onClick={() => setShowLayerPanel((v) => !v)}>
             <Layers className="size-3.5" />
             Layers
           </Button>
@@ -855,10 +826,10 @@ export function ProcessMap({
 
         {build && (
           <div className="mt-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
-            <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to
-            arrange your value stream. Drag from the right handle of one process to the left
-            handle of another to wire dependencies. Click a process to edit it — or insert a
-            reusable block from the builder panel.
+            <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to arrange
+            your value stream. Drag from the right handle of one process to the left handle of
+            another to wire dependencies. Click a process to edit it — or insert a reusable block
+            from the builder panel.
           </div>
         )}
 
@@ -887,8 +858,8 @@ export function ProcessMap({
             <div className="min-w-0 flex-1 terminator-hud text-xs">
               <p className="font-semibold tracking-widest">RISK TERMINATOR · SCAN MODE</p>
               <p className="mt-1 text-red-300/90 normal-case tracking-normal">
-                Friendly unit online. Mission: cut residual to a reasonable degree — not
-                zero, not panic. Locking {immediate} immediate threat
+                Friendly unit online. Mission: cut residual to a reasonable degree — not zero, not
+                panic. Locking {immediate} immediate threat
                 {immediate === 1 ? "" : "s"}.
               </p>
               <p className="mt-2 text-[10px] text-red-400/70">
@@ -899,8 +870,8 @@ export function ProcessMap({
         )}
 
         <p className="mt-3 text-xs text-subtle">
-          {graph.snapshots.length} processes · {hotCount} hot · {priorities.length} ranked
-          targets · pan/zoom
+          {graph.snapshots.length} processes · {hotCount} hot · {priorities.length} ranked targets ·
+          pan/zoom
         </p>
       </section>
 
@@ -1004,11 +975,7 @@ export function ProcessMap({
                   pannable
                   zoomable
                   bgColor="rgba(21, 24, 32, 0.92)"
-                  maskColor={
-                    vision === "terminator"
-                      ? "rgba(40,0,0,0.65)"
-                      : "rgba(0,0,0,0.55)"
-                  }
+                  maskColor={vision === "terminator" ? "rgba(40,0,0,0.65)" : "rgba(0,0,0,0.55)"}
                   nodeColor={minimapColor}
                 />
                 <Panel position="top-left" className="m-2!">
@@ -1057,9 +1024,7 @@ export function ProcessMap({
                 <ListOrdered className="size-4" />
                 Priority stack
               </CardTitle>
-              <CardDescription>
-                Heat × realistic impact · white-hot needs both high
-              </CardDescription>
+              <CardDescription>Heat × realistic impact · white-hot needs both high</CardDescription>
             </CardHeader>
             <CardContent className="max-h-[320px] space-y-1.5 overflow-y-auto">
               {priorities.slice(0, 12).map((t, i) => (
@@ -1072,9 +1037,7 @@ export function ProcessMap({
                   }}
                   className={cn(
                     "flex w-full items-start gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition-colors hover:border-border-strong",
-                    t.immediate
-                      ? "border-danger/40 bg-danger/10"
-                      : "border-border bg-elevated",
+                    t.immediate ? "border-danger/40 bg-danger/10" : "border-border bg-elevated",
                   )}
                 >
                   <span className="w-5 shrink-0 tabular text-subtle">{i + 1}</span>
@@ -1105,9 +1068,7 @@ export function ProcessMap({
                       >
                         {PRIORITY_BAND_LABEL[t.band]}
                       </Badge>
-                      {t.immediate && (
-                        <Badge variant="danger">NOW</Badge>
-                      )}
+                      {t.immediate && <Badge variant="danger">NOW</Badge>}
                     </span>
                     <span className="mt-0.5 block text-[10px] text-muted">
                       {t.kind} · P{t.priority} · {t.impactHint}
@@ -1166,12 +1127,8 @@ function VisionChip({
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         active && !accent && "border-primary/40 bg-primary/15 text-fg",
-        active &&
-          accent === "predator" &&
-          "border-orange-400/40 bg-orange-500/15 text-orange-100",
-        active &&
-          accent === "terminator" &&
-          "border-red-500/50 bg-red-600/20 text-red-200",
+        active && accent === "predator" && "border-orange-400/40 bg-orange-500/15 text-orange-100",
+        active && accent === "terminator" && "border-red-500/50 bg-red-600/20 text-red-200",
         !active && "border-border bg-elevated text-muted hover:text-fg",
       )}
     >
@@ -1193,9 +1150,7 @@ function T1000Buddy() {
         </div>
         <div className="absolute bottom-4 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-red-400/50" />
       </div>
-      <span className="text-[9px] tracking-wide text-red-400/80 uppercase">
-        T-1000 · risk
-      </span>
+      <span className="text-[9px] tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
     </div>
   );
 }
@@ -1221,9 +1176,7 @@ function PredatorLegend() {
     <div className="max-w-[240px] rounded-xl border border-orange-500/30 bg-black/80 px-3 py-2 text-[10px] text-orange-100/90 shadow-lg predator-hud">
       <p className="font-semibold tracking-widest">THERMAL KEY</p>
       <div className="predator-thermal-bar mt-1.5 h-2 rounded-full" />
-      <p className="mt-1 text-white/50">
-        White-hot = high heat × high impact. Hunt those first.
-      </p>
+      <p className="mt-1 text-white/50">White-hot = high heat × high impact. Hunt those first.</p>
     </div>
   );
 }
@@ -1233,8 +1186,8 @@ function TerminatorLegend({ immediate }: { immediate: number }) {
     <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-[10px] terminator-hud shadow-lg">
       <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
       <p className="mt-1 normal-case tracking-normal text-red-300/90">
-        {immediate} target{immediate === 1 ? "" : "s"} require immediate attention.
-        Pulsing lock = act this week.
+        {immediate} target{immediate === 1 ? "" : "s"} require immediate attention. Pulsing lock =
+        act this week.
       </p>
     </div>
   );
@@ -1269,23 +1222,17 @@ function ProcessDetail({
                 : heatColorStandard(snapshot.heat),
             }}
           />
-          <Badge variant={snapshot.heat >= 70 ? "danger" : "primary"}>
+          <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
             heat {snapshot.heat}
           </Badge>
           {priority && (
             <Badge
-              variant={
-                priority.immediate || priority.band === "white_hot"
-                  ? "danger"
-                  : "warn"
-              }
+              variant={priority.immediate || priority.band === "white_hot" ? "danger" : "warn"}
             >
               {PRIORITY_BAND_LABEL[priority.band]} · P{priority.priority}
             </Badge>
           )}
-          {vision !== "standard" && (
-            <Badge variant="default">{vision}</Badge>
-          )}
+          {vision !== "standard" && <Badge variant="default">{vision}</Badge>}
         </div>
         <CardTitle className="text-base">{p.name}</CardTitle>
         <CardDescription>{p.description}</CardDescription>

@@ -1,3 +1,4 @@
+import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -47,6 +48,7 @@ import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/b
 import {
   analyzeWorkload,
   healthDelta,
+  LOAD_BANDS,
   previewMapHealth,
   type HealthDelta,
   type PersonWorkload,
@@ -58,11 +60,7 @@ import { reviewMap } from "@/lib/precog/builder/review-server";
 import type { MapReview } from "@/lib/precog/builder/review";
 import type { MapVersion } from "@/lib/precog/practice-profile";
 import { Camera, ClipboardCheck, History, RotateCw } from "lucide-react";
-import {
-  busFactor,
-  rankDepartureRisk,
-  type DepartureImpact,
-} from "@/lib/precog/builder/departure";
+import { busFactor, rankDepartureRisk, type DepartureImpact } from "@/lib/precog/builder/departure";
 import {
   FREQUENCY_LABEL,
   evidenceStatus,
@@ -268,9 +266,11 @@ export function ProcessBuilder({
           processes: enriched,
           issues: validationIssues.filter((i) => i.severity !== "info").map((i) => i.message),
           overburdened: wl
-            .filter((r) => r.load >= 70)
+            .filter((r) => r.load >= LOAD_BANDS.overburdened)
             .map((r) => ({ name: r.person.name, role: r.person.role, flags: r.flags })),
-          unownedProcesses: processes.filter((p) => !(p.ownerPersonIds ?? []).length).map((p) => p.name),
+          unownedProcesses: processes
+            .filter((p) => !(p.ownerPersonIds ?? []).length)
+            .map((p) => p.name),
         },
       });
       setReview(result);
@@ -289,7 +289,9 @@ export function ProcessBuilder({
     if (name === null) return;
     saveMapVersion(name, currentHealth.score);
     setShowVersions(true);
-    toast.success("Version saved", { description: "Restore or compare it any time from Versions." });
+    toast.success("Version saved", {
+      description: "Restore or compare it any time from Versions.",
+    });
   }
 
   /** Compute the process list a quick fix would produce, without applying it. */
@@ -386,7 +388,8 @@ export function ProcessBuilder({
             };
           } else if (i.id.startsWith("owner-")) {
             const owner = suggestOwnerForProcess(next, cur, tpl.people);
-            if (owner) next = { ...next, ownerPersonIds: [...(next.ownerPersonIds ?? []), owner.id] };
+            if (owner)
+              next = { ...next, ownerPersonIds: [...(next.ownerPersonIds ?? []), owner.id] };
           } else if (i.id.startsWith("fraud-nocontrol-")) {
             const control = suggestControlForProcess(next, tpl.controls);
             if (control) next = { ...next, controlIds: [...next.controlIds, control.id] };
@@ -498,9 +501,7 @@ export function ProcessBuilder({
         throw new Error("File has no processes");
       }
       const procIds = new Set(
-        parsed.processes
-          .filter((p) => p && typeof p.id === "string")
-          .map((p) => p.id as string),
+        parsed.processes.filter((p) => p && typeof p.id === "string").map((p) => p.id as string),
       );
       const cleaned: ProcessNode[] = parsed.processes
         .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
@@ -531,7 +532,7 @@ export function ProcessBuilder({
               name: p.name,
               role: p.role ?? "Team member",
               active: p.active ?? true,
-              tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : 1,
+              tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : undefined,
               entitlements: Array.isArray(p.entitlements) ? p.entitlements : undefined,
             })),
         );
@@ -572,8 +573,8 @@ export function ProcessBuilder({
               {mapCustomized && <Badge variant="accent">custom</Badge>}
             </CardTitle>
             <CardDescription>
-              Build your real value stream. Every change re-scores residual risk, SoD, and
-              scenarios live.
+              Build your real value stream. Every change re-scores residual risk, SoD, and scenarios
+              live.
             </CardDescription>
             <HealthPill
               score={currentHealth.score}
@@ -682,7 +683,13 @@ export function ProcessBuilder({
           <Button
             size="sm"
             variant={showReview ? "default" : "secondary"}
-            onClick={() => (review && !showReview ? setShowReview(true) : showReview ? setShowReview(false) : void runReview())}
+            onClick={() =>
+              review && !showReview
+                ? setShowReview(true)
+                : showReview
+                  ? setShowReview(false)
+                  : void runReview()
+            }
           >
             <ClipboardCheck className="size-3.5" /> Review
           </Button>
@@ -702,7 +709,12 @@ export function ProcessBuilder({
           >
             <Link2 className="size-3.5" /> Share
           </Button>
-          <Button size="sm" variant="secondary" onClick={snapshotVersion} title="Save a named snapshot of this map">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={snapshotVersion}
+            title="Save a named snapshot of this map"
+          >
             <Camera className="size-3.5" /> Snapshot
           </Button>
           {(profile.mapVersions?.length ?? 0) > 0 && (
@@ -751,7 +763,11 @@ export function ProcessBuilder({
               const proc = processes.find((p) => p.id === processId);
               if (!proc) return;
               const candidates = tpl.people.filter((p) => p.id !== excludePersonId && p.active);
-              const backup = suggestOwnerForProcess({ ...proc, ownerPersonIds: [] }, processes, candidates);
+              const backup = suggestOwnerForProcess(
+                { ...proc, ownerPersonIds: [] },
+                processes,
+                candidates,
+              );
               if (!backup) return;
               update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), backup.id] });
               toast.success(`${backup.name} added as backup owner on ${proc.name}`);
@@ -773,28 +789,30 @@ export function ProcessBuilder({
           />
         )}
 
-        {evidenceSummary.total > 0 && evidenceSummary.overdue + evidenceSummary.never > 0 && !showValidation && (
-          <button
-            type="button"
-            onClick={() => {
-              const first = evidenceSummary.overdueItems[0];
-              if (first) onSelectProcess(first.process.id);
-            }}
-            className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-[11px] text-fg hover:border-warn/60"
-          >
-            <Clock className="size-3.5 shrink-0 text-warn" />
-            <span className="min-w-0 flex-1">
-              <span className="font-medium">
-                {evidenceSummary.overdue + evidenceSummary.never} evidence item(s) need attention
+        {evidenceSummary.total > 0 &&
+          evidenceSummary.overdue + evidenceSummary.never > 0 &&
+          !showValidation && (
+            <button
+              type="button"
+              onClick={() => {
+                const first = evidenceSummary.overdueItems[0];
+                if (first) onSelectProcess(first.process.id);
+              }}
+              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-[11px] text-fg hover:border-warn/60"
+            >
+              <Clock className="size-3.5 shrink-0 text-warn" />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">
+                  {evidenceSummary.overdue + evidenceSummary.never} evidence item(s) need attention
+                </span>
+                <span className="text-muted">
+                  {" "}
+                  · {evidenceSummary.coverage}% of control evidence is current
+                </span>
               </span>
-              <span className="text-muted">
-                {" "}
-                · {evidenceSummary.coverage}% of control evidence is current
-              </span>
-            </span>
-            <ChevronRight className="size-3 shrink-0 text-subtle" />
-          </button>
-        )}
+              <ChevronRight className="size-3 shrink-0 text-subtle" />
+            </button>
+          )}
 
         {showReview && (
           <ReviewPanel
@@ -813,7 +831,8 @@ export function ProcessBuilder({
             onRestore={(id) => {
               const v = profile.mapVersions?.find((x) => x.id === id);
               if (!v) return;
-              if (!window.confirm(`Restore "${v.name}"? Your current map goes into undo history.`)) return;
+              if (!window.confirm(`Restore "${v.name}"? Your current map goes into undo history.`))
+                return;
               restoreMapVersion(id);
               toast.success(`Restored "${v.name}"`, { description: "Ctrl+Z to go back." });
             }}
@@ -881,15 +900,14 @@ export function ProcessBuilder({
         )}
 
         {showChanges && mapCustomized && (
-          <ChangesView processes={processes} people={tpl.people} onSelectProcess={onSelectProcess} />
-        )}
-
-        {showTeam && (
-          <TeamEditor
+          <ChangesView
+            processes={processes}
             people={tpl.people}
-            onChange={(next) => setCustomPeople(next)}
+            onSelectProcess={onSelectProcess}
           />
         )}
+
+        {showTeam && <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />}
 
         <div>
           <span className={labelCls}>Processes ({processes.length})</span>
@@ -1097,14 +1115,18 @@ function SuggestPanel({
           Suggest risks & controls
         </span>
         <Button size="sm" variant="secondary" onClick={run} disabled={loading}>
-          {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+          {loading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="size-3.5" />
+          )}
           {result ? "Again" : "Suggest"}
         </Button>
       </div>
       {!result && !loading && (
         <p className="text-[11px] text-muted">
-          Get starter risks, improvement ideas, and matching controls for this process based on
-          its name and description.
+          Get starter risks, improvement ideas, and matching controls for this process based on its
+          name and description.
         </p>
       )}
       {error && <p className="text-[11px] text-danger">{error}</p>}
@@ -1225,7 +1247,11 @@ function DeparturePanel({
   const [open, setOpen] = useState<string | null>(impacts[0]?.person.id ?? null);
   const bus = busFactor(impacts);
   const impactColor = (v: number) =>
-    v >= 60 ? "var(--color-danger)" : v >= 30 ? "var(--color-warn)" : "var(--color-ok)";
+    v >= RISK_SCALE.actNow
+      ? "var(--color-danger)"
+      : v >= RISK_SCALE.mitigate
+        ? "var(--color-warn)"
+        : "var(--color-ok)";
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
@@ -1247,7 +1273,10 @@ function DeparturePanel({
                 className="flex w-full items-center gap-2 px-2 py-1.5 text-left"
               >
                 <ChevronRight
-                  className={cn("size-3 shrink-0 text-subtle transition-transform", expanded && "rotate-90")}
+                  className={cn(
+                    "size-3 shrink-0 text-subtle transition-transform",
+                    expanded && "rotate-90",
+                  )}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">
@@ -1255,13 +1284,21 @@ function DeparturePanel({
                     <span className="text-subtle"> · {d.person.role}</span>
                   </span>
                   <span className="block text-[10px] text-subtle">
-                    {d.orphanedProcesses.length} process(es) orphaned · {d.orphanedKnowledge.length} knowledge ·
-                    health {d.healthDelta === 0 ? "±0" : d.healthDelta > 0 ? `+${d.healthDelta}` : d.healthDelta}
+                    {d.orphanedProcesses.length} process(es) orphaned · {d.orphanedKnowledge.length}{" "}
+                    knowledge · health{" "}
+                    {d.healthDelta === 0
+                      ? "±0"
+                      : d.healthDelta > 0
+                        ? `+${d.healthDelta}`
+                        : d.healthDelta}
                   </span>
                 </span>
                 <span className="flex w-20 shrink-0 items-center gap-1.5">
                   <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
-                    <span className="block h-full rounded-full" style={{ width: `${d.impact}%`, background: impactColor(d.impact) }} />
+                    <span
+                      className="block h-full rounded-full"
+                      style={{ width: `${d.impact}%`, background: impactColor(d.impact) }}
+                    />
                   </span>
                   <span className="w-6 text-right tabular text-subtle">{d.impact}</span>
                 </span>
@@ -1274,7 +1311,11 @@ function DeparturePanel({
                       <ul className="mt-0.5 space-y-0.5">
                         {d.orphanedProcesses.map((p) => (
                           <li key={p.id} className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => onSelectProcess(p.id)} className="min-w-0 flex-1 truncate text-left text-fg hover:underline">
+                            <button
+                              type="button"
+                              onClick={() => onSelectProcess(p.id)}
+                              className="min-w-0 flex-1 truncate text-left text-fg hover:underline"
+                            >
                               {p.name}
                             </button>
                             <button
@@ -1298,7 +1339,9 @@ function DeparturePanel({
                             key={k.id}
                             className={cn(
                               "rounded border px-1.5 py-0.5 text-[10px]",
-                              k.criticality === "critical" ? "border-danger/40 bg-danger/10 text-fg" : "border-warn/30 bg-warn/10 text-fg",
+                              k.criticality === "critical"
+                                ? "border-danger/40 bg-danger/10 text-fg"
+                                : "border-warn/30 bg-warn/10 text-fg",
                             )}
                           >
                             {k.name}
@@ -1343,7 +1386,12 @@ function EvidenceList({
     if (!label.trim()) return;
     onChange([
       ...items,
-      { id: uid("ev"), label: label.trim().slice(0, 100), frequency, reviewerPersonId: reviewer || undefined },
+      {
+        id: uid("ev"),
+        label: label.trim().slice(0, 100),
+        frequency,
+        reviewerPersonId: reviewer || undefined,
+      },
     ]);
     setLabel("");
     setAdding(false);
@@ -1375,16 +1423,26 @@ function EvidenceList({
           <CheckCircle2 className="size-3 text-ok" />
           Evidence ({items.length})
           {items.length > 0 && (
-            <span className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}>
+            <span
+              className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}
+            >
               · {summary.coverage}% current
             </span>
           )}
         </span>
         <span className="flex items-center gap-2">
-          <button type="button" onClick={addSuggested} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+          <button
+            type="button"
+            onClick={addSuggested}
+            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+          >
             <Sparkles className="size-3" /> Suggest evidence
           </button>
-          <button type="button" onClick={() => setAdding((v) => !v)} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+          >
             {adding ? <X className="size-3" /> : <Plus className="size-3" />}
             {adding ? "Cancel" : "Add"}
           </button>
@@ -1397,7 +1455,9 @@ function EvidenceList({
       )}
       {items.map((e) => {
         const { status, daysLeft } = evidenceStatus(e);
-        const reviewerName = e.reviewerPersonId ? people.find((p) => p.id === e.reviewerPersonId)?.name : undefined;
+        const reviewerName = e.reviewerPersonId
+          ? people.find((p) => p.id === e.reviewerPersonId)?.name
+          : undefined;
         return (
           <div
             key={e.id}
@@ -1448,16 +1508,30 @@ function EvidenceList({
       })}
       {adding && (
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
-          <input className={inputCls} placeholder="e.g. Owner signs off bank reconciliation" value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
+          <input
+            className={inputCls}
+            placeholder="e.g. Owner signs off bank reconciliation"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            autoFocus
+          />
           <div className="grid grid-cols-2 gap-1.5">
-            <select className={inputCls} value={frequency} onChange={(e) => setFrequency(e.target.value as EvidenceFrequency)}>
+            <select
+              className={inputCls}
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as EvidenceFrequency)}
+            >
               {FREQUENCIES.map((f) => (
                 <option key={f} value={f}>
                   {FREQUENCY_LABEL[f]}
                 </option>
               ))}
             </select>
-            <select className={inputCls} value={reviewer} onChange={(e) => setReviewer(e.target.value)}>
+            <select
+              className={inputCls}
+              value={reviewer}
+              onChange={(e) => setReviewer(e.target.value)}
+            >
               <option value="">Reviewer (optional)</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -1484,7 +1558,9 @@ function SharePanel({
   const [note, setNote] = useState("");
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
-  const [links, setLinks] = useState<{ token: string; createdAt: string; expiresAt: string | null; revoked: boolean }[] | null>(null);
+  const [links, setLinks] = useState<
+    { token: string; createdAt: string; expiresAt: string | null; revoked: boolean }[] | null
+  >(null);
   const [latest, setLatest] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1500,13 +1576,25 @@ function SharePanel({
   async function create() {
     setBusy(true);
     try {
-      const res = await createMapShare({ data: { payload: buildPayload(note), expiresInDays: days } });
+      const res = await createMapShare({
+        data: { payload: buildPayload(note), expiresInDays: days },
+      });
       setLatest(res.token);
-      setLinks((cur) => [{ token: res.token, createdAt: new Date().toISOString(), expiresAt: res.expiresAt, revoked: false }, ...(cur ?? [])]);
+      setLinks((cur) => [
+        {
+          token: res.token,
+          createdAt: new Date().toISOString(),
+          expiresAt: res.expiresAt,
+          revoked: false,
+        },
+        ...(cur ?? []),
+      ]);
       await copy(urlFor(res.token));
       toast.success("Share link created and copied", { description: `Expires in ${days} days.` });
     } catch (e) {
-      toast.error("Couldn't create link", { description: e instanceof Error ? e.message : "Try again" });
+      toast.error("Couldn't create link", {
+        description: e instanceof Error ? e.message : "Try again",
+      });
     } finally {
       setBusy(false);
     }
@@ -1526,13 +1614,18 @@ function SharePanel({
     toast("Link revoked");
   }
 
-  if (isPending) return <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">Checking sign-in…</div>;
+  if (isPending)
+    return (
+      <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
+        Checking sign-in…
+      </div>
+    );
   if (user?.isDevFallback) {
     return (
       <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
-        Share links need a real account so they can be revoked later. Sign-in is turned off in
-        this build, so sharing is unavailable here — it works once the app is published with
-        sign-in enabled.
+        Share links need a real account so they can be revoked later. Sign-in is turned off in this
+        build, so sharing is unavailable here — it works once the app is published with sign-in
+        enabled.
       </div>
     );
   }
@@ -1553,8 +1646,9 @@ function SharePanel({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
       <p className="text-muted">
-        Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to view.
-        Edits you make later are not shown; create a new link when you want to share an update.
+        Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to
+        view. Edits you make later are not shown; create a new link when you want to share an
+        update.
       </p>
       <textarea
         className={cn(inputCls, "min-h-[44px] resize-y")}
@@ -1565,7 +1659,11 @@ function SharePanel({
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-muted">
           Expires in
-          <select className={cn(inputCls, "w-auto")} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select
+            className={cn(inputCls, "w-auto")}
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+          >
             {[7, 30, 90, 180].map((d) => (
               <option key={d} value={d}>
                 {d} days
@@ -1581,10 +1679,20 @@ function SharePanel({
       {latest && (
         <div className="flex items-center gap-1.5 rounded-md border border-ok/40 bg-ok/10 px-2 py-1.5">
           <code className="min-w-0 flex-1 truncate text-[10px] text-fg">{urlFor(latest)}</code>
-          <button type="button" onClick={() => void copy(urlFor(latest))} className="text-primary hover:underline" title="Copy">
+          <button
+            type="button"
+            onClick={() => void copy(urlFor(latest))}
+            className="text-primary hover:underline"
+            title="Copy"
+          >
             <Copy className="size-3" />
           </button>
-          <a href={urlFor(latest)} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+          <a
+            href={urlFor(latest)}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
             Open
           </a>
         </div>
@@ -1594,20 +1702,39 @@ function SharePanel({
           <p className={labelCls}>Your links</p>
           <ul className="mt-1 space-y-1">
             {links.slice(0, 6).map((l) => (
-              <li key={l.token} className={cn("flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1", l.revoked && "opacity-50")}>
+              <li
+                key={l.token}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1",
+                  l.revoked && "opacity-50",
+                )}
+              >
                 <code className="min-w-0 flex-1 truncate text-[10px]">…{l.token.slice(-10)}</code>
                 <span className="text-[10px] text-subtle">
-                  {new Date(l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  {l.expiresAt ? ` → ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                  {new Date(l.createdAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                  {l.expiresAt
+                    ? ` → ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                    : ""}
                 </span>
                 {l.revoked ? (
                   <span className="text-[10px] text-subtle">revoked</span>
                 ) : (
                   <>
-                    <button type="button" onClick={() => void copy(urlFor(l.token))} className="text-[10px] text-primary hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => void copy(urlFor(l.token))}
+                      className="text-[10px] text-primary hover:underline"
+                    >
                       Copy
                     </button>
-                    <button type="button" onClick={() => void revoke(l.token)} className="text-[10px] text-danger hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => void revoke(l.token)}
+                      className="text-[10px] text-danger hover:underline"
+                    >
                       Revoke
                     </button>
                   </>
@@ -1625,7 +1752,6 @@ const GRADE_TONE: Record<MapReview["grade"], string> = {
   A: "bg-ok/15 text-ok border-ok/40",
   B: "bg-primary/15 text-primary border-primary/40",
   C: "bg-warn/15 text-warn border-warn/40",
-  D: "bg-danger/15 text-danger border-danger/40",
   F: "bg-danger/25 text-danger border-danger/60",
 };
 
@@ -1668,9 +1794,16 @@ function ReviewPanel({
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-fg">{review.headline}</p>
           <p className="mt-0.5 text-[10px] text-subtle">
-            {review.source === "grok" ? `Reviewed by ${review.model ?? "Grok"}` : "Rule-based review"}
+            {review.source === "grok"
+              ? `Reviewed by ${review.model ?? "Grok"}`
+              : "Rule-based review"}
             {" · "}
-            <button type="button" onClick={onRefresh} className="inline-flex items-center gap-1 text-primary hover:underline" disabled={loading}>
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              disabled={loading}
+            >
               <RotateCw className={cn("size-3", loading && "animate-spin")} /> Re-run
             </button>
           </p>
@@ -1815,10 +1948,19 @@ function HealthPill({
   sessionDelta: number;
 }) {
   const tone =
-    score >= 70 ? "text-ok border-ok/40 bg-ok/10" : score >= 55 ? "text-warn border-warn/40 bg-warn/10" : "text-danger border-danger/40 bg-danger/10";
+    score >= HEALTH_SCALE.adequate
+      ? "text-ok border-ok/40 bg-ok/10"
+      : score >= HEALTH_SCALE.weak
+        ? "text-warn border-warn/40 bg-warn/10"
+        : "text-danger border-danger/40 bg-danger/10";
   return (
     <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]">
-      <span className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold tabular", tone)}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold tabular",
+          tone,
+        )}
+      >
         <Gauge className="size-3" />
         {score}
       </span>
@@ -1869,7 +2011,7 @@ function WorkloadView({
   onReassign: (fromPersonId: string, processId: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(rows[0]?.person.id ?? null);
-  const overloaded = rows.filter((r) => r.load >= 70).length;
+  const overloaded = rows.filter((r) => r.load >= LOAD_BANDS.overburdened).length;
   const idle = rows.filter((r) => !r.ownedProcesses.length).length;
 
   return (
@@ -1883,7 +2025,11 @@ function WorkloadView({
         {rows.map((r) => {
           const expanded = open === r.person.id;
           const loadColor =
-            r.load >= 70 ? "var(--color-danger)" : r.load >= 45 ? "var(--color-warn)" : "var(--color-ok)";
+            r.load >= LOAD_BANDS.overburdened
+              ? "var(--color-danger)"
+              : r.load >= LOAD_BANDS.elevated
+                ? "var(--color-warn)"
+                : "var(--color-ok)";
           return (
             <li key={r.person.id} className="rounded-md border border-border bg-elevated">
               <button
@@ -1892,7 +2038,10 @@ function WorkloadView({
                 className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]"
               >
                 <ChevronRight
-                  className={cn("size-3 shrink-0 text-subtle transition-transform", expanded && "rotate-90")}
+                  className={cn(
+                    "size-3 shrink-0 text-subtle transition-transform",
+                    expanded && "rotate-90",
+                  )}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">
@@ -1939,7 +2088,7 @@ function WorkloadView({
                           >
                             {p.name}
                           </button>
-                          {r.load >= 70 && (
+                          {r.load >= LOAD_BANDS.overburdened && (
                             <button
                               type="button"
                               onClick={() => onReassign(r.person.id, p.id)}
@@ -1957,7 +2106,11 @@ function WorkloadView({
                   )}
                   {r.conflicts.length > 0 && (
                     <p className="text-subtle">
-                      SoD: {r.conflicts.slice(0, 2).map((c) => c.title).join(" · ")}
+                      SoD:{" "}
+                      {r.conflicts
+                        .slice(0, 2)
+                        .map((c) => c.title)
+                        .join(" · ")}
                       {r.conflicts.length > 2 ? ` · +${r.conflicts.length - 2} more` : ""}
                     </p>
                   )}
@@ -1989,8 +2142,8 @@ function BlockLibrary({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-[11px] text-muted">
-        Drop pre-built control patterns onto your map — risks, controls, and I/O included. The
-        badge previews the map-health change before you insert.
+        Drop pre-built control patterns onto your map — risks, controls, and I/O included. The badge
+        previews the map-health change before you insert.
       </p>
       <div className="grid gap-1.5 sm:grid-cols-2">
         {builtIn.map((b) => (
@@ -2051,9 +2204,7 @@ function BlockLibrary({
 function isQuickFixable(i: MapValidationIssue) {
   return Boolean(
     i.processId &&
-      (i.id.startsWith("owner-") ||
-        i.id.startsWith("fraud-nocontrol-") ||
-        i.id.startsWith("dep-")),
+    (i.id.startsWith("owner-") || i.id.startsWith("fraud-nocontrol-") || i.id.startsWith("dep-")),
   );
 }
 
@@ -2162,7 +2313,9 @@ function EntitlementPicker({
             onClick={() => toggle(e.id)}
             className={cn(
               "rounded-md border px-1.5 py-0.5 text-[10px]",
-              on ? "border-primary/50 bg-primary/15 text-fg" : "border-border bg-elevated text-muted",
+              on
+                ? "border-primary/50 bg-primary/15 text-fg"
+                : "border-border bg-elevated text-muted",
             )}
             title={e.label}
           >
@@ -2185,7 +2338,7 @@ function TeamEditor({
   const [name, setName] = useState("");
   const [role, setRole] = useState(roleOptions[0] ?? "Team member");
   const [customRole, setCustomRole] = useState("");
-  const [tenure, setTenure] = useState(2);
+  const [tenure, setTenure] = useState<number | "">("");
   const [entitlements, setEntitlements] = useState<EntitlementId[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const useCustom = role === "__custom";
@@ -2203,7 +2356,7 @@ function TeamEditor({
         name: name.trim().slice(0, 60),
         role: finalRole.slice(0, 40),
         active: true,
-        tenureYears: tenure,
+        tenureYears: tenure === "" ? undefined : tenure,
         entitlements: useCustom && entitlements.length ? entitlements : undefined,
       },
     ]);
@@ -2246,7 +2399,7 @@ function TeamEditor({
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium text-fg">{p.name}</span>
                   <span className="text-subtle"> · {p.role}</span>
-                  {!knownRole && !(p.entitlements?.length) && (
+                  {!knownRole && !p.entitlements?.length && (
                     <span className="text-warn"> · needs duties</span>
                   )}
                 </span>
@@ -2300,8 +2453,9 @@ function TeamEditor({
           max={40}
           step={0.5}
           value={tenure}
-          onChange={(e) => setTenure(Number(e.target.value))}
-          title="Tenure (years)"
+          onChange={(e) => setTenure(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder="Tenure (yrs)"
+          title="Tenure in years — leave blank if unknown"
         />
       </div>
       {useCustom && (
@@ -2420,9 +2574,7 @@ function ProcessForm({
 
       <ChipPicker
         label="Depends on"
-        options={all
-          .filter((p) => p.id !== process.id)
-          .map((p) => ({ id: p.id, label: p.name }))}
+        options={all.filter((p) => p.id !== process.id).map((p) => ({ id: p.id, label: p.name }))}
         selected={process.dependencies}
         onToggle={(id) => onChange({ dependencies: toggleIn(process.dependencies, id) })}
       />
@@ -2430,9 +2582,7 @@ function ProcessForm({
         label="Owners"
         options={tpl.people.map((p) => ({ id: p.id, label: `${p.name} · ${p.role}` }))}
         selected={process.ownerPersonIds ?? []}
-        onToggle={(id) =>
-          onChange({ ownerPersonIds: toggleIn(process.ownerPersonIds ?? [], id) })
-        }
+        onToggle={(id) => onChange({ ownerPersonIds: toggleIn(process.ownerPersonIds ?? [], id) })}
       />
       <ChipPicker
         label="Controls"
@@ -2632,9 +2782,7 @@ function RiskList({
             <select
               className={inputCls}
               value={r.linkedControlId ?? ""}
-              onChange={(e) =>
-                updateRisk(r.id, { linkedControlId: e.target.value || undefined })
-              }
+              onChange={(e) => updateRisk(r.id, { linkedControlId: e.target.value || undefined })}
             >
               <option value="">Link control…</option>
               {controlOptions.map((c) => (
@@ -2646,9 +2794,7 @@ function RiskList({
             <select
               className={inputCls}
               value={r.linkedScenarioId ?? ""}
-              onChange={(e) =>
-                updateRisk(r.id, { linkedScenarioId: e.target.value || undefined })
-              }
+              onChange={(e) => updateRisk(r.id, { linkedScenarioId: e.target.value || undefined })}
             >
               <option value="">Link scenario…</option>
               {scenarioOptions.map((s) => (
@@ -2660,9 +2806,7 @@ function RiskList({
             <select
               className={inputCls}
               value={r.linkedKnowledgeId ?? ""}
-              onChange={(e) =>
-                updateRisk(r.id, { linkedKnowledgeId: e.target.value || undefined })
-              }
+              onChange={(e) => updateRisk(r.id, { linkedKnowledgeId: e.target.value || undefined })}
             >
               <option value="">Link knowledge…</option>
               {knowledgeOptions.map((k) => (
@@ -2695,14 +2839,22 @@ function RiskList({
                 </option>
               ))}
             </select>
-            <select className={inputCls} value={sev} onChange={(e) => setSev(Number(e.target.value))}>
+            <select
+              className={inputCls}
+              value={sev}
+              onChange={(e) => setSev(Number(e.target.value))}
+            >
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
                   Severity {n}
                 </option>
               ))}
             </select>
-            <select className={inputCls} value={lik} onChange={(e) => setLik(Number(e.target.value))}>
+            <select
+              className={inputCls}
+              value={lik}
+              onChange={(e) => setLik(Number(e.target.value))}
+            >
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
                   Likelihood {n}

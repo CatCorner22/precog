@@ -103,10 +103,12 @@ export function CaseCard({
             <p className="leading-relaxed text-muted">{study.controlGap}</p>
           </Section>
 
-          <Section title="What would have caught it">
+          <Section title="What would plausibly have caught it">
             <ul className="space-y-1.5">
-              {study.wouldHaveCaughtIt.map((step) => (
-                <li key={step.control} className="flex gap-2 leading-relaxed text-muted">
+              {study.wouldHaveCaughtIt.map((step, i) => (
+                // A case may phrase one control more than one way, so the
+                // control id alone is not a unique key.
+                <li key={`${step.control}-${i}`} className="flex gap-2 leading-relaxed text-muted">
                   <span aria-hidden className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" />
                   <span>{step.asApplied}</span>
                 </li>

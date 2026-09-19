@@ -16,29 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 
-export function ScenarioRunner({
-  initialScenarioId,
-}: {
-  initialScenarioId?: string | null;
-}) {
+export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
   const tpl = useTemplate();
-  const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } =
-    usePractice();
+  const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } = usePractice();
   const teamLabel = industryMeta(profile.industry).teamLabel;
-  const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">(
-    "single",
-  );
+  const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">("single");
   const [scenarioId, setScenarioId] = useState(
     initialScenarioId && tpl.scenarios.some((s) => s.id === initialScenarioId)
       ? initialScenarioId
@@ -93,22 +77,8 @@ export function ScenarioRunner({
     [scenarioId, mitigations, staff, riskVars],
   );
 
-  const chartData = useMemo(() => {
-    if (!result) return [];
-    const { p50, p95Low, p95High } = result.timelineDays;
-    return [
-      { day: 0, risk: 5 },
-      { day: p95Low, risk: 45 },
-      { day: p50, risk: 72 },
-      { day: p95High, risk: 92 },
-      { day: Math.round(p95High * 1.2), risk: 96 },
-    ];
-  }, [result]);
-
   function toggleMitigation(id: string) {
-    setMitigations((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setMitigations((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   return (
@@ -175,11 +145,7 @@ export function ScenarioRunner({
               </button>
             ))}
           </div>
-          <DynamicVariablesPanel
-            value={riskVars}
-            onChange={updateRiskVars}
-            result={result}
-          />
+          <DynamicVariablesPanel value={riskVars} onChange={updateRiskVars} result={result} />
           {result && (
             <Card>
               <CardHeader>
@@ -188,17 +154,17 @@ export function ScenarioRunner({
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <Outcome
-                  label="p50 timeline"
+                  label="Assumed time to impact"
                   value={`${result.timelineDays.p50}d`}
-                  sub={`${result.timelineDays.p95Low}–${result.timelineDays.p95High}d 95%`}
+                  sub={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}d`}
                 />
                 <Outcome
-                  label="Gross expected"
+                  label="Assumed loss if it happens"
                   value={formatUsd(result.financialImpact.expected)}
                   sub="before insurance"
                 />
                 <Outcome
-                  label="Retained expected"
+                  label="Assumed retained loss"
                   value={formatUsd(result.retainedImpact.expected)}
                   sub="after deductible / limit"
                 />
@@ -241,32 +207,38 @@ export function ScenarioRunner({
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <Card>
               <CardHeader>
-                <CardTitle>Precog projection</CardTitle>
+                <CardTitle>What this scenario assumes</CardTitle>
                 <CardDescription>
-                  Coupled to dynamic variables — change one input, likelihood and cost both move
+                  Change a staffing, detection, or insurance setting and the assumed figures move
+                  with it
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
+                  These figures are assumptions written into this scenario, scaled by your settings.
+                  They are not predictions and were not measured at any business. For what failures
+                  like this one actually cost, see the prosecuted cases on Start here.
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <Stat
-                    label="Most likely timeline"
+                    label="Assumed time to impact"
                     value={`${result.timelineDays.p50} days`}
-                    hint="p50 · detection lag applied"
+                    hint={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High} days`}
                   />
                   <Stat
-                    label="95% confidence range"
-                    value={`${result.timelineDays.p95Low}–${result.timelineDays.p95High}d`}
+                    label="Basis of these figures"
+                    value="Assumption"
                     hint={result.confidenceLabel}
                   />
                   <Stat
-                    label="Gross financial impact"
+                    label="Assumed loss if it happens"
                     value={formatUsd(result.financialImpact.expected)}
-                    hint={`${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
+                    hint={`assumed range ${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
                   />
                   <Stat
-                    label={`Retained by ${teamLabel}`}
+                    label={`Assumed loss retained by ${teamLabel}`}
                     value={formatUsd(result.retainedImpact.expected)}
-                    hint={`${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
+                    hint={`assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
                   />
                   <Stat
                     label="Net premium / year"
@@ -296,38 +268,6 @@ export function ScenarioRunner({
                     </Badge>
                   </div>
                 )}
-
-                <div className="h-48 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <defs>
-                        <linearGradient id="riskFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                      <XAxis dataKey="day" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
-                      <YAxis tick={{ fill: "var(--color-muted)", fontSize: 11 }} domain={[0, 100]} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--color-elevated)",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        labelFormatter={(d) => `Day ${d}`}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="risk"
-                        stroke="var(--color-primary)"
-                        fill="url(#riskFill)"
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
 
                 <div>
                   <p className="text-xs font-medium tracking-wide text-subtle uppercase">
@@ -367,7 +307,9 @@ export function ScenarioRunner({
               <Card>
                 <CardHeader>
                   <CardTitle>Staff composition</CardTitle>
-                  <CardDescription>Synced to business profile · feeds residual + cascades</CardDescription>
+                  <CardDescription>
+                    Synced to business profile · feeds residual + cascades
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <SliderRow
@@ -382,9 +324,7 @@ export function ScenarioRunner({
                     value={staff.soleOwnerKnowledgeCount}
                     min={0}
                     max={8}
-                    onChange={(v) =>
-                      updateStaff({ ...staff, soleOwnerKnowledgeCount: v })
-                    }
+                    onChange={(v) => updateStaff({ ...staff, soleOwnerKnowledgeCount: v })}
                   />
                   <SliderRow
                     label="Segregation score"
@@ -424,9 +364,19 @@ export function ScenarioRunner({
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
-                    Median time to detection {tpl.crimeFraudStats.medianDetectionMonths} months ·
-                    median loss under 100 staff{" "}
-                    {formatUsd(tpl.crimeFraudStats.medianLossSmallOrgUsd)}
+                    For comparison, across investigated cases in the ACFE&rsquo;s 2026 study: median
+                    time to detection {tpl.crimeFraudStats.medianDetectionMonths} months; median
+                    loss at organizations under 100 staff{" "}
+                    {formatUsd(tpl.crimeFraudStats.medianLossSmallOrgUsd)}. Those describe other
+                    organizations, not this scenario.{" "}
+                    <a
+                      href={tpl.crimeFraudStats.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-primary hover:underline"
+                    >
+                      Source
+                    </a>
                   </p>
                   <ul className="space-y-1 text-xs text-muted">
                     {result.crimeModifiers.map((m) => (
@@ -459,8 +409,8 @@ export function ScenarioRunner({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <Badge variant={on ? "ok" : "default"}>{m.effort} effort</Badge>
-                        <span className="text-xs tabular text-muted">
-                          −{Math.round(m.riskReduction * 100)}% risk
+                        <span className="text-xs text-muted">
+                          {reductionPhrase(m.riskReduction)}
                         </span>
                       </div>
                       <p className="mt-2 text-sm font-medium">{m.label}</p>
@@ -498,15 +448,16 @@ export function ScenarioRunner({
   );
 }
 
-function Outcome({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-}) {
+/**
+ * A mitigation's riskReduction is a coefficient the scenario author set, not a
+ * measured effect, so it is shown as a size rather than a percentage.
+ */
+function reductionPhrase(r: number): string {
+  const size = r >= 0.6 ? "large" : r >= 0.4 ? "moderate" : "modest";
+  return `${size} assumed reduction`;
+}
+
+function Outcome({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
       <p className="text-[11px] text-subtle">{label}</p>
@@ -516,15 +467,7 @@ function Outcome({
   );
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
+function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
       <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
