@@ -499,7 +499,7 @@ export const retailTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "Lead cashier leaves with sole POS/returns knowledge",
     keyPersonDesc:
       "Jordan (sole expert on POS overrides and return policy) resigns with 2 weeks notice. No cross-training documented.",

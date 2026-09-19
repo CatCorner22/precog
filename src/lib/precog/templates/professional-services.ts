@@ -504,7 +504,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF, segregationScore: 38 },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
     keyPersonDesc:
       "Sam (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",

@@ -444,7 +444,7 @@ export const generalTemplate: IndustryTemplate = {
   controls: baseFinancialControls(),
   staffComposition: { ...DEFAULT_STAFF },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios(DEFAULT_FRAUD_STATS.source, {
+  scenarios: baseFraudScenarios({
     keyPersonTitle: "AR lead leaves with sole billing knowledge",
     keyPersonDesc:
       "Sam (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
