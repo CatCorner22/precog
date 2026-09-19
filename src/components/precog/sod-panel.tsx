@@ -25,7 +25,8 @@ const FRAMEWORK_DUTIES = [
 type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
-  const { controls } = useTemplate();
+  const tpl = useTemplate();
+  const { controls } = tpl;
   const { profile } = usePractice();
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual">("dual");
@@ -52,12 +53,12 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
   const report = useMemo(
     () =>
-      detectSodConflicts(profile.staff, {
+      detectSodConflicts(tpl, profile.staff, {
         residualAcceptedControlIds: residualAccepted,
         compensatingByControlId: compensatingByControl,
         dualReleaseMitigatedRuleIds: dualMitigated,
       }),
-    [profile.staff, residualAccepted, compensatingByControl, dualMitigated],
+    [tpl, profile.staff, residualAccepted, compensatingByControl, dualMitigated],
   );
 
   const filtered = report.conflicts.filter((c) =>

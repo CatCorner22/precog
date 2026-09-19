@@ -9,7 +9,7 @@ import { summarizeCausalInfluence, type CausalNodeId } from "./causal-graph";
 import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals } from "./counterfactual";
 import { computeEvoi } from "./evoi";
-import { getActiveTemplate } from "../../active-template";
+import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
@@ -63,21 +63,22 @@ export interface AdvancedReasoningReport {
 }
 
 export function runAdvancedReasoning(
+  tpl: IndustryTemplate,
   staff: StaffComposition,
   riskVars: RiskVariableState,
 ): AdvancedReasoningReport {
-  const leading = scoreLeadingIndicators(staff, riskVars);
-  const residual = portfolioSummary(staff).averageResidual;
-  const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+  const leading = scoreLeadingIndicators(tpl, staff, riskVars);
+  const residual = portfolioSummary(tpl, staff).averageResidual;
+  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
   const top = ranked[0]
-    ? runPrecogScenario(ranked[0].scenario.id, {
+    ? runPrecogScenario(tpl, ranked[0].scenario.id, {
         staff,
         riskVariables: riskVars,
       })
     : null;
 
   const bayes = initBayesianState({
-    assumedPrior: getActiveTemplate().crimeFraudStats.assumedControlFailurePrior,
+    assumedPrior: tpl.crimeFraudStats.assumedControlFailurePrior,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,
@@ -98,9 +99,9 @@ export function runAdvancedReasoning(
     topPath: c.topPaths[0]?.narrative ?? "no path",
   }));
 
-  const beam = beamSearchLevers(staff, riskVars, { beamWidth: 4, depth: 3 });
-  const cf = runCounterfactuals(staff, riskVars);
-  const evoi = computeEvoi(staff, riskVars);
+  const beam = beamSearchLevers(tpl, staff, riskVars, { beamWidth: 4, depth: 3 });
+  const cf = runCounterfactuals(tpl, staff, riskVars);
+  const evoi = computeEvoi(tpl, staff, riskVars);
 
   const recommendedSequence = beam.best.labels.length ? beam.best.labels : [cf.bestIntervention];
 

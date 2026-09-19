@@ -64,11 +64,11 @@ export function MapHealthCard({
   onOpenMap: (processId?: string) => void;
   onBuildMap: () => void;
 }) {
-  const { profile, mapCustomized, templateRevision, recordMapHealth } = usePractice();
+  const { profile, mapCustomized, recordMapHealth } = usePractice();
   const tpl = useTemplate();
 
   const health = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const issues = validateProcessMap(
       tpl.processes,
       tpl.people,
@@ -76,16 +76,7 @@ export function MapHealthCard({
       profile.mapLayout ?? {},
     );
     return computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  }, [
-    profile.staff,
-    profile.mapLayout,
-    profile.industry,
-    tpl.processes,
-    tpl.people,
-    tpl.controls,
-    mapCustomized,
-    templateRevision,
-  ]);
+  }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
 
   useEffect(() => {
     recordMapHealth(health.score);

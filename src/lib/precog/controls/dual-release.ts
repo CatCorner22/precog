@@ -9,7 +9,7 @@
  * Educational control design — not bank/PMS integration.
  */
 import type { Person, StaffComposition } from "../types";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
@@ -253,8 +253,10 @@ function rolesForSlot(people: Person[], patterns: RegExp[]): string[] {
   return people.filter((p) => patterns.some((re) => re.test(p.role))).map((p) => p.role);
 }
 
-function localizeDualReleaseRules(rules: DualReleaseRule[]): DualReleaseRule[] {
-  const tpl = getActiveTemplate();
+function localizeDualReleaseRules(
+  tpl: IndustryTemplate,
+  rules: DualReleaseRule[],
+): DualReleaseRule[] {
   const processIds = new Set(tpl.processes.map((p) => p.id));
   const slotMap = new Map<string, string[]>();
   for (const [slot, patterns] of Object.entries(DENTAL_ROLE_SLOTS)) {
@@ -280,8 +282,8 @@ function localizeDualReleaseRules(rules: DualReleaseRule[]): DualReleaseRule[] {
 }
 
 /** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
-export function defaultExceptions(): ThresholdException[] {
-  const copy = getIndustryCopy(getActiveTemplate().id);
+export function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
+  const copy = getIndustryCopy(tpl.id);
   const today = new Date();
   const in90 = new Date(today.getTime() + 90 * 86400000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -328,14 +330,20 @@ export function defaultExceptions(): ThresholdException[] {
   ];
 }
 
-export function defaultDualReleasePolicy(staff?: StaffComposition): DualReleasePolicy {
+export function defaultDualReleasePolicy(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+): DualReleasePolicy {
   const enabled = staff?.dualControlPayments ?? false;
   return {
     enabled,
     ownerCanSecondAny: true,
     hardBlockWithoutSecond: true,
-    rules: localizeDualReleaseRules(DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r }))),
-    exceptions: defaultExceptions(),
+    rules: localizeDualReleaseRules(
+      tpl,
+      DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
+    ),
+    exceptions: defaultExceptions(tpl),
   };
 }
 
@@ -344,10 +352,11 @@ export function makeExceptionId(): string {
 }
 
 export function mergeDualReleasePolicy(
+  tpl: IndustryTemplate,
   partial?: Partial<DualReleasePolicy> | null,
   staff?: StaffComposition,
 ): DualReleasePolicy {
-  const base = defaultDualReleasePolicy(staff);
+  const base = defaultDualReleasePolicy(tpl, staff);
   if (!partial) return base;
   const rulesByChannel = new Map((partial.rules ?? []).map((r) => [r.channel, r] as const));
   return {
@@ -364,8 +373,8 @@ export function mergeDualReleasePolicy(
   };
 }
 
-function personById(id: string) {
-  return getActiveTemplate().people.find((p) => p.id === id);
+function personById(tpl: IndustryTemplate, id: string) {
+  return tpl.people.find((p) => p.id === id);
 }
 
 function todayIso(asOf?: string) {
@@ -391,6 +400,7 @@ function exceptionSpecificity(ex: ThresholdException): number {
 }
 
 export function matchExceptions(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   request: Pick<
     ReleaseRequest,
@@ -398,7 +408,7 @@ export function matchExceptions(
   >,
 ): ThresholdException[] {
   const asOf = todayIso(request.asOfDate);
-  const initiator = personById(request.initiatorPersonId);
+  const initiator = personById(tpl, request.initiatorPersonId);
   const payee = (request.payee ?? "").toLowerCase();
 
   const matched = (policy.exceptions ?? []).filter((ex) => {
@@ -492,13 +502,14 @@ export function resolveEffectiveThreshold(
 }
 
 export function listEligibleApprovers(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   channel: ReleaseChannel,
 ): EligibleApprover[] {
   const rule = policy.rules.find((r) => r.channel === channel);
   if (!rule) return [];
 
-  const { people } = getActiveTemplate();
+  const { people } = tpl;
   return people
     .filter((p) => p.active)
     .map((p) => {
@@ -528,12 +539,13 @@ function displayThreshold(effective: number, base: number): number {
 }
 
 export function evaluateRelease(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   request: ReleaseRequest,
 ): ReleaseEvaluation {
   const rule = policy.rules.find((r) => r.channel === request.channel);
-  const initiator = personById(request.initiatorPersonId);
-  const second = request.secondPersonId ? personById(request.secondPersonId) : undefined;
+  const initiator = personById(tpl, request.initiatorPersonId);
+  const second = request.secondPersonId ? personById(tpl, request.secondPersonId) : undefined;
 
   const baseCredit = {
     dualControlPayments: policy.enabled,
@@ -581,7 +593,9 @@ export function evaluateRelease(
       dualRequired: false,
       reasons: [`No active dual-release rule for channel "${request.channel}".`],
       nextSteps: ["Enable this channel in the dual-release policy."],
-      eligibleSeconds: listEligibleApprovers(policy, request.channel).filter((p) => p.canSecond),
+      eligibleSeconds: listEligibleApprovers(tpl, policy, request.channel).filter(
+        (p) => p.canSecond,
+      ),
       initiator: initiator
         ? { id: initiator.id, name: initiator.name, role: initiator.role }
         : undefined,
@@ -590,7 +604,7 @@ export function evaluateRelease(
     };
   }
 
-  const matches = matchExceptions(policy, request);
+  const matches = matchExceptions(tpl, policy, request);
   const topEx = matches[0];
   const resolved = resolveEffectiveThreshold(rule.thresholdUsd, topEx);
   const effectiveThreshold = resolved.thresholdUsd;
@@ -600,7 +614,7 @@ export function evaluateRelease(
       ? false
       : request.amountUsd > effectiveThreshold;
 
-  const eligible = listEligibleApprovers(policy, request.channel);
+  const eligible = listEligibleApprovers(tpl, policy, request.channel);
   const eligibleSeconds = eligible.filter((p) => p.canSecond);
 
   const initiatorMeta = initiator

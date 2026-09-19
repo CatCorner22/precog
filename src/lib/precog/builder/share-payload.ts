@@ -1,19 +1,19 @@
-import { getActiveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "./evidence";
 import type { SharedMapPayload } from "./share-server";
 
-/** Build the frozen share payload from the live template + profile. */
+/** Build the frozen share payload from the profile and its resolved template. */
 export function buildSharePayload(
   profile: PracticeProfile,
   actions: { title: string; why: string; effort: string }[],
   note?: string,
 ): SharedMapPayload {
-  const tpl = getActiveTemplate();
+  const tpl = resolveTemplate(profile);
   const meta = industryMeta(profile.industry);
-  const { snapshots } = buildProcessMapGraph(profile.staff);
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
   const issues = validateProcessMap(
     tpl.processes,
     tpl.people,
@@ -69,7 +69,10 @@ export function buildSharePayload(
         })),
       })),
     people: tpl.people.filter((p) => p.active).map((p) => ({ name: p.name, role: p.role })),
-    issues: issues.filter((i) => i.severity !== "info").map((i) => i.message).slice(0, 10),
+    issues: issues
+      .filter((i) => i.severity !== "info")
+      .map((i) => i.message)
+      .slice(0, 10),
     actions: actions.slice(0, 6),
     note: note?.trim().slice(0, 600) || undefined,
   };

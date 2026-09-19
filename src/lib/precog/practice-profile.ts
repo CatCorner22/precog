@@ -1,10 +1,8 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
-import {
-  DEFAULT_RISK_VARIABLES,
-  type RiskVariableState,
-} from "./scoring/dynamic-variables";
+import { resolveTemplate } from "./active-template";
+import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
 import {
   defaultDualReleasePolicy,
   mergeDualReleasePolicy,
@@ -132,7 +130,7 @@ const STORAGE_KEY = "precog.practiceProfile.v2";
 export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
   const tpl = getIndustryTemplate(industry);
   const staff = { ...tpl.staffComposition };
-  const dualRelease = defaultDualReleasePolicy(staff);
+  const dualRelease = defaultDualReleasePolicy(tpl, staff);
   return {
     practiceName: tpl.businessName,
     industry,
@@ -161,14 +159,16 @@ export function loadProfile(): PracticeProfile {
   try {
     // migrate v1
     const raw =
-      localStorage.getItem(STORAGE_KEY) ??
-      localStorage.getItem("precog.practiceProfile.v1");
+      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
     const industry = (parsed.industry as IndustryId) ?? "dental";
     const base = defaultProfile(industry);
     const staff = { ...base.staff, ...parsed.staff };
+    const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
+    const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
     const dualRelease = mergeDualReleasePolicy(
+      resolveTemplate({ industry, customProcesses, customPeople }),
       parsed.dualRelease as DualReleasePolicy | undefined,
       staff,
     );
@@ -192,13 +192,10 @@ export function loadProfile(): PracticeProfile {
       dualRelease,
       decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
       onboardingComplete: parsed.onboardingComplete ?? true,
-      customProcesses: Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null,
-      customPeople: Array.isArray(parsed.customPeople) ? parsed.customPeople : null,
-      mapLayout:
-        parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
-      savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks)
-        ? parsed.savedProcessBlocks
-        : [],
+      customProcesses,
+      customPeople,
+      mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
+      savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
       mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
       businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",

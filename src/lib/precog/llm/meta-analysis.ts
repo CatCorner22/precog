@@ -19,7 +19,7 @@
  * Educational / decision-support — not actuarial or legal advice.
  */
 import { detectSodConflicts } from "../sod/detect";
-import { getActiveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
@@ -133,16 +133,17 @@ function clamp(n: number, lo = 0, hi = 100) {
  * Run epistemic meta-analysis over current practice profile + demo corpus.
  */
 export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
-  const { people, knowledge, relations } = getActiveTemplate();
+  const tpl = resolveTemplate(profile);
+  const { people, knowledge, relations } = tpl;
   const staff = profile.staff;
   const vars = profile.riskVariables;
   const dual = profile.dualRelease;
   const decisions = profile.decisions ?? [];
-  const sod = detectSodConflicts(staff, {
+  const sod = detectSodConflicts(tpl, staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dual),
   });
-  const portfolio = portfolioSummary(staff);
-  const leading = scoreLeadingIndicators(staff, vars);
+  const portfolio = portfolioSummary(tpl, staff);
+  const leading = scoreLeadingIndicators(tpl, staff, vars);
 
   const items: EpistemicItem[] = [];
 

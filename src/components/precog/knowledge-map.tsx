@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils";
 const STRONG = new Set(["expert", "proficient"]);
 
 export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
-  const { people, knowledge, relations } = useTemplate();
-  const risks = useMemo(() => findKnowledgeRisks(), [people, knowledge, relations]);
+  const tpl = useTemplate();
+  const { people, knowledge, relations } = tpl;
+  const risks = useMemo(() => findKnowledgeRisks(tpl), [tpl]);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialKnowledgeId ?? risks[0]?.knowledgeId ?? null,
   );

@@ -5,7 +5,7 @@
 import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { initBayesianState } from "./bayesian";
-import { getActiveTemplate } from "../../active-template";
+import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
@@ -28,18 +28,19 @@ export interface EvoiReport {
 }
 
 export function computeEvoi(
+  tpl: IndustryTemplate,
   staff: StaffComposition,
   vars: RiskVariableState,
 ): EvoiReport {
-  const leading = scoreLeadingIndicators(staff, vars);
-  const residual = portfolioSummary(staff).averageResidual;
-  const ranked = rankDangerousScenarios({ staff, riskVariables: vars });
+  const leading = scoreLeadingIndicators(tpl, staff, vars);
+  const residual = portfolioSummary(tpl, staff).averageResidual;
+  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: vars });
   const top = ranked[0]
-    ? runPrecogScenario(ranked[0].scenario.id, { staff, riskVariables: vars })
+    ? runPrecogScenario(tpl, ranked[0].scenario.id, { staff, riskVariables: vars })
     : null;
 
   const bayes = initBayesianState({
-    assumedPrior: getActiveTemplate().crimeFraudStats.assumedControlFailurePrior,
+    assumedPrior: tpl.crimeFraudStats.assumedControlFailurePrior,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,
@@ -49,8 +50,7 @@ export function computeEvoi(
 
   const baselineEal = bayes.expectedAnnualLoss;
   // Uncertainty mass ~ width of CI * severity
-  const pWidth =
-    bayes.failureProbability.ci95.high - bayes.failureProbability.ci95.low;
+  const pWidth = bayes.failureProbability.ci95.high - bayes.failureProbability.ci95.low;
   const uncertaintyMass = pWidth * bayes.severity.mean * 0.12;
 
   const items: EvoiItem[] = [
@@ -60,8 +60,7 @@ export function computeEvoi(
       evoi: uncertaintyMass * (staff.independentBankRec ? 0.25 : 0.55),
       effort: "low",
       linkedTab: "precog",
-      rationale:
-        "Resolves detection-lag uncertainty; highest VOI when recon is not independent.",
+      rationale: "Resolves detection-lag uncertainty; highest VOI when recon is not independent.",
     },
     {
       id: "evoi_writeoff_aging",

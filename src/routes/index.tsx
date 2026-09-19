@@ -150,34 +150,31 @@ function Home() {
   const [processId, setProcessId] = useState<string | null>(null);
   const [mapBuild, setMapBuild] = useState(false);
   const { user, isPending } = useCurrentUserState();
-  const { profile, ready, templateRevision, mapCustomized } = usePractice();
+  const { profile, ready, mapCustomized } = usePractice();
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
-  const risks = useMemo(() => findKnowledgeRisks(), [profile.industry, templateRevision]);
+  const risks = useMemo(() => findKnowledgeRisks(tpl), [tpl]);
   const ranked = useMemo(
     () =>
-      rankDangerousScenarios({
+      rankDangerousScenarios(tpl, {
         staff: profile.staff,
         riskVariables: profile.riskVariables,
       }),
-    [profile.staff, profile.riskVariables, profile.industry, templateRevision],
+    [tpl, profile.staff, profile.riskVariables],
   );
-  const coso = useMemo(() => assessCoso(), [profile.industry, templateRevision]);
-  const portfolio = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff, profile.industry, templateRevision],
-  );
+  const coso = useMemo(() => assessCoso(tpl), [tpl]);
+  const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
   const leading = useMemo(
-    () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
+    () => scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables),
+    [tpl, profile.staff, profile.riskVariables],
   );
   const sodReport = useMemo(
     () =>
-      detectSodConflicts(profile.staff, {
+      detectSodConflicts(tpl, profile.staff, {
         dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
       }),
-    [profile.staff, profile.dualRelease, profile.industry, templateRevision],
+    [tpl, profile.staff, profile.dualRelease],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
@@ -187,7 +184,7 @@ function Home() {
   ).length;
 
   const mapHealth = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(profile.staff);
+    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const issues = validateProcessMap(
       tpl.processes,
       tpl.people,
@@ -195,15 +192,7 @@ function Home() {
       profile.mapLayout ?? {},
     );
     return computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  }, [
-    profile.staff,
-    profile.mapLayout,
-    tpl.processes,
-    tpl.people,
-    tpl.controls,
-    mapCustomized,
-    templateRevision,
-  ]);
+  }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
 
   function navigateDeepLink(target: DeepLinkTarget) {
     if (target.type === "tab") {

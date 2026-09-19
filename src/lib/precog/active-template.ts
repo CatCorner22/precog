@@ -2,66 +2,40 @@ import type { IndustryId } from "./industry";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import type { Person, ProcessNode } from "./types";
 
-let base: IndustryTemplate = getIndustryTemplate("dental");
-let processOverrides: ProcessNode[] | null = null;
-let peopleOverrides: Person[] | null = null;
-let active: IndustryTemplate = base;
-let revision = 0;
+/** The slice of a practice profile that determines which template the engines see. */
+export interface TemplateSource {
+  industry: IndustryId;
+  customProcesses?: ProcessNode[] | null;
+  customPeople?: Person[] | null;
+}
 
-function rebuild() {
+/**
+ * Layer a business's own people and process map over its industry template.
+ *
+ * Pure: the same source always yields an equivalent template, so callers on
+ * the server can build one per request and callers in React can memoize on
+ * the three inputs. Knowledge relations and process owners that point at
+ * people who are no longer on the team are dropped so no engine ever sees a
+ * dangling owner.
+ */
+export function resolveTemplate(source: TemplateSource): IndustryTemplate {
+  const base = getIndustryTemplate(source.industry);
+  const peopleOverrides = source.customPeople ?? null;
+  const processOverrides = source.customProcesses ?? null;
   const people = peopleOverrides ?? base.people;
   const ids = new Set(people.map((p) => p.id));
-  active = {
+  return {
     ...base,
     people,
-    // Drop knowledge relations that point at removed people so engines never see dangling owners.
-    relations: peopleOverrides
-      ? base.relations.filter((r) => ids.has(r.personId))
-      : base.relations,
+    relations: peopleOverrides ? base.relations.filter((r) => ids.has(r.personId)) : base.relations,
     processes: (processOverrides ?? base.processes).map((p) => ({
       ...p,
       ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
     })),
   };
-  revision += 1;
-}
-
-export function getActiveTemplate(): IndustryTemplate {
-  return active;
 }
 
 /** The unmodified industry template (before any user overrides). */
-export function getBaseTemplate(): IndustryTemplate {
-  return base;
-}
-
-export function getTemplateRevision(): number {
-  return revision;
-}
-
-/** Swap the in-memory demo template (processes, people, scenarios, controls). */
-export function setActiveIndustry(id: IndustryId): IndustryTemplate {
-  base = getIndustryTemplate(id);
-  processOverrides = null;
-  peopleOverrides = null;
-  rebuild();
-  return active;
-}
-
-/**
- * Layer user-built processes over the base template so every engine
- * (process map, residual scoring, COSO, Pioneer tools) sees the custom map.
- * Pass null to revert to the template's processes.
- */
-export function setProcessOverrides(processes: ProcessNode[] | null): IndustryTemplate {
-  processOverrides = processes;
-  rebuild();
-  return active;
-}
-
-/** Layer the user's real team over the template people. Pass null to revert. */
-export function setPeopleOverrides(people: Person[] | null): IndustryTemplate {
-  peopleOverrides = people;
-  rebuild();
-  return active;
+export function getBaseTemplate(industry: IndustryId): IndustryTemplate {
+  return getIndustryTemplate(industry);
 }

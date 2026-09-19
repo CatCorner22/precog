@@ -3,7 +3,7 @@
  */
 import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
-import { getActiveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
@@ -30,22 +30,13 @@ import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
 
 export interface ToolContext {
-  riskVariables?: RiskVariableState;
-  staff?: StaffComposition;
-  practiceName?: string;
-  question?: string;
+  /** The business being advised. Every tool is a pure function of this. */
   profile?: PracticeProfile;
+  question?: string;
 }
 
 function profileOf(ctx: ToolContext): PracticeProfile {
-  if (ctx.profile) return ctx.profile;
-  const base = defaultProfile();
-  return {
-    ...base,
-    practiceName: ctx.practiceName ?? base.practiceName,
-    staff: ctx.staff ?? base.staff,
-    riskVariables: ctx.riskVariables ?? base.riskVariables,
-  };
+  return ctx.profile ?? defaultProfile();
 }
 
 function usd(n: number) {
@@ -54,10 +45,6 @@ function usd(n: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function staffOf(ctx: ToolContext): StaffComposition {
-  return ctx.staff ?? getActiveTemplate().staffComposition;
 }
 
 export const TOOL_CATALOG: {
@@ -147,11 +134,12 @@ export function executeTool(
   args: Record<string, unknown> = {},
   ctx: ToolContext = {},
 ): ToolResult {
-  const tpl = getActiveTemplate();
+  const profile = profileOf(ctx);
+  const tpl = resolveTemplate(profile);
   const { people, knowledge, relations, scenarios, controls, crimeFraudStats } = tpl;
-  const staff = staffOf(ctx);
-  const practiceName = ctx.practiceName ?? tpl.businessName;
-  const riskVars = ctx.riskVariables ?? DEFAULT_RISK_VARIABLES;
+  const staff: StaffComposition = profile.staff;
+  const practiceName = profile.practiceName || tpl.businessName;
+  const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
 
   try {
     switch (tool) {
@@ -162,6 +150,7 @@ export function executeTool(
           summary: `${practiceName}: team ${staff.teamSize}, segregation ${staff.segregationScore}/100`,
           data: {
             practice: practiceName,
+            industry: tpl.id,
             staff,
             riskVariables: {
               basePremiumAnnual: riskVars.basePremiumAnnual,
@@ -184,7 +173,7 @@ export function executeTool(
         };
 
       case "get_coso_assessment": {
-        const coso = assessCoso();
+        const coso = assessCoso(tpl);
         return {
           tool,
           ok: true,
@@ -205,7 +194,7 @@ export function executeTool(
       }
 
       case "get_residual_portfolio": {
-        const p = portfolioSummary(staff);
+        const p = portfolioSummary(tpl, staff);
         return {
           tool,
           ok: true,
@@ -235,7 +224,7 @@ export function executeTool(
       }
 
       case "get_knowledge_spofs": {
-        const risks = findKnowledgeRisks().filter((r) => r.soleOwner || r.ownerCount === 0);
+        const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         return {
           tool,
           ok: true,
@@ -277,9 +266,9 @@ export function executeTool(
       }
 
       case "run_precog_scenario": {
-        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
         const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
-        const result = runPrecogScenario(scenarioId, { staff, riskVariables: riskVars });
+        const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: riskVars });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
           return { tool, args, ok: false, summary: "Scenario not found", data: null };
@@ -313,9 +302,9 @@ export function executeTool(
       }
 
       case "compare_scenario_futures": {
-        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
         const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
-        const report = compareScenarioFutures(scenarioId, staff, [], riskVars);
+        const report = compareScenarioFutures(tpl, scenarioId, staff, [], riskVars);
         return {
           tool,
           args: { scenarioId },
@@ -337,7 +326,7 @@ export function executeTool(
       }
 
       case "get_tornado_levers": {
-        const t = tornadoSensitivity(staff);
+        const t = tornadoSensitivity(tpl, staff);
         return {
           tool,
           ok: true,
@@ -348,7 +337,7 @@ export function executeTool(
       }
 
       case "get_insurance_cost_of_risk": {
-        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
         const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const scenario = scenarios.find((s) => s.id === scenarioId)!;
         const dyn = evaluateDynamicRisk(
@@ -389,11 +378,11 @@ export function executeTool(
       }
 
       case "simulate_variable_cascades": {
-        const ranked = rankDangerousScenarios({ staff, riskVariables: riskVars });
+        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
         const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
         const leverId = args.leverId as CascadeLeverId | undefined;
         if (leverId) {
-          const one = simulateCascadeLever(leverId, riskVars, staff, scenarioId);
+          const one = simulateCascadeLever(tpl, leverId, riskVars, staff, scenarioId);
           return {
             tool,
             args: { leverId, scenarioId },
@@ -414,7 +403,7 @@ export function executeTool(
             links: [{ tab: "precog", label: "Cascades" }],
           };
         }
-        const all = simulateAllCascades(riskVars, staff, scenarioId);
+        const all = simulateAllCascades(tpl, riskVars, staff, scenarioId);
         const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
           leverId: s.lever.id,
           label: s.lever.label,
@@ -450,8 +439,8 @@ export function executeTool(
         const query =
           (args.query as string) ||
           ctx.question ||
-          "dental practice residual risk segregation of duties bank reconciliation COSO monitoring";
-        const hits = retrieveKnowledge(query, { topK: 4 });
+          `${tpl.businessName} residual risk segregation of duties bank reconciliation COSO monitoring`;
+        const hits = retrieveKnowledge(query, { topK: 4, industry: tpl.id });
         return {
           tool,
           args: { query },
@@ -473,8 +462,7 @@ export function executeTool(
       }
 
       case "get_case_evidence": {
-        const profile = profileOf(ctx);
-        const sod = detectSodConflicts(profile.staff, {
+        const sod = detectSodConflicts(tpl, profile.staff, {
           dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
         });
         const openRuleIds = [
@@ -528,7 +516,7 @@ export function executeTool(
       }
 
       case "get_leading_indicators": {
-        const report = scoreLeadingIndicators(staff, riskVars);
+        const report = scoreLeadingIndicators(tpl, staff, riskVars);
         const breached = report.indicators.filter((i) => i.status === "breach").length;
         const watch = report.indicators.filter((i) => i.status === "watch").length;
         return {
@@ -554,7 +542,7 @@ export function executeTool(
       }
 
       case "run_advanced_reasoning": {
-        const report = runAdvancedReasoning(staff, riskVars);
+        const report = runAdvancedReasoning(tpl, staff, riskVars);
         return {
           tool,
           ok: true,
@@ -578,7 +566,7 @@ export function executeTool(
       }
 
       case "run_meta_analysis": {
-        const report = runMetaAnalysis(profileOf(ctx));
+        const report = runMetaAnalysis(profile);
         return {
           tool,
           ok: true,

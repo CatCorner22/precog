@@ -51,8 +51,8 @@ export function CosoHeatmap({
   onNavigate: (target: DeepLinkTarget) => void;
   initialComponentId?: CosoComponentId;
 }) {
-  const { profile, templateRevision } = usePractice();
-  const assessment = useMemo(() => assessCoso(), [profile.industry, templateRevision]);
+  const { template } = usePractice();
+  const assessment = useMemo(() => assessCoso(template), [template]);
   const [activeId, setActiveId] = useState<CosoComponentId>(
     initialComponentId ??
       assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??

@@ -17,7 +17,7 @@ function rank(status: "ok" | "watch" | "breach"): number {
 }
 
 export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) => void }) {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">("johari");
   const [ragQuery, setRagQuery] = useState(() => defaultRagQuery(profile.industry));
   useEffect(() => {
@@ -25,10 +25,13 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
   }, [profile.industry]);
 
   const leading = useMemo(
-    () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
+    () => scoreLeadingIndicators(template, profile.staff, profile.riskVariables),
+    [template, profile.staff, profile.riskVariables],
   );
-  const rag = useMemo(() => retrieveKnowledge(ragQuery, { topK: 4 }), [ragQuery]);
+  const rag = useMemo(
+    () => retrieveKnowledge(ragQuery, { topK: 4, industry: template.id }),
+    [ragQuery, template.id],
+  );
 
   return (
     <div className="space-y-4">

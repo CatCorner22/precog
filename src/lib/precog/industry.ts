@@ -1,10 +1,5 @@
 /** Supported small-business verticals for demo templates and copy. */
-export type IndustryId =
-  | "dental"
-  | "retail"
-  | "professional_services"
-  | "restaurant"
-  | "general";
+export type IndustryId = "dental" | "retail" | "professional_services" | "restaurant" | "general";
 
 export interface IndustryMeta {
   id: IndustryId;
@@ -12,6 +7,8 @@ export interface IndustryMeta {
   tagline: string;
   demoName: string;
   teamLabel: string;
+  /** Plural noun for the people the business serves ("patients", "guests"). */
+  customerLabel: string;
 }
 
 export const INDUSTRIES: IndustryMeta[] = [
@@ -21,6 +18,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Chairside revenue, billing, and cash controls",
     demoName: "Ridgeview Family Dental",
     teamLabel: "practice",
+    customerLabel: "patients",
   },
   {
     id: "retail",
@@ -28,6 +26,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Inventory, POS, and vendor payment controls",
     demoName: "Harbor Lane Boutique",
     teamLabel: "store",
+    customerLabel: "customers",
   },
   {
     id: "professional_services",
@@ -35,6 +34,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Client billing, trust accounts, and project delivery",
     demoName: "Northgate Advisory Group",
     teamLabel: "firm",
+    customerLabel: "clients",
   },
   {
     id: "restaurant",
@@ -42,6 +42,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Cash tips, vendor AP, and shift reconciliation",
     demoName: "Ember & Oak Kitchen",
     teamLabel: "restaurant",
+    customerLabel: "guests",
   },
   {
     id: "general",
@@ -49,6 +50,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Core financial and operational controls",
     demoName: "Main Street Business Co.",
     teamLabel: "business",
+    customerLabel: "customers",
   },
 ];
 

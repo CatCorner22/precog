@@ -362,16 +362,10 @@ export function ProcessMap({
   initialProcessId?: string | null;
   initialBuild?: boolean;
 }) {
-  const { processes } = useTemplate();
-  const {
-    profile,
-    setMapLayout,
-    setCustomProcesses,
-    mapCustomized,
-    templateRevision,
-    undoMap,
-    redoMap,
-  } = usePractice();
+  const tpl = useTemplate();
+  const { processes } = tpl;
+  const { profile, setMapLayout, setCustomProcesses, mapCustomized, undoMap, redoMap } =
+    usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [build, setBuild] = useState(initialBuild);
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
@@ -438,8 +432,8 @@ export function ProcessMap({
   );
 
   const graph = useMemo(
-    () => buildProcessMapGraph(profile.staff, graphOpts),
-    [profile.staff, graphOpts, templateRevision, profile.industry],
+    () => buildProcessMapGraph(tpl, profile.staff, graphOpts),
+    [tpl, profile.staff, graphOpts],
   );
 
   // Keep the selection valid when the template or custom map changes.
@@ -737,7 +731,7 @@ export function ProcessMap({
     selectedNode?.processId ??
     (selectedNode?.kind === "process" ? selectedNode.id : focusProcessId);
   const snapshot: ProcessMapSnapshot | null = processId
-    ? enrichProcess(processes.find((p) => p.id === processId) ?? processes[0], profile.staff)
+    ? enrichProcess(tpl, processes.find((p) => p.id === processId) ?? processes[0], profile.staff)
     : null;
 
   const onNodeClick = useCallback((_: unknown, node: ProcessFlowNode) => {

@@ -1,4 +1,5 @@
-import { getActiveTemplate } from "./active-template";
+import type { IndustryTemplate } from "./templates";
+import { industryMeta } from "./industry";
 import type {
   KnowledgeLevel,
   KnowledgeRisk,
@@ -16,8 +17,8 @@ import {
 
 const STRONG: KnowledgeLevel[] = ["expert", "proficient"];
 
-export function findKnowledgeRisks(): KnowledgeRisk[] {
-  const { knowledge, people, relations } = getActiveTemplate();
+export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
+  const { knowledge, people, relations } = tpl;
   const byK = new Map<string, typeof relations>();
   for (const r of relations) {
     if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
@@ -88,8 +89,8 @@ function staffRiskMultiplier(staff: StaffComposition): number {
   return m;
 }
 
-function fraudMultiplier(scenario: ScenarioTemplate): number {
-  const { crimeFraudStats } = getActiveTemplate();
+function fraudMultiplier(tpl: IndustryTemplate, scenario: ScenarioTemplate): number {
+  const { crimeFraudStats } = tpl;
   const fraudRelated =
     scenario.id.includes("cash") ||
     scenario.id.includes("writeoff") ||
@@ -106,6 +107,7 @@ function fraudMultiplier(scenario: ScenarioTemplate): number {
 }
 
 export function runPrecogScenario(
+  tpl: IndustryTemplate,
   scenarioId: string,
   options?: {
     mitigationIds?: string[];
@@ -113,7 +115,7 @@ export function runPrecogScenario(
     riskVariables?: RiskVariableState;
   },
 ): PrecogResult | null {
-  const { scenarios, staffComposition, crimeFraudStats } = getActiveTemplate();
+  const { scenarios, staffComposition, crimeFraudStats } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) return null;
 
@@ -124,7 +126,7 @@ export function runPrecogScenario(
   vars = mergeStaffIntoVariables(vars, staff);
 
   const sMult = staffRiskMultiplier(staff);
-  const fMult = fraudMultiplier(scenario);
+  const fMult = fraudMultiplier(tpl, scenario);
   const flags = scenarioFlags(scenarioId);
 
   let timelineMult = sMult * Math.sqrt(fMult);
@@ -213,11 +215,12 @@ export function runPrecogScenario(
     `Insurance arithmetic on your premium and the assumed loss: premium ${dynamic.transfer.premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} net (−${dynamic.transfer.discountPctApplied}% assumed credits) · assumed retained loss ${dynamic.transfer.retainedExpected.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} · annual cost-of-risk figure ~${dynamic.transfer.expectedAnnualCostOfRisk.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}.`,
   );
 
+  const served = industryMeta(tpl.id).customerLabel;
   const cascade = scenario.cascadeLayers.map((layer) => {
     const effects: Record<string, string> = {
       knowledge: "Critical know-how concentrated or lost; training lag begins.",
       process: "Workflow throughput drops; workarounds and errors rise.",
-      surface: "Patients feel delays; schedule and cash flow noise increase.",
+      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays; schedule and cash flow noise increase.`,
       control: "Control design fails open; residual risk becomes default state.",
       source: "System access or vendor configuration becomes single-threaded.",
       continuity: "Exit or failure path exposes uninsured fragility.",
@@ -278,22 +281,25 @@ export function runPrecogScenario(
   };
 }
 
-export function getScenario(id: string): ScenarioTemplate | undefined {
-  return getActiveTemplate().scenarios.find((s) => s.id === id);
+export function getScenario(tpl: IndustryTemplate, id: string): ScenarioTemplate | undefined {
+  return tpl.scenarios.find((s) => s.id === id);
 }
 
-export function rankDangerousScenarios(options?: {
-  staff?: StaffComposition;
-  riskVariables?: RiskVariableState;
-}): {
+export function rankDangerousScenarios(
+  tpl: IndustryTemplate,
+  options?: {
+    staff?: StaffComposition;
+    riskVariables?: RiskVariableState;
+  },
+): {
   scenario: ScenarioTemplate;
   score: number;
   result: PrecogResult;
 }[] {
-  const { scenarios, staffComposition } = getActiveTemplate();
+  const { scenarios, staffComposition } = tpl;
   return scenarios
     .map((scenario) => {
-      const result = runPrecogScenario(scenario.id, options)!;
+      const result = runPrecogScenario(tpl, scenario.id, options)!;
       const retained = result.retainedImpact?.expected ?? result.financialImpact.expected;
       const annualCor = result.dynamic?.expectedAnnualCostOfRisk ?? retained;
       const score =

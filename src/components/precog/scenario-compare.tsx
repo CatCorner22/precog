@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import type { StaffComposition } from "@/lib/precog/types";
 import type { RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
@@ -27,7 +27,8 @@ export function ScenarioCompare({
   onStaffChange?: (s: StaffComposition) => void;
   riskVariables?: RiskVariableState;
 }) {
-  const { scenarios, staffComposition: baseStaff } = useTemplate();
+  const tpl = useTemplate();
+  const { scenarios, staffComposition: baseStaff } = tpl;
   const [mode, setMode] = useState<Mode>("futures");
   const [focusScenarioId, setFocusScenarioId] = useState(
     initialScenarioId && scenarios.some((s) => s.id === initialScenarioId)
@@ -43,14 +44,27 @@ export function ScenarioCompare({
     sharedStaff ? { ...sharedStaff } : { ...baseStaff },
   );
 
+  // Scenario picks belong to a template; when the template changes, start over.
+  useEffect(() => {
+    const valid = new Set(scenarios.map((s) => s.id));
+    if (!valid.has(focusScenarioId)) {
+      setFocusScenarioId(scenarios[0].id);
+      setPackageMits([]);
+    }
+    if (selectedScenarios.some((id) => !valid.has(id))) {
+      setSelectedScenarios(scenarios.slice(0, 3).map((s) => s.id));
+      setCrossMits({});
+    }
+  }, [scenarios, focusScenarioId, selectedScenarios]);
+
   const report: CompareReport = useMemo(() => {
     if (mode === "futures") {
-      return compareScenarioFutures(focusScenarioId, staff, packageMits, riskVariables);
+      return compareScenarioFutures(tpl, focusScenarioId, staff, packageMits, riskVariables);
     }
-    return compareScenarios(selectedScenarios, staff, crossMits, riskVariables);
-  }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
+    return compareScenarios(tpl, selectedScenarios, staff, crossMits, riskVariables);
+  }, [tpl, mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
 
-  const focusScenario = scenarios.find((s) => s.id === focusScenarioId)!;
+  const focusScenario = scenarios.find((s) => s.id === focusScenarioId) ?? scenarios[0];
 
   function updateStaff(next: StaffComposition) {
     setStaff(next);

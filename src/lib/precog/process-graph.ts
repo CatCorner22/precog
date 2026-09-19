@@ -3,7 +3,7 @@
  */
 import { HEALTH_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks } from "./engine";
-import { getActiveTemplate } from "./active-template";
+import type { IndustryTemplate } from "./templates";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type { Person, ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
@@ -270,8 +270,12 @@ function riskHeat(r: ProcessRisk) {
   return r.severity * r.likelihood * 4; // 4–100
 }
 
-export function enrichProcess(process: ProcessNode, staff?: StaffComposition): ProcessMapSnapshot {
-  const { controls, knowledge, people, scenarios } = getActiveTemplate();
+export function enrichProcess(
+  tpl: IndustryTemplate,
+  process: ProcessNode,
+  staff?: StaffComposition,
+): ProcessMapSnapshot {
+  const { controls, knowledge, people, scenarios } = tpl;
   const risks = process.risks ?? [];
   const ideas = process.ideas ?? [];
   const wastes = process.wastes ?? [];
@@ -285,7 +289,7 @@ export function enrichProcess(process: ProcessNode, staff?: StaffComposition): P
       residualRiskAccepted: c!.residualRiskAccepted,
     }));
 
-  const kRisks = findKnowledgeRisks();
+  const kRisks = findKnowledgeRisks(tpl);
   const knowledgeItems = knowledge
     .filter((k) => k.linkedProcessIds.includes(process.id))
     .map((k) => {
@@ -299,7 +303,7 @@ export function enrichProcess(process: ProcessNode, staff?: StaffComposition): P
       };
     });
 
-  const portfolio = staff ? portfolioSummary(staff) : portfolioSummary();
+  const portfolio = portfolioSummary(tpl, staff);
   // Heuristic link residual items by name tokens
   const tokens = process.name.toLowerCase().split(/\s+/);
   const residualHit =
@@ -353,6 +357,7 @@ export function enrichProcess(process: ProcessNode, staff?: StaffComposition): P
 }
 
 export function buildProcessMapGraph(
+  tpl: IndustryTemplate,
   staff?: StaffComposition,
   opts: {
     showRisks?: boolean;
@@ -366,8 +371,8 @@ export function buildProcessMapGraph(
   const showWaste = opts.showWaste ?? true;
   const showKnowledge = opts.showKnowledge ?? true;
 
-  const { processes, controls, knowledge, people, scenarios, relations } = getActiveTemplate();
-  const snapshots = processes.map((p) => enrichProcess(p, staff));
+  const { processes, controls, knowledge, people, scenarios, relations } = tpl;
+  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];
 

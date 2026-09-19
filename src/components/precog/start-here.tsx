@@ -19,7 +19,6 @@ import {
   type CaseStudy,
   type SchemeKind,
 } from "@/lib/precog/evidence";
-import { getActiveTemplate } from "@/lib/precog/active-template";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +38,7 @@ import { formatUsd } from "@/lib/utils";
  * filling the space.
  */
 export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => void }) {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   /**
    * Whether the findings describe this business or the loaded sample.
    *
@@ -54,10 +53,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
 
   const sod = useMemo(
     () =>
-      detectSodConflicts(profile.staff, {
+      detectSodConflicts(template, profile.staff, {
         dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
       }),
-    [profile.staff, profile.dualRelease],
+    [template, profile.staff, profile.dualRelease],
   );
 
   /**
@@ -189,7 +188,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    * service", so the two screens agree on what long means.
    */
   const tenureByName = new Map<string, number>();
-  for (const person of getActiveTemplate().people) {
+  for (const person of template.people) {
     if (typeof person.tenureYears === "number") tenureByName.set(person.name, person.tenureYears);
   }
   const tenureCases = useMemo(() => tenureExamples(CASE_LIBRARY), []);
@@ -203,7 +202,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       people.some((name) => (tenureByName.get(name) ?? 0) >= LONG_SERVICE_YEARS),
     )?.conflict.ruleId ?? null;
 
-  const soleKnowledge = useMemo(() => findKnowledgeRisks().filter((r) => r.soleOwner), []);
+  const soleKnowledge = useMemo(
+    () => findKnowledgeRisks(template).filter((r) => r.soleOwner),
+    [template],
+  );
 
   const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];

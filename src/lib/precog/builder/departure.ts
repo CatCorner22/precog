@@ -2,7 +2,7 @@
  * Key-person departure simulation — what breaks if someone leaves tomorrow.
  * Pure client-side; nothing is mutated.
  */
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import { previewMapHealth } from "./what-if";
 import type { Person, ProcessNode, StaffComposition } from "../types";
 
@@ -27,20 +27,20 @@ export interface DepartureImpact {
 const STRONG = new Set(["expert", "proficient"]);
 
 export function simulateDeparture(
+  tpl: IndustryTemplate,
   person: Person,
   processes: ProcessNode[],
   people: Person[],
   staff: StaffComposition,
 ): DepartureImpact {
-  const tpl = getActiveTemplate();
   const remainingPeople = people.filter((p) => p.id !== person.id);
   const nextProcesses = processes.map((p) => ({
     ...p,
     ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => id !== person.id),
   }));
 
-  const before = previewMapHealth(processes, staff, { people });
-  const after = previewMapHealth(nextProcesses, staff, { people: remainingPeople });
+  const before = previewMapHealth(tpl, processes, staff, { people });
+  const after = previewMapHealth(tpl, nextProcesses, staff, { people: remainingPeople });
 
   const owned = processes.filter((p) => (p.ownerPersonIds ?? []).includes(person.id));
   const orphanedProcesses = owned.filter(
@@ -118,13 +118,14 @@ export function simulateDeparture(
 
 /** Rank the whole team by departure impact — a bus-factor view. */
 export function rankDepartureRisk(
+  tpl: IndustryTemplate,
   processes: ProcessNode[],
   people: Person[],
   staff: StaffComposition,
 ): DepartureImpact[] {
   return people
     .filter((p) => p.active)
-    .map((p) => simulateDeparture(p, processes, people, staff))
+    .map((p) => simulateDeparture(tpl, p, processes, people, staff))
     .sort((a, b) => b.impact - a.impact);
 }
 

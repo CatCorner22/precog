@@ -3,7 +3,7 @@
  * No external embedding API required — works offline and in SSR.
  */
 import { KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryId } from "../industry";
 
 function tokenize(text: string): string[] {
   return text
@@ -119,11 +119,11 @@ export interface RetrievalHit {
 
 export function retrieveKnowledge(
   query: string,
-  opts: { topK?: number; domain?: KnowledgeChunk["domain"] } = {},
+  opts: { topK?: number; domain?: KnowledgeChunk["domain"]; industry?: IndustryId } = {},
 ): RetrievalHit[] {
   const topK = opts.topK ?? 4;
   const qVec = tfidfVec(meaningful(tokenize(query)), IDF);
-  const industry = getActiveTemplate().id;
+  const industry = opts.industry;
 
   const scored = KNOWLEDGE_CORPUS.map((chunk, i) => {
     if (opts.domain && chunk.domain !== opts.domain) {
@@ -135,11 +135,14 @@ export function retrieveKnowledge(
     for (const tag of chunk.tags) {
       if (q.includes(tag.toLowerCase())) score += 0.08;
     }
-    // Ranking heuristics only: hand-set weights that order results, not
-    // measured quantities. A chunk written for every vertical
-    // (industry: "general") is never demoted as if it were a competing one.
-    if (chunk.industry && chunk.industry !== "general") {
-      score += chunk.industry === industry ? 0.12 : -0.15;
+    // A chunk written for one vertical is only ever served to that vertical;
+    // a retail owner never reads dental guidance. Chunks for every vertical
+    // (industry: "general", or untagged) are always eligible. The boost is a
+    // ranking heuristic, not a measured quantity, and nothing is boosted when
+    // the caller's industry is unknown.
+    if (industry && chunk.industry && chunk.industry !== "general") {
+      if (chunk.industry !== industry) return { chunk, score: -1, rank: 0 };
+      score += 0.12;
     }
     return { chunk, score, rank: 0 };
   })

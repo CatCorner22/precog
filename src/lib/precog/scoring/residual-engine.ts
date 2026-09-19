@@ -1,5 +1,5 @@
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import type { ControlItem, StaffComposition } from "../types";
 import {
   ACTION_BANDS,
@@ -251,6 +251,7 @@ function scoreControl(
 }
 
 function scoreKnowledge(
+  tpl: IndustryTemplate,
   knowledgeId: string,
   name: string,
   soleOwner: boolean,
@@ -302,15 +303,17 @@ function scoreKnowledge(
     bandGuidance: band.guidance,
     drivers: drivers.sort((a, b) => b.weight - a.weight).slice(0, 6),
     linkedKnowledgeId: knowledgeId,
-    linkedScenarioId: getActiveTemplate().scenarios.find((s) => s.knowledgeId === knowledgeId)?.id,
+    linkedScenarioId: tpl.scenarios.find((s) => s.knowledgeId === knowledgeId)?.id,
     scoringVersion: SCORING_VERSION,
   };
 }
 
-export function scoreAllResidualRisks(staff?: StaffComposition): ResidualRiskScore[] {
-  const tpl = getActiveTemplate();
+export function scoreAllResidualRisks(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+): ResidualRiskScore[] {
   const staffResolved = staff ?? tpl.staffComposition;
-  const risks = findKnowledgeRisks();
+  const risks = findKnowledgeRisks(tpl);
   const knowledgeRedundancy =
     risks.filter((r) => r.ownerCount >= 2).length / Math.max(1, risks.length);
 
@@ -321,6 +324,7 @@ export function scoreAllResidualRisks(staff?: StaffComposition): ResidualRiskSco
   const knowledgeScores = risks.map((r) => {
     const k = tpl.knowledge.find((x) => x.id === r.knowledgeId);
     return scoreKnowledge(
+      tpl,
       r.knowledgeId,
       r.name,
       r.soleOwner,
@@ -339,7 +343,7 @@ export function scoreAllResidualRisks(staff?: StaffComposition): ResidualRiskSco
   const SCENARIO_DAYS_SATURATION = 240;
   const SCENARIO_EFFECTIVENESS_CREDIT = 0.5;
   const scenarioScores = tpl.scenarios.map((s) => {
-    const result = runPrecogScenario(s.id, { staff: staffResolved })!;
+    const result = runPrecogScenario(tpl, s.id, { staff: staffResolved })!;
     const lossNorm = clamp01(result.financialImpact.expected / SCENARIO_LOSS_SATURATION_USD);
     const timeNorm = clamp01(1 - result.timelineDays.p50 / SCENARIO_DAYS_SATURATION);
     const inherent = clamp01(0.55 * lossNorm + 0.45 * (0.5 + timeNorm * 0.5));
@@ -394,8 +398,8 @@ export function scoreAllResidualRisks(staff?: StaffComposition): ResidualRiskSco
   );
 }
 
-export function portfolioSummary(staff?: StaffComposition) {
-  const scores = scoreAllResidualRisks(staff ?? getActiveTemplate().staffComposition);
+export function portfolioSummary(tpl: IndustryTemplate, staff?: StaffComposition) {
+  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition);
   const top = scores.slice(0, 8);
   const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
   const criticalPath = scores.filter((s) => s.band === "critical_path").length;
@@ -413,9 +417,9 @@ export function portfolioSummary(staff?: StaffComposition) {
 }
 
 /** Tornado sensitivity: which staff/control lever moves average residual most */
-export function tornadoSensitivity(baseStaff?: StaffComposition) {
-  const baseStaffResolved = baseStaff ?? getActiveTemplate().staffComposition;
-  const base = portfolioSummary(baseStaffResolved).averageResidual;
+export function tornadoSensitivity(tpl: IndustryTemplate, baseStaff?: StaffComposition) {
+  const baseStaffResolved = baseStaff ?? tpl.staffComposition;
+  const base = portfolioSummary(tpl, baseStaffResolved).averageResidual;
   const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
 
   const trials: { id: string; label: string; staff: StaffComposition }[] = [
@@ -447,7 +451,7 @@ export function tornadoSensitivity(baseStaff?: StaffComposition) {
   ];
 
   for (const t of trials) {
-    const improved = portfolioSummary(t.staff).averageResidual;
+    const improved = portfolioSummary(tpl, t.staff).averageResidual;
     levers.push({
       id: t.id,
       label: t.label,

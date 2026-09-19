@@ -1,9 +1,8 @@
 /**
- * What-if scoring: preview map health for a hypothetical process list without
- * touching the active template. enrichProcess() reads template controls/people
- * globally but takes the process itself as input, so we can score alternates.
+ * What-if scoring: preview map health for a hypothetical process list against
+ * the template's controls/people, so alternates can be scored side by side.
  */
-import { getActiveTemplate } from "../active-template";
+import type { IndustryTemplate } from "../templates";
 import { detectSodConflicts, type DetectedConflict } from "../sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
 import { findKnowledgeRisks } from "../engine";
@@ -17,6 +16,7 @@ import {
 import type { Person, ProcessNode, StaffComposition } from "../types";
 
 export function previewMapHealth(
+  tpl: IndustryTemplate,
   processes: ProcessNode[],
   staff: StaffComposition,
   opts: {
@@ -25,9 +25,8 @@ export function previewMapHealth(
     customized?: boolean;
   } = {},
 ): MapHealthReport {
-  const tpl = getActiveTemplate();
   const people = opts.people ?? tpl.people;
-  const snapshots = processes.map((p) => enrichProcess(p, staff));
+  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
   const issues = validateProcessMap(
     processes,
     people,
@@ -83,17 +82,17 @@ export interface PersonWorkload {
 export const LOAD_BANDS = { overburdened: 70, elevated: 45 } as const;
 
 export function analyzeWorkload(
+  tpl: IndustryTemplate,
   processes: ProcessNode[],
   people: Person[],
   staff: StaffComposition,
   dualRelease: DualReleasePolicy,
 ): PersonWorkload[] {
-  const tpl = getActiveTemplate();
-  const sod = detectSodConflicts(staff, {
+  const sod = detectSodConflicts(tpl, staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease),
   });
-  const kRisks = findKnowledgeRisks();
-  const snapshots = processes.map((p) => enrichProcess(p, staff));
+  const kRisks = findKnowledgeRisks(tpl);
+  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
   const total = Math.max(1, processes.length);
 
   return people

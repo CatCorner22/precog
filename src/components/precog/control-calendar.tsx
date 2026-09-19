@@ -62,7 +62,7 @@ export function ControlCalendarCard({
   onOpenJournal: () => void;
   onOpenBuilder: () => void;
 }) {
-  const { profile, setCustomProcesses, templateRevision } = usePractice();
+  const { profile, setCustomProcesses } = usePractice();
   const tpl = useTemplate();
   const [view, setView] = useState<"list" | "calendar">("list");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -70,7 +70,7 @@ export function ControlCalendarCard({
 
   const items = useMemo(
     () => collectDueItems(tpl.processes, tpl.people, profile),
-    [tpl.processes, tpl.people, profile, templateRevision],
+    [tpl.processes, tpl.people, profile],
   );
   const summary = summarizeDue(items);
   const byDay = useMemo(() => groupByDay(items), [items]);
@@ -124,14 +124,20 @@ export function ControlCalendarCard({
             <button
               type="button"
               onClick={() => setView("list")}
-              className={cn("px-2.5 py-1", view === "list" ? "bg-elevated text-fg" : "text-muted hover:text-fg")}
+              className={cn(
+                "px-2.5 py-1",
+                view === "list" ? "bg-elevated text-fg" : "text-muted hover:text-fg",
+              )}
             >
               This week
             </button>
             <button
               type="button"
               onClick={() => setView("calendar")}
-              className={cn("border-l border-border px-2.5 py-1", view === "calendar" ? "bg-elevated text-fg" : "text-muted hover:text-fg")}
+              className={cn(
+                "border-l border-border px-2.5 py-1",
+                view === "calendar" ? "bg-elevated text-fg" : "text-muted hover:text-fg",
+              )}
             >
               Calendar
             </button>
@@ -141,7 +147,9 @@ export function ControlCalendarCard({
           {summary.overdue > 0 && <Badge variant="danger">{summary.overdue} overdue</Badge>}
           {summary.today > 0 && <Badge variant="warn">{summary.today} today</Badge>}
           {summary.thisWeek > 0 && <Badge variant="warn">{summary.thisWeek} this week</Badge>}
-          {summary.unscheduled > 0 && <Badge variant="default">{summary.unscheduled} unscheduled</Badge>}
+          {summary.unscheduled > 0 && (
+            <Badge variant="default">{summary.unscheduled} unscheduled</Badge>
+          )}
           {summary.later > 0 && <Badge variant="primary">{summary.later} later</Badge>}
           {items.length === 0 && <Badge variant="ok">Nothing scheduled</Badge>}
         </div>
@@ -181,26 +189,42 @@ export function ControlCalendarCard({
                 />
               ))}
               {actionable.length > 8 && (
-                <li className="text-[11px] text-subtle">+{actionable.length - 8} more in the calendar</li>
+                <li className="text-[11px] text-subtle">
+                  +{actionable.length - 8} more in the calendar
+                </li>
               )}
             </ul>
           )
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-muted">
-              <button type="button" onClick={() => setWeekOffset((w) => w - 6)} className="rounded p-1 hover:bg-elevated" aria-label="Earlier">
+              <button
+                type="button"
+                onClick={() => setWeekOffset((w) => w - 6)}
+                className="rounded p-1 hover:bg-elevated"
+                aria-label="Earlier"
+              >
                 <ChevronLeft className="size-4" />
               </button>
               <span>
                 {weeks[0][0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} –{" "}
                 {weeks[5][6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                 {weekOffset !== 0 && (
-                  <button type="button" onClick={() => setWeekOffset(0)} className="ml-2 text-primary hover:underline">
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset(0)}
+                    className="ml-2 text-primary hover:underline"
+                  >
                     today
                   </button>
                 )}
               </span>
-              <button type="button" onClick={() => setWeekOffset((w) => w + 6)} className="rounded p-1 hover:bg-elevated" aria-label="Later">
+              <button
+                type="button"
+                onClick={() => setWeekOffset((w) => w + 6)}
+                className="rounded p-1 hover:bg-elevated"
+                aria-label="Later"
+              >
                 <ChevronRight className="size-4" />
               </button>
             </div>
@@ -231,13 +255,20 @@ export function ControlCalendarCard({
                     onClick={() => setSelectedDay(selectedDay === k ? null : k)}
                     className={cn(
                       "flex h-12 flex-col items-center justify-between rounded-md border p-1 text-[10px] transition-colors",
-                      selectedDay === k ? "border-primary/60 bg-primary/10" : "border-border bg-elevated hover:border-border-strong",
+                      selectedDay === k
+                        ? "border-primary/60 bg-primary/10"
+                        : "border-border bg-elevated hover:border-border-strong",
                       isToday && "ring-1 ring-primary/50",
                       past && !dayItems.length && "opacity-50",
                     )}
                     aria-label={`${day.toDateString()}${dayItems.length ? `, ${dayItems.length} item(s)` : ""}`}
                   >
-                    <span className={cn("tabular", isToday ? "font-semibold text-primary" : "text-muted")}>
+                    <span
+                      className={cn(
+                        "tabular",
+                        isToday ? "font-semibold text-primary" : "text-muted",
+                      )}
+                    >
                       {day.getDate()}
                     </span>
                     {dayItems.length > 0 && (
@@ -278,7 +309,8 @@ export function ControlCalendarCard({
             {summary.unscheduled > 0 && (
               <p className="text-[11px] text-subtle">
                 {summary.unscheduled} item(s) have never been recorded and so have no date — open
-                them from &ldquo;This week&rdquo; and mark the first review done to start the cadence.
+                them from &ldquo;This week&rdquo; and mark the first review done to start the
+                cadence.
               </p>
             )}
           </div>

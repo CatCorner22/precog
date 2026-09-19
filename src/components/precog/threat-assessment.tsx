@@ -24,19 +24,20 @@ function bandClass(band: string) {
 }
 
 export function ThreatAssessmentPanel() {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   const [now, setNow] = useState(clockString);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(
     () =>
       buildThreatAssessment({
+        tpl: template,
         practiceName: profile.practiceName,
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
       }),
-    [profile.practiceName, profile.staff, profile.riskVariables, profile.dualRelease],
+    [template, profile.practiceName, profile.staff, profile.riskVariables, profile.dualRelease],
   );
 
   useEffect(() => {
