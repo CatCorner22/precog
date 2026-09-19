@@ -65,3 +65,29 @@ export function setPeopleOverrides(people: Person[] | null): IndustryTemplate {
   rebuild();
   return active;
 }
+
+/**
+ * Run `fn` with different overrides in place, then restore the caller's state.
+ * Must be synchronous — engines read module state, so no `await` inside `fn`.
+ * Used for what-if scoring (baselines, stress tests) without touching the live map.
+ */
+export function withTemplateOverrides<T>(
+  overrides: { processes?: ProcessNode[] | null; people?: Person[] | null },
+  fn: (tpl: IndustryTemplate) => T,
+): T {
+  const prevP = processOverrides;
+  const prevPeople = peopleOverrides;
+  const prevRevision = revision;
+  if (overrides.processes !== undefined) processOverrides = overrides.processes;
+  if (overrides.people !== undefined) peopleOverrides = overrides.people;
+  rebuild();
+  try {
+    return fn(active);
+  } finally {
+    processOverrides = prevP;
+    peopleOverrides = prevPeople;
+    rebuild();
+    // Scratch rebuilds must not look like real edits to revision-driven memoisation.
+    revision = prevRevision;
+  }
+}

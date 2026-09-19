@@ -13,6 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { Activity, AlertTriangle, Hammer, Map, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { getAppetite } from "@/lib/precog/appetite";
+import { templateBaselineHealth } from "@/lib/precog/builder/stress";
+import { industryMeta } from "@/lib/precog/industry";
 
 function Sparkline({ points, color }: { points: number[]; color: string }) {
   if (points.length < 2) return null;
@@ -103,6 +105,9 @@ export function MapHealthCard({
   const dash = (health.score / 100) * circumference;
   const appetite = getAppetite();
   const target = appetite.targetHealth;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const baseline = useMemo(() => templateBaselineHealth(), [profile.industry, templateRevision]);
+  const vsBaseline = health.score - baseline.score;
   // The ring starts at 3 o'clock in SVG space; the -90° CSS rotation moves it to 12 o'clock.
   const targetAngle = (target / 100) * 360;
   const tx = 60 + 54 * Math.cos((targetAngle * Math.PI) / 180);
@@ -189,14 +194,34 @@ export function MapHealthCard({
                 </div>
               )}
             </div>
+            {mapCustomized && (
+              <p className="text-[11px] text-muted">
+                <span className={cn("font-medium tabular", vsBaseline >= 0 ? "text-ok" : "text-warn")}>
+                  {vsBaseline >= 0 ? "+" : ""}
+                  {vsBaseline}
+                </span>{" "}
+                vs the {industryMeta(profile.industry).label} template baseline ({baseline.score}) — the
+                grey tick on each bar.
+              </p>
+            )}
             <div className="grid gap-2 sm:grid-cols-2">
-              {health.dimensions.map((d) => (
+              {health.dimensions.map((d) => {
+                const b = baseline.dimensions.find((x) => x.id === d.id);
+                return (
                 <div key={d.id} className="rounded-lg border border-border bg-elevated px-2.5 py-2">
                   <div className="flex items-center justify-between gap-2 text-[11px]">
                     <span className="font-medium text-fg">{d.label}</span>
-                    <span className="tabular text-subtle">{d.score}</span>
+                    <span className="tabular text-subtle">
+                      {d.score}
+                      {b && mapCustomized && b.score !== d.score && (
+                        <span className={cn("ml-1", d.score >= b.score ? "text-ok" : "text-warn")}>
+                          ({d.score >= b.score ? "+" : ""}
+                          {d.score - b.score})
+                        </span>
+                      )}
+                    </span>
                   </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface">
+                  <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
@@ -204,10 +229,18 @@ export function MapHealthCard({
                         background: scoreColor(d.score),
                       }}
                     />
+                    {b && mapCustomized && (
+                      <span
+                        className="absolute top-0 h-full w-0.5 bg-fg/50"
+                        style={{ left: `calc(${b.score}% - 1px)` }}
+                        title={`Template baseline ${b.score}`}
+                      />
+                    )}
                   </div>
                   <p className="mt-1 text-[10px] text-muted">{d.hint}</p>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

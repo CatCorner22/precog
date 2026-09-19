@@ -49,6 +49,7 @@ import { ControlEffectivenessCard } from "@/components/precog/control-effectiven
 import { WeeklyDigestCard } from "@/components/precog/weekly-digest";
 import { AuditTrailPanel } from "@/components/precog/audit-trail";
 import { Plan30Card } from "@/components/precog/plan30-card";
+import { StressTestsCard } from "@/components/precog/stress-tests";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
@@ -512,6 +513,13 @@ function Home() {
               />
               <WeeklyDigestCard />
             </div>
+
+            <StressTestsCard
+              onOpenBuilder={() => {
+                setMapBuild(true);
+                setTab("map");
+              }}
+            />
 
             <div className="grid gap-4 lg:grid-cols-2">
               <PracticeSetup onOpenDualRelease={() => setTab("sod")} />

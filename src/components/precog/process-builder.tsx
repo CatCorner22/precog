@@ -78,7 +78,8 @@ import {
   suggestProcessesFromCoa,
   type CoaSuggestion,
 } from "@/lib/precog/builder/coa-import";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, KeyRound } from "lucide-react";
+import { accessMatrixCsv, buildAccessMatrix } from "@/lib/precog/builder/access-matrix";
 import { buildSharePayload } from "@/lib/precog/builder/share-payload";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
@@ -180,6 +181,7 @@ export function ProcessBuilder({
   const [showDeparture, setShowDeparture] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showCoa, setShowCoa] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
 
   function insertFromCoa(suggestions: CoaSuggestion[]) {
     if (!suggestions.length) return;
@@ -722,6 +724,14 @@ export function ProcessBuilder({
           </Button>
           <Button
             size="sm"
+            variant={showAccess ? "default" : "secondary"}
+            onClick={() => setShowAccess((v) => !v)}
+            title="Who should have which permissions in your accounting system"
+          >
+            <KeyRound className="size-3.5" /> Access
+          </Button>
+          <Button
+            size="sm"
             variant={showReview ? "default" : "secondary"}
             onClick={() => (review && !showReview ? setShowReview(true) : showReview ? setShowReview(false) : void runReview())}
           >
@@ -862,6 +872,15 @@ export function ProcessBuilder({
               toast.success(`Restored "${v.name}"`, { description: "Ctrl+Z to go back." });
             }}
             onDelete={deleteMapVersion}
+            onSelectProcess={onSelectProcess}
+          />
+        )}
+
+        {showAccess && (
+          <AccessMatrixPanel
+            processes={processes}
+            people={tpl.people}
+            businessName={profile.practiceName}
             onSelectProcess={onSelectProcess}
           />
         )}
@@ -1666,6 +1685,136 @@ function SharePanel({
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+function AccessMatrixPanel({
+  processes,
+  people,
+  businessName,
+  onSelectProcess,
+}: {
+  processes: ProcessNode[];
+  people: Person[];
+  businessName: string;
+  onSelectProcess: (id: string) => void;
+}) {
+  const { profile } = usePractice();
+  const matrix = useMemo(
+    () => buildAccessMatrix(processes, people, profile.staff, profile.dualRelease),
+    [processes, people, profile.staff, profile.dualRelease],
+  );
+  const [open, setOpen] = useState<string | null>(null);
+
+  function exportCsv() {
+    const csv = accessMatrixCsv(matrix, businessName);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug(businessName) || "business"}-access-matrix.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Access matrix exported", { description: "Hand it to your bookkeeper or IT admin." });
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-muted">
+          Who should have which permissions in QuickBooks / Xero, derived from process ownership and duties.{" "}
+          <span className="text-warn">Amber</span> = grant only with a compensating control (SoD conflict).
+        </p>
+        <Button size="sm" variant="secondary" onClick={exportCsv}>
+          <Download className="size-3.5" /> CSV
+        </Button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[10px]">
+          <thead>
+            <tr className="text-left text-subtle">
+              <th className="sticky left-0 bg-panel py-1 pr-2 font-medium">Person</th>
+              <th className="py-1 pr-2 font-medium">System role</th>
+              {matrix.areas.map((a) => (
+                <th key={a} className="px-1 py-1 text-center font-medium" title={a}>
+                  <span className="inline-block max-w-[52px] truncate align-bottom">{a.split(" ")[0]}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.rows.map((r) => (
+              <tr key={r.person.id} className="border-t border-border">
+                <td className="sticky left-0 bg-panel py-1 pr-2">
+                  <button type="button" onClick={() => setOpen(open === r.person.id ? null : r.person.id)} className="text-left">
+                    <span className="block font-medium text-fg">{r.person.name}</span>
+                    <span className="block text-subtle">{r.person.role}</span>
+                  </button>
+                </td>
+                <td className="py-1 pr-2 text-fg">{r.suggestedRole}</td>
+                {matrix.areas.map((a) => {
+                  const on = r.areas.includes(a);
+                  const flagged = r.flaggedAreas.includes(a);
+                  return (
+                    <td key={a} className="px-1 py-1 text-center">
+                      {on && (
+                        <span
+                          className={cn("inline-block size-3 rounded-sm", flagged ? "bg-warn" : "bg-ok")}
+                          title={flagged ? `${a} — SoD conflict; compensating control required` : a}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {open && (() => {
+        const r = matrix.rows.find((x) => x.person.id === open);
+        if (!r) return null;
+        return (
+          <div className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5">
+            <p className="font-medium text-fg">
+              {r.person.name} · {r.suggestedRole}
+            </p>
+            <p className="text-subtle">
+              Owns:{" "}
+              {r.ownedProcesses.length
+                ? r.ownedProcesses.map((p, i) => (
+                    <span key={p.id}>
+                      {i > 0 ? ", " : ""}
+                      <button type="button" onClick={() => onSelectProcess(p.id)} className="text-fg hover:underline">
+                        {p.name}
+                      </button>
+                    </span>
+                  ))
+                : "no processes"}
+            </p>
+            <p className="text-subtle">Grant: {r.areas.join(" · ") || "nothing"}</p>
+            {r.conflicts.length > 0 && (
+              <ul className="list-disc pl-4 text-warn">
+                {r.conflicts.slice(0, 3).map((c) => (
+                  <li key={c.id}>
+                    {c.title}: {c.labelA} + {c.labelB}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {r.notes.map((n) => (
+              <p key={n} className="text-muted">
+                {n}
+              </p>
+            ))}
+          </div>
+        );
+      })()}
+      <p className="text-subtle">
+        {matrix.criticalConflicts} critical SoD conflict(s) overall. Roles are a starting point — your accounting system's
+        names differ, but the split of duties shouldn't.
+      </p>
     </div>
   );
 }

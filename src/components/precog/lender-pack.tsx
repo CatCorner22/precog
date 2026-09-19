@@ -12,6 +12,7 @@ import { summarizeEffectiveness } from "@/lib/precog/builder/effectiveness";
 import { summarizeEvidence } from "@/lib/precog/builder/evidence";
 import { busFactor, rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { latestTests } from "@/lib/precog/builder/test-plan";
+import { runStressTests, templateBaselineHealth } from "@/lib/precog/builder/stress";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -48,11 +49,19 @@ export function LenderPack() {
     const evidence = summarizeEvidence(tpl.processes);
     const departures = rankDepartureRisk(tpl.processes, tpl.people, profile.staff);
     const tests = latestTests(profile.controlTests ?? []);
-    return { snapshots, issues, health, threat, sod, effectiveness, evidence, departures, tests };
+    const stress = runStressTests({ staff: profile.staff, tests: profile.controlTests ?? [], layout: profile.mapLayout ?? {} });
+    const baseline = templateBaselineHealth();
+    return { snapshots, issues, health, threat, sod, effectiveness, evidence, departures, tests, stress, baseline };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, templateRevision, mapCustomized]);
 
-  const { health, threat, sod, effectiveness, evidence, departures, tests, snapshots, issues } = data;
+  const { health, threat, sod, effectiveness, evidence, departures, tests, snapshots, issues, stress, baseline } = data;
+  const worstPerson = stress.find((s) => s.kind === "person");
+  const worstControl = stress.find((s) => s.kind === "control");
+  const lapse = stress.find((s) => s.kind === "evidence_lapse");
+  const shrink = stress.find((s) => s.kind === "team_shrink");
+  const stressRows = [worstPerson, worstControl, lapse, shrink].filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const decisionsOffset = profile.decisions.length > 0 ? 1 : 0;
   const history = profile.mapHealthHistory ?? [];
   const first = history[0];
   const bus = busFactor(departures);
@@ -100,7 +109,8 @@ export function LenderPack() {
           <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">
             <li>
               Process-map health is <strong>{health.score}/100 ({health.bandLabel})</strong>
-              {first && history.length >= 2 ? `, ${health.score - first.score >= 0 ? "up" : "down"} ${Math.abs(health.score - first.score)} points since ${fmtDate(first.at)}` : ""}.{" "}
+              {first && history.length >= 2 ? `, ${health.score - first.score >= 0 ? "up" : "down"} ${Math.abs(health.score - first.score)} points since ${fmtDate(first.at)}` : ""}
+              {mapCustomized ? `, ${health.score - baseline.score >= 0 ? "+" : ""}${health.score - baseline.score} vs the ${industry.label} template baseline (${baseline.score})` : ""}.{" "}
               {health.summary}
             </li>
             <li>
@@ -263,8 +273,45 @@ export function LenderPack() {
           </ul>
         </Section>
 
+        {stressRows.length > 0 && (
+          <Section title="7. Stress scenarios">
+            <p className="text-sm text-neutral-700">
+              How the scores move if something breaks. Each row is a what-if on a copy of the map; no scenario has occurred.
+            </p>
+            <table className="mt-2 w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-neutral-300 text-left text-[11px] tracking-wide text-neutral-500 uppercase">
+                  <th className="py-1.5 pr-2">Scenario</th>
+                  <th className="py-1.5 pr-2 text-right">Health</th>
+                  <th className="py-1.5 pr-2 text-right">Hot processes</th>
+                  <th className="py-1.5 pr-2 text-right">Unowned</th>
+                  <th className="py-1.5 pr-2 text-right">Operating</th>
+                  <th className="py-1.5 text-right">Severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stressRows.map((s) => (
+                  <tr key={s.id} className="border-b border-neutral-200 align-top">
+                    <td className="py-1.5 pr-2">
+                      <p className="font-medium">{s.label}</p>
+                      <p className="text-xs text-neutral-600">{s.detail}</p>
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular">
+                      {s.before.health} → <span className={s.healthDelta < 0 ? "font-semibold text-red-700" : ""}>{s.after.health}</span>
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular">{s.before.hot} → {s.after.hot}</td>
+                    <td className="py-1.5 pr-2 text-right tabular">{s.before.unowned} → {s.after.unowned}</td>
+                    <td className="py-1.5 pr-2 text-right tabular">{s.before.operating ?? "—"} → {s.after.operating ?? "—"}</td>
+                    <td className="py-1.5 text-right tabular font-semibold">{s.severity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        )}
+
         {profile.decisions.length > 0 && (
-          <Section title="7. Decision log">
+          <Section title={`${7 + (stressRows.length ? 1 : 0)}. Decision log`}>
             <ul className="space-y-1.5 text-sm">
               {profile.decisions.slice(0, 10).map((d) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">
@@ -279,7 +326,7 @@ export function LenderPack() {
           </Section>
         )}
 
-        <Section title={`${profile.decisions.length > 0 ? "8" : "7"}. Owner attestation`}>
+        <Section title={`${7 + (stressRows.length ? 1 : 0) + decisionsOffset}. Owner attestation`}>
           <p className="text-sm leading-relaxed text-neutral-700">
             I confirm that the process map, ownership, controls, evidence, and test results in this pack reflect how{" "}
             {profile.practiceName} operates as of the date above, to the best of my knowledge. Where residual risk has been
