@@ -271,7 +271,14 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         ) : (
           <div className="space-y-3">
             {topThree.map(({ conflict, people }) => {
-              const worst = casesForSodRules([conflict.ruleId])[0];
+              // Prefer a case from the owner's own line of business that cites
+              // this rule directly; a dentist reads a dental case differently
+              // from a construction one. Fall back to the best match overall.
+              const matches = casesForSodRules([conflict.ruleId]);
+              const ownSector = matches.find(
+                (c) => c.sector === sector && c.sodRuleIds.includes(conflict.ruleId),
+              );
+              const worst = ownSector ?? matches[0];
               return (
                 <Card key={conflict.ruleId}>
                   <CardHeader className="pb-2">
@@ -373,7 +380,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     {worst && (
                       <div>
                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
-                          This exact gap, somewhere real
+                          {ownSector
+                            ? "This exact gap, in your line of business"
+                            : "This exact gap, somewhere real"}
                         </p>
                         <CaseCard study={worst} />
                       </div>
