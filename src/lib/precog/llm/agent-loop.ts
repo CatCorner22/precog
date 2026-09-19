@@ -1,12 +1,7 @@
 /**
  * Agentic reasoning loop: Plan → Retrieve → Analyze → Specialize → Critique → Synthesize
  */
-import {
-  executeTool,
-  planTools,
-  TOOL_CATALOG,
-  type ToolContext,
-} from "./tools";
+import { executeTool, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
 import type {
   AgentRunResult,
@@ -27,14 +22,11 @@ function usd(n: number) {
 
 function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
-    | { averageResidual?: number }
-    | undefined;
+    { averageResidual?: number } | undefined;
   const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
-    | { overallScore?: number }
-    | undefined;
+    { overallScore?: number } | undefined;
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
-    | { pressureIndex?: number }
-    | undefined;
+    { pressureIndex?: number } | undefined;
   return `avg=${residual?.averageResidual ?? "?"};anom=${anomaly?.overallScore ?? "?"};lead=${leading?.pressureIndex ?? "?"};tools=${tools.length}`;
 }
 
@@ -202,7 +194,6 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       });
     }
 
-
     if (t.tool === "run_advanced_reasoning") {
       const d = t.data as {
         beam: { bestSequence: string; utility: number };
@@ -306,20 +297,15 @@ function extractVariableCascades(tools: ToolResult[]): string[] {
 function chickenLittleCritique(tools: ToolResult[]): string[] {
   const warnings: string[] = [];
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
-    | { averageResidual?: number; criticalPath?: number }
-    | undefined;
+    { averageResidual?: number; criticalPath?: number } | undefined;
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
-    | { pressureIndex?: number; band?: string }
-    | undefined;
+    { pressureIndex?: number; band?: string } | undefined;
   const anomaly = tools.find((t) => t.tool === "score_anomalies")?.data as
-    | { band?: string; overallScore?: number }
-    | undefined;
+    { band?: string; overallScore?: number } | undefined;
   const forecast = tools.find((t) => t.tool === "forecast_residual")?.data as
-    | { p50CrossingWeek?: number | null }
-    | undefined;
+    { p50CrossingWeek?: number | null } | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
-    | { retained: { expected: number }; timelineDays: { p50: number }; title: string }
-    | undefined;
+    { retained: { expected: number }; timelineDays: { p50: number }; title: string } | undefined;
 
   if ((residual?.averageResidual ?? 0) >= 60) {
     warnings.push(`Avg residual ${residual!.averageResidual} is Act-now territory.`);
@@ -410,17 +396,24 @@ function localSynthesize(
   } | null;
 
   const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as {
-    topByCostOfRisk?: { label: string; deltaCor: number; affects: string[]; secondOrderNotes: string[] }[];
+    topByCostOfRisk?: {
+      label: string;
+      deltaCor: number;
+      affects: string[];
+      secondOrderNotes: string[];
+    }[];
   } | null;
 
   const rag = tools.find((t) => t.tool === "retrieve_guidance")?.data as {
     hits: { title: string; text: string }[];
   } | null;
 
-  const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as {
-    name: string;
-    owners: { name: string }[];
-  }[] | null;
+  const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
+    | {
+        name: string;
+        owners: { name: string }[];
+      }[]
+    | null;
 
   const top = residual?.top ?? [];
   const bestCascade = cas?.topByCostOfRisk?.[0];
@@ -443,7 +436,14 @@ function localSynthesize(
   });
 
   const tradeoffs = [
-    `Team size ${snap?.staff.teamSize ?? "?"} — full SoD unlikely; compensating controls + monitoring are the path.`,
+    (() => {
+      const n = snap?.staff.teamSize;
+      if (typeof n !== "number")
+        return "Team size unknown — enter your team to see how far duties can be separated.";
+      return n <= 6
+        ? `Team size ${n} — with this few people, separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
+        : `Team size ${n} — enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
+    })(),
     leading
       ? `Leading pressure **${leading.pressureIndex}/100** (${leading.band}). ${leading.topActions[0] ?? ""}`
       : "Score leading indicators for early heat.",
@@ -461,6 +461,9 @@ function localSynthesize(
       : "Retrieve control guidance for acceptance language.",
   ];
 
+  // Planning cadences, not measurements: how soon the coach suggests reviewing
+  // each kind of decision. They become an editable "review by" date in the journal.
+  const REVIEW_HORIZON_DAYS = { control: 14, crossTrain: 30, journal: 7 } as const;
   const beamAction = adv?.recommendedSequence?.join(" → ") || adv?.beam?.bestSequence;
   const decisions: PioneerDecision[] = [
     {
@@ -469,24 +472,26 @@ function localSynthesize(
         ? `Beam search + Bayesian/counterfactual stack selected this sequence (utility ${adv?.beam?.utility?.toFixed(3) ?? "n/a"}; conf ${adv?.confidence?.score ?? "?"}).`
         : bestCascade
           ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
-          : "Highest coupled impact on opportunity and detection.",
+          : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "forecast")
         .map((e) => e.id)
         .slice(0, 4),
       effort: "medium",
-      horizonDays: 14,
+      horizonDays: REVIEW_HORIZON_DAYS.control,
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
     {
-      action:
-        spofs?.[0]
-          ? `Cross-train backup for ${spofs[0].name}`
-          : "Cross-train top knowledge SPOF",
+      action: spofs?.[0]
+        ? `Cross-train backup for ${spofs[0].name}`
+        : "Cross-train top knowledge SPOF",
       rationale: "Continuity SPOFs drive leading pressure and forecast drift.",
-      evidenceIds: evidence.filter((e) => e.kind === "spof").map((e) => e.id).slice(0, 2),
+      evidenceIds: evidence
+        .filter((e) => e.kind === "spof")
+        .map((e) => e.id)
+        .slice(0, 2),
       effort: "medium",
-      horizonDays: 30,
+      horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
       cascadeEffects: ["continuity residual ↓", "forecast drift slows"],
     },
     {
@@ -497,7 +502,7 @@ function localSynthesize(
         .map((e) => e.id)
         .slice(0, 2),
       effort: "low",
-      horizonDays: 7,
+      horizonDays: REVIEW_HORIZON_DAYS.journal,
     },
   ];
 
@@ -508,10 +513,7 @@ function localSynthesize(
   const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading **${leading?.pressureIndex ?? "?"}/100**, anomaly **${anomaly?.overallScore ?? "?"}/100**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
 
   const specialistMd = specialistNotes
-    .map(
-      (n) =>
-        `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`,
-    )
+    .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)
     .join("\n\n");
 
   const markdown = [
@@ -543,8 +545,7 @@ function localSynthesize(
     "",
     "## Recommended moves",
     ...decisions.map((d, i) => {
-      const c =
-        d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
+      const c = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
       return `${i + 1}. **${d.action}** (${d.effort} · ${d.horizonDays}d) — ${d.rationale}${c}`;
     }),
     "",
@@ -575,10 +576,7 @@ function localSynthesize(
   };
 }
 
-export function runLocalAgentLoop(
-  question: string,
-  ctx: ToolContext = {},
-): AgentRunResult {
+export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): AgentRunResult {
   const started = Date.now();
   const steps: ReasoningStep[] = [];
   const toolCtx: ToolContext = { ...ctx, question };
@@ -610,9 +608,9 @@ export function runLocalAgentLoop(
   });
 
   const advTool = toolResults.find((t) => t.tool === "run_advanced_reasoning");
-  const advancedReasoning =
-    (advTool?.data as { synthesis?: string[] } | undefined)?.synthesis ??
-    ["Advanced reasoning tool not in plan."];
+  const advancedReasoning = (advTool?.data as { synthesis?: string[] } | undefined)?.synthesis ?? [
+    "Advanced reasoning tool not in plan.",
+  ];
   steps.push({
     phase: "reason",
     title: "Advanced reasoning (Bayesian · causal · beam · CF · EVOI)",
@@ -754,8 +752,7 @@ export async function runGrokAgentLoop(
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return { ...local, latencyMs: Date.now() - started };
 
-  const toolResults =
-    local.steps.find((s) => s.phase === "retrieve")?.toolResults ?? [];
+  const toolResults = local.steps.find((s) => s.phase === "retrieve")?.toolResults ?? [];
   const messages = buildGrokAgentMessages(
     question,
     toolResults,

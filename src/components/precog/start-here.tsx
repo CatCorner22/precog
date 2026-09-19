@@ -465,7 +465,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       <p className="text-sm leading-relaxed">{s.control.label}</p>
                       <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        Takes {s.control.effort} · would plausibly have caught{" "}
+                        {effortPhrase(s.control.effort)} · would plausibly have caught{" "}
                         {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
@@ -567,6 +567,10 @@ function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string 
       </div>
     </section>
   );
+}
+
+function effortPhrase(effort: string): string {
+  return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;
 }
 
 function SectionHeading({

@@ -299,7 +299,7 @@ export const generalTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Bank only clears checks matching the issued list; stops altered and forged checks.",
+          note: "Bank clears only checks on the issued file, which catches counterfeit serials and altered amounts. A forged signature on a check that is on the file still clears.",
           status: "planned",
         },
         {

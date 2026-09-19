@@ -5,13 +5,7 @@ import { findKnowledgeRisks } from "./engine";
 import { getActiveTemplate } from "./active-template";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
-import type {
-  Person,
-  ProcessIdea,
-  ProcessNode,
-  ProcessRisk,
-  ProcessWaste,
-} from "./types";
+import type { Person, ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
 
 export interface MapValidationIssue {
   id: string;
@@ -21,7 +15,10 @@ export interface MapValidationIssue {
 }
 
 function normalizeIoToken(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 /** Match output tokens from upstream processes to downstream inputs. */
@@ -216,13 +213,7 @@ export function priorityKeyForNode(n: MapGraphNode): string {
 }
 
 export type MapNodeKind =
-  | "process"
-  | "risk"
-  | "idea"
-  | "waste"
-  | "control"
-  | "knowledge"
-  | "person";
+  "process" | "risk" | "idea" | "waste" | "control" | "knowledge" | "person";
 
 export interface MapGraphNode {
   id: string;
@@ -239,7 +230,8 @@ export interface MapGraphEdge {
   id: string;
   source: string;
   target: string;
-  kind: "depends" | "has_risk" | "has_idea" | "has_waste" | "control" | "knowledge" | "owns" | "feeds";
+  kind:
+    "depends" | "has_risk" | "has_idea" | "has_waste" | "control" | "knowledge" | "owns" | "feeds";
   label?: string;
 }
 
@@ -262,6 +254,16 @@ export interface ProcessMapSnapshot {
   owners: { id: string; name: string; role: string }[];
   heat: number;
 }
+
+/**
+ * Display bands for the composite `heat` score that enrichProcess computes.
+ * `heat` is this app's own 0–100 blend of a process's worst risk (severity ×
+ * likelihood), its open duty conflicts, sole-owner knowledge, and any linked
+ * residual score. The cutoffs order attention on the map; no study sets them
+ * and they carry no probability meaning. Every consumer reads them from here
+ * so the map badge, the health card, the review, and the weekly plan agree.
+ */
+export const HEAT_BANDS = { hot: 70, warm: 45 } as const;
 
 function riskHeat(r: ProcessRisk) {
   return r.severity * r.likelihood * 4; // 4–100
@@ -316,8 +318,7 @@ export function enrichProcess(process: ProcessNode, staff?: StaffComposition): P
     .filter(
       (s) =>
         (s.controlId && process.controlIds.includes(s.controlId)) ||
-        (s.knowledgeId &&
-          knowledgeItems.some((k) => k.id === s.knowledgeId)),
+        (s.knowledgeId && knowledgeItems.some((k) => k.id === s.knowledgeId)),
     )
     .map((s) => ({ id: s.id, title: s.title }));
 
@@ -352,7 +353,12 @@ export function enrichProcess(process: ProcessNode, staff?: StaffComposition): P
 
 export function buildProcessMapGraph(
   staff?: StaffComposition,
-  opts: { showRisks?: boolean; showIdeas?: boolean; showWaste?: boolean; showKnowledge?: boolean } = {},
+  opts: {
+    showRisks?: boolean;
+    showIdeas?: boolean;
+    showWaste?: boolean;
+    showKnowledge?: boolean;
+  } = {},
 ): { nodes: MapGraphNode[]; edges: MapGraphEdge[]; snapshots: ProcessMapSnapshot[] } {
   const showRisks = opts.showRisks ?? true;
   const showIdeas = opts.showIdeas ?? true;
@@ -374,7 +380,7 @@ export function buildProcessMapGraph(
       processId: p.id,
       severity: snap.heat,
       badges: [
-        snap.heat >= 70 ? "hot" : snap.heat >= 45 ? "warm" : "cool",
+        snap.heat >= HEAT_BANDS.hot ? "hot" : snap.heat >= HEAT_BANDS.warm ? "warm" : "cool",
         `${snap.risks.length} risks`,
         `${snap.ideas.length} ideas`,
       ],
@@ -609,9 +615,7 @@ export function layoutProcessMap(
     });
 
     // person owners left of process
-    const owners = edges
-      .filter((e) => e.target === p.id && e.kind === "owns")
-      .map((e) => e.source);
+    const owners = edges.filter((e) => e.target === p.id && e.kind === "owns").map((e) => e.source);
     owners.forEach((oid, i) => {
       if (!pos.has(oid)) {
         pos.set(oid, { x: origin.x - 140, y: origin.y + i * 50 });
@@ -654,11 +658,36 @@ export interface MapHealthReport {
 }
 
 const HEALTH_BANDS: { min: number; band: MapHealthBand; label: string; summary: string }[] = [
-  { min: 85, band: "excellent", label: "Excellent", summary: "Your value stream is well-owned, controlled, and calm." },
-  { min: 70, band: "healthy", label: "Healthy", summary: "Strong foundation — a few targeted fixes will sharpen scoring." },
-  { min: 55, band: "fair", label: "Fair", summary: "Fixable gaps — assign owners and wire controls on hot processes." },
-  { min: 40, band: "at_risk", label: "At risk", summary: "Several processes need attention before residual risk stabilizes." },
-  { min: 0, band: "critical", label: "Critical", summary: "Act this week — broken links or unowned hot processes dominate risk." },
+  {
+    min: 85,
+    band: "excellent",
+    label: "Excellent",
+    summary: "Your value stream is well-owned, controlled, and calm.",
+  },
+  {
+    min: 70,
+    band: "healthy",
+    label: "Healthy",
+    summary: "Strong foundation — a few targeted fixes will sharpen scoring.",
+  },
+  {
+    min: 55,
+    band: "fair",
+    label: "Fair",
+    summary: "Fixable gaps — assign owners and wire controls on hot processes.",
+  },
+  {
+    min: 40,
+    band: "at_risk",
+    label: "At risk",
+    summary: "Several processes need attention before residual risk stabilizes.",
+  },
+  {
+    min: 0,
+    band: "critical",
+    label: "Critical",
+    summary: "Act this week — broken links or unowned hot processes dominate risk.",
+  },
 ];
 
 function healthBand(score: number) {
@@ -681,11 +710,9 @@ export function computeMapHealth(
   const ownership = Math.round((owned / total) * 100);
   const withControls = snapshots.filter((s) => s.process.controlIds.length > 0).length;
   const controls = Math.round((withControls / total) * 100);
-  const avgHeat = Math.round(
-    snapshots.reduce((sum, s) => sum + s.heat, 0) / total,
-  );
+  const avgHeat = Math.round(snapshots.reduce((sum, s) => sum + s.heat, 0) / total);
   const calm = Math.max(0, 100 - avgHeat);
-  const hotProcesses = snapshots.filter((s) => s.heat >= 68).length;
+  const hotProcesses = snapshots.filter((s) => s.heat >= HEAT_BANDS.hot).length;
   const unownedProcesses = total - owned;
 
   const dimensions: MapHealthDimension[] = [
@@ -701,27 +728,32 @@ export function computeMapHealth(
       label: "Ownership",
       score: ownership,
       weight: 0.2,
-      hint: unownedProcesses ? `${unownedProcesses} process(es) unowned` : "Every process has an owner",
+      hint: unownedProcesses
+        ? `${unownedProcesses} process(es) unowned`
+        : "Every process has an owner",
     },
     {
       id: "controls",
       label: "Controls",
       score: controls,
       weight: 0.25,
-      hint: withControls < total ? `${total - withControls} without controls` : "Controls mapped across the stream",
+      hint:
+        withControls < total
+          ? `${total - withControls} without controls`
+          : "Controls mapped across the stream",
     },
     {
       id: "calm",
       label: "Heat",
       score: calm,
       weight: 0.3,
-      hint: hotProcesses ? `${hotProcesses} hot process(es) · avg ${avgHeat}` : `Average heat ${avgHeat}`,
+      hint: hotProcesses
+        ? `${hotProcesses} hot process(es) · avg ${avgHeat}`
+        : `Average heat ${avgHeat}`,
     },
   ];
 
-  const score = Math.round(
-    dimensions.reduce((sum, d) => sum + d.score * d.weight, 0),
-  );
+  const score = Math.round(dimensions.reduce((sum, d) => sum + d.score * d.weight, 0));
   const band = healthBand(score);
 
   return {

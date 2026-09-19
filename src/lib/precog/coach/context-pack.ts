@@ -1,3 +1,4 @@
+import { HEAT_BANDS } from "../process-graph";
 import { assessCoso } from "../coso";
 import { getActiveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
@@ -32,7 +33,7 @@ export function buildPioneerContextPack() {
       dimensions: mapHealth.dimensions.map((d) => ({ id: d.id, score: d.score, hint: d.hint })),
       processCount: mapHealth.processCount,
       hotProcesses: snapshots
-        .filter((s) => s.heat >= 68)
+        .filter((s) => s.heat >= HEAT_BANDS.hot)
         .sort((a, b) => b.heat - a.heat)
         .slice(0, 4)
         .map((s) => ({

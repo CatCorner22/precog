@@ -103,7 +103,7 @@ export function CaseCard({
             <p className="leading-relaxed text-muted">{study.controlGap}</p>
           </Section>
 
-          <Section title="What would have caught it">
+          <Section title="What would plausibly have caught it">
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step, i) => (
                 // A case may phrase one control more than one way, so the

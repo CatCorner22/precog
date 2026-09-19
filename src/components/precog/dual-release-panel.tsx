@@ -583,7 +583,8 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
             </label>
             <p className="rounded-lg border border-border bg-panel p-3 text-xs text-muted">
               Exceptions never hide themselves: the simulator shows base vs effective threshold and
-              residual notes. Active dual-waives reduce insurance dual-control credit eligibility.
+              residual notes. An active dual-waive shows here and in every evaluation; whether it
+              affects your premium depends on your carrier's control warranties.
             </p>
           </CardContent>
         </Card>

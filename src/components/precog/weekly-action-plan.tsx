@@ -4,7 +4,11 @@ import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/resid
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
-import { buildProcessMapGraph, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
+import {
+  buildProcessMapGraph,
+  HEAT_BANDS,
+  type ProcessMapSnapshot,
+} from "@/lib/precog/process-graph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +42,7 @@ export function buildWeeklyActions(input: {
     actions.push({
       id: "bank-rec",
       title: "Start owner weekly bank reconciliation",
-      why: "Highest-ROI detective control for small teams — catches errors and fraud early.",
+      why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
       effort: "low",
       tab: "sod",
       priority: 95,
@@ -49,7 +53,7 @@ export function buildWeeklyActions(input: {
     actions.push({
       id: "dual-control",
       title: "Enable dual control on payments",
-      why: "Separates payment release from vendor setup — closes a classic fraud path.",
+      why: "Separates payment release from vendor setup, so an invented supplier needs a second person to get paid. Narrows the path above the threshold; does not close it below.",
       effort: "medium",
       tab: "sod",
       priority: 90,
@@ -103,7 +107,7 @@ export function buildWeeklyActions(input: {
   }
 
   if (input.mapSnapshots?.length) {
-    for (const snap of input.mapSnapshots.filter((s) => s.heat >= 68).slice(0, 2)) {
+    for (const snap of input.mapSnapshots.filter((s) => s.heat >= HEAT_BANDS.hot).slice(0, 2)) {
       const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
       actions.push({
         id: `map-heat-${snap.process.id}`,
@@ -188,7 +192,9 @@ export function WeeklyActionPlan({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">{a.title}</span>
-                  <Badge variant={a.effort === "low" ? "ok" : a.effort === "high" ? "warn" : "default"}>
+                  <Badge
+                    variant={a.effort === "low" ? "ok" : a.effort === "high" ? "warn" : "default"}
+                  >
                     {a.effort} effort
                   </Badge>
                 </span>

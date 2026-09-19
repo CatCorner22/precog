@@ -27,11 +27,7 @@ import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { scoreAnomalies } from "../ml/anomaly";
 
-export type EpistemicClass =
-  | "known_known"
-  | "known_unknown"
-  | "unknown_unknown"
-  | "unknown_known"; // tacit knowledge we fail to encode
+export type EpistemicClass = "known_known" | "known_unknown" | "unknown_unknown" | "unknown_known"; // tacit knowledge we fail to encode
 
 export type UnknownSeverity = "critical" | "high" | "medium" | "low";
 
@@ -286,8 +282,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     {
       id: "ku-vendor-master-changes",
       title: "Vendor master change log",
-      description:
-        "Fictitious vendor path is modeled; actual create/edit events are not ingested.",
+      description: "Fictitious vendor path is modeled; actual create/edit events are not ingested.",
       severity: "high",
       affects: ["ap", "dual-release", "precog"],
       confidenceDrag: 0.07,
@@ -302,8 +297,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     {
       id: "ku-background-check-dates",
       title: "Bonding & background-check currency",
-      description:
-        "Bonded-cash-handler flag exists without expiration dates per person.",
+      description: "Bonded-cash-handler flag exists without expiration dates per person.",
       severity: "medium",
       affects: ["insurance discount", "people risk"],
       confidenceDrag: 0.04,
@@ -318,7 +312,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       id: "ku-patient-refund-controls",
       title: "Patient refund authorization trail",
       description:
-        "Refunds are a common dental fraud vector not yet a first-class process node with dual release.",
+        "A patient refund moves cash out with nothing coming back, and one person can originate, approve, and record it. The refund path is not yet a process node with dual release.",
       severity: "medium",
       affects: ["process map", "sod rules"],
       confidenceDrag: 0.05,
@@ -520,9 +514,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   });
 
   // Dynamic: if dual waive exceptions, escalate known unknown
-  const waives = (dual.exceptions ?? []).filter(
-    (e) => e.enabled && e.action === "waive_dual",
-  );
+  const waives = (dual.exceptions ?? []).filter((e) => e.enabled && e.action === "waive_dual");
   if (waives.length) {
     items.push({
       id: "ku-active-waives",
@@ -600,7 +592,8 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       label: "Pioneer agent loop",
       ready: true,
       latencyClass: "subsecond",
-      description: "Tool-grounded brief rebuilds from current profile without waiting for batch jobs.",
+      description:
+        "Tool-grounded brief rebuilds from current profile without waiting for batch jobs.",
       dependency: "tool catalog",
     },
     {
@@ -634,7 +627,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     (rtReady / realtimeCapabilities.length) * 100 +
       (vars.hasDualControl ? 4 : 0) +
       (staff.independentBankRec ? 4 : 0) -
-      (waives.length * 3),
+      waives.length * 3,
   );
 
   // ─── Scores ───
@@ -648,8 +641,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const unknownKnowns = items.filter((i) => i.classification === "unknown_known").length;
   const criticalUnknowns = items.filter(
     (i) =>
-      i.classification !== "known_known" &&
-      (i.severity === "critical" || i.severity === "high"),
+      i.classification !== "known_known" && (i.severity === "critical" || i.severity === "high"),
   ).length;
 
   // Evaluation readiness: can we evaluate inputs we *have* in real time?
@@ -676,7 +668,11 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const coverage: CoverageSlice[] = [
     {
       domain: "Cash & deposits",
-      coveredPct: clamp(55 - (items.find((i) => i.id === "ku-actual-cash-counts") ? 20 : 0) + (dual.enabled ? 10 : 0)),
+      coveredPct: clamp(
+        55 -
+          (items.find((i) => i.id === "ku-actual-cash-counts") ? 20 : 0) +
+          (dual.enabled ? 10 : 0),
+      ),
       knownKnowns: 1,
       knownUnknowns: 2,
       unknownUnknowns: 1,
@@ -735,9 +731,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       "Anomaly pressure vs self-rated segregation mismatch",
       "Scenario p50 timelines the owner may not have internalized",
     ],
-    hidden: items
-      .filter((i) => i.classification === "unknown_known")
-      .map((i) => i.title),
+    hidden: items.filter((i) => i.classification === "unknown_known").map((i) => i.title),
     unknown: items
       .filter((i) => i.classification === "unknown_unknown")
       .map((i) => i.title)
@@ -767,9 +761,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     );
   }
   if (epistemicConfidence < 55) {
-    recommendations.push(
-      "Trust outputs less until cash variance + bank rec evidence is loaded.",
-    );
+    recommendations.push("Trust outputs less until cash variance + bank rec evidence is loaded.");
   }
   recommendations.push(
     `Convert top known unknown: ${sortedProbes.find((i) => i.classification === "known_unknown")?.title ?? "cash counts"}.`,

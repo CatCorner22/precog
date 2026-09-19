@@ -6,7 +6,6 @@ import {
   DEFAULT_STAFF,
 } from "./shared-controls";
 
-
 export const professionalServicesTemplate: IndustryTemplate = {
   id: "professional_services",
   businessName: "Northgate Advisory Group",
@@ -354,11 +353,12 @@ export const professionalServicesTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-ap-1",
-          title: "Partner approval for new vendors and payments over $2,500",
+          title:
+            "Partner approval for every new vendor, with dual release at the existing $1,000 threshold",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Bank dual release; office manager prepares, partner approves.",
+          note: "Office manager prepares, partner approves, at the same threshold the existing dual-release control already uses.",
           status: "planned",
         },
         {

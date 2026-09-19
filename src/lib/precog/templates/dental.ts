@@ -304,7 +304,7 @@ const processes: ProcessNode[] = [
         category: "control",
         effort: "low",
         impact: "high",
-        note: "Highest ROI detection control for small practices.",
+        note: "Owner sees bank activity without going through the person who posts payments, so a diverted payment cannot be hidden by adjusting the books. About twenty minutes a week.",
         status: "planned",
       },
       {
@@ -404,7 +404,7 @@ const processes: ProcessNode[] = [
     ideas: [
       {
         id: "i-ap-1",
-        title: "Dual ACH release > $500",
+        title: "Lower the dual ACH release threshold from $1,000 to $500",
         category: "control",
         effort: "medium",
         impact: "high",
@@ -727,12 +727,42 @@ const scenarios: ScenarioTemplate[] = [
 ];
 
 const roleTemplates: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": ["approve_writeoffs", "approve_vendor", "approve_payroll", "bank_reconcile", "view_reports_only", "pms_admin_roles"],
-  "Office Manager": ["post_payments", "prepare_deposit", "post_adjustments", "create_vendor", "release_payment", "enter_payroll", "approve_writeoffs", "pms_admin_roles", "submit_claims", "view_reports_only"],
-  "Front Desk Lead": ["collect_cash", "post_payments", "prepare_deposit", "submit_claims", "post_adjustments"],
-  "Hygienist": ["view_reports_only"],
+  "Owner / Dentist": [
+    "approve_writeoffs",
+    "approve_vendor",
+    "approve_payroll",
+    "bank_reconcile",
+    "view_reports_only",
+    "pms_admin_roles",
+  ],
+  "Office Manager": [
+    "post_payments",
+    "prepare_deposit",
+    "post_adjustments",
+    "create_vendor",
+    "release_payment",
+    "enter_payroll",
+    "approve_writeoffs",
+    "pms_admin_roles",
+    "submit_claims",
+    "view_reports_only",
+  ],
+  "Front Desk Lead": [
+    "collect_cash",
+    "post_payments",
+    "prepare_deposit",
+    "submit_claims",
+    "post_adjustments",
+  ],
+  Hygienist: ["view_reports_only"],
   "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": ["submit_claims", "post_adjustments", "post_payments", "approve_writeoffs", "view_reports_only"],
+  "Billing Specialist": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "approve_writeoffs",
+    "view_reports_only",
+  ],
 };
 
 export const dentalTemplate: IndustryTemplate = {

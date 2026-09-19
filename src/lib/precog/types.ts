@@ -1,37 +1,16 @@
 export type MatrixLayerId =
-  | "surface"
-  | "process"
-  | "knowledge"
-  | "control"
-  | "source"
-  | "continuity";
+  "surface" | "process" | "knowledge" | "control" | "source" | "continuity";
 
 export type Criticality = "critical" | "important" | "nice-to-have";
 export type KnowledgeLevel = "expert" | "proficient" | "basic" | "aware";
 export type KnowledgeCategory =
-  | "process"
-  | "system"
-  | "clinical"
-  | "compliance"
-  | "vendor"
-  | "tribal";
+  "process" | "system" | "clinical" | "compliance" | "vendor" | "tribal";
 
 export type ProcessRiskKind =
-  | "control"
-  | "fraud"
-  | "continuity"
-  | "quality"
-  | "compliance"
-  | "revenue"
-  | "safety";
+  "control" | "fraud" | "continuity" | "quality" | "compliance" | "revenue" | "safety";
 
 export type LeanWasteKind =
-  | "muda_waiting"
-  | "muda_rework"
-  | "muda_motion"
-  | "muda_overprocessing"
-  | "mura"
-  | "muri";
+  "muda_waiting" | "muda_rework" | "muda_motion" | "muda_overprocessing" | "mura" | "muri";
 
 export interface ProcessRisk {
   id: string;
@@ -67,7 +46,8 @@ export interface Person {
   name: string;
   role: string;
   active: boolean;
-  tenureYears: number;
+  /** Years of service. Undefined when unknown; never defaulted, so unknown tenure adds nothing to any score. */
+  tenureYears?: number;
   /** Explicit duty entitlements when role is custom or needs override. */
   entitlements?: string[];
 }

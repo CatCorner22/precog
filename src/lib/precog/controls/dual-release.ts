@@ -147,7 +147,12 @@ export interface ReleaseEvaluation {
   appliedException?: AppliedException;
   controlCredit: {
     dualControlPayments: boolean;
-    insuranceDiscountEligible: boolean;
+    /**
+     * The configured control as a carrier would see it: dual release on with no
+     * waiver in force. Not an eligibility determination — whether any credit
+     * exists depends on the carrier and the policy's control warranties.
+     */
+    evidenceReady: boolean;
     note: string;
   };
 }
@@ -302,7 +307,7 @@ export function defaultExceptions(): ThresholdException[] {
       amountMinUsd: 1,
       amountMaxUsd: 499,
       enabled: false,
-      reason: "Optional strict mode: dual even under $500 for small first payments.",
+      reason: "Optional strict mode: dual even under the threshold for small first payments.",
       createdAt: iso(today),
     },
     {
@@ -532,13 +537,12 @@ export function evaluateRelease(
 
   const baseCredit = {
     dualControlPayments: policy.enabled,
-    insuranceDiscountEligible:
+    evidenceReady:
       policy.enabled &&
-      policy.rules.filter((r) => r.enabled).length >= 3 &&
       !(policy.exceptions ?? []).some((e) => e.enabled && e.action === "waive_dual"),
     note: policy.enabled
-      ? "Dual-release policy active — eligible for dual-control insurance credit when carriers require dual signature/ACH."
-      : "Policy off — no dual-control insurance credit.",
+      ? "Dual-release policy active. Whether a carrier gives a credit for it depends on your policy's control warranties; this tool does not determine eligibility."
+      : "Policy off — there is no dual-control configuration to show a carrier.",
   };
 
   if (!policy.enabled) {
@@ -673,8 +677,8 @@ export function evaluateRelease(
       appliedException: resolved.applied,
       controlCredit: {
         ...baseCredit,
-        insuranceDiscountEligible: false,
-        note: "Active dual-waive exception may reduce dual-control insurance credit — disclose to carrier if asked.",
+        evidenceReady: false,
+        note: "An active dual-waive exception weakens the control a carrier would look at — disclose it if asked.",
       },
     };
   }
