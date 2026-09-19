@@ -2,6 +2,7 @@ import type { SavedProcessBlock } from "./builder/process-blocks";
 import type { AuditEntry } from "./builder/audit";
 import type { ControlTestRecord } from "./builder/test-plan";
 import type { RiskAppetite } from "./appetite";
+import { defaultInsuranceProfile, mergeInsuranceProfile, type InsuranceProfile } from "./insurance/types";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
@@ -62,6 +63,8 @@ export interface PracticeProfile {
   planDone?: string[];
   /** When this business was created in Precog (drives the 30-day plan window). */
   createdAt?: string;
+  /** Insurance facts and attestations the map can't infer. */
+  insurance?: InsuranceProfile;
   updatedAt: string;
 }
 
@@ -170,6 +173,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     riskAppetite: "balanced",
     planDone: [],
     createdAt: new Date().toISOString(),
+    insurance: defaultInsuranceProfile(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -225,6 +229,7 @@ export function loadProfile(): PracticeProfile {
       riskAppetite: parsed.riskAppetite ?? "balanced",
       planDone: Array.isArray(parsed.planDone) ? parsed.planDone : [],
       createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : parsed.updatedAt ?? new Date().toISOString(),
+      insurance: mergeInsuranceProfile(parsed.insurance),
     };
   } catch {
     return defaultProfile();

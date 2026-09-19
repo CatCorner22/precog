@@ -18,6 +18,7 @@ import {
   Network,
   Shield,
   Sparkles,
+  Umbrella,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -50,6 +51,8 @@ import { WeeklyDigestCard } from "@/components/precog/weekly-digest";
 import { AuditTrailPanel } from "@/components/precog/audit-trail";
 import { Plan30Card } from "@/components/precog/plan30-card";
 import { StressTestsCard } from "@/components/precog/stress-tests";
+import { InsurancePanel } from "@/components/precog/insurance-panel";
+import { buildInsuranceReport } from "@/lib/precog/insurance/model";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
@@ -110,7 +113,8 @@ type TabId =
   | "knowledge"
   | "precog"
   | "sod"
-  | "journal";
+  | "journal"
+  | "insurance";
 
 const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
   { id: "command", label: "Dashboard", icon: Activity },
@@ -123,6 +127,7 @@ const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
   { id: "knowledge", label: "Knowledge", icon: Network },
   { id: "precog", label: "Precog", icon: Sparkles },
   { id: "sod", label: "SoD", icon: Shield },
+  { id: "insurance", label: "Insurance", icon: Umbrella },
   { id: "journal", label: "Journal", icon: BookOpen },
 ];
 
@@ -175,6 +180,20 @@ function Home() {
   const overdueDecisions = profile.decisions.filter(
     (d) => d.reviewBy && new Date(d.reviewBy).getTime() < Date.now(),
   ).length;
+
+  const insuranceReport = useMemo(
+    () =>
+      buildInsuranceReport({
+        profile: profile.insurance!,
+        staff: profile.staff,
+        riskVariables: profile.riskVariables,
+        dualRelease: profile.dualRelease,
+        processes: tpl.processes,
+        controls: tpl.controls,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile.insurance, profile.staff, profile.riskVariables, profile.dualRelease, tpl.processes, tpl.controls, templateRevision],
+  );
 
   const mapHealth = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(profile.staff);
@@ -241,7 +260,7 @@ function Home() {
       return;
     }
     if (
-      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers"].includes(
+      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers", "insurance"].includes(
         tabName,
       )
     ) {
@@ -463,6 +482,13 @@ function Home() {
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
+                label="Insurance"
+                value={formatUsd(insuranceReport.totalMid)}
+                hint={`readiness ${insuranceReport.overallReadiness} · ${insuranceReport.moves.filter((m) => m.premiumDelta > 0).length} savings moves`}
+                tone={insuranceReport.overallReadiness >= 70 ? "primary" : insuranceReport.overallReadiness >= 50 ? "warn" : "danger"}
+                onClick={() => setTab("insurance")}
+              />
+              <MetricCard
                 label="Top retained"
                 value={
                   top
@@ -643,6 +669,8 @@ function Home() {
         {tab === "sod" && (
           <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />
         )}
+
+        {tab === "insurance" && <InsurancePanel onOpenTab={(t, id) => navigateTab(t, id)} />}
 
         {tab === "journal" && (
           <div className="space-y-6">

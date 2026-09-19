@@ -1,3 +1,4 @@
+import { mergeInsuranceProfile } from "./insurance/types";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -52,6 +53,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       riskAppetite: row.profile.riskAppetite ?? "balanced",
       planDone: Array.isArray(row.profile.planDone) ? row.profile.planDone : [],
       createdAt: typeof row.profile.createdAt === "string" ? row.profile.createdAt : row.profile.updatedAt,
+      insurance: mergeInsuranceProfile(row.profile.insurance),
     };
     return {
       found: true as const,
@@ -138,6 +140,7 @@ function mergeProfile(row: { name: string; industry: string; profile: PracticePr
     riskAppetite: row.profile.riskAppetite ?? "balanced",
     planDone: Array.isArray(row.profile.planDone) ? row.profile.planDone : [],
     createdAt: typeof row.profile.createdAt === "string" ? row.profile.createdAt : row.profile.updatedAt,
+    insurance: mergeInsuranceProfile(row.profile.insurance),
   };
 }
 

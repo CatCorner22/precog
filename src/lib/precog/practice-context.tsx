@@ -28,6 +28,8 @@ import { listCheckins, type CheckinRecord } from "./builder/review-link-server";
 import { appendAudit, diffAudit } from "./builder/audit";
 import { makeTestId, type ControlTestRecord } from "./builder/test-plan";
 import { setRiskAppetite, type RiskAppetite } from "./appetite";
+import type { InsuranceProfile } from "./insurance/types";
+import type { InsuranceMove } from "./insurance/model";
 import {
   setActiveIndustry,
   setPeopleOverrides,
@@ -133,6 +135,10 @@ interface PracticeContextValue {
   setAppetite: (appetite: RiskAppetite) => void;
   /** Toggle a first-30-days plan item. */
   togglePlanItem: (id: string) => void;
+  /** Update insurance facts / attestations. */
+  setInsurance: (patch: Partial<InsuranceProfile> | ((cur: InsuranceProfile) => InsuranceProfile)) => void;
+  /** Apply a simulated insurance move for real: flips the matching staff / risk-variable flag or records an attestation. */
+  applyInsuranceMove: (move: InsuranceMove) => "applied" | "attested" | "manual";
 }
 
 /** Apply check-ins to evidence: newest completion wins, whoever recorded it. */
@@ -377,6 +383,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       businessId: p.businessId,
       riskAppetite: p.riskAppetite,
       createdAt: p.createdAt,
+      insurance: p.insurance,
       auditLog: p.auditLog,
       onboardingComplete: true,
     }));
@@ -509,6 +516,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       businessId: p.businessId,
       riskAppetite: p.riskAppetite,
       createdAt: p.createdAt,
+      insurance: p.insurance,
       auditLog: p.auditLog,
       onboardingComplete: true,
     }));
@@ -755,6 +763,58 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => ({ ...p, riskAppetite: appetite }));
   }, []);
 
+  const setInsurance = useCallback(
+    (patch: Partial<InsuranceProfile> | ((cur: InsuranceProfile) => InsuranceProfile)) => {
+      setProfile((p) => {
+        const cur = p.insurance ?? defaultProfile(p.industry).insurance!;
+        const next = typeof patch === "function" ? patch(cur) : { ...cur, ...patch };
+        return { ...p, insurance: next };
+      });
+    },
+    [],
+  );
+
+  const applyInsuranceMove = useCallback(
+    (move: InsuranceMove): "applied" | "attested" | "manual" => {
+      switch (move.applicable) {
+        case "staff_dual":
+          setProfile((p) => {
+            const dualRelease = mergeDualReleasePolicy({ ...p.dualRelease, enabled: true }, p.staff);
+            return {
+              ...p,
+              dualRelease: { ...dualRelease, updatedAt: new Date().toISOString() },
+              staff: { ...p.staff, dualControlPayments: true },
+              riskVariables: { ...p.riskVariables, hasDualControl: true },
+            };
+          });
+          return "applied";
+        case "staff_bankrec":
+          setProfile((p) => ({
+            ...p,
+            staff: { ...p.staff, independentBankRec: true },
+            riskVariables: { ...p.riskVariables, hasIndependentBankRec: true },
+          }));
+          return "applied";
+        case "rv_bonded":
+          setProfile((p) => ({ ...p, riskVariables: { ...p.riskVariables, hasBondedCashHandlers: true } }));
+          return "applied";
+        case "rv_cameras":
+          setProfile((p) => ({ ...p, riskVariables: { ...p.riskVariables, hasSecurityCameras: true, hasAlarmAccess: true } }));
+          return "applied";
+        case "attest":
+          if (move.attestation) {
+            const key = move.attestation;
+            setInsurance((cur) => ({ ...cur, attestations: { ...cur.attestations, [key]: true } }));
+            return "attested";
+          }
+          return "manual";
+        default:
+          return "manual";
+      }
+    },
+    [setInsurance],
+  );
+
   const togglePlanItem = useCallback((id: string) => {
     setProfile((p) => {
       const done = new Set(p.planDone ?? []);
@@ -815,6 +875,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       recordControlTest,
       setAppetite,
       togglePlanItem,
+      setInsurance,
+      applyInsuranceMove,
     }),
     [
       profile,
@@ -854,6 +916,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       recordControlTest,
       setAppetite,
       togglePlanItem,
+      setInsurance,
+      applyInsuranceMove,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

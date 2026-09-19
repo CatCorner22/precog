@@ -13,6 +13,7 @@ import { summarizeEvidence } from "@/lib/precog/builder/evidence";
 import { busFactor, rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { latestTests } from "@/lib/precog/builder/test-plan";
 import { runStressTests, templateBaselineHealth } from "@/lib/precog/builder/stress";
+import { LINE_LABEL, buildInsuranceReport } from "@/lib/precog/insurance/model";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,19 @@ export function LenderPack() {
     const tests = latestTests(profile.controlTests ?? []);
     const stress = runStressTests({ staff: profile.staff, tests: profile.controlTests ?? [], layout: profile.mapLayout ?? {} });
     const baseline = templateBaselineHealth();
-    return { snapshots, issues, health, threat, sod, effectiveness, evidence, departures, tests, stress, baseline };
+    const insurance = buildInsuranceReport({
+      profile: profile.insurance!,
+      staff: profile.staff,
+      riskVariables: profile.riskVariables,
+      dualRelease: profile.dualRelease,
+      processes: tpl.processes,
+      controls: tpl.controls,
+    });
+    return { snapshots, issues, health, threat, sod, effectiveness, evidence, departures, tests, stress, baseline, insurance };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, templateRevision, mapCustomized]);
 
-  const { health, threat, sod, effectiveness, evidence, departures, tests, snapshots, issues, stress, baseline } = data;
+  const { health, threat, sod, effectiveness, evidence, departures, tests, snapshots, issues, stress, baseline, insurance } = data;
   const worstPerson = stress.find((s) => s.kind === "person");
   const worstControl = stress.find((s) => s.kind === "control");
   const lapse = stress.find((s) => s.kind === "evidence_lapse");
@@ -310,8 +319,61 @@ export function LenderPack() {
           </Section>
         )}
 
+        <Section title={`${7 + (stressRows.length ? 1 : 0)}. Insurance readiness`}>
+          <p className="text-sm text-neutral-700">
+            Underwriting answers derived from the map and owner attestations. Indicative annual premium across carried lines{" "}
+            <strong>{formatUsd(insurance.totalMid)}</strong> ({formatUsd(insurance.totalLow)} – {formatUsd(insurance.totalHigh)});{" "}
+            {insurance.documentedShare}% of &ldquo;yes&rdquo; answers are backed by current evidence.
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {insurance.readiness.map((r) => {
+              const cov = insurance.coverage.find((c) => c.line === r.line)!;
+              return (
+                <div key={r.line} className="rounded border border-neutral-300 p-2">
+                  <p className="text-xs font-medium">{LINE_LABEL[r.line]}</p>
+                  <p className="text-xl font-bold tabular">
+                    {r.score} <span className="text-sm font-medium text-neutral-600">({r.grade})</span>
+                  </p>
+                  <p className="text-[10px] text-neutral-600 capitalize">{cov.status.replace("_", " ")} · {cov.effects.length} coverage note(s)</p>
+                </div>
+              );
+            })}
+          </div>
+          <table className="mt-3 w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-neutral-300 text-left text-[10px] tracking-wide text-neutral-500 uppercase">
+                <th className="py-1 pr-2">Question</th>
+                <th className="py-1 pr-2">Answer</th>
+                <th className="py-1">Line(s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insurance.answers.map((a) => (
+                <tr key={a.q.id} className="border-b border-neutral-200 align-top">
+                  <td className="py-1 pr-2">{a.q.prompt}</td>
+                  <td className={`py-1 pr-2 font-medium ${a.answer === true ? "text-emerald-700" : a.answer === false ? "text-red-700" : "text-neutral-500"}`}>
+                    {a.answer === null ? "Not answered" : a.answer ? `Yes${a.documented ? " (documented)" : ""}` : "No"}
+                  </td>
+                  <td className="py-1 text-neutral-600">{a.q.lines.map((l) => LINE_LABEL[l].split(" ")[0]).join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {insurance.moves.filter((m) => m.premiumDelta > 0).length > 0 && (
+            <p className="mt-2 text-xs text-neutral-700">
+              Planned improvements with rate impact:{" "}
+              {insurance.moves
+                .filter((m) => m.premiumDelta > 0)
+                .slice(0, 4)
+                .map((m) => `${m.title} (−${formatUsd(m.premiumDelta)}/yr)`)
+                .join("; ")}
+              .
+            </p>
+          )}
+        </Section>
+
         {profile.decisions.length > 0 && (
-          <Section title={`${7 + (stressRows.length ? 1 : 0)}. Decision log`}>
+          <Section title={`${8 + (stressRows.length ? 1 : 0)}. Decision log`}>
             <ul className="space-y-1.5 text-sm">
               {profile.decisions.slice(0, 10).map((d) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">
@@ -326,7 +388,7 @@ export function LenderPack() {
           </Section>
         )}
 
-        <Section title={`${7 + (stressRows.length ? 1 : 0) + decisionsOffset}. Owner attestation`}>
+        <Section title={`${8 + (stressRows.length ? 1 : 0) + decisionsOffset}. Owner attestation`}>
           <p className="text-sm leading-relaxed text-neutral-700">
             I confirm that the process map, ownership, controls, evidence, and test results in this pack reflect how{" "}
             {profile.practiceName} operates as of the date above, to the best of my knowledge. Where residual risk has been

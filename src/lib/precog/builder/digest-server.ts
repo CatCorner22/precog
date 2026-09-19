@@ -15,6 +15,8 @@ import { collectDueItems } from "./due";
 import { summarizeEffectiveness } from "./effectiveness";
 import { busFactor, rankDepartureRisk } from "./departure";
 import { buildDigest } from "./digest";
+import { buildInsuranceReport } from "../insurance/model";
+import { mergeInsuranceProfile } from "../insurance/types";
 import type { PracticeProfile } from "../practice-profile";
 import type { IndustryId } from "../industry";
 
@@ -53,6 +55,23 @@ export function digestForProfile(profile: PracticeProfile, appUrl?: string): { s
     actions,
     effectiveness,
     busFactorAtRisk: busFactor(impacts),
+    insurance: (() => {
+      const r = buildInsuranceReport({
+        profile: mergeInsuranceProfile(profile.insurance),
+        staff: profile.staff,
+        riskVariables: profile.riskVariables,
+        dualRelease: profile.dualRelease,
+        processes: tpl.processes,
+        controls: tpl.controls,
+      });
+      const top = r.moves.find((m) => m.premiumDelta > 0);
+      return {
+        totalMid: r.totalMid,
+        overallReadiness: r.overallReadiness,
+        topMove: top ? { title: top.title, premiumDelta: top.premiumDelta } : undefined,
+        declined: r.coverage.filter((c) => c.status === "likely_declined").map((c) => c.label),
+      };
+    })(),
     teamSize: tpl.people.filter((p) => p.active).length,
     appUrl,
   });

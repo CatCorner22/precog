@@ -200,6 +200,16 @@ export function buildPlan30(input: {
     target: { kind: "tab", tab: "command" },
     autoDone: health.score >= 75,
   });
+  const attested = Object.values(profile.insurance?.attestations ?? {}).filter((v) => v !== undefined).length;
+  add({
+    id: "w4-insurance",
+    week: 4,
+    title: attested >= 8 ? "Underwriting questionnaire answered" : `Answer the insurance questionnaire (${attested}/15 attestations so far)`,
+    why: "Turns your controls into premium credits and keeps social-engineering and cyber coverage from being excluded.",
+    minutes: 15,
+    target: { kind: "tab", tab: "insurance" },
+    autoDone: attested >= 8,
+  });
   add({
     id: "w4-pack",
     week: 4,

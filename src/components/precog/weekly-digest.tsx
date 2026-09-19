@@ -8,6 +8,7 @@ import { summarizeEffectiveness } from "@/lib/precog/builder/effectiveness";
 import { busFactor, rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "@/lib/precog/process-graph";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import { buildInsuranceReport } from "@/lib/precog/insurance/model";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, Mail, Newspaper } from "lucide-react";
@@ -36,6 +37,23 @@ export function WeeklyDigestCard() {
       actions,
       effectiveness,
       busFactorAtRisk: busFactor(impacts),
+      insurance: (() => {
+        const r = buildInsuranceReport({
+          profile: profile.insurance!,
+          staff: profile.staff,
+          riskVariables: profile.riskVariables,
+          dualRelease: profile.dualRelease,
+          processes: tpl.processes,
+          controls: tpl.controls,
+        });
+        const top = r.moves.find((m) => m.premiumDelta > 0);
+        return {
+          totalMid: r.totalMid,
+          overallReadiness: r.overallReadiness,
+          topMove: top ? { title: top.title, premiumDelta: top.premiumDelta } : undefined,
+          declined: r.coverage.filter((c) => c.status === "likely_declined").map((c) => c.label),
+        };
+      })(),
       teamSize: tpl.people.filter((p) => p.active).length,
       appUrl: typeof window !== "undefined" ? window.location.origin : undefined,
     });

@@ -15,6 +15,7 @@ export interface DigestInput {
   effectiveness: EffectivenessSummary;
   busFactorAtRisk: number;
   teamSize: number;
+  insurance?: { totalMid: number; overallReadiness: number; topMove?: { title: string; premiumDelta: number }; declined: string[] };
   appUrl?: string;
   now?: Date;
 }
@@ -78,6 +79,14 @@ export function buildDigest(input: DigestInput): { subject: string; body: string
       : `  Every process and critical knowledge item has a backup. Keep it that way.`,
   );
   lines.push("");
+  if (input.insurance) {
+    lines.push("INSURANCE");
+    lines.push(`  Indicative premium ${input.insurance.totalMid.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}/yr · readiness ${input.insurance.overallReadiness}/100`);
+    if (input.insurance.topMove)
+      lines.push(`  Best move: ${input.insurance.topMove.title} (−${input.insurance.topMove.premiumDelta.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}/yr)`);
+    if (input.insurance.declined.length) lines.push(`  ! Likely declined without fixes: ${input.insurance.declined.join(", ")}`);
+    lines.push("");
+  }
   if (input.appUrl) lines.push(`Open Precog Pioneer: ${input.appUrl}`);
   lines.push("Educational internal-control decision support — not legal, actuarial, or forensic advice.");
 
