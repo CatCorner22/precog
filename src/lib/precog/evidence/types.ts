@@ -101,6 +101,12 @@ export interface CaseStudy {
   lossIsFloor: boolean;
   /** How long the scheme ran before it stopped, in months. */
   durationMonths?: number;
+  /**
+   * Years the person had worked for the victim when the scheme ended, only
+   * where the source states a hire year or a length of service. 0 means under
+   * a year. Absent otherwise; never inferred from how long the scheme ran.
+   */
+  tenureYearsStated?: number;
   detection: DetectionRoute;
   /** Approximate headcount of the victim organization, where reported. */
   victimSize?: string;

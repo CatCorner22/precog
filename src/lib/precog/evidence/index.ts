@@ -228,6 +228,30 @@ export function observedLossRange(cases: readonly CaseStudy[]): {
  * duration. This is the number that argues for detective controls: it is the
  * window an owner is choosing to leave open.
  */
+/**
+ * The cases whose source states how long the person had served, longest first.
+ *
+ * Tenure is recorded only where the release or filing gives a hire year or a
+ * length of service, so `n` is small and the result is a set of named
+ * examples, not a rate. Callers show the longest and the shortest to make one
+ * point: the library holds both the 27-year employee and the new hire, so
+ * length of service predicts nothing either way.
+ */
+export function tenureExamples(cases: readonly CaseStudy[]): {
+  n: number;
+  longest: CaseStudy | null;
+  shortest: CaseStudy | null;
+} {
+  const stated = cases
+    .filter((c) => typeof c.tenureYearsStated === "number")
+    .sort((a, b) => (b.tenureYearsStated ?? 0) - (a.tenureYearsStated ?? 0));
+  return {
+    n: stated.length,
+    longest: stated[0] ?? null,
+    shortest: stated.length > 1 ? stated[stated.length - 1] : null,
+  };
+}
+
 export function observedDurationMonths(
   cases: readonly CaseStudy[],
 ): { median: number; longest: number; n: number } | null {

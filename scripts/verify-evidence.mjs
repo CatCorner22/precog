@@ -82,6 +82,15 @@ for (const block of caseBlocks) {
   if (/lossUsd:\s*0\b/.test(block) && !/caveat:/.test(block)) {
     fail(`Case ${id} records no loss figure but carries no caveat explaining why.`);
   }
+  const tenure = block.match(/tenureYearsStated:\s*(-?\d+(?:\.\d+)?)/);
+  if (tenure) {
+    if (!/^\d+$/.test(tenure[1])) {
+      fail(`Case ${id} states tenure as ${tenure[1]}; it must be a whole number of years.`);
+    }
+    if (!/hired|worked there from|of \d+ years|years of tenure|long-?time employee/i.test(block)) {
+      fail(`Case ${id} states tenure but its text does not say where that figure comes from.`);
+    }
+  }
 }
 
 for (const rule of definedRules) {
