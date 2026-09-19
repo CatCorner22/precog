@@ -179,6 +179,17 @@ export function sectorForIndustry(industryId: string): IndustrySector {
  * does not change between a dental practice and a restaurant, and an owner
  * learns more from the mechanism than from the industry label.
  */
+/**
+ * Cases that a given control would plausibly have caught, largest loss first.
+ * Backs the dashboard's weekly priorities, so an action such as "start the
+ * owner bank review" carries the prosecutions it rests on.
+ */
+export function casesForControl(controlId: ControlId): CaseStudy[] {
+  return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
+    byLossDescending,
+  );
+}
+
 export function casesForSector(sector: IndustrySector): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.sector === sector || c.sector === "any").sort(
     byLossDescending,
