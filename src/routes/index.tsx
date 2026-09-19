@@ -44,6 +44,9 @@ import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
+import { ControlEffectivenessCard } from "@/components/precog/control-effectiveness";
+import { WeeklyDigestCard } from "@/components/precog/weekly-digest";
+import { AuditTrailPanel } from "@/components/precog/audit-trail";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
@@ -474,6 +477,21 @@ function Home() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
+              <ControlEffectivenessCard
+                onOpenProcess={(id) => {
+                  setMapBuild(true);
+                  setProcessId(id);
+                  setTab("map");
+                }}
+                onOpenBuilder={() => {
+                  setMapBuild(true);
+                  setTab("map");
+                }}
+              />
+              <WeeklyDigestCard />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
               <Card>
                 <CardHeader>
@@ -597,7 +615,16 @@ function Home() {
         )}
 
         {tab === "journal" && (
-          <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
+          <div className="space-y-6">
+            <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
+            <AuditTrailPanel
+              onOpenProcess={(id) => {
+                setMapBuild(true);
+                setProcessId(id);
+                setTab("map");
+              }}
+            />
+          </div>
         )}
       </main>
     </div>

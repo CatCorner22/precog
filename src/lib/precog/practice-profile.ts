@@ -1,4 +1,5 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import type { AuditEntry } from "./builder/audit";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
@@ -49,6 +50,8 @@ export interface PracticeProfile {
   mapVersions?: MapVersion[];
   /** Stable id of this business within the user's portfolio. */
   businessId?: string;
+  /** Derived activity log (newest first). */
+  auditLog?: AuditEntry[];
   updatedAt: string;
 }
 
@@ -152,6 +155,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     mapHealthHistory: [],
     mapVersions: [],
     businessId: makeBusinessId(),
+    auditLog: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -202,6 +206,7 @@ export function loadProfile(): PracticeProfile {
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
       mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
       businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",
+      auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
     };
   } catch {
     return defaultProfile();

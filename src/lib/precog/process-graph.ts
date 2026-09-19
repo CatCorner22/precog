@@ -629,6 +629,8 @@ export function layoutProcessMap(
   return pos;
 }
 
+const FREQ_DAYS: Record<string, number> = { daily: 1, weekly: 7, monthly: 30, quarterly: 91, annual: 365 };
+
 export type MapHealthBand = "excellent" | "healthy" | "fair" | "at_risk" | "critical";
 
 export interface MapHealthDimension {
@@ -680,7 +682,24 @@ export function computeMapHealth(
   const owned = snapshots.filter((s) => s.owners.length > 0).length;
   const ownership = Math.round((owned / total) * 100);
   const withControls = snapshots.filter((s) => s.process.controlIds.length > 0).length;
-  const controls = Math.round((withControls / total) * 100);
+  const coverage = Math.round((withControls / total) * 100);
+  // Operating evidence: current or due-soon reviews over all evidence on controlled processes.
+  // Unknown (no evidence) stays neutral so coverage alone drives the score until reviews exist.
+  let evidenceTotal = 0;
+  let evidenceHealthy = 0;
+  for (const s of snapshots) {
+    if (!s.process.controlIds.length) continue;
+    for (const e of s.process.evidence ?? []) {
+      evidenceTotal += 1;
+      if (e.lastDoneAt) {
+        const period = FREQ_DAYS[e.frequency] ?? 30;
+        const elapsed = (Date.now() - new Date(e.lastDoneAt).getTime()) / 86_400_000;
+        if (elapsed <= period) evidenceHealthy += 1;
+      }
+    }
+  }
+  const operating = evidenceTotal ? Math.round((evidenceHealthy / evidenceTotal) * 100) : null;
+  const controls = operating === null ? coverage : Math.round(coverage * 0.7 + operating * 0.3);
   const avgHeat = Math.round(
     snapshots.reduce((sum, s) => sum + s.heat, 0) / total,
   );
@@ -708,7 +727,12 @@ export function computeMapHealth(
       label: "Controls",
       score: controls,
       weight: 0.25,
-      hint: withControls < total ? `${total - withControls} without controls` : "Controls mapped across the stream",
+      hint:
+        withControls < total
+          ? `${total - withControls} without controls${operating !== null ? ` · ${operating}% evidence current` : ""}`
+          : operating !== null
+            ? `Mapped everywhere · ${operating}% evidence current`
+            : "Controls mapped across the stream",
     },
     {
       id: "calm",

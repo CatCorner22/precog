@@ -47,6 +47,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
       businessId:
         typeof row.profile.businessId === "string" ? row.profile.businessId : "biz_default",
+      auditLog: Array.isArray(row.profile.auditLog) ? row.profile.auditLog : [],
     };
     return {
       found: true as const,
@@ -128,6 +129,7 @@ function mergeProfile(row: { name: string; industry: string; profile: PracticePr
     savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks) ? row.profile.savedProcessBlocks : [],
     mapHealthHistory: Array.isArray(row.profile.mapHealthHistory) ? row.profile.mapHealthHistory : [],
     mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
+    auditLog: Array.isArray(row.profile.auditLog) ? row.profile.auditLog : [],
   };
 }
 

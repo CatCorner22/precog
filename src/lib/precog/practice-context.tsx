@@ -25,6 +25,7 @@ import {
   saveBusinessProfile,
 } from "./profile-server";
 import { listCheckins, type CheckinRecord } from "./builder/review-link-server";
+import { appendAudit, diffAudit } from "./builder/audit";
 import {
   setActiveIndustry,
   setPeopleOverrides,
@@ -184,6 +185,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [portfolioVersion, setPortfolioVersion] = useState(0);
   const [switchingBusiness, setSwitchingBusiness] = useState(false);
   const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
+  const auditPrev = useRef<PracticeProfile | null>(null);
 
   const pushUndo = useCallback(() => {
     const p = profileRef.current;
@@ -305,6 +307,23 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   // Persist locally + debounced cloud save
   useEffect(() => {
     if (!ready) return;
+
+    // Derive audit entries from the state transition (same business only).
+    const prev = auditPrev.current;
+    auditPrev.current = profile;
+    if (prev && prev !== profile && (prev.businessId ?? "biz_default") === (profile.businessId ?? "biz_default")) {
+      const tpl = getIndustryTemplate(profile.industry);
+      const entries = diffAudit(prev, profile, {
+        templateProcesses: tpl.processes,
+        people: profile.customPeople ?? tpl.people,
+        controlNames: Object.fromEntries(tpl.controls.map((c) => [c.id, c.name])),
+      });
+      if (entries.length) {
+        setProfile((p) => ({ ...p, auditLog: appendAudit(p.auditLog, entries) }));
+        return; // the follow-up render persists the version that includes the log
+      }
+    }
+
     // Stamp once so local, portfolio, and cloud copies agree on "when" for newer-wins merges.
     const stamped: PracticeProfile = { ...profile, updatedAt: new Date().toISOString() };
     saveProfile(stamped);
@@ -347,6 +366,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
       decisions: p.decisions,
       businessId: p.businessId,
+      auditLog: p.auditLog,
       onboardingComplete: true,
     }));
   }, [clearHistory]);
@@ -476,6 +496,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       ...defaultProfile(industry),
       decisions: p.decisions,
       businessId: p.businessId,
+      auditLog: p.auditLog,
       onboardingComplete: true,
     }));
   }, [clearHistory]);
