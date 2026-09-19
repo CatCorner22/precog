@@ -1,3 +1,4 @@
+import { casesForSodRules } from "@/lib/precog/evidence";
 import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -2105,14 +2106,20 @@ function WorkloadView({
                     <p className="text-subtle">Owns no processes.</p>
                   )}
                   {r.conflicts.length > 0 && (
-                    <p className="text-subtle">
-                      SoD:{" "}
-                      {r.conflicts
-                        .slice(0, 2)
-                        .map((c) => c.title)
-                        .join(" · ")}
-                      {r.conflicts.length > 2 ? ` · +${r.conflicts.length - 2} more` : ""}
-                    </p>
+                    <ul className="space-y-0.5 text-subtle">
+                      {r.conflicts.slice(0, 2).map((c) => {
+                        // The count is the library's, not a rate: how many
+                        // prosecuted cases involve this same pairing of duties.
+                        const n = casesForSodRules([c.ruleId]).length;
+                        return (
+                          <li key={c.ruleId}>
+                            Can both {c.labelA.toLowerCase()} and {c.labelB.toLowerCase()}
+                            {n > 0 ? ` — ${n} prosecuted ${n === 1 ? "case" : "cases"}` : ""}
+                          </li>
+                        );
+                      })}
+                      {r.conflicts.length > 2 && <li>+{r.conflicts.length - 2} more</li>}
+                    </ul>
                   )}
                 </div>
               )}
