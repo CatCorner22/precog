@@ -597,10 +597,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-claims",
     baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
     baseFinancialImpact: { expected: 18500, low: 8000, high: 42000 },
-    statSources: [
-      "Denial aging / revenue cycle lag patterns in dental practice management literature",
-      "Key-person risk: revenue leakage when sole expert exits mid-cycle",
-    ],
     cascadeLayers: ["knowledge", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -634,10 +630,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-cash",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "ACFE-style small organization fraud: longer detection when custody + recording combined",
-    ],
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -672,10 +664,6 @@ const scenarios: ScenarioTemplate[] = [
     knowledgeId: "k7",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "Revenue leakage studies: undocumented adjustments and weak dual control",
-    ],
     cascadeLayers: ["control", "knowledge", "process", "continuity"],
     mitigations: [
       {
@@ -702,10 +690,6 @@ const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-ap",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-    statSources: [
-      DEFAULT_FRAUD_STATS.source,
-      "Billing schemes / fictitious vendor patterns in small entity fraud literature",
-    ],
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {

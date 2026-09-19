@@ -167,7 +167,6 @@ export interface ScenarioTemplate {
   knowledgeId?: string;
   baseTimelineDays: { p50: number; p95Low: number; p95High: number };
   baseFinancialImpact: { expected: number; low: number; high: number };
-  statSources: string[];
   cascadeLayers: MatrixLayerId[];
   mitigations: MitigationOption[];
 }

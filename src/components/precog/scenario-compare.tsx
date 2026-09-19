@@ -4,7 +4,6 @@ import type { StaffComposition } from "@/lib/precog/types";
 import type { RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
 import {
   COMPARE_PALETTE,
-  compareChartSeries,
   compareScenarioFutures,
   compareScenarios,
   type CompareReport,
@@ -13,16 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Columns2, GitCompare, Trophy } from "lucide-react";
 
 type Mode = "futures" | "cross";
@@ -61,7 +50,6 @@ export function ScenarioCompare({
     return compareScenarios(selectedScenarios, staff, crossMits, riskVariables);
   }, [mode, focusScenarioId, staff, packageMits, selectedScenarios, crossMits, riskVariables]);
 
-  const chartData = useMemo(() => compareChartSeries(report), [report]);
   const focusScenario = scenarios.find((s) => s.id === focusScenarioId)!;
 
   function updateStaff(next: StaffComposition) {
@@ -378,52 +366,6 @@ export function ScenarioCompare({
               );
             })}
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Impact risk trajectories</CardTitle>
-              <CardDescription>Overlay under shared staff + insurance variables</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                    <XAxis dataKey="day" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
-                    <YAxis domain={[0, 100]} tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--color-elevated)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      labelFormatter={(d) => `Day ${d}`}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11 }}
-                      formatter={(value) => {
-                        const col = report.columns.find((c) => c.id === value);
-                        const label = col?.label ?? value;
-                        return label.length > 36 ? label.slice(0, 35) + "…" : label;
-                      }}
-                    />
-                    {report.columns.map((c, i) => (
-                      <Line
-                        key={c.id}
-                        type="monotone"
-                        dataKey={c.id}
-                        name={c.id}
-                        stroke={COMPARE_PALETTE[i % COMPARE_PALETTE.length]}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>

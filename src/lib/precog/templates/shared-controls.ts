@@ -78,15 +78,12 @@ export function baseFinancialControls(): ControlItem[] {
   ];
 }
 
-export function baseFraudScenarios(
-  fraudSource: string,
-  opts: {
-    keyPersonTitle: string;
-    keyPersonDesc: string;
-    knowledgeId: string;
-    billingLabel?: string;
-  },
-): ScenarioTemplate[] {
+export function baseFraudScenarios(opts: {
+  keyPersonTitle: string;
+  keyPersonDesc: string;
+  knowledgeId: string;
+  billingLabel?: string;
+}): ScenarioTemplate[] {
   return [
     {
       id: "sc-key-person-leaves",
@@ -95,7 +92,6 @@ export function baseFraudScenarios(
       knowledgeId: opts.knowledgeId,
       baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
       baseFinancialImpact: { expected: 16500, low: 7000, high: 38000 },
-      statSources: [fraudSource, "Key-person continuity risk in small organizations"],
       cascadeLayers: ["knowledge", "process", "surface", "continuity"],
       mitigations: [
         {
@@ -121,7 +117,6 @@ export function baseFraudScenarios(
       controlId: "c-sod-cash",
       baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
       baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-      statSources: [fraudSource, "ACFE small-organization fraud patterns"],
       cascadeLayers: ["control", "process", "surface", "continuity"],
       mitigations: [
         {
@@ -148,7 +143,6 @@ export function baseFraudScenarios(
       controlId: "c-sod-billing",
       baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
       baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-      statSources: [fraudSource, "Undocumented adjustments in small entities"],
       cascadeLayers: ["control", "knowledge", "process", "continuity"],
       mitigations: [
         {
@@ -167,7 +161,6 @@ export function baseFraudScenarios(
       controlId: "c-sod-ap",
       baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
       baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-      statSources: [fraudSource, "Billing schemes / fictitious vendor patterns"],
       cascadeLayers: ["control", "source", "process", "continuity"],
       mitigations: [
         {
