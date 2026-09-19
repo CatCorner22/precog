@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
@@ -17,6 +17,7 @@ import {
   sectorForIndustry,
   tenureExamples,
   type CaseStudy,
+  type SchemeKind,
 } from "@/lib/precog/evidence";
 import { getActiveTemplate } from "@/lib/precog/active-template";
 import { CaseCard } from "./case-card";
@@ -670,20 +671,59 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
 }
 
 function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string }) {
+  /**
+   * Filter by the shape of the scheme. A case can carry more than one shape
+   * (a forged check hidden by a doctored statement), so the counts on the
+   * chips can add to more than the number of cases; each chip counts the
+   * cases that carry that shape.
+   */
+  const [scheme, setScheme] = useState<SchemeKind | "all">("all");
   if (cases.length === 0) return null;
+  const shapes = SCHEME_ORDER.map((k) => ({
+    kind: k,
+    count: cases.filter((c) => c.schemes.includes(k)).length,
+  })).filter((s) => s.count > 0);
+  const shown = scheme === "all" ? cases : cases.filter((c) => c.schemes.includes(scheme));
   // Cases from the reader's own trade lead, because they land harder. The rest
   // stay, because the mechanism of a scheme does not change between industries
   // and the mechanism is the part worth learning.
   const ordered = [
-    ...cases.filter((c) => c.sector === sector),
-    ...cases.filter((c) => c.sector !== sector),
+    ...shown.filter((c) => c.sector === sector),
+    ...shown.filter((c) => c.sector !== sector),
   ];
+  const chipClass = (active: boolean) =>
+    `rounded-full border px-2.5 py-1 text-xs transition-colors ${
+      active
+        ? "border-primary bg-primary/10 text-primary"
+        : "border-border text-muted hover:border-border-strong"
+    }`;
   return (
     <section className="space-y-3">
       <SectionHeading
         title="Every case behind this page"
-        subtitle="Open any one to read what happened and confirm it at the source."
+        subtitle="Open any one to read what happened and confirm it at the source. Filter by how the money was taken."
       />
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter cases by scheme">
+        <button
+          type="button"
+          aria-pressed={scheme === "all"}
+          className={chipClass(scheme === "all")}
+          onClick={() => setScheme("all")}
+        >
+          All ({cases.length})
+        </button>
+        {shapes.map((s) => (
+          <button
+            key={s.kind}
+            type="button"
+            aria-pressed={scheme === s.kind}
+            className={chipClass(scheme === s.kind)}
+            onClick={() => setScheme(s.kind)}
+          >
+            {SCHEME_PHRASE[s.kind]} ({s.count})
+          </button>
+        ))}
+      </div>
       <div className="space-y-2">
         {ordered.map((c) => (
           <CaseCard key={c.id} study={c} />
@@ -692,6 +732,31 @@ function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string 
     </section>
   );
 }
+
+/** Plain wording for each scheme shape, in the order the chips appear. */
+const SCHEME_ORDER: SchemeKind[] = [
+  "check-tampering",
+  "billing-shell-vendor",
+  "expense-reimbursement",
+  "payroll",
+  "receivables-diversion",
+  "skimming",
+  "cash-larceny",
+  "financial-statement",
+  "corruption",
+];
+
+const SCHEME_PHRASE: Record<SchemeKind, string> = {
+  "check-tampering": "Forged, altered, or self-written payments",
+  "billing-shell-vendor": "Fake suppliers and invoices",
+  "expense-reimbursement": "Company card and expenses",
+  payroll: "Payroll",
+  "receivables-diversion": "Customer payments diverted",
+  skimming: "Cash taken before it was recorded",
+  "cash-larceny": "Cash taken after it was recorded",
+  "financial-statement": "Doctored books and statements",
+  corruption: "Kickbacks and conflicts of interest",
+};
 
 /** Plain wording for each detection route, matching the case card. */
 /** Years of service at which the departure model calls a person long-serving. */
