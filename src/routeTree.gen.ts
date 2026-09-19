@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PackRouteImport } from './routes/pack'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as ThreatRouteImport } from './routes/threat'
@@ -27,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PackRoute = PackRouteImport.update({
+  id: '/pack',
+  path: '/pack',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRoute = PortfolioRouteImport.update({
@@ -68,6 +74,7 @@ const ApiReportsDigestRoute = ApiReportsDigestRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pack': typeof PackRoute
   '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pack': typeof PackRoute
   '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pack': typeof PackRoute
   '/portfolio': typeof PortfolioRoute
   '/report': typeof ReportRoute
   '/threat': typeof ThreatRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/pack'
     | '/portfolio'
     | '/report'
     | '/threat'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/pack'
     | '/portfolio'
     | '/report'
     | '/threat'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/login'
+    | '/pack'
     | '/portfolio'
     | '/report'
     | '/threat'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PackRoute: typeof PackRoute
   PortfolioRoute: typeof PortfolioRoute
   ReportRoute: typeof ReportRoute
   ThreatRoute: typeof ThreatRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pack': {
+      id: '/pack'
+      path: '/pack'
+      fullPath: '/pack'
+      preLoaderRoute: typeof PackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PackRoute: PackRoute,
   PortfolioRoute: PortfolioRoute,
   ReportRoute: ReportRoute,
   ThreatRoute: ThreatRoute,

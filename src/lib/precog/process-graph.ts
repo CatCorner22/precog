@@ -3,6 +3,7 @@
  */
 import { findKnowledgeRisks } from "./engine";
 import { getActiveTemplate } from "./active-template";
+import { getAppetite, heatBand } from "./appetite";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type {
@@ -374,7 +375,7 @@ export function buildProcessMapGraph(
       processId: p.id,
       severity: snap.heat,
       badges: [
-        snap.heat >= 70 ? "hot" : snap.heat >= 45 ? "warm" : "cool",
+        heatBand(snap.heat),
         `${snap.risks.length} risks`,
         `${snap.ideas.length} ideas`,
       ],
@@ -704,7 +705,7 @@ export function computeMapHealth(
     snapshots.reduce((sum, s) => sum + s.heat, 0) / total,
   );
   const calm = Math.max(0, 100 - avgHeat);
-  const hotProcesses = snapshots.filter((s) => s.heat >= 68).length;
+  const hotProcesses = snapshots.filter((s) => s.heat >= getAppetite().hotHeat).length;
   const unownedProcesses = total - owned;
 
   const dimensions: MapHealthDimension[] = [

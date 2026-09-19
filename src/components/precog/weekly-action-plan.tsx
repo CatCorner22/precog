@@ -5,6 +5,7 @@ import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { buildProcessMapGraph, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
+import { getAppetite } from "@/lib/precog/appetite";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,7 +104,7 @@ export function buildWeeklyActions(input: {
   }
 
   if (input.mapSnapshots?.length) {
-    for (const snap of input.mapSnapshots.filter((s) => s.heat >= 68).slice(0, 2)) {
+    for (const snap of input.mapSnapshots.filter((s) => s.heat >= getAppetite().hotHeat).slice(0, 2)) {
       const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
       actions.push({
         id: `map-heat-${snap.process.id}`,
@@ -139,7 +140,7 @@ export function buildWeeklyActions(input: {
       return true;
     })
     .sort((a, b) => b.priority - a.priority)
-    .slice(0, 5);
+    .slice(0, getAppetite().weeklyActions);
 }
 
 export function WeeklyActionPlan({

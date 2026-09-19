@@ -3,6 +3,7 @@
  * touching the active template. enrichProcess() reads template controls/people
  * globally but takes the process itself as input, so we can score alternates.
  */
+import { getAppetite } from "../appetite";
 import { getActiveTemplate } from "../active-template";
 import { detectSodConflicts, type DetectedConflict } from "../sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
@@ -110,7 +111,7 @@ export function analyzeWorkload(
             Math.min(6, entitlementCount) * 4 +
             criticalConflicts * 10 +
             soleOwnerKnowledge * 8 +
-            (ownedHeat >= 68 ? 8 : 0),
+            (ownedHeat >= getAppetite().hotHeat ? 8 : 0),
         ),
       );
 
@@ -118,7 +119,7 @@ export function analyzeWorkload(
       if (ownershipShare >= 0.4 && total >= 4) flags.push(`owns ${Math.round(ownershipShare * 100)}% of processes`);
       if (criticalConflicts) flags.push(`${criticalConflicts} critical SoD conflict(s)`);
       if (soleOwnerKnowledge) flags.push(`sole owner of ${soleOwnerKnowledge} knowledge item(s)`);
-      if (ownedHeat >= 68) flags.push("owns hot processes");
+      if (ownedHeat >= getAppetite().hotHeat) flags.push("owns hot processes");
       if (!owned.length && entitlementCount === 0) flags.push("no processes or duties assigned");
 
       return {

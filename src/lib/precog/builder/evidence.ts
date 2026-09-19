@@ -1,4 +1,5 @@
 import type { EvidenceFrequency, EvidenceItem, ProcessNode } from "../types";
+import { getAppetite } from "../appetite";
 
 export const FREQUENCY_DAYS: Record<EvidenceFrequency, number> = {
   daily: 1,
@@ -24,8 +25,8 @@ export function evidenceStatus(item: EvidenceItem, now = Date.now()): { status: 
   const elapsedDays = (now - new Date(item.lastDoneAt).getTime()) / 86_400_000;
   const daysLeft = Math.round(period - elapsedDays);
   if (daysLeft < 0) return { status: "overdue", daysLeft };
-  // "Due soon" in the last fifth of the window (min 1 day for daily).
-  if (daysLeft <= Math.max(1, Math.round(period * 0.2))) return { status: "due_soon", daysLeft };
+  // "Due soon" in the tail of the window — width set by risk appetite (min 1 day for daily).
+  if (daysLeft <= Math.max(1, Math.round(period * getAppetite().dueSoonShare))) return { status: "due_soon", daysLeft };
   return { status: "current", daysLeft };
 }
 

@@ -1,6 +1,7 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import type { AuditEntry } from "./builder/audit";
 import type { ControlTestRecord } from "./builder/test-plan";
+import type { RiskAppetite } from "./appetite";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
@@ -55,6 +56,12 @@ export interface PracticeProfile {
   auditLog?: AuditEntry[];
   /** Recorded control test results (newest first). */
   controlTests?: ControlTestRecord[];
+  /** How much risk the owner is willing to carry — retunes thresholds app-wide. */
+  riskAppetite?: RiskAppetite;
+  /** Completed items in the first-30-days plan. */
+  planDone?: string[];
+  /** When this business was created in Precog (drives the 30-day plan window). */
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -160,6 +167,9 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     businessId: makeBusinessId(),
     auditLog: [],
     controlTests: [],
+    riskAppetite: "balanced",
+    planDone: [],
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -212,6 +222,9 @@ export function loadProfile(): PracticeProfile {
       businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",
       auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
       controlTests: Array.isArray(parsed.controlTests) ? parsed.controlTests : [],
+      riskAppetite: parsed.riskAppetite ?? "balanced",
+      planDone: Array.isArray(parsed.planDone) ? parsed.planDone : [],
+      createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : parsed.updatedAt ?? new Date().toISOString(),
     };
   } catch {
     return defaultProfile();

@@ -5,13 +5,16 @@ import { getIndustryTemplate } from "@/lib/precog/templates";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings2, ShieldCheck } from "lucide-react";
+import { Gauge, Settings2, ShieldCheck } from "lucide-react";
+import { APPETITES, type RiskAppetite } from "@/lib/precog/appetite";
+import { cn } from "@/lib/utils";
 
 /** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
-  const { profile, setPracticeName, setIndustry, setStaff, setDualRelease, resetProfile } =
+  const { profile, setPracticeName, setIndustry, setStaff, setDualRelease, resetProfile, setAppetite } =
     usePractice();
   const s = profile.staff;
+  const appetite = profile.riskAppetite ?? "balanced";
 
   return (
     <Card>
@@ -67,6 +70,40 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
           />
         </label>
+        <div className="block text-sm">
+          <span className="flex items-center gap-1.5 text-muted">
+            <Gauge className="size-3.5" /> Risk appetite
+          </span>
+          <div className="mt-1 grid gap-1.5 sm:grid-cols-3">
+            {(Object.keys(APPETITES) as RiskAppetite[]).map((id) => {
+              const a = APPETITES[id];
+              const on = appetite === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    if (on) return;
+                    setAppetite(id);
+                    toast.success(`${a.label} appetite`, {
+                      description: `Hot ≥ ${a.hotHeat} · target health ${a.targetHealth} · ${a.weeklyActions} weekly actions`,
+                    });
+                  }}
+                  className={cn(
+                    "rounded-lg border p-2 text-left transition-colors",
+                    on ? "border-primary/50 bg-primary/10" : "border-border bg-elevated hover:border-border-strong",
+                  )}
+                >
+                  <p className="text-xs font-medium text-fg">{a.label}</p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted">{a.tagline}</p>
+                  <p className="mt-1 text-[10px] tabular text-subtle">
+                    hot ≥ {a.hotHeat} · target {a.targetHealth}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Slider
             label="Team size"

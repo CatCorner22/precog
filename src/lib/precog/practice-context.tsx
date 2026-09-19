@@ -27,6 +27,7 @@ import {
 import { listCheckins, type CheckinRecord } from "./builder/review-link-server";
 import { appendAudit, diffAudit } from "./builder/audit";
 import { makeTestId, type ControlTestRecord } from "./builder/test-plan";
+import { setRiskAppetite, type RiskAppetite } from "./appetite";
 import {
   setActiveIndustry,
   setPeopleOverrides,
@@ -128,6 +129,10 @@ interface PracticeContextValue {
   checkins: CheckinRecord[];
   /** Record an auditor-style control test result. */
   recordControlTest: (test: Omit<ControlTestRecord, "id" | "testedAt"> & { testedAt?: string }) => void;
+  /** Retune thresholds app-wide. */
+  setAppetite: (appetite: RiskAppetite) => void;
+  /** Toggle a first-30-days plan item. */
+  togglePlanItem: (id: string) => void;
 }
 
 /** Apply check-ins to evidence: newest completion wins, whoever recorded it. */
@@ -247,6 +252,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setActiveIndustry(next.industry);
     setProcessOverrides(next.customProcesses ?? null);
     setPeopleOverrides(next.customPeople ?? null);
+    setRiskAppetite(next.riskAppetite);
     setTemplateRevision((r) => r + 1);
     undoStack.current = [];
     redoStack.current = [];
@@ -369,6 +375,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       practiceName: DEMO_NAMES.has(p.practiceName) ? meta.demoName : p.practiceName,
       decisions: p.decisions,
       businessId: p.businessId,
+      riskAppetite: p.riskAppetite,
+      createdAt: p.createdAt,
       auditLog: p.auditLog,
       onboardingComplete: true,
     }));
@@ -499,6 +507,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       ...defaultProfile(industry),
       decisions: p.decisions,
       businessId: p.businessId,
+      riskAppetite: p.riskAppetite,
+      createdAt: p.createdAt,
       auditLog: p.auditLog,
       onboardingComplete: true,
     }));
@@ -739,6 +749,21 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setAppetite = useCallback((appetite: RiskAppetite) => {
+    setRiskAppetite(appetite);
+    setTemplateRevision((r) => r + 1);
+    setProfile((p) => ({ ...p, riskAppetite: appetite }));
+  }, []);
+
+  const togglePlanItem = useCallback((id: string) => {
+    setProfile((p) => {
+      const done = new Set(p.planDone ?? []);
+      if (done.has(id)) done.delete(id);
+      else done.add(id);
+      return { ...p, planDone: [...done] };
+    });
+  }, []);
+
   const deleteBusinessLocal = useCallback(
     async (id: string) => {
       const activeId = profileRef.current.businessId ?? "biz_default";
@@ -788,6 +813,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       refreshCheckins,
       checkins,
       recordControlTest,
+      setAppetite,
+      togglePlanItem,
     }),
     [
       profile,
@@ -825,6 +852,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       refreshCheckins,
       checkins,
       recordControlTest,
+      setAppetite,
+      togglePlanItem,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

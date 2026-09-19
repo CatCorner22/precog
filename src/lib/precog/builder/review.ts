@@ -1,3 +1,4 @@
+import { getAppetite } from "../appetite";
 /**
  * Whole-map review: plain-English critique of the value stream.
  * Shared input shape + deterministic fallback used when Grok isn't available.
@@ -58,7 +59,7 @@ export function gradeFromScore(score: number): MapReview["grade"] {
 export function reviewLocally(input: ReviewInput): MapReview {
   const grade = gradeFromScore(input.health.score);
   const weakest = [...input.health.dimensions].sort((a, b) => a.score - b.score)[0];
-  const hot = [...input.processes].filter((p) => p.heat >= 68).sort((a, b) => b.heat - a.heat);
+  const hot = [...input.processes].filter((p) => p.heat >= getAppetite().hotHeat).sort((a, b) => b.heat - a.heat);
   const unowned = input.processes.filter((p) => !p.owners.length);
   const noControls = input.processes.filter((p) => !p.controls.length && p.fraudRisks > 0);
   const isolated = input.processes.filter(

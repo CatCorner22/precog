@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Activity, AlertTriangle, Hammer, Map, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
+import { getAppetite } from "@/lib/precog/appetite";
 
 function Sparkline({ points, color }: { points: number[]; color: string }) {
   if (points.length < 2) return null;
@@ -100,6 +101,13 @@ export function MapHealthCard({
 
   const circumference = 2 * Math.PI * 54;
   const dash = (health.score / 100) * circumference;
+  const appetite = getAppetite();
+  const target = appetite.targetHealth;
+  // The ring starts at 3 o'clock in SVG space; the -90° CSS rotation moves it to 12 o'clock.
+  const targetAngle = (target / 100) * 360;
+  const tx = 60 + 54 * Math.cos((targetAngle * Math.PI) / 180);
+  const ty = 60 + 54 * Math.sin((targetAngle * Math.PI) / 180);
+  const gap = target - health.score;
 
   return (
     <Card className="overflow-hidden border-border">
@@ -140,16 +148,25 @@ export function MapHealthCard({
                 strokeDasharray={`${dash} ${circumference}`}
                 className="transition-all duration-700"
               />
+              {/* Target tick from risk appetite. */}
+              <circle cx={tx} cy={ty} r="4" fill="var(--color-bg)" stroke="var(--color-fg)" strokeWidth="2" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-semibold tabular tracking-tight">{health.score}</span>
-              <span className="text-[10px] uppercase tracking-wide text-subtle">/ 100</span>
+              <span className="text-[10px] uppercase tracking-wide text-subtle">target {target}</span>
             </div>
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-muted">{health.summary}</p>
+              <p className="text-sm text-muted">
+                {health.summary}{" "}
+                <span className={cn("text-xs", gap > 0 ? "text-warn" : "text-ok")}>
+                  {gap > 0
+                    ? `${gap} points below your ${appetite.label.toLowerCase()} target.`
+                    : `Meets your ${appetite.label.toLowerCase()} target.`}
+                </span>
+              </p>
               {trendPoints.length >= 2 && (
                 <div className="flex items-center gap-2">
                   <Sparkline points={trendPoints} color={scoreColor(health.score)} />

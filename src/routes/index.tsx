@@ -5,6 +5,7 @@ import {
   Activity,
   BookOpen,
   Brain,
+  Briefcase,
   Compass,
   Crosshair,
   Eye,
@@ -47,6 +48,7 @@ import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { ControlEffectivenessCard } from "@/components/precog/control-effectiveness";
 import { WeeklyDigestCard } from "@/components/precog/weekly-digest";
 import { AuditTrailPanel } from "@/components/precog/audit-trail";
+import { Plan30Card } from "@/components/precog/plan30-card";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { computeMapHealth, buildProcessMapGraph, validateProcessMap } from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
@@ -373,8 +375,28 @@ function Home() {
                   <FileText className="size-4" />
                   PDF report
                 </Link>
+                <Link
+                  to="/pack"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+                >
+                  <Briefcase className="size-4" />
+                  Lender pack
+                </Link>
               </div>
             </section>
+
+            <Plan30Card
+              onOpenBuilder={() => {
+                setMapBuild(true);
+                setTab("map");
+              }}
+              onOpenProcess={(id) => {
+                setMapBuild(true);
+                setProcessId(id);
+                setTab("map");
+              }}
+              onOpenTab={(t) => navigateTab(t)}
+            />
 
             <MapHealthCard
               onOpenMap={(id) => {
