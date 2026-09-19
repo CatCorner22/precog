@@ -245,6 +245,26 @@ export function observedDurationMonths(
 }
 
 /**
+ * How the cases came to light, counted by route. `unknown` is reported
+ * separately so a missing fact is never mistaken for a finding.
+ */
+export function detectionBreakdown(cases: readonly CaseStudy[]): {
+  n: number;
+  known: number;
+  unknown: number;
+  byRoute: { route: CaseStudy["detection"]; count: number }[];
+} {
+  const counts = new Map<CaseStudy["detection"], number>();
+  for (const c of cases) counts.set(c.detection, (counts.get(c.detection) ?? 0) + 1);
+  const unknown = counts.get("unknown") ?? 0;
+  const byRoute = [...counts.entries()]
+    .filter(([route]) => route !== "unknown")
+    .map(([route, count]) => ({ route, count }))
+    .sort((a, b) => b.count - a.count);
+  return { n: cases.length, known: cases.length - unknown, unknown, byRoute };
+}
+
+/**
  * Controls that recur across the cases matching these rules, ordered by how
  * many of those cases each one would have stopped.
  *

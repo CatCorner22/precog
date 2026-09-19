@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ArrowRight, Clock, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
+import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
@@ -9,6 +9,7 @@ import {
   BENCHMARK_BY_ID,
   METHOD_CAVEATS,
   casesForSodRules,
+  detectionBreakdown,
   observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
@@ -170,6 +171,8 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
   const lossRange = useMemo(() => observedLossRange(evidence), [evidence]);
   const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
+  const found = useMemo(() => detectionBreakdown(evidence), [evidence]);
+  const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
   const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
 
   const soleKnowledge = useMemo(() => findKnowledgeRisks().filter((r) => r.soleOwner), []);
@@ -417,6 +420,38 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           </p>
         )}
 
+        {found.known > 0 && (
+          <Card>
+            <CardContent className="flex gap-3 pt-5">
+              <Eye className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">How these cases came to light</p>
+                <ul className="space-y-1 text-sm text-muted">
+                  {found.byRoute.map((r) => (
+                    <li key={r.route}>
+                      {DETECTION_PHRASE[r.route] ?? r.route}: {r.count}{" "}
+                      {r.count === 1 ? "case" : "cases"}
+                    </li>
+                  ))}
+                  <li className="text-subtle">
+                    Not stated in the source: {found.unknown} of {found.n}
+                  </li>
+                </ul>
+                {!found.byRoute.some((r) =>
+                  ["reconciliation", "external-audit", "tip"].includes(r.route),
+                ) && (
+                  <p className="text-sm leading-relaxed text-muted">
+                    Where the source says how the scheme was found, it was the owner looking, a bank
+                    or insurer noticing, or the money running out — never a reconciliation, an
+                    audit, or a report from staff. That is what the controls below change: they put
+                    someone in the position to look before the business runs out of money.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {delayCurve && (
           <Card>
             <CardContent className="flex gap-3 pt-5">
@@ -469,6 +504,26 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                         {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
+                      {s.supportingCaseIds.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+                            Which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
+                          </summary>
+                          <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                            {s.supportingCaseIds.map((id) => {
+                              const c = caseById.get(id);
+                              return c ? (
+                                <li key={id}>
+                                  · {c.title}
+                                  {c.lossUsd > 0
+                                    ? ` (${c.lossIsFloor ? "at least " : ""}${formatUsd(c.lossUsd)})`
+                                    : ""}
+                                </li>
+                              ) : null;
+                            })}
+                          </ul>
+                        </details>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -568,6 +623,17 @@ function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string 
     </section>
   );
 }
+
+/** Plain wording for each detection route, matching the case card. */
+const DETECTION_PHRASE: Record<string, string> = {
+  tip: "Someone spoke up",
+  "owner-review": "The owner looked",
+  "external-audit": "An outside audit",
+  "bank-or-insurer": "A bank or insurer flagged it",
+  "law-enforcement": "Law enforcement",
+  "by-accident": "By accident, when the money ran out",
+  reconciliation: "A reconciliation caught it",
+};
 
 function effortPhrase(effort: string): string {
   return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;

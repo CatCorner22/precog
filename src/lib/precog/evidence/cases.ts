@@ -952,4 +952,86 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Jennifer Lynn Horton, 49, was sentenced in January 2025 to 30 months after pleading guilty to two counts of wire fraud, with a $1 million judgment and forfeiture of four vehicles. The release states the loss as more than $1 million; the salary and payroll figures are the release's. The owner went to investigators in February 2023 after working out that money was missing; court filings reported in the press put the total at $1,116,258.",
   },
+  {
+    id: "case-fairfax-hardware-store-bookkeeper-credit-cards",
+    title:
+      "Hardware store bookkeeper of 18 years paid her personal credit cards from the store's bank account for five years, $540,000",
+    sector: "retail",
+    schemes: ["check-tampering", "expense-reimbursement"],
+    howItWorked:
+      "The bookkeeper at Farm Mercantile, Inc., a hardware store in Fairfax, Minnesota, worked there from 1998 to 2016 and was an authorized signer on the store's bank accounts with authority to sign and issue checks. From about 2011 through 2016 she transferred money directly from those accounts to her personal credit cards and entered the transfers in the general ledger as legitimate business expenses. She took approximately $540,063, which she spent on online gambling.",
+    controlGap:
+      "One person held bank signing authority, paid the bills, and kept the ledger, so a payment to a card issuer could be coded as a supplier expense and nobody outside the role compared the bank statement with the books. Eighteen years of tenure stood in for the review nobody did.",
+    lossUsd: 540063,
+    lossIsFloor: false,
+    durationMonths: 60,
+    detection: "unknown",
+    resolvedYear: 2018,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reads the bank statement first each month; a recurring payment to a card issuer that is not the store's card stands out on the page",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the bookkeeper matches the bank statement against the ledger, so a card payment coded as a supplier expense does not reconcile",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An outside accountant reviews the books annually and asks what each recurring payee is",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Minnesota",
+      url: "https://www.justice.gov/usao-mn/pr/fairfax-bookkeeper-sentenced-prison-540000-embezzlement-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Theresa Ernestine Linsmeier pleaded guilty on 7 June 2018 to one count of wire fraud and one count of filing a false tax return and was sentenced in October 2018 to 27 months by Senior Judge Donovan W. Frank in St. Paul. IRS Criminal Investigation investigated. The release does not say how the store discovered the theft, so the detection route is recorded as unknown. The five-year duration is the span the release gives (about 2011 through 2016), not a court finding to the month.",
+  },
+  {
+    id: "case-granger-auto-dealership-office-manager-wires",
+    title:
+      "Auto dealership office manager wired $1.4 million to his own bank account over 14 years and hid it with journal entries",
+    sector: "retail",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The office manager of Granger Motors, an auto dealership in Granger, Iowa, ran the dealership's accounting system and payroll. From about January 1998 until May 2012 he caused money to be wired or deposited from the dealership to his personal bank account and made fraudulent journal entries so the books still balanced. He admitted taking more than $1.4 million and spent it on international airline tickets, hotels, restaurant meals, golf items, and jewelry.",
+    controlGap:
+      "The person who could post a journal entry also controlled the outgoing payments, and no one outside the role compared what left the bank against who received it. Fourteen years passed because the books balanced by construction: he wrote both sides.",
+    lossUsd: 1433825,
+    lossIsFloor: false,
+    durationMonths: 172,
+    detection: "unknown",
+    resolvedYear: 2013,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payee-account-not-an-employee",
+        asApplied:
+          "Compare the bank account numbers that receive outgoing wires against employee payroll accounts; a match is the finding",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reads the bank statement first each month and questions any wire whose recipient is not a known supplier or lender",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An outside accountant reviews manual journal entries each year and asks the office manager to support each one",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Iowa",
+      url: "https://www.justice.gov/usao-sdia/pr/former-auto-dealership-office-manager-sentenced-41-months-federal-prison-14-million",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Ralph L. Schippers pleaded guilty on 17 September 2012 to wire fraud and was sentenced in January 2013 to 41 months in prison, three years of supervised release, and restitution of $1,433,825.37, the loss figure used here. The release says the scheme was not discovered until May 2012 but not how, so the detection route is recorded as unknown. A later published opinion, United States v. Schippers, 982 F. Supp. 2d 948 (S.D. Iowa 2013), concerns collection of that restitution for Granger Motors and its insurer. This is the oldest case in the library; the mechanics have not changed.",
+  },
 ];
