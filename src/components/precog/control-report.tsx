@@ -10,6 +10,13 @@ import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { assessCoso } from "@/lib/precog/coso";
+import {
+  METHOD_CAVEATS,
+  casesForSodRules,
+  detectionBreakdown,
+  observedLossRange,
+  recommendedStepsForRules,
+} from "@/lib/precog/evidence";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
 import {
   buildProcessMapGraph,
@@ -64,11 +71,49 @@ export function ControlReport() {
       profile.mapLayout ?? {},
     );
     const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
-    return { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues };
+    const openRuleIds = [
+      ...new Set(
+        sod.conflicts
+          .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated)
+          .map((c) => c.ruleId),
+      ),
+    ];
+    const evidence = casesForSodRules(openRuleIds);
+    const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
+    const lossRange = observedLossRange(evidence);
+    const found = detectionBreakdown(evidence);
+    return {
+      threat,
+      portfolio,
+      sod,
+      spofs,
+      coso,
+      actions,
+      mapHealth,
+      issues,
+      evidence,
+      steps,
+      lossRange,
+      found,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, templateRevision]);
 
-  const { threat, portfolio, sod, spofs, coso, actions, mapHealth, issues } = data;
+  const {
+    threat,
+    portfolio,
+    sod,
+    spofs,
+    coso,
+    actions,
+    mapHealth,
+    issues,
+    evidence,
+    steps,
+    lossRange,
+    found,
+  } = data;
+  const caseById = new Map(evidence.map((c) => [c.id, c]));
   const history = profile.mapHealthHistory ?? [];
   const firstPoint = history[0];
   const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
@@ -252,6 +297,71 @@ export function ControlReport() {
           </ul>
         </Section>
 
+        {evidence.length > 0 && (
+          <Section title="What these gaps have cost other businesses">
+            <p className="text-sm text-neutral-700">
+              {evidence.length} prosecuted {evidence.length === 1 ? "case" : "cases"} match the open
+              duty conflicts above.
+              {lossRange
+                ? ` Median loss ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)} across ${lossRange.n} cases with a stated figure.`
+                : ""}
+              {found.known > 0
+                ? ` How they came to light, where the source says: ${found.byRoute
+                    .map(
+                      (r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`,
+                    )
+                    .join(", ")}; not stated in ${found.unknown} of ${found.n}.`
+                : ""}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-neutral-500">
+              These describe other organizations, not this business, and they are prosecuted cases,
+              so small thefts are absent. They are a reference class, not a forecast.
+            </p>
+
+            <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>
+            <p className="text-xs text-neutral-500">
+              Ordered by how many of the matching cases each control would plausibly have caught.
+            </p>
+            <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm">
+              {steps.map((st) => (
+                <li key={st.control.id}>
+                  <span className="font-medium">{st.control.label}</span>
+                  <span className="text-neutral-600"> — {st.control.why}</span>
+                  <ul className="mt-1 list-disc pl-5 text-xs text-neutral-600">
+                    {st.supportingCaseIds.map((id) => {
+                      const c = caseById.get(id);
+                      return c ? (
+                        <li key={id}>
+                          {c.title}
+                          {c.lossUsd > 0
+                            ? ` (${c.lossIsFloor ? "at least " : ""}${formatUsd(c.lossUsd)})`
+                            : ""}
+                        </li>
+                      ) : null;
+                    })}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+
+            <h3 className="mt-4 text-sm font-semibold text-neutral-800">Cases cited</h3>
+            <ul className="mt-1 space-y-1 text-xs text-neutral-600">
+              {evidence.map((c) => (
+                <li key={c.id}>
+                  {c.title}
+                  {c.resolvedYear ? ` (${c.resolvedYear})` : ""} — {c.source.publisher},{" "}
+                  <span className="break-all">{c.source.url}</span>
+                </li>
+              ))}
+            </ul>
+            <ul className="mt-3 space-y-1 text-xs text-neutral-500">
+              {METHOD_CAVEATS.slice(0, 3).map((c) => (
+                <li key={c}>· {c}</li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
         <Section title="Knowledge single points of failure">
           {spofs.length === 0 ? (
             <p className="text-sm text-neutral-600">No critical sole-owner knowledge detected.</p>
@@ -333,6 +443,16 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
     </div>
   );
 }
+
+const REPORT_DETECTION: Record<string, string> = {
+  tip: "Someone spoke up",
+  "owner-review": "The owner looked",
+  "external-audit": "An outside audit",
+  "bank-or-insurer": "A bank or insurer flagged it",
+  "law-enforcement": "Law enforcement",
+  "by-accident": "By accident, when the money ran out",
+  reconciliation: "A reconciliation caught it",
+};
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
