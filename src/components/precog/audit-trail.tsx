@@ -33,6 +33,7 @@ const KIND_META: Record<AuditKind, { label: string; icon: typeof Activity; tone:
   decision: { label: "Decision", icon: BookOpen, tone: "text-warn" },
   profile: { label: "Profile", icon: Activity, tone: "text-muted" },
   industry: { label: "Industry", icon: Activity, tone: "text-warn" },
+  test: { label: "Test", icon: ClipboardCheck, tone: "text-primary" },
 };
 
 function dayLabel(iso: string) {

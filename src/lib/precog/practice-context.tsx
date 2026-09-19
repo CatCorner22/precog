@@ -26,6 +26,7 @@ import {
 } from "./profile-server";
 import { listCheckins, type CheckinRecord } from "./builder/review-link-server";
 import { appendAudit, diffAudit } from "./builder/audit";
+import { makeTestId, type ControlTestRecord } from "./builder/test-plan";
 import {
   setActiveIndustry,
   setPeopleOverrides,
@@ -125,6 +126,8 @@ interface PracticeContextValue {
   refreshCheckins: () => Promise<number>;
   /** Recent reviewer check-ins for the active business (after refresh). */
   checkins: CheckinRecord[];
+  /** Record an auditor-style control test result. */
+  recordControlTest: (test: Omit<ControlTestRecord, "id" | "testedAt"> & { testedAt?: string }) => void;
 }
 
 /** Apply check-ins to evidence: newest completion wins, whoever recorded it. */
@@ -719,6 +722,23 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cloudUser, syncStatus === "loading", profile.businessId]);
 
+  const recordControlTest = useCallback(
+    (test: Omit<ControlTestRecord, "id" | "testedAt"> & { testedAt?: string }) => {
+      const entry: ControlTestRecord = {
+        id: makeTestId(),
+        testedAt: test.testedAt ?? new Date().toISOString(),
+        controlId: test.controlId,
+        result: test.result,
+        sampleSize: test.sampleSize,
+        exceptions: test.exceptions,
+        note: test.note?.trim().slice(0, 400) || undefined,
+        testedBy: test.testedBy?.trim().slice(0, 60) || undefined,
+      };
+      setProfile((p) => ({ ...p, controlTests: [entry, ...(p.controlTests ?? [])].slice(0, 200) }));
+    },
+    [],
+  );
+
   const deleteBusinessLocal = useCallback(
     async (id: string) => {
       const activeId = profileRef.current.businessId ?? "biz_default";
@@ -767,6 +787,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       cloudUser,
       refreshCheckins,
       checkins,
+      recordControlTest,
     }),
     [
       profile,
@@ -803,6 +824,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       cloudUser,
       refreshCheckins,
       checkins,
+      recordControlTest,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],

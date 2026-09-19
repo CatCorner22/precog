@@ -17,7 +17,8 @@ export type AuditKind =
   | "version"
   | "decision"
   | "profile"
-  | "industry";
+  | "industry"
+  | "test";
 
 export interface AuditEntry {
   id: string;
@@ -130,6 +131,17 @@ export function diffAudit(
   if (next.decisions.length > prev.decisions.length && next.decisions[0]) {
     const d = next.decisions[0];
     push({ kind: "decision", summary: `Journaled decision: ${d.kind.replace("_", " ")} — ${d.subject}` });
+  }
+
+  const pt = prev.controlTests ?? [];
+  const nt = next.controlTests ?? [];
+  if (nt.length > pt.length && nt[0]) {
+    const t = nt[0];
+    push({
+      kind: "test",
+      summary: `Tested "${ctx.controlNames[t.controlId] ?? t.controlId}": ${t.result.toUpperCase()} — ${t.exceptions} exception(s) in ${t.sampleSize}${t.testedBy ? ` (by ${t.testedBy})` : ""}`,
+      by: t.testedBy,
+    });
   }
 
   return out;

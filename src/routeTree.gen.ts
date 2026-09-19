@@ -17,6 +17,7 @@ import { Route as ThreatRouteImport } from './routes/threat'
 import { Route as CheckinTokenRouteImport } from './routes/checkin.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiReportsDigestRouteImport } from './routes/api/reports/digest'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiReportsDigestRoute = ApiReportsDigestRouteImport.update({
+  id: '/api/reports/digest',
+  path: '/api/reports/digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/reports/digest': typeof ApiReportsDigestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/reports/digest': typeof ApiReportsDigestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/checkin/$token': typeof CheckinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/reports/digest': typeof ApiReportsDigestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/checkin/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/reports/digest'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/checkin/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/reports/digest'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/checkin/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/reports/digest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   CheckinTokenRoute: typeof CheckinTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiReportsDigestRoute: typeof ApiReportsDigestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reports/digest': {
+      id: '/api/reports/digest'
+      path: '/api/reports/digest'
+      fullPath: '/api/reports/digest'
+      preLoaderRoute: typeof ApiReportsDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckinTokenRoute: CheckinTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiReportsDigestRoute: ApiReportsDigestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

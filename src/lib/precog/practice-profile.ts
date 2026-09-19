@@ -1,5 +1,6 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import type { AuditEntry } from "./builder/audit";
+import type { ControlTestRecord } from "./builder/test-plan";
 import type { Person, ProcessNode, StaffComposition } from "./types";
 import { getIndustryTemplate } from "./templates";
 import {
@@ -52,6 +53,8 @@ export interface PracticeProfile {
   businessId?: string;
   /** Derived activity log (newest first). */
   auditLog?: AuditEntry[];
+  /** Recorded control test results (newest first). */
+  controlTests?: ControlTestRecord[];
   updatedAt: string;
 }
 
@@ -156,6 +159,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     mapVersions: [],
     businessId: makeBusinessId(),
     auditLog: [],
+    controlTests: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -207,6 +211,7 @@ export function loadProfile(): PracticeProfile {
       mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
       businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",
       auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
+      controlTests: Array.isArray(parsed.controlTests) ? parsed.controlTests : [],
     };
   } catch {
     return defaultProfile();

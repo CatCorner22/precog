@@ -7,6 +7,7 @@
  * "No evidence yet" is neutral (operating unknown) so untouched maps aren't penalised.
  */
 import { evidenceStatus } from "./evidence";
+import { TEST_FREQ_DAYS, latestTests, type ControlTestRecord } from "./test-plan";
 import type { ControlItem, EvidenceItem, ProcessNode } from "../types";
 
 export interface ControlEffectiveness {
@@ -14,6 +15,10 @@ export interface ControlEffectiveness {
   design: number;
   /** null when no evidence exists on any covered process. */
   operating: number | null;
+  /** Most recent recorded test, if any. */
+  lastTest: ControlTestRecord | null;
+  /** True when the last test is older than the plan's test cadence (or never tested). */
+  testStale: boolean;
   overall: number;
   band: "strong" | "adequate" | "weak" | "failing";
   coveredProcesses: ProcessNode[];
@@ -41,9 +46,15 @@ function band(score: number): ControlEffectiveness["band"] {
   return "failing";
 }
 
-export function scoreControl(control: ControlItem, processes: ProcessNode[], now = Date.now()): ControlEffectiveness {
+export function scoreControl(
+  control: ControlItem,
+  processes: ProcessNode[],
+  now = Date.now(),
+  tests: ControlTestRecord[] = [],
+): ControlEffectiveness {
   const covered = processes.filter((p) => p.controlIds.includes(control.id));
   const notes: string[] = [];
+  const lastTest = latestTests(tests).get(control.id) ?? null;
 
   // Design: start from segregation, credit compensating controls, debit accepted residual, debit unmapped.
   let design = control.segregated ? 85 : 45;
@@ -91,6 +102,22 @@ export function scoreControl(control: ControlItem, processes: ProcessNode[], now
     notes.push("No evidence items yet — add a review so operation can be proven");
   }
 
+  // Recorded tests: a pass confirms operation; exceptions and fails pull it down hard.
+  // Tests can establish an operating score even when there's no routine evidence.
+  const testAgeDays = lastTest ? (now - new Date(lastTest.testedAt).getTime()) / 86_400_000 : null;
+  const testStale = testAgeDays === null || testAgeDays > TEST_FREQ_DAYS.semiannual;
+  if (lastTest && !testStale) {
+    const testScore = lastTest.result === "pass" ? 100 : lastTest.result === "exception" ? 60 : 20;
+    operating = operating === null ? testScore : Math.round(operating * 0.6 + testScore * 0.4);
+    notes.push(
+      `Last test ${lastTest.result.toUpperCase()} (${lastTest.exceptions} exception(s) in ${lastTest.sampleSize}) ${Math.round(testAgeDays!)}d ago`,
+    );
+  } else if (lastTest) {
+    notes.push(`Last test is ${Math.round(testAgeDays!)} days old — re-test`);
+  } else if (covered.length) {
+    notes.push("Never tested — run the test plan once to prove design and operation");
+  }
+
   // Overall: design-only when operating is unknown; otherwise weight operation more —
   // a well-designed control nobody runs is the classic audit finding.
   const overall = operating === null ? Math.round(design * 0.9) : Math.round(design * 0.4 + operating * 0.6);
@@ -99,6 +126,8 @@ export function scoreControl(control: ControlItem, processes: ProcessNode[], now
     control,
     design,
     operating,
+    lastTest,
+    testStale,
     overall,
     band: band(overall),
     coveredProcesses: covered,
@@ -110,8 +139,13 @@ export function scoreControl(control: ControlItem, processes: ProcessNode[], now
   };
 }
 
-export function summarizeEffectiveness(controls: ControlItem[], processes: ProcessNode[], now = Date.now()): EffectivenessSummary {
-  const scored = controls.map((c) => scoreControl(c, processes, now)).sort((a, b) => a.overall - b.overall);
+export function summarizeEffectiveness(
+  controls: ControlItem[],
+  processes: ProcessNode[],
+  now = Date.now(),
+  tests: ControlTestRecord[] = [],
+): EffectivenessSummary {
+  const scored = controls.map((c) => scoreControl(c, processes, now, tests)).sort((a, b) => a.overall - b.overall);
   const withOp = scored.filter((s) => s.operating !== null);
   const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
   return {

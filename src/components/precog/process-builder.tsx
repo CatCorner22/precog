@@ -72,6 +72,13 @@ import {
 import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
 import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
 import { createReviewLink, listReviewLinks, revokeReviewLink } from "@/lib/precog/builder/review-link-server";
+import {
+  SAMPLE_COA,
+  parseCoa,
+  suggestProcessesFromCoa,
+  type CoaSuggestion,
+} from "@/lib/precog/builder/coa-import";
+import { FileSpreadsheet } from "lucide-react";
 import { buildSharePayload } from "@/lib/precog/builder/share-payload";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
@@ -172,6 +179,31 @@ export function ProcessBuilder({
   const [reviewing, setReviewing] = useState(false);
   const [showDeparture, setShowDeparture] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showCoa, setShowCoa] = useState(false);
+
+  function insertFromCoa(suggestions: CoaSuggestion[]) {
+    if (!suggestions.length) return;
+    const ids = new Set(processes.map((p) => p.id));
+    const added: ProcessNode[] = [];
+    for (const s of suggestions) {
+      const base = slug(s.process.name) || "process";
+      let id = `proc-${base}`;
+      let n = 2;
+      while (ids.has(id)) id = `proc-${base}-${n++}`;
+      ids.add(id);
+      added.push({
+        ...s.process,
+        id,
+        risks: (s.process.risks ?? []).map((r) => ({ ...r, id: uid("r") })),
+      });
+    }
+    setCustomProcesses((cur) => [...cur, ...added]);
+    onSelectProcess(added[0].id);
+    setShowCoa(false);
+    toast.success(`Added ${added.length} process(es) from your chart of accounts`, {
+      description: "Assign owners and wire dependencies — Validate → Fix helps.",
+    });
+  }
   const tour = useBuilderTour();
 
   const departures = useMemo(
@@ -627,6 +659,14 @@ export function ProcessBuilder({
           >
             <Blocks className="size-3.5" /> Blocks
           </Button>
+          <Button
+            size="sm"
+            variant={showCoa ? "default" : "secondary"}
+            onClick={() => setShowCoa((v) => !v)}
+            title="Build processes from your bookkeeping chart of accounts"
+          >
+            <FileSpreadsheet className="size-3.5" /> From books
+          </Button>
           <div className="inline-flex overflow-hidden rounded-md border border-border">
             <button
               type="button"
@@ -849,6 +889,15 @@ export function ProcessBuilder({
               });
               toast.success(`${proc.name} reassigned to ${candidate.name}`);
             }}
+          />
+        )}
+
+        {showCoa && (
+          <CoaImportPanel
+            processes={processes}
+            controls={tpl.controls}
+            onInsert={insertFromCoa}
+            onSelectProcess={onSelectProcess}
           />
         )}
 
@@ -1616,6 +1665,128 @@ function SharePanel({
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+function CoaImportPanel({
+  processes,
+  controls,
+  onInsert,
+  onSelectProcess,
+}: {
+  processes: ProcessNode[];
+  controls: import("@/lib/precog/types").ControlItem[];
+  onInsert: (s: CoaSuggestion[]) => void;
+  onSelectProcess: (id: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [picked, setPicked] = useState<Set<string> | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const accounts = useMemo(() => (text.trim() ? parseCoa(text) : []), [text]);
+  const suggestions = useMemo(
+    () => (accounts.length ? suggestProcessesFromCoa(accounts, processes, controls) : []),
+    [accounts, processes, controls],
+  );
+  const selected = picked ?? new Set(suggestions.filter((s) => !s.existingProcessId).map((s) => s.group));
+  const toInsert = suggestions.filter((s) => selected.has(s.group));
+  const unmatched = accounts.length - suggestions.reduce((n, s) => n + s.accounts.length, 0);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <p className="text-muted">
+        Paste or upload your chart of accounts (QuickBooks, Xero, or any CSV with an Account and Type
+        column). Each money-movement group becomes a suggested process with starter risks and controls.
+      </p>
+      <textarea
+        className={cn(inputCls, "min-h-[72px] resize-y font-mono text-[10px]")}
+        placeholder={"Account,Type,Detail Type\nChecking - Operating,Bank,Checking\nAccounts Payable,Accounts Payable,Accounts Payable\n…"}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setPicked(null);
+        }}
+      />
+      <div className="flex flex-wrap gap-1.5">
+        <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
+          <Upload className="size-3.5" /> Upload CSV
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,text/csv,text/plain"
+          className="hidden"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              setText(await f.text());
+              setPicked(null);
+            }
+            e.target.value = "";
+          }}
+        />
+        <Button size="sm" variant="ghost" onClick={() => { setText(SAMPLE_COA); setPicked(null); }}>
+          Load sample
+        </Button>
+        {accounts.length > 0 && (
+          <span className="self-center text-subtle">
+            {accounts.length} account(s) · {suggestions.length} group(s)
+            {unmatched > 0 ? ` · ${unmatched} not mapped (equity, misc)` : ""}
+          </span>
+        )}
+      </div>
+      {suggestions.length > 0 && (
+        <>
+          <ul className="space-y-1">
+            {suggestions.map((s) => {
+              const on = selected.has(s.group);
+              const existing = s.existingProcessId ? processes.find((p) => p.id === s.existingProcessId) : null;
+              return (
+                <li
+                  key={s.group}
+                  className={cn(
+                    "flex items-start gap-2 rounded-md border px-2 py-1.5",
+                    on ? "border-primary/50 bg-primary/10" : "border-border bg-elevated",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => {
+                      const next = new Set(selected);
+                      if (next.has(s.group)) next.delete(s.group);
+                      else next.add(s.group);
+                      setPicked(next);
+                    }}
+                    className="mt-0.5 size-3.5 accent-[var(--color-primary)]"
+                    aria-label={`Include ${s.title}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-fg">
+                      {s.title}
+                      <span className="text-subtle"> · {s.accounts.length} account(s) · {s.process.risks?.length ?? 0} risk(s) · {s.process.controlIds.length} control(s)</span>
+                    </p>
+                    <p className="truncate text-subtle">{s.accounts.map((a) => a.name).join(", ")}</p>
+                    {existing && (
+                      <p className="text-warn">
+                        Looks covered by{" "}
+                        <button type="button" onClick={() => onSelectProcess(existing.id)} className="underline">
+                          {existing.name}
+                        </button>{" "}
+                        — unchecked by default.
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <Button size="sm" onClick={() => onInsert(toInsert)} disabled={!toInsert.length}>
+            <Plus className="size-3.5" /> Add {toInsert.length} process{toInsert.length === 1 ? "" : "es"}
+          </Button>
+        </>
       )}
     </div>
   );
