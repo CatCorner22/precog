@@ -172,6 +172,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const lossRange = useMemo(() => observedLossRange(evidence), [evidence]);
   const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
   const found = useMemo(() => detectionBreakdown(evidence), [evidence]);
+  const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
   const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
 
   const soleKnowledge = useMemo(() => findKnowledgeRisks().filter((r) => r.soleOwner), []);
@@ -503,6 +504,26 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                         {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
+                      {s.supportingCaseIds.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+                            Which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
+                          </summary>
+                          <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                            {s.supportingCaseIds.map((id) => {
+                              const c = caseById.get(id);
+                              return c ? (
+                                <li key={id}>
+                                  · {c.title}
+                                  {c.lossUsd > 0
+                                    ? ` (${c.lossIsFloor ? "at least " : ""}${formatUsd(c.lossUsd)})`
+                                    : ""}
+                                </li>
+                              ) : null;
+                            })}
+                          </ul>
+                        </details>
+                      )}
                     </div>
                   </li>
                 ))}
