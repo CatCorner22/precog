@@ -623,4 +623,333 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "The employer here was the U.S. Postal Service, not a small business, and no reliable loss total is recorded. It is included because the mechanism — void and no-sale entries used to suppress recorded cash — is exactly what a small retail counter, restaurant till, or practice front desk faces, and because no comparable small-business case surfaced with the mechanism described this plainly. Conduct ran June 2013 to February 2014.",
   },
+  {
+    id: "case-milwaukee-office-manager-bounced-paycheck",
+    title:
+      "Office manager and bookkeeper spent $650,000 of a Milwaukee company's money; it surfaced when a paycheck bounced",
+    sector: "any",
+    schemes: ["expense-reimbursement"],
+    howItWorked:
+      "The office manager and in-house bookkeeper of a small Milwaukee business used company funds for more than $650,000 of unauthorized purchases between September 2018 and February 2020, among them antique jewelry, lifelike dolls, and trinkets she intended to resell. She entered false records in the company's books so the spending did not show. The scheme came to light only when an employee's paycheck bounced.",
+    controlGap:
+      "One person both spent the company's money and kept the record of it, and nobody outside that role looked at the bank account. The books balanced because she wrote them; the bank balance did not, and the first person to notice was an employee whose pay did not clear.",
+    lossUsd: 650000,
+    lossIsFloor: true,
+    durationMonths: 17,
+    detection: "by-accident",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reads the bank statement each month before the bookkeeper does — seventeen months of resale-inventory purchases would have been on it",
+      },
+      {
+        control: "split-one-duty-out",
+        asApplied:
+          "Someone other than the person who pays the bills reconciles the bank account, even in a business too small for a finance team",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An outside accountant reviews the books against bank records, reporting to the owner",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Eastern District of Wisconsin",
+      url: "https://www.justice.gov/usao-edwi/pr/former-bookkeeper-sentenced-federal-prison-embezzlement-and-fraud",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Emilee K. Rueda, 42, was sentenced on 9 February 2024 to 33 months for wire fraud and tax offenses. The release describes the victim only as a small business. IRS Criminal Investigation published a matching release. The purchases were made with company funds; the release does not say by what instrument.",
+  },
+  {
+    id: "case-msp-airport-restaurant-cash",
+    title:
+      "Airport restaurant manager pocketed $144,819 in daily cash and covered it with the next day's receipts",
+    sector: "restaurant",
+    schemes: ["cash-larceny"],
+    howItWorked:
+      "The manager of a Chick-fil-A franchise at Minneapolis–St. Paul airport, owned by The Grove, Inc., was responsible for collecting the daily cash receipts from that restaurant and a sister pizzeria and depositing them in a safe-deposit box. From September 2022 to October 2023 he kept some or all of the cash. He hid the gap by depositing later days' receipts against earlier days, so the record showed deposits running late rather than missing.",
+    controlGap:
+      "One person carried the cash from the register to the bank and nobody matched each day's point-of-sale cash total to a deposit of the same date. Lapping — using tomorrow's cash to cover today's — only works when deposits are checked by amount and not by date.",
+    lossUsd: 144819,
+    lossIsFloor: false,
+    durationMonths: 13,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-deposit-post", "rule-custody-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied:
+          "Each day's register cash total matched to a bank deposit of the same date, by someone other than the person who carries the cash",
+      },
+      {
+        control: "split-one-duty-out",
+        asApplied: "The person who counts the drawer is not the person who makes the deposit",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reviews deposit dates against business days each month — a lag that grows is the tell",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Minnesota",
+      url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-charged-wire-fraud-embezzling-more-140000-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "The linked release is the charging document (February 2024). Timothy Michael Hill Jr. pleaded guilty in June 2024 and, per press reports of the sentencing hearing, was sentenced in October 2024 to one year in prison with restitution of about $145,000. The loss figure is the amount charged.",
+  },
+  {
+    id: "case-san-antonio-dermatology-side-account",
+    title:
+      "Dermatology office manager diverted patient payments into a leftover event bank account for eight years",
+    sector: "medical",
+    schemes: ["receivables-diversion", "check-tampering"],
+    howItWorked:
+      "In 2012 the owner of the Dermatology & Laser Center of San Antonio opened a bank account to collect contributions for a one-off medical symposium, to be closed when the event ended. The office manager kept it open without permission. From July 2012 to February 2020 she deposited checks and cash that patients paid the practice into that account, using an altered signature stamp or forging the owner's endorsement, and also redirected the practice's profit-sharing tax checks into it. She spent the money on travel, property payments, meals, and cards she opened in the owner's name.",
+    controlGap:
+      "The practice had a bank account the owner had forgotten about, and the person who received patient payments also controlled where they were deposited and kept the books. A dormant account in the business's name is a ready-made place to park diverted receipts.",
+    lossUsd: 345254,
+    lossIsFloor: false,
+    durationMonths: 92,
+    detection: "unknown",
+    resolvedYear: 2021,
+    sodRuleIds: ["rule-collect-post", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner keeps a list of every account in the practice's name, closes the ones that should be closed, and reads the statements of the rest",
+      },
+      {
+        control: "log-payments-at-the-mail",
+        asApplied:
+          "Patient checks logged when they arrive by someone who does not post them, and the log matched to deposits",
+      },
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied: "Day-sheet collections matched to deposits in the operating account by date",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Texas",
+      url: "https://www.justice.gov/usao-wdtx/pr/former-office-manager-sentenced-fraud-charges",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Patricia Ann Doucet, 74, pleaded guilty in August 2021 to ten counts of wire fraud and was sentenced in November 2021 to 46 months with restitution of $345,254.44, which is the figure recorded here; the release rounds it to nearly $350,000.",
+  },
+  {
+    id: "case-wnc-contract-bookkeeper-phony-vendors",
+    title:
+      "Contract bookkeeper wired $975,670 from three small businesses to herself behind phony vendors",
+    sector: "any",
+    schemes: ["billing-shell-vendor"],
+    howItWorked:
+      "A contracted bookkeeper handled accounts payable, payroll, and tax returns for three small businesses in western North Carolina. From 2019 through 2024 she made unauthorized wire transfers from their bank accounts to her own, and covered them by creating phony vendors and false entries in each company's ledger. Much of the money went to casinos.",
+    controlGap:
+      "An outside bookkeeper held the same combination of duties an inside one would: she could add a payee, send the payment, and write the entry that explained it. None of the three owners looked at outgoing wires independently of the ledger she kept.",
+    lossUsd: 975670,
+    lossIsFloor: false,
+    durationMonths: 60,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-vendor-create-pay", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "new-payee-review",
+        asApplied:
+          "Each owner reviews every new payee added to their bank's wire and bill-pay lists, monthly",
+      },
+      {
+        control: "bank-alerts-on-payee-change",
+        asApplied: "Bank alert to the owner's phone on any wire to a payee not previously paid",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reads the bank statement's wire section directly from the bank, not from the bookkeeper's report",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of North Carolina",
+      url: "https://www.justice.gov/usao-wdnc/pr/bookkeeper-sentenced-federal-prison-embezzlment-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jeraldine Agnes Geldner was sentenced in January 2026 to 57 months. The loss is stated as $975,670.94; restitution of $1,131,293.94 also covers tax. IRS Criminal Investigation published a matching release. Three businesses were victims; the record treats them together because the release does.",
+  },
+  {
+    id: "case-franklin-remodeler-bounced-check",
+    title:
+      "Remodeling company bookkeeper diverted $315,000 and fed the accountant doctored bank statements; a bounced check ended it",
+    sector: "construction",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "Within months of being hired as bookkeeper at Dukate Fine Remodeling in Franklin, Indiana, she began using her online access to the company's accounts to pay more than a dozen personal credit cards and buy electronics and other goods. Each year she gave the company's outside accountant false books together with bank statements she had altered so the two agreed. She also left hundreds of thousands of dollars of company bills unpaid. Police and the FBI were called after a company check bounced. The owners laid off workers and cashed in retirement savings to keep the business open.",
+    controlGap:
+      "The outside accountant received the bank statements from the bookkeeper instead of from the bank, so the one document that could not be faked was the one nobody independent saw. She also came with a ten-year record of fraud, forgery, and theft convictions that no one checked.",
+    lossUsd: 315000,
+    lossIsFloor: true,
+    durationMonths: 24,
+    detection: "by-accident",
+    resolvedYear: 2018,
+    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner and accountant each receive statements directly from the bank; nothing the bookkeeper hands over counts as the statement",
+      },
+      {
+        control: "background-check-money-handlers",
+        asApplied:
+          "A criminal-records check before giving anyone online access to the bank accounts",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "Accountant reconciles to bank-sourced records and reports unpaid vendor balances to the owner",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Indiana",
+      url: "https://www.justice.gov/usao-sdin/pr/bookkeeper-sentenced-defrauding-small-franklin-indiana-business",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. Her prior convictions are stated in the release.",
+  },
+  {
+    id: "case-ocean-city-builder-forged-checks",
+    title:
+      "Home builder's office manager forged the owner's signature on more than 500 checks over eight years",
+    sector: "construction",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The office manager and bookkeeper of an Ocean City, Maryland home builder forged a business owner's signature on company checks at least 500 times between 2016 and 2024, taking about $1.79 million, and made false entries in the books so the checks did not show as what they were.",
+    controlGap:
+      "Check-writing custody, signature access, and the books sat with one person for eight years, and no one compared cleared-check images against what the ledger said the checks were for. Five hundred forged checks cleared a bank that had no reason to question them.",
+    lossUsd: 1793688,
+    lossIsFloor: false,
+    durationMonths: 96,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "positive-pay",
+        asApplied: "Bank Positive Pay: the bank pays only checks on a list the owner uploads",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner reviews cleared-check images each month — a payee that is not a supplier stands out in one sitting",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Bank reconciliation done by someone who did not write the checks or the entries",
+      },
+    ],
+    source: {
+      publisher:
+        "IRS Criminal Investigation, reporting the U.S. Attorney's Office, District of Maryland",
+      url: "https://www.irs.gov/compliance/criminal-investigation/former-office-manager-sentenced-for-embezzling-more-than-1-point-7-million-from-ocean-city-home-builder",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Tammy Barcus of Berlin, Maryland pleaded guilty in October 2025 and was sentenced in March 2026 to 48 months, with restitution of $1,793,688.87 to the builder and $562,883 to the IRS. The loss recorded is the restitution to the employer. The U.S. Attorney's Office published the plea release; the sentencing release cited here is IRS-CI's.",
+  },
+  {
+    id: "case-mukilteo-flooring-owner-bookkeeper-collusion",
+    title:
+      "Flooring company co-owner and bookkeeper together took $400,000 from the partner who put up the money",
+    sector: "trades",
+    schemes: ["expense-reimbursement", "financial-statement"],
+    howItWorked:
+      "Between 2011 and 2016 the co-owner who ran Gluth Contract Flooring in Mukilteo, Washington and its bookkeeper drew on company accounts for a home mortgage, luxury vacations, and department-store bills, and took out loans in the company's name without the knowledge of the silent partner who had financed the business. The bookkeeper was convicted at trial of wire fraud, aggravated identity theft, and conspiracy.",
+    controlGap:
+      "Every control the business had ran through the operating owner, and the operating owner was in on it. The investor had no view of the bank accounts, the loans, or the books except what the two of them chose to show him.",
+    lossUsd: 400000,
+    lossIsFloor: true,
+    durationMonths: 60,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An accountant engaged by and reporting to the investing partner, with direct bank and lender access, reviewing annually",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Statements and loan notices delivered to every owner directly from the bank, not through the office",
+      },
+      {
+        control: "verify-oversight-is-real",
+        asApplied:
+          "The partner confirms each year that the oversight he believes exists actually leaves evidence",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Washington",
+      url: "https://www.justice.gov/usao-wdwa/pr/former-flooring-company-bookkeeper-sentenced-three-years-prison-scheme-steal-company",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jodi Hamrick was sentenced in April 2024 to three years after a jury trial; co-owner David M. Gluth was sentenced separately. The release states the loss as more than $400,000. This is a collusion case: two people, one of them an owner, defeated every control that depended on one person checking another.",
+  },
+  {
+    id: "case-greenfield-contractor-payroll-and-payments",
+    title:
+      "Contracting company office manager raised her own pay 466 times, added her husband to payroll, and redirected customer payments",
+    sector: "construction",
+    schemes: ["payroll", "receivables-diversion", "expense-reimbursement"],
+    howItWorked:
+      "The office manager of a family-owned contracting company in Greenfield, Indiana ran payroll, customer invoicing, and the company credit cards. From January 2016 through December 2022 she inflated her own salary on 466 occasions, for about $515,000; in December 2020 she added her husband to payroll though he had not been hired, for another $107,000; she redirected customer payments to her own account; and she put personal spending on company cards. The total exceeded $1 million.",
+    controlGap:
+      "One person entered payroll, approved it, issued the invoices, received the payments, and held the cards, and nobody reviewed the payroll register, the headcount, or the card statements. Four separate schemes ran through the same unwatched seat for seven years.",
+    lossUsd: 1000000,
+    lossIsFloor: true,
+    durationMonths: 84,
+    detection: "unknown",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-collect-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each cycle — names, gross pay, and headcount — against who actually works there",
+      },
+      {
+        control: "no-self-approval",
+        asApplied:
+          "Nobody who runs payroll can change their own pay without a second person's approval",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied: "Owner reads every company card statement line by line",
+      },
+      {
+        control: "log-payments-at-the-mail",
+        asApplied:
+          "Customer payments logged on arrival by someone other than the person who invoices",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Indiana",
+      url: "https://www.justice.gov/usao-sdin/pr/former-office-manager-sentenced-two-and-half-years-federal-prison-embezzling-over-1",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jennifer Lynn Horton, 49, was sentenced in January 2025 to 30 months after pleading guilty to two counts of wire fraud, with a $1 million judgment and forfeiture of four vehicles. The release states the loss as more than $1 million; the salary and payroll figures are the release's.",
+  },
 ];
