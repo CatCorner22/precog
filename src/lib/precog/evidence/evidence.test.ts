@@ -6,8 +6,10 @@ import {
   CONTROL_CATALOG,
   casesForSector,
   casesForSodRules,
+  isOwnSector,
   observedLossRange,
   sectorForIndustry,
+  sectorsForIndustry,
 } from "./index";
 
 describe("case library integrity", () => {
@@ -37,6 +39,19 @@ describe("case library integrity", () => {
   it("gives every industry a sector with real cases", () => {
     for (const { id } of INDUSTRIES) {
       expect(casesForSector(sectorForIndustry(id)).length, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("counts medical cases as the dental template's own line of business", () => {
+    expect(sectorsForIndustry("dental")).toEqual(["dental", "medical"]);
+    expect(sectorForIndustry("dental")).toBe("dental");
+    const medical = CASE_LIBRARY.find((c) => c.sector === "medical");
+    const retail = CASE_LIBRARY.find((c) => c.sector === "retail");
+    expect(medical && isOwnSector(medical, "dental")).toBe(true);
+    expect(retail && isOwnSector(retail, "dental")).toBe(false);
+    expect(retail && isOwnSector(retail, "retail")).toBe(true);
+    for (const { id } of INDUSTRIES) {
+      expect(sectorsForIndustry(id).length, id).toBeGreaterThan(0);
     }
   });
 });
