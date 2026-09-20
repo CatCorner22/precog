@@ -116,6 +116,7 @@ export function buildPioneerContextPack(
         trainee: m.trainee?.name ?? null,
         trainer: m.trainer?.name ?? null,
         documented: Boolean(m.item.documented),
+        procedureLocation: m.item.documented ? m.item.procedureLocation?.trim() || null : null,
         action: m.action,
       })),
       note: "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. Advise on contingency in terms of these named people.",

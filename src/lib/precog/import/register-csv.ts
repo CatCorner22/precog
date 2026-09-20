@@ -34,6 +34,7 @@ export const REGISTER_CSV_COLUMNS = [
   "kind",
   "criticality",
   "documented",
+  "procedure location",
   "description",
 ] as const;
 
@@ -42,6 +43,14 @@ const HEADER_ALIASES: Record<(typeof REGISTER_CSV_COLUMNS)[number], readonly str
   kind: ["kind", "type"],
   criticality: ["criticality", "critical", "importance", "priority", "impact"],
   documented: ["documented", "written procedure", "procedure", "sop", "written down"],
+  "procedure location": [
+    "procedure location",
+    "where documented",
+    "where is the procedure",
+    "sop location",
+    "location",
+    "link",
+  ],
   description: ["description", "notes", "details"],
 };
 
@@ -231,6 +240,9 @@ export function parseRegisterCsv(
     const documented = documentedValue
       ? TRUE_TOKENS.has(documentedValue.toLowerCase())
       : Boolean(existing?.documented);
+    const procedureLocation = columns.has("procedure location")
+      ? cell(cells, "procedure location").slice(0, 200)
+      : (existing?.procedureLocation ?? "");
     const description = columns.has("description")
       ? cell(cells, "description").slice(0, 500)
       : (existing?.description ?? "");
@@ -250,6 +262,7 @@ export function parseRegisterCsv(
       description,
       linkedProcessIds: existing?.linkedProcessIds ?? [],
       documented,
+      ...(procedureLocation ? { procedureLocation } : {}),
     });
 
     for (const { index: col, person } of personColumns) {
@@ -279,6 +292,7 @@ export function registerToCsv(tpl: IndustryTemplate): string {
     k.kind ?? "knowledge",
     k.criticality,
     k.documented ? "true" : "false",
+    k.procedureLocation ?? "",
     k.description,
     ...people.map((p) => {
       const level = levelOf.get(`${p.id}|${k.id}`);
@@ -297,6 +311,7 @@ export function registerTemplateCsv(tpl: IndustryTemplate): string {
     "duty",
     "critical",
     "false",
+    "Shared drive > Office > Payroll checklist",
     "Who can do it: expert, can do, learning, aware, or leave blank",
     ...people.map((_, i) => (i === 0 ? "expert" : i === 1 ? "learning" : "")),
   ];

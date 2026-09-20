@@ -4,6 +4,7 @@ import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   absenceImpact,
+  contingencyCards,
   coverageReport,
   coverageStatus,
   setRelationLevel,
@@ -205,7 +206,9 @@ describe("absenceImpact", () => {
     const bankRec = a.stops.find((s) => s.item.id === "bank-rec")!;
     expect(bankRec.standIn).not.toBeNull();
     expect(bankRec.standIn?.id).not.toBe("d");
-    expect(a.dependence).toBe(coverageReport(t).people.find((l) => l.person.id === "a")!.dependence);
+    expect(a.dependence).toBe(
+      coverageReport(t).people.find((l) => l.person.id === "a")!.dependence,
+    );
     expect(a.actions[0]).toMatch(/^Today: hand/);
     expect(a.actions.some((x) => x.startsWith("Before the next absence"))).toBe(true);
   });
@@ -226,6 +229,68 @@ describe("absenceImpact", () => {
     const a = absenceImpact(alone, "a")!;
     expect(a.stops.every((s) => s.standIn === null)).toBe(true);
     expect(a.stops[0].note).toBe("Nobody else is on the team.");
+  });
+
+  it("tells the stand-in where the written procedure lives, or asks for it to be recorded", () => {
+    const a = absenceImpact(t, "a")!;
+    expect(a.stops.find((s) => s.item.id === "payroll")!.note).not.toMatch(/procedure:/);
+    expect(
+      a.actions.some((x) => x.startsWith('Record where the written procedure for "payroll"')),
+    ).toBe(true);
+
+    const located = {
+      ...t,
+      knowledge: t.knowledge.map((k) =>
+        k.id === "payroll" ? { ...k, procedureLocation: " Binder B, front desk " } : k,
+      ),
+    };
+    const b = absenceImpact(located, "a")!;
+    expect(b.stops.find((s) => s.item.id === "payroll")!.note).toMatch(
+      /written procedure to follow \(procedure: Binder B, front desk\)\./,
+    );
+    expect(b.actions.some((x) => x.startsWith("Record where"))).toBe(false);
+
+    const undocumentedWithLocation = {
+      ...t,
+      knowledge: t.knowledge.map((k) =>
+        k.id === "bank-rec" ? { ...k, documented: false, procedureLocation: "Drive" } : k,
+      ),
+    };
+    const c = absenceImpact(undocumentedWithLocation, "a")!;
+    expect(c.stops.find((s) => s.item.id === "bank-rec")!.note).not.toMatch(/procedure:/);
+  });
+});
+
+describe("contingencyCards", () => {
+  it("lists active people whose absence stops work, most depended-on first", () => {
+    const t = tpl(
+      [item("payroll"), item("bank-rec"), item("ordering", { criticality: "important" })],
+      [
+        { personId: "a", knowledgeId: "payroll", level: "expert" },
+        { personId: "a", knowledgeId: "bank-rec", level: "expert" },
+        { personId: "b", knowledgeId: "ordering", level: "proficient" },
+        { personId: "d", knowledgeId: "ordering", level: "expert" },
+      ],
+    );
+    const cards = contingencyCards(t);
+    expect(cards.map((c) => c.person.id)).toEqual(["a", "b"]);
+    expect(cards[0].stops.map((s) => s.item.id)).toEqual(["bank-rec", "payroll"]);
+    expect(cards[1].stops.map((s) => s.item.id)).toEqual(["ordering"]);
+  });
+
+  it("includes a person who is the sole process owner even if nothing they know stops", () => {
+    const t = tpl(
+      [item("payroll")],
+      [
+        { personId: "a", knowledgeId: "payroll", level: "expert" },
+        { personId: "b", knowledgeId: "payroll", level: "expert" },
+      ],
+    );
+    expect(contingencyCards(t)).toEqual([]);
+    const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["c"] }] };
+    const cards = contingencyCards(solo);
+    expect(cards.map((c) => c.person.id)).toEqual(["c"]);
+    expect(cards[0].orphanedProcesses).toEqual(["Payroll run"]);
   });
 });
 

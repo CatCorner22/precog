@@ -33,6 +33,7 @@ const knowledge: KnowledgeItem[] = [
     description: 'Who needs a "PO", who does not',
     linkedProcessIds: [],
     documented: true,
+    procedureLocation: "Drive > Vendors > Quirks.docx",
   },
 ];
 
@@ -53,9 +54,9 @@ describe("registerToCsv", () => {
   it("writes one row per item with a column per active person", () => {
     const csv = registerToCsv(tpl);
     expect(csv.split("\r\n")).toEqual([
-      "item,kind,criticality,documented,description,Ana Ruiz,Ben Lee",
-      "Run payroll,duty,critical,false,Every other Friday,expert,learning",
-      'Vendor quirks,knowledge,important,true,"Who needs a ""PO"", who does not",aware,can do',
+      "item,kind,criticality,documented,procedure location,description,Ana Ruiz,Ben Lee",
+      "Run payroll,duty,critical,false,,Every other Friday,expert,learning",
+      'Vendor quirks,knowledge,important,true,Drive > Vendors > Quirks.docx,"Who needs a ""PO"", who does not",aware,can do',
       "",
     ]);
   });
@@ -217,15 +218,39 @@ describe("parseRegisterCsv", () => {
   });
 });
 
+describe("procedure location column", () => {
+  it("reads aliases, keeps the existing location when the column is absent, and omits blanks", () => {
+    const withAlias = parseRegisterCsv(
+      "item,where documented,Ana Ruiz\r\nRun payroll,Binder on the front desk,expert\r\n",
+      tpl,
+    );
+    expect(withAlias.knowledge[0].procedureLocation).toBe("Binder on the front desk");
+
+    const withoutColumn = parseRegisterCsv(
+      "item,Ana Ruiz\r\nVendor quirks,expert\r\nNew thing,expert\r\n",
+      tpl,
+    );
+    expect(withoutColumn.knowledge[0].procedureLocation).toBe("Drive > Vendors > Quirks.docx");
+    expect("procedureLocation" in withoutColumn.knowledge[1]).toBe(false);
+
+    const blank = parseRegisterCsv(
+      "item,procedure location,Ana Ruiz\r\nVendor quirks,,expert\r\n",
+      tpl,
+    );
+    expect("procedureLocation" in blank.knowledge[0]).toBe(false);
+  });
+});
+
 describe("registerTemplateCsv", () => {
   it("is importable and lists the active team as columns", () => {
     const csv = registerTemplateCsv(tpl);
     expect(csv.split("\r\n")[0]).toBe(
-      "item,kind,criticality,documented,description,Ana Ruiz,Ben Lee",
+      "item,kind,criticality,documented,procedure location,description,Ana Ruiz,Ben Lee",
     );
     const result = parseRegisterCsv(csv, tpl);
     expect(result.issues).toEqual([]);
     expect(result.knowledge).toHaveLength(1);
+    expect(result.knowledge[0].procedureLocation).toBe("Shared drive > Office > Payroll checklist");
     expect(result.relations).toEqual([
       { personId: "p-ana", knowledgeId: "k-run-month-end-payroll", level: "expert" },
       { personId: "p-ben", knowledgeId: "k-run-month-end-payroll", level: "basic" },

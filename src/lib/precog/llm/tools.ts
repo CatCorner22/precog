@@ -248,6 +248,9 @@ export function executeTool(
                 ? { id: move.trainee.id, name: move.trainee.name, role: move.trainee.role }
                 : null,
               documented: Boolean(move?.item.documented),
+              procedureLocation: move?.item.documented
+                ? move.item.procedureLocation?.trim() || null
+                : null,
               nextStep: move?.action ?? null,
             };
           }),
