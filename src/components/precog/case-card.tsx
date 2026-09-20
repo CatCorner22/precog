@@ -23,6 +23,7 @@ const DETECTION_LABEL: Record<string, string> = {
   "bank-or-insurer": "Bank or insurer flagged it",
   "law-enforcement": "Law enforcement",
   "by-accident": "By accident",
+  cover: "Someone else covered the desk",
   reconciliation: "A reconciliation caught it",
   unknown: "Not stated in the source",
 };

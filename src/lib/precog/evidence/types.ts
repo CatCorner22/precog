@@ -52,6 +52,8 @@ export type DetectionRoute =
   | "law-enforcement"
   | "by-accident"
   | "reconciliation"
+  /** Someone else had to do the person's job for a while and saw the records. */
+  | "cover"
   | "unknown";
 
 import type { ControlId } from "./controls";
