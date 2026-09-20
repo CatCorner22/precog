@@ -29,6 +29,7 @@ import {
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
+import { applyDecisionReview, captureDecisionSnapshot } from "./decisions/follow-through";
 import {
   defaultProfile,
   loadPortfolio,
@@ -42,6 +43,7 @@ import {
   type BusinessSummary,
   type DecisionEntry,
   type DecisionKind,
+  type DecisionReviewOutcome,
   type MapVersion,
   type PracticeProfile,
 } from "./practice-profile";
@@ -70,6 +72,12 @@ interface PracticeContextValue {
     linkedId?: string;
   }) => void;
   removeDecision: (id: string) => void;
+  reviewDecision: (
+    id: string,
+    outcome: DecisionReviewOutcome,
+    note?: string,
+    extendDays?: number,
+  ) => void;
   resetProfile: () => void;
   /** First-visit picker: load the template and mark onboarding done. */
   completeOnboarding: (industry: IndustryId) => void;
@@ -366,18 +374,28 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       linkedTab?: string;
       linkedId?: string;
     }) => {
-      const entry: DecisionEntry = {
-        id: makeDecisionId(),
-        createdAt: new Date().toISOString(),
-        subject: input.subject.slice(0, 120),
-        kind: input.kind,
-        note: input.note.slice(0, 800),
-        reviewBy: input.reviewBy,
-        residualAtDecision: input.residualAtDecision,
-        linkedTab: input.linkedTab,
-        linkedId: input.linkedId,
-      };
-      setProfile((p) => ({ ...p, decisions: [entry, ...p.decisions].slice(0, 100) }));
+      const id = makeDecisionId();
+      setProfile((p) => {
+        const snapshot = captureDecisionSnapshot(
+          resolveTemplate(p),
+          p.staff,
+          p.dualRelease,
+          input.subject,
+        );
+        const entry: DecisionEntry = {
+          id,
+          createdAt: new Date().toISOString(),
+          subject: input.subject.slice(0, 120),
+          kind: input.kind,
+          note: input.note.slice(0, 800),
+          reviewBy: input.reviewBy,
+          residualAtDecision: input.residualAtDecision ?? snapshot.subjectResidual,
+          linkedTab: input.linkedTab,
+          linkedId: input.linkedId,
+          snapshot,
+        };
+        return { ...p, decisions: [entry, ...p.decisions].slice(0, 100) };
+      });
     },
     [],
   );
@@ -388,6 +406,37 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       decisions: p.decisions.filter((d) => d.id !== id),
     }));
   }, []);
+
+  const reviewDecision = useCallback(
+    (id: string, outcome: DecisionReviewOutcome, note?: string, extendDays = 90) => {
+      setProfile((p) => {
+        const decision = p.decisions.find((d) => d.id === id);
+        if (!decision) return p;
+        const snapshot = captureDecisionSnapshot(
+          resolveTemplate(p),
+          p.staff,
+          p.dualRelease,
+          decision.subject,
+        );
+        const trimmedNote = note?.trim();
+        const reviewed = applyDecisionReview(
+          decision,
+          {
+            at: snapshot.at,
+            outcome,
+            ...(trimmedNote ? { note: trimmedNote } : {}),
+            snapshot,
+          },
+          extendDays,
+        );
+        return {
+          ...p,
+          decisions: p.decisions.map((d) => (d.id === id ? reviewed : d)),
+        };
+      });
+    },
+    [],
+  );
 
   const resetProfile = useCallback(() => {
     clearHistory();
@@ -664,6 +713,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      reviewDecision,
       resetProfile,
       completeOnboarding,
       setCustomProcesses,
@@ -698,6 +748,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      reviewDecision,
       resetProfile,
       completeOnboarding,
       setCustomProcesses,

@@ -4,6 +4,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -50,6 +51,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    */
   const isSampleTeam = !profile.customPeople;
   const sector = sectorForIndustry(profile.industry);
+  const { overdue } = useMemo(
+    () => decisionsDue(profile.decisions, new Date()),
+    [profile.decisions],
+  );
 
   const sod = useMemo(
     () =>
@@ -222,6 +227,19 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           it came from.
         </p>
       </header>
+
+      {overdue.length > 0 && onOpenDetail && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
+          {overdue.length} decision(s) past their review date —{" "}
+          <button
+            type="button"
+            onClick={() => onOpenDetail("journal")}
+            className="font-medium underline hover:text-fg"
+          >
+            review now
+          </button>
+        </div>
+      )}
 
       {isSampleTeam && (
         <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
