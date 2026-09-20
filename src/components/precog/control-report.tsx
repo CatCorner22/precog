@@ -16,7 +16,7 @@ import {
   detectionBreakdown,
   observedLossRange,
   recommendedStepsForRules,
-  sectorForIndustry,
+  isOwnSector,
 } from "@/lib/precog/evidence";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
 import {
@@ -84,10 +84,9 @@ export function ControlReport() {
     const matched = casesForSodRules(openRuleIds);
     // Same line of business first; the reader's own sector is the part they
     // check, so it should not sit at the end of the list.
-    const sector = sectorForIndustry(profile.industry);
     const evidence = [
-      ...matched.filter((c) => c.sector === sector),
-      ...matched.filter((c) => c.sector !== sector),
+      ...matched.filter((c) => isOwnSector(c, profile.industry)),
+      ...matched.filter((c) => !isOwnSector(c, profile.industry)),
     ];
     const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
     const lossRange = observedLossRange(evidence);
