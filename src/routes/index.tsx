@@ -27,9 +27,9 @@ import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine"
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
@@ -207,23 +207,21 @@ function Home() {
   );
   const coso = useMemo(() => assessCoso(tpl), [tpl]);
   const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
+  const today = useToday();
   const leading = useMemo(
     () => scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables),
     [tpl, profile.staff, profile.riskVariables],
   );
   const sodReport = useMemo(
-    () =>
-      detectSodConflicts(tpl, profile.staff, {
-        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
-      }),
+    () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [tpl, profile.staff, profile.dualRelease],
   );
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = useMemo(
-    () => decisionsDue(profile.decisions, new Date()).overdue.length,
-    [profile.decisions],
+    () => decisionsDue(profile.decisions, today).overdue.length,
+    [profile.decisions, today],
   );
 
   const mapHealth = useMemo(() => {

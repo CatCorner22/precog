@@ -4,8 +4,7 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules } from "@/lib/precog/evidence";
 import { CaseCard } from "./case-card";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
@@ -26,7 +25,6 @@ type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
-  const { controls } = tpl;
   const { profile } = usePractice();
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual">("dual");
@@ -34,31 +32,9 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     "all" | "critical" | "high" | "medium" | "family"
   >("all");
 
-  const residualAccepted = useMemo(
-    () => new Set(controls.filter((c) => c.residualRiskAccepted).map((c) => c.id)),
-    [controls],
-  );
-  const compensatingByControl = useMemo(() => {
-    const m: Record<string, string[]> = {};
-    for (const c of controls) {
-      if (c.compensatingControls.length) m[c.id] = c.compensatingControls;
-    }
-    return m;
-  }, [controls]);
-
-  const dualMitigated = useMemo(
-    () => mitigatedSodRuleIds(profile.dualRelease),
-    [profile.dualRelease],
-  );
-
   const report = useMemo(
-    () =>
-      detectSodConflicts(tpl, profile.staff, {
-        residualAcceptedControlIds: residualAccepted,
-        compensatingByControlId: compensatingByControl,
-        dualReleaseMitigatedRuleIds: dualMitigated,
-      }),
-    [tpl, profile.staff, residualAccepted, compensatingByControl, dualMitigated],
+    () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
+    [tpl, profile.staff, profile.dualRelease],
   );
 
   const filtered = report.conflicts.filter((c) =>

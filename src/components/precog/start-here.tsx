@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -51,16 +51,19 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    */
   const isSampleTeam = !profile.customPeople;
   const industryId = profile.industry;
+  const today = useToday();
   const { overdue } = useMemo(
-    () => decisionsDue(profile.decisions, new Date()),
-    [profile.decisions],
+    () => decisionsDue(profile.decisions, today),
+    [profile.decisions, today],
   );
 
   const sod = useMemo(
     () =>
-      detectSodConflicts(template, profile.staff, {
-        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
-      }),
+      detectSodConflicts(
+        template,
+        profile.staff,
+        sodDetectionOptions(template, profile.dualRelease),
+      ),
     [template, profile.staff, profile.dualRelease],
   );
 

@@ -12,6 +12,7 @@ import {
   decisionsDue,
   isDecisionOpen,
 } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { formatUsd } from "@/lib/utils";
@@ -32,10 +33,13 @@ function reviewDelta(
 ): string {
   const delta = decisionDelta(d, current);
   if (!delta || !d.snapshot) return "no snapshot on record";
-  const thenResidual = d.snapshot.subjectResidual ?? d.snapshot.averageResidual;
-  const nowResidual = current.subjectResidual ?? current.averageResidual;
-  const residualDelta = delta.subject ?? delta.average;
-  return `residual ${thenResidual} → ${nowResidual} (${signed(residualDelta)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+  if (!delta.comparable) {
+    return `scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}) — values not directly comparable`;
+  }
+  if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
+    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+  }
+  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
 }
 
 export function DecisionJournal({
@@ -78,18 +82,17 @@ export function DecisionJournal({
     return { count: cases.length, range: observedLossRange(cases), largest };
   }, [kind, subject, portfolio.top]);
 
-  const due = useMemo(() => decisionsDue(profile.decisions, new Date()), [profile.decisions]);
+  const today = useToday();
+  const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
-  const currentSnapshots = useMemo(
-    () =>
-      new Map(
-        profile.decisions.map((d) => [
-          d.id,
-          captureDecisionSnapshot(template, profile.staff, profile.dualRelease, d.subject),
-        ]),
-      ),
-    [profile.decisions, template, profile.staff, profile.dualRelease],
-  );
+  const currentSnapshots = useMemo(() => {
+    return new Map(
+      profile.decisions.map((d) => [
+        d.id,
+        captureDecisionSnapshot(template, profile.staff, profile.dualRelease, d.subject),
+      ]),
+    );
+  }, [profile.decisions, template, profile.staff, profile.dualRelease]);
   const orderedDecisions = useMemo(
     () =>
       [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),

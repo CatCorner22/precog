@@ -1,6 +1,6 @@
-import { getRequest } from "@tanstack/react-start/server";
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
+import { requestIp } from "@/lib/request-ip.server";
 import { LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 
 export type LlmAccess = {
@@ -22,13 +22,6 @@ export class TooManyRequestsError extends Error {
 const perUserLimiter = new SlidingWindowLimiter(LLM_LIMITS.perUser);
 const perIpLimiter = new SlidingWindowLimiter(LLM_LIMITS.perIp);
 const globalLimiter = new SlidingWindowLimiter(LLM_LIMITS.global);
-
-function requestIp(): string {
-  const request = getRequest();
-  if (!request) return "unknown";
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
-}
 
 export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess> {
   assertSameSiteRequest();

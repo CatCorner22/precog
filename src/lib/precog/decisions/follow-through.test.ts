@@ -3,12 +3,14 @@ import { defaultDualReleasePolicy } from "../controls/dual-release";
 import { getBaseTemplate } from "../active-template";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
+import { detectSodConflicts } from "../sod/detect";
 import type { DecisionEntry, DecisionReview, DecisionSnapshot } from "../practice-profile";
 import {
   applyDecisionReview,
   captureDecisionSnapshot,
   decisionDelta,
   decisionsDue,
+  localDateKey,
 } from "./follow-through";
 
 const dental = getBaseTemplate("dental");
@@ -73,6 +75,28 @@ describe("captureDecisionSnapshot", () => {
       ).subjectResidual,
     ).toBeUndefined();
   });
+
+  it("counts accepted residual controls as closed SoD conflicts", () => {
+    const conflict = detectSodConflicts(dental, dental.staffComposition).conflicts.find(
+      (item) => item.linkedControlId,
+    );
+    expect(conflict?.linkedControlId).toBeDefined();
+    const accepted = {
+      ...dental,
+      controls: dental.controls.map((control) =>
+        control.id === conflict?.linkedControlId
+          ? { ...control, residualRiskAccepted: true }
+          : control,
+      ),
+    };
+    const withoutAcceptance = captureDecisionSnapshot(dental, dental.staffComposition, dualRelease);
+    const withAcceptance = captureDecisionSnapshot(
+      accepted,
+      accepted.staffComposition,
+      dualRelease,
+    );
+    expect(withAcceptance.sodOpenConflicts).toBeLessThan(withoutAcceptance.sodOpenConflicts);
+  });
 });
 
 describe("decisionsDue", () => {
@@ -91,6 +115,10 @@ describe("decisionsDue", () => {
 
     expect(result.overdue.map((d) => d.id)).toEqual(["overdue"]);
     expect(result.dueSoon.map((d) => d.id)).toEqual(["today", "soon"]);
+  });
+
+  it("formats local calendar dates", () => {
+    expect(localDateKey(new Date(2025, 0, 5))).toBe("2025-01-05");
   });
 });
 
@@ -140,6 +168,26 @@ describe("decisionDelta", () => {
         }),
         now,
       ),
-    ).toEqual({ subject: -13, average: -13, sodOpen: -2, segregation: 7 });
+    ).toEqual({
+      subject: -13,
+      average: -13,
+      sodOpen: -2,
+      segregation: 7,
+      comparable: true,
+    });
+    expect(
+      decisionDelta(
+        decision({
+          snapshot: {
+            at: "2025-01-01T00:00:00.000Z",
+            scoringVersion: "older-model",
+            averageResidual: 71,
+            sodOpenConflicts: 6,
+            segregationHealth: 74,
+          },
+        }),
+        now,
+      )?.comparable,
+    ).toBe(false);
   });
 });

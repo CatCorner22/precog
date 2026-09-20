@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
 import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
 import { HEAT_BANDS } from "@/lib/precog/process-graph";
@@ -24,17 +24,24 @@ export const Route = createFileRoute("/share/$token")({
 type LoadState =
   | { kind: "loading" }
   | { kind: "error"; reason: string }
-  | { kind: "ok"; payload: SharedMapPayload; createdAt: string; expiresAt: string | null };
+  | {
+      kind: "ok";
+      payload: SharedMapPayload;
+      createdAt: string;
+      expiresAt: string | null;
+      redacted: boolean;
+    };
 
 function SharePage() {
   const { token } = Route.useParams();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [passcode, setPasscode] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadMapShare({ data: { token } })
-      .then((res) => {
-        if (cancelled) return;
+  const loadShare = useCallback(
+    async (code?: string) => {
+      setState({ kind: "loading" });
+      try {
+        const res = await loadMapShare({ data: { token, passcode: code } });
         if (!res.found) setState({ kind: "error", reason: res.reason });
         else
           setState({
@@ -42,13 +49,18 @@ function SharePage() {
             payload: res.payload,
             createdAt: res.createdAt,
             expiresAt: res.expiresAt,
+            redacted: res.redacted,
           });
-      })
-      .catch(() => !cancelled && setState({ kind: "error", reason: "network" }));
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+      } catch {
+        setState({ kind: "error", reason: "network" });
+      }
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    void loadShare();
+  }, [loadShare]);
 
   if (state.kind === "loading") {
     return (
@@ -59,6 +71,48 @@ function SharePage() {
   }
 
   if (state.kind === "error") {
+    if (
+      state.reason === "passcode" ||
+      state.reason === "passcode_wrong" ||
+      state.reason === "rate_limited"
+    ) {
+      return (
+        <div className="flex min-h-dvh items-center justify-center bg-white p-8">
+          <form
+            className="w-full max-w-sm rounded-lg border border-neutral-200 p-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void loadShare(passcode);
+            }}
+          >
+            <Lock className="mx-auto size-8 text-neutral-400" />
+            <h1 className="mt-3 text-center text-lg font-semibold text-neutral-900">
+              Passcode required
+            </h1>
+            <p className="mt-1 text-center text-sm text-neutral-600">
+              {state.reason === "passcode_wrong"
+                ? "Incorrect passcode"
+                : state.reason === "rate_limited"
+                  ? "Too many attempts — wait a minute"
+                  : "Enter the passcode provided by the owner."}
+            </p>
+            <input
+              type="password"
+              className="mt-4 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+              value={passcode}
+              onChange={(event) => setPasscode(event.target.value)}
+              autoFocus
+            />
+            <button
+              type="submit"
+              className="mt-3 w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            >
+              Open
+            </button>
+          </form>
+        </div>
+      );
+    }
     const msg =
       state.reason === "revoked"
         ? "This link was revoked by the owner."
@@ -81,7 +135,7 @@ function SharePage() {
     );
   }
 
-  const { payload, expiresAt } = state;
+  const { payload, expiresAt, redacted } = state;
   const stages = [...new Set(payload.processes.map((p) => p.stage))].sort((a, b) => a - b);
   const generated = new Date(payload.generatedAt);
 
@@ -123,6 +177,11 @@ function SharePage() {
           {payload.note && (
             <p className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800">
               {payload.note}
+            </p>
+          )}
+          {redacted && (
+            <p className="mt-2 text-xs text-neutral-500">
+              Names hidden by the owner; roles shown instead.
             </p>
           )}
         </header>

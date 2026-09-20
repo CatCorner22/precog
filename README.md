@@ -51,6 +51,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evid
 Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally.
 
 Team CSV imports use the columns `name`, `role`, `tenure_years`, `active`, and `entitlements`. With an imported team, active headcount, known-tenure averages, and segregation health are derived from the team's duties; the segregation slider remains available as an explicit manual override.
+Share links can hide people's names while keeping roles, optionally require a passcode, and record a small view log for the owner.
 
 ## Demo data
 

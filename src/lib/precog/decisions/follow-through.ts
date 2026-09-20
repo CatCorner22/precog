@@ -1,12 +1,12 @@
-import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
+import type { DualReleasePolicy } from "../controls/dual-release";
 import type { DecisionEntry, DecisionReview, DecisionSnapshot } from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
-import { detectSodConflicts } from "../sod/detect";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
 
-function dateKey(date: Date): string {
+export function localDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -16,7 +16,7 @@ function dateKey(date: Date): string {
 function dateAfter(date: Date, days: number): string {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
-  return dateKey(next);
+  return localDateKey(next);
 }
 
 export function captureDecisionSnapshot(
@@ -27,9 +27,7 @@ export function captureDecisionSnapshot(
   now: Date = new Date(),
 ): DecisionSnapshot {
   const portfolio = portfolioSummary(tpl, staff);
-  const sod = detectSodConflicts(tpl, staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease),
-  });
+  const sod = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease));
   const subjectScore =
     subject === undefined
       ? undefined
@@ -53,7 +51,7 @@ export function decisionsDue(
   now: Date,
   withinDays = 7,
 ): { overdue: DecisionEntry[]; dueSoon: DecisionEntry[] } {
-  const today = dateKey(now);
+  const today = localDateKey(now);
   const soonThrough = dateAfter(now, withinDays);
   const overdue: DecisionEntry[] = [];
   const dueSoon: DecisionEntry[] = [];
@@ -85,7 +83,13 @@ export function applyDecisionReview(
 export function decisionDelta(
   d: DecisionEntry,
   now: DecisionSnapshot,
-): { subject?: number; average: number; sodOpen: number; segregation: number } | null {
+): {
+  subject?: number;
+  average: number;
+  sodOpen: number;
+  segregation: number;
+  comparable: boolean;
+} | null {
   if (!d.snapshot) return null;
   return {
     ...(d.snapshot.subjectResidual === undefined || now.subjectResidual === undefined
@@ -94,5 +98,6 @@ export function decisionDelta(
     average: now.averageResidual - d.snapshot.averageResidual,
     sodOpen: now.sodOpenConflicts - d.snapshot.sodOpenConflicts,
     segregation: now.segregationHealth - d.snapshot.segregationHealth,
+    comparable: d.snapshot.scoringVersion === now.scoringVersion,
   };
 }
