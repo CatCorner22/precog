@@ -1,5 +1,11 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import type { Person, ProcessNode, StaffComposition } from "./types";
+import type {
+  KnowledgeItem,
+  KnowledgeRelation,
+  Person,
+  ProcessNode,
+  StaffComposition,
+} from "./types";
 import { getIndustryTemplate } from "./templates";
 import { resolveTemplate } from "./active-template";
 import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
@@ -58,6 +64,10 @@ export interface PracticeProfile {
   customProcesses?: ProcessNode[] | null;
   /** The user's real team. Null/undefined = template demo people. */
   customPeople?: Person[] | null;
+  /** The business's own duty/task/knowledge register. Null/undefined = template items. */
+  customKnowledge?: KnowledgeItem[] | null;
+  /** Who holds each register item, at what level. Null/undefined = template relations. */
+  customRelations?: KnowledgeRelation[] | null;
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
@@ -166,6 +176,8 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     onboardingComplete: true,
     customProcesses: null,
     customPeople: null,
+    customKnowledge: null,
+    customRelations: null,
     mapLayout: {},
     savedProcessBlocks: [],
     mapHealthHistory: [],
@@ -188,8 +200,16 @@ export function loadProfile(): PracticeProfile {
     const staff = { ...base.staff, ...parsed.staff };
     const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
     const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
+    const customKnowledge = Array.isArray(parsed.customKnowledge) ? parsed.customKnowledge : null;
+    const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
     const dualRelease = mergeDualReleasePolicy(
-      resolveTemplate({ industry, customProcesses, customPeople }),
+      resolveTemplate({
+        industry,
+        customProcesses,
+        customPeople,
+        customKnowledge,
+        customRelations,
+      }),
       parsed.dualRelease as DualReleasePolicy | undefined,
       staff,
     );
@@ -215,6 +235,8 @@ export function loadProfile(): PracticeProfile {
       onboardingComplete: parsed.onboardingComplete ?? true,
       customProcesses,
       customPeople,
+      customKnowledge,
+      customRelations,
       mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
       savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],

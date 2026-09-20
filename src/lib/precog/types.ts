@@ -52,6 +52,8 @@ export interface Person {
   entitlements?: string[];
 }
 
+export type KnowledgeKind = "duty" | "task" | "knowledge";
+
 export interface KnowledgeItem {
   id: string;
   name: string;
@@ -59,6 +61,10 @@ export interface KnowledgeItem {
   category: KnowledgeCategory;
   description: string;
   linkedProcessIds: string[];
+  /** Recurring responsibility, discrete task, or know-how. Absent = knowledge. */
+  kind?: KnowledgeKind;
+  /** A written procedure exists that a backup could follow. */
+  documented?: boolean;
 }
 
 export interface KnowledgeRelation {
