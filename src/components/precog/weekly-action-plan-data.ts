@@ -1,7 +1,8 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { coverageReport, documentationDebt } from "@/lib/precog/continuity/coverage";
+import { coverageReport, documentationDebt, staleItems } from "@/lib/precog/continuity/coverage";
+import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
@@ -57,6 +58,8 @@ export function buildWeeklyActions(input: {
   staff: StaffComposition;
   dualRelease: DualReleasePolicy;
   mapSnapshots?: ProcessMapSnapshot[];
+  today?: string;
+  trackFreshness?: boolean;
 }): WeeklyAction[] {
   const { tpl } = input;
   const portfolio = portfolioSummary(tpl, input.staff);
@@ -140,6 +143,22 @@ export function buildWeeklyActions(input: {
       priority:
         g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72,
     });
+  }
+
+  if (input.trackFreshness) {
+    const stale = staleItems(tpl, input.today ?? localDateKey(new Date())).stale;
+    if (stale.length > 0) {
+      actions.push({
+        id: "confirm-register",
+        title: `Re-confirm ${stale.length} register item(s)`,
+        why: `${stale[0].action} ${
+          stale.length > 1 ? `${stale.length - 1} more item(s) also need a check.` : ""
+        }`.trim(),
+        effort: "low",
+        tab: "knowledge",
+        priority: 60,
+      });
+    }
   }
 
   const leanedOn = continuity.people.find((l) => l.person.active);

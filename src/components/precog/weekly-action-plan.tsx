@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { localDateKey } from "@/lib/precog/decisions/follow-through";
 
 export function WeeklyActionPlan({
   onNavigate,
@@ -21,8 +22,16 @@ export function WeeklyActionPlan({
       staff: profile.staff,
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
+      today: localDateKey(new Date()),
+      trackFreshness: Boolean(profile.customKnowledge || profile.customRelations),
     });
-  }, [template, profile.staff, profile.dualRelease]);
+  }, [
+    template,
+    profile.staff,
+    profile.dualRelease,
+    profile.customKnowledge,
+    profile.customRelations,
+  ]);
 
   return (
     <Card>

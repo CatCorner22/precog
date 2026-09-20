@@ -49,4 +49,47 @@ describe("buildWeeklyActions documentation advice", () => {
     });
     expect(actions.some((action) => action.id.startsWith("docs-"))).toBe(false);
   });
+
+  it("adds register confirmation when freshness tracking is enabled", () => {
+    const item = {
+      ...dental.knowledge[0],
+      documented: true,
+      procedureLocation: "Drive/SOPs",
+    };
+    const quiet = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [item],
+      customRelations: [
+        { personId: dental.people[0].id, knowledgeId: item.id, level: "proficient" },
+        { personId: dental.people[1].id, knowledgeId: item.id, level: "proficient" },
+      ],
+    });
+    const staff = {
+      ...quiet.staffComposition,
+      independentBankRec: true,
+      dualControlPayments: true,
+    };
+    const actions = buildWeeklyActions({
+      tpl: quiet,
+      staff,
+      dualRelease: defaultDualReleasePolicy(quiet),
+      today: "2025-04-01",
+      trackFreshness: true,
+    });
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        id: "confirm-register",
+        tab: "knowledge",
+        priority: 60,
+      }),
+    );
+    expect(
+      buildWeeklyActions({
+        tpl: quiet,
+        staff,
+        dualRelease: defaultDualReleasePolicy(quiet),
+        today: "2025-04-01",
+      }).some((action) => action.id === "confirm-register"),
+    ).toBe(false);
+  });
 });

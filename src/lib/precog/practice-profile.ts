@@ -108,6 +108,21 @@ export interface BusinessSummary {
   healthScore: number | null;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function normalizeCustomKnowledge(value: unknown): KnowledgeItem[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.map((entry) => {
+    if (!entry || typeof entry !== "object") return entry as KnowledgeItem;
+    const item = entry as KnowledgeItem & { confirmedAt?: unknown };
+    if (typeof item.confirmedAt === "string" && ISO_DATE.test(item.confirmedAt)) {
+      return item as KnowledgeItem;
+    }
+    const { confirmedAt: _ignored, ...withoutConfirmation } = item;
+    return withoutConfirmation as KnowledgeItem;
+  });
+}
+
 const PORTFOLIO_KEY = "precog.portfolio.v1";
 
 export function makeBusinessId(): string {
@@ -218,7 +233,7 @@ export function loadProfile(): PracticeProfile {
     const staff = { ...base.staff, ...parsed.staff };
     const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
     const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
-    const customKnowledge = Array.isArray(parsed.customKnowledge) ? parsed.customKnowledge : null;
+    const customKnowledge = normalizeCustomKnowledge(parsed.customKnowledge);
     const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
     const dualRelease = mergeDualReleasePolicy(
       resolveTemplate({

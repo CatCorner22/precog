@@ -14,6 +14,7 @@ import {
   DOCUMENTATION_LABEL,
   documentationDebt,
   documentationState,
+  staleItems,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
@@ -21,6 +22,7 @@ import {
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
+  localDateKey,
   slipLabels,
 } from "@/lib/precog/decisions/follow-through";
 import { assessCoso } from "@/lib/precog/coso";
@@ -57,6 +59,9 @@ export function ControlReport() {
   const { profile, mapCustomized } = usePractice();
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
+  const generated = new Date();
+  const today = localDateKey(generated);
+  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
 
   const data = useMemo(() => {
     const threat = buildThreatAssessment({
@@ -71,6 +76,7 @@ export function ControlReport() {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
     });
     const continuity = coverageReport(tpl);
+    const staleness = staleItems(tpl, today);
     const cards = contingencyCards(tpl);
     const slips = continuitySlips(profile.decisions, tpl);
     const coso = assessCoso(tpl);
@@ -80,6 +86,8 @@ export function ControlReport() {
       staff: profile.staff,
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
+      today,
+      trackFreshness,
     });
     const issues = validateProcessMap(
       tpl.processes,
@@ -111,6 +119,7 @@ export function ControlReport() {
       portfolio,
       sod,
       continuity,
+      staleness,
       docs,
       cards,
       slips,
@@ -123,13 +132,14 @@ export function ControlReport() {
       lossRange,
       found,
     };
-  }, [tpl, profile, mapCustomized]);
+  }, [tpl, profile, mapCustomized, today, trackFreshness]);
 
   const {
     threat,
     portfolio,
     sod,
     continuity,
+    staleness,
     docs,
     cards,
     slips,
@@ -148,8 +158,6 @@ export function ControlReport() {
   const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
   const top = threat.targetDeck.slice(0, 12);
   const openDecisions = profile.decisions.slice(0, 10);
-  const generated = new Date();
-  const today = generated.toISOString().slice(0, 10);
   const continuityDecisions = profile.decisions.filter((d) =>
     linkedKnowledgeId(d, profile.industry),
   );
@@ -461,6 +469,22 @@ export function ControlReport() {
                 </li>
               ))}
             </ol>
+          )}
+          {trackFreshness && (
+            <p className="mt-3 text-sm text-neutral-700">
+              <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
+              confirmed in the last 90 days.
+              {staleness.stale.length > 0 && (
+                <>
+                  {" "}
+                  {staleness.stale.length} item(s) to re-confirm:{" "}
+                  {staleness.stale
+                    .slice(0, 5)
+                    .map((entry) => `${entry.item.name} (${entry.item.criticality})`)
+                    .join(", ")}
+                </>
+              )}
+            </p>
           )}
           {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
             0 && (

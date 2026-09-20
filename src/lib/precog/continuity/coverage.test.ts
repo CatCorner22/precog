@@ -9,6 +9,7 @@ import {
   coverageStatus,
   documentationDebt,
   documentationState,
+  staleItems,
   setRelationLevel,
   soleOwnerCriticalCount,
   suggestBackups,
@@ -60,6 +61,61 @@ describe("coverageStatus", () => {
     expect(coverageStatus(1, 0)).toBe("single");
     expect(coverageStatus(1, 1)).toBe("thin");
     expect(coverageStatus(2, 0)).toBe("covered");
+  });
+});
+
+describe("staleItems", () => {
+  it("flags never-confirmed items and respects the 90-day boundary", () => {
+    const today = "2025-04-01";
+    const t = tpl(
+      [
+        item("never"),
+        item("fresh", { confirmedAt: "2025-03-22" }),
+        item("stale", { confirmedAt: "2024-12-31" }),
+        item("boundary", { confirmedAt: "2025-01-01" }),
+      ],
+      [],
+    );
+    const report = staleItems(t, today);
+    expect(report.stale.map((entry) => [entry.item.id, entry.ageDays])).toEqual([
+      ["never", null],
+      ["stale", 91],
+    ]);
+    expect(report.stale.some((entry) => entry.item.id === "boundary")).toBe(false);
+    expect(report.stale.some((entry) => entry.item.id === "fresh")).toBe(false);
+  });
+
+  it("orders stale items by criticality before coverage urgency and does not mutate input", () => {
+    const knowledge = [
+      item("important", { criticality: "important" }),
+      item("critical-covered", { name: "A critical" }),
+      item("critical-uncovered", { name: "Z critical" }),
+    ];
+    const relations = [
+      { personId: "a", knowledgeId: "critical-covered", level: "expert" as const },
+      { personId: "b", knowledgeId: "critical-covered", level: "expert" as const },
+    ];
+    const t = tpl(knowledge, relations);
+    const before = JSON.stringify(t);
+    const report = staleItems(t, "2025-04-01");
+    expect(report.stale.map((entry) => entry.item.id)).toEqual([
+      "critical-uncovered",
+      "critical-covered",
+      "important",
+    ]);
+    expect(JSON.stringify(t)).toBe(before);
+  });
+
+  it("computes a criticality-weighted confirmed index", () => {
+    const t = tpl(
+      [
+        item("critical", { confirmedAt: "2025-03-01" }),
+        item("important", { criticality: "important" }),
+        item("nice", { criticality: "nice-to-have", confirmedAt: "2025-03-01" }),
+      ],
+      [],
+    );
+    expect(staleItems(t, "2025-04-01").confirmedIndex).toBe(67);
   });
 });
 

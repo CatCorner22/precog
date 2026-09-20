@@ -34,6 +34,7 @@ const knowledge: KnowledgeItem[] = [
     linkedProcessIds: [],
     documented: true,
     procedureLocation: "Drive > Vendors > Quirks.docx",
+    confirmedAt: "2025-01-15",
   },
 ];
 
@@ -54,9 +55,9 @@ describe("registerToCsv", () => {
   it("writes one row per item with a column per active person", () => {
     const csv = registerToCsv(tpl);
     expect(csv.split("\r\n")).toEqual([
-      "item,kind,criticality,documented,procedure location,description,Ana Ruiz,Ben Lee",
-      "Run payroll,duty,critical,false,,Every other Friday,expert,learning",
-      'Vendor quirks,knowledge,important,true,Drive > Vendors > Quirks.docx,"Who needs a ""PO"", who does not",aware,can do',
+      "item,kind,criticality,documented,procedure location,last confirmed,description,Ana Ruiz,Ben Lee",
+      "Run payroll,duty,critical,false,,,Every other Friday,expert,learning",
+      'Vendor quirks,knowledge,important,true,Drive > Vendors > Quirks.docx,2025-01-15,"Who needs a ""PO"", who does not",aware,can do',
       "",
     ]);
   });
@@ -241,11 +242,26 @@ describe("procedure location column", () => {
   });
 });
 
+describe("last confirmed column", () => {
+  it("round-trips valid confirmation dates", () => {
+    const result = parseRegisterCsv(registerToCsv(tpl), tpl);
+    expect(result.knowledge.find((k) => k.id === "k-vendor")?.confirmedAt).toBe("2025-01-15");
+  });
+
+  it("ignores invalid dates and preserves an existing confirmation", () => {
+    const result = parseRegisterCsv(
+      "item,last checked,Ana Ruiz\r\nVendor quirks,not-a-date,expert\r\n",
+      tpl,
+    );
+    expect(result.knowledge[0].confirmedAt).toBe("2025-01-15");
+  });
+});
+
 describe("registerTemplateCsv", () => {
   it("is importable and lists the active team as columns", () => {
     const csv = registerTemplateCsv(tpl);
     expect(csv.split("\r\n")[0]).toBe(
-      "item,kind,criticality,documented,procedure location,description,Ana Ruiz,Ben Lee",
+      "item,kind,criticality,documented,procedure location,last confirmed,description,Ana Ruiz,Ben Lee",
     );
     const result = parseRegisterCsv(csv, tpl);
     expect(result.issues).toEqual([]);
