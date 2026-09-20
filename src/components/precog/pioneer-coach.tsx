@@ -102,6 +102,8 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
             dualRelease: profile.dualRelease,
             customProcesses: profile.customProcesses ?? null,
             customPeople: profile.customPeople ?? null,
+            customKnowledge: profile.customKnowledge ?? null,
+            customRelations: profile.customRelations ?? null,
           },
         },
       });
