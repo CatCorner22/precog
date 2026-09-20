@@ -55,7 +55,8 @@ import {
   type PersonWorkload,
 } from "@/lib/precog/builder/what-if";
 import { Activity, ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
-import { BuilderTour, useBuilderTour } from "@/components/precog/builder-tour";
+import { BuilderTour } from "@/components/precog/builder-tour";
+import { useBuilderTour } from "@/components/precog/builder-tour-state";
 import { diffMaps } from "@/lib/precog/builder/diff";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import type { MapReview } from "@/lib/precog/builder/review";
@@ -71,7 +72,7 @@ import {
 import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
 import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
 import { buildSharePayload } from "@/lib/precog/builder/share-payload";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Link } from "@tanstack/react-router";

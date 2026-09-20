@@ -18,7 +18,7 @@ import {
   recommendedStepsForRules,
   isOwnSector,
 } from "@/lib/precog/evidence";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan";
+import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
 import {
   buildProcessMapGraph,
   computeMapHealth,

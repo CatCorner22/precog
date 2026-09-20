@@ -8,7 +8,7 @@ import {
   mergeDualReleasePolicy,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { industryMeta, type IndustryId } from "./industry";
+import { type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 

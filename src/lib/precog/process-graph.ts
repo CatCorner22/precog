@@ -371,7 +371,7 @@ export function buildProcessMapGraph(
   const showWaste = opts.showWaste ?? true;
   const showKnowledge = opts.showKnowledge ?? true;
 
-  const { processes, controls, knowledge, people, scenarios, relations } = tpl;
+  const { processes, knowledge, relations } = tpl;
   const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];

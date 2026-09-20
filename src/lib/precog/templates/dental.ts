@@ -1,7 +1,6 @@
 import type { EntitlementId } from "../sod/conflict-rules";
 import type {
   ControlItem,
-  CrimeFraudStats,
   KnowledgeItem,
   KnowledgeRelation,
   Person,
