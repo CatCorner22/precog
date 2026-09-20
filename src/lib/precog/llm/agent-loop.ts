@@ -364,9 +364,11 @@ function localSynthesize(
   const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
     | {
         name: string;
+        knowledgeId?: string;
         owners: { name: string }[];
         suggestedTrainee?: { name: string } | null;
         documented?: boolean;
+        stale?: boolean;
         nextStep?: string | null;
       }[]
     | null;
@@ -464,6 +466,23 @@ function localSynthesize(
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
       cascadeEffects: ["continuity residual index ↓"],
     },
+    ...(spofs?.some((s) => s.stale)
+      ? [
+          {
+            action: (() => {
+              const stale = spofs.filter((s) => s.stale);
+              const first = stale[0];
+              return `Re-confirm the register entry for ${first.name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`;
+            })(),
+            rationale:
+              "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
+            evidenceIds: [],
+            effort: "low" as const,
+            horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+            cascadeEffects: ["register accuracy ↑"],
+          },
+        ]
+      : []),
     {
       action: "Log residual accept/remediate decisions with review dates",
       rationale:
