@@ -1,11 +1,14 @@
+import { bandForScore } from "@/lib/precog/scoring/weights";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
+import { ScoringBasis } from "@/components/precog/scoring-basis";
 import { useMemo, useState } from "react";
 import {
   portfolioSummary,
   tornadoSensitivity,
   type ResidualRiskScore,
 } from "@/lib/precog/scoring/residual-engine";
+import { weightSensitivity } from "@/lib/precog/scoring/sensitivity";
 import { usePractice } from "@/lib/precog/practice-context";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,10 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
   );
   const tornado = useMemo(
     () => tornadoSensitivity(template, profile.staff),
+    [template, profile.staff],
+  );
+  const sensitivity = useMemo(
+    () => weightSensitivity(template, profile.staff),
     [template, profile.staff],
   );
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
@@ -64,7 +71,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         />
         <Stat
           label="Avg residual"
-          value={String(summary.averageResidual)}
+          value={bandForScore(summary.averageResidual).label}
+          subvalue={`${summary.averageResidual} (range ${sensitivity.averageLow}–${sensitivity.averageHigh} across ±20% weight trials)`}
           hint="This app's index, from your profile"
         />
         <Stat
@@ -113,6 +121,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   <div className="text-right">
                     <p className="text-xl font-semibold tabular">{item.residual}</p>
                     <p className="text-[10px] text-subtle">residual</p>
+                    <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
                   </div>
                   <div className="hidden w-24 sm:block">
                     <div className="h-1.5 overflow-hidden rounded-full bg-bg">
@@ -232,16 +241,28 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           </Card>
         </div>
       </div>
+      <ScoringBasis template={template} staff={profile.staff} sensitivity={sensitivity} />
     </div>
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Stat({
+  label,
+  value,
+  subvalue,
+  hint,
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+  hint: string;
+}) {
   return (
     <Card>
       <CardContent className="p-4">
         <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
         <p className="mt-1 truncate text-lg font-semibold tabular tracking-tight">{value}</p>
+        {subvalue && <p className="mt-1 text-xs text-muted">{subvalue}</p>}
         <p className="mt-1 text-xs text-muted">{hint}</p>
       </CardContent>
     </Card>
@@ -254,5 +275,29 @@ function Mini({ n, l }: { n: number; l: string }) {
       <p className="text-lg font-semibold tabular">{n}</p>
       <p className="text-[10px] text-subtle">{l}</p>
     </div>
+  );
+}
+
+function ItemSensitivityMeta({
+  sensitivity,
+  id,
+}: {
+  sensitivity: ReturnType<typeof weightSensitivity>;
+  id: string;
+}) {
+  const item = sensitivity.items.find((candidate) => candidate.id === id);
+  if (!item) return null;
+
+  return (
+    <>
+      <p className="text-[10px] tabular text-muted">
+        range {item.low}–{item.high}
+      </p>
+      {!item.bandStable && (
+        <Badge variant="warn" className="mt-1">
+          band sensitive
+        </Badge>
+      )}
+    </>
   );
 }
