@@ -16,10 +16,11 @@ import {
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
-  coverageSlips,
+  continuitySlips,
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
+  slipLabels,
 } from "@/lib/precog/decisions/follow-through";
 import { assessCoso } from "@/lib/precog/coso";
 import {
@@ -70,7 +71,7 @@ export function ControlReport() {
     });
     const continuity = coverageReport(tpl);
     const cards = contingencyCards(tpl);
-    const slips = coverageSlips(profile.decisions, tpl);
+    const slips = continuitySlips(profile.decisions, tpl);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -553,23 +554,26 @@ export function ControlReport() {
               {openContinuity.length} open, {doneContinuity} closed as done
               {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}
               {droppedContinuity > 0 ? `, ${droppedContinuity} closed as no longer relevant` : ""}.
-              Coverage is the register today, not when the step was logged.
+              Coverage and documentation are the register today, not when the step was logged.
             </p>
             {slips.length > 0 && (
               <ul className="mt-2 space-y-1.5 text-sm">
-                {slips.map(({ decision: d, from, to }) => (
-                  <li key={d.id} className="border-b border-neutral-200 pb-1.5">
-                    <p>
-                      <span className="font-medium text-red-700">Slipped</span> · {d.subject}
-                      <span className="text-neutral-500">
-                        {" "}
-                        · {STATUS_LABEL[from].toLowerCase()} when closed →{" "}
-                        {STATUS_LABEL[to].toLowerCase()} now
-                      </span>
-                    </p>
-                    {d.note && <p className="text-neutral-600">{d.note}</p>}
-                  </li>
-                ))}
+                {slips.map((slip) => {
+                  const { decision: d } = slip;
+                  const labels = slipLabels(slip);
+                  return (
+                    <li key={d.id} className="border-b border-neutral-200 pb-1.5">
+                      <p>
+                        <span className="font-medium text-red-700">Slipped</span> · {d.subject}
+                        <span className="text-neutral-500">
+                          {" "}
+                          · {labels.from} when closed → {labels.to} now
+                        </span>
+                      </p>
+                      {d.note && <p className="text-neutral-600">{d.note}</p>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {openContinuity.length > 0 && (
