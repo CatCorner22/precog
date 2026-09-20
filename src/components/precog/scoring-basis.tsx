@@ -127,7 +127,7 @@ export function ScoringBasis({ sensitivity }: ScoringBasisProps) {
               Base average {sensitivity.baseAverage} · range {sensitivity.averageLow}–
               {sensitivity.averageHigh} across ±{sensitivity.perturbation * 100}% weight trials.
             </p>
-            <p className="text-xs text-muted">
+            <div className="flex items-center gap-2 text-xs text-muted">
               Top-3 ordering stable under ±{sensitivity.perturbation * 100}% weight changes:{" "}
               <Badge
                 className={cn(sensitivity.topOrderStable ? "text-ok" : "text-warn")}
@@ -135,7 +135,7 @@ export function ScoringBasis({ sensitivity }: ScoringBasisProps) {
               >
                 {sensitivity.topOrderStable ? "yes" : "no"}
               </Badge>
-            </p>
+            </div>
             {sensitivity.mostSensitive.length > 0 && (
               <ul className="space-y-1 text-xs text-muted">
                 {sensitivity.mostSensitive.map((entry) => (
