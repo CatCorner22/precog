@@ -527,6 +527,20 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     A written procedure exists that a backup could follow
                   </label>
                 </div>
+                {selected.item.documented && (
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    Where the procedure lives (drive path, binder, link)
+                    <input
+                      className={inputClass}
+                      value={selected.item.procedureLocation ?? ""}
+                      maxLength={200}
+                      placeholder="e.g. Shared drive › Office › Payroll checklist.pdf"
+                      onChange={(e) =>
+                        updateItem(selected.item.id, { procedureLocation: e.target.value })
+                      }
+                    />
+                  </label>
+                )}
                 <PeopleLine
                   label="Can run it alone"
                   people={selected.primaries.map((p) => p.name)}
@@ -613,9 +627,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-medium">{s.item.name}</span>
                               <Badge
-                                variant={
-                                  s.item.criticality === "critical" ? "danger" : "default"
-                                }
+                                variant={s.item.criticality === "critical" ? "danger" : "default"}
                               >
                                 {CRITICALITY_LABEL[s.item.criticality]}
                               </Badge>

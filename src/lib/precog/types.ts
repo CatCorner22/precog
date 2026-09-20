@@ -65,6 +65,8 @@ export interface KnowledgeItem {
   kind?: KnowledgeKind;
   /** A written procedure exists that a backup could follow. */
   documented?: boolean;
+  /** Where that procedure lives (shared drive path, binder, URL) so a stand-in can find it. */
+  procedureLocation?: string;
 }
 
 export interface KnowledgeRelation {

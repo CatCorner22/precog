@@ -326,6 +326,11 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
   const load = report.people.find((l) => l.person.id === personId);
   const remaining = tpl.people.filter((p) => p.active && p.id !== personId);
 
+  const where = (item: KnowledgeItem) =>
+    item.documented && item.procedureLocation?.trim()
+      ? ` (procedure: ${item.procedureLocation.trim()})`
+      : "";
+
   const stops: AbsenceStop[] = report.items
     .filter((i) => i.primaries.length === 1 && i.primaries[0].id === personId)
     .sort(
@@ -340,7 +345,7 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
           item: i.item,
           standIn: learner,
           note: i.item.documented
-            ? `${learner.name} has the basics and there is a written procedure to follow.`
+            ? `${learner.name} has the basics and there is a written procedure to follow${where(i.item)}.`
             : `${learner.name} has the basics but nothing is written down — expect mistakes.`,
         };
       }
@@ -360,7 +365,7 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
         item: i.item,
         standIn: candidate.person,
         note: i.item.documented
-          ? `${candidate.person.name} has never done it but could follow the written procedure (${candidate.reasons[0]}).`
+          ? `${candidate.person.name} has never done it but could follow the written procedure${where(i.item)} (${candidate.reasons[0]}).`
           : `${candidate.person.name} would be starting cold with nothing written down (${candidate.reasons[0]}).`,
       };
     });
@@ -407,6 +412,14 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
         .map((s) => `"${s.item.name}"`)
         .join(", ")}${undocumented.length > 3 ? ` and ${undocumented.length - 3} more` : ""}.`,
     );
+  const unlocated = stops.filter((s) => s.item.documented && !s.item.procedureLocation?.trim());
+  if (unlocated.length)
+    actions.push(
+      `Record where the written procedure for ${unlocated
+        .slice(0, 3)
+        .map((s) => `"${s.item.name}"`)
+        .join(", ")} lives so a stand-in can find it without ${first}.`,
+    );
   const trainable = stops.filter((s) => s.standIn).slice(0, 3);
   if (trainable.length)
     actions.push(
@@ -419,7 +432,9 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
       `Name a second owner on ${orphanedProcesses
         .slice(0, 3)
         .map((n) => `"${n}"`)
-        .join(", ")}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+        .join(
+          ", ",
+        )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
     );
   if (!actions.length)
     actions.push(`Nothing stops if ${first} is out. Keep it that way as duties change.`);
@@ -432,6 +447,24 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
     dependence: load?.dependence ?? 0,
     actions,
   };
+}
+
+/**
+ * One contingency card per active person whose absence stops work or leaves a
+ * process without an owner, most-depended-on first. Feeds the printed report.
+ */
+export function contingencyCards(tpl: IndustryTemplate): AbsenceImpact[] {
+  return tpl.people
+    .filter((p) => p.active)
+    .map((p) => absenceImpact(tpl, p.id))
+    .filter((c): c is AbsenceImpact => Boolean(c))
+    .filter((c) => c.stops.length > 0 || c.orphanedProcesses.length > 0)
+    .sort(
+      (a, b) =>
+        b.dependence - a.dependence ||
+        b.stops.length - a.stops.length ||
+        a.person.name.localeCompare(b.person.name),
+    );
 }
 
 /** Critical items with exactly one person who can run them alone — the figure the residual index uses. */

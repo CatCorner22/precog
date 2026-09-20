@@ -8,7 +8,7 @@ import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
-import { coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { contingencyCards, coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { assessCoso } from "@/lib/precog/coso";
 import {
   METHOD_CAVEATS,
@@ -57,6 +57,7 @@ export function ControlReport() {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
     });
     const continuity = coverageReport(tpl);
+    const cards = contingencyCards(tpl);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -94,6 +95,7 @@ export function ControlReport() {
       portfolio,
       sod,
       continuity,
+      cards,
       coso,
       actions,
       mapHealth,
@@ -110,6 +112,7 @@ export function ControlReport() {
     portfolio,
     sod,
     continuity,
+    cards,
     coso,
     actions,
     mapHealth,
@@ -370,16 +373,15 @@ export function ControlReport() {
 
         <Section title="Continuity of operations">
           <p className="text-sm text-neutral-700">
-            <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two or
-            more people who can run it alone. {continuity.counts.uncovered} item
+            <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two
+            or more people who can run it alone. {continuity.counts.uncovered} item
             {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
             {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
             person plus a learner.
           </p>
           {continuity.singlePoints.length === 0 ? (
             <p className="mt-2 text-sm text-neutral-600">
-              No critical or important item is uncovered or relies on one person without a
-              learner.
+              No critical or important item is uncovered or relies on one person without a learner.
             </p>
           ) : (
             <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
@@ -428,6 +430,72 @@ export function ControlReport() {
             </ul>
           )}
         </Section>
+
+        {cards.length > 0 && (
+          <Section title="Contingency cards — if someone is out tomorrow">
+            <p className="text-xs text-neutral-500">
+              One card per person whose absence stops work. Hand the named stand-in the card and the
+              written procedure; items without a location need one recorded.
+            </p>
+            <ul className="mt-2 grid gap-3 sm:grid-cols-2">
+              {cards.slice(0, 8).map((c) => (
+                <li
+                  key={c.person.id}
+                  className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-medium">If {c.person.name} is out</span>
+                    <span className="text-xs text-neutral-600">
+                      {c.dependence}% of critical work stops
+                    </span>
+                  </div>
+                  {c.stops.length > 0 && (
+                    <table className="mt-2 w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-neutral-500">
+                          <th className="py-0.5 font-normal">Stops</th>
+                          <th className="py-0.5 font-normal">Stand-in</th>
+                          <th className="py-0.5 font-normal">Written procedure</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {c.stops.map((s) => (
+                          <tr key={s.item.id} className="border-t border-neutral-200 align-top">
+                            <td className="py-1 pr-2">{s.item.name}</td>
+                            <td className="py-1 pr-2">
+                              {s.standIn?.name ?? "Nobody — outside provider or it waits"}
+                            </td>
+                            <td className="py-1 text-neutral-600">
+                              {!s.item.documented
+                                ? "None written"
+                                : s.item.procedureLocation?.trim() ||
+                                  "Exists; location not recorded"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {c.orphanedProcesses.length > 0 && (
+                    <p className="mt-2 text-xs text-neutral-600">
+                      Only listed owner of: {c.orphanedProcesses.join(", ")}
+                    </p>
+                  )}
+                  <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-xs">
+                    {c.actions.slice(0, 3).map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ul>
+            {cards.length > 8 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                {cards.length - 8} more people have smaller exposures; see the Who knows what tab.
+              </p>
+            )}
+          </Section>
+        )}
 
         <Section title="Process map">
           <ul className="grid gap-1 text-sm sm:grid-cols-2">
