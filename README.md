@@ -48,8 +48,8 @@ Residual scoring uses the inspectable, versioned tables in
 `src/lib/precog/scoring/weights.ts`. The "What is still exposed" (Residual) tab shows the
 current action band first, the weight descriptions, band cutoffs, and a deterministic
 ±20% weight-sensitivity range so you can see which conclusions are stable before acting.
-The current scoring version remains `precog-residual-v1.0.0`; reorganizing the table does
-not re-weight existing scores.
+A written, findable procedure lowers a know-how item's residual score; the scoring version is now
+`precog-residual-v1.1.0`, so earlier journal snapshots are not directly comparable.
 
 ## Develop
 

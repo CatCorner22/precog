@@ -6,7 +6,7 @@
  * the shared cutoffs and the sentence every index surface shows.
  */
 import { RISK_SCALE } from "./bands";
-export const SCORING_VERSION = "precog-residual-v1.0.0";
+export const SCORING_VERSION = "precog-residual-v1.1.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 export const INHERENT_WEIGHTS = {
@@ -52,11 +52,18 @@ export const SCENARIO_WEIGHTS = {
   segregationCredit: 0.25,
 } as const;
 
+/** Knowledge-item control credit for a written procedure (0–1 effectiveness added). */
+export const KNOWLEDGE_WEIGHTS = {
+  documentedLocatedCredit: 0.15, // written AND location recorded
+  documentedUnlocatedCredit: 0.07, // written, nobody recorded where
+} as const;
+
 export interface ScoringWeights {
   inherent: Record<keyof typeof INHERENT_WEIGHTS, number>;
   control: Record<keyof typeof CONTROL_EFFECTIVENESS_WEIGHTS, number>;
   staff: Record<keyof typeof STAFF_MODIFIERS, number>;
   scenario: Record<keyof typeof SCENARIO_WEIGHTS, number>;
+  knowledge: Record<keyof typeof KNOWLEDGE_WEIGHTS, number>;
 }
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
@@ -64,6 +71,7 @@ export const DEFAULT_WEIGHTS: ScoringWeights = {
   control: CONTROL_EFFECTIVENESS_WEIGHTS,
   staff: STAFF_MODIFIERS,
   scenario: SCENARIO_WEIGHTS,
+  knowledge: KNOWLEDGE_WEIGHTS,
 };
 
 export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
@@ -102,6 +110,10 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
   "scenario.independentBankRecCredit":
     "Credits independent bank reconciliation in scenario effectiveness.",
   "scenario.segregationCredit": "Credits the staff segregation score in scenario effectiveness.",
+  "knowledge.documentedLocatedCredit":
+    "Credits a know-how item whose procedure is written down and its location recorded, so a stand-in can follow it.",
+  "knowledge.documentedUnlocatedCredit":
+    "Smaller credit when a procedure is written but nobody has recorded where it lives.",
 };
 
 export type ActionBand = "accept_monitor" | "mitigate" | "act_now" | "critical_path";

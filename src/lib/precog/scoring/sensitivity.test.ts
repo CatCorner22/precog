@@ -36,4 +36,9 @@ describe("weightSensitivity", () => {
       expect(item.high).toBe(item.residual);
     }
   });
+
+  it("includes knowledge documentation credits in sensitivity trials", () => {
+    const report = weightSensitivity(dental, staff);
+    expect(report.perturbations.some((entry) => entry.group === "knowledge")).toBe(true);
+  });
 });

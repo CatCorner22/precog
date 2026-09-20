@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { findKnowledgeRisks } from "../engine";
 import { INDUSTRIES } from "../industry";
 import type { StaffComposition } from "../types";
 import { portfolioSummary, scoreAllResidualRisks, tornadoSensitivity } from "./residual-engine";
@@ -68,6 +69,40 @@ describe("scoreAllResidualRisks", () => {
     const b = scoreAllResidualRisks(dental);
     expect(a).toEqual(b);
     expect(JSON.stringify(dental)).toBe(before);
+  });
+
+  it("credits written and findable knowledge procedures", () => {
+    const knowledgeId = findKnowledgeRisks(dental).find(
+      (risk) => risk.ownerCount >= 2,
+    )!.knowledgeId;
+    const item = dental.knowledge.find((knowledge) => knowledge.id === knowledgeId)!;
+    const templateFor = (documented: boolean, procedureLocation?: string) =>
+      resolveTemplate({
+        industry: "dental",
+        customKnowledge: dental.knowledge.map((knowledge) =>
+          knowledge.id === item.id ? { ...knowledge, documented, procedureLocation } : knowledge,
+        ),
+      });
+    const scoreFor = (template: typeof dental) =>
+      scoreAllResidualRisks(template).find((score) => score.id === `know-${item.id}`)!;
+    const unwritten = scoreFor(templateFor(false));
+    const unlocated = scoreFor(templateFor(true));
+    const located = scoreFor(templateFor(true, "Drive/SOPs"));
+
+    expect(unwritten.residual).toBeGreaterThan(unlocated.residual);
+    expect(unlocated.residual).toBeGreaterThan(located.residual);
+    expect(unwritten.controlEffectiveness).toBeLessThan(unlocated.controlEffectiveness);
+    expect(unlocated.controlEffectiveness).toBeLessThan(located.controlEffectiveness);
+    expect(unwritten.drivers.find((driver) => driver.id === `k-${item.id}-doc`)?.label).toBe(
+      "Nothing written down",
+    );
+    expect(unlocated.drivers.find((driver) => driver.id === `k-${item.id}-doc`)?.label).toBe(
+      "Written procedure, location unknown",
+    );
+    expect(located.drivers.find((driver) => driver.id === `k-${item.id}-doc`)?.label).toBe(
+      "Written procedure, findable",
+    );
+    expect(located.controlEffectiveness).toBe(85);
   });
 });
 
