@@ -137,7 +137,8 @@ export function buildWeeklyActions(input: {
       why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and an unwritten process is one nobody else can check.`,
       effort: g.state === "none" ? "medium" : "low",
       tab: "knowledge",
-      priority: g.state === "none" ? 78 : 72,
+      priority:
+        g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72,
     });
   }
 
