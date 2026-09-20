@@ -38,7 +38,11 @@ import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
-import { applyDecisionReview, captureDecisionSnapshot } from "./decisions/follow-through";
+import {
+  applyDecisionReview,
+  captureDecisionSnapshot,
+  linkedKnowledgeId,
+} from "./decisions/follow-through";
 import {
   defaultProfile,
   loadPortfolio,
@@ -472,6 +476,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           p.staff,
           p.dualRelease,
           input.subject,
+          new Date(),
+          linkedKnowledgeId(input),
         );
         const entry: DecisionEntry = {
           id,
@@ -508,6 +514,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           p.staff,
           p.dualRelease,
           decision.subject,
+          new Date(),
+          linkedKnowledgeId(decision),
         );
         const trimmedNote = note?.trim();
         const reviewed = applyDecisionReview(

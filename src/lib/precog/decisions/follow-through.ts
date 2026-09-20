@@ -1,5 +1,12 @@
+import type { CoverageStatus } from "../continuity/coverage";
+import { coverageReport } from "../continuity/coverage";
 import type { DualReleasePolicy } from "../controls/dual-release";
-import type { DecisionEntry, DecisionReview, DecisionSnapshot } from "../practice-profile";
+import type {
+  ContinuitySnapshot,
+  DecisionEntry,
+  DecisionReview,
+  DecisionSnapshot,
+} from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
@@ -19,12 +26,33 @@ function dateAfter(date: Date, days: number): string {
   return localDateKey(next);
 }
 
+/** The register item a decision tracks, if it was logged from the continuity planner. */
+export function linkedKnowledgeId(
+  d: Pick<DecisionEntry, "linkedTab" | "linkedId">,
+): string | undefined {
+  return d.linkedTab === "knowledge" && d.linkedId ? d.linkedId : undefined;
+}
+
+export function captureContinuitySnapshot(
+  tpl: IndustryTemplate,
+  knowledgeId: string,
+): ContinuitySnapshot {
+  const report = coverageReport(tpl);
+  const item = report.items.find((i) => i.item.id === knowledgeId);
+  return {
+    coverageIndex: report.coverageIndex,
+    singlePoints: report.singlePoints.length,
+    ...(item ? { itemStatus: item.status } : {}),
+  };
+}
+
 export function captureDecisionSnapshot(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   dualRelease: DualReleasePolicy,
   subject?: string,
   now: Date = new Date(),
+  knowledgeId?: string,
 ): DecisionSnapshot {
   const portfolio = portfolioSummary(tpl, staff);
   const sod = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease));
@@ -39,6 +67,7 @@ export function captureDecisionSnapshot(
     ...(subjectScore === undefined ? {} : { subjectResidual: subjectScore }),
     sodOpenConflicts: sod.summary.openWithoutAcceptance,
     segregationHealth: sod.summary.segregationHealth,
+    ...(knowledgeId ? { continuity: captureContinuitySnapshot(tpl, knowledgeId) } : {}),
   };
 }
 
@@ -89,9 +118,27 @@ export function decisionDelta(
   sodOpen: number;
   segregation: number;
   comparable: boolean;
+  continuity?: {
+    coverageIndex: number;
+    singlePoints: number;
+    itemThen?: CoverageStatus;
+    itemNow?: CoverageStatus;
+  };
 } | null {
   if (!d.snapshot) return null;
+  const then = d.snapshot.continuity;
+  const cont = now.continuity;
   return {
+    ...(then && cont
+      ? {
+          continuity: {
+            coverageIndex: cont.coverageIndex - then.coverageIndex,
+            singlePoints: cont.singlePoints - then.singlePoints,
+            ...(then.itemStatus ? { itemThen: then.itemStatus } : {}),
+            ...(cont.itemStatus ? { itemNow: cont.itemStatus } : {}),
+          },
+        }
+      : {}),
     ...(d.snapshot.subjectResidual === undefined || now.subjectResidual === undefined
       ? {}
       : { subject: now.subjectResidual - d.snapshot.subjectResidual }),

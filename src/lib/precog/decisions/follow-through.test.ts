@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "../controls/dual-release";
-import { getBaseTemplate } from "../active-template";
+import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { coverageReport } from "../continuity/coverage";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts } from "../sod/detect";
 import type { DecisionEntry, DecisionReview, DecisionSnapshot } from "../practice-profile";
 import {
   applyDecisionReview,
+  captureContinuitySnapshot,
   captureDecisionSnapshot,
   decisionDelta,
   decisionsDue,
+  linkedKnowledgeId,
   localDateKey,
 } from "./follow-through";
 
@@ -189,5 +192,83 @@ describe("decisionDelta", () => {
         now,
       )?.comparable,
     ).toBe(false);
+  });
+});
+
+describe("continuity snapshots", () => {
+  const report = coverageReport(dental);
+  const single = report.singlePoints[0];
+
+  it("only knowledge-linked decisions carry a register id", () => {
+    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k1" })).toBe("k1");
+    expect(linkedKnowledgeId({ linkedTab: "sod", linkedId: "k1" })).toBeUndefined();
+    expect(linkedKnowledgeId({ linkedTab: "knowledge" })).toBeUndefined();
+  });
+
+  it("records coverage and the linked item's status, dropping the status when the item is gone", () => {
+    expect(captureContinuitySnapshot(dental, single.item.id)).toEqual({
+      coverageIndex: report.coverageIndex,
+      singlePoints: report.singlePoints.length,
+      itemStatus: single.status,
+    });
+    expect(captureContinuitySnapshot(dental, "k-deleted")).toEqual({
+      coverageIndex: report.coverageIndex,
+      singlePoints: report.singlePoints.length,
+    });
+    const plain = captureDecisionSnapshot(dental, dental.staffComposition, dualRelease, "x");
+    expect("continuity" in plain).toBe(false);
+    expect(
+      captureDecisionSnapshot(
+        dental,
+        dental.staffComposition,
+        dualRelease,
+        single.item.name,
+        new Date(),
+        single.item.id,
+      ).continuity?.itemStatus,
+    ).toBe(single.status);
+  });
+
+  it("shows then-vs-now coverage once a backup is trained", () => {
+    const trainee = dental.people.find(
+      (p) => p.active && !single.primaries.some((h) => h.id === p.id),
+    )!;
+    const trained = resolveTemplate({
+      industry: "dental",
+      customRelations: [
+        ...dental.relations,
+        { personId: trainee.id, knowledgeId: single.item.id, level: "proficient" },
+      ],
+    });
+    const then = captureDecisionSnapshot(
+      dental,
+      dental.staffComposition,
+      dualRelease,
+      single.item.name,
+      new Date("2025-01-01T00:00:00.000Z"),
+      single.item.id,
+    );
+    const now = captureDecisionSnapshot(
+      trained,
+      dental.staffComposition,
+      dualRelease,
+      single.item.name,
+      new Date("2025-02-01T00:00:00.000Z"),
+      single.item.id,
+    );
+    const delta = decisionDelta(
+      decision({ linkedTab: "knowledge", linkedId: single.item.id, snapshot: then }),
+      now,
+    );
+    expect(delta?.continuity).toEqual({
+      coverageIndex: now.continuity!.coverageIndex - then.continuity!.coverageIndex,
+      singlePoints: -1,
+      itemThen: single.status,
+      itemNow: "covered",
+    });
+    expect(delta!.continuity!.coverageIndex).toBeGreaterThan(0);
+    expect(
+      decisionDelta(decision({ snapshot: then }), { ...now, continuity: undefined })?.continuity,
+    ).toBeUndefined();
   });
 });
