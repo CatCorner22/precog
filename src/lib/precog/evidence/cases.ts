@@ -1161,4 +1161,91 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Lauren Williams Eldridge, 38, of Pine Mountain, Georgia, pleaded guilty on 29 January 2025 to five counts of wire fraud and was sentenced on 18 June 2025 by U.S. District Judge Clay Land to 27 months in prison, three years of supervised release, and restitution of $453,876.64; the loss recorded here is the $453,876.68 in payments the release states. The release says the firm's representatives noticed the discrepancies, which is recorded as the owner-review route: the business's own people looked, not an outside party. The employer is a franchise office of a national brokerage, not a national company; the release names it and describes her as its office manager and bookkeeper for nine years.",
   },
+  {
+    id: "case-caseyville-pediatrics-office-manager-five-ways",
+    title:
+      "Pediatric practice office manager took $368,000 over six years by five routes at once: cards, her own pay, reimbursements, insurance, and transfers",
+    sector: "medical",
+    schemes: ["expense-reimbursement", "payroll", "check-tampering"],
+    howItWorked:
+      "The office manager of A to Z Pediatrics in Caseyville, Illinois, took more than $350,000 from 2011 through 2017 by several routes at once: personal charges on the practice's credit cards, overpaying her own salary, reimbursing herself for overtime and mileage nobody had authorized, adding herself and family members to the practice's health insurance, and moving electronic payments from the practice's bank account to a personal credit card. She falsified journal entries to cover it. Restitution was set at $368,308.99.",
+    controlGap:
+      "One person ran payroll, held the cards, approved reimbursements, administered benefits, and kept the books, so every route she used was one she also recorded. No single control would have closed all five; the owner reading the payroll register, the card statement, and the bank statement each month would have closed the three that carried most of the money.",
+    lossUsd: 368309,
+    lossIsFloor: false,
+    durationMonths: 72,
+    detection: "unknown",
+    resolvedYear: 2019,
+    sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each cycle; the office manager's own pay and overtime appear on one page next to everyone else's",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Owner reads the practice card statement line by line each month rather than approving the total",
+      },
+      {
+        control: "receipt-and-second-approval",
+        asApplied:
+          "Mileage and overtime reimbursements need a receipt or log and a second person's approval, including the office manager's own",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first and questions any electronic payment to a card issuer the practice holds no card with",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Illinois",
+      url: "https://www.justice.gov/usao-sdil/pr/embezzlement-doctors-office-sends-former-office-manager-federal-prison-nearly-three",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      'Cassandra D. Eberhart, 49, of Moro, Illinois, pleaded guilty in October 2018 to wire fraud and filing a false federal income tax return and was sentenced in February 2019 to 33 months in prison, three years of supervised release, and restitution of $368,308.99, the loss figure recorded here; the release\'s headline figure is "over $350,000". The six-year duration is the span the release gives (2011 through 2017). The release does not say how the practice discovered the theft, so the detection route is recorded as unknown.',
+  },
+  {
+    id: "case-northampton-internal-medicine-office-manager-oncology-supplies",
+    title:
+      'Internal medicine practice\'s office manager wrote $1.56 million of checks to her own credit cards and booked them as "Oncology Supplies"',
+    sector: "medical",
+    schemes: ["check-tampering", "expense-reimbursement", "financial-statement"],
+    howItWorked:
+      'The office manager of Northampton Internal Medical Associates in Northampton, Massachusetts, wrote checks from the practice\'s corporate account to pay her personal credit card bills from 2008 until September 2013, $1,562,206 in all, and entered them in QuickBooks as business expenses such as "Oncology Supplies". She spent the money on cash advances, competitive horse showing, clothing, restaurants, and entertainment.',
+    controlGap:
+      "The person who wrote the checks also kept the books, so a check to a card issuer could be coded as a supply purchase and nothing outside the role compared the payees on the cleared checks with the practice's actual suppliers. An internal medicine practice buying oncology supplies for five years is the kind of line an outside reviewer asks about and an inside one never sees.",
+    lossUsd: 1562206,
+    lossIsFloor: false,
+    durationMonths: 68,
+    detection: "unknown",
+    resolvedYear: 2015,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first and looks at the cleared-check images; checks payable to a card issuer stand out",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the person who writes the checks reconciles the account, so a check coded as supplies must match a supplier invoice",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          'An outside accountant reviews the expense categories annually and asks what a primary care practice buys under "Oncology Supplies"',
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Massachusetts",
+      url: "https://www.justice.gov/usao-ma/pr/former-medical-office-manager-sentenced-prison-embezzling-15-million-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Roxanne Tubolino, 56, of Belchertown, Massachusetts, pleaded guilty in January 2015 to one count of wire fraud and six counts of tax evasion and was sentenced in August 2015 in Springfield to 39 months in prison, 36 months of supervised release, and restitution of $1,342,256 to the practice, $25,000 to its insurer, and $506,447 to the IRS; the loss recorded here is the $1,562,206 the release says she took, and the insurer's share shows a fidelity claim was paid. The release gives the start only as 2008, so the 68-month duration counts from January 2008 and may overstate by up to eleven months. It does not say how the theft was discovered, so the detection route is recorded as unknown.",
+  },
 ];
