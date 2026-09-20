@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
+import { buildPioneerContextPack } from "./context-pack";
 import { pioneerProfileFrom } from "./pioneer-profile";
 
 const dental = getBaseTemplate("dental");
@@ -103,5 +104,15 @@ describe("Pioneer tools on a Retail profile", () => {
     const graph = executeTool("get_knowledge_graph", {}, { profile: p });
     expect(graph.ok).toBe(true);
     expect(JSON.stringify(graph.data)).not.toContain(retail.people[5].name);
+  });
+
+  it("includes documentation debt in the dental context pack", () => {
+    const pack = buildPioneerContextPack(dental);
+    expect(pack.continuity.documentation.gaps.length).toBeGreaterThan(0);
+    for (const gap of pack.continuity.documentation.gaps) {
+      expect(["none", "unlocated"]).toContain(gap.state);
+    }
+    expect(pack.continuity.documentation.writtenAndFindablePct).toBeGreaterThanOrEqual(0);
+    expect(pack.continuity.documentation.writtenAndFindablePct).toBeLessThanOrEqual(100);
   });
 });

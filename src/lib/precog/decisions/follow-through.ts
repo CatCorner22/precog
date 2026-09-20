@@ -1,5 +1,11 @@
 import type { ContinuityStep, CoverageStatus, DocumentationState } from "../continuity/coverage";
-import { coverageReport, documentationState } from "../continuity/coverage";
+import {
+  coverageReport,
+  documentationState,
+  DOCUMENTATION_LABEL,
+  DOCUMENTATION_RANK,
+  STATUS_LABEL,
+} from "../continuity/coverage";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { IndustryId } from "../industry";
 import type {
@@ -109,40 +115,75 @@ const STATUS_RANK: Record<CoverageStatus, number> = {
   covered: 3,
 };
 
-export interface CoverageSlip {
-  decision: DecisionEntry;
-  /** Coverage of the linked item when the decision was last closed as done. */
-  from: CoverageStatus;
-  /** Coverage of the same item on today's register. */
-  to: CoverageStatus;
-}
+export type ContinuitySlip =
+  | {
+      decision: DecisionEntry;
+      step: "cover" | "handoff";
+      measure: "coverage";
+      from: CoverageStatus;
+      to: CoverageStatus;
+    }
+  | {
+      decision: DecisionEntry;
+      step: "document" | "locate";
+      measure: "documentation";
+      from: DocumentationState;
+      to: DocumentationState;
+    };
 
 /**
  * Continuity decisions that were closed as done but whose register item has
- * since lost coverage (a backup left, was marked inactive, or was unassigned).
- * Decisions closed as "no longer relevant", still open, or whose item has been
- * deleted are not slips.
+ * since lost coverage or documentation. Decisions closed as "no longer
+ * relevant", still open, legacy documentation steps, or deleted items are not
+ * slips.
  */
-export function coverageSlips(
+export function continuitySlips(
   decisions: readonly DecisionEntry[],
   tpl: IndustryTemplate,
-): CoverageSlip[] {
-  const candidates: { decision: DecisionEntry; knowledgeId: string; from: CoverageStatus }[] = [];
+): ContinuitySlip[] {
+  const current = new Map(coverageReport(tpl).items.map((i) => [i.item.id, i]));
+  const slips: ContinuitySlip[] = [];
   for (const decision of decisions) {
     const knowledgeId = linkedKnowledgeId(decision, tpl.id);
     if (isDecisionOpen(decision) || !knowledgeId) continue;
     const last = decision.reviews?.[decision.reviews.length - 1];
-    const from = last?.outcome === "done" ? last.snapshot.continuity?.itemStatus : undefined;
-    if (from) candidates.push({ decision, knowledgeId, from });
-  }
-  if (candidates.length === 0) return [];
-  const statusNow = new Map(coverageReport(tpl).items.map((i) => [i.item.id, i.status]));
-  const slips: CoverageSlip[] = [];
-  for (const { decision, knowledgeId, from } of candidates) {
-    const to = statusNow.get(knowledgeId);
-    if (to !== undefined && STATUS_RANK[to] < STATUS_RANK[from]) slips.push({ decision, from, to });
+    if (last?.outcome !== "done") continue;
+    const item = current.get(knowledgeId);
+    if (!item) continue;
+    const step = linkedContinuityStep(decision);
+    if (step === "cover" || step === "handoff") {
+      const from = last.snapshot.continuity?.itemStatus;
+      if (from && STATUS_RANK[item.status] < STATUS_RANK[from]) {
+        slips.push({ decision, step, measure: "coverage", from, to: item.status });
+      }
+      continue;
+    }
+    const from = last.snapshot.continuity?.itemDocumentation;
+    if (from && DOCUMENTATION_RANK[documentationState(item.item)] < DOCUMENTATION_RANK[from]) {
+      slips.push({
+        decision,
+        step,
+        measure: "documentation",
+        from,
+        to: documentationState(item.item),
+      });
+    }
   }
   return slips;
+}
+
+/** Lower-case then/now wording for a coverage or documentation slip. */
+export function slipLabels(s: ContinuitySlip): { from: string; to: string } {
+  if (s.measure === "coverage") {
+    return {
+      from: STATUS_LABEL[s.from].toLowerCase(),
+      to: STATUS_LABEL[s.to].toLowerCase(),
+    };
+  }
+  return {
+    from: DOCUMENTATION_LABEL[s.from].toLowerCase(),
+    to: DOCUMENTATION_LABEL[s.to].toLowerCase(),
+  };
 }
 
 export function decisionsDue(

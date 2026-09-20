@@ -8,12 +8,13 @@ import {
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import {
   captureDecisionSnapshot,
-  coverageSlips,
+  continuitySlips,
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
   linkedKnowledgeId,
   linkedToIndustry,
+  slipLabels,
 } from "@/lib/precog/decisions/follow-through";
 import { DOCUMENTATION_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
@@ -103,7 +104,7 @@ export function DecisionJournal({
   const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
   const slips = useMemo(
-    () => coverageSlips(profile.decisions, template),
+    () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
   );
   const currentSnapshots = useMemo(() => {
@@ -170,60 +171,66 @@ export function DecisionJournal({
           {slips.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Coverage slipped</CardTitle>
+                <CardTitle className="text-base">Slipped since closed</CardTitle>
                 <CardDescription>
-                  You closed these as done, but the register no longer backs them up. Reopen to put
-                  the cross-training back on a review date.
+                  You closed these as done, but the register no longer backs them up or the
+                  procedure is no longer written/findable. Reopen to put the step back on a review
+                  date.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {slips.map(({ decision: d, from, to }) => (
-                  <div
-                    key={d.id}
-                    className="rounded-lg border border-danger/40 bg-elevated px-3 py-2.5"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="danger">Slipped</Badge>
-                      <span className="font-medium">{d.subject}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted">
-                      {STATUS_LABEL[from].toLowerCase()} when closed →{" "}
-                      {STATUS_LABEL[to].toLowerCase()} now
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          reviewDecision(
-                            d.id,
-                            "still_open",
-                            `Reopened: coverage slipped to "${STATUS_LABEL[to].toLowerCase()}"`,
-                            30,
-                          )
-                        }
-                      >
-                        Reopen +30d
-                      </Button>
-                      {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
+                {slips.map((slip) => {
+                  const { decision: d } = slip;
+                  const labels = slipLabels(slip);
+                  return (
+                    <div
+                      key={d.id}
+                      className="rounded-lg border border-danger/40 bg-elevated px-3 py-2.5"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="danger">Slipped</Badge>
+                        <span className="font-medium">{d.subject}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {labels.from} when closed → {labels.to} now
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
+                          onClick={() =>
+                            reviewDecision(
+                              d.id,
+                              "still_open",
+                              `Reopened: ${
+                                slip.measure === "coverage" ? "coverage" : "documentation"
+                              } slipped to "${labels.to}"`,
+                              30,
+                            )
+                          }
                         >
-                          Open
+                          Reopen +30d
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => reviewDecision(d.id, "no_longer_relevant")}
-                      >
-                        Not relevant
-                      </Button>
+                        {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
+                          >
+                            Open
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => reviewDecision(d.id, "no_longer_relevant")}
+                        >
+                          Not relevant
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           )}

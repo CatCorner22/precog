@@ -12,14 +12,16 @@ import {
   contingencyCards,
   coverageReport,
   DOCUMENTATION_LABEL,
+  documentationDebt,
   documentationState,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
-  coverageSlips,
+  continuitySlips,
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
+  slipLabels,
 } from "@/lib/precog/decisions/follow-through";
 import { assessCoso } from "@/lib/precog/coso";
 import {
@@ -70,7 +72,7 @@ export function ControlReport() {
     });
     const continuity = coverageReport(tpl);
     const cards = contingencyCards(tpl);
-    const slips = coverageSlips(profile.decisions, tpl);
+    const slips = continuitySlips(profile.decisions, tpl);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -103,11 +105,13 @@ export function ControlReport() {
     const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
     const lossRange = observedLossRange(evidence);
     const found = detectionBreakdown(evidence);
+    const docs = documentationDebt(tpl);
     return {
       threat,
       portfolio,
       sod,
       continuity,
+      docs,
       cards,
       slips,
       coso,
@@ -126,6 +130,7 @@ export function ControlReport() {
     portfolio,
     sod,
     continuity,
+    docs,
     cards,
     slips,
     coso,
@@ -442,6 +447,21 @@ export function ControlReport() {
               ))}
             </ol>
           )}
+          <p className="mt-3 text-sm text-neutral-700">
+            <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is written
+            down and findable. {docs.counts.none} item(s) with nothing written,{" "}
+            {docs.counts.unlocated} written but location not recorded.
+          </p>
+          {docs.gaps.length > 0 && (
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+              {docs.gaps.slice(0, 5).map((g) => (
+                <li key={g.item.id}>
+                  <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
+                  {g.action}
+                </li>
+              ))}
+            </ol>
+          )}
           {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
             0 && (
             <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
@@ -553,23 +573,26 @@ export function ControlReport() {
               {openContinuity.length} open, {doneContinuity} closed as done
               {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}
               {droppedContinuity > 0 ? `, ${droppedContinuity} closed as no longer relevant` : ""}.
-              Coverage is the register today, not when the step was logged.
+              Coverage and documentation are the register today, not when the step was logged.
             </p>
             {slips.length > 0 && (
               <ul className="mt-2 space-y-1.5 text-sm">
-                {slips.map(({ decision: d, from, to }) => (
-                  <li key={d.id} className="border-b border-neutral-200 pb-1.5">
-                    <p>
-                      <span className="font-medium text-red-700">Slipped</span> · {d.subject}
-                      <span className="text-neutral-500">
-                        {" "}
-                        · {STATUS_LABEL[from].toLowerCase()} when closed →{" "}
-                        {STATUS_LABEL[to].toLowerCase()} now
-                      </span>
-                    </p>
-                    {d.note && <p className="text-neutral-600">{d.note}</p>}
-                  </li>
-                ))}
+                {slips.map((slip) => {
+                  const { decision: d } = slip;
+                  const labels = slipLabels(slip);
+                  return (
+                    <li key={d.id} className="border-b border-neutral-200 pb-1.5">
+                      <p>
+                        <span className="font-medium text-red-700">Slipped</span> · {d.subject}
+                        <span className="text-neutral-500">
+                          {" "}
+                          · {labels.from} when closed → {labels.to} now
+                        </span>
+                      </p>
+                      {d.note && <p className="text-neutral-600">{d.note}</p>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {openContinuity.length > 0 && (

@@ -5,7 +5,7 @@ import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
-import { coverageReport } from "../continuity/coverage";
+import { coverageReport, documentationDebt } from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -71,7 +71,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_knowledge_spofs",
     description:
-      "Duties and know-how only one person can run alone, with the suggested trainee and next step from the owner's continuity register.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -228,12 +228,13 @@ export function executeTool(
       case "get_knowledge_spofs": {
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         const continuity = coverageReport(tpl);
+        const docs = documentationDebt(tpl);
         const moveByItem = new Map(continuity.plan.map((m) => [m.item.id, m]));
         const leanedOn = continuity.people.find((l) => l.person.active);
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}`,
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down`,
           data: risks.map((r) => {
             const move = moveByItem.get(r.knowledgeId);
             return {
@@ -641,7 +642,7 @@ export function planTools(question: string): ToolName[] {
   if (/sod|segregat|duty|write-?off|vendor|payment/.test(q)) {
     tools.add("get_sod_conflicts");
   }
-  if (/knowledge|spof|leave|quit|cross-?train|continuity/.test(q)) {
+  if (/knowledge|spof|leave|quit|cross-?train|continuity|document|written|procedure/.test(q)) {
     tools.add("get_knowledge_graph");
   }
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {

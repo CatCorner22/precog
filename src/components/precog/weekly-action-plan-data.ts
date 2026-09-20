@@ -1,7 +1,7 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { coverageReport } from "@/lib/precog/continuity/coverage";
+import { coverageReport, documentationDebt } from "@/lib/precog/continuity/coverage";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
@@ -125,6 +125,23 @@ export function buildWeeklyActions(input: {
     });
   }
 
+  for (const g of documentationDebt(tpl)
+    .gaps.filter((x) => x.item.criticality === "critical")
+    .slice(0, 2)) {
+    actions.push({
+      id: `docs-${g.item.id}`,
+      title:
+        g.state === "none"
+          ? `Write down ${g.item.name}`
+          : `Record where ${g.item.name}'s procedure lives`,
+      why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and an unwritten process is one nobody else can check.`,
+      effort: g.state === "none" ? "medium" : "low",
+      tab: "knowledge",
+      priority:
+        g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72,
+    });
+  }
+
   const leanedOn = continuity.people.find((l) => l.person.active);
   if (leanedOn && leanedOn.dependence >= 50 && leanedOn.soleItems.length >= 2) {
     actions.push({
@@ -190,7 +207,7 @@ export function buildWeeklyActions(input: {
   }
 
   const seen = new Set<string>();
-  return actions
+  const unique = actions
     .filter((a) => {
       const key = a.title.toLowerCase().slice(0, 40);
       if (seen.has(key)) return false;
@@ -199,4 +216,5 @@ export function buildWeeklyActions(input: {
     })
     .sort((a, b) => b.priority - a.priority)
     .slice(0, 5);
+  return unique;
 }

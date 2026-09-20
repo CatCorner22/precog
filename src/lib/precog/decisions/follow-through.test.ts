@@ -11,13 +11,14 @@ import {
   captureContinuitySnapshot,
   captureDecisionSnapshot,
   continuityStepKey,
-  coverageSlips,
+  continuitySlips,
   decisionDelta,
   decisionsDue,
   linkedContinuityStep,
   linkedKnowledgeId,
   linkedToIndustry,
   localDateKey,
+  slipLabels,
 } from "./follow-through";
 
 const dental = getBaseTemplate("dental");
@@ -354,7 +355,7 @@ describe("continuity steps", () => {
   });
 });
 
-describe("coverageSlips", () => {
+describe("continuitySlips", () => {
   const report = coverageReport(dental);
   const covered = report.items.find((i) => i.status === "covered")!;
   const closedDone = (overrides: Partial<DecisionEntry> = {}) =>
@@ -388,10 +389,12 @@ describe("coverageSlips", () => {
   });
 
   it("flags a done decision whose item lost a backup, and nothing while coverage holds", () => {
-    expect(coverageSlips([closedDone()], dental)).toEqual([]);
-    const slips = coverageSlips([closedDone()], withoutBackup);
+    expect(continuitySlips([closedDone()], dental)).toEqual([]);
+    const slips = continuitySlips([closedDone()], withoutBackup);
     expect(slips).toHaveLength(1);
     expect(slips[0].decision.id).toBe("cont");
+    expect(slips[0].step).toBe("cover");
+    expect(slips[0].measure).toBe("coverage");
     expect(slips[0].from).toBe("covered");
     expect(["single", "thin", "uncovered"]).toContain(slips[0].to);
   });
@@ -416,15 +419,15 @@ describe("coverageSlips", () => {
       }),
       closedDone({ id: "deleted", linkedId: "k-gone" }),
     ];
-    expect(coverageSlips(cases, withoutBackup)).toEqual([]);
+    expect(continuitySlips(cases, withoutBackup)).toEqual([]);
   });
 
   it("does not judge a dental decision against a retail item that happens to share its id", () => {
     const retail = getBaseTemplate("retail");
     const sharesId = retail.knowledge.some((k) => k.id === covered.item.id);
     expect(sharesId).toBe(true);
-    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);
-    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], withoutBackup)).toHaveLength(
+    expect(continuitySlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);
+    expect(continuitySlips([closedDone({ linkedIndustry: "dental" })], withoutBackup)).toHaveLength(
       1,
     );
   });
@@ -448,6 +451,154 @@ describe("coverageSlips", () => {
       ],
       status: "open",
     });
-    expect(coverageSlips([reopened], withoutBackup)).toEqual([]);
+    expect(continuitySlips([reopened], withoutBackup)).toEqual([]);
+  });
+
+  it("uses documentation state for document steps", () => {
+    const documented = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((item) => ({
+        ...item,
+        documented: true,
+        procedureLocation: "Shared drive / Procedures",
+      })),
+    });
+    const item = documented.knowledge[0];
+    const decisionWithDocumentation = decision({
+      id: "document",
+      linkedTab: "knowledge",
+      linkedId: item.id,
+      linkedStep: "document",
+      status: "closed",
+      reviews: [
+        {
+          at: "2025-02-01T00:00:00.000Z",
+          outcome: "done",
+          snapshot: captureDecisionSnapshot(
+            documented,
+            dental.staffComposition,
+            dualRelease,
+            item.name,
+            new Date("2025-02-01T00:00:00.000Z"),
+            item.id,
+          ),
+        },
+      ],
+    });
+    const slips = continuitySlips([decisionWithDocumentation], dental);
+    expect(slips).toHaveLength(1);
+    expect(slips[0].step).toBe("document");
+    expect(slips[0].measure).toBe("documentation");
+    expect(slips[0].from).toBe("located");
+    expect(slips[0].to).toBe("none");
+  });
+
+  it("does not treat backup loss as a documentation slip", () => {
+    const documented = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((item) => ({
+        ...item,
+        documented: true,
+        procedureLocation: "Shared drive / Procedures",
+      })),
+    });
+    const documentedWithoutBackup = resolveTemplate({
+      industry: "dental",
+      customKnowledge: documented.knowledge,
+      customRelations: dental.relations.filter(
+        (r) => !(r.knowledgeId === covered.item.id && r.personId === backup.id),
+      ),
+    });
+    const item = documented.knowledge[0];
+    const decisionWithDocumentation = decision({
+      linkedTab: "knowledge",
+      linkedId: item.id,
+      linkedStep: "document",
+      status: "closed",
+      reviews: [
+        {
+          at: "2025-02-01T00:00:00.000Z",
+          outcome: "done",
+          snapshot: captureDecisionSnapshot(
+            documented,
+            dental.staffComposition,
+            dualRelease,
+            item.name,
+            new Date("2025-02-01T00:00:00.000Z"),
+            item.id,
+          ),
+        },
+      ],
+    });
+    expect(continuitySlips([decisionWithDocumentation], documentedWithoutBackup)).toEqual([]);
+  });
+
+  it("uses coverage measure for handoff steps", () => {
+    const slips = continuitySlips([closedDone({ linkedStep: "handoff" })], withoutBackup);
+    expect(slips).toHaveLength(1);
+    expect(slips[0].step).toBe("handoff");
+    expect(slips[0].measure).toBe("coverage");
+  });
+
+  it("ignores legacy document snapshots without documentation state", () => {
+    const prior = closedDone().reviews![0].snapshot;
+    const legacy = closedDone({
+      linkedStep: "document",
+      reviews: [
+        {
+          ...closedDone().reviews![0],
+          snapshot: {
+            ...prior,
+            continuity: {
+              coverageIndex: prior.continuity?.coverageIndex ?? 0,
+              singlePoints: prior.continuity?.singlePoints ?? 0,
+              itemStatus: prior.continuity?.itemStatus,
+              itemDocumentation: undefined,
+            },
+          },
+        },
+      ],
+    });
+    expect(continuitySlips([legacy], dental)).toEqual([]);
+  });
+
+  it("labels coverage and documentation slips in lower case", () => {
+    const [coverage] = continuitySlips([closedDone({ linkedStep: "handoff" })], withoutBackup);
+    const documented = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((item) => ({
+        ...item,
+        documented: true,
+        procedureLocation: "Shared drive / Procedures",
+      })),
+    });
+    const documentDecision = decision({
+      linkedTab: "knowledge",
+      linkedId: documented.knowledge[0].id,
+      linkedStep: "document",
+      status: "closed",
+      reviews: [
+        {
+          ...closedDone().reviews![0],
+          snapshot: captureDecisionSnapshot(
+            documented,
+            dental.staffComposition,
+            dualRelease,
+            documented.knowledge[0].name,
+            new Date("2025-02-01T00:00:00.000Z"),
+            documented.knowledge[0].id,
+          ),
+        },
+      ],
+    });
+    const [documentation] = continuitySlips([documentDecision], dental);
+    expect(slipLabels(coverage)).toEqual({
+      from: "two or more can do this",
+      to: expect.any(String),
+    });
+    expect(slipLabels(documentation)).toEqual({
+      from: "written and findable",
+      to: "nothing written down",
+    });
   });
 });

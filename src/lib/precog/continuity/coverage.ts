@@ -41,6 +41,12 @@ export const STATUS_LABEL: Record<CoverageStatus, string> = {
   covered: "Two or more can do this",
 };
 
+export const DOCUMENTATION_RANK: Record<DocumentationState, number> = {
+  none: 0,
+  unlocated: 1,
+  located: 2,
+};
+
 export interface ItemCoverage {
   item: KnowledgeItem;
   status: CoverageStatus;

@@ -5,7 +5,7 @@ import type { StaffComposition } from "../types";
 import { industryMeta } from "../industry";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
-import { coverageReport } from "../continuity/coverage";
+import { coverageReport, documentationDebt } from "../continuity/coverage";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 
 /** Dense, structured context for the Pioneer LLM coach — token-efficient. */
@@ -19,6 +19,7 @@ export function buildPioneerContextPack(
   const ranked = rankDangerousScenarios(tpl, { staff: staffComposition }).slice(0, 3);
   const spofs = findKnowledgeRisks(tpl).filter((r) => r.soleOwner && r.riskScore >= 65);
   const continuity = coverageReport(tpl);
+  const docs = documentationDebt(tpl);
   const leanedOn = continuity.people.find((l) => l.person.active);
   const tornado = tornadoSensitivity(tpl, staffComposition);
   const { snapshots } = buildProcessMapGraph(tpl, staffComposition);
@@ -101,6 +102,18 @@ export function buildPioneerContextPack(
     continuity: {
       backedUpPct: continuity.coverageIndex,
       counts: continuity.counts,
+      documentation: {
+        writtenAndFindablePct: docs.documentedIndex,
+        counts: docs.counts,
+        gaps: docs.gaps.slice(0, 5).map((g) => ({
+          item: g.item.name,
+          criticality: g.item.criticality,
+          state: g.state,
+          coverage: g.coverage,
+          author: g.author?.name ?? null,
+          action: g.action,
+        })),
+      },
       mostDependedOn: leanedOn
         ? {
             name: leanedOn.person.name,
@@ -119,7 +132,7 @@ export function buildPioneerContextPack(
         procedureLocation: m.item.documented ? m.item.procedureLocation?.trim() || null : null,
         action: m.action,
       })),
-      note: "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. Advise on contingency in terms of these named people.",
+      note: "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. 'documentation.gaps' are items with nothing written down or a written procedure whose location is not recorded; advise on writing/locating them in the same breath as cross-training. Advise on contingency in terms of these named people.",
     },
     topScenarios: ranked.map((r) => ({
       id: r.scenario.id,
