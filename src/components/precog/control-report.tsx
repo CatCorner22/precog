@@ -512,11 +512,11 @@ export function ControlReport() {
             <ul className="mt-2 grid gap-3 sm:grid-cols-2">
               {cards.slice(0, 8).map((c) => (
                 <li
-                  key={c.person.id}
+                  key={c.people[0].id}
                   className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium">If {c.person.name} is out</span>
+                    <span className="font-medium">If {c.people[0].name} is out</span>
                     <span className="text-xs text-neutral-600">
                       {c.dependence}% of critical work stops
                     </span>

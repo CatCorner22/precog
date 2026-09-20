@@ -113,6 +113,16 @@ const STATUS_URGENCY: Record<CoverageStatus, number> = {
   covered: 0,
 };
 
+function dependenceFor(items: readonly KnowledgeItem[], stopped: readonly KnowledgeItem[]): number {
+  const total = items
+    .filter((item) => item.criticality !== "nice-to-have")
+    .reduce((sum, item) => sum + CRITICALITY_WEIGHT[item.criticality], 0);
+  const stoppedWeight = stopped
+    .filter((item) => item.criticality !== "nice-to-have")
+    .reduce((sum, item) => sum + CRITICALITY_WEIGHT[item.criticality], 0);
+  return total === 0 ? 0 : Math.round((stoppedWeight / total) * 100);
+}
+
 export const CONFIRMATION_MAX_AGE_DAYS = 90;
 
 export interface StaleItem {
@@ -310,10 +320,6 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
     .reduce((s, i) => s + CRITICALITY_WEIGHT[i.item.criticality], 0);
   const coverageIndex = totalWeight === 0 ? 100 : Math.round((coveredWeight / totalWeight) * 100);
 
-  const criticalWeight = items
-    .filter((i) => i.item.criticality !== "nice-to-have")
-    .reduce((s, i) => s + CRITICALITY_WEIGHT[i.item.criticality], 0);
-
   const peopleLoad: PersonLoad[] = people
     .map((person) => {
       const soleItems = items
@@ -325,10 +331,10 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
       const learningItems = items
         .filter((i) => i.learners.some((p) => p.id === person.id))
         .map((i) => i.item);
-      const stopped = soleItems
-        .filter((k) => k.criticality !== "nice-to-have")
-        .reduce((s, k) => s + CRITICALITY_WEIGHT[k.criticality], 0);
-      const dependence = criticalWeight === 0 ? 0 : Math.round((stopped / criticalWeight) * 100);
+      const dependence = dependenceFor(
+        items.map((i) => i.item),
+        soleItems,
+      );
       return { person, soleItems, sharedItems, learningItems, dependence };
     })
     .sort((a, b) => b.dependence - a.dependence || b.soleItems.length - a.soleItems.length);
@@ -380,7 +386,7 @@ export interface AbsenceStop {
 }
 
 export interface AbsenceImpact {
-  person: Person;
+  people: Person[];
   /** Items only this person can run alone — work that stops on day one. */
   stops: AbsenceStop[];
   /** Items this person can run alone that another person can also run. */
@@ -413,12 +419,25 @@ export interface AbsenceAction {
  * "stand-in" here means the best cross-training candidate, not someone who
  * can already do it (if such a person existed the item would not stop).
  */
-export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceImpact | null {
-  const person = tpl.people.find((p) => p.id === personId);
-  if (!person) return null;
+export function absenceImpact(
+  tpl: IndustryTemplate,
+  personIds: string | readonly string[],
+): AbsenceImpact | null {
+  const requestedIds = typeof personIds === "string" ? [personIds] : personIds;
+  const requested = new Set(requestedIds);
+  const absentPeople = tpl.people.filter((p) => requested.has(p.id));
+  if (absentPeople.length === 0) return null;
+  const absent = new Set(absentPeople.map((p) => p.id));
   const report = coverageReport(tpl);
-  const load = report.people.find((l) => l.person.id === personId);
-  const remaining = tpl.people.filter((p) => p.active && p.id !== personId);
+  const remaining = tpl.people.filter((p) => p.active && !absent.has(p.id));
+  const single = absentPeople.length === 1;
+  const firstNames = absentPeople.map((p) => p.name.split(" ")[0]);
+  const names =
+    firstNames.length <= 1
+      ? (firstNames[0] ?? "")
+      : firstNames.length === 2
+        ? firstNames.join(" and ")
+        : `${firstNames.slice(0, -1).join(", ")} and ${firstNames.at(-1)}`;
 
   const where = (item: KnowledgeItem) =>
     item.documented && item.procedureLocation?.trim()
@@ -426,14 +445,14 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
       : "";
 
   const stops: AbsenceStop[] = report.items
-    .filter((i) => i.primaries.length === 1 && i.primaries[0].id === personId)
+    .filter((i) => i.primaries.length >= 1 && i.primaries.every((p) => absent.has(p.id)))
     .sort(
       (a, b) =>
         CRITICALITY_WEIGHT[b.item.criticality] - CRITICALITY_WEIGHT[a.item.criticality] ||
         a.item.name.localeCompare(b.item.name),
     )
     .map((i) => {
-      const learner = i.learners.find((p) => p.active) ?? null;
+      const learner = i.learners.find((p) => p.active && !absent.has(p.id)) ?? null;
       if (learner) {
         return {
           item: i.item,
@@ -444,7 +463,7 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
         };
       }
       const candidate =
-        i.suggestedBackups.find((s) => s.person.id !== personId && s.person.active) ?? null;
+        i.suggestedBackups.find((s) => s.person.active && !absent.has(s.person.id)) ?? null;
       if (!candidate) {
         return {
           item: i.item,
@@ -465,7 +484,10 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
     });
 
   const continues = report.items
-    .filter((i) => i.primaries.length >= 2 && i.primaries.some((p) => p.id === personId))
+    .filter(
+      (i) =>
+        i.primaries.some((p) => absent.has(p.id)) && i.primaries.some((p) => !absent.has(p.id)),
+    )
     .map((i) => i.item);
 
   const orphanedProcesses = tpl.processes
@@ -473,11 +495,10 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
       const owners = (p.ownerPersonIds ?? []).filter((id) =>
         tpl.people.some((x) => x.id === id && x.active),
       );
-      return owners.length === 1 && owners[0] === personId;
+      return owners.length > 0 && owners.every((id) => absent.has(id));
     })
     .map((p) => p.name);
 
-  const first = person.name.split(" ")[0];
   const actions: AbsenceAction[] = [];
   const ids = (list: AbsenceStop[]) => list.map((s) => s.item.id);
   const critical = stops.filter((s) => s.item.criticality === "critical");
@@ -506,7 +527,7 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
   const undocumented = stops.filter((s) => !s.item.documented);
   if (undocumented.length)
     actions.push({
-      text: `Before the next absence: have ${first} write down ${undocumented
+      text: `Before the next absence: have ${names} write down ${undocumented
         .slice(0, 3)
         .map((s) => `"${s.item.name}"`)
         .join(", ")}${undocumented.length > 3 ? ` and ${undocumented.length - 3} more` : ""}.`,
@@ -519,14 +540,14 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
       text: `Record where the written procedure for ${unlocated
         .slice(0, 3)
         .map((s) => `"${s.item.name}"`)
-        .join(", ")} lives so a stand-in can find it without ${first}.`,
+        .join(", ")} lives so a stand-in can find it without ${names}.`,
       step: "locate",
       knowledgeIds: ids(unlocated),
     });
   const trainable = stops.filter((s) => s.standIn).slice(0, 3);
   if (trainable.length)
     actions.push({
-      text: `Cross-train so ${first} is not the only one: ${trainable
+      text: `Cross-train so ${names} ${single ? "is" : "are"} not the only one${single ? "" : "s"}: ${trainable
         .map((s) => `${s.standIn?.name} on "${s.item.name}"`)
         .join(", ")}.`,
       step: "cover",
@@ -545,17 +566,20 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
     });
   if (!actions.length)
     actions.push({
-      text: `Nothing stops if ${first} is out. Keep it that way as duties change.`,
+      text: `Nothing stops if ${names} ${single ? "is" : "are"} out. Keep it that way as duties change.`,
       step: "cover",
       knowledgeIds: [],
     });
 
   return {
-    person,
+    people: absentPeople,
     stops,
     continues,
     orphanedProcesses,
-    dependence: load?.dependence ?? 0,
+    dependence: dependenceFor(
+      report.items.map((i) => i.item),
+      stops.map((s) => s.item),
+    ),
     actions,
   };
 }
@@ -574,7 +598,7 @@ export function contingencyCards(tpl: IndustryTemplate): AbsenceImpact[] {
       (a, b) =>
         b.dependence - a.dependence ||
         b.stops.length - a.stops.length ||
-        a.person.name.localeCompare(b.person.name),
+        a.people[0].name.localeCompare(b.people[0].name),
     );
 }
 
