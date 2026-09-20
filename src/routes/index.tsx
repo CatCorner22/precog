@@ -38,6 +38,7 @@ import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { IndustryOnboarding } from "@/components/precog/industry-onboarding";
 import { PracticeSetup } from "@/components/precog/practice-setup";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
+import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
 import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
@@ -366,6 +367,7 @@ function Home() {
           })}
         </nav>
       </header>
+      <SaveConflictBanner />
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {/* prettier-ignore */}

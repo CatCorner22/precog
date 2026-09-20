@@ -19,6 +19,11 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 | **Printed report**      | Findings, recommended controls, and the cases cited with publisher and URL, for an accountant, lender, or insurer                                                                                                                                           |
 | **Cloud sync**          | Sign in to persist your business profile across devices                                                                                                                                                                                                     |
 
+Cloud saves carry a per-business revision, so edits made in another tab or device are
+identified before they can overwrite local work. The app asks whether to load the remote
+version or keep the local version and overwrite it; migration `0006_business_revision.sql`
+runs automatically through the existing migration runner.
+
 ## Core loop
 
 1. **Pick an industry** on first visit — loads a full demo template

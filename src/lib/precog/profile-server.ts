@@ -3,12 +3,17 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
+import { isStaleSave } from "./save-conflict";
 
 type ProfileRow = {
   name: string;
   industry: string;
   profile: PracticeProfile;
   updated_at: string;
+};
+
+type RevisionRow = {
+  revision: number | string;
 };
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
@@ -21,7 +26,12 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       where user_id = ${context.userId}
     `;
     if (rows.length === 0) {
-      return { found: false as const, profile: null, industry: "dental" as IndustryId };
+      return {
+        found: false as const,
+        profile: null,
+        industry: "dental" as IndustryId,
+        revision: null,
+      };
     }
     const row = rows[0];
     const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
@@ -54,16 +64,29 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       businessId:
         typeof row.profile.businessId === "string" ? row.profile.businessId : "biz_default",
     };
+    const revisionRows = await sql<RevisionRow>`
+      select revision
+      from businesses
+      where id = ${merged.businessId ?? "biz_default"} and user_id = ${context.userId}
+    `;
     return {
       found: true as const,
       profile: merged,
       industry: (row.industry as IndustryId) || "dental",
       updatedAt: row.updated_at,
+      revision: revisionRows[0] ? Number(revisionRows[0].revision) : null,
     };
   });
 
 export const saveBusinessProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
+  .validator(
+    (input: { profile: PracticeProfile; industry?: IndustryId; baseRevision?: number | null }) => ({
+      profile: input.profile,
+      industry: input.industry ?? "dental",
+      baseRevision: input.baseRevision == null ? null : Number(input.baseRevision),
+    }),
+  )
   .validator((input: { profile: PracticeProfile; industry?: IndustryId }) => ({
     profile: input.profile,
     industry: input.industry ?? "dental",
@@ -71,6 +94,52 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const name = data.profile.practiceName.slice(0, 80);
+    const businessId = data.profile.businessId ?? "biz_default";
+    const existingRows = await sql<{
+      revision: number | string;
+      profile: PracticeProfile;
+      industry: string;
+      name: string;
+      updated_at: string;
+    }>`
+      select revision, profile, industry, name, updated_at
+      from businesses
+      where id = ${businessId} and user_id = ${context.userId}
+    `;
+    const existing = existingRows[0];
+    if (isStaleSave(existing ? Number(existing.revision) : null, data.baseRevision)) {
+      return {
+        ok: false as const,
+        conflict: true as const,
+        revision: Number(existing.revision),
+        updatedAt: String(existing.updated_at),
+        profile: { ...mergeProfile(existing), businessId },
+      };
+    }
+
+    const updatedRows = await sql<{ revision: number | string; updated_at: string }>`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+      values (
+        ${businessId},
+        ${context.userId},
+        ${name},
+        ${data.industry},
+        ${JSON.stringify(data.profile)}::jsonb,
+        1,
+        now()
+      )
+      on conflict (id) do update set
+        name = excluded.name,
+        industry = excluded.industry,
+        profile = excluded.profile,
+        revision = coalesce(businesses.revision, 0) + 1,
+        updated_at = now()
+      where businesses.user_id = ${context.userId}
+      returning revision, updated_at
+    `;
+    const updated = updatedRows[0];
+    if (!updated) throw new Error("Unable to save business profile");
+
     await sql`
       insert into business_profiles (user_id, name, industry, profile, updated_at)
       values (
@@ -86,26 +155,11 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
         profile = excluded.profile,
         updated_at = now()
     `;
-    // Keep the portfolio copy of the active business in step with the active pointer.
-    const businessId = data.profile.businessId ?? "biz_default";
-    await sql`
-      insert into businesses (id, user_id, name, industry, profile, updated_at)
-      values (
-        ${businessId},
-        ${context.userId},
-        ${name},
-        ${data.industry},
-        ${JSON.stringify(data.profile)}::jsonb,
-        now()
-      )
-      on conflict (id) do update set
-        name = excluded.name,
-        industry = excluded.industry,
-        profile = excluded.profile,
-        updated_at = now()
-      where businesses.user_id = ${context.userId}
-    `;
-    return { ok: true as const };
+    return {
+      ok: true as const,
+      revision: Number(updated.revision),
+      updatedAt: String(updated.updated_at),
+    };
   });
 
 type BusinessRow = {
@@ -114,6 +168,7 @@ type BusinessRow = {
   industry: string;
   profile: PracticeProfile;
   updated_at: string;
+  revision: number | string;
 };
 
 function mergeProfile(row: {
@@ -157,7 +212,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const rows = await sql<BusinessRow>`
-      select id, name, industry, profile, updated_at
+      select id, name, industry, profile, updated_at, revision
       from businesses
       where user_id = ${context.userId}
       order by updated_at desc
@@ -184,13 +239,17 @@ export const loadBusiness = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const rows = await sql<BusinessRow>`
-      select id, name, industry, profile, updated_at
+      select id, name, industry, profile, updated_at, revision
       from businesses
       where user_id = ${context.userId} and id = ${data.id}
     `;
     const row = rows[0];
-    if (!row) return { found: false as const, profile: null };
-    return { found: true as const, profile: { ...mergeProfile(row), businessId: row.id } };
+    if (!row) return { found: false as const, profile: null, revision: null };
+    return {
+      found: true as const,
+      profile: { ...mergeProfile(row), businessId: row.id },
+      revision: Number(row.revision),
+    };
   });
 
 export const deleteBusiness = createServerFn({ method: "POST" })
