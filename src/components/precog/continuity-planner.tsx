@@ -1,6 +1,13 @@
-import { useMemo, useState } from "react";
-import { Plus, RotateCcw, Trash2, UserMinus } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Download, Plus, RotateCcw, Trash2, Upload, UserMinus } from "lucide-react";
+import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
+import {
+  parseRegisterCsv,
+  registerTemplateCsv,
+  registerToCsv,
+  type RegisterImportIssue,
+} from "@/lib/precog/import/register-csv";
 import {
   absenceImpact,
   coverageReport,
@@ -58,6 +65,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");
   const [draftCriticality, setDraftCriticality] = useState<Criticality>("important");
   const [absentId, setAbsentId] = useState<string | null>(null);
+  const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const selected: ItemCoverage | undefined =
     report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];
@@ -95,6 +104,39 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const resetToTemplate = () => {
     setCustomKnowledge(null);
     setCustomRelations(null);
+    setImportIssues([]);
+  };
+
+  const downloadCsv = (text: string, filename: string) => {
+    const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importCsv = async (file: File) => {
+    setImportIssues([]);
+    try {
+      const result = parseRegisterCsv(await file.text(), tpl);
+      setImportIssues(result.issues);
+      if (!result.knowledge.length) {
+        toast.error(result.issues[0]?.message ?? "No duties or tasks found in that file");
+        return;
+      }
+      setCustomKnowledge(result.knowledge);
+      setCustomRelations(result.relations);
+      setSelectedId(null);
+      toast.success(
+        `Imported ${result.knowledge.length} items and ${result.relations.length} assignments${
+          result.issues.length ? `; ${result.issues.length} thing(s) need attention` : ""
+        }`,
+      );
+    } catch {
+      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
+    }
   };
 
   const mostDepended = report.people[0];
@@ -150,18 +192,78 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               it alone.
             </CardDescription>
           </div>
-          {!usingTemplateRegister && (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Button
-              variant="ghost"
               size="sm"
-              onClick={resetToTemplate}
-              title="Back to the industry example list"
+              variant="secondary"
+              onClick={() => csvInputRef.current?.click()}
+              title="Replace the register with a spreadsheet: one row per item, one column per person"
             >
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
+              <Upload className="size-3.5" /> Import CSV
             </Button>
-          )}
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              aria-label="Import register CSV"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => downloadCsv(registerToCsv(tpl), "precog-who-can-do-what.csv")}
+              title="Download the current register to edit in a spreadsheet"
+            >
+              <Download className="size-3.5" /> Export CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => downloadCsv(registerTemplateCsv(tpl), "precog-register-template.csv")}
+              title="Blank grid with your team as columns"
+            >
+              Blank template
+            </Button>
+            {!usingTemplateRegister && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetToTemplate}
+                title="Back to the industry example list"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Reset
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {importIssues.length > 0 && (
+            <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-warn">Import notes</p>
+                <button
+                  type="button"
+                  onClick={() => setImportIssues([])}
+                  className="text-[11px] text-subtle underline hover:text-fg"
+                >
+                  Dismiss
+                </button>
+              </div>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
+                {importIssues.slice(0, 8).map((issue, index) => (
+                  <li key={`${issue.row}-${index}`}>
+                    {issue.row === 0 ? "Header" : `Row ${issue.row}`}: {issue.message}
+                  </li>
+                ))}
+                {importIssues.length > 8 && <li>…and {importIssues.length - 8} more</li>}
+              </ul>
+            </div>
+          )}
           <form
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
