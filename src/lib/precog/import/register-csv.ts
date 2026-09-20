@@ -8,6 +8,7 @@ import type {
   Person,
 } from "../types";
 import { isCalendarDate } from "../continuity/coverage";
+import { localDateKey } from "../decisions/follow-through";
 import { parseRows } from "./csv";
 
 /**
@@ -140,9 +141,9 @@ function escapeCsv(value: string): string {
 export function parseRegisterCsv(
   text: string,
   tpl: IndustryTemplate,
-  opts: { maxRows?: number } = {},
+  opts: { maxRows?: number; today?: string } = {},
 ): RegisterImportResult {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = opts.today ?? localDateKey(new Date());
   const rows = parseRows(text);
   const issues: RegisterImportIssue[] = [];
   const header = rows[0] ?? [];

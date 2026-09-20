@@ -9,6 +9,7 @@ import {
   coverageStatus,
   documentationDebt,
   documentationState,
+  resolveClientDate,
   staleItems,
   setRelationLevel,
   soleOwnerCriticalCount,
@@ -538,5 +539,22 @@ describe("resolveTemplate with a custom register", () => {
     const t = resolveTemplate({ industry: "retail" });
     expect(t.knowledge).toBe(base.knowledge);
     expect(t.relations).toBe(base.relations);
+  });
+});
+
+describe("resolveClientDate", () => {
+  const serverNow = new Date("2026-09-20T10:30:00Z");
+
+  it("honours the owner's calendar day when it is within a day of the server clock", () => {
+    expect(resolveClientDate("2026-09-21", serverNow)).toBe("2026-09-21");
+    expect(resolveClientDate("2026-09-19", serverNow)).toBe("2026-09-19");
+    expect(resolveClientDate("2026-09-20", serverNow)).toBe("2026-09-20");
+  });
+
+  it("falls back to the server's UTC day for missing, malformed or distant values", () => {
+    expect(resolveClientDate(undefined, serverNow)).toBe("2026-09-20");
+    expect(resolveClientDate("2026-99-99", serverNow)).toBe("2026-09-20");
+    expect(resolveClientDate("2026-09-22", serverNow)).toBe("2026-09-20");
+    expect(resolveClientDate("2025-01-01", serverNow)).toBe("2026-09-20");
   });
 });

@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
 import { defaultProfile, normalizeCustomKnowledge, type PracticeProfile } from "./practice-profile";
 import { isStaleSave } from "./save-conflict";
+import { resolveClientDate } from "./continuity/coverage";
 
 type ProfileRow = {
   name: string;
@@ -18,7 +19,8 @@ type RevisionRow = {
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator((input?: { today?: string }) => ({ today: resolveClientDate(input?.today) }))
+  .handler(async ({ context, data }) => {
     const sql = await getSql();
     const rows = await sql<ProfileRow>`
       select name, industry, profile, updated_at
@@ -47,7 +49,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
         ? row.profile.customProcesses
         : null,
       customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-      customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge),
+      customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge, data.today),
       customRelations: Array.isArray(row.profile.customRelations)
         ? row.profile.customRelations
         : null,
@@ -79,10 +81,16 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
 export const saveBusinessProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
-    (input: { profile: PracticeProfile; industry?: IndustryId; baseRevision?: number | null }) => ({
+    (input: {
+      profile: PracticeProfile;
+      industry?: IndustryId;
+      baseRevision?: number | null;
+      today?: string;
+    }) => ({
       profile: input.profile,
       industry: input.industry ?? "dental",
       baseRevision: input.baseRevision == null ? null : Number(input.baseRevision),
+      today: resolveClientDate(input.today),
     }),
   )
   .handler(async ({ context, data }) => {
@@ -107,7 +115,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
         conflict: true as const,
         revision: Number(existing.revision),
         updatedAt: String(existing.updated_at),
-        profile: { ...mergeProfile(existing), businessId },
+        profile: { ...mergeProfile(existing, data.today), businessId },
       };
     }
 
@@ -165,11 +173,14 @@ type BusinessRow = {
   revision: number | string;
 };
 
-function mergeProfile(row: {
-  name: string;
-  industry: string;
-  profile: PracticeProfile;
-}): PracticeProfile {
+function mergeProfile(
+  row: {
+    name: string;
+    industry: string;
+    profile: PracticeProfile;
+  },
+  today: string,
+): PracticeProfile {
   const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
   return {
     ...base,
@@ -183,7 +194,7 @@ function mergeProfile(row: {
       ? row.profile.customProcesses
       : null,
     customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-    customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge),
+    customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge, today),
     customRelations: Array.isArray(row.profile.customRelations)
       ? row.profile.customRelations
       : null,
@@ -227,7 +238,10 @@ export const listBusinesses = createServerFn({ method: "GET" })
 
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => ({ id: String(input.id).slice(0, 64) }))
+  .validator((input: { id: string; today?: string }) => ({
+    id: String(input.id).slice(0, 64),
+    today: resolveClientDate(input.today),
+  }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const rows = await sql<BusinessRow>`
@@ -239,7 +253,7 @@ export const loadBusiness = createServerFn({ method: "GET" })
     if (!row) return { found: false as const, profile: null, revision: null };
     return {
       found: true as const,
-      profile: { ...mergeProfile(row), businessId: row.id },
+      profile: { ...mergeProfile(row, data.today), businessId: row.id },
       revision: Number(row.revision),
     };
   });
