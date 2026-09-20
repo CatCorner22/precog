@@ -143,7 +143,21 @@ function utcDay(value: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split("-").map(Number);
   const time = Date.UTC(year, month - 1, day);
-  return Number.isNaN(time) ? null : time;
+  if (Number.isNaN(time)) return null;
+  const date = new Date(time);
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+    ? time
+    : null;
+}
+
+export function isCalendarDate(value: string, today?: string): boolean {
+  const date = utcDay(value);
+  if (date === null) return false;
+  if (today === undefined) return true;
+  const current = utcDay(today);
+  return current !== null && date <= current;
 }
 
 function ageInDays(confirmedAt: string, today: string): number | null {
@@ -164,7 +178,10 @@ export function staleItems(
   let totalWeight = 0;
 
   for (const row of report.items) {
-    const confirmedAt = row.item.confirmedAt ?? null;
+    const confirmedAt =
+      row.item.confirmedAt && isCalendarDate(row.item.confirmedAt, today)
+        ? row.item.confirmedAt
+        : null;
     const ageDays = confirmedAt ? ageInDays(confirmedAt, today) : null;
     const fresh = ageDays !== null && ageDays <= maxAgeDays;
     const weight = CRITICALITY_WEIGHT[row.item.criticality];

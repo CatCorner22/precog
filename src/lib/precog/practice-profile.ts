@@ -1,5 +1,10 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import type { ContinuityStep, CoverageStatus, DocumentationState } from "./continuity/coverage";
+import {
+  isCalendarDate,
+  type ContinuityStep,
+  type CoverageStatus,
+  type DocumentationState,
+} from "./continuity/coverage";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -108,14 +113,13 @@ export interface BusinessSummary {
   healthScore: number | null;
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 export function normalizeCustomKnowledge(value: unknown): KnowledgeItem[] | null {
   if (!Array.isArray(value)) return null;
+  const today = new Date().toISOString().slice(0, 10);
   return value.map((entry) => {
     if (!entry || typeof entry !== "object") return entry as KnowledgeItem;
     const item = entry as KnowledgeItem & { confirmedAt?: unknown };
-    if (typeof item.confirmedAt === "string" && ISO_DATE.test(item.confirmedAt)) {
+    if (typeof item.confirmedAt === "string" && isCalendarDate(item.confirmedAt, today)) {
       return item as KnowledgeItem;
     }
     const { confirmedAt: _ignored, ...withoutConfirmation } = item;

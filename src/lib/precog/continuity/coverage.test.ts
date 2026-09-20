@@ -117,6 +117,25 @@ describe("staleItems", () => {
     );
     expect(staleItems(t, "2025-04-01").confirmedIndex).toBe(67);
   });
+
+  it("treats invalid and future confirmation dates as never confirmed", () => {
+    const t = tpl(
+      [
+        item("bad-month", { confirmedAt: "2025-99-99" }),
+        item("bad-day", { confirmedAt: "2025-02-30" }),
+        item("future", { confirmedAt: "2025-04-02" }),
+        item("valid", { confirmedAt: "2025-03-22" }),
+      ],
+      [],
+    );
+    const report = staleItems(t, "2025-04-01");
+    expect(report.stale.map((entry) => [entry.item.id, entry.confirmedAt, entry.ageDays])).toEqual([
+      ["bad-day", null, null],
+      ["bad-month", null, null],
+      ["future", null, null],
+    ]);
+    expect(report.stale.some((entry) => entry.item.id === "valid")).toBe(false);
+  });
 });
 
 describe("coverageReport", () => {

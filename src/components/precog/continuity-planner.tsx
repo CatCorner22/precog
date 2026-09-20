@@ -777,17 +777,19 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     />
                   </label>
                 )}
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                  <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
-                  >
-                    Still accurate
-                  </Button>
-                </div>
+                {trackFreshness && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
+                    >
+                      Still accurate
+                    </Button>
+                  </div>
+                )}
                 <PeopleLine
                   label="Can run it alone"
                   people={selected.primaries.map((p) => p.name)}

@@ -249,11 +249,13 @@ describe("last confirmed column", () => {
   });
 
   it("ignores invalid dates and preserves an existing confirmation", () => {
-    const result = parseRegisterCsv(
-      "item,last checked,Ana Ruiz\r\nVendor quirks,not-a-date,expert\r\n",
-      tpl,
-    );
-    expect(result.knowledge[0].confirmedAt).toBe("2025-01-15");
+    for (const value of ["not-a-date", "2025-99-99", "2025-02-30", "2099-01-01"]) {
+      const result = parseRegisterCsv(
+        `item,last checked,Ana Ruiz\r\nVendor quirks,${value},expert\r\n`,
+        tpl,
+      );
+      expect(result.knowledge[0].confirmedAt, value).toBe("2025-01-15");
+    }
   });
 });
 
