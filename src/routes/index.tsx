@@ -86,6 +86,11 @@ const IntelligencePanel = lazy(() =>
 const KnowledgeMap = lazy(() =>
   import("@/components/precog/knowledge-map").then((module) => ({ default: module.KnowledgeMap })),
 );
+const ContinuityPlanner = lazy(() =>
+  import("@/components/precog/continuity-planner").then((module) => ({
+    default: module.ContinuityPlanner,
+  })),
+);
 const LayersPanel = lazy(() =>
   import("@/components/precog/layers-panel").then((module) => ({ default: module.LayersPanel })),
 );
@@ -626,8 +631,16 @@ function Home() {
         {tab === "knowledge" && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Knowledge continuity map</h2>
-              <p className="text-sm text-muted">Critical knowledge SPOFs.</p>
+              <h2 className="text-lg font-semibold">Continuity of operations</h2>
+              <p className="text-sm text-muted">
+                List the duties, tasks and know-how the business runs on, mark who can do each,
+                and close the gaps where one absence would stop work.
+              </p>
+            </div>
+            <ContinuityPlanner initialKnowledgeId={knowledgeId} />
+            <div>
+              <h3 className="text-base font-semibold">Knowledge continuity map</h3>
+              <p className="text-sm text-muted">The same register as a people-to-knowledge map.</p>
             </div>
             <KnowledgeMap initialKnowledgeId={knowledgeId} />
           </div>

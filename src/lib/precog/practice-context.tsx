@@ -12,7 +12,13 @@ import {
 } from "react";
 import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import type { Person, ProcessNode, StaffComposition } from "./types";
+import type {
+  KnowledgeItem,
+  KnowledgeRelation,
+  Person,
+  ProcessNode,
+  StaffComposition,
+} from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
@@ -31,6 +37,7 @@ import {
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
+import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { applyDecisionReview, captureDecisionSnapshot } from "./decisions/follow-through";
 import {
   defaultProfile,
@@ -89,6 +96,14 @@ interface PracticeContextValue {
   ) => void;
   /** Map builder: replace the demo team with real people (null = template people). */
   setCustomPeople: (v: Person[] | null | ((current: Person[]) => Person[] | null)) => void;
+  /** Continuity planner: replace the duty/task/knowledge register (null = template items). */
+  setCustomKnowledge: (
+    v: KnowledgeItem[] | null | ((current: KnowledgeItem[]) => KnowledgeItem[] | null),
+  ) => void;
+  /** Continuity planner: replace who-holds-what (null = template relations). */
+  setCustomRelations: (
+    v: KnowledgeRelation[] | null | ((current: KnowledgeRelation[]) => KnowledgeRelation[] | null),
+  ) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (
@@ -122,6 +137,28 @@ interface PracticeContextValue {
 }
 
 const MAX_VERSIONS = 12;
+
+/**
+ * Re-derive the staff figures that depend on the register. With a real team
+ * everything derivable is derived; with template people only the sole-owner
+ * count moves, because the user's register is now the truth for it.
+ */
+function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
+  const tpl = resolveTemplate(p);
+  if (p.customPeople) {
+    return deriveStaffFromTeam(tpl, p.staff, {
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+    });
+  }
+  if (!p.customKnowledge && !p.customRelations) {
+    return {
+      ...p.staff,
+      soleOwnerKnowledgeCount: getIndustryTemplate(p.industry).staffComposition
+        .soleOwnerKnowledgeCount,
+    };
+  }
+  return { ...p.staff, soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl) };
+}
 
 interface MapSnapshot {
   customProcesses: ProcessNode[] | null | undefined;
@@ -467,15 +504,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
         const staff = next
-          ? deriveStaffFromTeam(
-              resolveTemplate({
-                industry: p.industry,
-                customProcesses: p.customProcesses,
-                customPeople: next,
-              }),
-              p.staff,
-              { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
-            )
+          ? deriveStaffFromTeam(resolveTemplate({ ...p, customPeople: next }), p.staff, {
+              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+            })
           : p.staff;
         return { ...p, customPeople: next, staff };
       });
@@ -490,20 +521,41 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         const current = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
         const next = typeof v === "function" ? v(current) : v;
         const staff = p.customPeople
-          ? deriveStaffFromTeam(
-              resolveTemplate({
-                industry: p.industry,
-                customProcesses: next,
-                customPeople: p.customPeople,
-              }),
-              p.staff,
-              { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
-            )
+          ? deriveStaffFromTeam(resolveTemplate({ ...p, customProcesses: next }), p.staff, {
+              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+            })
           : p.staff;
         return { ...p, customProcesses: next, staff };
       });
     },
     [pushUndo],
+  );
+
+  const setCustomKnowledge = useCallback(
+    (v: KnowledgeItem[] | null | ((current: KnowledgeItem[]) => KnowledgeItem[] | null)) => {
+      setProfile((p) => {
+        const current = resolveTemplate(p).knowledge;
+        const next = typeof v === "function" ? v(current) : v;
+        const withRegister = { ...p, customKnowledge: next };
+        return { ...withRegister, staff: deriveContinuityStaff(withRegister) };
+      });
+    },
+    [],
+  );
+
+  const setCustomRelations = useCallback(
+    (
+      v:
+        KnowledgeRelation[] | null | ((current: KnowledgeRelation[]) => KnowledgeRelation[] | null),
+    ) => {
+      setProfile((p) => {
+        const current = resolveTemplate(p).relations;
+        const next = typeof v === "function" ? v(current) : v;
+        const withRegister = { ...p, customRelations: next };
+        return { ...withRegister, staff: deriveContinuityStaff(withRegister) };
+      });
+    },
+    [],
   );
 
   const resetSegregationToDerived = useCallback(() => {
@@ -610,10 +662,17 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [pushUndo],
   );
 
-  const { industry, customProcesses, customPeople } = profile;
+  const { industry, customProcesses, customPeople, customKnowledge, customRelations } = profile;
   const template = useMemo(
-    () => resolveTemplate({ industry, customProcesses, customPeople }),
-    [industry, customProcesses, customPeople],
+    () =>
+      resolveTemplate({
+        industry,
+        customProcesses,
+        customPeople,
+        customKnowledge,
+        customRelations,
+      }),
+    [industry, customProcesses, customPeople, customKnowledge, customRelations],
   );
 
   const canUndoMap = undoStack.current.length > 0;
@@ -722,6 +781,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
+      setCustomKnowledge,
+      setCustomRelations,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
@@ -758,6 +819,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
+      setCustomKnowledge,
+      setCustomRelations,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,

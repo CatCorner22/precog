@@ -37,6 +37,12 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
         ? row.profile.customProcesses
         : null,
       customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
+      customKnowledge: Array.isArray(row.profile.customKnowledge)
+        ? row.profile.customKnowledge
+        : null,
+      customRelations: Array.isArray(row.profile.customRelations)
+        ? row.profile.customRelations
+        : null,
       mapLayout: row.profile.mapLayout ?? {},
       savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
         ? row.profile.savedProcessBlocks
@@ -58,12 +64,10 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
 
 export const saveBusinessProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { profile: PracticeProfile; industry?: IndustryId }) => ({
-      profile: input.profile,
-      industry: input.industry ?? "dental",
-    }),
-  )
+  .validator((input: { profile: PracticeProfile; industry?: IndustryId }) => ({
+    profile: input.profile,
+    industry: input.industry ?? "dental",
+  }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const name = data.profile.practiceName.slice(0, 80);
@@ -112,7 +116,11 @@ type BusinessRow = {
   updated_at: string;
 };
 
-function mergeProfile(row: { name: string; industry: string; profile: PracticeProfile }): PracticeProfile {
+function mergeProfile(row: {
+  name: string;
+  industry: string;
+  profile: PracticeProfile;
+}): PracticeProfile {
   const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
   return {
     ...base,
@@ -122,11 +130,23 @@ function mergeProfile(row: { name: string; industry: string; profile: PracticePr
     riskVariables: { ...base.riskVariables, ...row.profile.riskVariables },
     dualRelease: { ...base.dualRelease, ...row.profile.dualRelease },
     decisions: Array.isArray(row.profile.decisions) ? row.profile.decisions : [],
-    customProcesses: Array.isArray(row.profile.customProcesses) ? row.profile.customProcesses : null,
+    customProcesses: Array.isArray(row.profile.customProcesses)
+      ? row.profile.customProcesses
+      : null,
     customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
+    customKnowledge: Array.isArray(row.profile.customKnowledge)
+      ? row.profile.customKnowledge
+      : null,
+    customRelations: Array.isArray(row.profile.customRelations)
+      ? row.profile.customRelations
+      : null,
     mapLayout: row.profile.mapLayout ?? {},
-    savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks) ? row.profile.savedProcessBlocks : [],
-    mapHealthHistory: Array.isArray(row.profile.mapHealthHistory) ? row.profile.mapHealthHistory : [],
+    savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
+      ? row.profile.savedProcessBlocks
+      : [],
+    mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
+      ? row.profile.mapHealthHistory
+      : [],
     mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
   };
 }
@@ -150,7 +170,9 @@ export const listBusinesses = createServerFn({ method: "GET" })
         name: r.name,
         industry: (r.industry as IndustryId) || "general",
         updatedAt: r.updated_at,
-        processCount: Array.isArray(r.profile.customProcesses) ? r.profile.customProcesses.length : 0,
+        processCount: Array.isArray(r.profile.customProcesses)
+          ? r.profile.customProcesses.length
+          : 0,
         healthScore: history.length ? history[history.length - 1].score : null,
       };
     });
