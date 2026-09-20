@@ -1,18 +1,13 @@
 import { useState } from "react";
 import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
+import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import {
-  Briefcase,
-  ChefHat,
-  Building2,
-  ShoppingBag,
-  Stethoscope,
-} from "lucide-react";
+import { Briefcase, ChefHat, Building2, ShoppingBag, Stethoscope } from "lucide-react";
 
 const ICONS: Record<IndustryId, typeof Stethoscope> = {
   dental: Stethoscope,
@@ -60,6 +55,17 @@ export function IndustryOnboarding() {
               const Icon = ICONS[ind.id];
               const tpl = getIndustryTemplate(ind.id);
               const active = selected === ind.id;
+              // How many prosecuted cases the library holds for this line of
+              // business. The general template counts as its own the cases
+              // whose sector is "any", which would read as a small number for
+              // what is the broadest choice, so it shows the whole library.
+              const sectors = sectorsForIndustry(ind.id);
+              const caseCount = sectors.includes("any")
+                ? CASE_LIBRARY.length
+                : CASE_LIBRARY.filter((c) => sectors.includes(c.sector)).length;
+              const casePhrase = sectors.includes("any")
+                ? `${caseCount} prosecuted cases across every line of business`
+                : `${caseCount} prosecuted ${caseCount === 1 ? "case" : "cases"} in this line of business`;
               return (
                 <button
                   key={ind.id}
@@ -88,6 +94,7 @@ export function IndustryOnboarding() {
                         {tpl.processes.length} processes · {tpl.people.length} people ·{" "}
                         {tpl.scenarios.length} scenarios
                       </p>
+                      <p className="mt-0.5 text-[10px] text-subtle">{casePhrase}</p>
                     </div>
                   </div>
                 </button>
