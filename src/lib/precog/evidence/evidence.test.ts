@@ -5,9 +5,13 @@ import {
   CASE_LIBRARY,
   CONTROL_CATALOG,
   casesForSector,
+  casesForControl,
   casesForSodRules,
+  detectionBreakdown,
   isOwnSector,
   observedLossRange,
+  recommendedStepsForRules,
+  tenureExamples,
   sectorForIndustry,
   sectorsForIndustry,
 } from "./index";
@@ -72,5 +76,91 @@ describe("observedLossRange", () => {
     const mk = (n: number) => ({ ...CASE_LIBRARY[0], id: `c${n}`, lossUsd: n });
     expect(observedLossRange([mk(30), mk(10), mk(20)])!.median).toBe(20);
     expect(observedLossRange([mk(40), mk(10), mk(20), mk(30)])!.median).toBe(25);
+  });
+});
+
+describe("detectionBreakdown", () => {
+  const mk = (n: number, detection: (typeof CASE_LIBRARY)[number]["detection"]) => ({
+    ...CASE_LIBRARY[0],
+    id: `d${n}`,
+    detection,
+  });
+
+  it("keeps unknown out of the routes and counts it separately", () => {
+    const r = detectionBreakdown([
+      mk(1, "owner-review"),
+      mk(2, "owner-review"),
+      mk(3, "tip"),
+      mk(4, "unknown"),
+    ]);
+    expect(r.n).toBe(4);
+    expect(r.known).toBe(3);
+    expect(r.unknown).toBe(1);
+    expect(r.byRoute).toEqual([
+      { route: "owner-review", count: 2 },
+      { route: "tip", count: 1 },
+    ]);
+  });
+
+  it("returns zeros and no routes for an empty list", () => {
+    expect(detectionBreakdown([])).toEqual({ n: 0, known: 0, unknown: 0, byRoute: [] });
+  });
+});
+
+describe("tenureExamples", () => {
+  const mk = (n: number, tenureYearsStated?: number) => ({
+    ...CASE_LIBRARY[0],
+    id: `t${n}`,
+    tenureYearsStated,
+  });
+
+  it("uses only cases whose source states tenure, longest and shortest", () => {
+    const r = tenureExamples([mk(1, 3), mk(2), mk(3, 27), mk(4, 0)]);
+    expect(r.n).toBe(3);
+    expect(r.longest?.id).toBe("t3");
+    expect(r.shortest?.id).toBe("t4");
+  });
+
+  it("gives no shortest when only one case states tenure, and nothing when none does", () => {
+    const one = tenureExamples([mk(1, 9), mk(2)]);
+    expect(one.n).toBe(1);
+    expect(one.longest?.id).toBe("t1");
+    expect(one.shortest).toBeNull();
+    expect(tenureExamples([mk(1), mk(2)])).toEqual({ n: 0, longest: null, shortest: null });
+  });
+});
+
+describe("casesForControl", () => {
+  it("returns only cases that name the control, largest loss first", () => {
+    const cases = casesForControl("owner-opens-bank-statement");
+    expect(cases.length).toBeGreaterThan(0);
+    for (const c of cases) {
+      expect(c.wouldHaveCaughtIt.some((w) => w.control === "owner-opens-bank-statement")).toBe(
+        true,
+      );
+    }
+    for (let i = 1; i < cases.length; i++) {
+      expect(cases[i - 1].lossUsd).toBeGreaterThanOrEqual(cases[i].lossUsd);
+    }
+  });
+});
+
+describe("recommendedStepsForRules", () => {
+  it("counts a case once per control even when the case phrases the control twice", () => {
+    const steps = recommendedStepsForRules(CONFLICT_RULES.map((r) => r.id));
+    expect(steps.length).toBeGreaterThan(0);
+    for (const s of steps) {
+      expect(new Set(s.supportingCaseIds).size).toBe(s.supportingCaseIds.length);
+      expect(s.asApplied.length).toBeGreaterThan(0);
+    }
+    for (let i = 1; i < steps.length; i++) {
+      expect(steps[i - 1].supportingCaseIds.length).toBeGreaterThanOrEqual(
+        steps[i].supportingCaseIds.length,
+      );
+    }
+  });
+
+  it("returns nothing for a rule id nothing cites", () => {
+    expect(recommendedStepsForRules(["rule-does-not-exist"])).toEqual([]);
   });
 });
