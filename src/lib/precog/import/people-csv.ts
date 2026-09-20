@@ -12,6 +12,12 @@ export interface PeopleImportResult {
   people: Person[];
   issues: PeopleImportIssue[];
   unknownEntitlements: string[];
+  /**
+   * Current team members with no row in the file. Their ids are gone from
+   * `people`, so register assignments and process ownerships pointing at them
+   * will be dropped when the import is applied.
+   */
+  removed: Person[];
 }
 
 export const PEOPLE_CSV_HEADER = [
@@ -116,6 +122,7 @@ export function parsePeopleCsv(
       people: [],
       issues: [{ row: 0, message: "Missing a name column" }],
       unknownEntitlements: [],
+      removed: [],
     };
   }
 
@@ -130,6 +137,13 @@ export function parsePeopleCsv(
     });
   }
   const usedIds = new Set<string>();
+  // Rows that name someone already on the team keep that person's id, so the
+  // who-knows-what register and process ownership survive a re-import.
+  const existingByName = new Map<string, Person>();
+  for (const person of tpl.people) {
+    const key = normalize(person.name);
+    if (!existingByName.has(key)) existingByName.set(key, person);
+  }
 
   rowsToImport.forEach((cells, index) => {
     const rowNumber = index + 1;
@@ -194,7 +208,8 @@ export function parsePeopleCsv(
       });
     }
 
-    const baseId = `p-${slug(name)}`;
+    const existing = existingByName.get(normalize(name));
+    const baseId = existing && !usedIds.has(existing.id) ? existing.id : `p-${slug(name)}`;
     let id = baseId;
     let suffix = 2;
     while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
@@ -209,7 +224,23 @@ export function parsePeopleCsv(
     });
   });
 
-  return { people, issues, unknownEntitlements };
+  const removed = tpl.people.filter((person) => !usedIds.has(person.id));
+  return { people, issues, unknownEntitlements, removed };
+}
+
+/** What an import would take with it: register assignments and process owner slots held by `removed`. */
+export function removedPeopleImpact(
+  tpl: IndustryTemplate,
+  removed: readonly Person[],
+): { assignments: number; processOwnerships: number } {
+  const ids = new Set(removed.map((p) => p.id));
+  return {
+    assignments: tpl.relations.filter((r) => ids.has(r.personId)).length,
+    processOwnerships: tpl.processes.reduce(
+      (n, p) => n + (p.ownerPersonIds ?? []).filter((id) => ids.has(id)).length,
+      0,
+    ),
+  };
 }
 
 export function peopleToCsv(people: readonly Person[]): string {
