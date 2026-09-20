@@ -14,7 +14,7 @@ import {
   observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
-  sectorForIndustry,
+  isOwnSector,
   tenureExamples,
   type CaseStudy,
   type SchemeKind,
@@ -49,7 +49,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    * people and saying otherwise would misrepresent them.
    */
   const isSampleTeam = !profile.customPeople;
-  const sector = sectorForIndustry(profile.industry);
+  const industryId = profile.industry;
 
   const sod = useMemo(
     () =>
@@ -279,7 +279,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               // from a construction one. Fall back to the best match overall.
               const matches = casesForSodRules([conflict.ruleId]);
               const ownSector = matches.find(
-                (c) => c.sector === sector && c.sodRuleIds.includes(conflict.ruleId),
+                (c) => isOwnSector(c, industryId) && c.sodRuleIds.includes(conflict.ruleId),
               );
               const worst = ownSector ?? matches[0];
               return (
@@ -667,12 +667,12 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         </Card>
       </section>
 
-      <EvidenceFooter cases={evidence} sector={sector} />
+      <EvidenceFooter cases={evidence} industryId={industryId} />
     </div>
   );
 }
 
-function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string }) {
+function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId: string }) {
   /**
    * Filter by the shape of the scheme. A case can carry more than one shape
    * (a forged check hidden by a doctored statement), so the counts on the
@@ -690,8 +690,8 @@ function EvidenceFooter({ cases, sector }: { cases: CaseStudy[]; sector: string 
   // stay, because the mechanism of a scheme does not change between industries
   // and the mechanism is the part worth learning.
   const ordered = [
-    ...shown.filter((c) => c.sector === sector),
-    ...shown.filter((c) => c.sector !== sector),
+    ...shown.filter((c) => isOwnSector(c, industryId)),
+    ...shown.filter((c) => !isOwnSector(c, industryId)),
   ];
   const chipClass = (active: boolean) =>
     `rounded-full border px-2.5 py-1 text-xs transition-colors ${

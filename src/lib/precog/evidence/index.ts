@@ -158,18 +158,35 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
  * anywhere.
  */
 export function sectorForIndustry(industryId: string): IndustrySector {
+  return sectorsForIndustry(industryId)[0];
+}
+
+/**
+ * Every case-library sector an industry template counts as its own.
+ *
+ * The "Dental / Medical Office" template serves both dental and medical
+ * practices, and a medical office case reads as "in your line of business"
+ * to a dentist exactly as a dental one does: same front desk, same insurer
+ * remittances, same write-off authority. Other templates map to one sector.
+ */
+export function sectorsForIndustry(industryId: string): IndustrySector[] {
   switch (industryId) {
     case "dental":
-      return "dental";
+      return ["dental", "medical"];
     case "retail":
-      return "retail";
+      return ["retail"];
     case "restaurant":
-      return "restaurant";
+      return ["restaurant"];
     case "professional_services":
-      return "professional-services";
+      return ["professional-services"];
     default:
-      return "any";
+      return ["any"];
   }
+}
+
+/** Whether a case is from the owner's own line of business. */
+export function isOwnSector(study: CaseStudy, industryId: string): boolean {
+  return sectorsForIndustry(industryId).includes(study.sector);
 }
 
 /**
@@ -179,6 +196,12 @@ export function sectorForIndustry(industryId: string): IndustrySector {
  * does not change between a dental practice and a restaurant, and an owner
  * learns more from the mechanism than from the industry label.
  */
+export function casesForSector(sector: IndustrySector): CaseStudy[] {
+  return CASE_LIBRARY.filter((c) => c.sector === sector || c.sector === "any").sort(
+    byLossDescending,
+  );
+}
+
 /**
  * Cases that a given control would plausibly have caught, largest loss first.
  * Backs the dashboard's weekly priorities, so an action such as "start the
@@ -186,12 +209,6 @@ export function sectorForIndustry(industryId: string): IndustrySector {
  */
 export function casesForControl(controlId: ControlId): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
-    byLossDescending,
-  );
-}
-
-export function casesForSector(sector: IndustrySector): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.sector === sector || c.sector === "any").sort(
     byLossDescending,
   );
 }
