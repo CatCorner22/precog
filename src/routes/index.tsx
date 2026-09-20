@@ -28,7 +28,7 @@ import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { coverageSlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -229,6 +229,10 @@ function Home() {
     () => decisionsDue(profile.decisions, today).overdue.length,
     [profile.decisions, today],
   );
+  const slippedDecisions = useMemo(
+    () => coverageSlips(profile.decisions, tpl).length,
+    [profile.decisions, tpl],
+  );
 
   const mapHealth = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
@@ -318,6 +322,15 @@ function Home() {
                 className="hidden rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-[11px] text-warn sm:inline"
               >
                 {overdueDecisions} review overdue
+              </button>
+            )}
+            {slippedDecisions > 0 && (
+              <button
+                type="button"
+                onClick={() => setTab("journal")}
+                className="hidden rounded-md border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] text-danger sm:inline"
+              >
+                {slippedDecisions} coverage slipped
               </button>
             )}
             {isPending ? (

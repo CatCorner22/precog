@@ -3,7 +3,7 @@ import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from 
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { coverageSlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
@@ -55,6 +55,10 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const { overdue } = useMemo(
     () => decisionsDue(profile.decisions, today),
     [profile.decisions, today],
+  );
+  const slipped = useMemo(
+    () => coverageSlips(profile.decisions, template),
+    [profile.decisions, template],
   );
 
   const sod = useMemo(
@@ -240,6 +244,20 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             className="font-medium underline hover:text-fg"
           >
             review now
+          </button>
+        </div>
+      )}
+
+      {slipped.length > 0 && onOpenDetail && (
+        <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          Backup coverage slipped on {slipped.length} item(s) you had closed as done (
+          {slipped.map((s) => s.decision.subject).join(", ")}) —{" "}
+          <button
+            type="button"
+            onClick={() => onOpenDetail("journal")}
+            className="font-medium underline hover:text-fg"
+          >
+            reopen
           </button>
         </div>
       )}

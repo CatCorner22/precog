@@ -8,6 +8,7 @@ import {
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import {
   captureDecisionSnapshot,
+  coverageSlips,
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
@@ -96,6 +97,10 @@ export function DecisionJournal({
   const today = useToday();
   const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
+  const slips = useMemo(
+    () => coverageSlips(profile.decisions, template),
+    [profile.decisions, template],
+  );
   const currentSnapshots = useMemo(() => {
     return new Map(
       profile.decisions.map((d) => [
@@ -157,6 +162,66 @@ export function DecisionJournal({
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
+          {slips.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Coverage slipped</CardTitle>
+                <CardDescription>
+                  You closed these as done, but the register no longer backs them up. Reopen to put
+                  the cross-training back on a review date.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {slips.map(({ decision: d, from, to }) => (
+                  <div
+                    key={d.id}
+                    className="rounded-lg border border-danger/40 bg-elevated px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="danger">Slipped</Badge>
+                      <span className="font-medium">{d.subject}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      {STATUS_LABEL[from].toLowerCase()} when closed →{" "}
+                      {STATUS_LABEL[to].toLowerCase()} now
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          reviewDecision(
+                            d.id,
+                            "still_open",
+                            `Reopened: coverage slipped to "${STATUS_LABEL[to].toLowerCase()}"`,
+                            30,
+                          )
+                        }
+                      >
+                        Reopen +30d
+                      </Button>
+                      {d.linkedTab && onOpenLinked && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
+                        >
+                          Open
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "no_longer_relevant")}
+                      >
+                        Not relevant
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
           {dueDecisions.length > 0 && (
             <Card>
               <CardHeader>
