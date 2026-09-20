@@ -21,6 +21,7 @@ export type SuggestedIdea = Omit<ProcessIdea, "id">;
 export interface SuggestionResult {
   source: "grok" | "local";
   model?: string;
+  grokStatus?: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
   risks: SuggestedRisk[];
   ideas: SuggestedIdea[];
   controlIds: string[];
