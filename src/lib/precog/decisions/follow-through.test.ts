@@ -16,6 +16,7 @@ import {
   decisionsDue,
   linkedContinuityStep,
   linkedKnowledgeId,
+  linkedToIndustry,
   localDateKey,
 } from "./follow-through";
 
@@ -203,9 +204,23 @@ describe("continuity snapshots", () => {
   const single = report.singlePoints[0];
 
   it("only knowledge-linked decisions carry a register id", () => {
-    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k1" })).toBe("k1");
-    expect(linkedKnowledgeId({ linkedTab: "sod", linkedId: "k1" })).toBeUndefined();
-    expect(linkedKnowledgeId({ linkedTab: "knowledge" })).toBeUndefined();
+    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k1" }, "dental")).toBe("k1");
+    expect(linkedKnowledgeId({ linkedTab: "sod", linkedId: "k1" }, "dental")).toBeUndefined();
+    expect(linkedKnowledgeId({ linkedTab: "knowledge" }, "dental")).toBeUndefined();
+  });
+
+  it("does not follow a link into another industry's template, which reuses the same ids", () => {
+    const dentalLink = {
+      linkedTab: "knowledge",
+      linkedId: "k3",
+      linkedIndustry: "dental",
+    } as const;
+    expect(linkedKnowledgeId(dentalLink, "dental")).toBe("k3");
+    expect(linkedKnowledgeId(dentalLink, "retail")).toBeUndefined();
+    expect(linkedToIndustry(dentalLink, "retail")).toBe(false);
+    // entries logged before the industry was recorded keep working where they are
+    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k3" }, "retail")).toBe("k3");
+    expect(linkedToIndustry({}, "retail")).toBe(true);
   });
 
   it("records coverage and the linked item's status, dropping the status when the item is gone", () => {
@@ -402,6 +417,16 @@ describe("coverageSlips", () => {
       closedDone({ id: "deleted", linkedId: "k-gone" }),
     ];
     expect(coverageSlips(cases, withoutBackup)).toEqual([]);
+  });
+
+  it("does not judge a dental decision against a retail item that happens to share its id", () => {
+    const retail = getBaseTemplate("retail");
+    const sharesId = retail.knowledge.some((k) => k.id === covered.item.id);
+    expect(sharesId).toBe(true);
+    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);
+    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], withoutBackup)).toHaveLength(
+      1,
+    );
   });
 
   it("uses the latest review, so a reopened-then-fixed decision is judged from its last close", () => {

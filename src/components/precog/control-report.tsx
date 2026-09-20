@@ -145,7 +145,9 @@ export function ControlReport() {
   const openDecisions = profile.decisions.slice(0, 10);
   const generated = new Date();
   const today = generated.toISOString().slice(0, 10);
-  const continuityDecisions = profile.decisions.filter((d) => linkedKnowledgeId(d));
+  const continuityDecisions = profile.decisions.filter((d) =>
+    linkedKnowledgeId(d, profile.industry),
+  );
   const openContinuity = continuityDecisions
     .filter((d) => isDecisionOpen(d))
     .sort((a, b) => (a.reviewBy ?? "").localeCompare(b.reviewBy ?? ""));
@@ -573,7 +575,9 @@ export function ControlReport() {
             {openContinuity.length > 0 && (
               <ul className="mt-2 space-y-1.5 text-sm">
                 {openContinuity.map((d) => {
-                  const item = continuity.items.find((i) => i.item.id === linkedKnowledgeId(d));
+                  const item = continuity.items.find(
+                    (i) => i.item.id === linkedKnowledgeId(d, profile.industry),
+                  );
                   const step = linkedContinuityStep(d);
                   const state = !item
                     ? "no longer on the register"

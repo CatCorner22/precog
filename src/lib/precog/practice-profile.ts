@@ -60,6 +60,8 @@ export interface DecisionEntry {
   residualAtDecision?: number;
   linkedTab?: string;
   linkedId?: string;
+  /** Industry template `linkedId` belongs to; templates reuse ids, so links are only followed under the same industry. */
+  linkedIndustry?: IndustryId;
   /** Which continuity step this tracks when `linkedTab` is "knowledge"; older entries default to "cover". */
   linkedStep?: ContinuityStep;
   snapshot?: DecisionSnapshot;

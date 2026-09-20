@@ -13,6 +13,7 @@ import {
   decisionsDue,
   isDecisionOpen,
   linkedKnowledgeId,
+  linkedToIndustry,
 } from "@/lib/precog/decisions/follow-through";
 import { DOCUMENTATION_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
@@ -115,11 +116,11 @@ export function DecisionJournal({
           profile.dualRelease,
           d.subject,
           new Date(),
-          linkedKnowledgeId(d),
+          linkedKnowledgeId(d, profile.industry),
         ),
       ]),
     );
-  }, [profile.decisions, template, profile.staff, profile.dualRelease]);
+  }, [profile.decisions, profile.industry, template, profile.staff, profile.dualRelease]);
   const orderedDecisions = useMemo(
     () =>
       [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),
@@ -204,7 +205,7 @@ export function DecisionJournal({
                       >
                         Reopen +30d
                       </Button>
-                      {d.linkedTab && onOpenLinked && (
+                      {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -432,7 +433,7 @@ export function DecisionJournal({
                       </p>
                     </div>
                     <div className="flex gap-1">
-                      {d.linkedTab && onOpenLinked && (
+                      {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
                         <Button
                           size="sm"
                           variant="ghost"

@@ -479,7 +479,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           p.dualRelease,
           input.subject,
           new Date(),
-          linkedKnowledgeId(input),
+          input.linkedTab === "knowledge" ? input.linkedId : undefined,
         );
         const entry: DecisionEntry = {
           id,
@@ -491,6 +491,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           residualAtDecision: input.residualAtDecision ?? snapshot.subjectResidual,
           linkedTab: input.linkedTab,
           linkedId: input.linkedId,
+          ...(input.linkedId ? { linkedIndustry: p.industry } : {}),
           ...(input.linkedStep ? { linkedStep: input.linkedStep } : {}),
           snapshot,
         };
@@ -518,7 +519,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           p.dualRelease,
           decision.subject,
           new Date(),
-          linkedKnowledgeId(decision),
+          linkedKnowledgeId(decision, p.industry),
         );
         const trimmedNote = note?.trim();
         const reviewed = applyDecisionReview(

@@ -80,13 +80,13 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const tracked = useMemo(() => {
     const byStep = new Map<string, string>();
     for (const d of profile.decisions) {
-      const id = linkedKnowledgeId(d);
+      const id = linkedKnowledgeId(d, profile.industry);
       if (!id || !isDecisionOpen(d) || !d.reviewBy) continue;
       const key = continuityStepKey(id, linkedContinuityStep(d));
       if (!byStep.has(key)) byStep.set(key, d.reviewBy);
     }
     return byStep;
-  }, [profile.decisions]);
+  }, [profile.decisions, profile.industry]);
   const trackedBy = (knowledgeId: string, step: ContinuityStep) =>
     tracked.get(continuityStepKey(knowledgeId, step));
 
