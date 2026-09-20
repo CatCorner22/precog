@@ -6,11 +6,21 @@ import { defaultRagQuery } from "@/lib/precog/rag/industry-queries";
 import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-panel";
 import { MetaAnalysisPanel } from "@/components/precog/meta-analysis-panel";
 import { JohariPanel } from "@/components/precog/johari-panel";
+import { ForensicPanel } from "@/components/precog/forensic-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, Brain, ExternalLink, Grid2x2, Radar, Search, Sparkles } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  ExternalLink,
+  Grid2x2,
+  Radar,
+  Search,
+  Sigma,
+  Sparkles,
+} from "lucide-react";
 
 function rank(status: "ok" | "watch" | "breach"): number {
   return status === "breach" ? 2 : status === "watch" ? 1 : 0;
@@ -18,7 +28,9 @@ function rank(status: "ok" | "watch" | "breach"): number {
 
 export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const { profile, template } = usePractice();
-  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">("johari");
+  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari" | "forensic">(
+    "johari",
+  );
   const [ragQuery, setRagQuery] = useState(() => defaultRagQuery(profile.industry));
   useEffect(() => {
     setRagQuery(defaultRagQuery(profile.industry));
@@ -68,6 +80,14 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
           <Brain className="size-3.5" />
           Signals + guidance
         </Button>
+        <Button
+          size="sm"
+          variant={view === "forensic" ? "default" : "secondary"}
+          onClick={() => setView("forensic")}
+        >
+          <Sigma className="size-3.5" />
+          Forensic screen
+        </Button>
       </div>
 
       {view === "johari" && <JohariPanel onNavigate={(t) => onNavigate?.(t)} />}
@@ -75,6 +95,8 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
       {view === "meta" && <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />}
 
       {view === "reasoning" && <AdvancedReasoningPanel />}
+
+      {view === "forensic" && <ForensicPanel />}
 
       {view === "signals" && (
         <>
