@@ -2,7 +2,12 @@ import { useMemo, useRef, useState } from "react";
 import { BookOpen, Download, Plus, RotateCcw, Trash2, Upload, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
-import { isDecisionOpen, linkedKnowledgeId } from "@/lib/precog/decisions/follow-through";
+import {
+  continuityStepKey,
+  isDecisionOpen,
+  linkedContinuityStep,
+  linkedKnowledgeId,
+} from "@/lib/precog/decisions/follow-through";
 import {
   parseRegisterCsv,
   registerTemplateCsv,
@@ -12,6 +17,8 @@ import {
 import {
   absenceImpact,
   coverageReport,
+  DOCUMENTATION_LABEL,
+  documentationDebt,
   LEVEL_LABEL,
   LEVEL_ORDER,
   makeKnowledgeId,
@@ -19,8 +26,10 @@ import {
   setRelationLevel,
   STATUS_LABEL,
   type AbsenceAction,
+  type ContinuityStep,
   type CoverageStatus,
   type CrossTrainingMove,
+  type DocumentationGap,
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import type { Criticality, KnowledgeItem, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
@@ -66,19 +75,33 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     addDecision,
   } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
-  /** Open journal entries logged from this register, by item id. */
+  const docs = useMemo(() => documentationDebt(tpl), [tpl]);
+  /** Review date of the open journal entry for each (item, step) logged from this register. */
   const tracked = useMemo(() => {
-    const byItem = new Map<string, string>();
+    const byStep = new Map<string, string>();
     for (const d of profile.decisions) {
-      const id = linkedKnowledgeId(d);
-      if (id && isDecisionOpen(d) && d.reviewBy && !byItem.has(id)) byItem.set(id, d.reviewBy);
+      const id = linkedKnowledgeId(d, profile.industry);
+      if (!id || !isDecisionOpen(d) || !d.reviewBy) continue;
+      const key = continuityStepKey(id, linkedContinuityStep(d));
+      if (!byStep.has(key)) byStep.set(key, d.reviewBy);
     }
-    return byItem;
-  }, [profile.decisions]);
+    return byStep;
+  }, [profile.decisions, profile.industry]);
+  const trackedBy = (knowledgeId: string, step: ContinuityStep) =>
+    tracked.get(continuityStepKey(knowledgeId, step));
 
-  const logContinuityDecision = (subject: string, note: string, knowledgeId: string) => {
+  const reviewDateIn30Days = () => {
     const reviewBy = new Date();
     reviewBy.setDate(reviewBy.getDate() + 30);
+    return reviewBy;
+  };
+  const logContinuityDecision = (
+    subject: string,
+    note: string,
+    knowledgeId: string,
+    step: ContinuityStep,
+    reviewBy: Date,
+  ) =>
     addDecision({
       subject,
       kind: "remediate",
@@ -86,20 +109,37 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       reviewBy: reviewBy.toISOString().slice(0, 10),
       linkedTab: "knowledge",
       linkedId: knowledgeId,
+      linkedStep: step,
     });
+  const confirmLogged = (reviewBy: Date, count = 1) =>
     toast.success(
-      `Logged in the Journal — coverage is re-checked at the review on ${reviewBy.toLocaleDateString()}.`,
+      `${count === 1 ? "Logged" : `${count} steps logged`} in the Journal — the register is re-checked at the review on ${reviewBy.toLocaleDateString()}.`,
     );
+  const logMove = (m: CrossTrainingMove) => {
+    const reviewBy = reviewDateIn30Days();
+    logContinuityDecision(m.item.name, m.action, m.item.id, "cover", reviewBy);
+    confirmLogged(reviewBy);
   };
-  const logMove = (m: CrossTrainingMove) => logContinuityDecision(m.item.name, m.action, m.item.id);
+  const logGap = (g: DocumentationGap) => {
+    const reviewBy = reviewDateIn30Days();
+    logContinuityDecision(g.item.name, g.action, g.item.id, g.step, reviewBy);
+    confirmLogged(reviewBy);
+  };
+  /** One entry per item, so each item's snapshot, review and slip check stand on their own. */
   const logAbsenceAction = (a: AbsenceAction) => {
-    const names = a.knowledgeIds
-      .map((id) => tpl.knowledge.find((k) => k.id === id)?.name)
-      .filter((n): n is string => Boolean(n));
-    const subject =
-      names.length <= 2 ? names.join(" & ") : `${names[0]} & ${names.length - 1} more`;
-    logContinuityDecision(subject, a.text, a.knowledgeIds[0]);
+    const reviewBy = reviewDateIn30Days();
+    const pending = a.knowledgeIds
+      .map((id) => tpl.knowledge.find((k) => k.id === id))
+      .filter((k): k is KnowledgeItem => Boolean(k))
+      .filter((k) => !trackedBy(k.id, a.step));
+    for (const k of pending) logContinuityDecision(k.name, a.text, k.id, a.step, reviewBy);
+    confirmLogged(reviewBy, pending.length);
   };
+  /** An absence step is "in the Journal" once every item it names has an open entry for that step. */
+  const absenceStepTracked = (a: AbsenceAction) =>
+    a.knowledgeIds.length > 0 && a.knowledgeIds.every((id) => trackedBy(id, a.step))
+      ? trackedBy(a.knowledgeIds[0], a.step)
+      : undefined;
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
 
@@ -194,7 +234,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat
           label="Backed up"
           value={`${report.coverageIndex}%`}
@@ -212,6 +252,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
           value={String(report.counts.thin)}
           hint="One person can run it and someone else has started learning."
           tone="warn"
+        />
+        <Stat
+          label="Written down"
+          value={`${docs.documentedIndex}%`}
+          hint={`${docs.counts.none} with nothing written, ${docs.counts.unlocated} written but location not recorded.`}
+          tone={docs.documentedIndex >= 70 ? "ok" : docs.documentedIndex >= 40 ? "warn" : "danger"}
         />
         <Stat
           label="Most depended on"
@@ -485,64 +531,132 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Cross-training plan</CardTitle>
-            <CardDescription>
-              What to do next, most urgent first. Each step names who should learn and who should
-              teach.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {report.plan.length === 0 ? (
-              <p className="text-sm text-ok">
-                Every item has at least two people who can run it alone. Revisit this after anyone
-                joins, leaves, or changes role.
-              </p>
-            ) : (
-              <ol className="space-y-2">
-                {report.plan.slice(0, 8).map((m, i) => (
-                  <li
-                    key={m.item.id}
-                    className="flex cursor-pointer gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
-                    onClick={() => setSelectedId(m.item.id)}
-                  >
-                    <span className="font-mono text-xs text-muted">{i + 1}.</span>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{m.item.name}</span>
-                        <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cross-training plan</CardTitle>
+              <CardDescription>
+                What to do next, most urgent first. Each step names who should learn and who should
+                teach.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {report.plan.length === 0 ? (
+                <p className="text-sm text-ok">
+                  Every item has at least two people who can run it alone. Revisit this after anyone
+                  joins, leaves, or changes role.
+                </p>
+              ) : (
+                <ol className="space-y-2">
+                  {report.plan.slice(0, 8).map((m, i) => (
+                    <li
+                      key={m.item.id}
+                      className="flex cursor-pointer gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
+                      onClick={() => setSelectedId(m.item.id)}
+                    >
+                      <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{m.item.name}</span>
+                          <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
+                        </div>
+                        <p className="text-muted">{m.action}</p>
+                        {trackedBy(m.item.id, "cover") ? (
+                          <p className="text-xs text-subtle">
+                            In the Journal · review by {trackedBy(m.item.id, "cover")}
+                          </p>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              logMove(m);
+                            }}
+                          >
+                            <BookOpen className="size-3.5" /> Log as decision
+                          </Button>
+                        )}
                       </div>
-                      <p className="text-muted">{m.action}</p>
-                      {tracked.has(m.item.id) ? (
-                        <p className="text-xs text-subtle">
-                          In the Journal · review by {tracked.get(m.item.id)}
-                        </p>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            logMove(m);
-                          }}
-                        >
-                          <BookOpen className="size-3.5" /> Log as decision
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-                {report.plan.length > 8 && (
-                  <li className="text-xs text-muted">
-                    {report.plan.length - 8} more below the fold — fix these first.
-                  </li>
-                )}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
+                    </li>
+                  ))}
+                  {report.plan.length > 8 && (
+                    <li className="text-xs text-muted">
+                      {report.plan.length - 8} more below the fold — fix these first.
+                    </li>
+                  )}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Write it down</CardTitle>
+              <CardDescription>
+                A backup is only as good as the procedure they can follow. Items with nothing
+                written down, or a procedure nobody has said where to find, ranked by how much stops
+                if the one person who knows is out.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {docs.gaps.length === 0 ? (
+                <p className="text-sm text-ok">
+                  Every item has a written procedure and a recorded place to find it. Re-check
+                  whenever a duty changes hands.
+                </p>
+              ) : (
+                <ol className="space-y-2">
+                  {docs.gaps.slice(0, 8).map((g, i) => (
+                    <li
+                      key={g.item.id}
+                      className="flex cursor-pointer gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
+                      onClick={() => setSelectedId(g.item.id)}
+                    >
+                      <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{g.item.name}</span>
+                          <Badge variant={g.state === "none" ? "danger" : "warn"}>
+                            {DOCUMENTATION_LABEL[g.state]}
+                          </Badge>
+                          <Badge variant={STATUS_VARIANT[g.coverage]}>
+                            {STATUS_LABEL[g.coverage]}
+                          </Badge>
+                        </div>
+                        <p className="text-muted">{g.action}</p>
+                        {trackedBy(g.item.id, g.step) ? (
+                          <p className="text-xs text-subtle">
+                            In the Journal · review by {trackedBy(g.item.id, g.step)}
+                          </p>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              logGap(g);
+                            }}
+                          >
+                            <BookOpen className="size-3.5" /> Log as decision
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                  {docs.gaps.length > 8 && (
+                    <li className="text-xs text-muted">
+                      {docs.gaps.length - 8} more — tick “A written procedure exists” and record
+                      where it lives on each item as you go.
+                    </li>
+                  )}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
           {selected && (
@@ -716,9 +830,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                         <li key={a.text}>
                           {a.text}
                           {a.knowledgeIds.length > 0 &&
-                            (tracked.has(a.knowledgeIds[0]) ? (
+                            (absenceStepTracked(a) ? (
                               <span className="ml-2 text-xs text-subtle">
-                                In the Journal · review by {tracked.get(a.knowledgeIds[0])}
+                                In the Journal · review by {absenceStepTracked(a)}
                               </span>
                             ) : (
                               <Button

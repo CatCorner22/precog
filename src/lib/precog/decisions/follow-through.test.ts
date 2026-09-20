@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "../controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
-import { coverageReport } from "../continuity/coverage";
+import { coverageReport, documentationState } from "../continuity/coverage";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts } from "../sod/detect";
@@ -10,10 +10,13 @@ import {
   applyDecisionReview,
   captureContinuitySnapshot,
   captureDecisionSnapshot,
+  continuityStepKey,
   coverageSlips,
   decisionDelta,
   decisionsDue,
+  linkedContinuityStep,
   linkedKnowledgeId,
+  linkedToIndustry,
   localDateKey,
 } from "./follow-through";
 
@@ -201,9 +204,23 @@ describe("continuity snapshots", () => {
   const single = report.singlePoints[0];
 
   it("only knowledge-linked decisions carry a register id", () => {
-    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k1" })).toBe("k1");
-    expect(linkedKnowledgeId({ linkedTab: "sod", linkedId: "k1" })).toBeUndefined();
-    expect(linkedKnowledgeId({ linkedTab: "knowledge" })).toBeUndefined();
+    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k1" }, "dental")).toBe("k1");
+    expect(linkedKnowledgeId({ linkedTab: "sod", linkedId: "k1" }, "dental")).toBeUndefined();
+    expect(linkedKnowledgeId({ linkedTab: "knowledge" }, "dental")).toBeUndefined();
+  });
+
+  it("does not follow a link into another industry's template, which reuses the same ids", () => {
+    const dentalLink = {
+      linkedTab: "knowledge",
+      linkedId: "k3",
+      linkedIndustry: "dental",
+    } as const;
+    expect(linkedKnowledgeId(dentalLink, "dental")).toBe("k3");
+    expect(linkedKnowledgeId(dentalLink, "retail")).toBeUndefined();
+    expect(linkedToIndustry(dentalLink, "retail")).toBe(false);
+    // entries logged before the industry was recorded keep working where they are
+    expect(linkedKnowledgeId({ linkedTab: "knowledge", linkedId: "k3" }, "retail")).toBe("k3");
+    expect(linkedToIndustry({}, "retail")).toBe(true);
   });
 
   it("records coverage and the linked item's status, dropping the status when the item is gone", () => {
@@ -211,6 +228,7 @@ describe("continuity snapshots", () => {
       coverageIndex: report.coverageIndex,
       singlePoints: report.singlePoints.length,
       itemStatus: single.status,
+      itemDocumentation: documentationState(single.item),
     });
     expect(captureContinuitySnapshot(dental, "k-deleted")).toEqual({
       coverageIndex: report.coverageIndex,
@@ -266,11 +284,73 @@ describe("continuity snapshots", () => {
       singlePoints: -1,
       itemThen: single.status,
       itemNow: "covered",
+      docsThen: documentationState(single.item),
+      docsNow: documentationState(single.item),
     });
     expect(delta!.continuity!.coverageIndex).toBeGreaterThan(0);
     expect(
       decisionDelta(decision({ snapshot: then }), { ...now, continuity: undefined })?.continuity,
     ).toBeUndefined();
+  });
+});
+
+describe("continuity steps", () => {
+  it("treats entries logged before steps existed as coverage moves", () => {
+    expect(linkedContinuityStep({})).toBe("cover");
+    expect(linkedContinuityStep({ linkedStep: "document" })).toBe("document");
+  });
+
+  it("keys distinct steps on the same item separately", () => {
+    const keys = new Set([
+      continuityStepKey("k1", "cover"),
+      continuityStepKey("k1", "handoff"),
+      continuityStepKey("k1", "document"),
+      continuityStepKey("k1", "locate"),
+      continuityStepKey("k2", "cover"),
+    ]);
+    expect(keys.size).toBe(5);
+    expect(continuityStepKey("k1", "cover")).toBe(continuityStepKey("k1", "cover"));
+  });
+
+  it("shows then-vs-now documentation once the procedure is written and located", () => {
+    const report = coverageReport(dental);
+    const unwritten = report.items.find((i) => documentationState(i.item) === "none")!;
+    const written = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((k) =>
+        k.id === unwritten.item.id
+          ? { ...k, documented: true, procedureLocation: "Shared drive / Procedures" }
+          : k,
+      ),
+    });
+    const then = captureDecisionSnapshot(
+      dental,
+      dental.staffComposition,
+      dualRelease,
+      unwritten.item.name,
+      new Date("2025-01-01T00:00:00.000Z"),
+      unwritten.item.id,
+    );
+    const now = captureDecisionSnapshot(
+      written,
+      dental.staffComposition,
+      dualRelease,
+      unwritten.item.name,
+      new Date("2025-02-01T00:00:00.000Z"),
+      unwritten.item.id,
+    );
+    const delta = decisionDelta(
+      decision({
+        linkedTab: "knowledge",
+        linkedId: unwritten.item.id,
+        linkedStep: "document",
+        snapshot: then,
+      }),
+      now,
+    );
+    expect(delta?.continuity?.docsThen).toBe("none");
+    expect(delta?.continuity?.docsNow).toBe("located");
+    expect(delta?.continuity?.itemThen).toBe(delta?.continuity?.itemNow);
   });
 });
 
@@ -337,6 +417,16 @@ describe("coverageSlips", () => {
       closedDone({ id: "deleted", linkedId: "k-gone" }),
     ];
     expect(coverageSlips(cases, withoutBackup)).toEqual([]);
+  });
+
+  it("does not judge a dental decision against a retail item that happens to share its id", () => {
+    const retail = getBaseTemplate("retail");
+    const sharesId = retail.knowledge.some((k) => k.id === covered.item.id);
+    expect(sharesId).toBe(true);
+    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);
+    expect(coverageSlips([closedDone({ linkedIndustry: "dental" })], withoutBackup)).toHaveLength(
+      1,
+    );
   });
 
   it("uses the latest review, so a reopened-then-fixed decision is judged from its last close", () => {

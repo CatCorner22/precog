@@ -1,6 +1,7 @@
-import type { CoverageStatus } from "../continuity/coverage";
-import { coverageReport } from "../continuity/coverage";
+import type { ContinuityStep, CoverageStatus, DocumentationState } from "../continuity/coverage";
+import { coverageReport, documentationState } from "../continuity/coverage";
 import type { DualReleasePolicy } from "../controls/dual-release";
+import type { IndustryId } from "../industry";
 import type {
   ContinuitySnapshot,
   DecisionEntry,
@@ -26,11 +27,37 @@ function dateAfter(date: Date, days: number): string {
   return localDateKey(next);
 }
 
-/** The register item a decision tracks, if it was logged from the continuity planner. */
+/**
+ * Whether a linked decision belongs to the template currently loaded. Industry
+ * templates reuse item ids (k1, k2, …), so a decision logged under one industry
+ * must not track an unrelated item after the user switches to another. Entries
+ * logged before the industry was recorded are assumed to match.
+ */
+export function linkedToIndustry(
+  d: Pick<DecisionEntry, "linkedIndustry">,
+  industry: IndustryId,
+): boolean {
+  return !d.linkedIndustry || d.linkedIndustry === industry;
+}
+
+/** The register item a decision tracks, if it was logged from the continuity planner for this industry. */
 export function linkedKnowledgeId(
-  d: Pick<DecisionEntry, "linkedTab" | "linkedId">,
+  d: Pick<DecisionEntry, "linkedTab" | "linkedId" | "linkedIndustry">,
+  industry: IndustryId,
 ): string | undefined {
-  return d.linkedTab === "knowledge" && d.linkedId ? d.linkedId : undefined;
+  return d.linkedTab === "knowledge" && d.linkedId && linkedToIndustry(d, industry)
+    ? d.linkedId
+    : undefined;
+}
+
+/** The continuity step a knowledge-linked decision tracks; entries logged before steps existed were all coverage moves. */
+export function linkedContinuityStep(d: Pick<DecisionEntry, "linkedStep">): ContinuityStep {
+  return d.linkedStep ?? "cover";
+}
+
+/** Map key for "is this step on this item already in the Journal?" lookups. */
+export function continuityStepKey(knowledgeId: string, step: ContinuityStep): string {
+  return `${knowledgeId}\u0000${step}`;
 }
 
 export function captureContinuitySnapshot(
@@ -42,7 +69,7 @@ export function captureContinuitySnapshot(
   return {
     coverageIndex: report.coverageIndex,
     singlePoints: report.singlePoints.length,
-    ...(item ? { itemStatus: item.status } : {}),
+    ...(item ? { itemStatus: item.status, itemDocumentation: documentationState(item.item) } : {}),
   };
 }
 
@@ -102,7 +129,7 @@ export function coverageSlips(
 ): CoverageSlip[] {
   const candidates: { decision: DecisionEntry; knowledgeId: string; from: CoverageStatus }[] = [];
   for (const decision of decisions) {
-    const knowledgeId = linkedKnowledgeId(decision);
+    const knowledgeId = linkedKnowledgeId(decision, tpl.id);
     if (isDecisionOpen(decision) || !knowledgeId) continue;
     const last = decision.reviews?.[decision.reviews.length - 1];
     const from = last?.outcome === "done" ? last.snapshot.continuity?.itemStatus : undefined;
@@ -166,6 +193,8 @@ export function decisionDelta(
     singlePoints: number;
     itemThen?: CoverageStatus;
     itemNow?: CoverageStatus;
+    docsThen?: DocumentationState;
+    docsNow?: DocumentationState;
   };
 } | null {
   if (!d.snapshot) return null;
@@ -179,6 +208,8 @@ export function decisionDelta(
             singlePoints: cont.singlePoints - then.singlePoints,
             ...(then.itemStatus ? { itemThen: then.itemStatus } : {}),
             ...(cont.itemStatus ? { itemNow: cont.itemStatus } : {}),
+            ...(then.itemDocumentation ? { docsThen: then.itemDocumentation } : {}),
+            ...(cont.itemDocumentation ? { docsNow: cont.itemDocumentation } : {}),
           },
         }
       : {}),
