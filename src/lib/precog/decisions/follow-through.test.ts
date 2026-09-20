@@ -10,6 +10,7 @@ import {
   applyDecisionReview,
   captureContinuitySnapshot,
   captureDecisionSnapshot,
+  coverageSlips,
   decisionDelta,
   decisionsDue,
   linkedKnowledgeId,
@@ -270,5 +271,93 @@ describe("continuity snapshots", () => {
     expect(
       decisionDelta(decision({ snapshot: then }), { ...now, continuity: undefined })?.continuity,
     ).toBeUndefined();
+  });
+});
+
+describe("coverageSlips", () => {
+  const report = coverageReport(dental);
+  const covered = report.items.find((i) => i.status === "covered")!;
+  const closedDone = (overrides: Partial<DecisionEntry> = {}) =>
+    decision({
+      id: "cont",
+      linkedTab: "knowledge",
+      linkedId: covered.item.id,
+      status: "closed",
+      reviews: [
+        {
+          at: "2025-02-01T00:00:00.000Z",
+          outcome: "done",
+          snapshot: captureDecisionSnapshot(
+            dental,
+            dental.staffComposition,
+            dualRelease,
+            covered.item.name,
+            new Date("2025-02-01T00:00:00.000Z"),
+            covered.item.id,
+          ),
+        },
+      ],
+      ...overrides,
+    });
+  const backup = covered.primaries[1];
+  const withoutBackup = resolveTemplate({
+    industry: "dental",
+    customRelations: dental.relations.filter(
+      (r) => !(r.knowledgeId === covered.item.id && r.personId === backup.id),
+    ),
+  });
+
+  it("flags a done decision whose item lost a backup, and nothing while coverage holds", () => {
+    expect(coverageSlips([closedDone()], dental)).toEqual([]);
+    const slips = coverageSlips([closedDone()], withoutBackup);
+    expect(slips).toHaveLength(1);
+    expect(slips[0].decision.id).toBe("cont");
+    expect(slips[0].from).toBe("covered");
+    expect(["single", "thin", "uncovered"]).toContain(slips[0].to);
+  });
+
+  it("ignores open, not-relevant, unlinked, legacy and deleted-item decisions", () => {
+    const done = closedDone();
+    const cases: DecisionEntry[] = [
+      closedDone({ id: "open", status: "open" }),
+      closedDone({
+        id: "irrelevant",
+        reviews: [{ ...done.reviews![0], outcome: "no_longer_relevant" }],
+      }),
+      closedDone({ id: "unlinked", linkedTab: "sod" }),
+      closedDone({
+        id: "legacy",
+        reviews: [
+          {
+            ...done.reviews![0],
+            snapshot: { ...done.reviews![0].snapshot, continuity: undefined },
+          },
+        ],
+      }),
+      closedDone({ id: "deleted", linkedId: "k-gone" }),
+    ];
+    expect(coverageSlips(cases, withoutBackup)).toEqual([]);
+  });
+
+  it("uses the latest review, so a reopened-then-fixed decision is judged from its last close", () => {
+    const reopened = closedDone({
+      reviews: [
+        ...closedDone().reviews!,
+        {
+          at: "2025-03-01T00:00:00.000Z",
+          outcome: "still_open",
+          snapshot: captureDecisionSnapshot(
+            withoutBackup,
+            dental.staffComposition,
+            dualRelease,
+            covered.item.name,
+            new Date("2025-03-01T00:00:00.000Z"),
+            covered.item.id,
+          ),
+        },
+      ],
+      status: "open",
+    });
+    expect(coverageSlips([reopened], withoutBackup)).toEqual([]);
   });
 });

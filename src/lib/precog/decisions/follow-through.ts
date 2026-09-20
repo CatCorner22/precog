@@ -75,6 +75,49 @@ export function isDecisionOpen(d: DecisionEntry): boolean {
   return d.status !== "closed";
 }
 
+const STATUS_RANK: Record<CoverageStatus, number> = {
+  uncovered: 0,
+  single: 1,
+  thin: 2,
+  covered: 3,
+};
+
+export interface CoverageSlip {
+  decision: DecisionEntry;
+  /** Coverage of the linked item when the decision was last closed as done. */
+  from: CoverageStatus;
+  /** Coverage of the same item on today's register. */
+  to: CoverageStatus;
+}
+
+/**
+ * Continuity decisions that were closed as done but whose register item has
+ * since lost coverage (a backup left, was marked inactive, or was unassigned).
+ * Decisions closed as "no longer relevant", still open, or whose item has been
+ * deleted are not slips.
+ */
+export function coverageSlips(
+  decisions: readonly DecisionEntry[],
+  tpl: IndustryTemplate,
+): CoverageSlip[] {
+  const candidates: { decision: DecisionEntry; knowledgeId: string; from: CoverageStatus }[] = [];
+  for (const decision of decisions) {
+    const knowledgeId = linkedKnowledgeId(decision);
+    if (isDecisionOpen(decision) || !knowledgeId) continue;
+    const last = decision.reviews?.[decision.reviews.length - 1];
+    const from = last?.outcome === "done" ? last.snapshot.continuity?.itemStatus : undefined;
+    if (from) candidates.push({ decision, knowledgeId, from });
+  }
+  if (candidates.length === 0) return [];
+  const statusNow = new Map(coverageReport(tpl).items.map((i) => [i.item.id, i.status]));
+  const slips: CoverageSlip[] = [];
+  for (const { decision, knowledgeId, from } of candidates) {
+    const to = statusNow.get(knowledgeId);
+    if (to !== undefined && STATUS_RANK[to] < STATUS_RANK[from]) slips.push({ decision, from, to });
+  }
+  return slips;
+}
+
 export function decisionsDue(
   decisions: readonly DecisionEntry[],
   now: Date,
