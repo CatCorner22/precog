@@ -67,6 +67,8 @@ export interface KnowledgeItem {
   documented?: boolean;
   /** Where that procedure lives (shared drive path, binder, URL) so a stand-in can find it. */
   procedureLocation?: string;
+  /** ISO date (YYYY-MM-DD) the owner last confirmed who holds this and whether it is documented. Absent = never confirmed. */
+  confirmedAt?: string;
 }
 
 export interface KnowledgeRelation {

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
-import { defaultProfile, type PracticeProfile } from "./practice-profile";
+import { defaultProfile, normalizeCustomKnowledge, type PracticeProfile } from "./practice-profile";
 import { isStaleSave } from "./save-conflict";
 
 type ProfileRow = {
@@ -47,9 +47,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
         ? row.profile.customProcesses
         : null,
       customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-      customKnowledge: Array.isArray(row.profile.customKnowledge)
-        ? row.profile.customKnowledge
-        : null,
+      customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge),
       customRelations: Array.isArray(row.profile.customRelations)
         ? row.profile.customRelations
         : null,
@@ -185,9 +183,7 @@ function mergeProfile(row: {
       ? row.profile.customProcesses
       : null,
     customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-    customKnowledge: Array.isArray(row.profile.customKnowledge)
-      ? row.profile.customKnowledge
-      : null,
+    customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge),
     customRelations: Array.isArray(row.profile.customRelations)
       ? row.profile.customRelations
       : null,

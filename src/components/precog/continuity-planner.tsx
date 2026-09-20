@@ -7,6 +7,7 @@ import {
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
+  localDateKey,
 } from "@/lib/precog/decisions/follow-through";
 import {
   parseRegisterCsv,
@@ -24,6 +25,7 @@ import {
   makeKnowledgeId,
   relationLevel,
   setRelationLevel,
+  staleItems,
   STATUS_LABEL,
   type AbsenceAction,
   type ContinuityStep,
@@ -76,6 +78,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
   const docs = useMemo(() => documentationDebt(tpl), [tpl]);
+  const today = localDateKey(new Date());
   /** Review date of the open journal entry for each (item, step) logged from this register. */
   const tracked = useMemo(() => {
     const byStep = new Map<string, string>();
@@ -142,6 +145,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       : undefined;
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
+  const trackFreshness = !usingTemplateRegister;
+  const freshness = useMemo(() => staleItems(tpl, today), [tpl, today]);
+  const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
 
   const [selectedId, setSelectedId] = useState<string | null>(initialKnowledgeId ?? null);
   const [draftName, setDraftName] = useState("");
@@ -166,6 +172,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       description: "",
       linkedProcessIds: [],
       documented: false,
+      confirmedAt: today,
     };
     setCustomKnowledge((current) => [...current, item]);
     setSelectedId(item.id);
@@ -173,7 +180,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
 
   const updateItem = (id: string, patch: Partial<KnowledgeItem>) =>
-    setCustomKnowledge((current) => current.map((k) => (k.id === id ? { ...k, ...patch } : k)));
+    setCustomKnowledge((current) =>
+      current.map((k) => (k.id === id ? { ...k, ...patch, confirmedAt: today } : k)),
+    );
 
   const removeItem = (id: string) => {
     setCustomKnowledge((current) => current.filter((k) => k.id !== id));
@@ -181,8 +190,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     if (selectedId === id) setSelectedId(null);
   };
 
-  const setLevel = (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) =>
+  const setLevel = (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => {
     setCustomRelations((current) => setRelationLevel(current, personId, knowledgeId, level));
+    setCustomKnowledge((current) =>
+      current.map((k) => (k.id === knowledgeId ? { ...k, confirmedAt: today } : k)),
+    );
+  };
 
   const resetToTemplate = () => {
     setCustomKnowledge(null);
@@ -440,7 +453,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                         onClick={() => setSelectedId(row.item.id)}
                       >
                         <td className="px-3 py-2">
-                          <div className="font-medium">{row.item.name}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{row.item.name}</span>
+                            {trackFreshness && staleIds.has(row.item.id) && (
+                              <Badge variant="warn">Re-confirm</Badge>
+                            )}
+                          </div>
                           <div className="mt-0.5 flex flex-wrap gap-1 text-[10px] text-muted">
                             <span>{KIND_LABEL[row.item.kind ?? "knowledge"]}</span>
                             <span>·</span>
@@ -656,6 +674,42 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               )}
             </CardContent>
           </Card>
+
+          {trackFreshness && freshness.stale.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Confirm it&apos;s still true</CardTitle>
+                <CardDescription>
+                  {freshness.stale.length} item(s) not confirmed in the last 90 days. People leave,
+                  learn and forget; a register nobody re-checks is a false comfort.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ol className="space-y-2">
+                  {freshness.stale.slice(0, 8).map((entry, i) => (
+                    <li
+                      key={entry.item.id}
+                      className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                    >
+                      <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="font-medium">{entry.item.name}</div>
+                        <p className="text-muted">{entry.action}</p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => updateItem(entry.item.id, { confirmedAt: today })}
+                        >
+                          Still accurate
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -715,6 +769,17 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     />
                   </label>
                 )}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
+                  >
+                    Still accurate
+                  </Button>
+                </div>
                 <PeopleLine
                   label="Can run it alone"
                   people={selected.primaries.map((p) => p.name)}

@@ -113,6 +113,80 @@ const STATUS_URGENCY: Record<CoverageStatus, number> = {
   covered: 0,
 };
 
+export const CONFIRMATION_MAX_AGE_DAYS = 90;
+
+export interface StaleItem {
+  item: KnowledgeItem;
+  coverage: CoverageStatus;
+  confirmedAt: string | null;
+  ageDays: number | null;
+  action: string;
+}
+
+export interface StalenessReport {
+  stale: StaleItem[];
+  /** Criticality-weighted percentage of items confirmed within the freshness window. */
+  confirmedIndex: number;
+}
+
+function utcDay(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const time = Date.UTC(year, month - 1, day);
+  return Number.isNaN(time) ? null : time;
+}
+
+function ageInDays(confirmedAt: string, today: string): number | null {
+  const confirmed = utcDay(confirmedAt);
+  const current = utcDay(today);
+  if (confirmed === null || current === null) return null;
+  return Math.floor((current - confirmed) / 86_400_000);
+}
+
+export function staleItems(
+  tpl: IndustryTemplate,
+  today: string,
+  maxAgeDays = CONFIRMATION_MAX_AGE_DAYS,
+): StalenessReport {
+  const report = coverageReport(tpl);
+  const stale: StaleItem[] = [];
+  let confirmedWeight = 0;
+  let totalWeight = 0;
+
+  for (const row of report.items) {
+    const confirmedAt = row.item.confirmedAt ?? null;
+    const ageDays = confirmedAt ? ageInDays(confirmedAt, today) : null;
+    const fresh = ageDays !== null && ageDays <= maxAgeDays;
+    const weight = CRITICALITY_WEIGHT[row.item.criticality];
+    totalWeight += weight;
+    if (fresh) {
+      confirmedWeight += weight;
+      continue;
+    }
+    stale.push({
+      item: row.item,
+      coverage: row.status,
+      confirmedAt,
+      ageDays,
+      action:
+        ageDays === null
+          ? `Confirm who can run ${row.item.name} today and whether the written procedure is still current.`
+          : `Re-confirm ${row.item.name} — last checked ${ageDays} days ago; people and procedures drift.`,
+    });
+  }
+
+  stale.sort(
+    (a, b) =>
+      CRITICALITY_WEIGHT[b.item.criticality] - CRITICALITY_WEIGHT[a.item.criticality] ||
+      STATUS_URGENCY[b.coverage] - STATUS_URGENCY[a.coverage] ||
+      a.item.name.localeCompare(b.item.name),
+  );
+  return {
+    stale,
+    confirmedIndex: totalWeight ? Math.round((confirmedWeight / totalWeight) * 100) : 100,
+  };
+}
+
 export function levelRank(level: KnowledgeLevel | undefined): number {
   return level ? LEVEL_ORDER.indexOf(level) + 1 : 0;
 }

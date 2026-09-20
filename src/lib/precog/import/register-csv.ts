@@ -9,6 +9,8 @@ import type {
 } from "../types";
 import { parseRows } from "./csv";
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
  * one column per active team member holding that person's level
@@ -35,6 +37,7 @@ export const REGISTER_CSV_COLUMNS = [
   "criticality",
   "documented",
   "procedure location",
+  "last confirmed",
   "description",
 ] as const;
 
@@ -51,6 +54,7 @@ const HEADER_ALIASES: Record<(typeof REGISTER_CSV_COLUMNS)[number], readonly str
     "location",
     "link",
   ],
+  "last confirmed": ["last confirmed", "confirmed", "confirmed on", "last checked"],
   description: ["description", "notes", "details"],
 };
 
@@ -243,6 +247,11 @@ export function parseRegisterCsv(
     const procedureLocation = columns.has("procedure location")
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
+    const confirmedValue = cell(cells, "last confirmed");
+    const confirmedAt =
+      /^\d{4}-\d{2}-\d{2}$/.test(confirmedValue) || !columns.has("last confirmed")
+        ? confirmedValue || existing?.confirmedAt
+        : existing?.confirmedAt;
     const description = columns.has("description")
       ? cell(cells, "description").slice(0, 500)
       : (existing?.description ?? "");
@@ -263,6 +272,7 @@ export function parseRegisterCsv(
       linkedProcessIds: existing?.linkedProcessIds ?? [],
       documented,
       ...(procedureLocation ? { procedureLocation } : {}),
+      ...(confirmedAt ? { confirmedAt } : {}),
     });
 
     for (const { index: col, person } of personColumns) {
@@ -293,6 +303,7 @@ export function registerToCsv(tpl: IndustryTemplate): string {
     k.criticality,
     k.documented ? "true" : "false",
     k.procedureLocation ?? "",
+    k.confirmedAt && ISO_DATE.test(k.confirmedAt) ? k.confirmedAt : "",
     k.description,
     ...people.map((p) => {
       const level = levelOf.get(`${p.id}|${k.id}`);
@@ -312,6 +323,7 @@ export function registerTemplateCsv(tpl: IndustryTemplate): string {
     "critical",
     "false",
     "Shared drive > Office > Payroll checklist",
+    "",
     "Who can do it: expert, can do, learning, aware, or leave blank",
     ...people.map((_, i) => (i === 0 ? "expert" : i === 1 ? "learning" : "")),
   ];
