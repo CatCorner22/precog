@@ -378,7 +378,8 @@ export function ControlReport() {
           </p>
           {continuity.singlePoints.length === 0 ? (
             <p className="mt-2 text-sm text-neutral-600">
-              No critical or important item depends on a single person.
+              No critical or important item is uncovered or relies on one person without a
+              learner.
             </p>
           ) : (
             <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
