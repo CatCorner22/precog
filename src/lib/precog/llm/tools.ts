@@ -234,7 +234,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}`,
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down`,
           data: risks.map((r) => {
             const move = moveByItem.get(r.knowledgeId);
             return {
@@ -253,12 +253,6 @@ export function executeTool(
                 ? move.item.procedureLocation?.trim() || null
                 : null,
               nextStep: move?.action ?? null,
-              documentationGaps: docs.gaps.slice(0, 5).map((g) => ({
-                item: g.item.name,
-                state: g.state,
-                author: g.author?.name ?? null,
-                action: g.action,
-              })),
             };
           }),
           links: [{ tab: "knowledge", label: "Who knows what" }],

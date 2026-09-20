@@ -213,11 +213,7 @@ export function buildWeeklyActions(input: {
       seen.add(key);
       return true;
     })
-    .sort((a, b) => b.priority - a.priority);
-  const top = unique.slice(0, 5);
-  for (const action of unique.filter((a) => a.id.startsWith("docs-")).slice(0, 2)) {
-    if (top.some((a) => a.id === action.id)) continue;
-    top[top.length - 1] = action;
-  }
-  return top.sort((a, b) => b.priority - a.priority);
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 5);
+  return unique;
 }

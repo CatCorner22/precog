@@ -9,7 +9,7 @@ describe("buildWeeklyActions documentation advice", () => {
   it("adds critical documentation gaps to the action plan", () => {
     const actions = buildWeeklyActions({
       tpl: dental,
-      staff: dental.staffComposition,
+      staff: { ...dental.staffComposition, independentBankRec: true, dualControlPayments: true },
       dualRelease: defaultDualReleasePolicy(dental),
     });
     const docs = actions.filter((action) => action.id.startsWith("docs-"));
