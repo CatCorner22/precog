@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import {
   createContext,
   useCallback,
@@ -135,6 +137,8 @@ const SAVE_DEBOUNCE_MS = 1200;
 
 export function PracticeProvider({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
+  const userId = user?.id;
+  const userIsDevFallback = user?.isDevFallback;
   const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
@@ -215,19 +219,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready || isPending) return;
-    if (!authEnabled || !user || user.isDevFallback) {
+    if (!authEnabled || !userId || userIsDevFallback) {
       setSyncStatus("local");
       cloudLoadedFor.current = null;
       return;
     }
-    if (cloudLoadedFor.current === user.id) return;
+    if (cloudLoadedFor.current === userId) return;
 
     let cancelled = false;
     setSyncStatus("loading");
     void Promise.all([loadBusinessProfile(), listBusinesses().catch(() => [])])
       .then(([res, list]) => {
         if (cancelled) return;
-        cloudLoadedFor.current = user.id;
+        cloudLoadedFor.current = userId;
         if (res.found && res.profile) {
           activateProfile(res.profile);
           saveProfile(res.profile);
@@ -243,7 +247,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, isPending, user?.id, user?.isDevFallback, activateProfile]);
+  }, [ready, isPending, userId, userIsDevFallback, activateProfile]);
 
   // Persist locally + debounced cloud save
   useEffect(() => {
@@ -252,7 +256,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     savePortfolioEntry(profile);
     setPortfolioVersion((v) => v + 1);
 
-    if (!authEnabled || !user || user.isDevFallback) {
+    if (!authEnabled || !userId || userIsDevFallback) {
       setSyncStatus("local");
       return;
     }
@@ -267,7 +271,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [profile, ready, user?.id, user?.isDevFallback]);
+  }, [profile, ready, userId, userIsDevFallback]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
@@ -476,7 +480,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         return { ...p, customPeople: next, staff };
       });
     },
-    [],
+    [pushUndo],
   );
 
   const setCustomProcesses = useCallback(
@@ -499,7 +503,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         return { ...p, customProcesses: next, staff };
       });
     },
-    [],
+    [pushUndo],
   );
 
   const resetSegregationToDerived = useCallback(() => {
@@ -736,6 +740,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       deleteBusiness: deleteBusinessLocal,
       switchingBusiness,
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- historyVersion updates ref-backed undo state.
     [
       profile,
       ready,
@@ -770,7 +775,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       createBusiness,
       deleteBusinessLocal,
       switchingBusiness,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       historyVersion,
     ],
   );

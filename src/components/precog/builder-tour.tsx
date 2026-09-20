@@ -1,18 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  Activity,
-  Blocks,
-  Hammer,
-  Link2,
-  Plus,
-  ShieldCheck,
-  Sparkles,
-  X,
-} from "lucide-react";
-
-const TOUR_KEY = "precog.builderTour.v1";
+import { Activity, Blocks, Hammer, Link2, Plus, ShieldCheck, Sparkles, X } from "lucide-react";
 
 export type TourAction = "add" | "blocks" | "validate" | "health" | "none";
 
@@ -53,34 +42,6 @@ const STEPS: TourStep[] = [
     cta: { label: "Got it", action: "none" },
   },
 ];
-
-export function useBuilderTour() {
-  const [seen, setSeen] = useState(true);
-  useEffect(() => {
-    try {
-      setSeen(localStorage.getItem(TOUR_KEY) === "1");
-    } catch {
-      setSeen(true);
-    }
-  }, []);
-  const dismiss = () => {
-    try {
-      localStorage.setItem(TOUR_KEY, "1");
-    } catch {
-      // ignore
-    }
-    setSeen(true);
-  };
-  const restart = () => {
-    try {
-      localStorage.removeItem(TOUR_KEY);
-    } catch {
-      // ignore
-    }
-    setSeen(false);
-  };
-  return { show: !seen, dismiss, restart };
-}
 
 export function BuilderTour({
   onDismiss,
@@ -137,11 +98,7 @@ export function BuilderTour({
         </div>
         <div className="flex gap-1.5">
           {step.cta && step.cta.action !== "none" && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => onAction(step.cta!.action)}
-            >
+            <Button size="sm" variant="secondary" onClick={() => onAction(step.cta!.action)}>
               {step.cta.action === "blocks" && <Blocks className="size-3.5" />}
               {step.cta.action === "validate" && <ShieldCheck className="size-3.5" />}
               {step.cta.label}
@@ -152,10 +109,7 @@ export function BuilderTour({
               Back
             </Button>
           )}
-          <Button
-            size="sm"
-            onClick={() => (last ? onDismiss() : setI((v) => v + 1))}
-          >
+          <Button size="sm" onClick={() => (last ? onDismiss() : setI((v) => v + 1))}>
             {last ? "Start building" : "Next"}
           </Button>
         </div>

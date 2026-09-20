@@ -1,6 +1,6 @@
 import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -33,25 +33,16 @@ import { decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
-import { CosoHeatmap } from "@/components/precog/coso-heatmap";
 import { StartHere } from "@/components/precog/start-here";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
-import { DecisionJournal } from "@/components/precog/decision-journal";
 import { IndustryOnboarding } from "@/components/precog/industry-onboarding";
-import { IntelligencePanel } from "@/components/precog/intelligence-panel";
-import { KnowledgeMap } from "@/components/precog/knowledge-map";
-import { LayerDetail, LayersPanel } from "@/components/precog/layers-panel";
-import { PioneerCoach } from "@/components/precog/pioneer-coach";
 import { PracticeSetup } from "@/components/precog/practice-setup";
-import { ProcessMap } from "@/components/precog/process-map";
-import { ResidualRadar } from "@/components/precog/residual-radar";
-import { ScenarioRunner } from "@/components/precog/scenario-runner";
-import { SodPanel } from "@/components/precog/sod-panel";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
+import { TabErrorBoundary } from "@/components/precog/tab-error-boundary";
 import {
   computeMapHealth,
   buildProcessMapGraph,
@@ -67,6 +58,48 @@ import { useHydrated } from "@/lib/use-hydrated";
 export const Route = createFileRoute("/")({
   component: HomeGate,
 });
+
+const ProcessMap = lazy(() =>
+  import("@/components/precog/process-map").then((module) => ({ default: module.ProcessMap })),
+);
+const PioneerCoach = lazy(() =>
+  import("@/components/precog/pioneer-coach").then((module) => ({ default: module.PioneerCoach })),
+);
+const ResidualRadar = lazy(() =>
+  import("@/components/precog/residual-radar").then((module) => ({
+    default: module.ResidualRadar,
+  })),
+);
+const ScenarioRunner = lazy(() =>
+  import("@/components/precog/scenario-runner").then((module) => ({
+    default: module.ScenarioRunner,
+  })),
+);
+const SodPanel = lazy(() =>
+  import("@/components/precog/sod-panel").then((module) => ({ default: module.SodPanel })),
+);
+const IntelligencePanel = lazy(() =>
+  import("@/components/precog/intelligence-panel").then((module) => ({
+    default: module.IntelligencePanel,
+  })),
+);
+const KnowledgeMap = lazy(() =>
+  import("@/components/precog/knowledge-map").then((module) => ({ default: module.KnowledgeMap })),
+);
+const LayersPanel = lazy(() =>
+  import("@/components/precog/layers-panel").then((module) => ({ default: module.LayersPanel })),
+);
+const LayerDetail = lazy(() =>
+  import("@/components/precog/layers-panel").then((module) => ({ default: module.LayerDetail })),
+);
+const CosoHeatmap = lazy(() =>
+  import("@/components/precog/coso-heatmap").then((module) => ({ default: module.CosoHeatmap })),
+);
+const DecisionJournal = lazy(() =>
+  import("@/components/precog/decision-journal").then((module) => ({
+    default: module.DecisionJournal,
+  })),
+);
 
 /**
  * The dashboard is driven by client-only state (local profile + active template).
@@ -104,6 +137,14 @@ function HomeShell() {
         </div>
       </main>
     </div>
+  );
+}
+
+function TabLoading() {
+  return (
+    <Card>
+      <CardContent className="p-6 text-sm text-muted">Loading…</CardContent>
+    </Card>
   );
 }
 
@@ -150,7 +191,7 @@ function Home() {
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
   const [mapBuild, setMapBuild] = useState(false);
-  const { user, isPending } = useCurrentUserState();
+  const { isPending } = useCurrentUserState();
   const { profile, ready, mapCustomized } = usePractice();
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
@@ -324,6 +365,8 @@ function Home() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {/* prettier-ignore */}
+        <TabErrorBoundary resetKey={tab} onReset={() => navigateTab("start")}><Suspense fallback={<TabLoading />}>
         {tab === "start" && <StartHere onOpenDetail={navigateTab} />}
 
         {tab === "command" && (
@@ -607,6 +650,7 @@ function Home() {
         {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
         {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
+        </Suspense></TabErrorBoundary>
       </main>
     </div>
   );

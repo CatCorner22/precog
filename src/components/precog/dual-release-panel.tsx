@@ -5,7 +5,6 @@ import {
   activeExceptionSummary,
   dualReleaseCoverage,
   evaluateRelease,
-  listEligibleApprovers,
   makeExceptionId,
   type ExceptionAction,
   type ReleaseChannel,
@@ -96,10 +95,6 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const [exResidual, setExResidual] = useState("");
 
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
-  const eligible = useMemo(
-    () => listEligibleApprovers(tpl, policy, channel),
-    [tpl, policy, channel],
-  );
   const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
   const exceptions = policy.exceptions ?? [];

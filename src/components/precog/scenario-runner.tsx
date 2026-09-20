@@ -47,7 +47,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
       setScenarioId(initialScenarioId);
       setMitigations([]);
     }
-  }, [initialScenarioId]);
+  }, [initialScenarioId, tpl.scenarios]);
 
   // Scenario picks belong to a template; when the template changes, start over.
   useEffect(() => {

@@ -75,7 +75,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       m.set(`${cell.row}|${cell.col}`, cell);
     }
     return m;
-  }, [report.matrix]);
+  }, [report]);
 
   const shortLabel = (id: string) => {
     const e = ENTITLEMENTS.find((x) => x.id === id);
