@@ -1,6 +1,7 @@
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
+import { documentationState } from "../continuity/coverage";
 import type { IndustryTemplate } from "../templates";
-import type { ControlItem, StaffComposition } from "../types";
+import type { ControlItem, KnowledgeItem, StaffComposition } from "../types";
 import {
   ACTION_BANDS,
   bandForScore,
@@ -260,14 +261,23 @@ function scoreKnowledge(
   name: string,
   soleOwner: boolean,
   ownerCount: number,
-  criticality: string,
+  item: KnowledgeItem | undefined,
   staff: StaffComposition,
   weights: ScoringWeights,
 ): ResidualRiskScore {
+  const criticality = item?.criticality ?? "important";
   const crit = criticality === "critical" ? 0.9 : 0.6;
   const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
   const inherent = clamp01(0.55 * crit + 0.45 * ownership);
-  const effectiveness = clamp01(ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05);
+  const docState = item ? documentationState(item) : "none";
+  const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
+  const docCredit =
+    docState === "located"
+      ? weights.knowledge.documentedLocatedCredit
+      : docState === "unlocated"
+        ? weights.knowledge.documentedUnlocatedCredit
+        : 0;
+  const effectiveness = clamp01(base + docCredit);
   const residualRaw = inherent * (1 - effectiveness);
   const uplift = staffUplift(staff, weights);
   const residual = clamp100(residualRaw * 100 * uplift.factor);
@@ -291,6 +301,23 @@ function scoreKnowledge(
       direction: "increases",
       weight: crit,
       detail: criticality,
+    },
+    {
+      id: `k-${knowledgeId}-doc`,
+      label:
+        docState === "located"
+          ? "Written procedure, findable"
+          : docState === "unlocated"
+            ? "Written procedure, location unknown"
+            : "Nothing written down",
+      direction: docState === "none" ? "increases" : "decreases",
+      weight: docState === "none" ? 0.3 : docCredit,
+      detail:
+        docState === "none"
+          ? "No written procedure a stand-in could follow."
+          : docState === "unlocated"
+            ? "Procedure exists but nobody has recorded where it lives."
+            : `Procedure at ${item?.procedureLocation?.trim() ?? ""}.`,
     },
     ...uplift.drivers,
   ];
@@ -335,7 +362,7 @@ export function scoreAllResidualRisks(
       r.name,
       r.soleOwner,
       r.ownerCount,
-      k?.criticality ?? "important",
+      k,
       staffResolved,
       weights,
     );

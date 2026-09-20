@@ -28,12 +28,13 @@ export interface SensitivityReport {
   averageHigh: number;
   topOrderStable: boolean;
   items: ItemSensitivity[];
+  perturbations: WeightPerturbation[];
   mostSensitive: WeightPerturbation[];
 }
 
 type WeightGroup = keyof ScoringWeights;
 
-const WEIGHT_GROUPS: WeightGroup[] = ["inherent", "control", "staff", "scenario"];
+const WEIGHT_GROUPS: WeightGroup[] = ["inherent", "control", "staff", "scenario", "knowledge"];
 
 function cloneDefaultWeights(): ScoringWeights {
   return {
@@ -41,6 +42,7 @@ function cloneDefaultWeights(): ScoringWeights {
     control: { ...DEFAULT_WEIGHTS.control },
     staff: { ...DEFAULT_WEIGHTS.staff },
     scenario: { ...DEFAULT_WEIGHTS.scenario },
+    knowledge: { ...DEFAULT_WEIGHTS.knowledge },
   };
 }
 
@@ -149,6 +151,7 @@ export function weightSensitivity(
     averageHigh: Math.max(...averages),
     topOrderStable,
     items,
+    perturbations,
     mostSensitive: perturbations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 6),
   };
 }

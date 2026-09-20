@@ -25,6 +25,7 @@ const GROUPS = [
   { key: "control", label: "Control effectiveness", values: DEFAULT_WEIGHTS.control },
   { key: "staff", label: "Staff modifiers", values: DEFAULT_WEIGHTS.staff },
   { key: "scenario", label: "Scenario model", values: DEFAULT_WEIGHTS.scenario },
+  { key: "knowledge", label: "Written procedures", values: DEFAULT_WEIGHTS.knowledge },
 ] as const;
 
 function humanize(key: string) {
