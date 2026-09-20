@@ -26,6 +26,23 @@ describe("findKnowledgeRisks", () => {
     expect(risks.every((r) => r.ownerCount === 0)).toBe(true);
     expect(new Set(risks.map((r) => r.riskScore)).size).toBe(1);
   });
+
+  it("does not count former (inactive) staff as holders", () => {
+    const item = dental.knowledge.find((k) => k.criticality === "critical")!;
+    const [active, former] = dental.people;
+    const tpl = {
+      ...dental,
+      people: [active, { ...former, active: false }],
+      relations: [
+        { personId: active.id, knowledgeId: item.id, level: "proficient" as const },
+        { personId: former.id, knowledgeId: item.id, level: "expert" as const },
+      ],
+    };
+    const risk = findKnowledgeRisks(tpl).find((r) => r.knowledgeId === item.id)!;
+    expect(risk.ownerCount).toBe(1);
+    expect(risk.soleOwner).toBe(true);
+    expect(risk.owners.map((p) => p.id)).toEqual([active.id]);
+  });
 });
 
 describe("runPrecogScenario", () => {

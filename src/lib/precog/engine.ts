@@ -3,6 +3,7 @@ import { industryMeta } from "./industry";
 import type {
   KnowledgeLevel,
   KnowledgeRisk,
+  Person,
   PrecogResult,
   ScenarioTemplate,
   StaffComposition,
@@ -31,7 +32,7 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
       const holders = (byK.get(k.id) || []).filter((r) => STRONG.includes(r.level));
       const owners = holders
         .map((h) => people.find((p) => p.id === h.personId))
-        .filter(Boolean) as typeof people;
+        .filter((p): p is Person => Boolean(p?.active));
       const ownerCount = owners.length;
       const soleOwner = ownerCount === 1;
       const riskScore =
