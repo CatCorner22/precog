@@ -5,7 +5,12 @@ import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
-import { coverageReport, documentationDebt } from "../continuity/coverage";
+import {
+  CONFIRMATION_MAX_AGE_DAYS,
+  coverageReport,
+  documentationDebt,
+  staleItems,
+} from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -71,7 +76,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_knowledge_spofs",
     description:
-      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, and whether each entry was confirmed in the last 90 days.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -229,12 +234,21 @@ export function executeTool(
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         const continuity = coverageReport(tpl);
         const docs = documentationDebt(tpl);
+        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        const freshness = trackFreshness
+          ? staleItems(tpl, new Date().toISOString().slice(0, 10))
+          : null;
+        const staleIds = new Set(freshness?.stale.map((s) => s.item.id) ?? []);
         const moveByItem = new Map(continuity.plan.map((m) => [m.item.id, m]));
         const leanedOn = continuity.people.find((l) => l.person.active);
+        const freshnessSummary =
+          freshness && freshness.stale.length > 0
+            ? `; ${freshness.stale.length} item(s) not confirmed in ${CONFIRMATION_MAX_AGE_DAYS} days (${freshness.confirmedIndex}% confirmed)`
+            : "";
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down`,
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}`,
           data: risks.map((r) => {
             const move = moveByItem.get(r.knowledgeId);
             return {
@@ -252,6 +266,8 @@ export function executeTool(
               procedureLocation: move?.item.documented
                 ? move.item.procedureLocation?.trim() || null
                 : null,
+              confirmedAt: move?.item.confirmedAt ?? null,
+              stale: staleIds.has(r.knowledgeId),
               nextStep: move?.action ?? null,
             };
           }),

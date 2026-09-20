@@ -1,10 +1,19 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from "lucide-react";
+import {
+  ArrowRight,
+  Clock,
+  Eye,
+  ExternalLink,
+  ShieldAlert,
+  TrendingDown,
+  Users,
+} from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { continuitySlips, decisionsDue, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
+import { coverageReport, documentationDebt, staleItems } from "@/lib/precog/continuity/coverage";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -60,6 +69,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
   );
+  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+  const continuityReadiness = useMemo(() => {
+    const coverage = coverageReport(template);
+    return {
+      coverageIndex: coverage.coverageIndex,
+      documentationIndex: documentationDebt(template).documentedIndex,
+      freshness: staleItems(template, localDateKey(today)),
+      mostDepended: coverage.people.find((load) => load.person.active && load.dependence > 0),
+    };
+  }, [template, today]);
 
   const sod = useMemo(
     () =>
@@ -285,6 +304,73 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           )}
         </div>
       )}
+
+      <section className="space-y-3">
+        <SectionHeading
+          icon={<Users className="size-4" aria-hidden />}
+          title="Continuity readiness"
+          subtitle="Can the business run if someone is out tomorrow?"
+        />
+        <Card>
+          <CardContent className="space-y-4 pt-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-border bg-panel/60 p-4">
+                <p className="font-mono text-2xl font-semibold tracking-tight">
+                  {continuityReadiness.coverageIndex}%
+                </p>
+                <p className="mt-1 text-sm font-medium">Backed up</p>
+                <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+              </div>
+              <div className="rounded-lg border border-border bg-panel/60 p-4">
+                <p className="font-mono text-2xl font-semibold tracking-tight">
+                  {continuityReadiness.documentationIndex}%
+                </p>
+                <p className="mt-1 text-sm font-medium">Written and findable</p>
+                <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
+              </div>
+              <div className="rounded-lg border border-border bg-panel/60 p-4">
+                <p className="font-mono text-2xl font-semibold tracking-tight">
+                  {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
+                </p>
+                <p className="mt-1 text-sm font-medium">Confirmed recently</p>
+                <p className="mt-1 text-xs text-subtle">
+                  {trackFreshness
+                    ? "checked in the last 90 days"
+                    : "starts once you enter your own register"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-panel/60 p-4">
+                <p className="font-mono text-2xl font-semibold tracking-tight">{slipped.length}</p>
+                <p className="mt-1 text-sm font-medium">Slipped</p>
+                <p className="mt-1 text-xs text-subtle">
+                  done items whose coverage or documentation regressed
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {continuityReadiness.mostDepended ? (
+                <p className="text-sm text-muted">
+                  {isSampleTeam && "Sample register — "}
+                  {continuityReadiness.mostDepended.person.name} carries{" "}
+                  {continuityReadiness.mostDepended.dependence}% of critical work alone
+                </p>
+              ) : (
+                <span />
+              )}
+              {onOpenDetail && (
+                <button
+                  type="button"
+                  onClick={() => onOpenDetail("knowledge")}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  Open who knows what
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* 1. Where you are exposed. */}
       <section className="space-y-3">
