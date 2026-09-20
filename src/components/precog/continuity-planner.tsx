@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { Download, Plus, RotateCcw, Trash2, Upload, UserMinus } from "lucide-react";
+import { BookOpen, Download, Plus, RotateCcw, Trash2, Upload, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
+import { isDecisionOpen, linkedKnowledgeId } from "@/lib/precog/decisions/follow-through";
 import {
   parseRegisterCsv,
   registerTemplateCsv,
@@ -18,6 +19,7 @@ import {
   setRelationLevel,
   STATUS_LABEL,
   type CoverageStatus,
+  type CrossTrainingMove,
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import type { Criticality, KnowledgeItem, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
@@ -55,8 +57,39 @@ const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
-  const { template: tpl, profile, setCustomKnowledge, setCustomRelations } = usePractice();
+  const {
+    template: tpl,
+    profile,
+    setCustomKnowledge,
+    setCustomRelations,
+    addDecision,
+  } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
+  /** Open journal entries logged from this register, by item id. */
+  const tracked = useMemo(() => {
+    const byItem = new Map<string, string>();
+    for (const d of profile.decisions) {
+      const id = linkedKnowledgeId(d);
+      if (id && isDecisionOpen(d) && d.reviewBy && !byItem.has(id)) byItem.set(id, d.reviewBy);
+    }
+    return byItem;
+  }, [profile.decisions]);
+
+  const logMove = (m: CrossTrainingMove) => {
+    const reviewBy = new Date();
+    reviewBy.setDate(reviewBy.getDate() + 30);
+    addDecision({
+      subject: m.item.name,
+      kind: "remediate",
+      note: m.action,
+      reviewBy: reviewBy.toISOString().slice(0, 10),
+      linkedTab: "knowledge",
+      linkedId: m.item.id,
+    });
+    toast.success(
+      `Logged in the Journal — coverage is re-checked at the review on ${reviewBy.toLocaleDateString()}.`,
+    );
+  };
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
 
@@ -465,12 +498,29 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     onClick={() => setSelectedId(m.item.id)}
                   >
                     <span className="font-mono text-xs text-muted">{i + 1}.</span>
-                    <div className="space-y-1">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{m.item.name}</span>
                         <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
                       </div>
                       <p className="text-muted">{m.action}</p>
+                      {tracked.has(m.item.id) ? (
+                        <p className="text-xs text-subtle">
+                          In the Journal · review by {tracked.get(m.item.id)}
+                        </p>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            logMove(m);
+                          }}
+                        >
+                          <BookOpen className="size-3.5" /> Log as decision
+                        </Button>
+                      )}
                     </div>
                   </li>
                 ))}

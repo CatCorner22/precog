@@ -11,7 +11,9 @@ import {
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
+  linkedKnowledgeId,
 } from "@/lib/precog/decisions/follow-through";
+import { STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
@@ -35,6 +37,15 @@ function reviewDelta(
   if (!delta || !d.snapshot) return "no snapshot on record";
   if (!delta.comparable) {
     return `scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}) — values not directly comparable`;
+  }
+  if (delta.continuity && d.snapshot.continuity && current.continuity) {
+    const c = delta.continuity;
+    const item = c.itemThen
+      ? `${STATUS_LABEL[c.itemThen].toLowerCase()} → ${
+          c.itemNow ? STATUS_LABEL[c.itemNow].toLowerCase() : "no longer on the register"
+        } · `
+      : "";
+    return `${item}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
   }
   if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
     return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
@@ -89,7 +100,14 @@ export function DecisionJournal({
     return new Map(
       profile.decisions.map((d) => [
         d.id,
-        captureDecisionSnapshot(template, profile.staff, profile.dualRelease, d.subject),
+        captureDecisionSnapshot(
+          template,
+          profile.staff,
+          profile.dualRelease,
+          d.subject,
+          new Date(),
+          linkedKnowledgeId(d),
+        ),
       ]),
     );
   }, [profile.decisions, template, profile.staff, profile.dualRelease]);

@@ -1,4 +1,5 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import type { CoverageStatus } from "./continuity/coverage";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -18,6 +19,16 @@ import { type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
+/** Continuity coverage at the moment a knowledge-linked decision was logged or reviewed. */
+export interface ContinuitySnapshot {
+  /** `CoverageReport.coverageIndex`, 0–100. */
+  coverageIndex: number;
+  /** `CoverageReport.singlePoints.length`: critical/important items one absence away from stopping. */
+  singlePoints: number;
+  /** Coverage of the linked item; absent when the item is no longer on the register. */
+  itemStatus?: CoverageStatus;
+}
+
 export interface DecisionSnapshot {
   at: string;
   scoringVersion: string;
@@ -25,6 +36,7 @@ export interface DecisionSnapshot {
   subjectResidual?: number;
   sodOpenConflicts: number;
   segregationHealth: number;
+  continuity?: ContinuitySnapshot;
 }
 
 export type DecisionReviewOutcome = "done" | "still_open" | "no_longer_relevant";
