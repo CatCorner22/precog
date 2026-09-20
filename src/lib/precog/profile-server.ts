@@ -47,6 +47,12 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
         ? row.profile.customProcesses
         : null,
       customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
+      customKnowledge: Array.isArray(row.profile.customKnowledge)
+        ? row.profile.customKnowledge
+        : null,
+      customRelations: Array.isArray(row.profile.customRelations)
+        ? row.profile.customRelations
+        : null,
       mapLayout: row.profile.mapLayout ?? {},
       savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
         ? row.profile.savedProcessBlocks
@@ -81,6 +87,10 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision: input.baseRevision == null ? null : Number(input.baseRevision),
     }),
   )
+  .validator((input: { profile: PracticeProfile; industry?: IndustryId }) => ({
+    profile: input.profile,
+    industry: input.industry ?? "dental",
+  }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const name = data.profile.practiceName.slice(0, 80);
@@ -179,6 +189,12 @@ function mergeProfile(row: {
       ? row.profile.customProcesses
       : null,
     customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
+    customKnowledge: Array.isArray(row.profile.customKnowledge)
+      ? row.profile.customKnowledge
+      : null,
+    customRelations: Array.isArray(row.profile.customRelations)
+      ? row.profile.customRelations
+      : null,
     mapLayout: row.profile.mapLayout ?? {},
     savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
       ? row.profile.savedProcessBlocks

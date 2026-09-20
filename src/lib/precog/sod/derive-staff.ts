@@ -1,6 +1,7 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
 import { detectSodConflicts } from "./detect";
+import { soleOwnerCriticalCount } from "../continuity/coverage";
 
 export function deriveStaffFromTeam(
   tpl: IndustryTemplate,
@@ -14,6 +15,7 @@ export function deriveStaffFromTeam(
   const next: StaffComposition = {
     ...staff,
     teamSize: Math.max(1, activePeople.length),
+    soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl),
     avgTenureYears: knownTenures.length
       ? Math.round(
           (knownTenures.reduce((total, tenure) => total + tenure, 0) / knownTenures.length) * 10,

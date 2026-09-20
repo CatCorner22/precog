@@ -5,6 +5,7 @@ import type { StaffComposition } from "../types";
 import { industryMeta } from "../industry";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
+import { coverageReport } from "../continuity/coverage";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 
 /** Dense, structured context for the Pioneer LLM coach — token-efficient. */
@@ -17,6 +18,8 @@ export function buildPioneerContextPack(
   const coso = assessCoso(tpl);
   const ranked = rankDangerousScenarios(tpl, { staff: staffComposition }).slice(0, 3);
   const spofs = findKnowledgeRisks(tpl).filter((r) => r.soleOwner && r.riskScore >= 65);
+  const continuity = coverageReport(tpl);
+  const leanedOn = continuity.people.find((l) => l.person.active);
   const tornado = tornadoSensitivity(tpl, staffComposition);
   const { snapshots } = buildProcessMapGraph(tpl, staffComposition);
   const mapIssues = validateProcessMap(
@@ -95,6 +98,28 @@ export function buildPioneerContextPack(
       owner: s.owners[0]?.name,
       riskScore: s.riskScore,
     })),
+    continuity: {
+      backedUpPct: continuity.coverageIndex,
+      counts: continuity.counts,
+      mostDependedOn: leanedOn
+        ? {
+            name: leanedOn.person.name,
+            role: leanedOn.person.role,
+            criticalWorkStopsPct: leanedOn.dependence,
+            onlyTheyCanDo: leanedOn.soleItems.map((k) => k.name),
+          }
+        : null,
+      crossTrainingPlan: continuity.plan.slice(0, 5).map((m) => ({
+        item: m.item.name,
+        criticality: m.item.criticality,
+        status: m.status,
+        trainee: m.trainee?.name ?? null,
+        trainer: m.trainer?.name ?? null,
+        documented: Boolean(m.item.documented),
+        action: m.action,
+      })),
+      note: "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. Advise on contingency in terms of these named people.",
+    },
     topScenarios: ranked.map((r) => ({
       id: r.scenario.id,
       title: r.scenario.title,

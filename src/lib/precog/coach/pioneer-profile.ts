@@ -3,7 +3,13 @@ import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
-import type { Person, ProcessNode, StaffComposition } from "../types";
+import type {
+  KnowledgeItem,
+  KnowledgeRelation,
+  Person,
+  ProcessNode,
+  StaffComposition,
+} from "../types";
 
 /** The slice of a PracticeProfile that changes what Pioneer computes. */
 export interface PioneerProfileInput {
@@ -14,9 +20,12 @@ export interface PioneerProfileInput {
   dualRelease?: Partial<DualReleasePolicy> | null;
   customProcesses?: ProcessNode[] | null;
   customPeople?: Person[] | null;
+  customKnowledge?: KnowledgeItem[] | null;
+  customRelations?: KnowledgeRelation[] | null;
 }
 
 const MAX_CUSTOM_NODES = 250;
+const MAX_RELATIONS = 2500;
 
 function isIndustryId(value: unknown): value is IndustryId {
   return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
@@ -36,8 +45,12 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
   const staff: StaffComposition = { ...base.staff, ...(input.staff ?? {}) };
   const customProcesses = capList(input.customProcesses);
   const customPeople = capList(input.customPeople);
+  const customKnowledge = capList(input.customKnowledge);
+  const customRelations = Array.isArray(input.customRelations)
+    ? input.customRelations.slice(0, MAX_RELATIONS)
+    : null;
   const dualRelease = mergeDualReleasePolicy(
-    resolveTemplate({ industry, customProcesses, customPeople }),
+    resolveTemplate({ industry, customProcesses, customPeople, customKnowledge, customRelations }),
     input.dualRelease,
     staff,
   );
@@ -57,5 +70,7 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     dualRelease,
     customProcesses,
     customPeople,
+    customKnowledge,
+    customRelations,
   };
 }
