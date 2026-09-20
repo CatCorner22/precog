@@ -18,6 +18,7 @@ import {
   relationLevel,
   setRelationLevel,
   STATUS_LABEL,
+  type AbsenceAction,
   type CoverageStatus,
   type CrossTrainingMove,
   type ItemCoverage,
@@ -75,20 +76,29 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     return byItem;
   }, [profile.decisions]);
 
-  const logMove = (m: CrossTrainingMove) => {
+  const logContinuityDecision = (subject: string, note: string, knowledgeId: string) => {
     const reviewBy = new Date();
     reviewBy.setDate(reviewBy.getDate() + 30);
     addDecision({
-      subject: m.item.name,
+      subject,
       kind: "remediate",
-      note: m.action,
+      note,
       reviewBy: reviewBy.toISOString().slice(0, 10),
       linkedTab: "knowledge",
-      linkedId: m.item.id,
+      linkedId: knowledgeId,
     });
     toast.success(
       `Logged in the Journal — coverage is re-checked at the review on ${reviewBy.toLocaleDateString()}.`,
     );
+  };
+  const logMove = (m: CrossTrainingMove) => logContinuityDecision(m.item.name, m.action, m.item.id);
+  const logAbsenceAction = (a: AbsenceAction) => {
+    const names = a.knowledgeIds
+      .map((id) => tpl.knowledge.find((k) => k.id === id)?.name)
+      .filter((n): n is string => Boolean(n));
+    const subject =
+      names.length <= 2 ? names.join(" & ") : `${names[0]} & ${names.length - 1} more`;
+    logContinuityDecision(subject, a.text, a.knowledgeIds[0]);
   };
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
@@ -703,7 +713,24 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     </div>
                     <ol className="list-decimal space-y-1 pl-5">
                       {absence.actions.map((a) => (
-                        <li key={a}>{a}</li>
+                        <li key={a.text}>
+                          {a.text}
+                          {a.knowledgeIds.length > 0 &&
+                            (tracked.has(a.knowledgeIds[0]) ? (
+                              <span className="ml-2 text-xs text-subtle">
+                                In the Journal · review by {tracked.get(a.knowledgeIds[0])}
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="ml-1 h-6 px-1.5 text-xs"
+                                onClick={() => logAbsenceAction(a)}
+                              >
+                                <BookOpen className="size-3.5" /> Log as decision
+                              </Button>
+                            ))}
+                        </li>
                       ))}
                     </ol>
                   </div>
