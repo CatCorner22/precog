@@ -14,6 +14,7 @@ import type { Person, ProcessNode, StaffComposition } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
+  mitigatedSodRuleIds,
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
@@ -27,6 +28,7 @@ import {
 } from "./profile-server";
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
+import { deriveStaffFromTeam } from "./sod/derive-staff";
 import {
   defaultProfile,
   loadPortfolio,
@@ -77,6 +79,7 @@ interface PracticeContextValue {
   ) => void;
   /** Map builder: replace the demo team with real people (null = template people). */
   setCustomPeople: (v: Person[] | null | ((current: Person[]) => Person[] | null)) => void;
+  useDerivedSegregation: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (
     v:
@@ -281,7 +284,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const setStaff = useCallback(
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
       setProfile((p) => {
-        const next = typeof staff === "function" ? staff(p.staff) : staff;
+        const raw = typeof staff === "function" ? staff(p.staff) : staff;
+        const next =
+          p.customPeople && raw.segregationScore !== p.staff.segregationScore
+            ? { ...raw, segregationSource: "manual" as const }
+            : raw;
         const dualRelease = {
           ...p.dualRelease,
           enabled: next.dualControlPayments,
@@ -406,7 +413,18 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
-        return { ...p, customPeople: next };
+        const staff = next
+          ? deriveStaffFromTeam(
+              resolveTemplate({
+                industry: p.industry,
+                customProcesses: p.customProcesses,
+                customPeople: next,
+              }),
+              p.staff,
+              { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
+            )
+          : p.staff;
+        return { ...p, customPeople: next, staff };
       });
     },
     [],
@@ -418,11 +436,33 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProfile((p) => {
         const current = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
         const next = typeof v === "function" ? v(current) : v;
-        return { ...p, customProcesses: next };
+        const staff = p.customPeople
+          ? deriveStaffFromTeam(
+              resolveTemplate({
+                industry: p.industry,
+                customProcesses: next,
+                customPeople: p.customPeople,
+              }),
+              p.staff,
+              { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
+            )
+          : p.staff;
+        return { ...p, customProcesses: next, staff };
       });
     },
     [],
   );
+
+  const useDerivedSegregation = useCallback(() => {
+    setProfile((p) => ({
+      ...p,
+      staff: deriveStaffFromTeam(
+        resolveTemplate(p),
+        { ...p.staff, segregationSource: "derived" },
+        { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
+      ),
+    }));
+  }, []);
 
   const setMapLayout = useCallback(
     (
@@ -628,6 +668,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
+      useDerivedSegregation,
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,
@@ -661,6 +702,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
+      useDerivedSegregation,
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,
