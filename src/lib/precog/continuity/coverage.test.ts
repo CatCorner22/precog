@@ -117,6 +117,25 @@ describe("staleItems", () => {
     );
     expect(staleItems(t, "2025-04-01").confirmedIndex).toBe(67);
   });
+
+  it("treats invalid and future confirmation dates as never confirmed", () => {
+    const t = tpl(
+      [
+        item("bad-month", { confirmedAt: "2025-99-99" }),
+        item("bad-day", { confirmedAt: "2025-02-30" }),
+        item("future", { confirmedAt: "2025-04-02" }),
+        item("valid", { confirmedAt: "2025-03-22" }),
+      ],
+      [],
+    );
+    const report = staleItems(t, "2025-04-01");
+    expect(report.stale.map((entry) => [entry.item.id, entry.confirmedAt, entry.ageDays])).toEqual([
+      ["bad-day", null, null],
+      ["bad-month", null, null],
+      ["future", null, null],
+    ]);
+    expect(report.stale.some((entry) => entry.item.id === "valid")).toBe(false);
+  });
 });
 
 describe("coverageReport", () => {
@@ -329,6 +348,34 @@ describe("absenceImpact", () => {
     const c = absenceImpact(undocumentedWithLocation, "a")!;
     expect(c.stops.find((s) => s.item.id === "bank-rec")!.note).not.toMatch(/procedure:/);
   });
+
+  it("handles overlapping absences, shared holders, and natural group wording", () => {
+    const group = tpl(
+      [item("x"), item("y"), item("z")],
+      [
+        { personId: "a", knowledgeId: "x", level: "expert" },
+        { personId: "b", knowledgeId: "x", level: "proficient" },
+        { personId: "c", knowledgeId: "x", level: "basic" },
+        { personId: "a", knowledgeId: "y", level: "expert" },
+        { personId: "b", knowledgeId: "z", level: "expert" },
+      ],
+    );
+    const both = absenceImpact(group, ["a", "b"])!;
+    expect(both.people.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(both.stops.map((s) => s.item.id)).toEqual(["x", "y", "z"]);
+    expect(both.stops.find((s) => s.item.id === "x")?.standIn?.id).toBe("c");
+    expect(both.continues).toEqual([]);
+    expect(both.dependence).toBe(100);
+    expect(both.actions.some((a) => a.text.includes("are not the only"))).toBe(true);
+
+    const onlyA = absenceImpact(group, ["a"])!;
+    expect(onlyA.stops.map((s) => s.item.id)).toEqual(["y"]);
+    expect(onlyA.continues.map((k) => k.id)).toEqual(["x"]);
+    expect(absenceImpact(group, ["a", "a"])!.stops.map((s) => s.item.id)).toEqual(
+      onlyA.stops.map((s) => s.item.id),
+    );
+    expect(absenceImpact(group, ["nobody"])).toBeNull();
+  });
 });
 
 describe("documentationDebt", () => {
@@ -437,7 +484,7 @@ describe("contingencyCards", () => {
       ],
     );
     const cards = contingencyCards(t);
-    expect(cards.map((c) => c.person.id)).toEqual(["a", "b"]);
+    expect(cards.map((c) => c.people[0].id)).toEqual(["a", "b"]);
     expect(cards[0].stops.map((s) => s.item.id)).toEqual(["bank-rec", "payroll"]);
     expect(cards[1].stops.map((s) => s.item.id)).toEqual(["ordering"]);
   });
@@ -453,7 +500,7 @@ describe("contingencyCards", () => {
     expect(contingencyCards(t)).toEqual([]);
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["c"] }] };
     const cards = contingencyCards(solo);
-    expect(cards.map((c) => c.person.id)).toEqual(["c"]);
+    expect(cards.map((c) => c.people[0].id)).toEqual(["c"]);
     expect(cards[0].orphanedProcesses).toEqual(["Payroll run"]);
   });
 });

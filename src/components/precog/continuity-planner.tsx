@@ -68,6 +68,12 @@ const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
 
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
+function naturalNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return names.join(" and ");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const {
     template: tpl,
@@ -153,7 +159,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");
   const [draftCriticality, setDraftCriticality] = useState<Criticality>("important");
-  const [absentId, setAbsentId] = useState<string | null>(null);
+  const [absentIds, setAbsentIds] = useState<string[]>([]);
   const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -236,13 +242,15 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
 
   const mostDepended = report.people[0];
-  const absentPersonId =
-    absentId && people.some((p) => p.id === absentId)
-      ? absentId
-      : (report.people.find((l) => l.person.active)?.person.id ?? null);
+  const effectiveAbsentIds = useMemo(() => {
+    const valid = absentIds.filter((id) => people.some((p) => p.id === id));
+    if (valid.length > 0) return valid;
+    const fallback = report.people.find((l) => l.person.active)?.person.id;
+    return fallback ? [fallback] : [];
+  }, [absentIds, people, report.people]);
   const absence = useMemo(
-    () => (absentPersonId ? absenceImpact(tpl, absentPersonId) : null),
-    [tpl, absentPersonId],
+    () => (effectiveAbsentIds.length > 0 ? absenceImpact(tpl, effectiveAbsentIds) : null),
+    [tpl, effectiveAbsentIds],
   );
 
   return (
@@ -769,17 +777,19 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     />
                   </label>
                 )}
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                  <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
-                  >
-                    Still accurate
-                  </Button>
-                </div>
+                {trackFreshness && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
+                    >
+                      Still accurate
+                    </Button>
+                  </div>
+                )}
                 <PeopleLine
                   label="Can run it alone"
                   people={selected.primaries.map((p) => p.name)}
@@ -816,23 +826,40 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <label className="flex flex-col gap-1 text-xs text-muted">
-                Who is out
-                <select
-                  className={inputClass}
-                  value={absentPersonId ?? ""}
-                  onChange={(e) => setAbsentId(e.target.value || null)}
-                  aria-label="Who is out"
-                >
+              <fieldset className="flex flex-col gap-1 text-xs text-muted">
+                <legend>Who is out (tick everyone)</legend>
+                <div className="flex flex-wrap gap-2">
                   {people.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1.5"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={effectiveAbsentIds.includes(p.id)}
+                        aria-label={p.name}
+                        onChange={() => {
+                          if (effectiveAbsentIds.includes(p.id)) {
+                            if (effectiveAbsentIds.length === 1) return;
+                            setAbsentIds(effectiveAbsentIds.filter((id) => id !== p.id));
+                          } else {
+                            setAbsentIds([...effectiveAbsentIds, p.id]);
+                          }
+                        }}
+                      />
                       {p.name} · {p.role}
-                    </option>
+                    </label>
                   ))}
-                </select>
-              </label>
+                </div>
+              </fieldset>
               {absence ? (
                 <>
+                  {absence.people.length > 1 && (
+                    <p className="text-xs font-medium text-muted">
+                      If {naturalNames(absence.people.map((p) => p.name.split(" ")[0]))} are all
+                      out:
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant={

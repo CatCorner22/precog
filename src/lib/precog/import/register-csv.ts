@@ -7,9 +7,8 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
+import { isCalendarDate } from "../continuity/coverage";
 import { parseRows } from "./csv";
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -143,6 +142,7 @@ export function parseRegisterCsv(
   tpl: IndustryTemplate,
   opts: { maxRows?: number } = {},
 ): RegisterImportResult {
+  const today = new Date().toISOString().slice(0, 10);
   const rows = parseRows(text);
   const issues: RegisterImportIssue[] = [];
   const header = rows[0] ?? [];
@@ -249,7 +249,7 @@ export function parseRegisterCsv(
       : (existing?.procedureLocation ?? "");
     const confirmedValue = cell(cells, "last confirmed");
     const confirmedAt =
-      /^\d{4}-\d{2}-\d{2}$/.test(confirmedValue) || !columns.has("last confirmed")
+      isCalendarDate(confirmedValue, today) || !columns.has("last confirmed")
         ? confirmedValue || existing?.confirmedAt
         : existing?.confirmedAt;
     const description = columns.has("description")
@@ -303,7 +303,7 @@ export function registerToCsv(tpl: IndustryTemplate): string {
     k.criticality,
     k.documented ? "true" : "false",
     k.procedureLocation ?? "",
-    k.confirmedAt && ISO_DATE.test(k.confirmedAt) ? k.confirmedAt : "",
+    k.confirmedAt && isCalendarDate(k.confirmedAt) ? k.confirmedAt : "",
     k.description,
     ...people.map((p) => {
       const level = levelOf.get(`${p.id}|${k.id}`);
