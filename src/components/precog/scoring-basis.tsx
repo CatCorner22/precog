@@ -41,7 +41,10 @@ function signed(value: number) {
 
 function WeightTable({ group }: { group: (typeof GROUPS)[number] }) {
   const entries = Object.entries(group.values) as [string, number][];
-  const maximum = Math.max(...entries.map(([, value]) => value), 1);
+  const maximum = Math.max(
+    ...entries.filter(([, value]) => value <= 1).map(([, value]) => value),
+    0.01,
+  );
 
   return (
     <div className="space-y-2">
@@ -52,10 +55,12 @@ function WeightTable({ group }: { group: (typeof GROUPS)[number] }) {
             <div className="text-xs text-muted">{humanize(key)}</div>
             <div className="text-xs tabular">{formatWeight(value)}</div>
             <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${(value / maximum) * 100}%` }}
-              />
+              {value <= 1 && (
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${(value / maximum) * 100}%` }}
+                />
+              )}
             </div>
             <p className="text-[11px] leading-relaxed text-subtle sm:col-span-3">
               {WEIGHT_DESCRIPTIONS[`${group.key}.${key}`]}
