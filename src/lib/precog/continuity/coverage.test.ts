@@ -3,6 +3,7 @@ import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
+  absenceImpact,
   coverageReport,
   coverageStatus,
   setRelationLevel,
@@ -173,6 +174,58 @@ describe("setRelationLevel", () => {
     ]);
     rel = setRelationLevel(rel, "b", "k", undefined);
     expect(rel).toHaveLength(1);
+  });
+});
+
+describe("absenceImpact", () => {
+  const t = tpl(
+    [
+      item("payroll", { documented: true }),
+      item("bank-rec"),
+      item("ordering", { criticality: "important" }),
+      item("filing", { criticality: "nice-to-have" }),
+    ],
+    [
+      { personId: "a", knowledgeId: "payroll", level: "expert" },
+      { personId: "c", knowledgeId: "payroll", level: "basic" },
+      { personId: "a", knowledgeId: "bank-rec", level: "expert" },
+      { personId: "a", knowledgeId: "ordering", level: "proficient" },
+      { personId: "b", knowledgeId: "ordering", level: "proficient" },
+      { personId: "d", knowledgeId: "bank-rec", level: "expert" },
+    ],
+  );
+
+  it("separates what stops from what continues and names a stand-in per stopped item", () => {
+    const a = absenceImpact(t, "a")!;
+    expect(a.stops.map((s) => s.item.id)).toEqual(["bank-rec", "payroll"]);
+    expect(a.continues.map((k) => k.id)).toEqual(["ordering"]);
+    const payroll = a.stops.find((s) => s.item.id === "payroll")!;
+    expect(payroll.standIn?.id).toBe("c");
+    expect(payroll.note).toMatch(/written procedure/);
+    const bankRec = a.stops.find((s) => s.item.id === "bank-rec")!;
+    expect(bankRec.standIn).not.toBeNull();
+    expect(bankRec.standIn?.id).not.toBe("d");
+    expect(a.dependence).toBe(coverageReport(t).people.find((l) => l.person.id === "a")!.dependence);
+    expect(a.actions[0]).toMatch(/^Today: hand/);
+    expect(a.actions.some((x) => x.startsWith("Before the next absence"))).toBe(true);
+  });
+
+  it("reports nothing stopping for a fully backed-up person and flags sole-owned processes", () => {
+    const b = absenceImpact(t, "b")!;
+    expect(b.stops).toEqual([]);
+    expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
+    expect(b.actions).toEqual(["Nothing stops if Ben is out. Keep it that way as duties change."]);
+
+    const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
+    expect(absenceImpact(solo, "b")!.orphanedProcesses).toEqual(["Payroll run"]);
+  });
+
+  it("returns null for an unknown person and says so when nobody else is left", () => {
+    expect(absenceImpact(t, "zz")).toBeNull();
+    const alone = { ...t, people: [people[0]] };
+    const a = absenceImpact(alone, "a")!;
+    expect(a.stops.every((s) => s.standIn === null)).toBe(true);
+    expect(a.stops[0].note).toBe("Nobody else is on the team.");
   });
 });
 

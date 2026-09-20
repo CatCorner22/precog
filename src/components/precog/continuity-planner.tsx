@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, RotateCcw, Trash2, UserMinus } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
+  absenceImpact,
   coverageReport,
   LEVEL_LABEL,
   LEVEL_ORDER,
@@ -56,6 +57,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");
   const [draftCriticality, setDraftCriticality] = useState<Criticality>("important");
+  const [absentId, setAbsentId] = useState<string | null>(null);
 
   const selected: ItemCoverage | undefined =
     report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];
@@ -96,6 +98,14 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
 
   const mostDepended = report.people[0];
+  const absentPersonId =
+    absentId && people.some((p) => p.id === absentId)
+      ? absentId
+      : (report.people.find((l) => l.person.active)?.person.id ?? null);
+  const absence = useMemo(
+    () => (absentPersonId ? absenceImpact(tpl, absentPersonId) : null),
+    [tpl, absentPersonId],
+  );
 
   return (
     <div className="space-y-4">
@@ -439,6 +449,106 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserMinus className="size-4 text-muted" />
+                If someone is out tomorrow
+              </CardTitle>
+              <CardDescription>
+                Sick, on leave, or gone. What stops, who picks it up, and what to do first.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <label className="flex flex-col gap-1 text-xs text-muted">
+                Who is out
+                <select
+                  className={inputClass}
+                  value={absentPersonId ?? ""}
+                  onChange={(e) => setAbsentId(e.target.value || null)}
+                  aria-label="Who is out"
+                >
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.role}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {absence ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={
+                        absence.dependence >= 50
+                          ? "danger"
+                          : absence.dependence >= 25
+                            ? "warn"
+                            : "ok"
+                      }
+                    >
+                      {absence.dependence}% of critical work stops
+                    </Badge>
+                    <span className="text-xs text-muted">
+                      {absence.stops.length} stop · {absence.continues.length} continue
+                      {absence.orphanedProcesses.length > 0 &&
+                        ` · ${absence.orphanedProcesses.length} process${absence.orphanedProcesses.length === 1 ? "" : "es"} without an owner`}
+                    </span>
+                  </div>
+                  {absence.stops.length > 0 && (
+                    <div>
+                      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                        Stops on day one
+                      </div>
+                      <ul className="space-y-1.5">
+                        {absence.stops.map((s) => (
+                          <li
+                            key={s.item.id}
+                            className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
+                            onClick={() => setSelectedId(s.item.id)}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{s.item.name}</span>
+                              <Badge
+                                variant={
+                                  s.item.criticality === "critical" ? "danger" : "default"
+                                }
+                              >
+                                {CRITICALITY_LABEL[s.item.criticality]}
+                              </Badge>
+                              <span className="text-xs text-muted">
+                                → {s.standIn ? s.standIn.name : "nobody"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted">{s.note}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {absence.continues.length > 0 && (
+                    <PeopleLine
+                      label="Keeps running"
+                      people={absence.continues.map((k) => k.name)}
+                    />
+                  )}
+                  <div>
+                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                      Contingency steps
+                    </div>
+                    <ol className="list-decimal space-y-1 pl-5">
+                      {absence.actions.map((a) => (
+                        <li key={a}>{a}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted">Add people to the team to simulate an absence.</p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

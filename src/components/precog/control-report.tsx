@@ -1,4 +1,4 @@
-import { INDEX_BASIS, RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -8,7 +8,7 @@ import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
-import { findKnowledgeRisks } from "@/lib/precog/engine";
+import { coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { assessCoso } from "@/lib/precog/coso";
 import {
   METHOD_CAVEATS,
@@ -56,9 +56,7 @@ export function ControlReport() {
     const sod = detectSodConflicts(tpl, profile.staff, {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
     });
-    const spofs = findKnowledgeRisks(tpl).filter(
-      (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
-    );
+    const continuity = coverageReport(tpl);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -95,7 +93,7 @@ export function ControlReport() {
       threat,
       portfolio,
       sod,
-      spofs,
+      continuity,
       coso,
       actions,
       mapHealth,
@@ -111,7 +109,7 @@ export function ControlReport() {
     threat,
     portfolio,
     sod,
-    spofs,
+    continuity,
     coso,
     actions,
     mapHealth,
@@ -370,23 +368,62 @@ export function ControlReport() {
           </Section>
         )}
 
-        <Section title="Knowledge single points of failure">
-          {spofs.length === 0 ? (
-            <p className="text-sm text-neutral-600">No critical sole-owner knowledge detected.</p>
+        <Section title="Continuity of operations">
+          <p className="text-sm text-neutral-700">
+            <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two or
+            more people who can run it alone. {continuity.counts.uncovered} item
+            {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
+            {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
+            person plus a learner.
+          </p>
+          {continuity.singlePoints.length === 0 ? (
+            <p className="mt-2 text-sm text-neutral-600">
+              No critical or important item depends on a single person.
+            </p>
           ) : (
-            <ul className="grid gap-1 text-sm sm:grid-cols-2">
-              {spofs.map((s) => (
-                <li
-                  key={s.knowledgeId}
-                  className="flex justify-between gap-2 border-b border-neutral-200 py-1"
-                >
-                  <span>
-                    {s.name}
-                    <span className="text-neutral-500"> · {s.owners[0]?.name ?? "unowned"}</span>
-                  </span>
-                  <span className="tabular text-neutral-600">{s.riskScore}</span>
+            <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+              {continuity.singlePoints.map((s) => (
+                <li key={s.item.id} className="border-b border-neutral-200 py-1">
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      {s.item.name}
+                      <span className="text-neutral-500">
+                        {" "}
+                        · {s.primaries[0]?.name ?? "nobody"}
+                      </span>
+                    </span>
+                    <span className="text-xs text-neutral-600">{STATUS_LABEL[s.status]}</span>
+                  </div>
+                  {s.suggestedBackups[0] && (
+                    <div className="text-xs text-neutral-500">
+                      Train next: {s.suggestedBackups[0].person.name} (
+                      {s.suggestedBackups[0].reasons[0]})
+                    </div>
+                  )}
                 </li>
               ))}
+            </ul>
+          )}
+          {continuity.plan.length > 0 && (
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
+              {continuity.plan.slice(0, 5).map((m) => (
+                <li key={m.item.id}>{m.action}</li>
+              ))}
+            </ol>
+          )}
+          {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
+            0 && (
+            <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
+              {continuity.people
+                .filter((l) => l.person.active && l.soleItems.length > 0)
+                .slice(0, 6)
+                .map((l) => (
+                  <li key={l.person.id}>
+                    <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
+                    {l.dependence}% of critical work stops if out; only they can do:{" "}
+                    {l.soleItems.map((k) => k.name).join(", ")}
+                  </li>
+                ))}
             </ul>
           )}
         </Section>
