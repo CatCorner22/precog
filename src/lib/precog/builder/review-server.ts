@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { grokChat } from "../llm/grok-client.server";
+import { llmMiddleware } from "../llm/middleware";
 import { gradeFromScore, reviewLocally, type MapReview, type ReviewInput } from "./review";
 
 function cleanPoints(v: unknown, max = 5): string[] {
@@ -41,24 +43,14 @@ Return ONLY JSON shaped exactly:
  "focusProcessIds":["process ids from the list above that the owner should open first"]}
 Rules: 2-4 points per section, each under 200 characters, name specific processes in quotes. Recommended moves must be doable by a small team this month.`;
 
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "grok-4.5",
-      temperature: 0.5,
-      max_tokens: 1400,
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: prompt }],
-    }),
+  const response = await grokChat(apiKey, {
+    messages: [{ role: "user", content: prompt }],
+    maxTokens: 1400,
+    temperature: 0.5,
+    jsonObject: true,
   });
-  if (!res.ok) return null;
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    model?: string;
-  };
-  const text = body.choices?.[0]?.message?.content?.trim();
-  if (!text) return null;
+  if (!response) return null;
+  const text = response.text;
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(text.replace(/^```(?:json)?/m, "").replace(/```$/m, "")) as Record<
@@ -87,7 +79,7 @@ Rules: 2-4 points per section, each under 200 characters, name specific processe
   const grade = gradeFromScore(input.health.score);
   return {
     source: "grok",
-    model: body.model ?? "grok-4.5",
+    model: response.model,
     headline:
       String(parsed.headline ?? "")
         .trim()
@@ -107,6 +99,7 @@ Rules: 2-4 points per section, each under 200 characters, name specific processe
 
 /** Plain-English critique of the whole process map. */
 export const reviewMap = createServerFn({ method: "POST" })
+  .middleware([llmMiddleware])
   .validator((input: ReviewInput): ReviewInput => ({
     businessName: String(input.businessName ?? "").slice(0, 80),
     industryLabel: String(input.industryLabel ?? "small business").slice(0, 60),
@@ -142,14 +135,17 @@ export const reviewMap = createServerFn({ method: "POST" })
       .map((s) => String(s).slice(0, 80))
       .slice(0, 10),
   }))
-  .handler(async ({ data }): Promise<MapReview> => {
+  .handler(async ({ data, context }): Promise<MapReview> => {
     const local = reviewLocally(data);
     const apiKey = process.env.XAI_API_KEY;
-    if (!apiKey || !data.processes.length) return local;
+    if (context.llm.grok !== "allowed" || !apiKey || !data.processes.length)
+      return { ...local, grokStatus: context.llm.grok };
     try {
       const ai = await reviewWithGrok(data, apiKey);
-      return ai ?? local;
+      return ai
+        ? { ...ai, grokStatus: context.llm.grok }
+        : { ...local, grokStatus: context.llm.grok };
     } catch {
-      return local;
+      return { ...local, grokStatus: context.llm.grok };
     }
   });

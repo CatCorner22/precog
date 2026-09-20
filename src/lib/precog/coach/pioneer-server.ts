@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { runGrokAgentLoop, runLocalAgentLoop } from "../llm/agent-loop";
+import { llmMiddleware } from "../llm/middleware";
+import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
 import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
@@ -8,6 +10,7 @@ export type PioneerCoachResult = {
   ok: true;
   source: AgentRunResult["source"];
   model?: string;
+  grokStatus?: LlmAccess["grok"];
   markdown: string;
   contextFingerprint: string;
   latencyMs: number;
@@ -41,6 +44,7 @@ export type PioneerCoachError = {
 };
 
 export const runPioneerCoach = createServerFn({ method: "POST" })
+  .middleware([llmMiddleware])
   .validator(
     (input: { question?: string; preferLocal?: boolean; profile?: PioneerProfileInput }) => ({
       question: (input.question ?? "").trim().slice(0, 1500),
@@ -48,7 +52,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       profile: pioneerProfileFrom(input.profile ?? {}),
     }),
   )
-  .handler(async ({ data }): Promise<PioneerCoachResult | PioneerCoachError> => {
+  .handler(async ({ data, context }): Promise<PioneerCoachResult | PioneerCoachError> => {
     const question =
       data.question ||
       "Brief me with residual risk, ML leading indicators, variable cascades, and what to do this week.";
@@ -57,14 +61,27 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
 
     try {
       const result =
-        data.preferLocal || !process.env.XAI_API_KEY
+        data.preferLocal || context.llm.grok !== "allowed"
           ? runLocalAgentLoop(question, ctx)
           : await runGrokAgentLoop(question, ctx);
+      const warnings = [...result.brief.chickenLittleWarnings];
+      if (
+        !data.preferLocal &&
+        context.llm.grok !== "allowed" &&
+        context.llm.grok !== "no_api_key"
+      ) {
+        warnings.push(
+          context.llm.grok === "unauthenticated"
+            ? "Sign in to get the Grok-written brief; this one is the deterministic local brief."
+            : "Grok is rate-limited for the moment; showing the local brief.",
+        );
+      }
 
       return {
         ok: true,
         source: result.source,
         model: result.model,
+        grokStatus: context.llm.grok,
         markdown: result.brief.markdown,
         contextFingerprint: result.contextFingerprint,
         latencyMs: result.latencyMs,
@@ -76,7 +93,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
           toolSummaries: s.toolResults?.map((t) => `${t.tool}: ${t.summary}`),
         })),
         evidence: result.brief.evidence,
-        warnings: result.brief.chickenLittleWarnings,
+        warnings,
         decisions: result.brief.decisions.map((d) => ({
           action: d.action,
           rationale: d.rationale,

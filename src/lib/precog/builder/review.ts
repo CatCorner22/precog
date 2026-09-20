@@ -41,6 +41,7 @@ export interface ReviewSection {
 export interface MapReview {
   source: "grok" | "local";
   model?: string;
+  grokStatus?: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
   headline: string;
   grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];

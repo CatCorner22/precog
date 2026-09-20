@@ -126,7 +126,13 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
       }
     } catch (e) {
       if (id !== runId.current) return;
-      setError(e instanceof Error ? e.message : "Coach failed");
+      setError(
+        e && typeof e === "object" && "status" in e && e.status === 429
+          ? "Too many requests — try again in a minute."
+          : e instanceof Error
+            ? e.message
+            : "Coach failed",
+      );
     } finally {
       if (id === runId.current) setLoading(false);
     }

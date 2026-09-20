@@ -3,6 +3,7 @@
  */
 import { executeTool, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
+import { grokChat } from "./grok-client.server";
 import type {
   AgentRunResult,
   EvidenceRef,
@@ -726,42 +727,28 @@ export async function runGrokAgentLoop(
   );
 
   try {
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-4.5",
-        max_tokens: 2200,
-        temperature: 0.3,
-        messages,
-      }),
+    const response = await grokChat(apiKey, {
+      messages,
+      maxTokens: 2200,
+      temperature: 0.3,
     });
-    if (!res.ok) return { ...local, latencyMs: Date.now() - started };
-    const body = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-      model?: string;
-    };
-    const text = body.choices?.[0]?.message?.content?.trim();
-    if (!text) return { ...local, latencyMs: Date.now() - started };
+    if (!response) return { ...local, latencyMs: Date.now() - started };
 
     return {
       ok: true,
       source: "grok-agent",
-      model: body.model ?? "grok-4.5",
+      model: response.model,
       question,
       steps: [
         ...local.steps.filter((s) => s.phase !== "synthesize"),
         {
           phase: "synthesize",
           title: "Grok multi-agent synthesis",
-          detail: `Model ${body.model ?? "grok-4.5"} over ${toolResults.length} tools incl. RAG/ML`,
+          detail: `Model ${response.model} over ${toolResults.length} tools incl. RAG/ML`,
         },
       ],
       toolsUsed: local.toolsUsed,
-      brief: { ...local.brief, markdown: text },
+      brief: { ...local.brief, markdown: response.text },
       contextFingerprint: local.contextFingerprint,
       latencyMs: Date.now() - started,
     };

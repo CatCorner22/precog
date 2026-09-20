@@ -48,6 +48,8 @@ npm test       # vitest unit tests for the engines (src/**/*.test.ts)
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evidence` and `verify:template` on every pull request.
 
+Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally.
+
 ## Demo data
 
 Five industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
