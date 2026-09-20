@@ -38,4 +38,15 @@ describe("runForensicSuite", () => {
     expect(finding?.summary).toContain("2 repeated groups");
     expect(finding?.examples).toEqual(["a", "b", "c", "d"]);
   });
+
+  it("does not flag same-day deposits that cover cumulative payments", () => {
+    const report = runForensicSuite([
+      { id: "payment", date: "2025-01-02", amount: 100, kind: "payment" },
+      { id: "deposit", date: "2025-01-02", amount: 100, kind: "deposit" },
+    ]);
+
+    const finding = report.findings.find((item) => item.id === "deposit_gaps");
+    expect(finding?.severity).toBe("info");
+    expect(finding?.summary).toBe("Deposits keep pace with payments within two business days.");
+  });
 });

@@ -72,18 +72,6 @@ function addBusinessDays(date: string, days: number): string {
   return result.toISOString().slice(0, 10);
 }
 
-function businessDaysBetween(start: string, end: string): number {
-  const result = dateValue(start);
-  const finish = dateValue(end);
-  let count = 0;
-  while (result < finish) {
-    result.setUTCDate(result.getUTCDate() + 1);
-    const weekday = result.getUTCDay();
-    if (weekday !== 0 && weekday !== 6) count++;
-  }
-  return count;
-}
-
 function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest): ForensicFinding {
   const label = id === "benford_first" ? "first-digit" : "second-digit";
   return {
@@ -189,26 +177,40 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
       .map((txn) => txn.id),
   });
 
-  const paymentDates = new Set(txns.filter((txn) => txn.kind === "payment").map((txn) => txn.date));
-  const depositDates = new Set(txns.filter((txn) => txn.kind === "deposit").map((txn) => txn.date));
-  if (paymentDates.size > 0 && depositDates.size > 0) {
-    const latestDate = txns.reduce((latest, txn) => (txn.date > latest ? txn.date : latest), "");
-    const gaps = [...paymentDates].filter(
-      (date) => ![1, 2].some((days) => depositDates.has(addBusinessDays(date, days))),
-    );
-    const longGap = gaps.some((date) => businessDaysBetween(date, latestDate) > 5);
+  const payments = txns.filter((txn) => txn.kind === "payment");
+  const deposits = txns.filter((txn) => txn.kind === "deposit");
+  const paymentDates = [...new Set(payments.map((txn) => txn.date))].sort();
+  if (paymentDates.length > 0 && deposits.length > 0) {
+    const totalPayments = payments.reduce((sum, txn) => sum + txn.amount, 0);
+    const gaps = paymentDates.flatMap((date) => {
+      const paidThrough = payments
+        .filter((txn) => txn.date <= date)
+        .reduce((sum, txn) => sum + txn.amount, 0);
+      const depositedThrough = deposits
+        .filter((txn) => txn.date <= addBusinessDays(date, 2))
+        .reduce((sum, txn) => sum + txn.amount, 0);
+      const shortfall = paidThrough - depositedThrough;
+      return depositedThrough < paidThrough * 0.99 ? [{ date, shortfall }] : [];
+    });
+    let consecutiveGaps = 0;
+    let longestGapRun = 0;
+    const gapDates = new Set(gaps.map((gap) => gap.date));
+    for (const date of paymentDates) {
+      consecutiveGaps = gapDates.has(date) ? consecutiveGaps + 1 : 0;
+      longestGapRun = Math.max(longestGapRun, consecutiveGaps);
+    }
+    const largestShortfall = Math.max(...gaps.map((gap) => gap.shortfall), 0);
+    const review = gaps.some((gap) => gap.shortfall > totalPayments * 0.05) || longestGapRun >= 3;
     findings.push({
       id: "deposit_gaps",
       title: "Payment-to-deposit timing",
-      severity: longGap ? "review" : gaps.length > 0 ? "watch" : "info",
+      severity: review ? "review" : gaps.length > 0 ? "watch" : "info",
       summary:
         gaps.length > 0
-          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} lack a deposit within two business days.`
-          : "Each payment date has a deposit within two business days.",
-      detail: [
-        "This timing screen checks whether recorded deposits follow payment activity within a short business window.",
-      ],
-      examples: gaps.slice(0, 8),
+          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} where cumulative deposits trail cumulative payments by more than 1% within two business days (largest shortfall $${largestShortfall.toFixed(2)}).`
+          : "Deposits keep pace with payments within two business days.",
+      detail: ["This cumulative check allows timing lags of a day or two without flagging them."],
+      examples: gaps.slice(0, 8).map((gap) => gap.date),
     });
   }
 
