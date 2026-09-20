@@ -92,6 +92,7 @@ import {
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
   parsePeopleCsv,
+  removedPeopleImpact,
   peopleToCsv,
   type PeopleImportIssue,
 } from "@/lib/precog/import/people-csv";
@@ -2469,15 +2470,37 @@ function TeamEditor({
     setImportIssues([]);
     try {
       const result = parsePeopleCsv(await file.text(), tpl);
-      setImportIssues(result.issues);
+      const issues = [...result.issues];
+      const impact = removedPeopleImpact(tpl, result.removed);
+      if (result.removed.length && (impact.assignments || impact.processOwnerships)) {
+        const names = result.removed.map((p) => p.name);
+        const shown =
+          names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
+        const lost = [
+          impact.assignments
+            ? `${impact.assignments} who-knows-what assignment${impact.assignments === 1 ? "" : "s"}`
+            : "",
+          impact.processOwnerships
+            ? `${impact.processOwnerships} process owner slot${impact.processOwnerships === 1 ? "" : "s"}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" and ");
+        issues.push({
+          row: 0,
+          message: `${shown} ${names.length === 1 ? "is" : "are"} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
+        });
+      }
+      setImportIssues(issues);
       if (!result.people.length) {
         toast.error(result.issues[0]?.message ?? "No people imported");
         return;
       }
       onChange(result.people);
+      const kept = tpl.people.length - result.removed.length;
       toast.success(
-        `Imported ${result.people.length} people${
-          result.issues.length ? `; ${result.issues.length} rows need attention` : ""
+        `Imported ${result.people.length} people${kept ? `, ${kept} matched the current team` : ""}${
+          issues.length ? `; ${issues.length} thing(s) need attention` : ""
         }`,
       );
     } catch {
@@ -2534,7 +2557,7 @@ function TeamEditor({
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             {importIssues.slice(0, 8).map((issue, index) => (
               <li key={`${issue.row}-${index}`}>
-                Row {issue.row}: {issue.message}
+                {issue.row === 0 ? "File" : `Row ${issue.row}`}: {issue.message}
               </li>
             ))}
           </ul>
