@@ -88,7 +88,7 @@ for (const block of caseBlocks) {
       fail(`Case ${id} states tenure as ${tenure[1]}; it must be a whole number of years.`);
     }
     if (
-      !/hired|worked there from|(of|for) (\d+|[a-z]+) years|years of tenure|long-?time employee/i.test(
+      !/hired|worked there from|(of|for) (more than |over )?(\d+|[a-z]+) years|years of tenure|long-?time employee/i.test(
         block,
       )
     ) {

@@ -39,7 +39,8 @@ export type ControlId =
   | "confirm-remittance-account"
   | "terminated-staff-vs-payroll"
   | "gift-card-purchases-controlled"
-  | "background-check-money-handlers";
+  | "background-check-money-handlers"
+  | "mandatory-time-away";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -215,5 +216,12 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     label: "Reference and background checks on anyone who will touch money",
     why: "A business that quietly fires an embezzler hands the problem to the next small business. The next one is sometimes you.",
     effort: "an hour",
+  },
+  "mandatory-time-away": {
+    id: "mandatory-time-away",
+    label:
+      "Everyone who touches money takes at least a week away each year while someone else does the job",
+    why: "A scheme that needs daily tending falls apart the week its owner is not there to tend it. The person covering the desk asks the questions nobody else has been in a position to ask.",
+    effort: "ongoing",
   },
 };

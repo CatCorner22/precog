@@ -1248,4 +1248,51 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Roxanne Tubolino, 56, of Belchertown, Massachusetts, pleaded guilty in January 2015 to one count of wire fraud and six counts of tax evasion and was sentenced in August 2015 in Springfield to 39 months in prison, 36 months of supervised release, and restitution of $1,342,256 to the practice, $25,000 to its insurer, and $506,447 to the IRS; the loss recorded here is the $1,562,206 the release says she took, and the insurer's share shows a fidelity claim was paid. The release gives the start only as 2008, so the 68-month duration counts from January 2008 and may overstate by up to eleven months. It does not say how the theft was discovered, so the detection route is recorded as unknown.",
   },
+  {
+    id: "case-duncan-part-time-bookkeeper-found-on-vacation",
+    title:
+      "Part-time bookkeeper wrote herself checks for more than ten years, $2.28 million; found the week she was on vacation",
+    sector: "any",
+    schemes: ["check-tampering", "payroll", "expense-reimbursement", "financial-statement"],
+    howItWorked:
+      "A part-time bookkeeper for a small business in Duncan, South Carolina, employed there for more than ten years, wrote checks to herself from the company's accounts and deposited them in her own. In the ledger she marked them void; in QuickBooks she recorded them as void, as paid to other employees, or as paid to vendors. Some pay periods she paid herself three payroll checks, and she paid her personal credit card bills from the company account. It came to light when she was on vacation and her supervisor went looking for the record of a vendor payment. The company dismissed her and called law enforcement.",
+    controlGap:
+      "One person wrote the checks, ran payroll, and kept both sets of records, and for more than a decade nobody else had a reason to open them. The week she was away, someone did, and the scheme did not survive one person looking for one ordinary record.",
+    lossUsd: 2276830,
+    lossIsFloor: false,
+    durationMonths: 120,
+    tenureYearsStated: 10,
+    detection: "cover",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-cash-rec", "rule-payroll", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "mandatory-time-away",
+        asApplied:
+          "Every year the bookkeeper takes a week off and someone else pays the bills and runs payroll from the same records; that is exactly what ended this one",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first and looks at the cleared-check images; checks payable to the bookkeeper stand out",
+      },
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each cycle; three checks to one person in one period is visible on the page",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the person who writes the checks reconciles the account, so a check marked void that the bank cleared does not reconcile",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of South Carolina",
+      url: "https://www.justice.gov/usao-sc/pr/greer-woman-sentenced-federal-prison-ordered-pay-2m-restitution",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      'Jennifer L. Bengston Cook, 56, of Greer, South Carolina, pleaded guilty to wire fraud and was sentenced in June 2025 by U.S. District Judge Jacquelin D. Austin to 36 months in prison and restitution of $2,276,830.09, the loss figure recorded here; the release\'s headline rounds it to $2 million. The release says she was employed for more than a decade and does not give dates, so the duration is recorded as 120 months and ten years of tenure, both floors. The detection route is recorded as "someone else covered the desk": the release says the conduct was discovered when she was on vacation and her supervisor needed to find the record of a vendor payment. The release does not name the business or its trade, so the sector is recorded as any.',
+  },
 ];

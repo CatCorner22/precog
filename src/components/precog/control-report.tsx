@@ -565,6 +565,7 @@ const REPORT_DETECTION: Record<string, string> = {
   "bank-or-insurer": "A bank or insurer flagged it",
   "law-enforcement": "Law enforcement",
   "by-accident": "By accident, when the money ran out",
+  cover: "someone else covered the desk",
   reconciliation: "A reconciliation caught it",
 };
 

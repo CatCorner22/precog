@@ -530,16 +530,18 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     Not stated in the source: {found.unknown} of {found.n}
                   </li>
                 </ul>
-                {!found.byRoute.some((r) =>
-                  ["reconciliation", "external-audit", "tip"].includes(r.route),
-                ) && (
-                  <p className="text-sm leading-relaxed text-muted">
-                    Where the source says how the scheme was found, it was the owner looking, a bank
-                    or insurer noticing, or the money running out — never a reconciliation, an
-                    audit, or a report from staff. That is what the controls below change: they put
-                    someone in the position to look before the business runs out of money.
-                  </p>
-                )}
+                {found.known > 0 &&
+                  !found.byRoute.some((r) =>
+                    ["reconciliation", "external-audit", "tip"].includes(r.route),
+                  ) && (
+                    <p className="text-sm leading-relaxed text-muted">
+                      Where the source says how the scheme was found, it was{" "}
+                      {joinClauses(found.byRoute.map((r) => ROUTE_CLAUSE[r.route] ?? r.route))}{" "}
+                      &mdash; never a reconciliation, an audit, or a report from staff. That is what
+                      the controls below change: they put someone in the position to look before the
+                      business runs out of money.
+                    </p>
+                  )}
               </div>
             </CardContent>
           </Card>
@@ -792,8 +794,23 @@ const DETECTION_PHRASE: Record<string, string> = {
   "bank-or-insurer": "A bank or insurer flagged it",
   "law-enforcement": "Law enforcement",
   "by-accident": "By accident, when the money ran out",
+  cover: "Someone else covered the desk and saw the records",
   reconciliation: "A reconciliation caught it",
 };
+
+/** The same routes as a clause in a sentence: "it was the owner looking". */
+const ROUTE_CLAUSE: Record<string, string> = {
+  "owner-review": "the owner looking",
+  "bank-or-insurer": "a bank or insurer noticing",
+  "by-accident": "the money running out",
+  cover: "someone else covering the desk",
+  "law-enforcement": "law enforcement arriving",
+};
+
+function joinClauses(parts: string[]): string {
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
+}
 
 function effortPhrase(effort: string): string {
   return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;
