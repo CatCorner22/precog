@@ -87,10 +87,6 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision: input.baseRevision == null ? null : Number(input.baseRevision),
     }),
   )
-  .validator((input: { profile: PracticeProfile; industry?: IndustryId }) => ({
-    profile: input.profile,
-    industry: input.industry ?? "dental",
-  }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const name = data.profile.practiceName.slice(0, 80);
