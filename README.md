@@ -36,6 +36,15 @@ Every loss figure in the app resolves to one of two things: a prosecuted case in
 
 The 0–100 scores elsewhere in the app are this app's own indices, and scenario figures are assumptions written into the scenario; the app says so wherever it shows one.
 
+### Scoring weights and sensitivity
+
+Residual scoring uses the inspectable, versioned tables in
+`src/lib/precog/scoring/weights.ts`. The Intelligence → Residual radar view shows the
+current action band first, the weight descriptions, band cutoffs, and a deterministic
+±20% weight-sensitivity range so you can see which conclusions are stable before acting.
+The current scoring version remains `precog-residual-v1.0.0`; reorganizing the table does
+not re-weight existing scores.
+
 ## Develop
 
 ```bash

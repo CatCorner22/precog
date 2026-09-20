@@ -35,6 +35,75 @@ export const STAFF_MODIFIERS = {
   lowTenureUplift: 0.05, // avgTenure < 3
 } as const;
 
+// A scenario's assumed loss and assumed days-to-impact are folded onto the
+// same 0–100 index as controls and knowledge so they can be sorted together.
+// The normalizers and weights below are this app's choices: $125,000 and 240
+// days are the points at which the index saturates, and effectiveness is
+// credited at half strength. None of it is calibrated against loss data.
+export const SCENARIO_WEIGHTS = {
+  lossSaturationUsd: 125_000,
+  daysSaturation: 240,
+  lossShare: 0.55,
+  timeShare: 0.45,
+  effectivenessCredit: 0.5,
+  baseEffectiveness: 0.2,
+  dualControlCredit: 0.15,
+  independentBankRecCredit: 0.15,
+  segregationCredit: 0.25,
+} as const;
+
+export interface ScoringWeights {
+  inherent: Record<keyof typeof INHERENT_WEIGHTS, number>;
+  control: Record<keyof typeof CONTROL_EFFECTIVENESS_WEIGHTS, number>;
+  staff: Record<keyof typeof STAFF_MODIFIERS, number>;
+  scenario: Record<keyof typeof SCENARIO_WEIGHTS, number>;
+}
+
+export const DEFAULT_WEIGHTS: ScoringWeights = {
+  inherent: INHERENT_WEIGHTS,
+  control: CONTROL_EFFECTIVENESS_WEIGHTS,
+  staff: STAFF_MODIFIERS,
+  scenario: SCENARIO_WEIGHTS,
+};
+
+export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
+  "inherent.assetExposure": "Weights how much valuable cash, assets, or processes are in scope.",
+  "inherent.processCriticality":
+    "Weights how disruptive a process failure would be to the business.",
+  "inherent.fraudOpportunityClass":
+    "Weights how much opportunity the duty pattern creates for misuse.",
+  "inherent.detectionDifficulty": "Weights how difficult an issue would be to notice promptly.",
+  "inherent.cascadePotential": "Weights how widely one gap could affect connected work.",
+  "control.segregationQuality": "Weights separation of incompatible duties as control strength.",
+  "control.dualAuthorization": "Weights a second approver as evidence of control strength.",
+  "control.independentReconciliation": "Weights independent checking of records and balances.",
+  "control.compensatingControls":
+    "Weights documented backup controls when primary separation is limited.",
+  "control.monitoringCadence": "Weights recurring monitoring as a source of control strength.",
+  "control.knowledgeRedundancy":
+    "Weights having more than one capable holder of critical knowledge.",
+  "staff.smallTeamUplift":
+    "Raises residual risk when a small team has fewer natural separation options.",
+  "staff.soleOwnerUpliftPerItem":
+    "Raises residual risk for each critical knowledge item with one strong owner.",
+  "staff.weakSegregationUplift": "Raises residual risk when the overall segregation score is weak.",
+  "staff.lowTenureUplift": "Raises residual risk when average team tenure is low.",
+  "scenario.lossSaturationUsd":
+    "Sets the expected-loss level where scenario loss contribution reaches its ceiling.",
+  "scenario.daysSaturation":
+    "Sets the timeline where faster impact contributes its full scenario effect.",
+  "scenario.lossShare": "Weights expected financial impact in the scenario inherent-risk blend.",
+  "scenario.timeShare": "Weights time to material impact in the scenario inherent-risk blend.",
+  "scenario.effectivenessCredit":
+    "Scales how much scenario control effectiveness reduces residual risk.",
+  "scenario.baseEffectiveness":
+    "Sets the baseline scenario effectiveness before explicit controls are credited.",
+  "scenario.dualControlCredit": "Credits dual payment control in scenario effectiveness.",
+  "scenario.independentBankRecCredit":
+    "Credits independent bank reconciliation in scenario effectiveness.",
+  "scenario.segregationCredit": "Credits the staff segregation score in scenario effectiveness.",
+};
+
 export type ActionBand = "accept_monitor" | "mitigate" | "act_now" | "critical_path";
 
 export const ACTION_BANDS: {
