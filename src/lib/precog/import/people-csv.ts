@@ -1,6 +1,7 @@
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
+import { parseRows } from "./csv";
 
 export interface PeopleImportIssue {
   row: number;
@@ -66,50 +67,6 @@ function slug(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-}
-
-function parseRows(text: string): string[][] {
-  const source = text.startsWith("\uFEFF") ? text.slice(1) : text;
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-
-  for (let i = 0; i < source.length; i++) {
-    const char = source[i];
-    if (quoted) {
-      if (char === '"') {
-        if (source[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"' && field.length === 0) {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(field);
-      field = "";
-    } else if (char === "\r" || char === "\n") {
-      row.push(field);
-      field = "";
-      if (char === "\r" && source[i + 1] === "\n") i++;
-      rows.push(row);
-      row = [];
-    } else {
-      field += char;
-    }
-  }
-  if (field || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-  return rows.filter((cells) => cells.some((cell) => cell.trim()));
 }
 
 function escapeCsv(value: string): string {
