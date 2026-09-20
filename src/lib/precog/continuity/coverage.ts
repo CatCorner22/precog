@@ -160,6 +160,23 @@ export function isCalendarDate(value: string, today?: string): boolean {
   return current !== null && date <= current;
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * Calendar day a server-side check should treat as "today". Register dates
+ * are written in the owner's local calendar, so a client-supplied day is
+ * honoured when it is a real date within a day of the server clock (any
+ * timezone offset); otherwise the server's UTC day is used.
+ */
+export function resolveClientDate(value: unknown, now: Date = new Date()): string {
+  const serverDay = now.toISOString().slice(0, 10);
+  if (typeof value !== "string") return serverDay;
+  const client = utcDay(value);
+  const server = utcDay(serverDay);
+  if (client === null || server === null) return serverDay;
+  return Math.abs(client - server) <= DAY_MS ? value : serverDay;
+}
+
 function ageInDays(confirmedAt: string, today: string): number | null {
   const confirmed = utcDay(confirmedAt);
   const current = utcDay(today);

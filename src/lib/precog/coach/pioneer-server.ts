@@ -4,6 +4,7 @@ import { llmMiddleware } from "../llm/middleware";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
+import { resolveClientDate } from "../continuity/coverage";
 import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
 
 export type PioneerCoachResult = {
@@ -46,10 +47,16 @@ export type PioneerCoachError = {
 export const runPioneerCoach = createServerFn({ method: "POST" })
   .middleware([llmMiddleware])
   .validator(
-    (input: { question?: string; preferLocal?: boolean; profile?: PioneerProfileInput }) => ({
+    (input: {
+      question?: string;
+      preferLocal?: boolean;
+      profile?: PioneerProfileInput;
+      today?: string;
+    }) => ({
       question: (input.question ?? "").trim().slice(0, 1500),
       preferLocal: Boolean(input.preferLocal),
       profile: pioneerProfileFrom(input.profile ?? {}),
+      today: resolveClientDate(input.today),
     }),
   )
   .handler(async ({ data, context }): Promise<PioneerCoachResult | PioneerCoachError> => {
@@ -57,7 +64,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       data.question ||
       "Brief me with residual risk, ML leading indicators, variable cascades, and what to do this week.";
 
-    const ctx: ToolContext = { profile: data.profile, question };
+    const ctx: ToolContext = { profile: data.profile, question, today: data.today };
 
     try {
       const result =

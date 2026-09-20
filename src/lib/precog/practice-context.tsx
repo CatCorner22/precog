@@ -42,6 +42,7 @@ import {
   applyDecisionReview,
   captureDecisionSnapshot,
   linkedKnowledgeId,
+  localDateKey,
 } from "./decisions/follow-through";
 import {
   defaultProfile,
@@ -272,6 +273,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         profile: current,
         industry: current.industry,
         baseRevision: cloudRevision.current.get(id) ?? null,
+        today: localDateKey(new Date()),
       },
     });
     if (result.ok) {
@@ -311,7 +313,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     setSyncStatus("loading");
-    void Promise.all([loadBusinessProfile(), listBusinesses().catch(() => [])])
+    void Promise.all([
+      loadBusinessProfile({ data: { today: localDateKey(new Date()) } }),
+      listBusinesses().catch(() => []),
+    ])
       .then(([res, list]) => {
         if (cancelled) return;
         cloudLoadedFor.current = userId;
@@ -782,7 +787,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         if (!(await flushActive())) return;
         let next: PracticeProfile | null = loadPortfolio()[id] ?? null;
         if (cloudUser) {
-          const remote = await loadBusiness({ data: { id } }).catch(() => null);
+          const remote = await loadBusiness({
+            data: { id, today: localDateKey(new Date()) },
+          }).catch(() => null);
           if (remote?.found && remote.profile) {
             cloudRevision.current.set(id, remote.revision);
             if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt))

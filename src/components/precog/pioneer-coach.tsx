@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
+import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
       const res = await runPioneerCoach({
         data: {
           question,
+          today: localDateKey(new Date()),
           profile: {
             industry: profile.industry,
             practiceName: profile.practiceName,

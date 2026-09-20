@@ -1,4 +1,5 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import { localDateKey } from "./decisions/follow-through";
 import {
   isCalendarDate,
   type ContinuityStep,
@@ -113,9 +114,12 @@ export interface BusinessSummary {
   healthScore: number | null;
 }
 
-export function normalizeCustomKnowledge(value: unknown): KnowledgeItem[] | null {
+/**
+ * Drop confirmation dates that are not real calendar days on or before `today`
+ * — the owner's local day, since that is the calendar the register was written in.
+ */
+export function normalizeCustomKnowledge(value: unknown, today: string): KnowledgeItem[] | null {
   if (!Array.isArray(value)) return null;
-  const today = new Date().toISOString().slice(0, 10);
   return value.map((entry) => {
     if (!entry || typeof entry !== "object") return entry as KnowledgeItem;
     const item = entry as KnowledgeItem & { confirmedAt?: unknown };
@@ -237,7 +241,10 @@ export function loadProfile(): PracticeProfile {
     const staff = { ...base.staff, ...parsed.staff };
     const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
     const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
-    const customKnowledge = normalizeCustomKnowledge(parsed.customKnowledge);
+    const customKnowledge = normalizeCustomKnowledge(
+      parsed.customKnowledge,
+      localDateKey(new Date()),
+    );
     const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
     const dualRelease = mergeDualReleasePolicy(
       resolveTemplate({
