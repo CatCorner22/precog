@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import type { ReactNode } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
@@ -9,9 +10,34 @@ import { Settings2, ShieldCheck } from "lucide-react";
 
 /** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
-  const { profile, setPracticeName, setIndustry, setStaff, setDualRelease, resetProfile } =
-    usePractice();
+  const {
+    profile,
+    setPracticeName,
+    setIndustry,
+    setStaff,
+    setDualRelease,
+    resetSegregationToDerived,
+    resetProfile,
+  } = usePractice();
   const s = profile.staff;
+  const segregationNote = profile.customPeople ? (
+    profile.staff.segregationSource === "manual" ? (
+      <>
+        Manual override —{" "}
+        <button
+          type="button"
+          onClick={resetSegregationToDerived}
+          className="text-primary underline hover:text-fg"
+        >
+          use score derived from your team
+        </button>
+      </>
+    ) : (
+      `Derived from your team's duties (${s.segregationScore}/100). Moving the slider overrides it.`
+    )
+  ) : (
+    "Estimate — import or edit your team in the Map Builder to derive this."
+  );
 
   return (
     <Card>
@@ -24,9 +50,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <SyncStatusBadge />
         </div>
         <CardDescription>
-          Industry sets the demo template (process map, knowledge graph, scenarios). Team size
-          and control posture drive residual scores and your AI advisor. Sign in to sync across
-          devices.
+          Industry sets the demo template (process map, knowledge graph, scenarios). Team size and
+          control posture drive residual scores and your AI advisor. Sign in to sync across devices.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -81,6 +106,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             min={0}
             max={100}
             onChange={(v) => setStaff({ ...s, segregationScore: v })}
+            note={segregationNote}
           />
           <Slider
             label="Sole-owner knowledge items"
@@ -115,9 +141,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <input
             type="checkbox"
             checked={s.independentBankRec}
-            onChange={(e) =>
-              setStaff({ ...s, independentBankRec: e.target.checked })
-            }
+            onChange={(e) => setStaff({ ...s, independentBankRec: e.target.checked })}
             className="size-4 accent-[var(--color-primary)]"
           />
           Independent bank reconciliation
@@ -143,6 +167,7 @@ function Slider({
   max,
   step = 1,
   onChange,
+  note,
 }: {
   label: string;
   value: number;
@@ -150,6 +175,7 @@ function Slider({
   max: number;
   step?: number;
   onChange: (v: number) => void;
+  note?: ReactNode;
 }) {
   return (
     <label className="block text-sm">
@@ -166,6 +192,7 @@ function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-1 w-full accent-[var(--color-primary)]"
       />
+      {note && <span className="mt-1 block text-xs text-subtle">{note}</span>}
     </label>
   );
 }

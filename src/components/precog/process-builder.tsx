@@ -89,6 +89,11 @@ import {
   type MapValidationIssue,
 } from "@/lib/precog/process-graph";
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import {
+  parsePeopleCsv,
+  peopleToCsv,
+  type PeopleImportIssue,
+} from "@/lib/precog/import/people-csv";
 
 const RISK_KINDS: ProcessRiskKind[] = [
   "fraud",
@@ -2348,7 +2353,8 @@ function TeamEditor({
   people: Person[];
   onChange: (next: Person[]) => void;
 }) {
-  const { roleTemplates } = useTemplate();
+  const tpl = useTemplate();
+  const { roleTemplates } = tpl;
   const roleOptions = useMemo(() => Object.keys(roleTemplates), [roleTemplates]);
   const [name, setName] = useState("");
   const [role, setRole] = useState(roleOptions[0] ?? "Team member");
@@ -2356,6 +2362,8 @@ function TeamEditor({
   const [tenure, setTenure] = useState<number | "">("");
   const [entitlements, setEntitlements] = useState<EntitlementId[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importIssues, setImportIssues] = useState<PeopleImportIssue[]>([]);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const useCustom = role === "__custom";
 
   function add() {
@@ -2396,11 +2404,81 @@ function TeamEditor({
     onChange(people.filter((x) => x.id !== id));
   }
 
+  async function importCsv(file: File) {
+    setImportIssues([]);
+    try {
+      const result = parsePeopleCsv(await file.text(), tpl);
+      setImportIssues(result.issues);
+      if (!result.people.length) {
+        toast.error(result.issues[0]?.message ?? "No people imported");
+        return;
+      }
+      onChange(result.people);
+      toast.success(
+        `Imported ${result.people.length} people${
+          result.issues.length ? `; ${result.issues.length} rows need attention` : ""
+        }`,
+      );
+    } catch {
+      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
+    }
+  }
+
+  function downloadTemplate() {
+    const blob = new Blob([peopleToCsv(people)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "precog-team.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-[11px] text-muted">
         Roles drive SoD detection — pick the closest match so conflicts are scored correctly.
       </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>
+          <Upload className="size-3.5" /> Import CSV
+        </Button>
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void importCsv(file);
+            event.target.value = "";
+          }}
+        />
+        <Button size="sm" variant="secondary" onClick={downloadTemplate}>
+          <Download className="size-3.5" /> Download template
+        </Button>
+        {importIssues.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setImportIssues([])}
+            className="text-[11px] text-subtle underline hover:text-fg"
+          >
+            Dismiss issues
+          </button>
+        )}
+      </div>
+      {importIssues.length > 0 && (
+        <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-[11px]">
+          <p className="font-medium text-warn">Import issues</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
+            {importIssues.slice(0, 8).map((issue, index) => (
+              <li key={`${issue.row}-${index}`}>
+                Row {issue.row}: {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ul className="space-y-1">
         {people.map((p) => {
           const knownRole = roleOptions.includes(p.role);

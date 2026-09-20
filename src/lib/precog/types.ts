@@ -113,6 +113,8 @@ export interface StaffComposition {
   soleOwnerKnowledgeCount: number;
   avgTenureYears: number;
   segregationScore: number; // 0-100
+  /** "manual" when the owner overrode the derived segregation score. Absent = derived when a real team exists. */
+  segregationSource?: "derived" | "manual";
   dualControlPayments: boolean;
   independentBankRec: boolean;
 }
