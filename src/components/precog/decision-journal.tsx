@@ -11,8 +11,8 @@ import {
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
-  localDateKey,
 } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { formatUsd } from "@/lib/utils";
@@ -82,21 +82,17 @@ export function DecisionJournal({
     return { count: cases.length, range: observedLossRange(cases), largest };
   }, [kind, subject, portfolio.top]);
 
-  const today = localDateKey(new Date());
-  const due = useMemo(() => {
-    void today;
-    return decisionsDue(profile.decisions, new Date());
-  }, [profile.decisions, today]);
+  const today = useToday();
+  const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
   const currentSnapshots = useMemo(() => {
-    void today;
     return new Map(
       profile.decisions.map((d) => [
         d.id,
         captureDecisionSnapshot(template, profile.staff, profile.dualRelease, d.subject),
       ]),
     );
-  }, [profile.decisions, template, profile.staff, profile.dualRelease, today]);
+  }, [profile.decisions, template, profile.staff, profile.dualRelease]);
   const orderedDecisions = useMemo(
     () =>
       [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),

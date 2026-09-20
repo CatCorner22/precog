@@ -3,7 +3,8 @@ import { ArrowRight, Clock, Eye, ExternalLink, ShieldAlert, TrendingDown } from 
 import { usePractice } from "@/lib/precog/practice-context";
 import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { decisionsDue, localDateKey } from "@/lib/precog/decisions/follow-through";
+import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -50,11 +51,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
    */
   const isSampleTeam = !profile.customPeople;
   const industryId = profile.industry;
-  const today = localDateKey(new Date());
-  const { overdue } = useMemo(() => {
-    void today;
-    return decisionsDue(profile.decisions, new Date());
-  }, [profile.decisions, today]);
+  const today = useToday();
+  const { overdue } = useMemo(
+    () => decisionsDue(profile.decisions, today),
+    [profile.decisions, today],
+  );
 
   const sod = useMemo(
     () =>

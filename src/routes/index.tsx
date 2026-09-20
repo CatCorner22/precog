@@ -28,7 +28,8 @@ import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { decisionsDue, localDateKey } from "@/lib/precog/decisions/follow-through";
+import { decisionsDue } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
@@ -206,7 +207,7 @@ function Home() {
   );
   const coso = useMemo(() => assessCoso(tpl), [tpl]);
   const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
-  const today = localDateKey(new Date());
+  const today = useToday();
   const leading = useMemo(
     () => scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables),
     [tpl, profile.staff, profile.riskVariables],
@@ -218,10 +219,10 @@ function Home() {
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
-  const overdueDecisions = useMemo(() => {
-    void today;
-    return decisionsDue(profile.decisions, new Date()).overdue.length;
-  }, [profile.decisions, today]);
+  const overdueDecisions = useMemo(
+    () => decisionsDue(profile.decisions, today).overdue.length,
+    [profile.decisions, today],
+  );
 
   const mapHealth = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);

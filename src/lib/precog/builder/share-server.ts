@@ -49,6 +49,15 @@ type ShareRow = {
   passcode_hash: string | null;
 };
 
+type ShareListRow = Pick<
+  ShareRow,
+  "token" | "business_name" | "industry" | "created_at" | "expires_at" | "revoked_at" | "redacted"
+> & {
+  has_passcode: boolean;
+  views: number;
+  last_viewed_at: string | null;
+};
+
 function makeToken(): string {
   const bytes = new Uint8Array(18);
   crypto.getRandomValues(bytes);
@@ -76,13 +85,13 @@ export const createMapShare = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ context, data }) => {
+    const { randomBytes, scryptSync } = await import("node:crypto");
     const sql = await getSql();
     const token = makeToken();
     const expires = new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString();
     let passcodeSalt: string | undefined;
     let passcodeHash: string | undefined;
     if (data.passcode) {
-      const { randomBytes, scryptSync } = await import("node:crypto");
       passcodeSalt = randomBytes(16).toString("hex");
       passcodeHash = scryptSync(data.passcode, passcodeSalt, 32).toString("hex");
     }
@@ -110,7 +119,7 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql<Omit<ShareRow, "payload">>`
+    const rows = await sql<ShareListRow>`
       select
         token, business_name, industry, created_at, expires_at, revoked_at,
         redacted,
@@ -128,9 +137,9 @@ export const listMapShares = createServerFn({ method: "GET" })
       expiresAt: r.expires_at,
       revoked: Boolean(r.revoked_at),
       redacted: Boolean(r.redacted),
-      hasPasscode: Boolean((r as typeof r & { has_passcode: boolean }).has_passcode),
-      views: Number((r as typeof r & { views: number }).views ?? 0),
-      lastViewedAt: (r as typeof r & { last_viewed_at: string | null }).last_viewed_at ?? null,
+      hasPasscode: Boolean(r.has_passcode),
+      views: Number(r.views ?? 0),
+      lastViewedAt: r.last_viewed_at ?? null,
     }));
   });
 
@@ -168,12 +177,16 @@ export const loadMapShare = createServerFn({ method: "GET" })
     if (row.revoked_at) return { found: false as const, reason: "revoked" as const };
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now())
       return { found: false as const, reason: "expired" as const };
+    const [{ createHash, scryptSync, timingSafeEqual }, { requestIp }, { getRequest }] =
+      await Promise.all([
+        import("node:crypto"),
+        import("@/lib/request-ip.server"),
+        import("@tanstack/react-start/server"),
+      ]);
     if (row.passcode_hash) {
       if (!data.passcode) return { found: false as const, reason: "passcode" as const };
-      const { requestIp } = await import("@/lib/request-ip.server");
       const attempt = passcodeLimiter.take(requestIp());
       if (!attempt.allowed) return { found: false as const, reason: "rate_limited" as const };
-      const { scryptSync, timingSafeEqual } = await import("node:crypto");
       const expected = Buffer.from(row.passcode_hash, "hex");
       const actual = scryptSync(data.passcode, row.passcode_salt ?? "", expected.length);
       if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
@@ -181,9 +194,6 @@ export const loadMapShare = createServerFn({ method: "GET" })
       }
     }
     try {
-      const { createHash } = await import("node:crypto");
-      const { requestIp } = await import("@/lib/request-ip.server");
-      const { getRequest } = await import("@tanstack/react-start/server");
       await sql`
         insert into map_share_views (token, ip_hash, user_agent)
         values (
