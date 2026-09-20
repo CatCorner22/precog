@@ -12,6 +12,7 @@ import {
   contingencyCards,
   coverageReport,
   DOCUMENTATION_LABEL,
+  documentationDebt,
   documentationState,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
@@ -104,11 +105,13 @@ export function ControlReport() {
     const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
     const lossRange = observedLossRange(evidence);
     const found = detectionBreakdown(evidence);
+    const docs = documentationDebt(tpl);
     return {
       threat,
       portfolio,
       sod,
       continuity,
+      docs,
       cards,
       slips,
       coso,
@@ -127,6 +130,7 @@ export function ControlReport() {
     portfolio,
     sod,
     continuity,
+    docs,
     cards,
     slips,
     coso,
@@ -440,6 +444,21 @@ export function ControlReport() {
             <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
               {continuity.plan.slice(0, 5).map((m) => (
                 <li key={m.item.id}>{m.action}</li>
+              ))}
+            </ol>
+          )}
+          <p className="mt-3 text-sm text-neutral-700">
+            <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is written
+            down and findable. {docs.counts.none} item(s) with nothing written,{" "}
+            {docs.counts.unlocated} written but location not recorded.
+          </p>
+          {docs.gaps.length > 0 && (
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+              {docs.gaps.slice(0, 5).map((g) => (
+                <li key={g.item.id}>
+                  <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
+                  {g.action}
+                </li>
               ))}
             </ol>
           )}

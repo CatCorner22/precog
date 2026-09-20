@@ -5,7 +5,7 @@ import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
-import { coverageReport } from "../continuity/coverage";
+import { coverageReport, documentationDebt } from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -71,7 +71,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_knowledge_spofs",
     description:
-      "Duties and know-how only one person can run alone, with the suggested trainee and next step from the owner's continuity register.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -228,6 +228,7 @@ export function executeTool(
       case "get_knowledge_spofs": {
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         const continuity = coverageReport(tpl);
+        const docs = documentationDebt(tpl);
         const moveByItem = new Map(continuity.plan.map((m) => [m.item.id, m]));
         const leanedOn = continuity.people.find((l) => l.person.active);
         return {
@@ -252,6 +253,12 @@ export function executeTool(
                 ? move.item.procedureLocation?.trim() || null
                 : null,
               nextStep: move?.action ?? null,
+              documentationGaps: docs.gaps.slice(0, 5).map((g) => ({
+                item: g.item.name,
+                state: g.state,
+                author: g.author?.name ?? null,
+                action: g.action,
+              })),
             };
           }),
           links: [{ tab: "knowledge", label: "Who knows what" }],
@@ -641,7 +648,7 @@ export function planTools(question: string): ToolName[] {
   if (/sod|segregat|duty|write-?off|vendor|payment/.test(q)) {
     tools.add("get_sod_conflicts");
   }
-  if (/knowledge|spof|leave|quit|cross-?train|continuity/.test(q)) {
+  if (/knowledge|spof|leave|quit|cross-?train|continuity|document|written|procedure/.test(q)) {
     tools.add("get_knowledge_graph");
   }
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
