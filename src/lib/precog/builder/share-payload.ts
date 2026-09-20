@@ -10,6 +10,7 @@ export function buildSharePayload(
   profile: PracticeProfile,
   actions: { title: string; why: string; effort: string }[],
   note?: string,
+  redactNames = false,
 ): SharedMapPayload {
   const tpl = resolveTemplate(profile);
   const meta = industryMeta(profile.industry);
@@ -25,7 +26,7 @@ export function buildSharePayload(
   });
   const nameOf = (id: string) => tpl.people.find((p) => p.id === id)?.name;
 
-  return {
+  const payload: SharedMapPayload = {
     version: 1,
     businessName: profile.practiceName,
     industry: profile.industry,
@@ -75,5 +76,43 @@ export function buildSharePayload(
       .slice(0, 10),
     actions: actions.slice(0, 6),
     note: note?.trim().slice(0, 600) || undefined,
+  };
+
+  return redactNames ? redactSharePayload(payload) : payload;
+}
+
+/** Replace people names with deterministic role labels for privacy-safe sharing. */
+export function redactSharePayload(payload: SharedMapPayload): SharedMapPayload {
+  const labels = new Map<string, string>();
+  const roleCounts = new Map<string, number>();
+  const labelFor = (name: string, role?: string) => {
+    const existing = labels.get(name);
+    if (existing) return existing;
+    const labelRole = role?.trim() || "Team member";
+    const count = roleCounts.get(labelRole) ?? 0;
+    const label = `${labelRole} ${String.fromCharCode(65 + count)}`;
+    roleCounts.set(labelRole, count + 1);
+    labels.set(name, label);
+    return label;
+  };
+
+  for (const person of payload.people) labelFor(person.name, person.role);
+  for (const process of payload.processes) {
+    for (const owner of process.owners) labelFor(owner);
+  }
+
+  const roleByName = new Map(payload.people.map((person) => [person.name, person.role]));
+  return {
+    ...payload,
+    people: payload.people.map((person) => ({
+      ...person,
+      name: labels.get(person.name) ?? person.name,
+    })),
+    processes: payload.processes.map((process) => ({
+      ...process,
+      owners: process.owners.map(
+        (owner) => labels.get(owner) ?? labelFor(owner, roleByName.get(owner)),
+      ),
+    })),
   };
 }

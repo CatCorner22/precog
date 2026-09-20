@@ -785,7 +785,7 @@ export function ProcessBuilder({
 
         {showShare && (
           <SharePanel
-            buildPayload={(note) => {
+            buildPayload={(note, redactNames) => {
               const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
               const actions = buildWeeklyActions({
                 tpl,
@@ -793,7 +793,7 @@ export function ProcessBuilder({
                 dualRelease: profile.dualRelease,
                 mapSnapshots: snapshots,
               });
-              return buildSharePayload(profile, actions, note);
+              return buildSharePayload(profile, actions, note, redactNames);
             }}
           />
         )}
@@ -1566,14 +1566,29 @@ function EvidenceList({
 function SharePanel({
   buildPayload,
 }: {
-  buildPayload: (note?: string) => import("@/lib/precog/builder/share-server").SharedMapPayload;
+  buildPayload: (
+    note?: string,
+    redactNames?: boolean,
+  ) => import("@/lib/precog/builder/share-server").SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [note, setNote] = useState("");
+  const [redactNames, setRedactNames] = useState(false);
+  const [passcode, setPasscode] = useState("");
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
   const [links, setLinks] = useState<
-    { token: string; createdAt: string; expiresAt: string | null; revoked: boolean }[] | null
+    | {
+        token: string;
+        createdAt: string;
+        expiresAt: string | null;
+        revoked: boolean;
+        redacted: boolean;
+        hasPasscode: boolean;
+        views: number;
+        lastViewedAt: string | null;
+      }[]
+    | null
   >(null);
   const [latest, setLatest] = useState<string | null>(null);
 
@@ -1591,7 +1606,12 @@ function SharePanel({
     setBusy(true);
     try {
       const res = await createMapShare({
-        data: { payload: buildPayload(note), expiresInDays: days },
+        data: {
+          payload: buildPayload(note, redactNames),
+          expiresInDays: days,
+          redacted: redactNames,
+          passcode,
+        },
       });
       setLatest(res.token);
       setLinks((cur) => [
@@ -1600,9 +1620,14 @@ function SharePanel({
           createdAt: new Date().toISOString(),
           expiresAt: res.expiresAt,
           revoked: false,
+          redacted: redactNames,
+          hasPasscode: passcode.trim().length >= 4,
+          views: 0,
+          lastViewedAt: null,
         },
         ...(cur ?? []),
       ]);
+      setPasscode("");
       await copy(urlFor(res.token));
       toast.success("Share link created and copied", { description: `Expires in ${days} days.` });
     } catch (e) {
@@ -1670,6 +1695,26 @@ function SharePanel({
         value={note}
         onChange={(e) => setNote(e.target.value)}
       />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-muted">
+          <input
+            type="checkbox"
+            checked={redactNames}
+            onChange={(e) => setRedactNames(e.target.checked)}
+          />
+          Hide people&apos;s names (roles only)
+        </label>
+        <label className="flex min-w-48 flex-1 items-center gap-1.5 text-muted">
+          <span className="shrink-0">Optional passcode</span>
+          <input
+            type="password"
+            className={cn(inputCls, "min-w-0 flex-1")}
+            placeholder="4+ characters; share it separately"
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+          />
+        </label>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1 text-muted">
           Expires in
@@ -1737,6 +1782,21 @@ function SharePanel({
                   <span className="text-[10px] text-subtle">revoked</span>
                 ) : (
                   <>
+                    {l.redacted && (
+                      <span className="rounded bg-elevated px-1 text-[10px] text-subtle">
+                        names hidden
+                      </span>
+                    )}
+                    {l.hasPasscode && (
+                      <span className="rounded bg-elevated px-1 text-[10px] text-subtle">
+                        passcode
+                      </span>
+                    )}
+                    <span className="text-[10px] text-subtle">
+                      {l.views
+                        ? `viewed ${l.views}× · last ${new Date(l.lastViewedAt ?? l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                        : "not viewed yet"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => void copy(urlFor(l.token))}

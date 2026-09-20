@@ -9,6 +9,7 @@
  * 5. Build N×N entitlement matrix for UI
  */
 import type { IndustryTemplate } from "../templates";
+import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
 import {
   CONFLICT_RULES,
   ENTITLEMENTS,
@@ -74,6 +75,33 @@ export interface SodDetectionReport {
     segregationHealth: number;
   };
   recommendations: string[];
+}
+
+export interface SodDetectionOptions {
+  assignments?: RoleAssignment[];
+  residualAcceptedControlIds?: Set<string>;
+  compensatingByControlId?: Record<string, string[]>;
+  /** SoD rule IDs mitigated by dual-release policy */
+  dualReleaseMitigatedRuleIds?: Set<string>;
+}
+
+export function sodDetectionOptions(
+  tpl: IndustryTemplate,
+  dualRelease: DualReleasePolicy,
+): SodDetectionOptions {
+  const compensatingByControlId: Record<string, string[]> = {};
+  for (const control of tpl.controls) {
+    if (control.compensatingControls.length) {
+      compensatingByControlId[control.id] = control.compensatingControls;
+    }
+  }
+  return {
+    residualAcceptedControlIds: new Set(
+      tpl.controls.filter((control) => control.residualRiskAccepted).map((control) => control.id),
+    ),
+    compensatingByControlId,
+    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease),
+  };
 }
 
 /**
@@ -222,13 +250,7 @@ export function buildAssignments(
 export function detectSodConflicts(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
-  options?: {
-    assignments?: RoleAssignment[];
-    residualAcceptedControlIds?: Set<string>;
-    compensatingByControlId?: Record<string, string[]>;
-    /** SoD rule IDs mitigated by dual-release policy */
-    dualReleaseMitigatedRuleIds?: Set<string>;
-  },
+  options?: SodDetectionOptions,
 ): SodDetectionReport {
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
