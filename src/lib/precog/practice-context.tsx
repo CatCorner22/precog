@@ -51,12 +51,20 @@ import {
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 
-export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error";
+export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error" | "conflict";
+
+interface SaveConflictState {
+  remote: PracticeProfile;
+  revision: number;
+  updatedAt: string;
+}
 
 interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
   syncStatus: SyncStatus;
+  saveConflict: { remoteUpdatedAt: string } | null;
+  resolveSaveConflict: (choice: "reload" | "overwrite") => Promise<void>;
   /** Industry template with this profile's custom people/processes applied. */
   template: IndustryTemplate;
   setPracticeName: (name: string) => void;
@@ -143,6 +151,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudRevision = useRef<Map<string, number>>(new Map());
+  const saveConflictRef = useRef<SaveConflictState | null>(null);
+  const skipNextCloudSave = useRef(false);
   const cloudLoadedFor = useRef<string | null>(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -152,6 +163,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const [remoteBusinesses, setRemoteBusinesses] = useState<BusinessSummary[]>([]);
   const [portfolioVersion, setPortfolioVersion] = useState(0);
   const [switchingBusiness, setSwitchingBusiness] = useState(false);
+  const [saveConflict, setSaveConflict] = useState<SaveConflictState | null>(null);
+  saveConflictRef.current = saveConflict;
 
   const pushUndo = useCallback(() => {
     const p = profileRef.current;
@@ -210,6 +223,31 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile(next);
   }, []);
 
+  const saveCloud = useCallback(async (current: PracticeProfile) => {
+    const id = current.businessId ?? "biz_default";
+    const result = await saveBusinessProfile({
+      data: {
+        profile: current,
+        industry: current.industry,
+        baseRevision: cloudRevision.current.get(id) ?? null,
+      },
+    });
+    if (result.ok) {
+      cloudRevision.current.set(id, result.revision);
+      setSyncStatus("synced");
+      return true;
+    }
+    const nextConflict: SaveConflictState = {
+      remote: result.profile,
+      revision: result.revision,
+      updatedAt: result.updatedAt,
+    };
+    saveConflictRef.current = nextConflict;
+    setSaveConflict(nextConflict);
+    setSyncStatus("conflict");
+    return false;
+  }, []);
+
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
     const loaded = loadProfile();
@@ -222,6 +260,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     if (!authEnabled || !userId || userIsDevFallback) {
       setSyncStatus("local");
       cloudLoadedFor.current = null;
+      cloudRevision.current.clear();
+      saveConflictRef.current = null;
+      setSaveConflict(null);
       return;
     }
     if (cloudLoadedFor.current === userId) return;
@@ -233,9 +274,14 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         cloudLoadedFor.current = userId;
         if (res.found && res.profile) {
+          const id = res.profile.businessId ?? "biz_default";
+          if (res.revision === null) cloudRevision.current.delete(id);
+          else cloudRevision.current.set(id, res.revision);
           activateProfile(res.profile);
           saveProfile(res.profile);
           savePortfolioEntry(res.profile);
+        } else {
+          cloudRevision.current.delete(profileRef.current.businessId ?? "biz_default");
         }
         setRemoteBusinesses(list);
         setSyncStatus("synced");
@@ -260,18 +306,22 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setSyncStatus("local");
       return;
     }
+    if (saveConflictRef.current) return;
+    if (skipNextCloudSave.current) {
+      skipNextCloudSave.current = false;
+      return;
+    }
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void saveBusinessProfile({ data: { profile, industry: profile.industry } })
-        .then(() => setSyncStatus("synced"))
-        .catch(() => setSyncStatus("error"));
+      if (saveConflictRef.current) return;
+      void saveCloud(profile).catch(() => setSyncStatus("error"));
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [profile, ready, userId, userIsDevFallback]);
+  }, [profile, ready, userId, userIsDevFallback, saveCloud]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
@@ -646,26 +696,28 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     const cur = profileRef.current;
     saveProfile(cur);
     savePortfolioEntry(cur);
-    if (cloudUser) {
+    if (cloudUser && !saveConflictRef.current) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      await saveBusinessProfile({ data: { profile: cur, industry: cur.industry } }).catch(
-        () => undefined,
-      );
+      await saveCloud(cur).catch(() => false);
     }
-  }, [cloudUser]);
+    return !saveConflictRef.current;
+  }, [cloudUser, saveCloud]);
 
   const switchBusiness = useCallback(
     async (id: string) => {
       if (id === (profileRef.current.businessId ?? "biz_default")) return;
       setSwitchingBusiness(true);
       try {
-        await flushActive();
+        if (!(await flushActive())) return;
         let next: PracticeProfile | null = loadPortfolio()[id] ?? null;
         if (cloudUser) {
           const remote = await loadBusiness({ data: { id } }).catch(() => null);
           if (remote?.found && remote.profile) {
+            cloudRevision.current.set(id, remote.revision);
             if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt))
               next = remote.profile;
+          } else if (remote?.found === false) {
+            cloudRevision.current.delete(id);
           }
         }
         if (!next) return;
@@ -687,9 +739,32 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         practiceName: name?.trim().slice(0, 80) || fresh.practiceName,
         onboardingComplete: true,
       };
+      cloudRevision.current.delete(next.businessId as string);
       activateProfile(next);
     },
     [activateProfile, flushActive],
+  );
+
+  const resolveSaveConflict = useCallback(
+    async (choice: "reload" | "overwrite") => {
+      const conflict = saveConflictRef.current;
+      if (!conflict) return;
+      const id = profileRef.current.businessId ?? "biz_default";
+      cloudRevision.current.set(id, conflict.revision);
+      saveConflictRef.current = null;
+      setSaveConflict(null);
+
+      if (choice === "reload") {
+        skipNextCloudSave.current = true;
+        activateProfile({ ...conflict.remote, businessId: id });
+        setSyncStatus("synced");
+        return;
+      }
+
+      setSyncStatus("loading");
+      await saveCloud(profileRef.current).catch(() => setSyncStatus("error"));
+    },
+    [activateProfile, saveCloud],
   );
 
   const deleteBusinessLocal = useCallback(
@@ -709,6 +784,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
+      saveConflict: saveConflict ? { remoteUpdatedAt: saveConflict.updatedAt } : null,
+      resolveSaveConflict,
       template,
       setPracticeName,
       setIndustry,
@@ -745,6 +822,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
+      saveConflict,
+      resolveSaveConflict,
       template,
       setPracticeName,
       setIndustry,

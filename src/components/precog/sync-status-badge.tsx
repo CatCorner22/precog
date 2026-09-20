@@ -1,5 +1,5 @@
 import { usePractice, type SyncStatus } from "@/lib/precog/practice-context";
-import { Cloud, CloudOff, Loader2 } from "lucide-react";
+import { Cloud, CloudAlert, CloudOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LABEL: Record<SyncStatus, string> = {
@@ -8,6 +8,7 @@ const LABEL: Record<SyncStatus, string> = {
   synced: "Saved to account",
   local: "Saved on this device",
   error: "Sync failed — saved locally",
+  conflict: "Edited elsewhere — not saved",
 };
 
 export function SyncStatusBadge({ className }: { className?: string }) {
@@ -20,7 +21,9 @@ export function SyncStatusBadge({ className }: { className?: string }) {
       ? Loader2
       : syncStatus === "synced"
         ? Cloud
-        : CloudOff;
+        : syncStatus === "conflict"
+          ? CloudAlert
+          : CloudOff;
 
   return (
     <span
@@ -30,6 +33,7 @@ export function SyncStatusBadge({ className }: { className?: string }) {
         syncStatus === "local" && "border-border bg-elevated text-muted",
         syncStatus === "loading" && "border-border bg-elevated text-muted",
         syncStatus === "error" && "border-warn/40 bg-warn/10 text-warn",
+        syncStatus === "conflict" && "border-danger/40 bg-danger/10 text-danger",
         className,
       )}
     >
