@@ -1,5 +1,5 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import type { CoverageStatus } from "./continuity/coverage";
+import type { ContinuityStep, CoverageStatus, DocumentationState } from "./continuity/coverage";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -27,6 +27,8 @@ export interface ContinuitySnapshot {
   singlePoints: number;
   /** Coverage of the linked item; absent when the item is no longer on the register. */
   itemStatus?: CoverageStatus;
+  /** How far the linked item is written down; absent when it is no longer on the register. */
+  itemDocumentation?: DocumentationState;
 }
 
 export interface DecisionSnapshot {
@@ -58,6 +60,8 @@ export interface DecisionEntry {
   residualAtDecision?: number;
   linkedTab?: string;
   linkedId?: string;
+  /** Which continuity step this tracks when `linkedTab` is "knowledge"; older entries default to "cover". */
+  linkedStep?: ContinuityStep;
   snapshot?: DecisionSnapshot;
   reviews?: DecisionReview[];
   status?: "open" | "closed";

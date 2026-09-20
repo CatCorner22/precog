@@ -8,10 +8,17 @@ import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
-import { contingencyCards, coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import {
+  contingencyCards,
+  coverageReport,
+  DOCUMENTATION_LABEL,
+  documentationState,
+  STATUS_LABEL,
+} from "@/lib/precog/continuity/coverage";
 import {
   coverageSlips,
   isDecisionOpen,
+  linkedContinuityStep,
   linkedKnowledgeId,
 } from "@/lib/precog/decisions/follow-through";
 import { assessCoso } from "@/lib/precog/coso";
@@ -138,13 +145,15 @@ export function ControlReport() {
   const openDecisions = profile.decisions.slice(0, 10);
   const generated = new Date();
   const today = generated.toISOString().slice(0, 10);
-  const statusNow = new Map(continuity.items.map((i) => [i.item.id, i.status]));
   const continuityDecisions = profile.decisions.filter((d) => linkedKnowledgeId(d));
   const openContinuity = continuityDecisions
     .filter((d) => isDecisionOpen(d))
     .sort((a, b) => (a.reviewBy ?? "").localeCompare(b.reviewBy ?? ""));
   const doneContinuity = continuityDecisions.filter(
     (d) => !isDecisionOpen(d) && d.reviews?.[d.reviews.length - 1]?.outcome === "done",
+  ).length;
+  const droppedContinuity = continuityDecisions.filter(
+    (d) => !isDecisionOpen(d) && d.reviews?.[d.reviews.length - 1]?.outcome !== "done",
   ).length;
 
   return (
@@ -538,9 +547,10 @@ export function ControlReport() {
         {continuityDecisions.length > 0 && (
           <Section title="Continuity follow-through">
             <p className="text-xs text-neutral-500">
-              Cross-training and hand-off steps logged from the register: {openContinuity.length}{" "}
-              open, {doneContinuity} closed as done
-              {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}.
+              Cross-training, hand-off and write-it-down steps logged from the register:{" "}
+              {openContinuity.length} open, {doneContinuity} closed as done
+              {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}
+              {droppedContinuity > 0 ? `, ${droppedContinuity} closed as no longer relevant` : ""}.
               Coverage is the register today, not when the step was logged.
             </p>
             {slips.length > 0 && (
@@ -563,7 +573,13 @@ export function ControlReport() {
             {openContinuity.length > 0 && (
               <ul className="mt-2 space-y-1.5 text-sm">
                 {openContinuity.map((d) => {
-                  const status = statusNow.get(linkedKnowledgeId(d)!);
+                  const item = continuity.items.find((i) => i.item.id === linkedKnowledgeId(d));
+                  const step = linkedContinuityStep(d);
+                  const state = !item
+                    ? "no longer on the register"
+                    : step === "document" || step === "locate"
+                      ? DOCUMENTATION_LABEL[documentationState(item.item)].toLowerCase()
+                      : STATUS_LABEL[item.status].toLowerCase();
                   const overdue = Boolean(d.reviewBy && d.reviewBy < today);
                   return (
                     <li key={d.id} className="border-b border-neutral-200 pb-1.5">
@@ -571,10 +587,7 @@ export function ControlReport() {
                         <span className="font-medium">{d.subject}</span>
                         <span className="text-neutral-500">
                           {" "}
-                          ·{" "}
-                          {status
-                            ? STATUS_LABEL[status].toLowerCase()
-                            : "no longer on the register"}
+                          · {state}
                           {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
                           {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                         </span>
@@ -588,8 +601,11 @@ export function ControlReport() {
             )}
             {openContinuity.length === 0 && slips.length === 0 && (
               <p className="mt-2 text-sm text-neutral-600">
-                Nothing open and nothing slipped — every logged step has been completed and still
-                holds.
+                {doneContinuity > 0
+                  ? droppedContinuity > 0
+                    ? "Nothing open and nothing slipped — every step closed as done still holds; the rest were dropped as no longer relevant."
+                    : "Nothing open and nothing slipped — every logged step has been completed and still holds."
+                  : "Nothing open — every logged step was closed as no longer relevant, so none has been completed."}
               </p>
             )}
           </Section>

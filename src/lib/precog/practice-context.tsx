@@ -37,7 +37,7 @@ import {
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
-import { soleOwnerCriticalCount } from "./continuity/coverage";
+import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
 import {
   applyDecisionReview,
   captureDecisionSnapshot,
@@ -91,6 +91,7 @@ interface PracticeContextValue {
     residualAtDecision?: number;
     linkedTab?: string;
     linkedId?: string;
+    linkedStep?: ContinuityStep;
   }) => void;
   removeDecision: (id: string) => void;
   reviewDecision: (
@@ -468,6 +469,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       residualAtDecision?: number;
       linkedTab?: string;
       linkedId?: string;
+      linkedStep?: ContinuityStep;
     }) => {
       const id = makeDecisionId();
       setProfile((p) => {
@@ -489,6 +491,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           residualAtDecision: input.residualAtDecision ?? snapshot.subjectResidual,
           linkedTab: input.linkedTab,
           linkedId: input.linkedId,
+          ...(input.linkedStep ? { linkedStep: input.linkedStep } : {}),
           snapshot,
         };
         return { ...p, decisions: [entry, ...p.decisions].slice(0, 100) };

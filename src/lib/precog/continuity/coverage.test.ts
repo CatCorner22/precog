@@ -7,6 +7,8 @@ import {
   contingencyCards,
   coverageReport,
   coverageStatus,
+  documentationDebt,
+  documentationState,
   setRelationLevel,
   soleOwnerCriticalCount,
   suggestBackups,
@@ -210,7 +212,9 @@ describe("absenceImpact", () => {
       coverageReport(t).people.find((l) => l.person.id === "a")!.dependence,
     );
     expect(a.actions[0].text).toMatch(/^Today: hand/);
+    expect(a.actions[0].step).toBe("handoff");
     expect(a.actions[0].knowledgeIds).toContain("bank-rec");
+    expect(a.actions.map((x) => x.step)).toEqual(["handoff", "document", "locate", "cover"]);
     expect(a.actions.some((x) => x.text.startsWith("Before the next absence"))).toBe(true);
     expect(
       a.actions.find((x) => x.text.startsWith("Before the next absence"))!.knowledgeIds,
@@ -222,7 +226,11 @@ describe("absenceImpact", () => {
     expect(b.stops).toEqual([]);
     expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
     expect(b.actions).toEqual([
-      { text: "Nothing stops if Ben is out. Keep it that way as duties change.", knowledgeIds: [] },
+      {
+        text: "Nothing stops if Ben is out. Keep it that way as duties change.",
+        step: "cover",
+        knowledgeIds: [],
+      },
     ]);
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
@@ -264,6 +272,100 @@ describe("absenceImpact", () => {
     };
     const c = absenceImpact(undocumentedWithLocation, "a")!;
     expect(c.stops.find((s) => s.item.id === "bank-rec")!.note).not.toMatch(/procedure:/);
+  });
+});
+
+describe("documentationDebt", () => {
+  const t = tpl(
+    [
+      item("payroll", { documented: true, procedureLocation: "Binder B" }),
+      item("bank-rec"),
+      item("ordering", { criticality: "important" }),
+      item("filing", { criticality: "nice-to-have", documented: true, procedureLocation: "  " }),
+      item("deposits", { documented: true }),
+    ],
+    [
+      { personId: "a", knowledgeId: "payroll", level: "expert" },
+      { personId: "a", knowledgeId: "bank-rec", level: "expert" },
+      { personId: "c", knowledgeId: "bank-rec", level: "aware" },
+      { personId: "a", knowledgeId: "ordering", level: "proficient" },
+      { personId: "b", knowledgeId: "ordering", level: "proficient" },
+      { personId: "b", knowledgeId: "filing", level: "basic" },
+      { personId: "a", knowledgeId: "deposits", level: "expert" },
+      { personId: "b", knowledgeId: "deposits", level: "expert" },
+    ],
+  );
+
+  it("classifies each item as nothing written, written but unlocated, or findable", () => {
+    expect(documentationState(item("x"))).toBe("none");
+    expect(documentationState(item("x", { documented: false, procedureLocation: "Drive" }))).toBe(
+      "none",
+    );
+    expect(documentationState(item("x", { documented: true }))).toBe("unlocated");
+    expect(documentationState(item("x", { documented: true, procedureLocation: " " }))).toBe(
+      "unlocated",
+    );
+    expect(documentationState(item("x", { documented: true, procedureLocation: "Drive" }))).toBe(
+      "located",
+    );
+  });
+
+  it("lists only the gaps, most urgent first, and names who should write it", () => {
+    const d = documentationDebt(t);
+    expect(d.gaps.map((g) => g.item.id)).toEqual(["bank-rec", "deposits", "ordering", "filing"]);
+    expect(d.gaps.map((g) => g.state)).toEqual(["none", "unlocated", "none", "unlocated"]);
+    expect(d.gaps.map((g) => g.step)).toEqual(["document", "locate", "document", "locate"]);
+    expect(d.gaps.map((g) => g.coverage)).toEqual(["single", "covered", "covered", "uncovered"]);
+    expect(d.gaps[0].author?.id).toBe("a");
+    expect(d.gaps[0].action).toMatch(
+      /^Have Ana write down "bank-rec" — it lives only in Ana's head/,
+    );
+    expect(d.gaps[1].action).toMatch(/^Record where the written procedure for "deposits" lives/);
+    expect(d.gaps[2].action).toMatch(/so the backup follows the same steps/);
+    expect(d.gaps[3].author?.id).toBe("b");
+    expect(d.counts).toEqual({ none: 2, unlocated: 2, located: 1 });
+    expect(d.documentedIndex).toBe(25);
+  });
+
+  it("ranks a critical single-owner gap above a critical covered gap, and breaks ties by name", () => {
+    const d = documentationDebt(
+      tpl(
+        [item("zeta"), item("alpha"), item("solo")],
+        [
+          { personId: "a", knowledgeId: "zeta", level: "expert" },
+          { personId: "b", knowledgeId: "zeta", level: "expert" },
+          { personId: "a", knowledgeId: "alpha", level: "expert" },
+          { personId: "b", knowledgeId: "alpha", level: "expert" },
+          { personId: "a", knowledgeId: "solo", level: "expert" },
+        ],
+      ),
+    );
+    expect(d.gaps.map((g) => g.item.id)).toEqual(["solo", "alpha", "zeta"]);
+    expect(d.gaps[0].priority).toBeGreaterThan(d.gaps[1].priority);
+    expect(d.gaps[1].priority).toBe(d.gaps[2].priority);
+  });
+
+  it("asks for an outside source when nobody can run an unwritten item, and is empty when all is findable", () => {
+    const nobody = documentationDebt(tpl([item("orphan")], []));
+    expect(nobody.gaps[0].author).toBeNull();
+    expect(nobody.gaps[0].action).toMatch(/^Nobody can run "orphan"/);
+    expect(nobody.documentedIndex).toBe(0);
+
+    const done = documentationDebt(
+      tpl([item("payroll", { documented: true, procedureLocation: "Binder" })], []),
+    );
+    expect(done.gaps).toEqual([]);
+    expect(done.documentedIndex).toBe(100);
+    expect(documentationDebt(tpl([], [])).documentedIndex).toBe(100);
+  });
+
+  it("does not mutate the register or change who holds what", () => {
+    const before = JSON.stringify(t);
+    documentationDebt(t);
+    expect(JSON.stringify(t)).toBe(before);
+    expect(coverageReport(t).items.find((i) => i.item.id === "ordering")!.primaries).toHaveLength(
+      2,
+    );
   });
 });
 

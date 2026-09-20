@@ -1,5 +1,5 @@
-import type { CoverageStatus } from "../continuity/coverage";
-import { coverageReport } from "../continuity/coverage";
+import type { ContinuityStep, CoverageStatus, DocumentationState } from "../continuity/coverage";
+import { coverageReport, documentationState } from "../continuity/coverage";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type {
   ContinuitySnapshot,
@@ -33,6 +33,16 @@ export function linkedKnowledgeId(
   return d.linkedTab === "knowledge" && d.linkedId ? d.linkedId : undefined;
 }
 
+/** The continuity step a knowledge-linked decision tracks; entries logged before steps existed were all coverage moves. */
+export function linkedContinuityStep(d: Pick<DecisionEntry, "linkedStep">): ContinuityStep {
+  return d.linkedStep ?? "cover";
+}
+
+/** Map key for "is this step on this item already in the Journal?" lookups. */
+export function continuityStepKey(knowledgeId: string, step: ContinuityStep): string {
+  return `${knowledgeId}\u0000${step}`;
+}
+
 export function captureContinuitySnapshot(
   tpl: IndustryTemplate,
   knowledgeId: string,
@@ -42,7 +52,7 @@ export function captureContinuitySnapshot(
   return {
     coverageIndex: report.coverageIndex,
     singlePoints: report.singlePoints.length,
-    ...(item ? { itemStatus: item.status } : {}),
+    ...(item ? { itemStatus: item.status, itemDocumentation: documentationState(item.item) } : {}),
   };
 }
 
@@ -166,6 +176,8 @@ export function decisionDelta(
     singlePoints: number;
     itemThen?: CoverageStatus;
     itemNow?: CoverageStatus;
+    docsThen?: DocumentationState;
+    docsNow?: DocumentationState;
   };
 } | null {
   if (!d.snapshot) return null;
@@ -179,6 +191,8 @@ export function decisionDelta(
             singlePoints: cont.singlePoints - then.singlePoints,
             ...(then.itemStatus ? { itemThen: then.itemStatus } : {}),
             ...(cont.itemStatus ? { itemNow: cont.itemStatus } : {}),
+            ...(then.itemDocumentation ? { docsThen: then.itemDocumentation } : {}),
+            ...(cont.itemDocumentation ? { docsNow: cont.itemDocumentation } : {}),
           },
         }
       : {}),

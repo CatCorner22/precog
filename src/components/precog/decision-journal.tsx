@@ -14,7 +14,7 @@ import {
   isDecisionOpen,
   linkedKnowledgeId,
 } from "@/lib/precog/decisions/follow-through";
-import { STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { DOCUMENTATION_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
@@ -46,7 +46,11 @@ function reviewDelta(
           c.itemNow ? STATUS_LABEL[c.itemNow].toLowerCase() : "no longer on the register"
         } · `
       : "";
-    return `${item}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
+    const docs =
+      c.docsThen && c.docsNow && c.docsThen !== c.docsNow
+        ? `${DOCUMENTATION_LABEL[c.docsThen].toLowerCase()} → ${DOCUMENTATION_LABEL[c.docsNow].toLowerCase()} · `
+        : "";
+    return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
   }
   if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
     return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
