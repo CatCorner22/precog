@@ -209,15 +209,21 @@ describe("absenceImpact", () => {
     expect(a.dependence).toBe(
       coverageReport(t).people.find((l) => l.person.id === "a")!.dependence,
     );
-    expect(a.actions[0]).toMatch(/^Today: hand/);
-    expect(a.actions.some((x) => x.startsWith("Before the next absence"))).toBe(true);
+    expect(a.actions[0].text).toMatch(/^Today: hand/);
+    expect(a.actions[0].knowledgeIds).toContain("bank-rec");
+    expect(a.actions.some((x) => x.text.startsWith("Before the next absence"))).toBe(true);
+    expect(
+      a.actions.find((x) => x.text.startsWith("Before the next absence"))!.knowledgeIds,
+    ).toEqual(a.stops.filter((s) => !s.item.documented).map((s) => s.item.id));
   });
 
   it("reports nothing stopping for a fully backed-up person and flags sole-owned processes", () => {
     const b = absenceImpact(t, "b")!;
     expect(b.stops).toEqual([]);
     expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
-    expect(b.actions).toEqual(["Nothing stops if Ben is out. Keep it that way as duties change."]);
+    expect(b.actions).toEqual([
+      { text: "Nothing stops if Ben is out. Keep it that way as duties change.", knowledgeIds: [] },
+    ]);
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
     expect(absenceImpact(solo, "b")!.orphanedProcesses).toEqual(["Payroll run"]);
@@ -235,7 +241,7 @@ describe("absenceImpact", () => {
     const a = absenceImpact(t, "a")!;
     expect(a.stops.find((s) => s.item.id === "payroll")!.note).not.toMatch(/procedure:/);
     expect(
-      a.actions.some((x) => x.startsWith('Record where the written procedure for "payroll"')),
+      a.actions.some((x) => x.text.startsWith('Record where the written procedure for "payroll"')),
     ).toBe(true);
 
     const located = {
@@ -248,7 +254,7 @@ describe("absenceImpact", () => {
     expect(b.stops.find((s) => s.item.id === "payroll")!.note).toMatch(
       /written procedure to follow \(procedure: Binder B, front desk\)\./,
     );
-    expect(b.actions.some((x) => x.startsWith("Record where"))).toBe(false);
+    expect(b.actions.some((x) => x.text.startsWith("Record where"))).toBe(false);
 
     const undocumentedWithLocation = {
       ...t,

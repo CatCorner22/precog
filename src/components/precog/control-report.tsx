@@ -9,6 +9,11 @@ import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
 import { contingencyCards, coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import {
+  coverageSlips,
+  isDecisionOpen,
+  linkedKnowledgeId,
+} from "@/lib/precog/decisions/follow-through";
 import { assessCoso } from "@/lib/precog/coso";
 import {
   METHOD_CAVEATS,
@@ -58,6 +63,7 @@ export function ControlReport() {
     });
     const continuity = coverageReport(tpl);
     const cards = contingencyCards(tpl);
+    const slips = coverageSlips(profile.decisions, tpl);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -96,6 +102,7 @@ export function ControlReport() {
       sod,
       continuity,
       cards,
+      slips,
       coso,
       actions,
       mapHealth,
@@ -113,6 +120,7 @@ export function ControlReport() {
     sod,
     continuity,
     cards,
+    slips,
     coso,
     actions,
     mapHealth,
@@ -129,6 +137,15 @@ export function ControlReport() {
   const top = threat.targetDeck.slice(0, 12);
   const openDecisions = profile.decisions.slice(0, 10);
   const generated = new Date();
+  const today = generated.toISOString().slice(0, 10);
+  const statusNow = new Map(continuity.items.map((i) => [i.item.id, i.status]));
+  const continuityDecisions = profile.decisions.filter((d) => linkedKnowledgeId(d));
+  const openContinuity = continuityDecisions
+    .filter((d) => isDecisionOpen(d))
+    .sort((a, b) => (a.reviewBy ?? "").localeCompare(b.reviewBy ?? ""));
+  const doneContinuity = continuityDecisions.filter(
+    (d) => !isDecisionOpen(d) && d.reviews?.[d.reviews.length - 1]?.outcome === "done",
+  ).length;
 
   return (
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
@@ -483,7 +500,7 @@ export function ControlReport() {
                   )}
                   <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-xs">
                     {c.actions.slice(0, 3).map((a) => (
-                      <li key={a}>{a}</li>
+                      <li key={a.text}>{a.text}</li>
                     ))}
                   </ol>
                 </li>
@@ -517,6 +534,66 @@ export function ControlReport() {
               ))}
           </ul>
         </Section>
+
+        {continuityDecisions.length > 0 && (
+          <Section title="Continuity follow-through">
+            <p className="text-xs text-neutral-500">
+              Cross-training and hand-off steps logged from the register: {openContinuity.length}{" "}
+              open, {doneContinuity} closed as done
+              {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}.
+              Coverage is the register today, not when the step was logged.
+            </p>
+            {slips.length > 0 && (
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {slips.map(({ decision: d, from, to }) => (
+                  <li key={d.id} className="border-b border-neutral-200 pb-1.5">
+                    <p>
+                      <span className="font-medium text-red-700">Slipped</span> · {d.subject}
+                      <span className="text-neutral-500">
+                        {" "}
+                        · {STATUS_LABEL[from].toLowerCase()} when closed →{" "}
+                        {STATUS_LABEL[to].toLowerCase()} now
+                      </span>
+                    </p>
+                    {d.note && <p className="text-neutral-600">{d.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {openContinuity.length > 0 && (
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {openContinuity.map((d) => {
+                  const status = statusNow.get(linkedKnowledgeId(d)!);
+                  const overdue = Boolean(d.reviewBy && d.reviewBy < today);
+                  return (
+                    <li key={d.id} className="border-b border-neutral-200 pb-1.5">
+                      <p>
+                        <span className="font-medium">{d.subject}</span>
+                        <span className="text-neutral-500">
+                          {" "}
+                          ·{" "}
+                          {status
+                            ? STATUS_LABEL[status].toLowerCase()
+                            : "no longer on the register"}
+                          {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
+                          {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
+                        </span>
+                        {overdue && <span className="ml-1 font-medium text-red-700">overdue</span>}
+                      </p>
+                      {d.note && <p className="text-neutral-600">{d.note}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {openContinuity.length === 0 && slips.length === 0 && (
+              <p className="mt-2 text-sm text-neutral-600">
+                Nothing open and nothing slipped — every logged step has been completed and still
+                holds.
+              </p>
+            )}
+          </Section>
+        )}
 
         {openDecisions.length > 0 && (
           <Section title="Decision log">

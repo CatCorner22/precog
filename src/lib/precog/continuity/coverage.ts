@@ -310,7 +310,13 @@ export interface AbsenceImpact {
   /** 0–100 share of critical work that stops (same figure as PersonLoad.dependence). */
   dependence: number;
   /** What to do now, then what to do before the next absence. */
-  actions: string[];
+  actions: AbsenceAction[];
+}
+
+export interface AbsenceAction {
+  text: string;
+  /** Register items the action is about; empty when it concerns processes or nothing at all. */
+  knowledgeIds: string[];
 }
 
 /**
@@ -384,60 +390,70 @@ export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceI
     .map((p) => p.name);
 
   const first = person.name.split(" ")[0];
-  const actions: string[] = [];
+  const actions: AbsenceAction[] = [];
+  const ids = (list: AbsenceStop[]) => list.map((s) => s.item.id);
   const critical = stops.filter((s) => s.item.criticality === "critical");
   if (critical.length) {
     const named = critical.filter((s) => s.standIn);
     if (named.length)
-      actions.push(
-        `Today: hand ${named
+      actions.push({
+        text: `Today: hand ${named
           .slice(0, 3)
           .map((s) => `"${s.item.name}" to ${s.standIn?.name}`)
           .join(", ")}${named.length > 3 ? ` and ${named.length - 3} more` : ""}.`,
-      );
+        knowledgeIds: ids(named),
+      });
     const cold = critical.filter((s) => !s.standIn);
     if (cold.length)
-      actions.push(
-        `No one can cover ${cold
+      actions.push({
+        text: `No one can cover ${cold
           .slice(0, 2)
           .map((s) => `"${s.item.name}"`)
           .join(" or ")} — line up an outside provider or accept that it stops.`,
-      );
+        knowledgeIds: ids(cold),
+      });
   }
   const undocumented = stops.filter((s) => !s.item.documented);
   if (undocumented.length)
-    actions.push(
-      `Before the next absence: have ${first} write down ${undocumented
+    actions.push({
+      text: `Before the next absence: have ${first} write down ${undocumented
         .slice(0, 3)
         .map((s) => `"${s.item.name}"`)
         .join(", ")}${undocumented.length > 3 ? ` and ${undocumented.length - 3} more` : ""}.`,
-    );
+      knowledgeIds: ids(undocumented),
+    });
   const unlocated = stops.filter((s) => s.item.documented && !s.item.procedureLocation?.trim());
   if (unlocated.length)
-    actions.push(
-      `Record where the written procedure for ${unlocated
+    actions.push({
+      text: `Record where the written procedure for ${unlocated
         .slice(0, 3)
         .map((s) => `"${s.item.name}"`)
         .join(", ")} lives so a stand-in can find it without ${first}.`,
-    );
+      knowledgeIds: ids(unlocated),
+    });
   const trainable = stops.filter((s) => s.standIn).slice(0, 3);
   if (trainable.length)
-    actions.push(
-      `Cross-train so ${first} is not the only one: ${trainable
+    actions.push({
+      text: `Cross-train so ${first} is not the only one: ${trainable
         .map((s) => `${s.standIn?.name} on "${s.item.name}"`)
         .join(", ")}.`,
-    );
+      knowledgeIds: ids(trainable),
+    });
   if (orphanedProcesses.length)
-    actions.push(
-      `Name a second owner on ${orphanedProcesses
+    actions.push({
+      text: `Name a second owner on ${orphanedProcesses
         .slice(0, 3)
         .map((n) => `"${n}"`)
         .join(
           ", ",
         )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
-    );
+      knowledgeIds: [],
+    });
   if (!actions.length)
-    actions.push(`Nothing stops if ${first} is out. Keep it that way as duties change.`);
+    actions.push({
+      text: `Nothing stops if ${first} is out. Keep it that way as duties change.`,
+      knowledgeIds: [],
+    });
 
   return {
     person,
