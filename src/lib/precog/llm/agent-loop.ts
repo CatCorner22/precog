@@ -365,6 +365,9 @@ function localSynthesize(
     | {
         name: string;
         owners: { name: string }[];
+        suggestedTrainee?: { name: string } | null;
+        documented?: boolean;
+        nextStep?: string | null;
       }[]
     | null;
 
@@ -446,14 +449,18 @@ function localSynthesize(
     },
     {
       action: spofs?.[0]
-        ? `Cross-train backup for ${spofs[0].name}`
+        ? spofs[0].suggestedTrainee
+          ? `Cross-train ${spofs[0].suggestedTrainee.name} on ${spofs[0].name}${spofs[0].owners[0] ? ` with ${spofs[0].owners[0].name}` : ""}`
+          : `Cross-train backup for ${spofs[0].name}`
         : "Cross-train top knowledge SPOF",
-      rationale: "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
+      rationale:
+        spofs?.[0]?.nextStep ??
+        "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
       evidenceIds: evidence
         .filter((e) => e.kind === "spof")
         .map((e) => e.id)
         .slice(0, 2),
-      effort: "medium",
+      effort: spofs?.[0]?.documented ? "low" : "medium",
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
       cascadeEffects: ["continuity residual index ↓"],
     },

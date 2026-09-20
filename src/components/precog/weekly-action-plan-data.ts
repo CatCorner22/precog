@@ -1,8 +1,7 @@
-import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { findKnowledgeRisks } from "@/lib/precog/engine";
+import { coverageReport } from "@/lib/precog/continuity/coverage";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
@@ -64,9 +63,7 @@ export function buildWeeklyActions(input: {
   const sod = detectSodConflicts(tpl, input.staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
   });
-  const spofs = findKnowledgeRisks(tpl).filter(
-    (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
-  );
+  const continuity = coverageReport(tpl);
   const tornado = tornadoSensitivity(tpl, input.staff);
   const actions: WeeklyAction[] = [];
 
@@ -110,14 +107,33 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  for (const s of spofs.slice(0, 2)) {
+  for (const m of continuity.plan
+    .filter((x) => x.item.criticality === "critical" && x.status !== "thin")
+    .slice(0, 2)) {
     actions.push({
-      id: `spof-${s.knowledgeId}`,
-      title: `Cross-train backup for ${s.name}`,
-      why: "Single-person knowledge creates continuity and fraud-detection blind spots.",
+      id: `spof-${m.item.id}`,
+      title:
+        m.status === "uncovered"
+          ? `Find someone to own ${m.item.name}`
+          : m.trainee
+            ? `Cross-train ${m.trainee.name.split(" ")[0]} on ${m.item.name}`
+            : `Cross-train a backup for ${m.item.name}`,
+      why: `${m.action} One person holding critical work is both a continuity gap and a fraud-detection blind spot.`,
+      effort: m.item.documented ? "low" : "medium",
+      tab: "knowledge",
+      priority: m.status === "uncovered" ? 86 : 82,
+    });
+  }
+
+  const leanedOn = continuity.people.find((l) => l.person.active);
+  if (leanedOn && leanedOn.dependence >= 50 && leanedOn.soleItems.length >= 2) {
+    actions.push({
+      id: `dependence-${leanedOn.person.id}`,
+      title: `Spread ${leanedOn.person.name.split(" ")[0]}'s sole duties`,
+      why: `${leanedOn.dependence}% of critical work stops if ${leanedOn.person.name} is out — ${leanedOn.soleItems.length} items nobody else can run. Run the absence check on the Who-knows-what tab.`,
       effort: "medium",
       tab: "knowledge",
-      priority: 82,
+      priority: 80,
     });
   }
 

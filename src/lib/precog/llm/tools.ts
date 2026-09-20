@@ -5,6 +5,7 @@ import { describeChunkBasis } from "../rag/corpus";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
+import { coverageReport } from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -69,7 +70,8 @@ export const TOOL_CATALOG: {
   },
   {
     name: "get_knowledge_spofs",
-    description: "Critical knowledge single points of failure.",
+    description:
+      "Duties and know-how only one person can run alone, with the suggested trainee and next step from the owner's continuity register.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -225,19 +227,31 @@ export function executeTool(
 
       case "get_knowledge_spofs": {
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
+        const continuity = coverageReport(tpl);
+        const moveByItem = new Map(continuity.plan.map((m) => [m.item.id, m]));
+        const leanedOn = continuity.people.find((l) => l.person.active);
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s)`,
-          data: risks.map((r) => ({
-            knowledgeId: r.knowledgeId,
-            name: r.name,
-            soleOwner: r.soleOwner,
-            ownerCount: r.ownerCount,
-            owners: r.owners.map((o) => ({ id: o.id, name: o.name, role: o.role })),
-            riskScore: r.riskScore,
-          })),
-          links: [{ tab: "knowledge", label: "Knowledge map" }],
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}`,
+          data: risks.map((r) => {
+            const move = moveByItem.get(r.knowledgeId);
+            return {
+              knowledgeId: r.knowledgeId,
+              name: r.name,
+              soleOwner: r.soleOwner,
+              ownerCount: r.ownerCount,
+              owners: r.owners.map((o) => ({ id: o.id, name: o.name, role: o.role })),
+              riskScore: r.riskScore,
+              coverage: move?.status ?? "covered",
+              suggestedTrainee: move?.trainee
+                ? { id: move.trainee.id, name: move.trainee.name, role: move.trainee.role }
+                : null,
+              documented: Boolean(move?.item.documented),
+              nextStep: move?.action ?? null,
+            };
+          }),
+          links: [{ tab: "knowledge", label: "Who knows what" }],
         };
       }
 

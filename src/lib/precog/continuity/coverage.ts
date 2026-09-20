@@ -195,7 +195,7 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
     relations
       .filter((r) => r.knowledgeId === knowledgeId)
       .map((r) => ({ person: byId.get(r.personId), level: r.level }))
-      .filter((h): h is { person: Person; level: KnowledgeLevel } => Boolean(h.person));
+      .filter((h): h is { person: Person; level: KnowledgeLevel } => Boolean(h.person?.active));
 
   const soleCountByPerson = new Map<string, number>();
   const base = knowledge.map((item) => {
@@ -289,6 +289,149 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
     .sort((a, b) => b.priority - a.priority || a.item.name.localeCompare(b.item.name));
 
   return { items, people: peopleLoad, counts, singlePoints, coverageIndex, plan };
+}
+
+export interface AbsenceStop {
+  item: KnowledgeItem;
+  /** Best person to pick it up while the holder is out, if anyone. */
+  standIn: Person | null;
+  /** Why the stand-in was chosen, or why nobody is available. */
+  note: string;
+}
+
+export interface AbsenceImpact {
+  person: Person;
+  /** Items only this person can run alone — work that stops on day one. */
+  stops: AbsenceStop[];
+  /** Items this person can run alone that another person can also run. */
+  continues: KnowledgeItem[];
+  /** Processes where this person is the only listed owner. */
+  orphanedProcesses: string[];
+  /** 0–100 share of critical work that stops (same figure as PersonLoad.dependence). */
+  dependence: number;
+  /** What to do now, then what to do before the next absence. */
+  actions: string[];
+}
+
+/**
+ * What happens if one person is unavailable tomorrow — sick, on leave, or
+ * gone. Reads the coverage report and names a stand-in per stopped item;
+ * "stand-in" here means the best cross-training candidate, not someone who
+ * can already do it (if such a person existed the item would not stop).
+ */
+export function absenceImpact(tpl: IndustryTemplate, personId: string): AbsenceImpact | null {
+  const person = tpl.people.find((p) => p.id === personId);
+  if (!person) return null;
+  const report = coverageReport(tpl);
+  const load = report.people.find((l) => l.person.id === personId);
+  const remaining = tpl.people.filter((p) => p.active && p.id !== personId);
+
+  const stops: AbsenceStop[] = report.items
+    .filter((i) => i.primaries.length === 1 && i.primaries[0].id === personId)
+    .sort(
+      (a, b) =>
+        CRITICALITY_WEIGHT[b.item.criticality] - CRITICALITY_WEIGHT[a.item.criticality] ||
+        a.item.name.localeCompare(b.item.name),
+    )
+    .map((i) => {
+      const learner = i.learners.find((p) => p.active) ?? null;
+      if (learner) {
+        return {
+          item: i.item,
+          standIn: learner,
+          note: i.item.documented
+            ? `${learner.name} has the basics and there is a written procedure to follow.`
+            : `${learner.name} has the basics but nothing is written down — expect mistakes.`,
+        };
+      }
+      const candidate =
+        i.suggestedBackups.find((s) => s.person.id !== personId && s.person.active) ?? null;
+      if (!candidate) {
+        return {
+          item: i.item,
+          standIn: null,
+          note:
+            remaining.length === 0
+              ? "Nobody else is on the team."
+              : "Nobody else has touched this; it waits or goes to an outside provider.",
+        };
+      }
+      return {
+        item: i.item,
+        standIn: candidate.person,
+        note: i.item.documented
+          ? `${candidate.person.name} has never done it but could follow the written procedure (${candidate.reasons[0]}).`
+          : `${candidate.person.name} would be starting cold with nothing written down (${candidate.reasons[0]}).`,
+      };
+    });
+
+  const continues = report.items
+    .filter((i) => i.primaries.length >= 2 && i.primaries.some((p) => p.id === personId))
+    .map((i) => i.item);
+
+  const orphanedProcesses = tpl.processes
+    .filter((p) => {
+      const owners = (p.ownerPersonIds ?? []).filter((id) =>
+        tpl.people.some((x) => x.id === id && x.active),
+      );
+      return owners.length === 1 && owners[0] === personId;
+    })
+    .map((p) => p.name);
+
+  const first = person.name.split(" ")[0];
+  const actions: string[] = [];
+  const critical = stops.filter((s) => s.item.criticality === "critical");
+  if (critical.length) {
+    const named = critical.filter((s) => s.standIn);
+    if (named.length)
+      actions.push(
+        `Today: hand ${named
+          .slice(0, 3)
+          .map((s) => `"${s.item.name}" to ${s.standIn?.name}`)
+          .join(", ")}${named.length > 3 ? ` and ${named.length - 3} more` : ""}.`,
+      );
+    const cold = critical.filter((s) => !s.standIn);
+    if (cold.length)
+      actions.push(
+        `No one can cover ${cold
+          .slice(0, 2)
+          .map((s) => `"${s.item.name}"`)
+          .join(" or ")} — line up an outside provider or accept that it stops.`,
+      );
+  }
+  const undocumented = stops.filter((s) => !s.item.documented);
+  if (undocumented.length)
+    actions.push(
+      `Before the next absence: have ${first} write down ${undocumented
+        .slice(0, 3)
+        .map((s) => `"${s.item.name}"`)
+        .join(", ")}${undocumented.length > 3 ? ` and ${undocumented.length - 3} more` : ""}.`,
+    );
+  const trainable = stops.filter((s) => s.standIn).slice(0, 3);
+  if (trainable.length)
+    actions.push(
+      `Cross-train so ${first} is not the only one: ${trainable
+        .map((s) => `${s.standIn?.name} on "${s.item.name}"`)
+        .join(", ")}.`,
+    );
+  if (orphanedProcesses.length)
+    actions.push(
+      `Name a second owner on ${orphanedProcesses
+        .slice(0, 3)
+        .map((n) => `"${n}"`)
+        .join(", ")}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+    );
+  if (!actions.length)
+    actions.push(`Nothing stops if ${first} is out. Keep it that way as duties change.`);
+
+  return {
+    person,
+    stops,
+    continues,
+    orphanedProcesses,
+    dependence: load?.dependence ?? 0,
+    actions,
+  };
 }
 
 /** Critical items with exactly one person who can run them alone — the figure the residual index uses. */
