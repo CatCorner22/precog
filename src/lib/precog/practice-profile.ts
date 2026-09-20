@@ -12,6 +12,24 @@ import { industryMeta, type IndustryId } from "./industry";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
+export interface DecisionSnapshot {
+  at: string;
+  scoringVersion: string;
+  averageResidual: number;
+  subjectResidual?: number;
+  sodOpenConflicts: number;
+  segregationHealth: number;
+}
+
+export type DecisionReviewOutcome = "done" | "still_open" | "no_longer_relevant";
+
+export interface DecisionReview {
+  at: string;
+  outcome: DecisionReviewOutcome;
+  note?: string;
+  snapshot: DecisionSnapshot;
+}
+
 export interface DecisionEntry {
   id: string;
   createdAt: string;
@@ -22,6 +40,9 @@ export interface DecisionEntry {
   residualAtDecision?: number;
   linkedTab?: string;
   linkedId?: string;
+  snapshot?: DecisionSnapshot;
+  reviews?: DecisionReview[];
+  status?: "open" | "closed";
 }
 
 export interface PracticeProfile {

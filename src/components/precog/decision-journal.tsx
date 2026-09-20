@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { DECISION_KIND_LABEL, type DecisionKind } from "@/lib/precog/practice-profile";
+import {
+  DECISION_KIND_LABEL,
+  type DecisionEntry,
+  type DecisionKind,
+} from "@/lib/precog/practice-profile";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import {
+  captureDecisionSnapshot,
+  decisionDelta,
+  decisionsDue,
+  isDecisionOpen,
+} from "@/lib/precog/decisions/follow-through";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { formatUsd } from "@/lib/utils";
@@ -12,12 +22,28 @@ import { BookOpen, Plus, Trash2 } from "lucide-react";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
+function signed(value: number): string {
+  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
+}
+
+function reviewDelta(
+  d: DecisionEntry,
+  current: ReturnType<typeof captureDecisionSnapshot>,
+): string {
+  const delta = decisionDelta(d, current);
+  if (!delta || !d.snapshot) return "no snapshot on record";
+  const thenResidual = d.snapshot.subjectResidual ?? d.snapshot.averageResidual;
+  const nowResidual = current.subjectResidual ?? current.averageResidual;
+  const residualDelta = delta.subject ?? delta.average;
+  return `residual ${thenResidual} → ${nowResidual} (${signed(residualDelta)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+}
+
 export function DecisionJournal({
   onOpenLinked,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
-  const { profile, template, addDecision, removeDecision } = usePractice();
+  const { profile, template, addDecision, removeDecision, reviewDecision } = usePractice();
   const portfolio = useMemo(
     () => portfolioSummary(template, profile.staff),
     [template, profile.staff],
@@ -52,10 +78,23 @@ export function DecisionJournal({
     return { count: cases.length, range: observedLossRange(cases), largest };
   }, [kind, subject, portfolio.top]);
 
-  const overdue = useMemo(() => {
-    const now = Date.now();
-    return profile.decisions.filter((d) => d.reviewBy && new Date(d.reviewBy).getTime() < now);
-  }, [profile.decisions]);
+  const due = useMemo(() => decisionsDue(profile.decisions, new Date()), [profile.decisions]);
+  const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
+  const currentSnapshots = useMemo(
+    () =>
+      new Map(
+        profile.decisions.map((d) => [
+          d.id,
+          captureDecisionSnapshot(template, profile.staff, profile.dualRelease, d.subject),
+        ]),
+      ),
+    [profile.decisions, template, profile.staff, profile.dualRelease],
+  );
+  const orderedDecisions = useMemo(
+    () =>
+      [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),
+    [profile.decisions],
+  );
 
   function submit() {
     if (!subject.trim()) return;
@@ -93,109 +132,167 @@ export function DecisionJournal({
           COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or insure
           decisions with a review date. Syncs to your account when signed in.
         </p>
-        {overdue.length > 0 && (
-          <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
-            {overdue.length} decision(s) past review date — re-open residual radar and re-score.
-          </p>
-        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Log a decision</CardTitle>
-            <CardDescription>Plain language. Owner-owned. Review-dated.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <label className="block text-sm">
-              <span className="text-muted">Subject</span>
-              <select
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              >
-                {portfolio.top.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name} ({t.residual})
-                  </option>
-                ))}
-                <option value="Practice-wide monitoring">Practice-wide monitoring</option>
-                <option value="Insurance / transfer terms">Insurance / transfer terms</option>
-              </select>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setKind(k)}
-                  className={
-                    kind === k
-                      ? "rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs"
-                      : "rounded-full border border-border bg-elevated px-3 py-1 text-xs text-muted"
-                  }
-                >
-                  {DECISION_KIND_LABEL[k]}
-                </button>
-              ))}
-            </div>
-            {acceptEvidence && (
-              <div className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm leading-relaxed text-muted">
-                <p className="font-medium text-warn">Before you accept this</p>
-                <p className="mt-1">
-                  {acceptEvidence.count} prosecuted{" "}
-                  {acceptEvidence.count === 1 ? "case involves" : "cases involve"} the duty
-                  conflicts this control addresses
-                  {acceptEvidence.range
-                    ? `; median stated loss ${formatUsd(acceptEvidence.range.median)}`
-                    : ""}
-                  . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
-                  {acceptEvidence.largest.lossIsFloor ? "at least " : ""}
-                  {formatUsd(acceptEvidence.largest.lossUsd)}). Accepting is a legitimate decision;
-                  write down which compensating control makes it acceptable and who reviews it.
-                </p>
-                {onOpenLinked && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenLinked("start")}
-                    className="mt-1.5 text-xs font-medium text-primary hover:underline"
+        <div className="space-y-4">
+          {dueDecisions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Reviews due</CardTitle>
+                <CardDescription>Re-score the decision before you close the loop.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {dueDecisions.map((d) => (
+                  <div
+                    key={d.id}
+                    className="rounded-lg border border-border bg-elevated px-3 py-2.5"
                   >
-                    Read the cases on Start here
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant={
+                          d.kind === "accept_residual"
+                            ? "warn"
+                            : d.kind === "remediate"
+                              ? "ok"
+                              : "primary"
+                        }
+                      >
+                        {DECISION_KIND_LABEL[d.kind]}
+                      </Badge>
+                      <span className="font-medium">{d.subject}</span>
+                      {d.reviewBy && (
+                        <span className="text-[11px] text-subtle">review by {d.reviewBy}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs tabular text-muted">
+                      {reviewDelta(d, currentSnapshots.get(d.id)!)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "done")}
+                      >
+                        Done
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "still_open", undefined, 90)}
+                      >
+                        Still open +90d
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "no_longer_relevant")}
+                      >
+                        Not relevant
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Log a decision</CardTitle>
+              <CardDescription>Plain language. Owner-owned. Review-dated.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="block text-sm">
+                <span className="text-muted">Subject</span>
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                >
+                  {portfolio.top.map((t) => (
+                    <option key={t.id} value={t.name}>
+                      {t.name} ({t.residual})
+                    </option>
+                  ))}
+                  <option value="Practice-wide monitoring">Practice-wide monitoring</option>
+                  <option value="Insurance / transfer terms">Insurance / transfer terms</option>
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {KINDS.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKind(k)}
+                    className={
+                      kind === k
+                        ? "rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs"
+                        : "rounded-full border border-border bg-elevated px-3 py-1 text-xs text-muted"
+                    }
+                  >
+                    {DECISION_KIND_LABEL[k]}
                   </button>
-                )}
+                ))}
               </div>
-            )}
-            <label className="block text-sm">
-              <span className="text-muted">Note</span>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                placeholder="Why this choice? What compensating control? Who owns the review?"
-                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted">Review in (days)</span>
-                <span className="tabular font-medium">{reviewDays}</span>
-              </div>
-              <input
-                type="range"
-                min={7}
-                max={180}
-                step={7}
-                value={reviewDays}
-                onChange={(e) => setReviewDays(Number(e.target.value))}
-                className="mt-1 w-full accent-[var(--color-primary)]"
-              />
-            </label>
-            <Button onClick={submit}>
-              <Plus className="size-3.5" />
-              Save decision
-            </Button>
-          </CardContent>
-        </Card>
+              {acceptEvidence && (
+                <div className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm leading-relaxed text-muted">
+                  <p className="font-medium text-warn">Before you accept this</p>
+                  <p className="mt-1">
+                    {acceptEvidence.count} prosecuted{" "}
+                    {acceptEvidence.count === 1 ? "case involves" : "cases involve"} the duty
+                    conflicts this control addresses
+                    {acceptEvidence.range
+                      ? `; median stated loss ${formatUsd(acceptEvidence.range.median)}`
+                      : ""}
+                    . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
+                    {acceptEvidence.largest.lossIsFloor ? "at least " : ""}
+                    {formatUsd(acceptEvidence.largest.lossUsd)}). Accepting is a legitimate
+                    decision; write down which compensating control makes it acceptable and who
+                    reviews it.
+                  </p>
+                  {onOpenLinked && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLinked("start")}
+                      className="mt-1.5 text-xs font-medium text-primary hover:underline"
+                    >
+                      Read the cases on Start here
+                    </button>
+                  )}
+                </div>
+              )}
+              <label className="block text-sm">
+                <span className="text-muted">Note</span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Why this choice? What compensating control? Who owns the review?"
+                  className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted">Review in (days)</span>
+                  <span className="tabular font-medium">{reviewDays}</span>
+                </div>
+                <input
+                  type="range"
+                  min={7}
+                  max={180}
+                  step={7}
+                  value={reviewDays}
+                  onChange={(e) => setReviewDays(Number(e.target.value))}
+                  className="mt-1 w-full accent-[var(--color-primary)]"
+                />
+              </label>
+              <Button onClick={submit}>
+                <Plus className="size-3.5" />
+                Save decision
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
@@ -209,8 +306,9 @@ export function DecisionJournal({
                 surprised.
               </p>
             )}
-            {profile.decisions.map((d) => {
-              const past = d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
+            {orderedDecisions.map((d) => {
+              const past =
+                isDecisionOpen(d) && d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
               return (
                 <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -227,6 +325,7 @@ export function DecisionJournal({
                         >
                           {DECISION_KIND_LABEL[d.kind]}
                         </Badge>
+                        {!isDecisionOpen(d) && <Badge variant="default">Closed</Badge>}
                         {past && <Badge variant="danger">Review overdue</Badge>}
                         {d.residualAtDecision != null && (
                           <span className="text-xs tabular text-muted">
@@ -239,6 +338,7 @@ export function DecisionJournal({
                       <p className="mt-1 text-[11px] text-subtle">
                         {new Date(d.createdAt).toLocaleDateString()}
                         {d.reviewBy ? ` · review by ${d.reviewBy}` : ""}
+                        {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                       </p>
                     </div>
                     <div className="flex gap-1">

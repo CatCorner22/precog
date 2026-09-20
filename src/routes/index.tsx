@@ -29,6 +29,7 @@ import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
@@ -179,9 +180,10 @@ function Home() {
   const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
-  const overdueDecisions = profile.decisions.filter(
-    (d) => d.reviewBy && new Date(d.reviewBy).getTime() < Date.now(),
-  ).length;
+  const overdueDecisions = useMemo(
+    () => decisionsDue(profile.decisions, new Date()).overdue.length,
+    [profile.decisions],
+  );
 
   const mapHealth = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
