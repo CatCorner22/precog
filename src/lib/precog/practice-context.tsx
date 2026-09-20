@@ -79,7 +79,7 @@ interface PracticeContextValue {
   ) => void;
   /** Map builder: replace the demo team with real people (null = template people). */
   setCustomPeople: (v: Person[] | null | ((current: Person[]) => Person[] | null)) => void;
-  useDerivedSegregation: () => void;
+  resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (
     v:
@@ -453,7 +453,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const useDerivedSegregation = useCallback(() => {
+  const resetSegregationToDerived = useCallback(() => {
     setProfile((p) => ({
       ...p,
       staff: deriveStaffFromTeam(
@@ -668,7 +668,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
-      useDerivedSegregation,
+      resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,
@@ -702,7 +702,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       setCustomProcesses,
       setCustomPeople,
-      useDerivedSegregation,
+      resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
       setSavedProcessBlocks,

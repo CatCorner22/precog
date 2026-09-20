@@ -16,7 +16,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     setIndustry,
     setStaff,
     setDualRelease,
-    useDerivedSegregation,
+    resetSegregationToDerived,
     resetProfile,
   } = usePractice();
   const s = profile.staff;
@@ -26,7 +26,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         Manual override —{" "}
         <button
           type="button"
-          onClick={useDerivedSegregation}
+          onClick={resetSegregationToDerived}
           className="text-primary underline hover:text-fg"
         >
           use score derived from your team
