@@ -50,7 +50,7 @@ describe("buildWeeklyActions documentation advice", () => {
     expect(actions.some((action) => action.id.startsWith("docs-"))).toBe(false);
   });
 
-  it("adds register confirmation when freshness tracking is enabled", () => {
+  it("turns stale register entries into a check-in with the person who holds most of them", () => {
     const item = {
       ...dental.knowledge[0],
       documented: true,
@@ -76,20 +76,50 @@ describe("buildWeeklyActions documentation advice", () => {
       today: "2025-04-01",
       trackFreshness: true,
     });
-    expect(actions).toContainEqual(
-      expect.objectContaining({
-        id: "confirm-register",
-        tab: "knowledge",
-        priority: 60,
-      }),
-    );
+    const checkIn = actions.find((action) => action.id.startsWith("check-in-"));
+    expect(checkIn).toMatchObject({ tab: "knowledge", priority: 60 });
+    expect(checkIn?.title).toMatch(/^Check in with \S+: 1 register entry$/);
+    expect(checkIn?.why).toContain(item.name);
+    expect(checkIn?.why).toContain("1 more person to check in with");
     expect(
       buildWeeklyActions({
         tpl: quiet,
         staff,
         dualRelease: defaultDualReleasePolicy(quiet),
         today: "2025-04-01",
-      }).some((action) => action.id === "confirm-register"),
+      }).some((action) => action.id.startsWith("check-in-")),
     ).toBe(false);
+  });
+
+  it("falls back to a direct re-confirm when nobody active holds the stale entries", () => {
+    const item = {
+      ...dental.knowledge[0],
+      criticality: "nice-to-have" as const,
+      documented: true,
+      procedureLocation: "Drive/SOPs",
+    };
+    const orphaned = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [item],
+      customRelations: [],
+    });
+    const actions = buildWeeklyActions({
+      tpl: orphaned,
+      staff: {
+        ...orphaned.staffComposition,
+        independentBankRec: true,
+        dualControlPayments: true,
+      },
+      dualRelease: defaultDualReleasePolicy(orphaned),
+      today: "2025-04-01",
+      trackFreshness: true,
+    });
+    expect(actions.some((action) => action.id.startsWith("check-in-"))).toBe(false);
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        id: "confirm-register",
+        title: "Re-confirm 1 register item(s) nobody holds",
+      }),
+    );
   });
 });

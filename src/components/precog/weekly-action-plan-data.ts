@@ -1,7 +1,7 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { coverageReport, documentationDebt, staleItems } from "@/lib/precog/continuity/coverage";
+import { checkInPlan, coverageReport, documentationDebt } from "@/lib/precog/continuity/coverage";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
@@ -146,13 +146,35 @@ export function buildWeeklyActions(input: {
   }
 
   if (input.trackFreshness) {
-    const stale = staleItems(tpl, input.today ?? localDateKey(new Date())).stale;
-    if (stale.length > 0) {
+    const plan = checkInPlan(tpl, input.today ?? localDateKey(new Date()));
+    const first = plan.checkIns[0];
+    if (first) {
+      const others = plan.checkIns.length - 1;
+      const soleNote =
+        first.soleCount > 0 ? `${first.soleCount} of them nobody else can run alone. ` : "";
+      actions.push({
+        id: `check-in-${first.person.id}`,
+        title: `Check in with ${first.person.name.split(" ")[0]}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"}`,
+        why: `The register says ${first.person.name} can do ${first.items
+          .slice(0, 3)
+          .map((entry) => entry.item.name)
+          .join(
+            ", ",
+          )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
+          others > 0
+            ? ` ${others} more ${others === 1 ? "person" : "people"} to check in with after that.`
+            : ""
+        }${plan.unheld.length > 0 ? ` ${plan.unheld.length} stale item(s) nobody active holds.` : ""}`,
+        effort: "low",
+        tab: "knowledge",
+        priority: first.soleCount > 0 ? 64 : 60,
+      });
+    } else if (plan.unheld.length > 0) {
       actions.push({
         id: "confirm-register",
-        title: `Re-confirm ${stale.length} register item(s)`,
-        why: `${stale[0].action} ${
-          stale.length > 1 ? `${stale.length - 1} more item(s) also need a check.` : ""
+        title: `Re-confirm ${plan.unheld.length} register item(s) nobody holds`,
+        why: `${plan.unheld[0].action} ${
+          plan.unheld.length > 1 ? `${plan.unheld.length - 1} more item(s) also need a check.` : ""
         }`.trim(),
         effort: "low",
         tab: "knowledge",

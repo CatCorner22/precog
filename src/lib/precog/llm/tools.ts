@@ -9,6 +9,7 @@ import {
   CONFIRMATION_MAX_AGE_DAYS,
   coverageReport,
   documentationDebt,
+  checkInPlan,
   staleItems,
 } from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
@@ -79,6 +80,12 @@ export const TOOL_CATALOG: {
     name: "get_knowledge_spofs",
     description:
       "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, and whether each entry was confirmed in the last 90 days.",
+    args: "none",
+  },
+  {
+    name: "get_register_checkins",
+    description:
+      "Who the owner should sit down with to re-confirm the continuity register: per active person, the entries not confirmed in 90 days that the register says they can do, and how many of those nobody else can run alone; plus stale entries nobody active holds.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -273,6 +280,66 @@ export function executeTool(
               nextStep: move?.action ?? null,
             };
           }),
+          links: [{ tab: "knowledge", label: "Who knows what" }],
+        };
+      }
+
+      case "get_register_checkins": {
+        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        if (!trackFreshness) {
+          return {
+            tool,
+            ok: true,
+            summary: "Freshness is not tracked until the owner enters their own register",
+            data: { checkIns: [], unheld: [], tracked: false },
+            links: [{ tab: "knowledge", label: "Who knows what" }],
+          };
+        }
+        const plan = checkInPlan(tpl, ctx.today ?? new Date().toISOString().slice(0, 10));
+        const checkIns = plan.checkIns.map((c) => ({
+          person: { id: c.person.id, name: c.person.name, role: c.person.role },
+          soleCount: c.soleCount,
+          items: c.items.map((entry) => ({
+            knowledgeId: entry.item.id,
+            name: entry.item.name,
+            criticality: entry.item.criticality,
+            level: entry.level,
+            coverage: entry.coverage,
+            confirmedAt: entry.confirmedAt,
+            ageDays: entry.ageDays,
+          })),
+        }));
+        const unheld = plan.unheld.map((entry) => ({
+          knowledgeId: entry.item.id,
+          name: entry.item.name,
+          criticality: entry.item.criticality,
+          coverage: entry.coverage,
+          confirmedAt: entry.confirmedAt,
+        }));
+        const summary =
+          checkIns.length === 0 && unheld.length === 0
+            ? `Every register entry was confirmed in the last ${CONFIRMATION_MAX_AGE_DAYS} days`
+            : [
+                checkIns.length > 0
+                  ? `check in with ${checkIns
+                      .slice(0, 3)
+                      .map(
+                        (c) =>
+                          `${c.person.name} (${c.items.length}${c.soleCount > 0 ? `, ${c.soleCount} sole` : ""})`,
+                      )
+                      .join(", ")}${checkIns.length > 3 ? ` and ${checkIns.length - 3} more` : ""}`
+                  : "",
+                unheld.length > 0
+                  ? `${unheld.length} stale entr${unheld.length === 1 ? "y" : "ies"} nobody active holds`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("; ");
+        return {
+          tool,
+          ok: true,
+          summary,
+          data: { checkIns, unheld, tracked: true },
           links: [{ tab: "knowledge", label: "Who knows what" }],
         };
       }
@@ -645,6 +712,7 @@ export function planTools(question: string): ToolName[] {
     "get_practice_snapshot",
     "get_residual_portfolio",
     "get_knowledge_spofs",
+    "get_register_checkins",
     "get_insurance_cost_of_risk",
     "simulate_variable_cascades",
     "retrieve_guidance",

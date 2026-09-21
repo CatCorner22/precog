@@ -373,6 +373,15 @@ function localSynthesize(
       }[]
     | null;
 
+  const checkIns = tools.find((t) => t.tool === "get_register_checkins")?.data as {
+    checkIns: {
+      person: { name: string };
+      soleCount: number;
+      items: { name: string }[];
+    }[];
+    unheld: { name: string }[];
+  } | null;
+
   const top = residual?.top ?? [];
   const bestCascade = cas?.topByCostOfRisk?.[0];
   const adv = tools.find((t) => t.tool === "run_advanced_reasoning")?.data as {
@@ -466,23 +475,45 @@ function localSynthesize(
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
       cascadeEffects: ["continuity residual index ↓"],
     },
-    ...(spofs?.some((s) => s.stale)
+    ...(checkIns?.checkIns[0]
       ? [
-          {
-            action: (() => {
-              const stale = spofs.filter((s) => s.stale);
-              const first = stale[0];
-              return `Re-confirm the register entry for ${first.name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`;
-            })(),
-            rationale:
-              "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
-            evidenceIds: [],
-            effort: "low" as const,
-            horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-            cascadeEffects: ["register accuracy ↑"],
-          },
+          (() => {
+            const first = checkIns.checkIns[0];
+            const others = checkIns.checkIns.length - 1;
+            return {
+              action: `Check in with ${first.person.name}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"} to re-confirm${others > 0 ? ` (${others} more ${others === 1 ? "person" : "people"} after that)` : ""}`,
+              rationale: `The register says ${first.person.name} can do ${first.items
+                .slice(0, 3)
+                .map((entry) => entry.name)
+                .join(
+                  ", ",
+                )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days${first.soleCount > 0 ? `; ${first.soleCount} of those nobody else can run alone` : ""}. People leave, learn and forget, so the coverage figures above may be false comfort.`,
+              evidenceIds: [],
+              effort: "low" as const,
+              horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+              cascadeEffects: ["register accuracy ↑"],
+            };
+          })(),
         ]
-      : []),
+      : spofs?.some((s) => s.stale) || (checkIns?.unheld.length ?? 0) > 0
+        ? [
+            {
+              action: (() => {
+                const stale = checkIns?.unheld.length
+                  ? checkIns.unheld
+                  : (spofs ?? []).filter((s) => s.stale);
+                const first = stale[0];
+                return `Re-confirm the register entry for ${first.name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`;
+              })(),
+              rationale:
+                "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
+              evidenceIds: [],
+              effort: "low" as const,
+              horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+              cascadeEffects: ["register accuracy ↑"],
+            },
+          ]
+        : []),
     {
       action: "Log residual accept/remediate decisions with review dates",
       rationale:
