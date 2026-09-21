@@ -119,6 +119,10 @@ function committedAction(
   };
 }
 
+/** Per gap kind (coverage, documentation): how many fresh recommendations and how many Journal reminders make the list. */
+const MAX_FRESH_PER_GAP_KIND = 2;
+const MAX_REMINDERS_PER_GAP_KIND = 2;
+
 function casesForControls(ids: readonly ControlId[]): CaseStudy[] {
   const seen = new Map<string, CaseStudy>();
   for (const id of ids) for (const c of casesForControl(id)) seen.set(c.id, c);
@@ -188,15 +192,24 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  for (const m of continuity.plan
-    .filter((x) => x.item.criticality === "critical" && x.status !== "thin")
-    .slice(0, 2)) {
+  // Steps already in the Journal do not use up the fresh-advice slots, so the
+  // next uncommitted gap still gets recommended.
+  let freshLeft = MAX_FRESH_PER_GAP_KIND;
+  let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
+  for (const m of continuity.plan.filter(
+    (x) => x.item.criticality === "critical" && x.status !== "thin",
+  )) {
+    if (freshLeft === 0 && remindersLeft === 0) break;
     const priority = m.status === "uncovered" ? 86 : 82;
     const c = committed.get(continuityStepKey(m.item.id, "cover"));
     if (c) {
+      if (remindersLeft === 0) continue;
+      remindersLeft -= 1;
       actions.push(committedAction(c, priority, STATUS_LABEL[m.status].toLowerCase()));
       continue;
     }
+    if (freshLeft === 0) continue;
+    freshLeft -= 1;
     actions.push({
       id: `spof-${m.item.id}`,
       title:
@@ -212,6 +225,10 @@ export function buildWeeklyActions(input: {
     });
   }
 
+  freshLeft = MAX_FRESH_PER_GAP_KIND;
+  remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
+  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
+    if (freshLeft === 0 && remindersLeft === 0) break;
   const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
   for (const w of absencesNeedingAttention(leave.windows).slice(0, 2)) {
     const first = w.person.name.split(" ")[0];
@@ -268,9 +285,13 @@ export function buildWeeklyActions(input: {
       continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
     );
     if (c) {
+      if (remindersLeft === 0) continue;
+      remindersLeft -= 1;
       actions.push(committedAction(c, priority, DOCUMENTATION_LABEL[g.state].toLowerCase()));
       continue;
     }
+    if (freshLeft === 0) continue;
+    freshLeft -= 1;
     actions.push({
       id: `docs-${g.item.id}`,
       title:

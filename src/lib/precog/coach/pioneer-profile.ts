@@ -2,6 +2,13 @@ import { INDUSTRIES, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
 import {
+  DECISION_KIND_LABEL,
+  defaultProfile,
+  type DecisionEntry,
+  type DecisionKind,
+  type PracticeProfile,
+} from "../practice-profile";
+import type { ContinuityStep } from "../continuity/coverage";
   defaultProfile,
   normalizePlannedAbsences,
   type DecisionEntry,
@@ -47,6 +54,47 @@ function capList<T>(list: T[] | null | undefined): T[] | null {
   return Array.isArray(list) ? list.slice(0, MAX_CUSTOM_NODES) : null;
 }
 
+const MAX_DECISION_TEXT = 300;
+const CONTINUITY_STEPS: readonly ContinuityStep[] = ["cover", "handoff", "document", "locate"];
+
+function optionalString(value: unknown, max = 120): string | undefined {
+  return typeof value === "string" ? value.slice(0, max) : undefined;
+}
+
+function isDecisionKind(value: unknown): value is DecisionKind {
+  return typeof value === "string" && value in DECISION_KIND_LABEL;
+}
+
+/**
+ * Rebuild a Journal entry from an untrusted payload, keeping only the fields
+ * Pioneer reads and only when they have the expected shape. Entries without a
+ * usable id, date or kind are dropped; snapshots and review history are not
+ * needed server-side and are not carried.
+ */
+export function sanitizeDecision(value: unknown): DecisionEntry | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.id !== "string" || typeof raw.createdAt !== "string") return null;
+  if (!isDecisionKind(raw.kind)) return null;
+  const status = raw.status === "open" || raw.status === "closed" ? raw.status : undefined;
+  const linkedStep = CONTINUITY_STEPS.find((s) => s === raw.linkedStep);
+  const linkedIndustry = isIndustryId(raw.linkedIndustry) ? raw.linkedIndustry : undefined;
+  return {
+    id: raw.id.slice(0, MAX_DECISION_TEXT),
+    createdAt: raw.createdAt.slice(0, 40),
+    subject: optionalString(raw.subject, MAX_DECISION_TEXT) ?? "",
+    kind: raw.kind,
+    note: optionalString(raw.note, MAX_DECISION_TEXT) ?? "",
+    reviewBy: optionalString(raw.reviewBy, 40),
+    linkedTab: optionalString(raw.linkedTab),
+    linkedId: optionalString(raw.linkedId),
+    linkedIndustry,
+    linkedStep,
+    linkedPersonId: optionalString(raw.linkedPersonId),
+    status,
+  };
+}
+
 /**
  * Build the canonical profile Pioneer reasons over. Missing fields fall back
  * to the chosen industry's template — never to another industry's.
@@ -75,14 +123,9 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
   const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
   const decisions = Array.isArray(input.decisions)
     ? input.decisions
-        .filter(
-          (d): d is DecisionEntry =>
-            typeof d === "object" &&
-            d !== null &&
-            typeof d.id === "string" &&
-            typeof d.createdAt === "string",
-        )
         .slice(0, MAX_DECISIONS)
+        .map(sanitizeDecision)
+        .filter((d): d is DecisionEntry => d !== null)
     : base.decisions;
   const plannedAbsences = normalizePlannedAbsences(input.plannedAbsences).slice(0, MAX_ABSENCES);
   return {

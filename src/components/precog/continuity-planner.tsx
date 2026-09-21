@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   continuityStepKey,
+  isContinuityStepEntry,
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
@@ -116,7 +117,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     const byStep = new Map<string, string>();
     for (const d of profile.decisions) {
       const id = linkedKnowledgeId(d, profile.industry);
-      if (!id || !isDecisionOpen(d) || !d.reviewBy) continue;
+      if (!id || !isDecisionOpen(d) || !isContinuityStepEntry(d) || !d.reviewBy) continue;
       const key = continuityStepKey(id, linkedContinuityStep(d));
       if (!byStep.has(key)) byStep.set(key, d.reviewBy);
     }
