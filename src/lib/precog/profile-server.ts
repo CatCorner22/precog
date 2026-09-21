@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
-import { defaultProfile, normalizeCustomKnowledge, type PracticeProfile } from "./practice-profile";
+import {
+  defaultProfile,
+  normalizeCustomKnowledge,
+  normalizePlannedAbsences,
+  type PracticeProfile,
+} from "./practice-profile";
 import { isStaleSave } from "./save-conflict";
 import { resolveClientDate } from "./continuity/coverage";
 
@@ -53,6 +58,7 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
       customRelations: Array.isArray(row.profile.customRelations)
         ? row.profile.customRelations
         : null,
+      plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
       mapLayout: row.profile.mapLayout ?? {},
       savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
         ? row.profile.savedProcessBlocks
@@ -198,6 +204,7 @@ function mergeProfile(
     customRelations: Array.isArray(row.profile.customRelations)
       ? row.profile.customRelations
       : null,
+    plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
     mapLayout: row.profile.mapLayout ?? {},
     savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
       ? row.profile.savedProcessBlocks

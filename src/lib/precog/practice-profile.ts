@@ -21,7 +21,11 @@ import {
   mergeDualReleasePolicy,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { type IndustryId } from "./industry";
+import { INDUSTRIES, type IndustryId } from "./industry";
+
+function isIndustryId(value: unknown): value is IndustryId {
+  return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
+}
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -77,6 +81,49 @@ export interface DecisionEntry {
   status?: "open" | "closed";
 }
 
+/**
+ * Known leave: who is away and for which calendar days (inclusive, in the
+ * owner's local calendar). Scoped to an industry because template people
+ * reuse ids (p1, p2, …) across industries.
+ */
+export interface PlannedAbsence {
+  id: string;
+  personId: string;
+  industry: IndustryId;
+  from: string;
+  to: string;
+  note?: string;
+}
+
+export function makePlannedAbsenceId(): string {
+  return `abs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Keep only entries with a real person id, a known industry and an ordered pair of calendar days. */
+export function normalizePlannedAbsences(value: unknown): PlannedAbsence[] {
+  if (!Array.isArray(value)) return [];
+  const out: PlannedAbsence[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const raw = entry as Record<string, unknown>;
+    if (typeof raw.id !== "string" || typeof raw.personId !== "string") continue;
+    if (typeof raw.from !== "string" || typeof raw.to !== "string") continue;
+    if (!isCalendarDate(raw.from) || !isCalendarDate(raw.to) || raw.from > raw.to) continue;
+    if (!isIndustryId(raw.industry)) continue;
+    out.push({
+      id: raw.id.slice(0, 60),
+      personId: raw.personId.slice(0, 120),
+      industry: raw.industry,
+      from: raw.from,
+      to: raw.to,
+      ...(typeof raw.note === "string" && raw.note.trim()
+        ? { note: raw.note.trim().slice(0, 200) }
+        : {}),
+    });
+  }
+  return out;
+}
+
 export interface PracticeProfile {
   practiceName: string;
   industry: IndustryId;
@@ -94,6 +141,8 @@ export interface PracticeProfile {
   customKnowledge?: KnowledgeItem[] | null;
   /** Who holds each register item, at what level. Null/undefined = template relations. */
   customRelations?: KnowledgeRelation[] | null;
+  /** Known leave, so continuity advice can warn ahead of it. */
+  plannedAbsences?: PlannedAbsence[];
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
@@ -221,6 +270,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     customPeople: null,
     customKnowledge: null,
     customRelations: null,
+    plannedAbsences: [],
     mapLayout: {},
     savedProcessBlocks: [],
     mapHealthHistory: [],
@@ -283,6 +333,7 @@ export function loadProfile(): PracticeProfile {
       customPeople,
       customKnowledge,
       customRelations,
+      plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
       mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
       savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
       mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],

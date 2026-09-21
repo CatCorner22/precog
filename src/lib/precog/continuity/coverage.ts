@@ -177,11 +177,16 @@ export function resolveClientDate(value: unknown, now: Date = new Date()): strin
   return Math.abs(client - server) <= DAY_MS ? value : serverDay;
 }
 
+/** Whole calendar days from `from` to `to` (negative when `to` is earlier); null when either is not a calendar date. */
+export function daysBetween(from: string, to: string): number | null {
+  const start = utcDay(from);
+  const end = utcDay(to);
+  if (start === null || end === null) return null;
+  return Math.round((end - start) / DAY_MS);
+}
+
 function ageInDays(confirmedAt: string, today: string): number | null {
-  const confirmed = utcDay(confirmedAt);
-  const current = utcDay(today);
-  if (confirmed === null || current === null) return null;
-  return Math.floor((current - confirmed) / 86_400_000);
+  return daysBetween(confirmedAt, today);
 }
 
 export function staleItems(
@@ -521,6 +526,8 @@ export interface AbsenceStop {
 
 export interface AbsenceImpact {
   people: Person[];
+  /** Active people still in, whoever the work falls to. */
+  remaining: Person[];
   /** Items only this person can run alone — work that stops on day one. */
   stops: AbsenceStop[];
   /** Items this person can run alone that another person can also run. */
@@ -707,6 +714,7 @@ export function absenceImpact(
 
   return {
     people: absentPeople,
+    remaining,
     stops,
     continues,
     orphanedProcesses,

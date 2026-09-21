@@ -59,6 +59,7 @@ import {
   type DecisionKind,
   type DecisionReviewOutcome,
   type MapVersion,
+  type PlannedAbsence,
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
@@ -118,6 +119,10 @@ interface PracticeContextValue {
   /** Continuity planner: replace who-holds-what (null = template relations). */
   setCustomRelations: (
     v: KnowledgeRelation[] | null | ((current: KnowledgeRelation[]) => KnowledgeRelation[] | null),
+  ) => void;
+  /** Continuity planner: known leave (who, from, to). */
+  setPlannedAbsences: (
+    v: PlannedAbsence[] | ((current: PlannedAbsence[]) => PlannedAbsence[]),
   ) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
@@ -628,6 +633,16 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setPlannedAbsences = useCallback(
+    (v: PlannedAbsence[] | ((current: PlannedAbsence[]) => PlannedAbsence[])) => {
+      setProfile((p) => {
+        const current = p.plannedAbsences ?? [];
+        return { ...p, plannedAbsences: typeof v === "function" ? v(current) : v };
+      });
+    },
+    [],
+  );
+
   const resetSegregationToDerived = useCallback(() => {
     setProfile((p) => ({
       ...p,
@@ -882,6 +897,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setCustomPeople,
       setCustomKnowledge,
       setCustomRelations,
+      setPlannedAbsences,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
@@ -922,6 +938,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setCustomPeople,
       setCustomKnowledge,
       setCustomRelations,
+      setPlannedAbsences,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,

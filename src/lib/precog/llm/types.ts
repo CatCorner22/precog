@@ -8,6 +8,7 @@ export type ToolName =
   | "get_residual_portfolio"
   | "get_knowledge_spofs"
   | "get_register_checkins"
+  | "get_planned_absences"
   | "get_knowledge_graph"
   | "run_precog_scenario"
   | "compare_scenario_futures"

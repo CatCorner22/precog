@@ -12,6 +12,12 @@ import {
   checkInPlan,
   staleItems,
 } from "../continuity/coverage";
+import {
+  absencesNeedingAttention,
+  describeWindow,
+  handoffDeadline,
+  plannedAbsenceReport,
+} from "../continuity/planned-absence";
 import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
@@ -87,6 +93,12 @@ export const TOOL_CATALOG: {
     name: "get_register_checkins",
     description:
       "Who the owner should sit down with to re-confirm the continuity register: per active person, the entries not confirmed in 90 days that the register says they can do, and how many of those nobody else can run alone; plus stale entries nobody active holds.",
+    args: "none",
+  },
+  {
+    name: "get_planned_absences",
+    description:
+      "Known leave from the owner's register that has started or starts within 30 days: who is away and when, days of lead time, which duties stop while they (and anyone whose leave overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -319,6 +331,72 @@ export function executeTool(
                 : null,
             };
           }),
+          links: [{ tab: "knowledge", label: "Who knows what" }],
+        };
+      }
+
+      case "get_planned_absences": {
+        const today = ctx.today ?? new Date().toISOString().slice(0, 10);
+        const report = plannedAbsenceReport(
+          tpl,
+          profile.plannedAbsences ?? [],
+          profile.industry,
+          today,
+        );
+        const soon = absencesNeedingAttention(report.windows);
+        const committed = continuityCommitments(profile.decisions, tpl, today);
+        const windows = soon.map((w) => ({
+          person: { id: w.person.id, name: w.person.name, role: w.person.role },
+          from: w.absence.from,
+          to: w.absence.to,
+          daysUntil: w.daysUntil,
+          status: w.status,
+          handoffBy: handoffDeadline(w, today),
+          overlaps: w.overlaps.map((o) => ({
+            person: { id: o.person.id, name: o.person.name },
+            from: o.from,
+            to: o.to,
+          })),
+          dependence: w.impact.dependence,
+          stops: w.impact.stops.map((s) => {
+            const handoff = committed.get(continuityStepKey(s.item.id, "handoff"));
+            return {
+              knowledgeId: s.item.id,
+              name: s.item.name,
+              criticality: s.item.criticality,
+              standIn: s.standIn ? { id: s.standIn.id, name: s.standIn.name } : null,
+              documented: Boolean(s.item.documented),
+              procedureLocation: s.item.documented
+                ? s.item.procedureLocation?.trim() || null
+                : null,
+              handoffCommitted: handoff
+                ? {
+                    subject: handoff.decision.subject,
+                    reviewBy: handoff.reviewBy,
+                    overdue: handoff.overdue,
+                  }
+                : null,
+            };
+          }),
+          orphanedProcesses: w.impact.orphanedProcesses,
+          remaining: w.impact.remaining.map((p) => ({ id: p.id, name: p.name })),
+          summary: describeWindow(w),
+        }));
+        const later = report.windows.length - soon.length;
+        const summary =
+          report.windows.length === 0
+            ? "No planned leave on the register"
+            : soon.length === 0
+              ? `${later} planned absence(s), none within 30 days`
+              : `${soon
+                  .slice(0, 3)
+                  .map((w) => describeWindow(w))
+                  .join(" ")}${later > 0 ? ` ${later} more further out.` : ""}`;
+        return {
+          tool,
+          ok: true,
+          summary,
+          data: { windows, later, unmatched: report.unmatched.length },
           links: [{ tab: "knowledge", label: "Who knows what" }],
         };
       }
@@ -752,6 +830,7 @@ export function planTools(question: string): ToolName[] {
     "get_residual_portfolio",
     "get_knowledge_spofs",
     "get_register_checkins",
+    "get_planned_absences",
     "get_insurance_cost_of_risk",
     "simulate_variable_cascades",
     "retrieve_guidance",
