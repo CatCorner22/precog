@@ -32,6 +32,29 @@ describe("enteredWork", () => {
       },
     };
     expect(enteredWork(toggled).settings).toBe(true);
+
+    const windowed = created.dualRelease.exceptions.findIndex((e) => e.effectiveTo);
+    expect(windowed).toBeGreaterThanOrEqual(0);
+    const moved = {
+      ...created,
+      dualRelease: {
+        ...created.dualRelease,
+        exceptions: created.dualRelease.exceptions.map((e, i) =>
+          i === windowed ? { ...e, effectiveTo: "2026-07-31" } : e,
+        ),
+      },
+    };
+    expect(enteredWork(moved).settings).toBe(true);
+    const opened = {
+      ...created,
+      dualRelease: {
+        ...created.dualRelease,
+        exceptions: created.dualRelease.exceptions.map((e, i) =>
+          i === windowed ? { ...e, effectiveFrom: undefined } : e,
+        ),
+      },
+    };
+    expect(enteredWork(opened).settings).toBe(true);
   });
 
   it("reports nothing to lose on a fresh template profile", () => {

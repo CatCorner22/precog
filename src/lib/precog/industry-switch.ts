@@ -1,3 +1,4 @@
+import { daysBetween } from "./continuity/coverage";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
 
@@ -31,18 +32,28 @@ function stable(value: unknown): string {
 }
 
 /**
- * The policy without the dates the default seed stamps from the current day
- * (`createdAt`, `effectiveFrom`, `effectiveTo`, `updatedAt`), so a business
- * created yesterday still matches today's defaults when nothing was changed.
+ * The policy with the seed's day-of-creation stamps neutralised: `updatedAt`
+ * and each exception's `createdAt` are dropped, and its effective window is
+ * kept as day offsets from `createdAt` rather than dates. A business created
+ * yesterday still matches today's defaults when nothing was changed, while
+ * moving an exception's window (which changes the offsets) still counts as an
+ * edit.
  */
 function comparableDualRelease(policy: DualReleasePolicy) {
   const { updatedAt: _updatedAt, exceptions, ...rest } = policy;
   return {
     ...rest,
-    exceptions: exceptions.map(
-      ({ createdAt: _c, effectiveFrom: _f, effectiveTo: _t, ...exception }) => exception,
-    ),
+    exceptions: exceptions.map(({ createdAt, effectiveFrom, effectiveTo, ...exception }) => ({
+      ...exception,
+      effectiveFromOffset: dayOffset(createdAt, effectiveFrom),
+      effectiveToOffset: dayOffset(createdAt, effectiveTo),
+    })),
   };
+}
+
+function dayOffset(from: string, to: string | undefined): number | string | null {
+  if (!to) return null;
+  return daysBetween(from, to) ?? to;
 }
 
 export function enteredWork(p: PracticeProfile): EnteredWork {
