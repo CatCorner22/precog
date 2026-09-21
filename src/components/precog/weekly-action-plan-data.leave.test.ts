@@ -64,8 +64,25 @@ describe("buildWeeklyActions planned leave", () => {
   it("escalates once the leave is under way", () => {
     const action = build([leave], [], "2025-04-15").find((a) => a.id === "leave-abs-1");
     expect(action?.title).toContain("out now");
+    expect(action?.title).toContain(`${firstName(chris.name)} covers ${item.name}`);
     expect(action?.priority).toBe(92);
     expect(action?.why).not.toContain("Hand off by");
+    expect(action?.why).toContain(`Tell ${firstName(chris.name)} today`);
+    expect(action?.why).toContain("procedure at Drive/SOPs");
+  });
+
+  it("speaks of an unplanned absence as unexpected, not as leave", () => {
+    const sick: PlannedAbsence = {
+      ...leave,
+      from: "2025-04-15",
+      to: "2025-04-15",
+      unplanned: true,
+    };
+    const action = build([sick], [], "2025-04-15").find((a) => a.id === "leave-abs-1");
+    expect(action?.title).toBe(
+      `${firstName(maya.name)} is out unexpectedly 15 Apr, out now: ${firstName(chris.name)} covers ${item.name}`,
+    );
+    expect(action?.priority).toBe(92);
   });
 
   it("ignores leave further than 30 days out, in another industry, or already over", () => {

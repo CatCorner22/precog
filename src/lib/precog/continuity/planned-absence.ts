@@ -2,7 +2,14 @@ import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
-import { absenceImpact, daysBetween, isCalendarDate, type AbsenceImpact } from "./coverage";
+import {
+  absenceImpact,
+  daysBetween,
+  firstName,
+  isCalendarDate,
+  type AbsenceImpact,
+  type AbsenceStop,
+} from "./coverage";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
 export const ABSENCE_LEAD_DAYS = 30;
@@ -62,10 +69,52 @@ function overlapsWith(a: PlannedAbsence, b: PlannedAbsence): boolean {
   return a.from <= b.to && b.from <= a.to;
 }
 
-function shiftDay(day: string, delta: number): string {
+export function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + delta);
   return date.toISOString().slice(0, 10);
+}
+
+/** An absence recorded the day it happened: today only, extendable day by day while the person stays out. */
+export function unplannedAbsenceToday(
+  id: string,
+  personId: string,
+  industry: IndustryId,
+  today: string,
+): PlannedAbsence {
+  return { id, personId, industry, from: today, to: today, unplanned: true };
+}
+
+/** "Still out tomorrow": the absence now runs one day past today or its current last day, whichever is later. */
+export function extendAbsence(absence: PlannedAbsence, today: string): PlannedAbsence {
+  const last = absence.to > today ? absence.to : today;
+  return { ...absence, to: shiftDay(last, 1) };
+}
+
+/**
+ * "Back at work": the absence ended yesterday, so the debrief can ask about it
+ * today. Null when it had not started before today — there was nothing to cover,
+ * so the entry should simply be removed.
+ */
+export function endAbsence(absence: PlannedAbsence, today: string): PlannedAbsence | null {
+  if (absence.from >= today) return null;
+  const yesterday = shiftDay(today, -1);
+  return { ...absence, to: absence.to < yesterday ? absence.to : yesterday };
+}
+
+/** "is out", or "is out unexpectedly" when the absence was recorded on the day rather than planned. */
+export function outPhrase(absence: PlannedAbsence): string {
+  return absence.unplanned ? "is out unexpectedly" : "is out";
+}
+
+/**
+ * Where the stand-in finds the written procedure for a stopped entry — the one
+ * thing worth telling them on the morning someone calls in sick.
+ */
+export function procedurePointer(stop: AbsenceStop): string {
+  if (!stop.item.documented) return "nothing written down";
+  const where = stop.item.procedureLocation?.trim();
+  return where ? `procedure at ${where}` : "written down, location not recorded";
 }
 
 /** Stops, then critical share, then orphaned processes; ties keep the earlier stretch. */
@@ -249,30 +298,33 @@ export function handoffDeadline(window: AbsenceWindow, today: string): string {
 export function describeOverlaps(w: AbsenceWindow): string {
   if (w.overlaps.length === 0) return "";
   const listed = w.overlaps
-    .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
+    .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
     .join("; ");
   const others = w.peak.people.filter((p) => p.id !== w.person.id);
   if (w.overlaps.length === 1 || w.peak.extraStops.length === 0) return ` (${listed})`;
   return ` (${listed}; worst ${formatDateRange(w.peak.from, w.peak.to)}, with ${others
-    .map((p) => p.name.split(" ")[0])
+    .map((p) => firstName(p.name))
     .join(" and ")} also out)`;
 }
 
 /** One line an advisor can say about a window: who, when, and the first thing that stops. */
 export function describeWindow(w: AbsenceWindow): string {
-  const first = w.person.name.split(" ")[0];
+  const first = firstName(w.person.name);
+  const out = outPhrase(w.absence);
   const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
   const overlap = describeOverlaps(w);
   const stops = w.impact.stops;
   if (stops.length === 0 && w.impact.orphanedProcesses.length === 0) {
-    return `${first} is out ${when}${overlap}: nothing stops.`;
+    return `${first} ${out} ${when}${overlap}: nothing stops.`;
   }
   const critical = stops.filter((s) => s.item.criticality === "critical");
   const lead = (critical.length ? critical : stops).slice(0, 2);
   const detail = lead
     .map((s) =>
       s.standIn
-        ? `${s.item.name} — hand off to ${s.standIn.name.split(" ")[0]}`
+        ? w.status === "current"
+          ? `${s.item.name} — ${firstName(s.standIn.name)} covers (${procedurePointer(s)})`
+          : `${s.item.name} — hand off to ${firstName(s.standIn.name)}`
         : `${s.item.name} has no one`,
     )
     .join("; ");
@@ -280,5 +332,5 @@ export function describeWindow(w: AbsenceWindow): string {
   const processes = w.impact.orphanedProcesses.length
     ? `${detail ? "; " : ""}${w.impact.orphanedProcesses.length} process${w.impact.orphanedProcesses.length === 1 ? "" : "es"} without an owner`
     : "";
-  return `${first} is out ${when}${overlap}: ${detail}${more > 0 ? ` and ${more} more` : ""}${processes}.`;
+  return `${first} ${out} ${when}${overlap}: ${detail}${more > 0 ? ` and ${more} more` : ""}${processes}.`;
 }

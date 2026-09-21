@@ -6,10 +6,15 @@ import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   absencesNeedingAttention,
   describeWindow,
+  endAbsence,
+  extendAbsence,
   formatDateRange,
   handoffDeadline,
   leadLabel,
+  outPhrase,
   plannedAbsenceReport,
+  procedurePointer,
+  unplannedAbsenceToday,
 } from "./planned-absence";
 
 const people: Person[] = [
@@ -271,7 +276,28 @@ describe("describeWindow", () => {
     );
     const ana = report.windows.find((w) => w.absence.id === "ana")!;
     expect(describeWindow(ana)).toBe(
-      "Ana is out 1–10 Nov, out now (Cy also out 1–2 Nov; Ben also out 6–7 Nov; worst 6–7 Nov, with Ben also out): payroll — hand off to Cy.",
+      "Ana is out 1–10 Nov, out now (Cy also out 1–2 Nov; Ben also out 6–7 Nov; worst 6–7 Nov, with Ben also out): payroll — Cy covers (nothing written down).",
+    );
+  });
+
+  it("says an unplanned absence is unexpected and points the stand-in at the procedure", () => {
+    const documented = tpl(
+      [item("payroll", { documented: true, procedureLocation: "Drive/SOPs/payroll" })],
+      [
+        { personId: "b", knowledgeId: "payroll", level: "expert" },
+        { personId: "c", knowledgeId: "payroll", level: "basic" },
+      ],
+    );
+    const [w] = plannedAbsenceReport(
+      documented,
+      [unplannedAbsenceToday("sick", "b", "general", today)],
+      "general",
+      today,
+    ).windows;
+    expect(w.status).toBe("current");
+    expect(w.lengthDays).toBe(1);
+    expect(describeWindow(w)).toBe(
+      "Ben is out unexpectedly 1 Nov, out now: payroll — Cy covers (procedure at Drive/SOPs/payroll).",
     );
   });
 
@@ -300,6 +326,52 @@ describe("date helpers", () => {
     expect(leadLabel(12)).toBe("in 12 days");
   });
 
+  it("records an unplanned absence as today only, then extends it a day at a time", () => {
+    const sick = unplannedAbsenceToday("sick", "b", "general", today);
+    expect(sick).toEqual({
+      id: "sick",
+      personId: "b",
+      industry: "general",
+      from: today,
+      to: today,
+      unplanned: true,
+    });
+    expect(outPhrase(sick)).toBe("is out unexpectedly");
+    expect(outPhrase(absence("hol", "b", today, today))).toBe("is out");
+    expect(extendAbsence(sick, today).to).toBe("2025-11-02");
+    expect(extendAbsence({ ...sick, to: "2025-11-04" }, today).to).toBe("2025-11-05");
+    // Fell behind: someone out since last week whose entry was never extended still gets tomorrow.
+    expect(extendAbsence({ ...sick, from: "2025-10-28", to: "2025-10-29" }, today).to).toBe(
+      "2025-11-02",
+    );
+  });
+
+  it("ends an absence yesterday when the person is back, or drops one that never started", () => {
+    expect(endAbsence(absence("long", "b", "2025-10-28", "2025-11-10"), today)).toEqual(
+      absence("long", "b", "2025-10-28", "2025-10-31"),
+    );
+    expect(endAbsence(absence("done", "b", "2025-10-20", "2025-10-25"), today)).toEqual(
+      absence("done", "b", "2025-10-20", "2025-10-25"),
+    );
+    expect(endAbsence(unplannedAbsenceToday("sick", "b", "general", today), today)).toBeNull();
+    expect(endAbsence(absence("future", "b", "2025-11-05", "2025-11-06"), today)).toBeNull();
+  });
+
+  it("tells the stand-in where the procedure lives", () => {
+    const stop = (extra: Partial<KnowledgeItem>) => ({
+      item: item("payroll", extra),
+      standIn: null,
+      note: "",
+    });
+    expect(procedurePointer(stop({}))).toBe("nothing written down");
+    expect(procedurePointer(stop({ documented: true }))).toBe(
+      "written down, location not recorded",
+    );
+    expect(procedurePointer(stop({ documented: true, procedureLocation: " Drive/SOPs " }))).toBe(
+      "procedure at Drive/SOPs",
+    );
+  });
+
   it("sets the hand-off deadline to the day before leave starts", () => {
     const [w] = plannedAbsenceReport(
       register,
@@ -322,6 +394,22 @@ describe("normalizePlannedAbsences", () => {
         from: "2025-11-03",
         to: "2025-11-03",
         note: "  Holiday ",
+      },
+      {
+        id: "sick",
+        personId: "b",
+        industry: "general",
+        from: "2025-11-03",
+        to: "2025-11-03",
+        unplanned: true,
+      },
+      {
+        id: "not-flag",
+        personId: "b",
+        industry: "general",
+        from: "2025-11-03",
+        to: "2025-11-03",
+        unplanned: "yes",
       },
       { id: "reversed", personId: "b", industry: "general", from: "2025-11-10", to: "2025-11-03" },
       { id: "bad-date", personId: "b", industry: "general", from: "2025-02-30", to: "2025-03-01" },
@@ -347,6 +435,15 @@ describe("normalizePlannedAbsences", () => {
         to: "2025-11-03",
         note: "Holiday",
       },
+      {
+        id: "sick",
+        personId: "b",
+        industry: "general",
+        from: "2025-11-03",
+        to: "2025-11-03",
+        unplanned: true,
+      },
+      { id: "not-flag", personId: "b", industry: "general", from: "2025-11-03", to: "2025-11-03" },
     ]);
   });
 

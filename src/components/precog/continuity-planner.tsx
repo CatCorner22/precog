@@ -52,10 +52,14 @@ import {
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import {
+  endAbsence,
+  extendAbsence,
   formatDateRange,
   handoffDeadline,
   leadLabel,
   plannedAbsenceReport,
+  procedurePointer,
+  unplannedAbsenceToday,
   type AbsenceWindow,
 } from "@/lib/precog/continuity/planned-absence";
 import {
@@ -281,6 +285,41 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
   const removeLeave = (id: string) =>
     setPlannedAbsences((current) => current.filter((a) => a.id !== id));
+  /** People already recorded out today, so "Out today" never doubles up an absence. */
+  const outTodayIds = useMemo(
+    () => new Set(leave.windows.filter((w) => w.status === "current").map((w) => w.person.id)),
+    [leave.windows],
+  );
+  /** "Maya just called in sick": record it now and the card below becomes today's cover sheet. */
+  const markOutToday = (person: Person) => {
+    if (outTodayIds.has(person.id)) return;
+    setPlannedAbsences((current) => [
+      ...current,
+      unplannedAbsenceToday(makePlannedAbsenceId(), person.id, profile.industry, today),
+    ]);
+    toast.success(`${firstName(person.name)} recorded out today.`);
+  };
+  const stillOutTomorrow = (w: AbsenceWindow) => {
+    const next = extendAbsence(w.absence, today);
+    setPlannedAbsences((current) => current.map((a) => (a.id === w.absence.id ? next : a)));
+    toast.success(
+      `${firstName(w.person.name)} out through ${formatDateRange(next.from, next.to)}.`,
+    );
+  };
+  /** "Back at work": the absence ended yesterday, so the debrief asks about it today. */
+  const backAtWork = (w: AbsenceWindow) => {
+    const ended = endAbsence(w.absence, today);
+    setPlannedAbsences((current) =>
+      ended
+        ? current.map((a) => (a.id === w.absence.id ? ended : a))
+        : current.filter((a) => a.id !== w.absence.id),
+    );
+    toast.success(
+      ended
+        ? `${firstName(w.person.name)} is back — debrief the stand-ins below.`
+        : `${firstName(w.person.name)} is back; nothing was covered, so the entry was removed.`,
+    );
+  };
   const leaveHistory = [...leave.past, ...leave.unmatched];
   const debriefs = useMemo(
     () =>
@@ -1361,18 +1400,41 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-muted" />
-                Planned leave
+                Out today and planned leave
               </CardTitle>
               <CardDescription>
-                Known absences — holidays, parental leave, surgery. What stops during each one, who
-                is left, and what to hand off before it starts. Overlapping leave is flagged, and
-                once leave ends a debrief asks whether the stand-in can now run it alone.
+                Someone called in sick? Press their name and today&apos;s cover sheet appears: what
+                stops, who steps in, where the procedure lives. Known absences — holidays, parental
+                leave, surgery — go in the form. Overlapping absences are flagged, and once anyone
+                is back a debrief asks whether the stand-in can now run it alone.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {people.length === 0 ? (
                 <p className="text-muted">Add people to the team to record leave.</p>
               ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted">Out today:</span>
+                  {people.map((p) => {
+                    const out = outTodayIds.has(p.id);
+                    return (
+                      <Button
+                        key={p.id}
+                        size="sm"
+                        variant={out ? "secondary" : "outline"}
+                        className="h-7 px-2 text-xs"
+                        disabled={out}
+                        aria-label={out ? `${p.name} is already out today` : `${p.name} out today`}
+                        onClick={() => markOutToday(p)}
+                      >
+                        <UserMinus className="size-3.5" /> {firstName(p.name)}
+                        {out ? " · out" : ""}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+              {people.length > 0 && (
                 <form
                   className="flex flex-wrap items-end gap-2"
                   onSubmit={(e) => {
@@ -1421,8 +1483,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               )}
               {leave.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
                 <p className="text-xs text-muted">
-                  No leave recorded. Add known absences and the weekly plan, printed report and
-                  Pioneer will warn ahead of each one.
+                  Nobody is out or has leave booked. Add known absences and the weekly plan, printed
+                  report and Pioneer will warn ahead of each one; press a name above the day someone
+                  calls in sick.
                 </p>
               )}
               {debriefs.map((d) => (
@@ -1436,7 +1499,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   onClose={(e) => closeDebriefItem(d, e)}
                   onDismiss={() => {
                     markDebriefed(d.absence.id);
-                    toast.success("Leave closed without register changes.");
+                    toast.success("Absence closed without register changes.");
                   }}
                 />
               ))}
@@ -1446,6 +1509,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   window={w}
                   today={today}
                   onRemove={() => removeLeave(w.absence.id)}
+                  onExtend={() => stillOutTomorrow(w)}
+                  onBack={() => backAtWork(w)}
                   onSelect={setSelectedId}
                   tracked={(a) => absenceStepTracked(a, w.absence.id)}
                   onLog={(a) => logAbsenceAction(a, handoffDeadline(w, today), w.absence.id)}
@@ -1572,6 +1637,8 @@ function LeaveWindow({
   window: w,
   today,
   onRemove,
+  onExtend,
+  onBack,
   onSelect,
   tracked,
   onLog,
@@ -1579,6 +1646,8 @@ function LeaveWindow({
   window: AbsenceWindow;
   today: string;
   onRemove: () => void;
+  onExtend: () => void;
+  onBack: () => void;
   onSelect: (knowledgeId: string) => void;
   tracked: (a: AbsenceAction) => string | undefined;
   onLog: (a: AbsenceAction) => void;
@@ -1586,35 +1655,65 @@ function LeaveWindow({
   const first = firstName(w.person.name);
   const impact = w.impact;
   const deadline = handoffDeadline(w, today);
+  const current = w.status === "current";
+  const unplanned = Boolean(w.absence.unplanned);
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className={cn("rounded-md border p-3", current ? "border-danger/50" : "border-border")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
             {w.person.name} · {formatDateRange(w.absence.from, w.absence.to)}
           </span>
-          <Badge
-            variant={w.status === "current" ? "danger" : w.daysUntil <= 7 ? "warn" : "default"}
-          >
-            {w.status === "current" ? "Out now" : leadLabel(w.daysUntil)}
+          <Badge variant={current ? "danger" : w.daysUntil <= 7 ? "warn" : "default"}>
+            {current
+              ? unplanned
+                ? "Out unexpectedly"
+                : "Out now"
+              : `${unplanned ? "Unplanned · " : ""}${leadLabel(w.daysUntil)}`}
           </Badge>
           <span className="text-xs text-muted">
-            {w.lengthDays} day{w.lengthDays === 1 ? "" : "s"}
+            {w.absence.to === today
+              ? "today only so far"
+              : `${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 px-1.5"
-          aria-label={`Remove ${first}'s leave`}
-          onClick={onRemove}
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {current && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs"
+                aria-label={`${first} still out tomorrow`}
+                onClick={onExtend}
+              >
+                Still out tomorrow
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs"
+                aria-label={`${first} is back`}
+                onClick={onBack}
+              >
+                <UserCheck className="size-3.5" /> Back
+              </Button>
+            </>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5"
+            aria-label={`Remove ${first}'s ${unplanned ? "absence" : "leave"}`}
+            onClick={onRemove}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
       </div>
       {w.overlaps.length > 0 && (
         <p className="mt-1 text-xs text-warn">
-          Overlapping leave:{" "}
+          Overlapping absence:{" "}
           {w.overlaps
             .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
             .join("; ")}
@@ -1655,6 +1754,11 @@ function LeaveWindow({
                 <span className="text-xs text-muted">
                   → {s.standIn ? s.standIn.name : "nobody"}
                 </span>
+                {current && (
+                  <span className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}>
+                    · {procedurePointer(s)}
+                  </span>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-muted">{s.note}</p>
             </li>
@@ -1672,7 +1776,7 @@ function LeaveWindow({
       {impact.actions.length > 0 && (
         <div className="mt-2">
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            {w.status === "current" ? "Do today" : `Before ${deadline}`}
+            {current ? "Do today" : `Before ${deadline}`}
           </div>
           <ol className="list-decimal space-y-1 pl-5">
             {impact.actions.map((a) => (

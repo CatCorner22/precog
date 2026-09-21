@@ -190,6 +190,7 @@ describe("get_planned_absences", () => {
   type Leave = {
     windows: {
       person: { id: string };
+      unplanned: boolean;
       daysUntil: number;
       status: string;
       handoffBy: string;
@@ -203,6 +204,7 @@ describe("get_planned_absences", () => {
     debriefs: {
       absenceId: string;
       person: { id: string };
+      unplanned: boolean;
       lengthDays: number;
       daysSince: number;
       items: {
@@ -269,7 +271,12 @@ describe("get_planned_absences", () => {
     expect(data.later).toBe(1);
     expect(data.unmatched).toBe(1);
     const [first] = data.windows;
-    expect(first).toMatchObject({ daysUntil: 12, status: "upcoming", handoffBy: "2025-04-12" });
+    expect(first).toMatchObject({
+      unplanned: false,
+      daysUntil: 12,
+      status: "upcoming",
+      handoffBy: "2025-04-12",
+    });
     expect(first.overlaps[0].person.name).toBe(backup.name);
     expect(first.stops).toEqual([
       expect.objectContaining({ knowledgeId: item.id, handoffCommitted: null }),
@@ -278,7 +285,7 @@ describe("get_planned_absences", () => {
     expect(first.remaining.map((p) => p.id)).not.toContain(holder.id);
     expect(first.remaining.map((p) => p.id)).not.toContain(backup.id);
     expect(first.summary).toContain("in 12 days");
-    expect(result.summary).toContain(`${holder.name.split(" ")[0]} is out 13–20 Apr`);
+    expect(result.summary).toContain(`${firstName(holder.name)} is out 13–20 Apr`);
   });
 
   it("marks a hand-off already logged in the Journal", () => {
@@ -319,9 +326,36 @@ describe("get_planned_absences", () => {
       {},
       { profile: profileWith({ plannedAbsences: [] }), today: "2025-04-01" },
     );
-    expect(result.summary).toBe("No planned leave on the register");
+    expect(result.summary).toBe("Nobody on the register is out or has leave booked");
     expect((result.data as Leave).windows).toEqual([]);
     expect((result.data as Leave).debriefs).toEqual([]);
+  });
+
+  it("flags an absence recorded on the day as unplanned and words it as unexpected", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: profileWith({
+          plannedAbsences: [
+            {
+              id: "sick",
+              personId: holder.id,
+              industry: "dental",
+              from: "2025-04-01",
+              to: "2025-04-01",
+              unplanned: true,
+            },
+          ],
+        }),
+        today: "2025-04-01",
+      },
+    );
+    const [w] = (result.data as Leave).windows;
+    expect(w).toMatchObject({ unplanned: true, status: "current", daysUntil: 0 });
+    expect(result.summary).toContain(
+      `${firstName(holder.name)} is out unexpectedly 1 Apr, out now`,
+    );
   });
 
   it("lists leave that just ended as a debrief with the stand-in to promote", () => {

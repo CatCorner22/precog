@@ -95,6 +95,8 @@ export interface PlannedAbsence {
   from: string;
   to: string;
   note?: string;
+  /** Recorded on the day rather than planned ahead — sick, family emergency, no-show. */
+  unplanned?: boolean;
   /** Calendar day the owner debriefed (or dismissed) this leave once it ended; unset while the debrief is still due. */
   debriefedAt?: string;
 }
@@ -123,6 +125,7 @@ export function normalizePlannedAbsences(value: unknown): PlannedAbsence[] {
       ...(typeof raw.note === "string" && raw.note.trim()
         ? { note: raw.note.trim().slice(0, 200) }
         : {}),
+      ...(raw.unplanned === true ? { unplanned: true } : {}),
       ...(typeof raw.debriefedAt === "string" && isCalendarDate(raw.debriefedAt)
         ? { debriefedAt: raw.debriefedAt }
         : {}),

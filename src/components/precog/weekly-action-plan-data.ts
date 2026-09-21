@@ -21,7 +21,9 @@ import {
   formatDateRange,
   handoffDeadline,
   leadLabel,
+  outPhrase,
   plannedAbsenceReport,
+  procedurePointer,
 } from "@/lib/precog/continuity/planned-absence";
 import { describeDebriefItem, leaveDebriefs } from "@/lib/precog/continuity/leave-debrief";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
@@ -246,6 +248,7 @@ export function buildWeeklyActions(input: {
   );
   for (const w of leaveWorthRaising.slice(0, 2)) {
     const first = firstName(w.person.name);
+    const out = outPhrase(w.absence);
     const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
     const also = w.overlaps.length
       ? ` ${w.overlaps.map((o) => firstName(o.person.name)).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
@@ -255,8 +258,8 @@ export function buildWeeklyActions(input: {
       const orphaned = w.impact.orphanedProcesses;
       actions.push({
         id: `leave-${w.absence.id}`,
-        title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
-        why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
+        title: `${first} ${out} ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} ${w.status === "current" ? "Name a stand-in owner today." : "Name a stand-in owner before the leave starts."}`,
         effort: "low",
         tab: "knowledge",
         priority: 70,
@@ -269,7 +272,7 @@ export function buildWeeklyActions(input: {
     const urgency = w.status === "current" ? 92 : w.daysUntil <= 7 ? 89 : 85;
     if (!lead) {
       const c = handoffCommitment(committed, stops[0].item.id, w.absence.id);
-      if (c) actions.push(committedAction(c, urgency, `${first} is out ${when}`));
+      if (c) actions.push(committedAction(c, urgency, `${first} ${out} ${when}`));
       continue;
     }
     const noOne = open.filter((s) => !s.standIn);
@@ -279,13 +282,20 @@ export function buildWeeklyActions(input: {
       w.peak.extraStops.length > 0
         ? ` ${formatDateRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => firstName(p.name)).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
         : " for the whole absence";
+    const standInFirst = lead.standIn ? firstName(lead.standIn.name) : "";
+    const coverToday =
+      w.status === "current" && lead.standIn
+        ? ` Tell ${standInFirst} today that ${lead.item.name} is theirs while ${first} is out (${procedurePointer(lead)}).`
+        : "";
     actions.push({
       id: `leave-${w.absence.id}`,
       title: lead.standIn
-        ? `${first} is out ${when}: hand off ${lead.item.name} to ${firstName(lead.standIn.name)}${others > 0 ? ` and ${others} more` : ""}`
-        : `${first} is out ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
+        ? w.status === "current"
+          ? `${first} ${out} ${when}: ${standInFirst} covers ${lead.item.name}${others > 0 ? ` and ${others} more` : ""}`
+          : `${first} ${out} ${when}: hand off ${lead.item.name} to ${standInFirst}${others > 0 ? ` and ${others} more` : ""}`
+        : `${first} ${out} ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
       why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
-        w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : ""
+        w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : coverToday
       }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else is left in the business."}`,
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
