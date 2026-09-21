@@ -739,9 +739,34 @@ describe("continuityCommitments", () => {
     expect(map.has(continuityStepKey(item.id, "cover"))).toBe(true);
   });
 
-  it("drops the person when they are no longer in the register", () => {
+  it("drops the person when they are no longer in the register or no longer active", () => {
     const map = continuityCommitments([open({ linkedPersonId: "p-gone" })], dental, "2025-04-01");
     expect(map.get(continuityStepKey(item.id, "cover"))?.person).toBeNull();
+    const left = {
+      ...dental,
+      people: dental.people.map((p) => (p.id === trainee.id ? { ...p, active: false } : p)),
+    };
+    const inactive = continuityCommitments([open()], left, "2025-04-01");
+    expect(inactive.get(continuityStepKey(item.id, "cover"))?.person).toBeNull();
+  });
+
+  it("ignores Journal entries that only accept, monitor or insure a knowledge risk", () => {
+    const map = continuityCommitments(
+      [
+        open({ id: "monitor", kind: "monitor", linkedStep: undefined, linkedPersonId: undefined }),
+        open({ id: "accept", kind: "accept_residual", linkedStep: undefined }),
+        open({ id: "insure", kind: "insure", linkedStep: undefined }),
+      ],
+      dental,
+      "2025-04-01",
+    );
+    expect(map.size).toBe(0);
+    const stepped = continuityCommitments(
+      [open({ id: "monitor-step", kind: "monitor", linkedStep: "document" })],
+      dental,
+      "2025-04-01",
+    );
+    expect(stepped.get(continuityStepKey(item.id, "document"))?.decision.id).toBe("monitor-step");
   });
 
   it("leaves out closed, unlinked, other-industry and deleted-item decisions", () => {

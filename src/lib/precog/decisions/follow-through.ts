@@ -62,6 +62,16 @@ export function linkedContinuityStep(d: Pick<DecisionEntry, "linkedStep">): Cont
   return d.linkedStep ?? "cover";
 }
 
+/**
+ * Whether a knowledge-linked entry commits the owner to doing something about
+ * the item. Steps logged from the register carry `linkedStep`; older register
+ * entries were all "remediate". A Journal entry that merely accepts, monitors or
+ * insures a knowledge risk is not a step in progress.
+ */
+export function isContinuityStepEntry(d: Pick<DecisionEntry, "kind" | "linkedStep">): boolean {
+  return d.linkedStep !== undefined || d.kind === "remediate";
+}
+
 /** Map key for "is this step on this item already in the Journal?" lookups. */
 export function continuityStepKey(knowledgeId: string, step: ContinuityStep): string {
   return `${knowledgeId}\u0000${step}`;
@@ -72,7 +82,7 @@ export interface ContinuityCommitment {
   decision: DecisionEntry;
   item: KnowledgeItem;
   step: ContinuityStep;
-  /** The person the step set out to develop, when the decision recorded one and they are still on the team. */
+  /** The person the step set out to develop, when the decision recorded one and they are still on the active team. */
   person: Person | null;
   reviewBy: string | null;
   /** True once the review date has passed without the entry being closed. */
@@ -94,7 +104,7 @@ export function continuityCommitments(
   const sorted = [...decisions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const decision of sorted) {
     const knowledgeId = linkedKnowledgeId(decision, tpl.id);
-    if (!knowledgeId || !isDecisionOpen(decision)) continue;
+    if (!knowledgeId || !isDecisionOpen(decision) || !isContinuityStepEntry(decision)) continue;
     const item = tpl.knowledge.find((k) => k.id === knowledgeId);
     if (!item) continue;
     const step = linkedContinuityStep(decision);
@@ -105,7 +115,7 @@ export function continuityCommitments(
       decision,
       item,
       step,
-      person: tpl.people.find((p) => p.id === decision.linkedPersonId) ?? null,
+      person: tpl.people.find((p) => p.active && p.id === decision.linkedPersonId) ?? null,
       reviewBy,
       overdue: reviewBy !== null && reviewBy < today,
     });

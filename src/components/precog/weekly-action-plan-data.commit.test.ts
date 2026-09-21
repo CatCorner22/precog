@@ -107,6 +107,46 @@ describe("buildWeeklyActions journal awareness", () => {
     );
   });
 
+  it("still recommends the next uncommitted gap when the top-ranked gaps are already logged", () => {
+    const items = [0, 1, 2].map((i) => ({
+      ...item,
+      id: `k-gap-${i}`,
+      name: `Gap ${i}`,
+    }));
+    const three = resolveTemplate({
+      industry: "dental",
+      customKnowledge: items,
+      customRelations: items.map((k) => ({
+        personId: holder.id,
+        knowledgeId: k.id,
+        level: "expert" as const,
+      })),
+    });
+    const actions = buildWeeklyActions({
+      tpl: three,
+      staff,
+      dualRelease: defaultDualReleasePolicy(three),
+      today: "2025-05-02",
+      decisions: [
+        coverDecision({ id: "c0", linkedId: "k-gap-0" }),
+        coverDecision({ id: "c1", linkedId: "k-gap-1" }),
+      ],
+    });
+    expect(actions.some((a) => a.id === "spof-k-gap-2")).toBe(true);
+    expect(actions.filter((a) => a.id.startsWith("commit-")).map((a) => a.id)).toEqual([
+      "commit-c0",
+      "commit-c1",
+    ]);
+  });
+
+  it("does not treat a monitor-only Journal entry on the item as training in progress", () => {
+    const actions = build([
+      coverDecision({ kind: "monitor", linkedStep: undefined, linkedPersonId: undefined }),
+    ]);
+    expect(actions.some((a) => a.id === `spof-${item.id}`)).toBe(true);
+    expect(actions.some((a) => a.id.startsWith("commit-"))).toBe(false);
+  });
+
   it("recommends the step again once the decision is closed", () => {
     const actions = build([coverDecision({ status: "closed" })]);
     expect(actions.some((a) => a.id === `spof-${item.id}`)).toBe(true);

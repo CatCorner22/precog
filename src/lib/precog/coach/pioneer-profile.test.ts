@@ -67,6 +67,42 @@ describe("pioneerProfileFrom", () => {
     expect(cleaned.decisions).toEqual([entry]);
   });
 
+  it("rebuilds journal entries field by field, dropping unexpected shapes", () => {
+    const wire = {
+      id: "d",
+      createdAt: "2025-01-01T00:00:00.000Z",
+      subject: "x".repeat(400),
+      kind: "remediate",
+      note: 42,
+      reviewBy: { not: "a date" },
+      linkedTab: "knowledge",
+      linkedId: "k-1",
+      linkedIndustry: "not-an-industry",
+      linkedStep: "teleport",
+      linkedPersonId: ["p-1"],
+      status: "maybe",
+      snapshot: { huge: true },
+      reviews: [{}],
+    };
+    const p = pioneerProfileFrom({
+      industry: "retail",
+      // @ts-expect-error deliberately malformed wire input
+      decisions: [wire, { ...wire, kind: "delete_everything" }],
+    });
+    expect(p.decisions).toEqual([
+      {
+        id: "d",
+        createdAt: "2025-01-01T00:00:00.000Z",
+        subject: "x".repeat(300),
+        kind: "remediate",
+        note: "",
+        linkedTab: "knowledge",
+        linkedId: "k-1",
+      },
+    ]);
+    expect("snapshot" in p.decisions[0]).toBe(false);
+  });
+
   it("localizes the dual-release policy to the industry's roles", () => {
     const p = pioneerProfileFrom({ industry: "retail" });
     const roles = new Set(retail.people.map((x) => x.role));
