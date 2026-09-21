@@ -40,6 +40,12 @@ describe("case library integrity", () => {
     }
   });
 
+  it("names every catalog control in at least one prosecuted case", () => {
+    for (const id of Object.keys(CONTROL_CATALOG)) {
+      expect(casesForControl(id as keyof typeof CONTROL_CATALOG).length, id).toBeGreaterThan(0);
+    }
+  });
+
   it("gives every industry a sector with real cases", () => {
     for (const { id } of INDUSTRIES) {
       expect(casesForSector(sectorForIndustry(id)).length, id).toBeGreaterThan(0);

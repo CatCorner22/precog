@@ -103,6 +103,18 @@ for (const rule of definedRules) {
   }
 }
 
+// 5b. Every control in the catalog is named by at least one case. The app
+//     tells an owner that each recommended control would plausibly have
+//     caught a real case; a control no case names has no such claim behind it.
+const controlsSrc = read("src/lib/precog/evidence/controls.ts");
+const catalogIds = [...controlsSrc.matchAll(/^\s*\|\s*"([a-z0-9-]+)"/gm)].map((m) => m[1]);
+const citedControls = new Set(
+  [...casesSrc.matchAll(/control:\s*"([a-z0-9-]+)"/g)].map((m) => m[1]),
+);
+for (const id of catalogIds) {
+  if (!citedControls.has(id)) fail(`Control ${id} is in the catalog but no case names it.`);
+}
+
 // 6. Every rule maps to at least one fraud scheme, and the map cites no rule
 //    that does not exist. Case matching runs off this map, so a hole in it
 //    silently degrades every recommendation the app makes.
