@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBaseTemplate } from "./active-template";
 import { defaultProfile } from "./practice-profile";
 import {
@@ -11,6 +11,29 @@ import {
 const tpl = getBaseTemplate("dental");
 
 describe("enteredWork", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("does not mark an untouched business as edited once the calendar moves on", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-01T12:00:00Z"));
+    const created = defaultProfile("dental");
+    vi.setSystemTime(new Date("2026-05-15T12:00:00Z"));
+    const work = enteredWork(created);
+    expect(work.settings).toBe(false);
+    expect(hasEnteredWork(work)).toBe(false);
+
+    const toggled = {
+      ...created,
+      dualRelease: {
+        ...created.dualRelease,
+        exceptions: created.dualRelease.exceptions.map((e, i) =>
+          i === 0 ? { ...e, enabled: !e.enabled } : e,
+        ),
+      },
+    };
+    expect(enteredWork(toggled).settings).toBe(true);
+  });
+
   it("reports nothing to lose on a fresh template profile", () => {
     const work = enteredWork(defaultProfile("dental"));
     expect(hasEnteredWork(work)).toBe(false);

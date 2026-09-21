@@ -1,3 +1,4 @@
+import type { DualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
 
 /** What a business has entered on top of its industry template — everything an industry switch discards. */
@@ -29,6 +30,21 @@ function stable(value: unknown): string {
   );
 }
 
+/**
+ * The policy without the dates the default seed stamps from the current day
+ * (`createdAt`, `effectiveFrom`, `effectiveTo`, `updatedAt`), so a business
+ * created yesterday still matches today's defaults when nothing was changed.
+ */
+function comparableDualRelease(policy: DualReleasePolicy) {
+  const { updatedAt: _updatedAt, exceptions, ...rest } = policy;
+  return {
+    ...rest,
+    exceptions: exceptions.map(
+      ({ createdAt: _c, effectiveFrom: _f, effectiveTo: _t, ...exception }) => exception,
+    ),
+  };
+}
+
 export function enteredWork(p: PracticeProfile): EnteredWork {
   const defaults = defaultProfile(p.industry);
   return {
@@ -51,7 +67,8 @@ export function enteredWork(p: PracticeProfile): EnteredWork {
     settings:
       stable(p.staff) !== stable(defaults.staff) ||
       stable(p.riskVariables) !== stable(defaults.riskVariables) ||
-      stable(p.dualRelease) !== stable(defaults.dualRelease),
+      stable(comparableDualRelease(p.dualRelease)) !==
+        stable(comparableDualRelease(defaults.dualRelease)),
   };
 }
 
