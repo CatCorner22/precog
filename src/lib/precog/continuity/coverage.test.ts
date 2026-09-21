@@ -4,6 +4,7 @@ import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   absenceImpact,
+  checkInPlan,
   contingencyCards,
   coverageReport,
   coverageStatus,
@@ -136,6 +137,58 @@ describe("staleItems", () => {
       ["future", null, null],
     ]);
     expect(report.stale.some((entry) => entry.item.id === "valid")).toBe(false);
+  });
+});
+
+describe("checkInPlan", () => {
+  const today = "2025-04-01";
+  const knowledge = [
+    item("fresh", { confirmedAt: "2025-03-30" }),
+    item("payroll"),
+    item("deposits", { criticality: "important" }),
+    item("orphan"),
+  ];
+  const relations: KnowledgeRelation[] = [
+    { personId: "a", knowledgeId: "fresh", level: "expert" },
+    { personId: "a", knowledgeId: "payroll", level: "expert" },
+    { personId: "a", knowledgeId: "deposits", level: "basic" },
+    { personId: "b", knowledgeId: "deposits", level: "proficient" },
+    { personId: "d", knowledgeId: "orphan", level: "expert" },
+  ];
+
+  it("groups stale items by holder, most items first, and lists unheld items separately", () => {
+    const plan = checkInPlan(tpl(knowledge, relations), today);
+    expect(
+      plan.checkIns.map((c) => [
+        c.person.id,
+        c.items.map((i) => [i.item.id, i.level]),
+        c.soleCount,
+      ]),
+    ).toEqual([
+      [
+        "a",
+        [
+          ["payroll", "expert"],
+          ["deposits", "basic"],
+        ],
+        1,
+      ],
+      ["b", [["deposits", "proficient"]], 1],
+    ]);
+    expect(plan.unheld.map((entry) => entry.item.id)).toEqual(["orphan"]);
+  });
+
+  it("excludes fresh items and inactive holders", () => {
+    const plan = checkInPlan(tpl(knowledge, relations), today);
+    const ids = plan.checkIns.flatMap((c) => c.items.map((i) => i.item.id));
+    expect(ids).not.toContain("fresh");
+    expect(plan.checkIns.some((c) => c.person.id === "d")).toBe(false);
+  });
+
+  it("is empty when everything is confirmed", () => {
+    const plan = checkInPlan(tpl([item("fresh", { confirmedAt: today })], relations), today);
+    expect(plan.checkIns).toEqual([]);
+    expect(plan.unheld).toEqual([]);
   });
 });
 

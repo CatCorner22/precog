@@ -231,6 +231,68 @@ export function staleItems(
   };
 }
 
+export interface CheckInItem extends StaleItem {
+  /** What the register currently says this person can do. */
+  level: KnowledgeLevel;
+}
+
+export interface PersonCheckIn {
+  person: Person;
+  /** Stale items this person holds at any level, most critical first. */
+  items: CheckInItem[];
+  /** How many of those nobody else can run alone. */
+  soleCount: number;
+}
+
+export interface CheckInPlan {
+  /** Active people with at least one stale item, most items first. */
+  checkIns: PersonCheckIn[];
+  /** Stale items nobody active holds — the owner confirms these directly. */
+  unheld: StaleItem[];
+}
+
+/**
+ * Re-confirmation as a conversation: the stale register grouped by the person
+ * to sit down with, so one check-in covers everything they hold instead of
+ * one click per item. A shared item appears under every holder.
+ */
+export function checkInPlan(tpl: IndustryTemplate, today: string): CheckInPlan {
+  const { stale } = staleItems(tpl, today);
+  const rank = new Map(stale.map((entry, i) => [entry.item.id, i]));
+  const byPerson = new Map<string, PersonCheckIn>();
+  const held = new Set<string>();
+
+  for (const person of tpl.people.filter((p) => p.active)) {
+    const items: CheckInItem[] = [];
+    for (const relation of tpl.relations) {
+      if (relation.personId !== person.id) continue;
+      const index = rank.get(relation.knowledgeId);
+      if (index === undefined) continue;
+      items.push({ ...stale[index], level: relation.level });
+      held.add(relation.knowledgeId);
+    }
+    if (items.length === 0) continue;
+    items.sort((a, b) => (rank.get(a.item.id) ?? 0) - (rank.get(b.item.id) ?? 0));
+    byPerson.set(person.id, {
+      person,
+      items,
+      soleCount: items.filter(
+        (entry) =>
+          (entry.coverage === "single" || entry.coverage === "thin") &&
+          STRONG_LEVELS.has(entry.level),
+      ).length,
+    });
+  }
+
+  const checkIns = [...byPerson.values()].sort(
+    (a, b) =>
+      b.items.length - a.items.length ||
+      b.soleCount - a.soleCount ||
+      a.person.name.localeCompare(b.person.name),
+  );
+  return { checkIns, unheld: stale.filter((entry) => !held.has(entry.item.id)) };
+}
+
 export function levelRank(level: KnowledgeLevel | undefined): number {
   return level ? LEVEL_ORDER.indexOf(level) + 1 : 0;
 }

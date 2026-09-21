@@ -1,5 +1,14 @@
 import { useMemo, useRef, useState } from "react";
-import { BookOpen, Download, Plus, RotateCcw, Trash2, Upload, UserMinus } from "lucide-react";
+import {
+  BookOpen,
+  Download,
+  Plus,
+  RotateCcw,
+  Trash2,
+  Upload,
+  UserCheck,
+  UserMinus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
@@ -17,6 +26,7 @@ import {
 } from "@/lib/precog/import/register-csv";
 import {
   absenceImpact,
+  checkInPlan,
   coverageReport,
   DOCUMENTATION_LABEL,
   documentationDebt,
@@ -65,6 +75,9 @@ const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
   basic: "Learning",
   aware: "Aware",
 };
+
+/** Check-in tab for stale items nobody on the active team holds. */
+const UNHELD_VIEW = "__unheld__";
 
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
@@ -154,6 +167,15 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const trackFreshness = !usingTemplateRegister;
   const freshness = useMemo(() => staleItems(tpl, today), [tpl, today]);
   const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
+  const checkIns = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
+  const [checkInChoice, setCheckInChoice] = useState<string | null>(null);
+  const checkInView =
+    checkInChoice === UNHELD_VIEW && checkIns.unheld.length > 0
+      ? UNHELD_VIEW
+      : (checkIns.checkIns.find((c) => c.person.id === checkInChoice)?.person.id ??
+        checkIns.checkIns[0]?.person.id ??
+        UNHELD_VIEW);
+  const activeCheckIn = checkIns.checkIns.find((c) => c.person.id === checkInView);
 
   const [selectedId, setSelectedId] = useState<string | null>(initialKnowledgeId ?? null);
   const [draftName, setDraftName] = useState("");
@@ -189,6 +211,18 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     setCustomKnowledge((current) =>
       current.map((k) => (k.id === id ? { ...k, ...patch, confirmedAt: today } : k)),
     );
+
+  const confirmItems = (ids: string[]) => {
+    const set = new Set(ids);
+    setCustomKnowledge((current) =>
+      current.map((k) => (set.has(k.id) ? { ...k, confirmedAt: today } : k)),
+    );
+    toast.success(
+      ids.length === 1
+        ? "Confirmed — re-check again in 90 days."
+        : `${ids.length} items confirmed.`,
+    );
+  };
 
   const removeItem = (id: string) => {
     setCustomKnowledge((current) => current.filter((k) => k.id !== id));
@@ -689,32 +723,158 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                 <CardTitle>Confirm it&apos;s still true</CardTitle>
                 <CardDescription>
                   {freshness.stale.length} item(s) not confirmed in the last 90 days. People leave,
-                  learn and forget; a register nobody re-checks is a false comfort.
+                  learn and forget; a register nobody re-checks is a false comfort. Sit down with
+                  each person and go through what the register says they can do.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <ol className="space-y-2">
-                  {freshness.stale.slice(0, 8).map((entry, i) => (
-                    <li
-                      key={entry.item.id}
-                      className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {checkIns.checkIns.map((c) => (
+                    <Button
+                      key={c.person.id}
+                      size="sm"
+                      variant={checkInView === c.person.id ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCheckInChoice(c.person.id)}
+                      aria-pressed={checkInView === c.person.id}
                     >
-                      <span className="font-mono text-xs text-muted">{i + 1}.</span>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="font-medium">{entry.item.name}</div>
-                        <p className="text-muted">{entry.action}</p>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => updateItem(entry.item.id, { confirmedAt: today })}
-                        >
-                          Still accurate
-                        </Button>
-                      </div>
-                    </li>
+                      <UserCheck className="size-3.5" /> {c.person.name} ({c.items.length})
+                    </Button>
                   ))}
-                </ol>
+                  {checkIns.unheld.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant={checkInView === UNHELD_VIEW ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCheckInChoice(UNHELD_VIEW)}
+                      aria-pressed={checkInView === UNHELD_VIEW}
+                    >
+                      Nobody holds ({checkIns.unheld.length})
+                    </Button>
+                  )}
+                </div>
+
+                {activeCheckIn ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted">
+                      Ask {activeCheckIn.person.name}: can you still do each of these, and at this
+                      level?
+                      {activeCheckIn.soleCount > 0 &&
+                        ` ${activeCheckIn.soleCount} of them nobody else can run alone.`}
+                    </p>
+                    <ol className="space-y-2">
+                      {activeCheckIn.items.map((entry, i) => (
+                        <li
+                          key={entry.item.id}
+                          className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                        >
+                          <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{entry.item.name}</span>
+                              <Badge variant={STATUS_VARIANT[entry.coverage]}>
+                                {STATUS_LABEL[entry.coverage]}
+                              </Badge>
+                              <span className="text-xs text-muted">
+                                {entry.confirmedAt
+                                  ? `last confirmed ${entry.confirmedAt}`
+                                  : "never confirmed"}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                className={cn(inputClass, "text-xs")}
+                                value={entry.level}
+                                onChange={(e) =>
+                                  setLevel(
+                                    activeCheckIn.person.id,
+                                    entry.item.id,
+                                    e.target.value as KnowledgeLevel,
+                                  )
+                                }
+                                aria-label={`${activeCheckIn.person.name} on ${entry.item.name}`}
+                              >
+                                {[...LEVEL_ORDER].reverse().map((l) => (
+                                  <option key={l} value={l}>
+                                    {LEVEL_LABEL[l]}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => confirmItems([entry.item.id])}
+                              >
+                                Still does it
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-danger"
+                                onClick={() =>
+                                  setLevel(activeCheckIn.person.id, entry.item.id, undefined)
+                                }
+                              >
+                                No longer
+                              </Button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() =>
+                        confirmItems(activeCheckIn.items.map((entry) => entry.item.id))
+                      }
+                    >
+                      <UserCheck className="size-3.5" /> Everything here is still true for{" "}
+                      {activeCheckIn.person.name}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted">
+                      Nobody on the active team holds these, so there is no one to ask — confirm
+                      they still matter, or assign someone in the grid.
+                    </p>
+                    <ol className="space-y-2">
+                      {checkIns.unheld.map((entry, i) => (
+                        <li
+                          key={entry.item.id}
+                          className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                        >
+                          <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="font-medium">{entry.item.name}</div>
+                            <p className="text-muted">{entry.action}</p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => confirmItems([entry.item.id])}
+                            >
+                              Still accurate
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {checkIns.unheld.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => confirmItems(checkIns.unheld.map((entry) => entry.item.id))}
+                      >
+                        All {checkIns.unheld.length} still accurate
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
