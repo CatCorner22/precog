@@ -48,6 +48,12 @@ export interface Person {
   active: boolean;
   /** Years of service. Undefined when unknown; never defaulted, so unknown tenure adds nothing to any score. */
   tenureYears?: number;
+  /**
+   * Last working day (owner's calendar) once they have given notice. They stay
+   * active — and count for coverage — until marked as left; the planner runs a
+   * hand-over against this date.
+   */
+  lastDay?: string;
   /** Explicit duty entitlements when role is custom or needs override. */
   entitlements?: string[];
 }

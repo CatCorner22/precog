@@ -218,6 +218,25 @@ describe("get_planned_absences", () => {
       }[];
       summary: string;
     }[];
+    leavers: {
+      person: { id: string };
+      lastDay: string;
+      daysLeft: number;
+      status: string;
+      handoverBy: string;
+      handover: {
+        knowledgeId: string;
+        successor: { id: string } | null;
+        successorLevel: string | null;
+        documented: boolean;
+        procedureLocation: string | null;
+        trainingLogged: { reviewBy: string | null } | null;
+      }[];
+      orphanedProcesses: string[];
+      remaining: { id: string }[];
+      unlogged: number;
+      summary: string;
+    }[];
   };
   const profileWith = (extra: Partial<Parameters<typeof pioneerProfileFrom>[0]>) =>
     pioneerProfileFrom({
@@ -399,5 +418,95 @@ describe("get_planned_absences", () => {
     );
     expect((result.data as Leave).debriefs).toEqual([]);
     expect(result.summary).not.toContain("Debrief due");
+  });
+
+  it("exposes who has given notice with the hand-over they owe before their last day", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: profileWith({
+          plannedAbsences: [],
+          customPeople: dental.people.map((p) =>
+            p.id === holder.id ? { ...p, lastDay: "2025-04-30" } : p,
+          ),
+          decisions: [
+            {
+              id: "t-1",
+              createdAt: "2025-04-01T09:00:00.000Z",
+              subject: item.name,
+              kind: "remediate",
+              note: "",
+              reviewBy: "2025-04-25",
+              linkedTab: "knowledge",
+              linkedId: item.id,
+              linkedIndustry: "dental",
+              linkedStep: "cover",
+              linkedPersonId: backup.id,
+              status: "open",
+            },
+          ],
+        }),
+        today: "2025-04-01",
+      },
+    );
+    const data = result.data as Leave;
+    expect(data.windows).toEqual([]);
+    expect(data.leavers).toHaveLength(1);
+    const [l] = data.leavers;
+    expect(l).toMatchObject({
+      person: { id: holder.id },
+      lastDay: "2025-04-30",
+      daysLeft: 29,
+      status: "notice",
+      handoverBy: "2025-04-30",
+      unlogged: 0,
+    });
+    expect(l.handover).toEqual([
+      expect.objectContaining({
+        knowledgeId: item.id,
+        successor: { id: backup.id, name: backup.name },
+        successorLevel: "basic",
+        documented: Boolean(item.documented),
+        trainingLogged: { subject: item.name, reviewBy: "2025-04-25" },
+      }),
+    ]);
+    expect(l.remaining.map((p) => p.id)).not.toContain(holder.id);
+    expect(result.summary).toContain(`Leaving: ${firstName(holder.name)} leaves in 29 days`);
+  });
+
+  it("flags someone past their last day who still counts as cover, and drops them once marked left", () => {
+    const gone = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: profileWith({
+          plannedAbsences: [],
+          customPeople: dental.people.map((p) =>
+            p.id === holder.id ? { ...p, lastDay: "2025-04-10" } : p,
+          ),
+        }),
+        today: "2025-04-14",
+      },
+    );
+    const [l] = (gone.data as Leave).leavers;
+    expect(l).toMatchObject({ status: "gone", daysLeft: -4, handoverBy: "2025-04-14" });
+    expect(l.summary).toContain(`mark ${firstName(holder.name)} as left`);
+
+    const left = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: profileWith({
+          plannedAbsences: [],
+          customPeople: dental.people.map((p) =>
+            p.id === holder.id ? { ...p, lastDay: "2025-04-10", active: false } : p,
+          ),
+        }),
+        today: "2025-04-14",
+      },
+    );
+    expect((left.data as Leave).leavers).toEqual([]);
+    expect(left.summary).not.toContain("Leaving:");
   });
 });

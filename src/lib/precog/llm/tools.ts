@@ -24,6 +24,7 @@ import {
   leaveDebriefs,
   standInAlreadyStrong,
 } from "../continuity/leave-debrief";
+import { describeLeaver, handoverDeadline, leavers } from "../continuity/leavers";
 import {
   continuityCommitments,
   continuityStepKey,
@@ -108,7 +109,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_planned_absences",
     description:
-      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them.",
+      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them. Also `leavers`: people who have given notice (last working day, days left, or already past it and still counted as cover), with the hand-over each must complete before they go — every register entry only they can run alone, the successor to train, what is not written down, processes needing a new owner, and which steps are already in the Journal.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -426,6 +427,34 @@ export function executeTool(
           })),
           summary: describeDebrief(d),
         }));
+        const departing = leavers(tpl, profile.decisions, today).map((l) => ({
+          person: { id: l.person.id, name: l.person.name, role: l.person.role },
+          lastDay: l.lastDay,
+          daysLeft: l.daysLeft,
+          status: l.status,
+          handoverBy: handoverDeadline(l, today),
+          dependence: l.dependence,
+          handover: l.handover.map((h) => ({
+            knowledgeId: h.item.id,
+            name: h.item.name,
+            criticality: h.item.criticality,
+            successor: h.successor ? { id: h.successor.id, name: h.successor.name } : null,
+            successorLevel: h.successorLevel ?? null,
+            documented: Boolean(h.item.documented),
+            procedureLocation: h.item.documented ? h.item.procedureLocation?.trim() || null : null,
+            trainingLogged: h.training
+              ? { subject: h.training.subject, reviewBy: h.training.reviewBy ?? null }
+              : null,
+            documentingLogged: h.documenting
+              ? { subject: h.documenting.subject, reviewBy: h.documenting.reviewBy ?? null }
+              : null,
+          })),
+          shared: l.shared.map((k) => k.name),
+          orphanedProcesses: l.orphanedProcesses,
+          remaining: l.remaining.map((p) => ({ id: p.id, name: p.name })),
+          unlogged: l.unlogged,
+          summary: describeLeaver(l),
+        }));
         const later = report.windows.length - soon.length;
         const ahead =
           report.windows.length === 0
@@ -436,18 +465,31 @@ export function executeTool(
                   .slice(0, 3)
                   .map((w) => describeWindow(w))
                   .join(" ")}${later > 0 ? ` ${later} more further out.` : ""}`;
-        const summary =
+        const withDebriefs =
           debriefs.length === 0
             ? ahead
             : `${ahead}${ahead.endsWith(".") ? "" : "."} Debrief due: ${debriefs
                 .slice(0, 2)
                 .map((d) => d.summary)
                 .join(" ")}`;
+        const summary =
+          departing.length === 0
+            ? withDebriefs
+            : `${withDebriefs}${withDebriefs.endsWith(".") ? "" : "."} Leaving: ${departing
+                .slice(0, 2)
+                .map((l) => l.summary)
+                .join(" ")}`;
         return {
           tool,
           ok: true,
           summary,
-          data: { windows, later, unmatched: report.unmatched.length, debriefs },
+          data: {
+            windows,
+            later,
+            unmatched: report.unmatched.length,
+            debriefs,
+            leavers: departing,
+          },
           links: [{ tab: "knowledge", label: "Who knows what" }],
         };
       }

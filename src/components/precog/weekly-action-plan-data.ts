@@ -26,6 +26,12 @@ import {
   procedurePointer,
 } from "@/lib/precog/continuity/planned-absence";
 import { describeDebriefItem, leaveDebriefs } from "@/lib/precog/continuity/leave-debrief";
+import {
+  HANDOVER_URGENT_DAYS,
+  handoverDeadline,
+  leaverLead,
+  leavers,
+} from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
@@ -207,13 +213,23 @@ export function buildWeeklyActions(input: {
   // An entry someone just covered during leave is asked about as a debrief,
   // not recommended as fresh cross-training on top.
   const debriefing = new Set(debriefs.flatMap((d) => d.items.map((e) => e.item.id)));
+  const departing = leavers(tpl, input.decisions ?? [], today);
+  // An entry a leaver must hand over is advised as part of their hand-over,
+  // not as ordinary cross-training on top.
+  const handingOver = new Set(
+    departing.filter((l) => l.status === "notice").flatMap((l) => l.handover.map((h) => h.item.id)),
+  );
 
   // Steps already in the Journal do not use up the fresh-advice slots, so the
   // next uncommitted gap still gets recommended.
   let freshLeft = MAX_FRESH_PER_GAP_KIND;
   let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
   for (const m of continuity.plan.filter(
-    (x) => x.item.criticality === "critical" && x.status !== "thin" && !debriefing.has(x.item.id),
+    (x) =>
+      x.item.criticality === "critical" &&
+      x.status !== "thin" &&
+      !debriefing.has(x.item.id) &&
+      !handingOver.has(x.item.id),
   )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority = m.status === "uncovered" ? 86 : 82;
@@ -300,6 +316,65 @@ export function buildWeeklyActions(input: {
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
       priority: lead.item.criticality === "critical" ? urgency : urgency - 10,
+    });
+  }
+
+  // Someone working their notice: the hand-over is the week's continuity work,
+  // with a hard deadline. Once the last day has passed the only step left is to
+  // take them out of the coverage figures.
+  for (const l of departing.slice(0, 2)) {
+    const first = firstName(l.person.name);
+    const lead = `${first} ${leaverLead(l.daysLeft)}`;
+    if (l.status === "gone") {
+      actions.push({
+        id: `leaver-${l.person.id}`,
+        title: `${lead}: mark ${first} as left`,
+        why: `${first}'s last day was ${l.lastDay} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${l.handover.length} register ${l.handover.length === 1 ? "entry" : "entries"} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
+        effort: "low",
+        tab: "knowledge",
+        priority: 93,
+      });
+      continue;
+    }
+    if (l.handover.length === 0 && l.orphanedProcesses.length === 0) continue;
+    const urgency = l.daysLeft <= HANDOVER_URGENT_DAYS ? 91 : l.daysLeft <= 30 ? 87 : 80;
+    const deadline = handoverDeadline(l, today);
+    const remaining = l.remaining.length
+      ? ` Left in the business after ${l.lastDay}: ${l.remaining.map((p) => firstName(p.name)).join(", ")}.`
+      : " Nobody else is left in the business.";
+    if (l.handover.length === 0) {
+      const orphaned = l.orphanedProcesses;
+      actions.push({
+        id: `leaver-${l.person.id}`,
+        title: `${lead}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        why: `Nothing on the register depends on ${first} alone, but nobody else owns ${orphaned.slice(0, 3).join(", ")}. Name the new owner by ${deadline}.${remaining}`,
+        effort: "low",
+        tab: "knowledge",
+        priority: urgency - 15,
+      });
+      continue;
+    }
+    const open = l.handover.filter((h) => !h.training);
+    const critical = open.filter((h) => h.item.criticality === "critical");
+    const top = critical[0] ?? open[0];
+    if (!top) {
+      const c = committed.get(continuityStepKey(l.handover[0].item.id, "cover"));
+      if (c) actions.push(committedAction(c, urgency, `only ${first} can run it alone`));
+      continue;
+    }
+    const noOne = open.filter((h) => !h.successor);
+    const unwritten = l.handover.filter((h) => !h.item.documented);
+    const others = open.length - 1;
+    const successor = top.successor ? firstName(top.successor.name) : "";
+    actions.push({
+      id: `leaver-${l.person.id}`,
+      title: top.successor
+        ? `${lead}: train ${successor} on ${top.item.name}${others > 0 ? ` and ${others} more` : ""}`
+        : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand over)` : ""}`,
+      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody to take ${noOne.length === 1 ? "it" : "them"}` : ""}${unwritten.length ? `; ${unwritten.length} ${unwritten.length === 1 ? "has" : "have"} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Journal)` : ""}.${remaining}`,
+      effort: top.successor ? "medium" : "high",
+      tab: "knowledge",
+      priority: top.item.criticality === "critical" ? urgency : urgency - 10,
     });
   }
 

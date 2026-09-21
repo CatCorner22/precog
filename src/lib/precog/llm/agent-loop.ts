@@ -301,10 +301,16 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
     | {
         windows: { summary: string; stops: unknown[]; overlaps: unknown[] }[];
         debriefs?: { summary: string }[];
+        leavers?: { summary: string; status: "notice" | "gone"; handover: unknown[] }[];
       }
     | undefined;
   for (const w of (leave?.windows ?? []).filter((x) => x.stops.length > 0).slice(0, 2)) {
     warnings.push(w.summary);
+  }
+  for (const l of (leave?.leavers ?? [])
+    .filter((x) => x.status === "gone" || x.handover.length > 0)
+    .slice(0, 1)) {
+    warnings.push(l.summary);
   }
   for (const d of (leave?.debriefs ?? []).slice(0, 1)) {
     warnings.push(`Debrief due: ${d.summary}`);
@@ -440,6 +446,26 @@ function localSynthesize(
         trainingLogged: boolean;
         question: string;
       }[];
+      summary: string;
+    }[];
+    leavers?: {
+      person: { id: string; name: string };
+      lastDay: string;
+      daysLeft: number;
+      status: "notice" | "gone";
+      handoverBy: string;
+      handover: {
+        knowledgeId: string;
+        name: string;
+        criticality: string;
+        successor: { name: string } | null;
+        documented: boolean;
+        procedureLocation: string | null;
+        trainingLogged: { reviewBy: string | null } | null;
+      }[];
+      orphanedProcesses: string[];
+      remaining: { name: string }[];
+      unlogged: number;
       summary: string;
     }[];
   } | null;
@@ -594,6 +620,68 @@ function localSynthesize(
       },
     ];
   };
+  const leaverDecision = () => {
+    const l = leave?.leavers?.[0];
+    if (!l) return [];
+    const name = l.person.name;
+    if (l.status === "gone") {
+      return [
+        {
+          action: `Mark ${name} as left on the register`,
+          rationale: `${l.summary} Until then the coverage figures count ${name} as a backup${l.handover.length > 0 ? ` for ${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
+          evidenceIds: [] as string[],
+          effort: "low" as const,
+          horizonDays: 1,
+          cascadeEffects: ["register accuracy ↑"],
+        },
+      ];
+    }
+    if (l.handover.length === 0 && l.orphanedProcesses.length === 0) return [];
+    const horizon = Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, l.daysLeft));
+    if (l.handover.length === 0) {
+      return [
+        {
+          action: `Name a new owner for ${l.orphanedProcesses[0]}${l.orphanedProcesses.length > 1 ? ` and ${l.orphanedProcesses.length - 1} more` : ""} before ${name} leaves`,
+          rationale: `${l.summary} Nothing on the register depends on ${name} alone, but nobody else owns ${l.orphanedProcesses.slice(0, 3).join(", ")}. Decide by ${l.handoverBy}.`,
+          evidenceIds: [] as string[],
+          effort: "low" as const,
+          horizonDays: horizon,
+          cascadeEffects: ["continuity after departure ↑"],
+        },
+      ];
+    }
+    const open = l.handover.filter((h) => !h.trainingLogged);
+    const committed = l.handover.filter((h) => h.trainingLogged);
+    if (open.length === 0) {
+      const c = committed[0];
+      return [
+        {
+          action: `In progress: ${name}'s hand-over of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
+          rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Journal; close each as done once the successor can run it, before ${l.lastDay}.`,
+          evidenceIds: [] as string[],
+          effort: "low" as const,
+          horizonDays: horizon,
+          cascadeEffects: ["continuity after departure ↑"],
+        },
+      ];
+    }
+    const first = open.find((h) => h.criticality === "critical") ?? open[0];
+    const noOne = open.filter((h) => !h.successor);
+    const unwritten = l.handover.filter((h) => !h.documented);
+    const more = open.length - 1;
+    return [
+      {
+        action: first.successor
+          ? `Train ${first.successor.name} on ${first.name} before ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`
+          : `Decide who takes ${first.name} when ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`,
+        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody to take ${noOne.length === 1 ? "it" : "them"} — hire, outsource or retire ${noOne.length === 1 ? "it" : "them"}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has gone, nobody can.` : ""}${l.remaining.length ? ` Left in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        evidenceIds: [] as string[],
+        effort: first.successor ? ("medium" as const) : ("high" as const),
+        horizonDays: horizon,
+        cascadeEffects: ["continuity after departure ↑", "continuity residual index ↓"],
+      },
+    ];
+  };
   const debriefDecision = () => {
     const d = leave?.debriefs?.[0];
     if (!d) return [];
@@ -616,10 +704,18 @@ function localSynthesize(
     ];
   };
   const beamAction = adv?.recommendedSequence?.join(" → ");
+  // Entries a leaver must hand over are advised as their hand-over, not as
+  // ordinary cross-training on top.
+  const handingOver = new Set(
+    (leave?.leavers ?? [])
+      .filter((l) => l.status === "notice")
+      .flatMap((l) => l.handover.map((h) => h.knowledgeId)),
+  );
+  const ordinarySpofs = spofs?.filter((s) => !s.knowledgeId || !handingOver.has(s.knowledgeId));
   // Steps the owner already logged are followed up, not recommended again.
-  const committedSpof = spofs?.find((s) => s.committed);
+  const committedSpof = ordinarySpofs?.find((s) => s.committed);
   const commitment = committedSpof?.committed;
-  const uncommittedSpof = spofs?.find((s) => !s.committed);
+  const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
       action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
@@ -637,6 +733,7 @@ function localSynthesize(
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
     ...leaveDecision(),
+    ...leaverDecision(),
     ...debriefDecision(),
     ...(committedSpof && commitment
       ? [
