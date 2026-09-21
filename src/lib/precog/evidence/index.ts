@@ -42,6 +42,21 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-payroll": ["payroll", "expense-reimbursement"],
   "rule-admin-pay": ["check-tampering", "payroll", "corruption"],
   "rule-admin-writeoff": ["financial-statement", "receivables-diversion"],
+  // Refund custody plus the power to post the credit that justifies it.
+  "rule-refund-adjust": ["refund-fraud", "receivables-diversion"],
+  // Enter an invoice and pay it: a shell vendor needs nothing else, and a
+  // real vendor paying kickbacks needs only the approval.
+  "rule-invoice-pay": ["billing-shell-vendor", "corruption"],
+  // Order goods and confirm they arrived: the classic path for stock that
+  // never reached the shelf.
+  "rule-order-receive": ["inventory-theft", "billing-shell-vendor"],
+  // End-to-end electronic payment is the online form of a self-written check.
+  "rule-ach-release": ["check-tampering", "billing-shell-vendor"],
+  // Administrative power over access, exports, logs, and backups is how data
+  // leaves and how the trail that would show it is erased.
+  "rule-access-log": ["data-theft", "financial-statement"],
+  "rule-access-export": ["data-theft"],
+  "rule-backup-access": ["data-theft", "financial-statement"],
 };
 
 /**
@@ -72,7 +87,7 @@ const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
   // Holding the asset and confirming it arrived.
   "custody-reconciliation": ["skimming", "cash-larceny"],
   // Holding the asset and controlling who may be paid.
-  "custody-master_data": ["billing-shell-vendor", "check-tampering"],
+  "custody-master_data": ["billing-shell-vendor", "check-tampering", "inventory-theft"],
   // Writing the record and checking the record.
   "reconciliation-recording": ["financial-statement", "receivables-diversion"],
   // Writing the record and controlling the payee list.

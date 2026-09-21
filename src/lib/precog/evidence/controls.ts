@@ -40,7 +40,10 @@ export type ControlId =
   | "terminated-staff-vs-payroll"
   | "gift-card-purchases-controlled"
   | "background-check-money-handlers"
-  | "mandatory-time-away";
+  | "mandatory-time-away"
+  | "count-inventory-independently"
+  | "controlled-substance-count"
+  | "no-shared-logins";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -223,5 +226,26 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
       "Everyone who touches money takes at least a week away each year while someone else does the job",
     why: "A scheme that needs daily tending falls apart the week its owner is not there to tend it. The person covering the desk asks the questions nobody else has been in a position to ask.",
     effort: "ongoing",
+  },
+  "count-inventory-independently": {
+    id: "count-inventory-independently",
+    label:
+      "Someone who neither orders nor receives stock counts it and compares the count to what was bought",
+    why: "Goods leave a business as quietly as cash does, and an order placed for personal use looks exactly like a real one on the invoice. A count by a third pair of hands is the only record that does not depend on the person who ordered and signed for it.",
+    effort: "an hour",
+  },
+  "controlled-substance-count": {
+    id: "controlled-substance-count",
+    label:
+      "Two people count controlled substances against the log each day and inspect vials and seals for tampering",
+    why: "Drug diversion is inventory theft with a patient at the other end. A daily two-person count with a signed log turns a missing or altered vial into a same-day question instead of a months-later discovery.",
+    effort: "ongoing",
+  },
+  "no-shared-logins": {
+    id: "no-shared-logins",
+    label:
+      "Every person has their own login, and every shared password changes the day anyone leaves",
+    why: "A departing employee who knows a colleague's password still has your customer list. Named logins make access removable, and make the audit log mean something when you need it.",
+    effort: "an hour",
   },
 };

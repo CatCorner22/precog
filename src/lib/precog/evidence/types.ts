@@ -37,7 +37,13 @@ export type SchemeKind =
   | "cash-larceny"
   | "receivables-diversion"
   | "corruption"
-  | "financial-statement";
+  | "financial-statement"
+  /** Non-cash misappropriation: stock, parts, equipment, supplies, controlled substances. */
+  | "inventory-theft"
+  /** Register disbursements: refunds, voids, or credits issued with no sale behind them. */
+  | "refund-fraud"
+  /** Customer, pricing, or patient data taken for a competitor or for sale. */
+  | "data-theft";
 
 /**
  * How the scheme ended. Detection route matters more than any other single
