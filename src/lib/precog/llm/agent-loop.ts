@@ -298,9 +298,16 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
-    { windows: { summary: string; stops: unknown[]; overlaps: unknown[] }[] } | undefined;
+    | {
+        windows: { summary: string; stops: unknown[]; overlaps: unknown[] }[];
+        debriefs?: { summary: string }[];
+      }
+    | undefined;
   for (const w of (leave?.windows ?? []).filter((x) => x.stops.length > 0).slice(0, 2)) {
     warnings.push(w.summary);
+  }
+  for (const d of (leave?.debriefs ?? []).slice(0, 1)) {
+    warnings.push(`Debrief due: ${d.summary}`);
   }
   if (!warnings.length) {
     warnings.push("No single red alert — still re-score after staff or insurance change.");
@@ -414,6 +421,21 @@ function localSynthesize(
         handoffCommitted: { reviewBy: string | null; overdue: boolean } | null;
       }[];
       remaining: { name: string }[];
+      summary: string;
+    }[];
+    debriefs?: {
+      person: { id: string; name: string };
+      from: string;
+      to: string;
+      lengthDays: number;
+      items: {
+        name: string;
+        standIn: { name: string } | null;
+        canPromote: boolean;
+        handoffOpen: boolean;
+        trainingLogged: boolean;
+        question: string;
+      }[];
       summary: string;
     }[];
   } | null;
@@ -551,6 +573,27 @@ function localSynthesize(
       },
     ];
   };
+  const debriefDecision = () => {
+    const d = leave?.debriefs?.[0];
+    if (!d) return [];
+    const lead = d.items.find((e) => e.canPromote) ?? d.items[0];
+    const more = d.items.length - 1;
+    const days = `${d.lengthDays} day${d.lengthDays === 1 ? "" : "s"}`;
+    return [
+      {
+        action: lead.standIn
+          ? lead.canPromote
+            ? `${d.person.name} is back: can ${lead.standIn.name} run ${lead.name} alone now?${more > 0 ? ` — and ${more} more` : ""}`
+            : `${d.person.name} is back: close the ${lead.name} hand-off${more > 0 ? ` — and ${more} more` : ""}`
+          : `${d.person.name} is back: who covered ${lead.name}?${more > 0 ? ` — and ${more} more` : ""}`,
+        rationale: `${lead.question} Leave is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
+        evidenceIds: [] as string[],
+        effort: "low" as const,
+        horizonDays: REVIEW_HORIZON_DAYS.journal,
+        cascadeEffects: ["register accuracy ↑", "continuity residual index ↓"],
+      },
+    ];
+  };
   const beamAction = adv?.recommendedSequence?.join(" → ");
   // Steps the owner already logged are followed up, not recommended again.
   const committedSpof = spofs?.find((s) => s.committed);
@@ -573,6 +616,7 @@ function localSynthesize(
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
     ...leaveDecision(),
+    ...debriefDecision(),
     ...(committedSpof && commitment
       ? [
           {

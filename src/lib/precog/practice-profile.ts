@@ -95,6 +95,8 @@ export interface PlannedAbsence {
   from: string;
   to: string;
   note?: string;
+  /** Calendar day the owner debriefed (or dismissed) this leave once it ended; unset while the debrief is still due. */
+  debriefedAt?: string;
 }
 
 export function makePlannedAbsenceId(): string {
@@ -120,6 +122,9 @@ export function normalizePlannedAbsences(value: unknown): PlannedAbsence[] {
       to: raw.to,
       ...(typeof raw.note === "string" && raw.note.trim()
         ? { note: raw.note.trim().slice(0, 200) }
+        : {}),
+      ...(typeof raw.debriefedAt === "string" && isCalendarDate(raw.debriefedAt)
+        ? { debriefedAt: raw.debriefedAt }
         : {}),
     });
   }

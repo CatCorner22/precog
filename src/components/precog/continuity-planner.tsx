@@ -57,8 +57,21 @@ import {
   plannedAbsenceReport,
   type AbsenceWindow,
 } from "@/lib/precog/continuity/planned-absence";
+import {
+  describeDebriefItem,
+  leaveDebriefs,
+  standInAlreadyStrong,
+  type DebriefItem,
+  type LeaveDebrief,
+} from "@/lib/precog/continuity/leave-debrief";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
-import type { Criticality, KnowledgeItem, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
+import type {
+  Criticality,
+  KnowledgeItem,
+  KnowledgeKind,
+  KnowledgeLevel,
+  Person,
+} from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,6 +122,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     setCustomRelations,
     setPlannedAbsences,
     addDecision,
+    reviewDecision,
   } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
   const docs = useMemo(() => documentationDebt(tpl), [tpl]);
@@ -267,6 +281,75 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const removeLeave = (id: string) =>
     setPlannedAbsences((current) => current.filter((a) => a.id !== id));
   const leaveHistory = [...leave.past, ...leave.unmatched];
+  const debriefs = useMemo(
+    () =>
+      leaveDebriefs(tpl, profile.plannedAbsences ?? [], profile.decisions, profile.industry, today),
+    [tpl, profile.plannedAbsences, profile.decisions, profile.industry, today],
+  );
+  /** Debrief entries answered this session, so the card only asks about what is left. */
+  const [debriefed, setDebriefed] = useState<Set<string>>(() => new Set());
+  const debriefKey = (absenceId: string, knowledgeId: string) => `${absenceId}:${knowledgeId}`;
+  const markDebriefed = (absenceId: string) =>
+    setPlannedAbsences((current) =>
+      current.map((a) => (a.id === absenceId ? { ...a, debriefedAt: today } : a)),
+    );
+  /** Record one answer; once every entry of that leave has one, the leave stops asking. */
+  const settleDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
+    const key = debriefKey(debrief.absence.id, entry.item.id);
+    const rest = debrief.items.filter(
+      (e) => e.item.id !== entry.item.id && !debriefed.has(debriefKey(debrief.absence.id, e.item.id)),
+    );
+    if (rest.length === 0) markDebriefed(debrief.absence.id);
+    else setDebriefed((current) => new Set(current).add(key));
+  };
+  const closeHandoff = (entry: DebriefItem, note: string) => {
+    if (entry.handoff) reviewDecision(entry.handoff.id, "done", note);
+  };
+  /** Stand-in ran it for real: register says "can do", confirmed today, hand-off (and training aimed at them) closed. */
+  const promoteStandIn = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
+    const first = standIn.name.split(" ")[0];
+    const note = `${first} covered ${entry.item.name} while ${debrief.person.name.split(" ")[0]} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
+    setLevel(standIn.id, entry.item.id, "proficient");
+    closeHandoff(entry, note);
+    if (
+      entry.training &&
+      (!entry.training.linkedPersonId || entry.training.linkedPersonId === standIn.id)
+    )
+      reviewDecision(entry.training.id, "done", note);
+    settleDebriefItem(debrief, entry);
+    toast.success(`${first} → Can do ${entry.item.name}, confirmed today.`);
+  };
+  /** Stand-in got through it but not alone yet: keep them as a learner and make the training a tracked step. */
+  const keepTraining = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
+    const first = standIn.name.split(" ")[0];
+    const during = `while ${debrief.person.name.split(" ")[0]} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)})`;
+    if (!entry.standInLevel || entry.standInLevel === "aware")
+      setLevel(standIn.id, entry.item.id, "basic");
+    closeHandoff(entry, `${first} covered ${entry.item.name} ${during}; not yet able to run it alone.`);
+    if (entry.training) {
+      toast.success(`Cross-training ${first} on ${entry.item.name} is already in the Journal.`);
+    } else {
+      const reviewBy = reviewDateIn30Days();
+      logContinuityDecision(
+        entry.item.name,
+        `Cross-train ${first} on ${entry.item.name}: covered it ${during} but cannot yet run it alone.`,
+        entry.item.id,
+        "cover",
+        reviewBy,
+        standIn.id,
+      );
+      confirmLogged(reviewBy);
+    }
+    settleDebriefItem(debrief, entry);
+  };
+  /** Nothing to change on the register: just close the leave's hand-off. */
+  const closeDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
+    closeHandoff(
+      entry,
+      `Leave over (${formatDateRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${debrief.person.name.split(" ")[0]}.`,
+    );
+    settleDebriefItem(debrief, entry);
+  };
   const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -1278,7 +1361,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardTitle>
               <CardDescription>
                 Known absences — holidays, parental leave, surgery. What stops during each one, who
-                is left, and what to hand off before it starts. Overlapping leave is flagged.
+                is left, and what to hand off before it starts. Overlapping leave is flagged, and
+                once leave ends a debrief asks whether the stand-in can now run it alone.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
@@ -1337,6 +1421,21 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   Pioneer will warn ahead of each one.
                 </p>
               )}
+              {debriefs.map((d) => (
+                <LeaveDebriefCard
+                  key={d.absence.id}
+                  debrief={d}
+                  people={people}
+                  answered={(e) => debriefed.has(debriefKey(d.absence.id, e.item.id))}
+                  onPromote={(e, s) => promoteStandIn(d, e, s)}
+                  onKeepTraining={(e, s) => keepTraining(d, e, s)}
+                  onClose={(e) => closeDebriefItem(d, e)}
+                  onDismiss={() => {
+                    markDebriefed(d.absence.id);
+                    toast.success("Leave closed without register changes.");
+                  }}
+                />
+              ))}
               {leave.windows.map((w) => (
                 <LeaveWindow
                   key={w.absence.id}
@@ -1595,6 +1694,122 @@ function LeaveWindow({
           </ol>
         </div>
       )}
+    </div>
+  );
+}
+
+function LeaveDebriefCard({
+  debrief,
+  people,
+  answered,
+  onPromote,
+  onKeepTraining,
+  onClose,
+  onDismiss,
+}: {
+  debrief: LeaveDebrief;
+  people: Person[];
+  answered: (entry: DebriefItem) => boolean;
+  onPromote: (entry: DebriefItem, standIn: Person) => void;
+  onKeepTraining: (entry: DebriefItem, standIn: Person) => void;
+  onClose: (entry: DebriefItem) => void;
+  onDismiss: () => void;
+}) {
+  const first = debrief.person.name.split(" ")[0];
+  /** Who the owner says actually stepped in, when the register had nobody lined up. */
+  const [pickedStandIn, setPickedStandIn] = useState<Record<string, string>>({});
+  const candidates = people.filter((p) => p.id !== debrief.person.id);
+  const open = debrief.items.filter((e) => !answered(e));
+  return (
+    <div className="rounded-md border border-accent/40 bg-accent/5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">
+            {first}&apos;s back · out {formatDateRange(debrief.absence.from, debrief.absence.to)}
+          </span>
+          <Badge variant="accent">Debrief</Badge>
+          <span className="text-xs text-muted">
+            {debrief.lengthDays} day{debrief.lengthDays === 1 ? "" : "s"} · back{" "}
+            {debrief.daysSince === 1 ? "yesterday" : `${debrief.daysSince} days ago`}
+          </span>
+        </div>
+        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={onDismiss}>
+          Nothing to record
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        Someone just ran {first}&apos;s work for real. Move them up on the register while it is
+        fresh, or turn the gap into a tracked cross-training step.
+      </p>
+      <ul className="mt-2 space-y-2">
+        {open.map((e) => {
+          const standIn =
+            e.standIn ?? candidates.find((p) => p.id === pickedStandIn[e.item.id]) ?? null;
+          const standInFirst = standIn?.name.split(" ")[0];
+          return (
+            <li key={e.item.id} className="rounded-md border border-border bg-surface px-2.5 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{e.item.name}</span>
+                <Badge variant={e.item.criticality === "critical" ? "danger" : "default"}>
+                  {CRITICALITY_LABEL[e.item.criticality]}
+                </Badge>
+                {e.standIn && e.standInLevel && (
+                  <span className="text-xs text-muted">
+                    {standInFirst} today: {LEVEL_SHORT[e.standInLevel]}
+                  </span>
+                )}
+                {e.handoff && (
+                  <span className="text-xs text-subtle">Hand-off in the Journal</span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {!e.standIn && (
+                  <select
+                    className={cn(inputClass, "h-7 py-0 text-xs")}
+                    aria-label={`Who stepped in for ${e.item.name}`}
+                    value={pickedStandIn[e.item.id] ?? ""}
+                    onChange={(ev) =>
+                      setPickedStandIn((cur) => ({ ...cur, [e.item.id]: ev.target.value }))
+                    }
+                  >
+                    <option value="">Who stepped in?</option>
+                    {candidates.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {standIn && !standInAlreadyStrong(e) ? (
+                  <>
+                    <Button size="sm" className="h-7 text-xs" onClick={() => onPromote(e, standIn)}>
+                      <UserCheck className="size-3.5" /> {standInFirst} can do it alone now
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => onKeepTraining(e, standIn)}
+                    >
+                      Not yet — {e.training ? "keep training" : "log cross-training"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => onClose(e)}
+                  >
+                    {e.handoff ? "Close the hand-off" : "Nobody did — move on"}
+                  </Button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

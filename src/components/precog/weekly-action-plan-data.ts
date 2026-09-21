@@ -22,6 +22,7 @@ import {
   leadLabel,
   plannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
+import { describeDebriefItem, leaveDebriefs } from "@/lib/precog/continuity/leave-debrief";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
@@ -193,12 +194,24 @@ export function buildWeeklyActions(input: {
     });
   }
 
+  const debriefs = leaveDebriefs(
+    tpl,
+    input.plannedAbsences ?? [],
+    input.decisions ?? [],
+    tpl.id,
+    today,
+  );
+  // An entry someone just covered during leave is asked about as a debrief,
+  // not recommended as fresh cross-training on top.
+  const debriefing = new Set(debriefs.flatMap((d) => d.items.map((e) => e.item.id)));
+
   // Steps already in the Journal do not use up the fresh-advice slots, so the
   // next uncommitted gap still gets recommended.
   let freshLeft = MAX_FRESH_PER_GAP_KIND;
   let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
   for (const m of continuity.plan.filter(
-    (x) => x.item.criticality === "critical" && x.status !== "thin",
+    (x) =>
+      x.item.criticality === "critical" && x.status !== "thin" && !debriefing.has(x.item.id),
   )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority = m.status === "uncovered" ? 86 : 82;
@@ -277,6 +290,25 @@ export function buildWeeklyActions(input: {
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
       priority: lead.item.criticality === "critical" ? urgency : urgency - 10,
+    });
+  }
+
+  // Leave that just ended is a cross-training result waiting to be recorded:
+  // the stand-in ran the work for real, so ask while it is fresh.
+  for (const d of debriefs.slice(0, 2)) {
+    const first = d.person.name.split(" ")[0];
+    const lead = d.items[0];
+    const more = d.items.length - 1;
+    const standIn = lead.standIn?.name.split(" ")[0];
+    actions.push({
+      id: `debrief-${d.absence.id}`,
+      title: standIn
+        ? `${first}'s back: can ${standIn} run ${lead.item.name} alone now?${more > 0 ? ` (+${more} more)` : ""}`
+        : `${first}'s back: who covered ${lead.item.name}?${more > 0 ? ` (+${more} more)` : ""}`,
+      why: `${describeDebriefItem(d, lead)} On the register, one click moves the stand-in to "can do" and closes the hand-off; "Not yet" turns it into a tracked cross-training step.`,
+      effort: "low",
+      tab: "knowledge",
+      priority: lead.item.criticality === "critical" ? 78 : 68,
     });
   }
 

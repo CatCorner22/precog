@@ -187,4 +187,42 @@ describe("buildWeeklyActions planned leave", () => {
     expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
     expect(actions.some((a) => a.id === "leave-abs-later")).toBe(true);
   });
+
+  it("asks the debrief once the leave is over", () => {
+    const actions = build([leave], [], "2025-04-22");
+    const debrief = actions.find((a) => a.id === "debrief-abs-1");
+    expect(debrief?.title).toBe(
+      `${maya.name.split(" ")[0]}'s back: can ${chris.name.split(" ")[0]} run ${item.name} alone now?`,
+    );
+    expect(debrief?.why).toContain("covered");
+    expect(debrief?.why).toContain("8 days");
+    expect(debrief?.tab).toBe("knowledge");
+    expect(debrief?.priority).toBe(78);
+    expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
+  });
+
+  it("asks the debrief instead of recommending the same cross-training, until it is debriefed", () => {
+    const single = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [item],
+      customRelations: [{ personId: maya.id, knowledgeId: item.id, level: "expert" }],
+    });
+    const run = (plannedAbsences: PlannedAbsence[]) =>
+      buildWeeklyActions({
+        tpl: single,
+        staff,
+        dualRelease: defaultDualReleasePolicy(single),
+        today: "2025-04-22",
+        decisions: [],
+        plannedAbsences,
+      });
+    const during = run([]);
+    expect(during.some((a) => a.id === `spof-${item.id}`)).toBe(true);
+    const after = run([leave]);
+    expect(after.some((a) => a.id === "debrief-abs-1")).toBe(true);
+    expect(after.some((a) => a.id === `spof-${item.id}`)).toBe(false);
+    const debriefed = run([{ ...leave, debriefedAt: "2025-04-21" }]);
+    expect(debriefed.some((a) => a.id.startsWith("debrief-"))).toBe(false);
+    expect(debriefed.some((a) => a.id === `spof-${item.id}`)).toBe(true);
+  });
 });

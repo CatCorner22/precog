@@ -15,6 +15,7 @@ import {
   documentationDebt,
   documentationState,
   checkInPlan,
+  LEVEL_LABEL,
   staleItems,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
@@ -24,6 +25,7 @@ import {
   leadLabel,
   plannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
+import { leaveDebriefs, standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import {
   continuityCommitments,
   continuitySlips,
@@ -104,6 +106,13 @@ export function ControlReport() {
     const checkIns = checkInPlan(tpl, today);
     const cards = contingencyCards(tpl);
     const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
+    const debriefs = leaveDebriefs(
+      tpl,
+      profile.plannedAbsences ?? [],
+      profile.decisions,
+      profile.industry,
+      today,
+    );
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
     const coso = assessCoso(tpl);
@@ -153,6 +162,7 @@ export function ControlReport() {
       docs,
       cards,
       leave,
+      debriefs,
       slips,
       committed,
       coso,
@@ -176,6 +186,7 @@ export function ControlReport() {
     docs,
     cards,
     leave,
+    debriefs,
     slips,
     committed,
     coso,
@@ -652,6 +663,74 @@ export function ControlReport() {
             {leave.windows.length > 8 && (
               <p className="mt-2 text-xs text-neutral-500">
                 {leave.windows.length - 8} more absences further out; see the Who knows what tab.
+              </p>
+            )}
+          </Section>
+        )}
+
+        {debriefs.length > 0 && (
+          <Section title="Leave just ended — debrief the stand-ins">
+            <p className="text-xs text-neutral-500">
+              Leave is the one time a stand-in runs the work for real. For each entry covered, decide
+              whether the register can now say they can do it alone (confirmed today, hand-off
+              closed) or whether it becomes a tracked cross-training step. Answer on the Who knows
+              what tab so it stops appearing here.
+            </p>
+            <ul className="mt-2 space-y-3">
+              {debriefs.slice(0, 6).map((d) => (
+                <li
+                  key={d.absence.id}
+                  className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {d.person.name} — back from {formatDateRange(d.absence.from, d.absence.to)}
+                    </span>
+                    <span className="text-xs text-neutral-600">
+                      {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"} away
+                      {d.daysSince > 0
+                        ? `, ended ${d.daysSince} day${d.daysSince === 1 ? "" : "s"} ago`
+                        : ", ended today"}
+                    </span>
+                  </div>
+                  <table className="mt-2 w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-neutral-500">
+                        <th className="py-0.5 font-normal">Covered</th>
+                        <th className="py-0.5 font-normal">Stand-in</th>
+                        <th className="py-0.5 font-normal">Decide</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.items.map((e) => (
+                        <tr key={e.item.id} className="border-t border-neutral-200 align-top">
+                          <td className="py-1 pr-2">{e.item.name}</td>
+                          <td className="py-1 pr-2">
+                            {e.standIn
+                              ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}`
+                              : "Nobody was lined up"}
+                          </td>
+                          <td className="py-1 text-neutral-600">
+                            {!e.standIn
+                              ? "Who stepped in? Record them on the register."
+                              : standInAlreadyStrong(e)
+                                ? e.handoff
+                                  ? "Already can do it alone; close the logged hand-off."
+                                  : "Already can do it alone; nothing to change."
+                                : e.training
+                                  ? "Can do alone now? Then close the cross-training entry."
+                                  : "Can do alone now? Or log it as cross-training."}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </li>
+              ))}
+            </ul>
+            {debriefs.length > 6 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                {debriefs.length - 6} more to debrief; see the Who knows what tab.
               </p>
             )}
           </Section>

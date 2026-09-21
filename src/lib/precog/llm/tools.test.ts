@@ -199,6 +199,22 @@ describe("get_planned_absences", () => {
     }[];
     later: number;
     unmatched: number;
+    debriefs: {
+      absenceId: string;
+      person: { id: string };
+      lengthDays: number;
+      daysSince: number;
+      items: {
+        knowledgeId: string;
+        standIn: { id: string } | null;
+        standInLevel: string | null;
+        canPromote: boolean;
+        handoffOpen: boolean;
+        trainingLogged: boolean;
+        question: string;
+      }[];
+      summary: string;
+    }[];
   };
   const profileWith = (extra: Partial<Parameters<typeof pioneerProfileFrom>[0]>) =>
     pioneerProfileFrom({
@@ -304,5 +320,49 @@ describe("get_planned_absences", () => {
     );
     expect(result.summary).toBe("No planned leave on the register");
     expect((result.data as Leave).windows).toEqual([]);
+    expect((result.data as Leave).debriefs).toEqual([]);
+  });
+
+  it("lists leave that just ended as a debrief with the stand-in to promote", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      { profile: profileWith({}), today: "2025-04-22" },
+    );
+    const data = result.data as Leave;
+    expect(data.debriefs.map((d) => d.absenceId)).toEqual(["abs-1"]);
+    const [d] = data.debriefs;
+    expect(d).toMatchObject({ person: { id: holder.id }, lengthDays: 8, daysSince: 2 });
+    expect(d.items).toEqual([
+      expect.objectContaining({
+        knowledgeId: item.id,
+        standIn: { id: backup.id, name: backup.name },
+        standInLevel: "basic",
+        canPromote: true,
+        handoffOpen: false,
+        trainingLogged: false,
+      }),
+    ]);
+    expect(d.items[0].question).toContain("can they run it alone now?");
+    expect(result.summary).toContain(`Debrief due: ${holder.name.split(" ")[0]}'s back`);
+  });
+
+  it("drops a debrief the owner has already answered", () => {
+    const profile = profileWith({});
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: {
+          ...profile,
+          plannedAbsences: (profile.plannedAbsences ?? []).map((a) =>
+            a.id === "abs-1" ? { ...a, debriefedAt: "2025-04-21" } : a,
+          ),
+        },
+        today: "2025-04-22",
+      },
+    );
+    expect((result.data as Leave).debriefs).toEqual([]);
+    expect(result.summary).not.toContain("Debrief due");
   });
 });
