@@ -25,6 +25,7 @@ export function WeeklyActionPlan({
       today: localDateKey(new Date()),
       trackFreshness: Boolean(profile.customKnowledge || profile.customRelations),
       decisions: profile.decisions,
+      plannedAbsences: profile.plannedAbsences,
     });
   }, [
     template,
@@ -33,6 +34,7 @@ export function WeeklyActionPlan({
     profile.customKnowledge,
     profile.customRelations,
     profile.decisions,
+    profile.plannedAbsences,
   ]);
 
   return (

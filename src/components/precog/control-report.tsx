@@ -19,6 +19,12 @@ import {
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
+  formatDateRange,
+  handoffDeadline,
+  leadLabel,
+  plannedAbsenceReport,
+} from "@/lib/precog/continuity/planned-absence";
+import {
   continuityCommitments,
   continuitySlips,
   continuityStepKey,
@@ -96,6 +102,7 @@ export function ControlReport() {
     const staleness = staleItems(tpl, today);
     const checkIns = checkInPlan(tpl, today);
     const cards = contingencyCards(tpl);
+    const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
     const coso = assessCoso(tpl);
@@ -108,6 +115,7 @@ export function ControlReport() {
       today,
       trackFreshness,
       decisions: profile.decisions,
+      plannedAbsences: profile.plannedAbsences,
     });
     const issues = validateProcessMap(
       tpl.processes,
@@ -143,6 +151,7 @@ export function ControlReport() {
       checkIns,
       docs,
       cards,
+      leave,
       slips,
       committed,
       coso,
@@ -165,6 +174,7 @@ export function ControlReport() {
     checkIns,
     docs,
     cards,
+    leave,
     slips,
     committed,
     coso,
@@ -547,6 +557,98 @@ export function ControlReport() {
             </ul>
           )}
         </Section>
+
+        {leave.windows.length > 0 && (
+          <Section title="Planned leave — what stops and who covers">
+            <p className="text-xs text-neutral-500">
+              Known absences on the register, soonest first. Hand-offs already logged in the Journal
+              are marked; everything else needs a named stand-in before the leave starts.
+            </p>
+            <ul className="mt-2 space-y-3">
+              {leave.windows.slice(0, 8).map((w) => {
+                const others = w.overlaps.map((o) => o.person.name.split(" ")[0]);
+                return (
+                  <li
+                    key={w.absence.id}
+                    className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-medium">
+                        {w.person.name} — {formatDateRange(w.absence.from, w.absence.to)}
+                        <span className="ml-2 text-xs font-normal text-neutral-600">
+                          {w.status === "current"
+                            ? `out now, back after ${w.absence.to}`
+                            : `${leadLabel(w.daysUntil)} · ${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
+                        </span>
+                      </span>
+                      <span className="text-xs text-neutral-600">
+                        {w.impact.dependence}% of critical work stops
+                      </span>
+                    </div>
+                    {others.length > 0 && (
+                      <p className="mt-1 text-xs text-amber-800">
+                        Overlapping leave: {others.join(", ")} also out for part of this window.
+                      </p>
+                    )}
+                    {w.impact.stops.length > 0 ? (
+                      <table className="mt-2 w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-neutral-500">
+                            <th className="py-0.5 font-normal">Stops</th>
+                            <th className="py-0.5 font-normal">Stand-in</th>
+                            <th className="py-0.5 font-normal">Hand-off</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {w.impact.stops.map((s) => {
+                            const c = committed.get(continuityStepKey(s.item.id, "handoff"));
+                            return (
+                              <tr key={s.item.id} className="border-t border-neutral-200 align-top">
+                                <td className="py-1 pr-2">{s.item.name}</td>
+                                <td className="py-1 pr-2">
+                                  {s.standIn?.name ?? "Nobody — outside provider or it waits"}
+                                </td>
+                                <td className="py-1 text-neutral-600">
+                                  {c
+                                    ? c.overdue
+                                      ? `Logged; review overdue${c.reviewBy ? ` (${c.reviewBy})` : ""}`
+                                      : `Logged${c.reviewBy ? `; review ${c.reviewBy}` : ""}`
+                                    : w.status === "current"
+                                      ? "Not logged — decide today"
+                                      : `Not logged — by ${handoffDeadline(w, today)}`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="mt-2 text-xs text-neutral-600">
+                        Nothing on the register stops; someone else can run everything they hold.
+                      </p>
+                    )}
+                    {w.impact.orphanedProcesses.length > 0 && (
+                      <p className="mt-2 text-xs text-neutral-600">
+                        No owner left for: {w.impact.orphanedProcesses.join(", ")}
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs text-neutral-600">
+                      Left in the business:{" "}
+                      {w.impact.remaining.length > 0
+                        ? w.impact.remaining.map((p) => p.name).join(", ")
+                        : "nobody"}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            {leave.windows.length > 8 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                {leave.windows.length - 8} more absences further out; see the Who knows what tab.
+              </p>
+            )}
+          </Section>
+        )}
 
         {cards.length > 0 && (
           <Section title="Contingency cards — if someone is out tomorrow">

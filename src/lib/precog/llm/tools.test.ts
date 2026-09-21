@@ -182,3 +182,127 @@ describe("get_knowledge_spofs journal commitments", () => {
     expect(result.summary).not.toContain("per the Journal");
   });
 });
+
+describe("get_planned_absences", () => {
+  const item = dental.knowledge[0];
+  const [holder, backup] = dental.people;
+  type Leave = {
+    windows: {
+      person: { id: string };
+      daysUntil: number;
+      status: string;
+      handoffBy: string;
+      overlaps: { person: { name: string } }[];
+      stops: { knowledgeId: string; standIn: { id: string } | null; handoffCommitted: unknown }[];
+      remaining: { id: string }[];
+      summary: string;
+    }[];
+    later: number;
+    unmatched: number;
+  };
+  const profileWith = (extra: Partial<Parameters<typeof pioneerProfileFrom>[0]>) =>
+    pioneerProfileFrom({
+      industry: "dental",
+      customKnowledge: [{ ...item, criticality: "critical" }],
+      customRelations: [
+        { personId: holder.id, knowledgeId: item.id, level: "expert" },
+        { personId: backup.id, knowledgeId: item.id, level: "basic" },
+      ],
+      plannedAbsences: [
+        {
+          id: "abs-1",
+          personId: holder.id,
+          industry: "dental",
+          from: "2025-04-13",
+          to: "2025-04-20",
+        },
+        {
+          id: "abs-2",
+          personId: backup.id,
+          industry: "dental",
+          from: "2025-04-19",
+          to: "2025-04-21",
+        },
+        {
+          id: "abs-far",
+          personId: holder.id,
+          industry: "dental",
+          from: "2025-07-01",
+          to: "2025-07-05",
+        },
+        {
+          id: "abs-old",
+          personId: "nobody",
+          industry: "dental",
+          from: "2025-04-13",
+          to: "2025-04-14",
+        },
+      ],
+      ...extra,
+    });
+
+  it("returns leave within 30 days with stops, stand-ins, overlaps and who is left", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      { profile: profileWith({}), today: "2025-04-01" },
+    );
+    const data = result.data as Leave;
+    expect(data.windows.map((w) => w.person.id)).toEqual([holder.id, backup.id]);
+    expect(data.later).toBe(1);
+    expect(data.unmatched).toBe(1);
+    const [first] = data.windows;
+    expect(first).toMatchObject({ daysUntil: 12, status: "upcoming", handoffBy: "2025-04-12" });
+    expect(first.overlaps[0].person.name).toBe(backup.name);
+    expect(first.stops).toEqual([
+      expect.objectContaining({ knowledgeId: item.id, handoffCommitted: null }),
+    ]);
+    expect([holder.id, backup.id]).not.toContain(first.stops[0].standIn?.id);
+    expect(first.remaining.map((p) => p.id)).not.toContain(holder.id);
+    expect(first.remaining.map((p) => p.id)).not.toContain(backup.id);
+    expect(first.summary).toContain("in 12 days");
+    expect(result.summary).toContain(`${holder.name.split(" ")[0]} is out 13–20 Apr`);
+  });
+
+  it("marks a hand-off already logged in the Journal", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      {
+        profile: profileWith({
+          decisions: [
+            {
+              id: "h-1",
+              createdAt: "2025-04-01T09:00:00.000Z",
+              subject: item.name,
+              kind: "remediate",
+              note: "",
+              reviewBy: "2025-04-12",
+              linkedTab: "knowledge",
+              linkedId: item.id,
+              linkedIndustry: "dental",
+              linkedStep: "handoff",
+              status: "open",
+            },
+          ],
+        }),
+        today: "2025-04-01",
+      },
+    );
+    const data = result.data as Leave;
+    expect(data.windows[0].stops[0].handoffCommitted).toMatchObject({
+      reviewBy: "2025-04-12",
+      overdue: false,
+    });
+  });
+
+  it("reports no leave when the register has none", () => {
+    const result = executeTool(
+      "get_planned_absences",
+      {},
+      { profile: profileWith({ plannedAbsences: [] }), today: "2025-04-01" },
+    );
+    expect(result.summary).toBe("No planned leave on the register");
+    expect((result.data as Leave).windows).toEqual([]);
+  });
+});

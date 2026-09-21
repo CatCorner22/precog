@@ -1,7 +1,13 @@
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
-import { defaultProfile, type DecisionEntry, type PracticeProfile } from "../practice-profile";
+import {
+  defaultProfile,
+  normalizePlannedAbsences,
+  type DecisionEntry,
+  type PlannedAbsence,
+  type PracticeProfile,
+} from "../practice-profile";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
@@ -24,11 +30,14 @@ export interface PioneerProfileInput {
   customRelations?: KnowledgeRelation[] | null;
   /** Journal entries, so Pioneer knows which continuity steps are already committed to. */
   decisions?: DecisionEntry[] | null;
+  /** Known leave, so Pioneer can warn ahead of it. */
+  plannedAbsences?: PlannedAbsence[] | null;
 }
 
 const MAX_CUSTOM_NODES = 250;
 const MAX_RELATIONS = 2500;
 const MAX_DECISIONS = 500;
+const MAX_ABSENCES = 200;
 
 function isIndustryId(value: unknown): value is IndustryId {
   return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
@@ -75,6 +84,7 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
         )
         .slice(0, MAX_DECISIONS)
     : base.decisions;
+  const plannedAbsences = normalizePlannedAbsences(input.plannedAbsences).slice(0, MAX_ABSENCES);
   return {
     ...base,
     practiceName: practiceName || base.practiceName,
@@ -87,5 +97,6 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     customKnowledge,
     customRelations,
     decisions,
+    plannedAbsences,
   };
 }
