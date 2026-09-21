@@ -17,8 +17,11 @@ import {
   checkInPlan,
   coverageReport,
   documentationDebt,
+  firstName,
   staleItems,
 } from "@/lib/precog/continuity/coverage";
+import { todayBrief } from "@/lib/precog/continuity/today";
+import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -85,6 +88,17 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       mostDepended: coverage.people.find((load) => load.person.active && load.dependence > 0),
     };
   }, [template, today]);
+  const staffingToday = useMemo(
+    () =>
+      todayBrief(
+        template,
+        profile.plannedAbsences ?? [],
+        profile.decisions,
+        profile.industry,
+        localDateKey(today),
+      ),
+    [template, profile.plannedAbsences, profile.decisions, profile.industry, today],
+  );
 
   const sod = useMemo(
     () =>
@@ -315,8 +329,104 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         <SectionHeading
           icon={<Users className="size-4" aria-hidden />}
           title="Continuity readiness"
-          subtitle="Can the business run if someone is out tomorrow?"
+          subtitle={
+            staffingToday.out.length > 0
+              ? "Someone is out today — this is what it stops."
+              : "Can the business run if someone is out tomorrow?"
+          }
         />
+        {staffingToday.headline && (
+          <Card
+            className={staffingToday.out.length > 0 ? "border-warn/40 bg-warn/5" : "border-border"}
+          >
+            <CardContent className="space-y-3 pt-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-subtle">Today</p>
+                  <p className="text-sm font-medium leading-relaxed">{staffingToday.headline}</p>
+                </div>
+                {onOpenDetail && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetail("knowledge")}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    {staffingToday.out.length > 0
+                      ? "Open the cover sheet"
+                      : staffingToday.startingSoon.length > 0
+                        ? "Log the hand-offs"
+                        : "Debrief the stand-ins"}
+                    <ArrowRight className="size-3.5" aria-hidden />
+                  </button>
+                )}
+              </div>
+              {staffingToday.out.length > 0 && (
+                <ul className="space-y-2">
+                  {staffingToday.out.map((o) => (
+                    <li key={o.window.absence.id} className="text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{o.person.name}</span>
+                        <Badge variant={o.unplanned ? "warn" : "default"}>
+                          {o.unplanned ? "out unexpectedly" : "on leave"}
+                        </Badge>
+                        <span className="text-xs text-subtle">
+                          {o.window.absence.from === o.window.absence.to
+                            ? "today"
+                            : `back after ${formatDateRange(o.window.absence.from, o.window.absence.to)}`}
+                        </span>
+                      </div>
+                      {o.stops.length === 0 ? (
+                        <p className="mt-1 text-xs text-muted">
+                          Everything they run, someone else can run alone.
+                        </p>
+                      ) : (
+                        <ul className="mt-1 space-y-1 text-xs text-muted">
+                          {o.stops.slice(0, 4).map((s) => (
+                            <li key={s.item.id} className="flex flex-wrap items-center gap-x-2">
+                              <span className="text-foreground">{s.item.name}</span>
+                              <span>
+                                {s.standIn
+                                  ? `→ ${firstName(s.standIn.name)}${s.cold ? " (starting cold)" : ""}`
+                                  : "→ nobody left can pick it up"}
+                              </span>
+                              <span>· {s.procedure}</span>
+                              {s.standIn && (
+                                <span className={s.handoffLogged ? "text-ok" : "text-warn"}>
+                                  · {s.handoffLogged ? "hand-off logged" : "hand-off not logged"}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                          {o.stops.length > 4 && <li>and {o.stops.length - 4} more</li>}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {staffingToday.out.length > 0 &&
+                (staffingToday.startingSoon.length > 0 || staffingToday.debriefs > 0) && (
+                  <p className="text-xs text-subtle">
+                    {[
+                      staffingToday.startingSoon.length > 0
+                        ? `Also: ${staffingToday.startingSoon
+                            .map(
+                              (u) =>
+                                `${firstName(u.person.name)} out ${formatDateRange(u.window.absence.from, u.window.absence.to)}${u.unlogged > 0 ? ` (${u.unlogged} hand-off${u.unlogged === 1 ? "" : "s"} not logged)` : ""}`,
+                            )
+                            .join("; ")}.`
+                        : "",
+                      staffingToday.debriefs > 0
+                        ? `${staffingToday.debriefs} debrief${staffingToday.debriefs === 1 ? "" : "s"} waiting.`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </p>
+                )}
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="space-y-4 pt-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -343,7 +453,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   {!trackFreshness
                     ? "starts once you enter your own register"
                     : continuityReadiness.checkIns.checkIns[0]
-                      ? `next: check in with ${continuityReadiness.checkIns.checkIns[0].person.name.split(" ")[0]} (${continuityReadiness.checkIns.checkIns[0].items.length})`
+                      ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
                       : continuityReadiness.checkIns.unheld.length > 0
                         ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
                         : "checked in the last 90 days"}
