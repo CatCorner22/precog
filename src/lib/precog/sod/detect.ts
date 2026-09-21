@@ -367,18 +367,19 @@ export function detectSodConflicts(
 export function detectSodConflicts(
   staff?: StaffComposition,
   options?: SodDetectionOptions,
+): SodDetectionReport;
+export function detectSodConflicts(
+  tplOrStaff?: IndustryTemplate | StaffComposition,
+  staffOrOptions?: StaffComposition | SodDetectionOptions,
+  maybeOptions?: SodDetectionOptions,
 ): SodDetectionReport {
-  const tplArg = arguments[0] as IndustryTemplate | StaffComposition | undefined;
-  const secondArg = arguments[1] as StaffComposition | SodDetectionOptions | undefined;
-  const thirdArg = arguments[2] as SodDetectionOptions | undefined;
-
-  const tpl = isIndustryTemplate(tplArg) ? tplArg : getIndustryTemplate("dental");
-  const staff = isIndustryTemplate(tplArg)
-    ? (isSodDetectionOptions(secondArg) ? undefined : secondArg)
-    : tplArg;
-  const options = isIndustryTemplate(tplArg)
-    ? (isSodDetectionOptions(secondArg) ? secondArg : thirdArg)
-    : (isSodDetectionOptions(secondArg) ? secondArg : thirdArg);
+  const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
+  const staff = isIndustryTemplate(tplOrStaff)
+    ? (isSodDetectionOptions(staffOrOptions) ? undefined : staffOrOptions)
+    : tplOrStaff;
+  const options = isIndustryTemplate(tplOrStaff)
+    ? (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions)
+    : (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions);
 
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
