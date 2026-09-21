@@ -28,6 +28,7 @@ import {
   continuityCommitments,
   continuitySlips,
   continuityStepKey,
+  handoffCommitment,
   isDecisionOpen,
   type ContinuityCommitment,
   linkedContinuityStep,
@@ -567,6 +568,9 @@ export function ControlReport() {
             <ul className="mt-2 space-y-3">
               {leave.windows.slice(0, 8).map((w) => {
                 const others = w.overlaps.map((o) => o.person.name.split(" ")[0]);
+                const peakOthers = w.peak.people
+                  .filter((p) => p.id !== w.person.id)
+                  .map((p) => p.name.split(" ")[0]);
                 return (
                   <li
                     key={w.absence.id}
@@ -587,7 +591,10 @@ export function ControlReport() {
                     </div>
                     {others.length > 0 && (
                       <p className="mt-1 text-xs text-amber-800">
-                        Overlapping leave: {others.join(", ")} also out for part of this window.
+                        Overlapping leave: {others.join(", ")} also out for part of this window.{" "}
+                        {w.peak.extraStops.length > 0
+                          ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
+                          : "Nothing extra stops on the shared days."}
                       </p>
                     )}
                     {w.impact.stops.length > 0 ? (
@@ -601,7 +608,7 @@ export function ControlReport() {
                         </thead>
                         <tbody>
                           {w.impact.stops.map((s) => {
-                            const c = committed.get(continuityStepKey(s.item.id, "handoff"));
+                            const c = handoffCommitment(committed, s.item.id, w.absence.id);
                             return (
                               <tr key={s.item.id} className="border-t border-neutral-200 align-top">
                                 <td className="py-1 pr-2">{s.item.name}</td>

@@ -82,6 +82,69 @@ describe("buildWeeklyActions planned leave", () => {
       { id: "abs-2", personId: chris.id, industry: "dental", from: "2025-04-18", to: "2025-04-22" },
     ]).find((a) => a.id === "leave-abs-1");
     expect(action?.why).toContain(`${chris.name.split(" ")[0]} is also out for part of it`);
+    expect(action?.why).toContain("stops for the whole absence");
+  });
+
+  it("names the shared days when extra work only stops while a coworker is also out", () => {
+    const [, , third] = dental.people;
+    const shared = { ...dental.knowledge[1], id: "shared", criticality: "critical" as const };
+    const withShared = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [item, shared],
+      customRelations: [
+        { personId: maya.id, knowledgeId: item.id, level: "expert" },
+        { personId: maya.id, knowledgeId: shared.id, level: "expert" },
+        { personId: third.id, knowledgeId: shared.id, level: "expert" },
+      ],
+    });
+    const action = buildWeeklyActions({
+      tpl: withShared,
+      staff,
+      dualRelease: defaultDualReleasePolicy(withShared),
+      today: "2025-04-01",
+      decisions: [],
+      plannedAbsences: [
+        leave,
+        { id: "abs-3", personId: third.id, industry: "dental", from: "2025-04-18", to: "2025-04-22" },
+      ],
+    }).find((a) => a.id === "leave-abs-1");
+    expect(action?.why).toContain("2 register entries stop 18–20 Apr, while");
+    expect(action?.why).toContain(`${third.name.split(" ")[0]} is also out`);
+  });
+
+  it("does not let covered leave use up the slots before leave that stops work", () => {
+    // A temp who holds nothing and owns no process: their leave stops nothing at all.
+    const temp = { id: "p-temp", name: "Temp Nine", role: "Intern", active: true };
+    const withTemp = resolveTemplate({
+      industry: "dental",
+      customPeople: [...dental.people, temp],
+      customKnowledge: [item],
+      customRelations: [
+        { personId: maya.id, knowledgeId: item.id, level: "expert" },
+        { personId: chris.id, knowledgeId: item.id, level: "basic" },
+      ],
+    });
+    const covered = (id: string, from: string, to: string): PlannedAbsence => ({
+      id,
+      personId: temp.id,
+      industry: "dental",
+      from,
+      to,
+    });
+    const actions = buildWeeklyActions({
+      tpl: withTemp,
+      staff,
+      dualRelease: defaultDualReleasePolicy(withTemp),
+      today: "2025-04-01",
+      decisions: [],
+      plannedAbsences: [
+        covered("abs-c1", "2025-04-03", "2025-04-04"),
+        covered("abs-c2", "2025-04-07", "2025-04-08"),
+        leave,
+      ],
+    });
+    expect(actions.some((a) => a.id === "leave-abs-1")).toBe(true);
+    expect(actions.some((a) => a.id.startsWith("leave-abs-c"))).toBe(false);
   });
 
   it("reports a logged hand-off as in progress instead of fresh advice", () => {
@@ -102,5 +165,26 @@ describe("buildWeeklyActions planned leave", () => {
     expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
     const reminder = actions.find((a) => a.id.startsWith("commit-"));
     expect(reminder?.why).toContain("out 13–20 Apr, in 12 days");
+  });
+
+  it("does not let one leave's hand-off stand in for a later leave", () => {
+    const later: PlannedAbsence = { ...leave, id: "abs-later", from: "2025-04-25", to: "2025-04-28" };
+    const logged: DecisionEntry = {
+      id: "d-handoff",
+      createdAt: "2025-04-01T09:00:00.000Z",
+      subject: item.name,
+      kind: "remediate",
+      note: "Hand off before leave",
+      reviewBy: "2025-04-12",
+      linkedTab: "knowledge",
+      linkedId: item.id,
+      linkedIndustry: "dental",
+      linkedStep: "handoff",
+      linkedAbsenceId: leave.id,
+      status: "open",
+    };
+    const actions = build([leave, later], [logged]);
+    expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
+    expect(actions.some((a) => a.id === "leave-abs-later")).toBe(true);
   });
 });

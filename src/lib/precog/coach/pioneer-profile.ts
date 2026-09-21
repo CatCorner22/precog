@@ -87,6 +87,7 @@ export function sanitizeDecision(value: unknown): DecisionEntry | null {
     linkedIndustry,
     linkedStep,
     linkedPersonId: optionalString(raw.linkedPersonId),
+    linkedAbsenceId: optionalString(raw.linkedAbsenceId),
     status,
   };
 }

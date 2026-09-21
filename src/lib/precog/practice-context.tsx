@@ -95,6 +95,7 @@ interface PracticeContextValue {
     linkedId?: string;
     linkedStep?: ContinuityStep;
     linkedPersonId?: string;
+    linkedAbsenceId?: string;
   }) => void;
   removeDecision: (id: string) => void;
   reviewDecision: (
@@ -482,6 +483,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       linkedId?: string;
       linkedStep?: ContinuityStep;
       linkedPersonId?: string;
+      linkedAbsenceId?: string;
     }) => {
       const id = makeDecisionId();
       setProfile((p) => {
@@ -506,6 +508,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           ...(input.linkedId ? { linkedIndustry: p.industry } : {}),
           ...(input.linkedStep ? { linkedStep: input.linkedStep } : {}),
           ...(input.linkedPersonId ? { linkedPersonId: input.linkedPersonId } : {}),
+          ...(input.linkedAbsenceId ? { linkedAbsenceId: input.linkedAbsenceId } : {}),
           snapshot,
         };
         return { ...p, decisions: [entry, ...p.decisions].slice(0, 100) };

@@ -99,7 +99,7 @@ describe("plannedAbsenceReport", () => {
     expect(handoffDeadline(w, today)).toBe(today);
   });
 
-  it("flags overlapping leave and computes the impact with everyone away", () => {
+  it("flags overlapping leave and takes the impact from the shared days", () => {
     const report = plannedAbsenceReport(
       register,
       [
@@ -118,6 +118,75 @@ describe("plannedAbsenceReport", () => {
     expect(ben?.impact.people.map((p) => p.id)).toEqual(["b", "c"]);
     expect(ben?.impact.stops.map((s) => s.item.id).sort()).toEqual(["billing", "payroll"]);
     expect(ben?.impact.remaining.map((p) => p.id)).toEqual(["a"]);
+    expect(ben?.peak).toEqual({
+      from: "2025-11-08",
+      to: "2025-11-10",
+      people: [people[1], people[2]],
+      extraStops: [item("billing")],
+    });
+    expect(cy?.peak).toEqual({
+      from: "2025-11-08",
+      to: "2025-11-10",
+      people: [people[2], people[1]],
+      extraStops: [item("billing"), item("payroll")],
+    });
+  });
+
+  it("never treats coworkers away on different days as away together", () => {
+    // Ana is out all of 1–10 Nov; Ben leaves before Cy arrives, so billing (Ben or Cy) never stops.
+    const report = plannedAbsenceReport(
+      register,
+      [
+        absence("ana", "a", "2025-11-01", "2025-11-10"),
+        absence("ben", "b", "2025-11-01", "2025-11-03"),
+        absence("cy", "c", "2025-11-08", "2025-11-10"),
+      ],
+      "general",
+      today,
+    );
+    const ana = report.windows.find((w) => w.absence.id === "ana")!;
+    expect(ana.overlaps.map((o) => o.person.id)).toEqual(["b", "c"]);
+    expect(ana.impact.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+    expect(ana.impact.continues.map((k) => k.id)).toEqual(["billing"]);
+    expect(ana.peak).toEqual({
+      from: "2025-11-01",
+      to: "2025-11-03",
+      people: [people[0], people[1]],
+      extraStops: [item("payroll")],
+    });
+    expect(ana.impact.remaining.map((p) => p.id)).toEqual(["c"]);
+  });
+
+  it("picks the stretch where the most work stops, not the first one", () => {
+    // Ana holds nothing; alone she stops nothing. Ben's days stop payroll; Cy's days stop nothing.
+    const report = plannedAbsenceReport(
+      register,
+      [
+        absence("ana", "a", "2025-11-01", "2025-11-10"),
+        absence("cy", "c", "2025-11-01", "2025-11-02"),
+        absence("ben", "b", "2025-11-06", "2025-11-07"),
+      ],
+      "general",
+      today,
+    );
+    const ana = report.windows.find((w) => w.absence.id === "ana")!;
+    expect(ana.peak).toEqual({
+      from: "2025-11-06",
+      to: "2025-11-07",
+      people: [people[0], people[1]],
+      extraStops: [item("payroll")],
+    });
+    expect(ana.impact.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+  });
+
+  it("keeps the whole window as the peak when nobody overlaps", () => {
+    const [w] = plannedAbsenceReport(
+      register,
+      [absence("soon", "b", "2025-11-13", "2025-11-20")],
+      "general",
+      today,
+    ).windows;
+    expect(w.peak).toEqual({ from: "2025-11-13", to: "2025-11-20", people: [people[1]], extraStops: [] });
   });
 
   it("does not count two entries for the same person as overlapping", () => {
@@ -186,6 +255,23 @@ describe("describeWindow", () => {
     const ben = report.windows.find((w) => w.absence.id === "ben")!;
     expect(describeWindow(ben)).toBe(
       "Ben is out 3–10 Nov, in 2 days (Cy also out 8–10 Nov): billing has no one; payroll — hand off to Ana.",
+    );
+  });
+
+  it("names the worst stretch only when several overlaps make it ambiguous", () => {
+    const report = plannedAbsenceReport(
+      register,
+      [
+        absence("ana", "a", "2025-11-01", "2025-11-10"),
+        absence("cy", "c", "2025-11-01", "2025-11-02"),
+        absence("ben", "b", "2025-11-06", "2025-11-07"),
+      ],
+      "general",
+      today,
+    );
+    const ana = report.windows.find((w) => w.absence.id === "ana")!;
+    expect(describeWindow(ana)).toBe(
+      "Ana is out 1–10 Nov, out now (Cy also out 1–2 Nov; Ben also out 6–7 Nov; worst 6–7 Nov, with Ben also out): payroll — hand off to Cy.",
     );
   });
 

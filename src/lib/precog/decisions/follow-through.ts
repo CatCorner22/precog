@@ -72,9 +72,35 @@ export function isContinuityStepEntry(d: Pick<DecisionEntry, "kind" | "linkedSte
   return d.linkedStep !== undefined || d.kind === "remediate";
 }
 
-/** Map key for "is this step on this item already in the Journal?" lookups. */
-export function continuityStepKey(knowledgeId: string, step: ContinuityStep): string {
-  return `${knowledgeId}\u0000${step}`;
+/**
+ * Map key for "is this step on this item already in the Journal?" lookups. A
+ * hand-off is temporary and belongs to one planned absence, so hand-off entries
+ * logged from a leave window carry that absence's id in the key.
+ */
+export function continuityStepKey(
+  knowledgeId: string,
+  step: ContinuityStep,
+  absenceId?: string,
+): string {
+  return absenceId && step === "handoff"
+    ? `${knowledgeId}\u0000${step}\u0000${absenceId}`
+    : `${knowledgeId}\u0000${step}`;
+}
+
+/**
+ * The open hand-off for this item during this planned absence. Entries logged
+ * before hand-offs were tied to an absence (or from the hypothetical absence
+ * check) have no absence id and stand in for any window.
+ */
+export function handoffCommitment<T>(
+  committed: ReadonlyMap<string, T>,
+  knowledgeId: string,
+  absenceId: string,
+): T | undefined {
+  return (
+    committed.get(continuityStepKey(knowledgeId, "handoff", absenceId)) ??
+    committed.get(continuityStepKey(knowledgeId, "handoff"))
+  );
 }
 
 /** An open Journal entry that already commits the owner to a continuity step on a register item. */
@@ -108,7 +134,7 @@ export function continuityCommitments(
     const item = tpl.knowledge.find((k) => k.id === knowledgeId);
     if (!item) continue;
     const step = linkedContinuityStep(decision);
-    const key = continuityStepKey(knowledgeId, step);
+    const key = continuityStepKey(knowledgeId, step, decision.linkedAbsenceId);
     if (out.has(key)) continue;
     const reviewBy = decision.reviewBy ?? null;
     out.set(key, {

@@ -11,6 +11,7 @@ import {
 import {
   continuityCommitments,
   continuityStepKey,
+  handoffCommitment,
   localDateKey,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
@@ -226,7 +227,11 @@ export function buildWeeklyActions(input: {
   }
 
   const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
-  for (const w of absencesNeedingAttention(leave.windows).slice(0, 2)) {
+  // Covered leave adds nothing, so it must not use up the two slots.
+  const leaveWorthRaising = absencesNeedingAttention(leave.windows).filter(
+    (w) => w.impact.stops.length > 0 || w.impact.orphanedProcesses.length > 0,
+  );
+  for (const w of leaveWorthRaising.slice(0, 2)) {
     const first = w.person.name.split(" ")[0];
     const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
     const also = w.overlaps.length
@@ -235,35 +240,38 @@ export function buildWeeklyActions(input: {
     const stops = w.impact.stops;
     if (stops.length === 0) {
       const orphaned = w.impact.orphanedProcesses;
-      if (orphaned.length > 0) {
-        actions.push({
-          id: `leave-${w.absence.id}`,
-          title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
-          why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
-          effort: "low",
-          tab: "knowledge",
-          priority: 70,
-        });
-      }
+      actions.push({
+        id: `leave-${w.absence.id}`,
+        title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
+        effort: "low",
+        tab: "knowledge",
+        priority: 70,
+      });
       continue;
     }
-    const open = stops.filter((s) => !committed.get(continuityStepKey(s.item.id, "handoff")));
+    const open = stops.filter((s) => !handoffCommitment(committed, s.item.id, w.absence.id));
     const critical = open.filter((s) => s.item.criticality === "critical");
     const lead = critical[0] ?? open[0];
     const urgency = w.status === "current" ? 92 : w.daysUntil <= 7 ? 89 : 85;
     if (!lead) {
-      const c = committed.get(continuityStepKey(stops[0].item.id, "handoff"));
+      const c = handoffCommitment(committed, stops[0].item.id, w.absence.id);
       if (c) actions.push(committedAction(c, urgency, `${first} is out ${when}`));
       continue;
     }
     const noOne = open.filter((s) => !s.standIn);
     const others = open.length - 1;
+    const othersAway = w.peak.people.filter((p) => p.id !== w.person.id);
+    const during =
+      w.peak.extraStops.length > 0
+        ? ` ${formatDateRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => p.name.split(" ")[0]).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
+        : " for the whole absence";
     actions.push({
       id: `leave-${w.absence.id}`,
       title: lead.standIn
         ? `${first} is out ${when}: hand off ${lead.item.name} to ${lead.standIn.name.split(" ")[0]}${others > 0 ? ` and ${others} more` : ""}`
         : `${first} is out ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
-      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`} for the whole absence${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
+      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
         w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : ""
       }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => p.name.split(" ")[0]).join(", ")}.` : " Nobody else is left in the business."}`,
       effort: lead.standIn ? "low" : "medium",

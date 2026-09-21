@@ -18,7 +18,11 @@ import {
   handoffDeadline,
   plannedAbsenceReport,
 } from "../continuity/planned-absence";
-import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
+import {
+  continuityCommitments,
+  continuityStepKey,
+  handoffCommitment,
+} from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -357,9 +361,15 @@ export function executeTool(
             from: o.from,
             to: o.to,
           })),
+          worstStretch: {
+            from: w.peak.from,
+            to: w.peak.to,
+            away: w.peak.people.map((p) => ({ id: p.id, name: p.name })),
+            extraStops: w.peak.extraStops.map((k) => k.name),
+          },
           dependence: w.impact.dependence,
           stops: w.impact.stops.map((s) => {
-            const handoff = committed.get(continuityStepKey(s.item.id, "handoff"));
+            const handoff = handoffCommitment(committed, s.item.id, w.absence.id);
             return {
               knowledgeId: s.item.id,
               name: s.item.name,

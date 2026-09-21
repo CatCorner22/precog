@@ -76,6 +76,8 @@ export interface DecisionEntry {
   linkedStep?: ContinuityStep;
   /** The person a "cover" step set out to train, so closing it as done can update their level on the register. */
   linkedPersonId?: string;
+  /** The planned absence a "handoff" step was logged for; hand-offs are temporary, so one does not stand in for later leave. */
+  linkedAbsenceId?: string;
   snapshot?: DecisionSnapshot;
   reviews?: DecisionReview[];
   status?: "open" | "closed";

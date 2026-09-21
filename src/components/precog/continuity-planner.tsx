@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   continuityStepKey,
+  handoffCommitment,
   isContinuityStepEntry,
   isDecisionOpen,
   linkedContinuityStep,
@@ -118,13 +119,15 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     for (const d of profile.decisions) {
       const id = linkedKnowledgeId(d, profile.industry);
       if (!id || !isDecisionOpen(d) || !isContinuityStepEntry(d) || !d.reviewBy) continue;
-      const key = continuityStepKey(id, linkedContinuityStep(d));
+      const key = continuityStepKey(id, linkedContinuityStep(d), d.linkedAbsenceId);
       if (!byStep.has(key)) byStep.set(key, d.reviewBy);
     }
     return byStep;
   }, [profile.decisions, profile.industry]);
-  const trackedBy = (knowledgeId: string, step: ContinuityStep) =>
-    tracked.get(continuityStepKey(knowledgeId, step));
+  const trackedBy = (knowledgeId: string, step: ContinuityStep, absenceId?: string) =>
+    absenceId && step === "handoff"
+      ? handoffCommitment(tracked, knowledgeId, absenceId)
+      : tracked.get(continuityStepKey(knowledgeId, step));
 
   const reviewDateIn30Days = () => {
     const reviewBy = new Date();
@@ -138,6 +141,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     step: ContinuityStep,
     reviewBy: Date | string,
     personId?: string,
+    absenceId?: string,
   ) =>
     addDecision({
       subject,
@@ -148,6 +152,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       linkedId: knowledgeId,
       linkedStep: step,
       linkedPersonId: personId,
+      linkedAbsenceId: absenceId,
     });
   const confirmLogged = (reviewBy: Date, count = 1) =>
     toast.success(
@@ -163,21 +168,33 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     logContinuityDecision(g.item.name, g.action, g.item.id, g.step, reviewBy);
     confirmLogged(reviewBy);
   };
-  /** One entry per item, so each item's snapshot, review and slip check stand on their own. */
-  const logAbsenceAction = (a: AbsenceAction, reviewByKey?: string) => {
+  /**
+   * One entry per item, so each item's snapshot, review and slip check stand on
+   * their own. Hand-offs logged from a leave window remember that absence, so
+   * they never pass for the hand-off of a later one.
+   */
+  const logAbsenceAction = (a: AbsenceAction, reviewByKey?: string, absenceId?: string) => {
     const reviewBy = reviewByKey ? new Date(`${reviewByKey}T12:00:00`) : reviewDateIn30Days();
     const pending = a.knowledgeIds
       .map((id) => tpl.knowledge.find((k) => k.id === id))
       .filter((k): k is KnowledgeItem => Boolean(k))
-      .filter((k) => !trackedBy(k.id, a.step));
+      .filter((k) => !trackedBy(k.id, a.step, absenceId));
     for (const k of pending)
-      logContinuityDecision(k.name, a.text, k.id, a.step, reviewByKey ?? reviewBy);
+      logContinuityDecision(
+        k.name,
+        a.text,
+        k.id,
+        a.step,
+        reviewByKey ?? reviewBy,
+        undefined,
+        a.step === "handoff" ? absenceId : undefined,
+      );
     confirmLogged(reviewBy, pending.length);
   };
   /** An absence step is "in the Journal" once every item it names has an open entry for that step. */
-  const absenceStepTracked = (a: AbsenceAction) =>
-    a.knowledgeIds.length > 0 && a.knowledgeIds.every((id) => trackedBy(id, a.step))
-      ? trackedBy(a.knowledgeIds[0], a.step)
+  const absenceStepTracked = (a: AbsenceAction, absenceId?: string) =>
+    a.knowledgeIds.length > 0 && a.knowledgeIds.every((id) => trackedBy(id, a.step, absenceId))
+      ? trackedBy(a.knowledgeIds[0], a.step, absenceId)
       : undefined;
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
@@ -1327,8 +1344,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   today={today}
                   onRemove={() => removeLeave(w.absence.id)}
                   onSelect={setSelectedId}
-                  tracked={absenceStepTracked}
-                  onLog={(a) => logAbsenceAction(a, handoffDeadline(w, today))}
+                  tracked={(a) => absenceStepTracked(a, w.absence.id)}
+                  onLog={(a) => logAbsenceAction(a, handoffDeadline(w, today), w.absence.id)}
                 />
               ))}
               {leaveHistory.length > 0 && (
@@ -1498,7 +1515,13 @@ function LeaveWindow({
           {w.overlaps
             .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
             .join("; ")}
-          . Stops below assume everyone away at once.
+          .{" "}
+          {w.peak.extraStops.length > 0
+            ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
+                .filter((p) => p.id !== w.person.id)
+                .map((p) => p.name.split(" ")[0])
+                .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
+            : "Nothing extra stops on the shared days."}
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">

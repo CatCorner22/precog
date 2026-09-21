@@ -395,13 +395,19 @@ function localSynthesize(
 
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as {
     windows: {
-      person: { name: string };
+      person: { id: string; name: string };
       from: string;
       to: string;
       daysUntil: number;
       status: "current" | "upcoming";
       handoffBy: string;
       overlaps: { person: { name: string } }[];
+      worstStretch: {
+        from: string;
+        to: string;
+        away: { id: string; name: string }[];
+        extraStops: string[];
+      };
       stops: {
         name: string;
         standIn: { name: string } | null;
@@ -527,12 +533,17 @@ function localSynthesize(
     const also = w.overlaps.length
       ? ` ${w.overlaps.map((o) => o.person.name).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also away for part of it.`
       : "";
+    const othersAway = w.worstStretch.away.filter((p) => p.id !== w.person.id);
+    const during =
+      w.worstStretch.extraStops.length > 0 && othersAway.length > 0
+        ? ` ${w.worstStretch.from} to ${w.worstStretch.to}, while ${othersAway.map((p) => p.name).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also away`
+        : " for the whole absence";
     return [
       {
         action: first.standIn
           ? `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
           : `Decide who covers ${first.name} while ${w.person.name} is out${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
-        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`} for the whole absence${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
         evidenceIds: [] as string[],
         effort: first.standIn ? ("low" as const) : ("medium" as const),
         horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, w.daysUntil)),
