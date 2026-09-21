@@ -9,7 +9,6 @@ import {
   CONFIRMATION_MAX_AGE_DAYS,
   coverageReport,
   documentationDebt,
-  resolveClientDate,
   staleItems,
 } from "../continuity/coverage";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
@@ -40,7 +39,7 @@ export interface ToolContext {
   /** The business being advised. Every tool is a pure function of this. */
   profile?: PracticeProfile;
   question?: string;
-  /** Owner's local calendar day (YYYY-MM-DD); register dates are compared against it. */
+  /** Owner's local calendar day (YYYY-MM-DD), already validated at the request boundary. */
   today?: string;
 }
 
@@ -238,7 +237,9 @@ export function executeTool(
         const continuity = coverageReport(tpl);
         const docs = documentationDebt(tpl);
         const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
-        const freshness = trackFreshness ? staleItems(tpl, resolveClientDate(ctx.today)) : null;
+        const freshness = trackFreshness
+          ? staleItems(tpl, ctx.today ?? new Date().toISOString().slice(0, 10))
+          : null;
         const staleIds = new Set(freshness?.stale.map((s) => s.item.id) ?? []);
         const moveByItem = new Map(continuity.plan.map((m) => [m.item.id, m]));
         const leanedOn = continuity.people.find((l) => l.person.active);
