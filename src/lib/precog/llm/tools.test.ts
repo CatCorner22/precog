@@ -54,3 +54,47 @@ describe("get_knowledge_spofs freshness", () => {
     expect(ownerDay.summary).not.toContain("not confirmed");
   });
 });
+
+describe("get_register_checkins", () => {
+  it("is inert until the owner enters their own register", () => {
+    const result = executeTool(
+      "get_register_checkins",
+      {},
+      { profile: pioneerProfileFrom({ industry: "dental" }) },
+    );
+    expect(result.data).toEqual({ checkIns: [], unheld: [], tracked: false });
+  });
+
+  it("groups stale entries by the person to sit down with, and lists unheld ones", () => {
+    const [held, orphan] = dental.knowledge;
+    const holder = dental.people.find((p) => p.active)!;
+    const result = executeTool(
+      "get_register_checkins",
+      {},
+      {
+        profile: pioneerProfileFrom({
+          industry: "dental",
+          customKnowledge: [
+            { ...held, confirmedAt: undefined },
+            { ...orphan, confirmedAt: undefined },
+          ],
+          customRelations: [{ personId: holder.id, knowledgeId: held.id, level: "expert" }],
+        }),
+        today: "2026-01-01",
+      },
+    );
+    const data = result.data as {
+      tracked: boolean;
+      checkIns: { person: { name: string }; soleCount: number; items: { name: string }[] }[];
+      unheld: { name: string }[];
+    };
+    expect(data.tracked).toBe(true);
+    expect(data.checkIns).toHaveLength(1);
+    expect(data.checkIns[0].person.name).toBe(holder.name);
+    expect(data.checkIns[0].items.map((i) => i.name)).toEqual([held.name]);
+    expect(data.checkIns[0].soleCount).toBe(1);
+    expect(data.unheld.map((i) => i.name)).toEqual([orphan.name]);
+    expect(result.summary).toContain(`check in with ${holder.name} (1, 1 sole)`);
+    expect(result.summary).toContain("1 stale entry nobody active holds");
+  });
+});

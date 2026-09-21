@@ -14,6 +14,7 @@ import {
   DOCUMENTATION_LABEL,
   documentationDebt,
   documentationState,
+  checkInPlan,
   staleItems,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
@@ -77,6 +78,7 @@ export function ControlReport() {
     });
     const continuity = coverageReport(tpl);
     const staleness = staleItems(tpl, today);
+    const checkIns = checkInPlan(tpl, today);
     const cards = contingencyCards(tpl);
     const slips = continuitySlips(profile.decisions, tpl);
     const coso = assessCoso(tpl);
@@ -120,6 +122,7 @@ export function ControlReport() {
       sod,
       continuity,
       staleness,
+      checkIns,
       docs,
       cards,
       slips,
@@ -140,6 +143,7 @@ export function ControlReport() {
     sod,
     continuity,
     staleness,
+    checkIns,
     docs,
     cards,
     slips,
@@ -474,17 +478,30 @@ export function ControlReport() {
             <p className="mt-3 text-sm text-neutral-700">
               <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
               confirmed in the last 90 days.
-              {staleness.stale.length > 0 && (
-                <>
-                  {" "}
-                  {staleness.stale.length} item(s) to re-confirm:{" "}
-                  {staleness.stale
-                    .slice(0, 5)
-                    .map((entry) => `${entry.item.name} (${entry.item.criticality})`)
-                    .join(", ")}
-                </>
-              )}
+              {staleness.stale.length > 0 && <> {staleness.stale.length} item(s) to re-confirm.</>}
             </p>
+          )}
+          {trackFreshness && staleness.stale.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-neutral-600">
+              {checkIns.checkIns.slice(0, 6).map((c) => (
+                <li key={c.person.id}>
+                  <strong>Check in with {c.person.name}</strong> — {c.items.length}{" "}
+                  {c.items.length === 1 ? "entry" : "entries"}
+                  {c.soleCount > 0 && ` (${c.soleCount} nobody else can run alone)`}:{" "}
+                  {c.items.map((entry) => entry.item.name).join(", ")}
+                </li>
+              ))}
+              {checkIns.checkIns.length > 6 && (
+                <li>{checkIns.checkIns.length - 6} more people to check in with.</li>
+              )}
+              {checkIns.unheld.length > 0 && (
+                <li>
+                  <strong>Nobody active holds</strong> —{" "}
+                  {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they still
+                  matter or assign someone.
+                </li>
+              )}
+            </ul>
           )}
           {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
             0 && (
