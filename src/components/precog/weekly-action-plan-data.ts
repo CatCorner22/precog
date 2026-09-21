@@ -1,8 +1,20 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { checkInPlan, coverageReport, documentationDebt } from "@/lib/precog/continuity/coverage";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import {
+  checkInPlan,
+  coverageReport,
+  documentationDebt,
+  DOCUMENTATION_LABEL,
+  STATUS_LABEL,
+} from "@/lib/precog/continuity/coverage";
+import {
+  continuityCommitments,
+  continuityStepKey,
+  localDateKey,
+  type ContinuityCommitment,
+} from "@/lib/precog/decisions/follow-through";
+import type { DecisionEntry } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
@@ -47,6 +59,59 @@ function evidenceFor(cases: readonly CaseStudy[]): ActionEvidence | undefined {
   };
 }
 
+const STEP_VERB: Record<ContinuityCommitment["step"], string> = {
+  cover: "training",
+  handoff: "handing off",
+  document: "writing down",
+  locate: "locating the procedure for",
+};
+
+/**
+ * A step the owner already logged in the Journal is not fresh advice. Until
+ * the review date it is a low-priority "in progress" reminder; once the date
+ * passes it becomes the week's question — did it happen? — pointing at the
+ * Journal, where closing it as done also updates the register.
+ */
+function committedAction(
+  c: ContinuityCommitment,
+  priority: number,
+  stillSays: string,
+): WeeklyAction {
+  const first = c.person?.name.split(" ")[0];
+  const what =
+    c.step === "cover" && first
+      ? `${first} on ${c.item.name}`
+      : `${STEP_VERB[c.step]} ${c.item.name}`;
+  const logged = `You logged "${c.decision.subject}" on ${c.decision.createdAt.slice(0, 10)}${c.reviewBy ? ` with a review on ${c.reviewBy}` : ""}; the register still says ${stillSays}.`;
+  if (c.overdue) {
+    return {
+      id: `commit-${c.decision.id}`,
+      title:
+        c.step === "cover"
+          ? first
+            ? `Review overdue: can ${first} run ${c.item.name} alone yet?`
+            : `Review overdue: is ${c.item.name} backed up yet?`
+          : c.step === "document"
+            ? `Review overdue: is ${c.item.name} written down yet?`
+            : c.step === "locate"
+              ? `Review overdue: where does the ${c.item.name} procedure live?`
+              : `Review overdue: ${c.item.name} hand-off`,
+      why: `${logged} Close it in the Journal as done, which updates the register, or push the review date if it is still in progress.`,
+      effort: "low",
+      tab: "journal",
+      priority,
+    };
+  }
+  return {
+    id: `commit-${c.decision.id}`,
+    title: `In progress: ${what}${c.reviewBy ? ` — review ${c.reviewBy}` : ""}`,
+    why: `${logged} Nothing new to start; if it has already happened, close it as done in the Journal.`,
+    effort: "low",
+    tab: "journal",
+    priority: 40,
+  };
+}
+
 function casesForControls(ids: readonly ControlId[]): CaseStudy[] {
   const seen = new Map<string, CaseStudy>();
   for (const id of ids) for (const c of casesForControl(id)) seen.set(c.id, c);
@@ -60,8 +125,12 @@ export function buildWeeklyActions(input: {
   mapSnapshots?: ProcessMapSnapshot[];
   today?: string;
   trackFreshness?: boolean;
+  /** The Journal, so steps already logged are reported as in progress rather than recommended again. */
+  decisions?: readonly DecisionEntry[];
 }): WeeklyAction[] {
   const { tpl } = input;
+  const today = input.today ?? localDateKey(new Date());
+  const committed = continuityCommitments(input.decisions ?? [], tpl, today);
   const portfolio = portfolioSummary(tpl, input.staff);
   const sod = detectSodConflicts(tpl, input.staff, {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
@@ -113,6 +182,12 @@ export function buildWeeklyActions(input: {
   for (const m of continuity.plan
     .filter((x) => x.item.criticality === "critical" && x.status !== "thin")
     .slice(0, 2)) {
+    const priority = m.status === "uncovered" ? 86 : 82;
+    const c = committed.get(continuityStepKey(m.item.id, "cover"));
+    if (c) {
+      actions.push(committedAction(c, priority, STATUS_LABEL[m.status].toLowerCase()));
+      continue;
+    }
     actions.push({
       id: `spof-${m.item.id}`,
       title:
@@ -124,13 +199,22 @@ export function buildWeeklyActions(input: {
       why: `${m.action} One person holding critical work is both a continuity gap and a fraud-detection blind spot.`,
       effort: m.item.documented ? "low" : "medium",
       tab: "knowledge",
-      priority: m.status === "uncovered" ? 86 : 82,
+      priority,
     });
   }
 
   for (const g of documentationDebt(tpl)
     .gaps.filter((x) => x.item.criticality === "critical")
     .slice(0, 2)) {
+    const priority =
+      g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
+    const c = committed.get(
+      continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
+    );
+    if (c) {
+      actions.push(committedAction(c, priority, DOCUMENTATION_LABEL[g.state].toLowerCase()));
+      continue;
+    }
     actions.push({
       id: `docs-${g.item.id}`,
       title:
@@ -140,13 +224,12 @@ export function buildWeeklyActions(input: {
       why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and an unwritten process is one nobody else can check.`,
       effort: g.state === "none" ? "medium" : "low",
       tab: "knowledge",
-      priority:
-        g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72,
+      priority,
     });
   }
 
   if (input.trackFreshness) {
-    const plan = checkInPlan(tpl, input.today ?? localDateKey(new Date()));
+    const plan = checkInPlan(tpl, today);
     const first = plan.checkIns[0];
     if (first) {
       const others = plan.checkIns.length - 1;

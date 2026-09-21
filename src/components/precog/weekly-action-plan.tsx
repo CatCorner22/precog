@@ -24,6 +24,7 @@ export function WeeklyActionPlan({
       mapSnapshots: snapshots,
       today: localDateKey(new Date()),
       trackFreshness: Boolean(profile.customKnowledge || profile.customRelations),
+      decisions: profile.decisions,
     });
   }, [
     template,
@@ -31,6 +32,7 @@ export function WeeklyActionPlan({
     profile.dualRelease,
     profile.customKnowledge,
     profile.customRelations,
+    profile.decisions,
   ]);
 
   return (

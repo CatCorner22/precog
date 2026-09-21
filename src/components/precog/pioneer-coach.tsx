@@ -106,6 +106,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
             customPeople: profile.customPeople ?? null,
             customKnowledge: profile.customKnowledge ?? null,
             customRelations: profile.customRelations ?? null,
+            decisions: profile.decisions.filter((d) => d.linkedTab === "knowledge"),
           },
         },
       });

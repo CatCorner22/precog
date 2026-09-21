@@ -67,6 +67,52 @@ export function continuityStepKey(knowledgeId: string, step: ContinuityStep): st
   return `${knowledgeId}\u0000${step}`;
 }
 
+/** An open Journal entry that already commits the owner to a continuity step on a register item. */
+export interface ContinuityCommitment {
+  decision: DecisionEntry;
+  item: KnowledgeItem;
+  step: ContinuityStep;
+  /** The person the step set out to develop, when the decision recorded one and they are still on the team. */
+  person: Person | null;
+  reviewBy: string | null;
+  /** True once the review date has passed without the entry being closed. */
+  overdue: boolean;
+}
+
+/**
+ * Open continuity decisions for items in this template, keyed by
+ * `continuityStepKey`, so advice can say "already in progress" instead of
+ * recommending the same step again. Closed entries, other industries' entries
+ * and deleted items are left out; the first entry logged for a step wins.
+ */
+export function continuityCommitments(
+  decisions: readonly DecisionEntry[],
+  tpl: IndustryTemplate,
+  today: string,
+): Map<string, ContinuityCommitment> {
+  const out = new Map<string, ContinuityCommitment>();
+  const sorted = [...decisions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const decision of sorted) {
+    const knowledgeId = linkedKnowledgeId(decision, tpl.id);
+    if (!knowledgeId || !isDecisionOpen(decision)) continue;
+    const item = tpl.knowledge.find((k) => k.id === knowledgeId);
+    if (!item) continue;
+    const step = linkedContinuityStep(decision);
+    const key = continuityStepKey(knowledgeId, step);
+    if (out.has(key)) continue;
+    const reviewBy = decision.reviewBy ?? null;
+    out.set(key, {
+      decision,
+      item,
+      step,
+      person: tpl.people.find((p) => p.id === decision.linkedPersonId) ?? null,
+      reviewBy,
+      overdue: reviewBy !== null && reviewBy < today,
+    });
+  }
+  return out;
+}
+
 export function captureContinuitySnapshot(
   tpl: IndustryTemplate,
   knowledgeId: string,
