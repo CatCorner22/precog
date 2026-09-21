@@ -81,6 +81,6 @@ Five industry templates ship with demo processes, people, knowledge graphs, cont
 - **Professional services** — Northgate Advisory Group
 - **General SMB** — Main Street Business Co.
 
-Switch industry in **Business profile** to load the full template (process map, SoD, scenarios, dual-release defaults).
+Switch industry in **Business profile** to load the full template (process map, SoD, scenarios, dual-release defaults). A business belongs to one industry: once you have entered your own team, register, leave or processes, the switch spells out what it would discard and offers to keep the business as it is and add the new industry as a second business (the header switcher moves between them) instead of replacing it.
 
 Educational tool only — not actuarial, legal, or forensic advice. The cases describe other organizations, not yours, and are prosecuted cases, so they skew large and late. Never scores people as fraudulent; targets are control gaps and residual exposures.
