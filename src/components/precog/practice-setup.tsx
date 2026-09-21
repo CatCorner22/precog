@@ -1,7 +1,13 @@
 import { toast } from "sonner";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
+import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
+import {
+  describeEnteredWork,
+  enteredWork,
+  hasEnteredWork,
+  listEnteredWork,
+} from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
@@ -18,8 +24,31 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     setDualRelease,
     resetSegregationToDerived,
     resetProfile,
+    createBusiness,
   } = usePractice();
   const s = profile.staff;
+  const [pendingChoice, setPendingIndustry] = useState<IndustryId | null>(null);
+  const pendingIndustry = pendingChoice === profile.industry ? null : pendingChoice;
+  const work = enteredWork(profile);
+  const entered = listEnteredWork(describeEnteredWork(work));
+
+  function loadTemplate(next: IndustryId) {
+    setIndustry(next);
+    setPendingIndustry(null);
+    const tpl = getIndustryTemplate(next);
+    toast.success(`Loaded ${industryMeta(next).label} template`, {
+      description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
+    });
+  }
+
+  function addBusiness(next: IndustryId) {
+    const kept = profile.practiceName;
+    createBusiness(next);
+    setPendingIndustry(null);
+    toast.success(`Added ${industryMeta(next).demoName}`, {
+      description: `${kept} is saved in your businesses — switch back from the header any time.`,
+    });
+  }
   const segregationNote = profile.customPeople ? (
     profile.staff.segregationSource === "manual" ? (
       <>
@@ -58,22 +87,10 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <label className="block text-sm">
           <span className="text-muted">Industry</span>
           <select
-            value={profile.industry}
+            value={pendingIndustry ?? profile.industry}
             onChange={(e) => {
-              const next = e.target.value as typeof profile.industry;
-              if (next === profile.industry) return;
-              const label = INDUSTRIES.find((i) => i.id === next)?.label ?? next;
-              const ok = window.confirm(
-                `Switch to ${label}? This loads that industry's demo processes, people, scenarios, and staff defaults. Your decision log is kept.`,
-              );
-              if (ok) {
-                setIndustry(next);
-                const tpl = getIndustryTemplate(next);
-                const meta = industryMeta(next);
-                toast.success(`Loaded ${meta.label} template`, {
-                  description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
-                });
-              }
+              const next = e.target.value as IndustryId;
+              setPendingIndustry(next === profile.industry ? null : next);
             }}
             className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
           >
@@ -84,6 +101,61 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             ))}
           </select>
         </label>
+        {pendingIndustry && (
+          <div
+            role="group"
+            aria-label="Confirm industry change"
+            className={
+              hasEnteredWork(work)
+                ? "space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm"
+                : "space-y-2 rounded-lg border border-border bg-elevated/60 p-3 text-sm"
+            }
+          >
+            {hasEnteredWork(work) ? (
+              <>
+                <p>
+                  <span className="font-medium">
+                    {profile.practiceName} has {entered} entered here.
+                  </span>{" "}
+                  Loading the {industryMeta(pendingIndustry).label} demo replaces all of it with
+                  demo people and processes. Your decision log is kept.
+                </p>
+                <p className="text-muted">
+                  Running more than one kind of business? Keep {profile.practiceName} as it is
+                  and add the new one alongside it.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => addBusiness(pendingIndustry)}>
+                    Keep {profile.practiceName} and add a{" "}
+                    {industryMeta(pendingIndustry).label} business
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => loadTemplate(pendingIndustry)}>
+                    Replace with the demo
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPendingIndustry(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>
+                  Load the {industryMeta(pendingIndustry).label} demo? This swaps in that
+                  industry's processes, people, scenarios and staff defaults. Your decision log is
+                  kept.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => loadTemplate(pendingIndustry)}>
+                    Load the {industryMeta(pendingIndustry).label} demo
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPendingIndustry(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <label className="block text-sm">
           <span className="text-muted">Business name</span>
           <input
@@ -152,7 +224,23 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             Configure dual-release thresholds
           </Button>
         )}
-        <Button size="sm" variant="secondary" onClick={resetProfile}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
+              Boolean,
+            );
+            if (
+              lost.length &&
+              !window.confirm(
+                `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
+              )
+            )
+              return;
+            resetProfile();
+          }}
+        >
           Reset to demo defaults
         </Button>
       </CardContent>
