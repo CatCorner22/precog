@@ -41,6 +41,35 @@ describe("enteredWork", () => {
     );
   });
 
+  it("treats a cleared override, pinned map positions and moved settings as work to lose", () => {
+    const cleared = defaultProfile("dental");
+    cleared.customKnowledge = [];
+    cleared.customRelations = [];
+    cleared.customProcesses = [];
+    expect(describeEnteredWork(enteredWork(cleared))).toEqual([
+      "a cleared register",
+      "a cleared process map",
+    ]);
+
+    const pinned = defaultProfile("dental");
+    pinned.mapLayout = { a: { x: 1, y: 2 }, b: { x: 3, y: 4 } };
+    expect(describeEnteredWork(enteredWork(pinned))).toEqual(["2 pinned map positions"]);
+
+    const tuned = defaultProfile("dental");
+    tuned.staff = { ...tuned.staff, teamSize: tuned.staff.teamSize + 3 };
+    const work = enteredWork(tuned);
+    expect(work.settings).toBe(true);
+    expect(hasEnteredWork(work)).toBe(true);
+    expect(describeEnteredWork(work)).toEqual(["edited team and control settings"]);
+
+    const risk = defaultProfile("dental");
+    risk.riskVariables = {
+      ...risk.riskVariables,
+      hasDualControl: !risk.riskVariables.hasDualControl,
+    };
+    expect(enteredWork(risk).settings).toBe(true);
+  });
+
   it("falls back to register items when only the item list was edited, and uses singular forms", () => {
     const p = defaultProfile("dental");
     p.customPeople = tpl.people.slice(0, 1);

@@ -27,8 +27,20 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     createBusiness,
   } = usePractice();
   const s = profile.staff;
-  const [pendingChoice, setPendingIndustry] = useState<IndustryId | null>(null);
-  const pendingIndustry = pendingChoice === profile.industry ? null : pendingChoice;
+  /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
+  const businessKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
+  const [pendingChoice, setPendingChoice] = useState<{
+    key: string;
+    industry: IndustryId;
+  } | null>(null);
+  const pendingIndustry =
+    pendingChoice &&
+    pendingChoice.key === businessKey &&
+    pendingChoice.industry !== profile.industry
+      ? pendingChoice.industry
+      : null;
+  const setPendingIndustry = (industry: IndustryId | null) =>
+    setPendingChoice(industry ? { key: businessKey, industry } : null);
   const work = enteredWork(profile);
   const entered = listEnteredWork(describeEnteredWork(work));
 
@@ -121,13 +133,13 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
                   demo people and processes. Your decision log is kept.
                 </p>
                 <p className="text-muted">
-                  Running more than one kind of business? Keep {profile.practiceName} as it is
-                  and add the new one alongside it.
+                  Running more than one kind of business? Keep {profile.practiceName} as it is and
+                  add the new one alongside it.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => addBusiness(pendingIndustry)}>
-                    Keep {profile.practiceName} and add a{" "}
-                    {industryMeta(pendingIndustry).label} business
+                    Keep {profile.practiceName} and add a {industryMeta(pendingIndustry).label}{" "}
+                    business
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => loadTemplate(pendingIndustry)}>
                     Replace with the demo
@@ -140,9 +152,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             ) : (
               <>
                 <p>
-                  Load the {industryMeta(pendingIndustry).label} demo? This swaps in that
-                  industry's processes, people, scenarios and staff defaults. Your decision log is
-                  kept.
+                  Load the {industryMeta(pendingIndustry).label} demo? This swaps in that industry's
+                  processes, people, scenarios and staff defaults. Your decision log is kept.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => loadTemplate(pendingIndustry)}>
