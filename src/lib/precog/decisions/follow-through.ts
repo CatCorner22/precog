@@ -5,6 +5,7 @@ import {
   DOCUMENTATION_LABEL,
   DOCUMENTATION_RANK,
   STATUS_LABEL,
+  STRONG_LEVELS,
 } from "../continuity/coverage";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { IndustryId } from "../industry";
@@ -18,7 +19,7 @@ import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { IndustryTemplate } from "../templates/types";
-import type { StaffComposition } from "../types";
+import type { KnowledgeItem, Person, StaffComposition } from "../types";
 
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -170,6 +171,50 @@ export function continuitySlips(
     }
   }
   return slips;
+}
+
+export type RegisterCloseOut =
+  | {
+      step: "cover";
+      item: KnowledgeItem;
+      status: CoverageStatus;
+      /** The person the decision set out to train, if still on the active team and not yet able to run it alone. */
+      trainee: Person | null;
+      /** Active people who cannot yet run it alone, best cross-training candidate first. */
+      candidates: Person[];
+    }
+  | { step: "document" | "locate"; item: KnowledgeItem };
+
+/**
+ * What the register would still have to say for closing this decision as
+ * "done" to be true. Null when the register already says it, when the decision
+ * is not a register step (or is a temporary handoff), or when the item is gone.
+ */
+export function registerCloseOut(d: DecisionEntry, tpl: IndustryTemplate): RegisterCloseOut | null {
+  const knowledgeId = linkedKnowledgeId(d, tpl.id);
+  if (!knowledgeId) return null;
+  const coverage = coverageReport(tpl).items.find((i) => i.item.id === knowledgeId);
+  if (!coverage) return null;
+  const step = linkedContinuityStep(d);
+  if (step === "handoff") return null;
+  if (step === "cover") {
+    if (coverage.status === "covered") return null;
+    const strong = new Set(
+      tpl.relations
+        .filter((r) => r.knowledgeId === knowledgeId && STRONG_LEVELS.has(r.level))
+        .map((r) => r.personId),
+    );
+    const ranked = coverage.suggestedBackups.map((b) => b.person);
+    const others = tpl.people.filter(
+      (p) => p.active && !strong.has(p.id) && !ranked.some((r) => r.id === p.id),
+    );
+    const candidates = [...ranked, ...others];
+    const trainee = candidates.find((p) => p.id === d.linkedPersonId) ?? null;
+    return { step, item: coverage.item, status: coverage.status, trainee, candidates };
+  }
+  const docs = documentationState(coverage.item);
+  if (docs === "located" || (step === "document" && docs === "unlocated")) return null;
+  return { step, item: coverage.item };
 }
 
 /** Lower-case then/now wording for a coverage or documentation slip. */

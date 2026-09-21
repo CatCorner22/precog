@@ -18,6 +18,7 @@ import {
   linkedKnowledgeId,
   linkedToIndustry,
   localDateKey,
+  registerCloseOut,
   slipLabels,
 } from "./follow-through";
 
@@ -600,5 +601,90 @@ describe("continuitySlips", () => {
       from: "written and findable",
       to: "nothing written down",
     });
+  });
+});
+
+describe("registerCloseOut", () => {
+  const report = coverageReport(dental);
+  const single = report.items.find((i) => i.status === "single")!;
+  const covered = report.items.find((i) => i.status === "covered")!;
+  const coverDecision = (overrides: Partial<DecisionEntry> = {}) =>
+    decision({
+      linkedTab: "knowledge",
+      linkedId: single.item.id,
+      linkedStep: "cover",
+      ...overrides,
+    });
+
+  it("asks who can now run a still-single item alone, preferring the trainee the decision named", () => {
+    const suggested = single.suggestedBackups[0].person;
+    const out = registerCloseOut(coverDecision(), dental);
+    expect(out?.step).toBe("cover");
+    if (out?.step !== "cover") throw new Error("expected a cover close-out");
+    expect(out.status).toBe("single");
+    expect(out.trainee).toBeNull();
+    expect(out.candidates[0].id).toBe(suggested.id);
+    expect(out.candidates.every((p) => p.active)).toBe(true);
+    expect(out.candidates.map((p) => p.id)).not.toContain(single.primaries[0].id);
+
+    const other = out.candidates[out.candidates.length - 1];
+    const named = registerCloseOut(coverDecision({ linkedPersonId: other.id }), dental);
+    if (named?.step !== "cover") throw new Error("expected a cover close-out");
+    expect(named.trainee?.id).toBe(other.id);
+  });
+
+  it("returns nothing once the register already shows the outcome", () => {
+    expect(registerCloseOut(coverDecision({ linkedId: covered.item.id }), dental)).toBeNull();
+    expect(
+      registerCloseOut(coverDecision({ linkedPersonId: single.primaries[0].id }), dental)?.step,
+    ).toBe("cover");
+
+    const trained = resolveTemplate({
+      industry: "dental",
+      customRelations: [
+        ...dental.relations,
+        {
+          personId: single.suggestedBackups[0].person.id,
+          knowledgeId: single.item.id,
+          level: "proficient",
+        },
+      ],
+    });
+    expect(registerCloseOut(coverDecision(), trained)).toBeNull();
+  });
+
+  it("asks for the write-up or its location for documentation steps, and nothing for handoffs or unlinked entries", () => {
+    const undocumented = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((k) =>
+        k.id === single.item.id ? { ...k, documented: false, procedureLocation: undefined } : k,
+      ),
+    });
+    const unlocated = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((k) =>
+        k.id === single.item.id ? { ...k, documented: true, procedureLocation: undefined } : k,
+      ),
+    });
+    const located = resolveTemplate({
+      industry: "dental",
+      customKnowledge: dental.knowledge.map((k) =>
+        k.id === single.item.id ? { ...k, documented: true, procedureLocation: "Drive/ops" } : k,
+      ),
+    });
+    const doc = coverDecision({ linkedStep: "document" });
+    const loc = coverDecision({ linkedStep: "locate" });
+
+    expect(registerCloseOut(doc, undocumented)?.step).toBe("document");
+    expect(registerCloseOut(doc, unlocated)).toBeNull();
+    expect(registerCloseOut(doc, located)).toBeNull();
+    expect(registerCloseOut(loc, undocumented)?.step).toBe("locate");
+    expect(registerCloseOut(loc, unlocated)?.step).toBe("locate");
+    expect(registerCloseOut(loc, located)).toBeNull();
+
+    expect(registerCloseOut(coverDecision({ linkedStep: "handoff" }), dental)).toBeNull();
+    expect(registerCloseOut(decision(), dental)).toBeNull();
+    expect(registerCloseOut(coverDecision({ linkedId: "missing" }), dental)).toBeNull();
+    expect(registerCloseOut(coverDecision({ linkedIndustry: "retail" }), dental)).toBeNull();
   });
 });

@@ -70,6 +70,8 @@ export interface DecisionEntry {
   linkedIndustry?: IndustryId;
   /** Which continuity step this tracks when `linkedTab` is "knowledge"; older entries default to "cover". */
   linkedStep?: ContinuityStep;
+  /** The person a "cover" step set out to train, so closing it as done can update their level on the register. */
+  linkedPersonId?: string;
   snapshot?: DecisionSnapshot;
   reviews?: DecisionReview[];
   status?: "open" | "closed";

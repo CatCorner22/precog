@@ -125,6 +125,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     knowledgeId: string,
     step: ContinuityStep,
     reviewBy: Date,
+    personId?: string,
   ) =>
     addDecision({
       subject,
@@ -134,6 +135,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       linkedTab: "knowledge",
       linkedId: knowledgeId,
       linkedStep: step,
+      linkedPersonId: personId,
     });
   const confirmLogged = (reviewBy: Date, count = 1) =>
     toast.success(
@@ -141,7 +143,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     );
   const logMove = (m: CrossTrainingMove) => {
     const reviewBy = reviewDateIn30Days();
-    logContinuityDecision(m.item.name, m.action, m.item.id, "cover", reviewBy);
+    logContinuityDecision(m.item.name, m.action, m.item.id, "cover", reviewBy, m.trainee?.id);
     confirmLogged(reviewBy);
   };
   const logGap = (g: DocumentationGap) => {

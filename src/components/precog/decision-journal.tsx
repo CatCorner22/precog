@@ -14,9 +14,16 @@ import {
   isDecisionOpen,
   linkedKnowledgeId,
   linkedToIndustry,
+  localDateKey,
+  registerCloseOut,
   slipLabels,
+  type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
-import { DOCUMENTATION_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import {
+  DOCUMENTATION_LABEL,
+  setRelationLevel,
+  STATUS_LABEL,
+} from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
@@ -60,12 +67,137 @@ function reviewDelta(
   return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
 }
 
+/**
+ * "Done" for a register step, when the register does not yet say so: closing
+ * the decision also writes the outcome to the register (and re-confirms the
+ * entry), so the Journal and the register cannot drift apart. "Done anyway"
+ * closes without touching the register.
+ */
+function RegisterCloseOutControls({
+  closeOut,
+  onDone,
+  onDoneAnyway,
+}: {
+  closeOut: RegisterCloseOut;
+  onDone: (write: RegisterWrite, note: string) => void;
+  onDoneAnyway: () => void;
+}) {
+  const [personId, setPersonId] = useState(
+    closeOut.step === "cover" ? (closeOut.trainee ?? closeOut.candidates[0])?.id : undefined,
+  );
+  const [location, setLocation] = useState("");
+  const person =
+    closeOut.step === "cover" ? closeOut.candidates.find((p) => p.id === personId) : undefined;
+  const trimmedLocation = location.trim();
+  const inputClass =
+    "rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-foreground";
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-2.5 text-xs">
+      <p className="text-muted">
+        {closeOut.step === "cover"
+          ? `The register still says "${closeOut.item.name}" is ${STATUS_LABEL[closeOut.status].toLowerCase()}. Who can run it alone now?`
+          : closeOut.step === "document"
+            ? `The register still says nothing is written down for "${closeOut.item.name}".`
+            : `The register still has no location for the written "${closeOut.item.name}" procedure.`}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {closeOut.step === "cover" && closeOut.candidates.length > 0 && (
+          <select
+            value={personId}
+            onChange={(e) => setPersonId(e.target.value)}
+            className={inputClass}
+            aria-label="Who can now run it alone"
+          >
+            {closeOut.candidates.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {closeOut.step !== "cover" && (
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder={
+              closeOut.step === "document"
+                ? "Where it lives (optional)"
+                : "Where it lives — drive path, binder, link"
+            }
+            className={`${inputClass} min-w-56 flex-1`}
+            aria-label="Where the written procedure lives"
+          />
+        )}
+        {closeOut.step === "cover" && person && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "level", knowledgeId: closeOut.item.id, personId: person.id },
+                `${person.name} can now run it alone`,
+              )
+            }
+          >
+            Done — {person.name.split(" ")[0]} can now do it alone
+          </Button>
+        )}
+        {closeOut.step === "document" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                trimmedLocation ? `Written down at ${trimmedLocation}` : "Written down",
+              )
+            }
+          >
+            Done — it&apos;s written down
+          </Button>
+        )}
+        {closeOut.step === "locate" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!trimmedLocation}
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                `Procedure lives at ${trimmedLocation}`,
+              )
+            }
+          >
+            Done — it lives there
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" className="text-muted" onClick={onDoneAnyway}>
+          Done anyway
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+type RegisterWrite =
+  | { kind: "level"; knowledgeId: string; personId: string }
+  | { kind: "documented"; knowledgeId: string; location: string };
+
 export function DecisionJournal({
   onOpenLinked,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
-  const { profile, template, addDecision, removeDecision, reviewDecision } = usePractice();
+  const {
+    profile,
+    template,
+    addDecision,
+    removeDecision,
+    reviewDecision,
+    setCustomKnowledge,
+    setCustomRelations,
+  } = usePractice();
   const portfolio = useMemo(
     () => portfolioSummary(template, profile.staff),
     [template, profile.staff],
@@ -122,6 +254,36 @@ export function DecisionJournal({
       ]),
     );
   }, [profile.decisions, profile.industry, template, profile.staff, profile.dualRelease]);
+  const closeOuts = useMemo(
+    () => new Map(dueDecisions.map((d) => [d.id, registerCloseOut(d, template)])),
+    [dueDecisions, template],
+  );
+  /** Write the decision's outcome to the register, then close it; the "done" snapshot sees the updated register. */
+  const closeWithRegister = (d: DecisionEntry, write: RegisterWrite, note: string) => {
+    const todayKey = localDateKey(today);
+    if (write.kind === "level") {
+      setCustomRelations((current) =>
+        setRelationLevel(current, write.personId, write.knowledgeId, "proficient"),
+      );
+      setCustomKnowledge((current) =>
+        current.map((k) => (k.id === write.knowledgeId ? { ...k, confirmedAt: todayKey } : k)),
+      );
+    } else {
+      setCustomKnowledge((current) =>
+        current.map((k) =>
+          k.id === write.knowledgeId
+            ? {
+                ...k,
+                documented: true,
+                ...(write.location ? { procedureLocation: write.location } : {}),
+                confirmedAt: todayKey,
+              }
+            : k,
+        ),
+      );
+    }
+    reviewDecision(d.id, "done", note);
+  };
   const orderedDecisions = useMemo(
     () =>
       [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),
@@ -266,14 +428,24 @@ export function DecisionJournal({
                     <p className="mt-1 text-xs tabular text-muted">
                       {reviewDelta(d, currentSnapshots.get(d.id)!)}
                     </p>
+                    {closeOuts.get(d.id) && (
+                      <RegisterCloseOutControls
+                        key={`${d.id}:${d.reviews?.length ?? 0}`}
+                        closeOut={closeOuts.get(d.id)!}
+                        onDone={(write, note) => closeWithRegister(d, write, note)}
+                        onDoneAnyway={() => reviewDecision(d.id, "done")}
+                      />
+                    )}
                     <div className="mt-2 flex flex-wrap gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => reviewDecision(d.id, "done")}
-                      >
-                        Done
-                      </Button>
+                      {!closeOuts.get(d.id) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => reviewDecision(d.id, "done")}
+                        >
+                          Done
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
