@@ -13,7 +13,12 @@ import { industryMeta } from "@/lib/precog/industry";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { continuitySlips, decisionsDue, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
-import { coverageReport, documentationDebt, staleItems } from "@/lib/precog/continuity/coverage";
+import {
+  checkInPlan,
+  coverageReport,
+  documentationDebt,
+  staleItems,
+} from "@/lib/precog/continuity/coverage";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
@@ -76,6 +81,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       coverageIndex: coverage.coverageIndex,
       documentationIndex: documentationDebt(template).documentedIndex,
       freshness: staleItems(template, localDateKey(today)),
+      checkIns: checkInPlan(template, localDateKey(today)),
       mostDepended: coverage.people.find((load) => load.person.active && load.dependence > 0),
     };
   }, [template, today]);
@@ -334,9 +340,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 </p>
                 <p className="mt-1 text-sm font-medium">Confirmed recently</p>
                 <p className="mt-1 text-xs text-subtle">
-                  {trackFreshness
-                    ? "checked in the last 90 days"
-                    : "starts once you enter your own register"}
+                  {!trackFreshness
+                    ? "starts once you enter your own register"
+                    : continuityReadiness.checkIns.checkIns[0]
+                      ? `next: check in with ${continuityReadiness.checkIns.checkIns[0].person.name.split(" ")[0]} (${continuityReadiness.checkIns.checkIns[0].items.length})`
+                      : continuityReadiness.checkIns.unheld.length > 0
+                        ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
+                        : "checked in the last 90 days"}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">

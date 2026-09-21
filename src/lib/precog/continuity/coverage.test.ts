@@ -6,6 +6,7 @@ import {
   absenceImpact,
   checkInPlan,
   contingencyCards,
+  coverageDrops,
   coverageReport,
   coverageStatus,
   documentationDebt,
@@ -137,6 +138,47 @@ describe("staleItems", () => {
       ["future", null, null],
     ]);
     expect(report.stale.some((entry) => entry.item.id === "valid")).toBe(false);
+  });
+});
+
+describe("coverageDrops", () => {
+  const knowledge = [
+    item("payroll"),
+    item("deposits"),
+    item("filing", { criticality: "nice-to-have" }),
+  ];
+  const relations: KnowledgeRelation[] = [
+    { personId: "a", knowledgeId: "payroll", level: "expert" },
+    { personId: "b", knowledgeId: "payroll", level: "proficient" },
+    { personId: "b", knowledgeId: "deposits", level: "expert" },
+    { personId: "a", knowledgeId: "filing", level: "expert" },
+    { personId: "c", knowledgeId: "filing", level: "basic" },
+  ];
+  const before = coverageReport(tpl(knowledge, relations));
+
+  it("lists items whose coverage got worse, most serious first, with who is left and the repair", () => {
+    let next = setRelationLevel(relations, "b", "payroll", undefined);
+    next = setRelationLevel(next, "b", "deposits", undefined);
+    next = setRelationLevel(next, "a", "filing", "basic");
+    const drops = coverageDrops(before, coverageReport(tpl(knowledge, next)));
+
+    expect(drops.map((d) => [d.item.id, d.from, d.to])).toEqual([
+      ["deposits", "single", "uncovered"],
+      ["payroll", "covered", "single"],
+      ["filing", "thin", "uncovered"],
+    ]);
+    expect(drops[1].remaining.map((p) => p.id)).toEqual(["a"]);
+    expect(drops[1].move?.action).toMatch(/training .* on "payroll" with Ana/);
+    expect(drops[0].remaining).toEqual([]);
+  });
+
+  it("ignores unchanged, improved and removed items", () => {
+    const improved = setRelationLevel(relations, "c", "deposits", "proficient");
+    expect(coverageDrops(before, coverageReport(tpl(knowledge, improved)))).toEqual([]);
+
+    const removed = coverageReport(tpl(knowledge.slice(1), relations));
+    expect(coverageDrops(before, removed)).toEqual([]);
+    expect(coverageDrops(removed, before)).toEqual([]);
   });
 });
 
