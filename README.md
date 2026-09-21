@@ -4,6 +4,18 @@
 
 Built for owner-operated teams (2–20 people): dental and medical offices, retail, professional services, restaurants, and general small business.
 
+| Module | Path | Role |
+|--------|------|------|
+| Residual engine | `src/lib/precog/scoring/` | Inherent × (1 − effectiveness) × staff modifiers, action bands, drivers |
+| Tornado sensitivity | `scoring/residual-engine.ts` | Highest-leverage control levers |
+| COSO heat map | `coso.ts` + UI | 5 components, 17 principles, deep links |
+| Precog scenarios | `engine.ts` | p50 / 95% CI timelines + $ impact |
+| Knowledge SPOF map | knowledge UI | Continuity / single points of failure |
+| Pioneer LLM coach | `coach/` | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always |
+| Operating blueprint | `operating-blueprint.ts` + UI | 10 core practice processes with standard, leading, optimal, and fallback designs |
+| Power map builder | SoD UI | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
+| Assessment snapshots | `snapshots.ts` + UI | Private, versioned practice records with model/corpus provenance |
+
 ## What you get
 
 | Capability              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -58,7 +70,7 @@ npm install
 npm run dev    # live preview on port 8080
 npm run build
 npm run typecheck
-npm test       # vitest unit tests for the engines (src/**/*.test.ts)
+npm test       # vitest unit tests + domain checks
 ```
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evidence` and `verify:template` on every pull request.
@@ -84,3 +96,7 @@ Five industry templates ship with demo processes, people, knowledge graphs, cont
 Switch industry in **Business profile** to load the full template (process map, SoD, scenarios, dual-release defaults). A business belongs to one industry: once you have entered your own team, register, leave or processes, the switch spells out what it would discard and offers to keep the business as it is and add the new industry as a second business (the header switcher moves between them) instead of replacing it.
 
 Educational tool only — not actuarial, legal, or forensic advice. The cases describe other organizations, not yours, and are prosecuted cases, so they skew large and late. Never scores people as fraudulent; targets are control gaps and residual exposures.
+
+## Product strategy
+
+See [`docs/COMMERCIAL_ASSESSMENT.md`](docs/COMMERCIAL_ASSESSMENT.md) for the competitive landscape, market wedge, avoided-cost measurement framework, commercialization requirements, and explicit go/no-go gates.

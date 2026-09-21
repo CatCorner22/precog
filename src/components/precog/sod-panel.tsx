@@ -8,11 +8,12 @@ import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
+import { PowerMapBuilder } from "@/components/precog/power-map-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Grid3x3, Shield, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, Grid3x3, Network, Shield, ShieldCheck, Users } from "lucide-react";
 
 const FRAMEWORK_DUTIES = [
   { duty: "Authorization", meaning: "Approve before money or adjustments move" },
@@ -26,8 +27,10 @@ type NavFn = (tab: string, id?: string) => void;
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
   const { profile } = usePractice();
+  const [view, setView] = useState<
+    "conflicts" | "matrix" | "roles" | "dual" | "power"
+  >("dual");
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual">("dual");
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
   >("all");
@@ -140,6 +143,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
+          variant={view === "power" ? "default" : "secondary"}
+          onClick={() => setView("power")}
+        >
+          <Network className="size-3.5" />
+          Power map
+        </Button>
+        <Button
+          size="sm"
           variant={view === "dual" ? "default" : "secondary"}
           onClick={() => setView("dual")}
         >
@@ -173,6 +184,8 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       </div>
 
       {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
+
+      {view === "power" && <PowerMapBuilder />}
 
       {view === "conflicts" && (
         <Card>

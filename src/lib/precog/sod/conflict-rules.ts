@@ -23,6 +23,18 @@ export type EntitlementId =
   | "approve_payroll"
   | "enter_payroll"
   | "pms_admin_roles"
+  | "issue_refunds"
+  | "change_fee_schedule"
+  | "edit_patient_master"
+  | "manage_user_access"
+  | "export_bulk_data"
+  | "order_supplies"
+  | "receive_goods"
+  | "enter_invoices"
+  | "initiate_ach"
+  | "sign_checks"
+  | "review_audit_logs"
+  | "manage_backups"
   | "view_reports_only";
 
 export interface Entitlement {
@@ -145,6 +157,18 @@ export const ENTITLEMENTS: Entitlement[] = [
     processIds: [],
     riskWeight: 1,
   },
+  { id: "issue_refunds", label: "Issue patient refunds", family: "custody", processIds: ["proc-ar", "proc-cash"], riskWeight: 5 },
+  { id: "change_fee_schedule", label: "Change fee schedules / pricing", family: "master_data", processIds: ["proc-ar", "proc-claims"], riskWeight: 4 },
+  { id: "edit_patient_master", label: "Edit patient / guarantor master data", family: "master_data", processIds: ["proc-schedule", "proc-ar"], riskWeight: 3 },
+  { id: "manage_user_access", label: "Create users / assign system access", family: "master_data", processIds: ["proc-schedule", "proc-claims"], riskWeight: 5 },
+  { id: "export_bulk_data", label: "Export bulk patient / financial data", family: "custody", processIds: ["proc-ar", "proc-claims"], riskWeight: 4 },
+  { id: "order_supplies", label: "Order supplies / services", family: "authorization", processIds: ["proc-ap", "proc-clinical"], riskWeight: 3 },
+  { id: "receive_goods", label: "Confirm receipt of goods / services", family: "custody", processIds: ["proc-ap"], riskWeight: 3 },
+  { id: "enter_invoices", label: "Enter invoices / bills", family: "recording", processIds: ["proc-ap"], riskWeight: 4 },
+  { id: "initiate_ach", label: "Initiate ACH / electronic payment", family: "custody", processIds: ["proc-ap", "proc-payroll"], riskWeight: 5 },
+  { id: "sign_checks", label: "Sign / release checks", family: "authorization", processIds: ["proc-ap", "proc-payroll"], riskWeight: 5 },
+  { id: "review_audit_logs", label: "Review system audit / access logs", family: "reconciliation", processIds: ["proc-claims", "proc-ar"], riskWeight: 3 },
+  { id: "manage_backups", label: "Manage backups / recovery settings", family: "custody", processIds: ["proc-clinical", "proc-claims"], riskWeight: 4 },
 ];
 
 /**
@@ -152,6 +176,79 @@ export const ENTITLEMENTS: Entitlement[] = [
  * Symmetric: engine treats (a,b) same as (b,a).
  */
 export const CONFLICT_RULES: ConflictRule[] = [
+  {
+    id: "rule-refund-adjust",
+    a: "issue_refunds",
+    b: "post_adjustments",
+    severity: "critical",
+    title: "Refund custody + account adjustment",
+    why: "One person can create a false credit and release the resulting refund.",
+    fraudPath: "Post unsupported credit, then refund to a controlled payment method",
+    compensatingDefaults: ["Independent refund approval", "Refund to original payment method"],
+    linkedControlId: "c-sod-billing",
+  },
+  {
+    id: "rule-invoice-pay",
+    a: "enter_invoices",
+    b: "release_payment",
+    severity: "critical",
+    title: "Invoice entry + payment release",
+    why: "The same person can enter an unsupported invoice and pay it.",
+    fraudPath: "Enter fictitious invoice and release payment",
+    compensatingDefaults: ["Owner reviews invoice support", "Dual release above threshold"],
+    linkedControlId: "c-sod-ap",
+  },
+  {
+    id: "rule-order-receive",
+    a: "order_supplies",
+    b: "receive_goods",
+    severity: "high",
+    title: "Ordering + receipt confirmation",
+    why: "The requester can conceal missing, diverted, or never-delivered goods.",
+    fraudPath: "Order for personal use and self-confirm receipt",
+    compensatingDefaults: ["Independent receiving evidence", "Periodic inventory review"],
+  },
+  {
+    id: "rule-ach-release",
+    a: "initiate_ach",
+    b: "release_payment",
+    severity: "critical",
+    title: "ACH initiation + payment release",
+    why: "End-to-end electronic payment power permits unauthorized transfers.",
+    fraudPath: "Create and self-release electronic payment",
+    compensatingDefaults: ["Bank-enforced dual approval", "Owner out-of-band release"],
+    linkedControlId: "c-sod-ap",
+  },
+  {
+    id: "rule-access-log",
+    a: "manage_user_access",
+    b: "review_audit_logs",
+    severity: "critical",
+    title: "Access administration + audit-log review",
+    why: "An administrator can grant access and suppress independent detection.",
+    fraudPath: "Create privileged account and self-clear or ignore evidence",
+    compensatingDefaults: ["Independent quarterly access review", "Immutable vendor-hosted logs"],
+  },
+  {
+    id: "rule-access-export",
+    a: "manage_user_access",
+    b: "export_bulk_data",
+    severity: "high",
+    title: "Access administration + bulk export",
+    why: "The same person can grant themselves access and export sensitive data.",
+    fraudPath: "Elevate access, export PHI or financial data, then remove account",
+    compensatingDefaults: ["Export alerts to owner", "Independent access-change report"],
+  },
+  {
+    id: "rule-backup-access",
+    a: "manage_backups",
+    b: "manage_user_access",
+    severity: "high",
+    title: "Identity administration + backup control",
+    why: "Concentrated administrative power can disable recovery and conceal destructive activity.",
+    fraudPath: "Alter access and delete or weaken recovery copies",
+    compensatingDefaults: ["Separate backup console credentials", "Immutable/offline recovery copy"],
+  },
   {
     id: "rule-cash-rec",
     a: "post_payments",

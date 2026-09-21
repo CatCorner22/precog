@@ -7,6 +7,7 @@
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
+import { getIndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
@@ -54,13 +55,14 @@ function bandToClassification(band: PriorityBand): ThreatTarget["classification"
 }
 
 export function buildThreatAssessment(input: {
-  tpl: IndustryTemplate;
+  tpl?: IndustryTemplate;
   practiceName: string;
   staff: StaffComposition;
   riskVariables?: RiskVariableState;
   dualRelease?: DualReleasePolicy;
 }): ThreatAssessmentReport {
-  const { tpl, practiceName, staff, riskVariables, dualRelease } = input;
+  const tpl = input.tpl ?? getIndustryTemplate("dental");
+  const { practiceName, staff, riskVariables, dualRelease } = input;
   const portfolio = portfolioSummary(tpl, staff);
   const sod = detectSodConflicts(tpl, staff, {
     dualReleaseMitigatedRuleIds: dualRelease ? mitigatedSodRuleIds(dualRelease) : undefined,

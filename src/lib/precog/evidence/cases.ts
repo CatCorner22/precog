@@ -39,7 +39,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 24,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
+    sodRuleIds: ["rule-cash-rec", "rule-deposit-post", "rule-access-log", "rule-access-export", "rule-backup-access"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -196,6 +196,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-vendor-create-pay",
       "rule-vendor-create-approve",
       "rule-vendor-approve-pay",
+      "rule-order-receive",
       "rule-payroll",
     ],
     wouldHaveCaughtIt: [
@@ -604,7 +605,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 8,
     detection: "unknown",
     resolvedYear: 2014,
-    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-custody-rec"],
+    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-custody-rec", "rule-refund-adjust"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -765,7 +766,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 60,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-vendor-create-pay", "rule-admin-pay"],
+    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay", "rule-ach-release", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",

@@ -5,6 +5,7 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
+  Archive,
   BookOpen,
   Brain,
   Compass,
@@ -14,12 +15,14 @@ import {
   Gauge,
   Grid3x3,
   Hammer,
+  LibraryBig,
   Layers,
   Map,
   MessageSquare,
   Network,
   Shield,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -106,6 +109,21 @@ const DecisionJournal = lazy(() =>
     default: module.DecisionJournal,
   })),
 );
+const AssessmentSnapshots = lazy(() =>
+  import("@/components/precog/assessment-snapshots").then((module) => ({
+    default: module.AssessmentSnapshots,
+  })),
+);
+const OperatingBlueprint = lazy(() =>
+  import("@/components/precog/operating-blueprint").then((module) => ({
+    default: module.OperatingBlueprint,
+  })),
+);
+const ValueProofCenter = lazy(() =>
+  import("@/components/precog/value-proof-center").then((module) => ({
+    default: module.ValueProofCenter,
+  })),
+);
 
 /**
  * The dashboard is driven by client-only state (local profile + active template).
@@ -166,7 +184,10 @@ type TabId =
   | "knowledge"
   | "precog"
   | "sod"
-  | "journal";
+  | "journal"
+  | "snapshots"
+  | "blueprint"
+  | "value";
 
 /**
  * Every tab carries both wordings. Plain is what a business owner reads by
@@ -187,6 +208,9 @@ const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] =
   { id: "precog", label: "What could happen", tactical: "Precog", icon: Sparkles },
   { id: "sod", label: "Who controls what", tactical: "SoD", icon: Shield },
   { id: "journal", label: "Decisions log", tactical: "Journal", icon: BookOpen },
+  { id: "value", label: "Value proof", tactical: "Value", icon: TrendingUp },
+  { id: "blueprint", label: "Operating blueprint", tactical: "Blueprint", icon: LibraryBig },
+  { id: "snapshots", label: "Assessment snapshots", tactical: "Snapshots", icon: Archive },
 ];
 
 function Home() {
@@ -291,7 +315,7 @@ function Home() {
       return;
     }
     if (
-      ["residual", "coso", "sod", "journal", "command", "pioneer", "layers", "start"].includes(
+      ["residual", "coso", "sod", "journal", "snapshots", "blueprint", "value", "command", "pioneer", "layers", "start"].includes(
         tabName,
       )
     ) {
@@ -676,6 +700,9 @@ function Home() {
         {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
         {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
+        {tab === "snapshots" && <AssessmentSnapshots />}
+        {tab === "blueprint" && <OperatingBlueprint />}
+        {tab === "value" && <ValueProofCenter />}
         </Suspense></TabErrorBoundary>
       </main>
     </div>

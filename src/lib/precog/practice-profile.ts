@@ -297,62 +297,83 @@ export function loadProfile(): PracticeProfile {
     const raw =
       localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return { ...defaultProfile(), onboardingComplete: false };
-    const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
-    const industry = (parsed.industry as IndustryId) ?? "dental";
-    const base = defaultProfile(industry);
-    const staff = { ...base.staff, ...parsed.staff };
-    const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
-    const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
-    const customKnowledge = normalizeCustomKnowledge(
-      parsed.customKnowledge,
-      localDateKey(new Date()),
-    );
-    const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
-    const dualRelease = mergeDualReleasePolicy(
-      resolveTemplate({
-        industry,
-        customProcesses,
-        customPeople,
-        customKnowledge,
-        customRelations,
-      }),
-      parsed.dualRelease as DualReleasePolicy | undefined,
-      staff,
-    );
-    // Keep dual release master switch in sync with staff flag if policy missing
-    if (!parsed.dualRelease) {
-      dualRelease.enabled = staff.dualControlPayments;
-    } else {
-      staff.dualControlPayments = dualRelease.enabled;
-    }
-    return {
-      ...base,
-      ...parsed,
+    return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>, false);
+  } catch {
+    return defaultProfile();
+  }
+}
+
+export function normalizeProfile(
+  parsed: Partial<PracticeProfile>,
+  onboardingCompleteFallback = true,
+): PracticeProfile {
+  const industry = isIndustryId(parsed.industry) ? parsed.industry : "dental";
+  const base = defaultProfile(industry);
+  const staff = { ...base.staff, ...parsed.staff };
+  const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
+  const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
+  const customKnowledge = normalizeCustomKnowledge(parsed.customKnowledge, localDateKey(new Date()));
+  const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
+  const dualRelease = mergeDualReleasePolicy(
+    resolveTemplate({
       industry,
-      staff,
-      riskVariables: {
-        ...base.riskVariables,
-        ...parsed.riskVariables,
-        hasDualControl: dualRelease.enabled,
-        hasIndependentBankRec: staff.independentBankRec,
-      },
-      dualRelease,
-      decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
-      onboardingComplete: parsed.onboardingComplete ?? true,
       customProcesses,
       customPeople,
       customKnowledge,
       customRelations,
-      plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
-      mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
-      savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
-      mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
-      mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
-      businessId: typeof parsed.businessId === "string" ? parsed.businessId : "biz_default",
-    };
-  } catch {
-    return defaultProfile();
+    }),
+    parsed.dualRelease as DualReleasePolicy | undefined,
+    staff,
+  );
+  if (!parsed.dualRelease) {
+    dualRelease.enabled = staff.dualControlPayments;
+  } else {
+    staff.dualControlPayments = dualRelease.enabled;
   }
+  const validKinds = new Set<DecisionKind>(["accept_residual", "remediate", "monitor", "insure"]);
+  const decisions = Array.isArray(parsed.decisions)
+    ? parsed.decisions.slice(0, 100).flatMap((entry) => {
+        if (!entry || typeof entry !== "object" || !validKinds.has(entry.kind)) return [];
+        return [{
+          ...entry,
+          id: String(entry.id ?? "").slice(0, 80),
+          createdAt: String(entry.createdAt ?? "").slice(0, 40),
+          subject: String(entry.subject ?? "").slice(0, 200),
+          kind: entry.kind,
+          note: String(entry.note ?? "").slice(0, 2_000),
+          reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
+          residualAtDecision:
+            Number.isFinite(entry.residualAtDecision) ? entry.residualAtDecision : undefined,
+          linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
+          linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
+        }];
+      })
+    : [];
+  return {
+    industry,
+    practiceName: String(parsed.practiceName ?? base.practiceName).slice(0, 80),
+    staff,
+    riskVariables: {
+      ...base.riskVariables,
+      ...parsed.riskVariables,
+      hasDualControl: dualRelease.enabled,
+      hasIndependentBankRec: staff.independentBankRec,
+    },
+    dualRelease,
+    decisions,
+    onboardingComplete: parsed.onboardingComplete ?? onboardingCompleteFallback,
+    customProcesses,
+    customPeople,
+    customKnowledge,
+    customRelations,
+    plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
+    mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
+    savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
+    mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
+    mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
+    businessId: typeof parsed.businessId === "string" ? parsed.businessId : base.businessId,
+    updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
+  };
 }
 
 export function saveProfile(profile: PracticeProfile): void {

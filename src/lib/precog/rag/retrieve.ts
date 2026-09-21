@@ -2,7 +2,7 @@
  * Lightweight TF-IDF retrieval over the curated corpus.
  * No external embedding API required — works offline and in SSR.
  */
-import { KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
+import { describeChunkBasis, KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
 import type { IndustryId } from "../industry";
 
 function tokenize(text: string): string[] {
@@ -159,7 +159,7 @@ export function formatRetrievalForPrompt(hits: RetrievalHit[]): string {
   return hits
     .map(
       (h) =>
-        `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text}`,
+        `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text} Basis: ${describeChunkBasis(h.chunk)}`,
     )
     .join("\n\n");
 }

@@ -9,6 +9,7 @@
  * 5. Build N×N entitlement matrix for UI
  */
 import type { IndustryTemplate } from "../templates";
+import { getIndustryTemplate } from "../templates";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
 import {
   CONFLICT_RULES,
@@ -104,6 +105,75 @@ export function sodDetectionOptions(
   };
 }
 
+export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
+  "Owner / Dentist": [
+    "approve_writeoffs",
+    "approve_vendor",
+    "approve_payroll",
+    "bank_reconcile",
+    "view_reports_only",
+    "pms_admin_roles",
+  ],
+  "Office Manager": [
+    "post_payments",
+    "prepare_deposit",
+    "post_adjustments",
+    "create_vendor",
+    "release_payment",
+    "enter_payroll",
+    "approve_writeoffs",
+    "pms_admin_roles",
+    "submit_claims",
+    "view_reports_only",
+  ],
+  "Front Desk Lead": [
+    "collect_cash",
+    "post_payments",
+    "prepare_deposit",
+    "submit_claims",
+    "post_adjustments",
+  ],
+  Hygienist: ["view_reports_only"],
+  "Dental Assistant": ["view_reports_only"],
+  "Billing Specialist": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "approve_writeoffs",
+    "view_reports_only",
+  ],
+  "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
+  "Practice Administrator": [
+    "approve_vendor",
+    "approve_payroll",
+    "approve_writeoffs",
+    "view_reports_only",
+    "review_audit_logs",
+  ],
+  Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
+  "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
+  "Insurance Coordinator": ["submit_claims", "post_adjustments", "post_payments", "view_reports_only"],
+  Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile", "enter_payroll", "view_reports_only"],
+  "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
+  "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
+  "Procurement Coordinator": ["order_supplies", "receive_goods", "enter_invoices", "view_reports_only"],
+  "IT Administrator": ["pms_admin_roles", "manage_user_access", "manage_backups", "view_reports_only"],
+  "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
+  "External Billing Service": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "export_bulk_data",
+    "view_reports_only",
+  ],
+  "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
+  "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
+};
+
+export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
+  ([role, entitlements]) => ({ role, entitlements }),
+);
+
 /**
  * Plain wording for the duty families.
  *
@@ -192,6 +262,45 @@ function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
 }
 
+function sharesProcess(a: EntitlementId, b: EntitlementId): boolean {
+  const left = entProcesses(a);
+  const right = new Set(entProcesses(b));
+  return left.some((processId) => right.has(processId));
+}
+
+function canonicalPair(a: EntitlementId, b: EntitlementId): [EntitlementId, EntitlementId] {
+  return a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+}
+
+function familyRuleId(a: DutyFamily, b: DutyFamily) {
+  return `family-${[a, b].sort().join("-")}`;
+}
+
+function isIndustryTemplate(
+  value: IndustryTemplate | StaffComposition | Partial<Record<string, EntitlementId[]>> | undefined,
+): value is IndustryTemplate {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    "people" in value &&
+    "controls" in value &&
+    "scenarios" in value,
+  );
+}
+
+function isSodDetectionOptions(
+  value: StaffComposition | SodDetectionOptions | undefined,
+): value is SodDetectionOptions {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    ("assignments" in value ||
+      "residualAcceptedControlIds" in value ||
+      "compensatingByControlId" in value ||
+      "dualReleaseMitigatedRuleIds" in value),
+  );
+}
+
 function scoreConflict(
   severity: DetectedConflict["severity"],
   a: EntitlementId,
@@ -228,14 +337,17 @@ function scoreConflict(
 }
 
 export function buildAssignments(
-  tpl: IndustryTemplate,
+  tpl?: IndustryTemplate,
   overrides?: Partial<Record<string, EntitlementId[]>>,
 ): RoleAssignment[] {
-  const { people, roleTemplates } = tpl;
+  const activeTemplate = tpl ?? getIndustryTemplate("dental");
+  const { people, roleTemplates } = activeTemplate;
   return people.map((p) => {
     const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
     const fromRole = (fromPerson ??
-      roleTemplates[p.role] ?? ["view_reports_only"]) as EntitlementId[];
+      roleTemplates[p.role] ??
+      ROLE_TEMPLATES[p.role] ??
+      ["view_reports_only"]) as EntitlementId[];
     const extra = overrides?.[p.id] ?? [];
     const entitlements = Array.from(new Set([...fromRole, ...extra]));
     return {
@@ -251,7 +363,24 @@ export function detectSodConflicts(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
   options?: SodDetectionOptions,
+): SodDetectionReport;
+export function detectSodConflicts(
+  staff?: StaffComposition,
+  options?: SodDetectionOptions,
+): SodDetectionReport;
+export function detectSodConflicts(
+  tplOrStaff?: IndustryTemplate | StaffComposition,
+  staffOrOptions?: StaffComposition | SodDetectionOptions,
+  maybeOptions?: SodDetectionOptions,
 ): SodDetectionReport {
+  const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
+  const staff = isIndustryTemplate(tplOrStaff)
+    ? (isSodDetectionOptions(staffOrOptions) ? undefined : staffOrOptions)
+    : tplOrStaff;
+  const options = isIndustryTemplate(tplOrStaff)
+    ? (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions)
+    : (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions);
+
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
@@ -269,10 +398,11 @@ export function detectSodConflicts(
         const fa = entFamily(a);
         const fb = entFamily(b);
 
-        if (!rule && !familiesConflict(fa, fb)) continue;
+        if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
 
         if (rule) {
+          const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);
           const dualMitigated = dualMitigatedRules.has(rule.id);
           const comps = [
             ...rule.compensatingDefaults,
@@ -288,62 +418,77 @@ export function detectSodConflicts(
             personId: person.personId,
             personName: person.personName,
             role: person.role,
-            entitlementA: a,
-            entitlementB: b,
-            labelA: entLabel(a),
-            labelB: entLabel(b),
+            entitlementA: canonicalA,
+            entitlementB: canonicalB,
+            labelA: entLabel(canonicalA),
+            labelB: entLabel(canonicalB),
             severity: rule.severity,
             title: rule.title,
             why: rule.why,
             fraudPath: rule.fraudPath,
-            score: scoreConflict(rule.severity, a, b, accepted, comps.length, dualMitigated, staff),
+            score: scoreConflict(
+              rule.severity,
+              canonicalA,
+              canonicalB,
+              accepted,
+              comps.length,
+              dualMitigated,
+              staff,
+            ),
             compensatingControls: Array.from(new Set(comps)),
             residualRiskAccepted: accepted,
             dualReleaseMitigated: dualMitigated,
             linkedScenarioId: rule.linkedScenarioId,
             linkedControlId: rule.linkedControlId,
-            processIds: Array.from(new Set([...entProcesses(a), ...entProcesses(b)])),
+            processIds: Array.from(
+              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
+            ),
           });
         } else {
+          const [canonicalA, canonicalB] = canonicalPair(a, b);
+          const canonicalFamilyA = entFamily(canonicalA);
+          const canonicalFamilyB = entFamily(canonicalB);
           conflicts.push({
-            id: `${person.personId}:family:${a}:${b}`,
-            ruleId: `family-${fa}-${fb}`,
+            id: `${person.personId}:family:${canonicalA}:${canonicalB}`,
+            ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
             personId: person.personId,
             personName: person.personName,
             role: person.role,
-            entitlementA: a,
-            entitlementB: b,
-            labelA: entLabel(a),
-            labelB: entLabel(b),
+            entitlementA: canonicalA,
+            entitlementB: canonicalB,
+            labelA: entLabel(canonicalA),
+            labelB: entLabel(canonicalB),
             severity: "family",
             title:
-              fa === fb
-                ? `Two ${SAME_FAMILY_NOUN[fa]} duties held by one person`
-                : `${FAMILY_LABEL[fa]} and ${FAMILY_LABEL[fb]} in one pair of hands`,
+              canonicalFamilyA === canonicalFamilyB
+                ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
+                : `${FAMILY_LABEL[canonicalFamilyA]} and ${FAMILY_LABEL[canonicalFamilyB]} in one pair of hands`,
             why:
-              fa === fb
-                ? `One person holds both of these ${SAME_FAMILY_NOUN[fa]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
-                : (FAMILY_WHY[[fa, fb].sort().join("-")] ??
-                  `One person both ${FAMILY_VERB[fa]} and ${FAMILY_VERB[fb]}, so no step in that sequence gets a second look.`),
+              canonicalFamilyA === canonicalFamilyB
+                ? `One person holds both of these ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
+                : (FAMILY_WHY[[canonicalFamilyA, canonicalFamilyB].sort().join("-")] ??
+                  `One person both ${FAMILY_VERB[canonicalFamilyA]} and ${FAMILY_VERB[canonicalFamilyB]}, so no step in that sequence gets a second look.`),
             fraudPath:
-              fa === fb
+              canonicalFamilyA === canonicalFamilyB
                 ? `Complete both steps alone, with no handover anyone would notice`
                 : `Act, then write or check the record of the act, unobserved`,
-            score: scoreConflict("family", a, b, false, 0, false, staff),
+            score: scoreConflict("family", canonicalA, canonicalB, false, 0, false, staff),
             compensatingControls: [
-              `Move either "${entLabel(a)}" or "${entLabel(b)}" to someone else`,
+              `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
               "Have a second person review this sequence on a set cadence",
             ],
             residualRiskAccepted: false,
             dualReleaseMitigated: false,
-            processIds: Array.from(new Set([...entProcesses(a), ...entProcesses(b)])),
+            processIds: Array.from(
+              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
+            ),
           });
         }
       }
     }
   }
 
-  conflicts.sort((a, b) => b.score - a.score);
+  conflicts.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 
   const entitlementOrder = ENTITLEMENTS.map((e) => e.id);
   const matrix: SodMatrixCell[] = [];
@@ -362,7 +507,7 @@ export function detectSodConflicts(
           ruleIds: [rule.id],
           severity: rule.severity,
         });
-      } else if (familiesConflict(entFamily(row), entFamily(col))) {
+      } else if (familiesConflict(entFamily(row), entFamily(col)) && sharesProcess(row, col)) {
         matrix.push({
           row,
           col,

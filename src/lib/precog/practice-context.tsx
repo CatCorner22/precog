@@ -50,6 +50,7 @@ import {
   loadProfile,
   makeBusinessId,
   makeDecisionId,
+  normalizeProfile,
   removePortfolioEntry,
   savePortfolioEntry,
   saveProfile,
@@ -98,6 +99,7 @@ interface PracticeContextValue {
     linkedAbsenceId?: string;
   }) => void;
   removeDecision: (id: string) => void;
+  replaceProfile: (profile: PracticeProfile) => void;
   reviewDecision: (
     id: string,
     outcome: DecisionReviewOutcome,
@@ -657,6 +659,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const replaceProfile = useCallback((next: PracticeProfile) => {
+    clearHistory();
+    setProfile(normalizeProfile(next));
+  }, [clearHistory]);
+
   const setMapLayout = useCallback(
     (
       v:
@@ -893,6 +900,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      replaceProfile,
       reviewDecision,
       resetProfile,
       completeOnboarding,
@@ -934,6 +942,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      replaceProfile,
       reviewDecision,
       resetProfile,
       completeOnboarding,
