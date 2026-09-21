@@ -441,6 +441,35 @@ function localSynthesize(
   // Planning cadences, not measurements: how soon the coach suggests reviewing
   // each kind of decision. They become an editable "review by" date in the journal.
   const REVIEW_HORIZON_DAYS = { control: 14, crossTrain: 30, journal: 7 } as const;
+
+  const checkInDecision = (plan: NonNullable<typeof checkIns>["checkIns"]) => {
+    const first = plan[0];
+    const others = plan.length - 1;
+    return {
+      action: `Check in with ${first.person.name}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"} to re-confirm${others > 0 ? ` (${others} more ${others === 1 ? "person" : "people"} after that)` : ""}`,
+      rationale: `The register says ${first.person.name} can do ${first.items
+        .slice(0, 3)
+        .map((entry) => entry.name)
+        .join(
+          ", ",
+        )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days${first.soleCount > 0 ? `; ${first.soleCount} of those nobody else can run alone` : ""}. People leave, learn and forget, so the coverage figures above may be false comfort.`,
+      evidenceIds: [] as string[],
+      effort: "low" as const,
+      horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+      cascadeEffects: ["register accuracy ↑"],
+    };
+  };
+
+  const reconfirmDecision = (stale: { name: string }[], unheld: boolean) => ({
+    action: `Re-confirm the register entry for ${stale[0].name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`,
+    rationale: unheld
+      ? "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them."
+      : "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
+    evidenceIds: [] as string[],
+    effort: "low" as const,
+    horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+    cascadeEffects: ["register accuracy ↑"],
+  });
   const beamAction = adv?.recommendedSequence?.join(" → ");
   const decisions: PioneerDecision[] = [
     {
@@ -475,43 +504,17 @@ function localSynthesize(
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
       cascadeEffects: ["continuity residual index ↓"],
     },
-    ...(checkIns?.checkIns[0]
+    ...(checkIns
       ? [
-          (() => {
-            const first = checkIns.checkIns[0];
-            const others = checkIns.checkIns.length - 1;
-            return {
-              action: `Check in with ${first.person.name}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"} to re-confirm${others > 0 ? ` (${others} more ${others === 1 ? "person" : "people"} after that)` : ""}`,
-              rationale: `The register says ${first.person.name} can do ${first.items
-                .slice(0, 3)
-                .map((entry) => entry.name)
-                .join(
-                  ", ",
-                )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days${first.soleCount > 0 ? `; ${first.soleCount} of those nobody else can run alone` : ""}. People leave, learn and forget, so the coverage figures above may be false comfort.`,
-              evidenceIds: [],
-              effort: "low" as const,
-              horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-              cascadeEffects: ["register accuracy ↑"],
-            };
-          })(),
+          ...(checkIns.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
+          ...(checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld, true)] : []),
         ]
-      : spofs?.some((s) => s.stale) || (checkIns?.unheld.length ?? 0) > 0
+      : spofs?.some((s) => s.stale)
         ? [
-            {
-              action: (() => {
-                const stale = checkIns?.unheld.length
-                  ? checkIns.unheld
-                  : (spofs ?? []).filter((s) => s.stale);
-                const first = stale[0];
-                return `Re-confirm the register entry for ${first.name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`;
-              })(),
-              rationale:
-                "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
-              evidenceIds: [],
-              effort: "low" as const,
-              horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-              cascadeEffects: ["register accuracy ↑"],
-            },
+            reconfirmDecision(
+              spofs.filter((s) => s.stale),
+              false,
+            ),
           ]
         : []),
     {
