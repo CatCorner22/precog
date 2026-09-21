@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   BookOpen,
+  CalendarDays,
   Download,
   Plus,
   RotateCcw,
@@ -32,6 +33,7 @@ import {
   coverageReport,
   DOCUMENTATION_LABEL,
   documentationDebt,
+  isCalendarDate,
   LEVEL_LABEL,
   LEVEL_ORDER,
   makeKnowledgeId,
@@ -47,6 +49,14 @@ import {
   type DocumentationGap,
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
+import {
+  formatDateRange,
+  handoffDeadline,
+  leadLabel,
+  plannedAbsenceReport,
+  type AbsenceWindow,
+} from "@/lib/precog/continuity/planned-absence";
+import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import type { Criticality, KnowledgeItem, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,6 +106,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     profile,
     setCustomKnowledge,
     setCustomRelations,
+    setPlannedAbsences,
     addDecision,
   } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
@@ -125,14 +136,14 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     note: string,
     knowledgeId: string,
     step: ContinuityStep,
-    reviewBy: Date,
+    reviewBy: Date | string,
     personId?: string,
   ) =>
     addDecision({
       subject,
       kind: "remediate",
       note,
-      reviewBy: reviewBy.toISOString().slice(0, 10),
+      reviewBy: typeof reviewBy === "string" ? reviewBy : reviewBy.toISOString().slice(0, 10),
       linkedTab: "knowledge",
       linkedId: knowledgeId,
       linkedStep: step,
@@ -153,13 +164,14 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     confirmLogged(reviewBy);
   };
   /** One entry per item, so each item's snapshot, review and slip check stand on their own. */
-  const logAbsenceAction = (a: AbsenceAction) => {
-    const reviewBy = reviewDateIn30Days();
+  const logAbsenceAction = (a: AbsenceAction, reviewByKey?: string) => {
+    const reviewBy = reviewByKey ? new Date(`${reviewByKey}T12:00:00`) : reviewDateIn30Days();
     const pending = a.knowledgeIds
       .map((id) => tpl.knowledge.find((k) => k.id === id))
       .filter((k): k is KnowledgeItem => Boolean(k))
       .filter((k) => !trackedBy(k.id, a.step));
-    for (const k of pending) logContinuityDecision(k.name, a.text, k.id, a.step, reviewBy);
+    for (const k of pending)
+      logContinuityDecision(k.name, a.text, k.id, a.step, reviewByKey ?? reviewBy);
     confirmLogged(reviewBy, pending.length);
   };
   /** An absence step is "in the Journal" once every item it names has an open entry for that step. */
@@ -204,6 +216,40 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");
   const [draftCriticality, setDraftCriticality] = useState<Criticality>("important");
   const [absentIds, setAbsentIds] = useState<string[]>([]);
+  const [leavePersonId, setLeavePersonId] = useState("");
+  const [leaveFrom, setLeaveFrom] = useState("");
+  const [leaveTo, setLeaveTo] = useState("");
+  const [showPastLeave, setShowPastLeave] = useState(false);
+  const leave = useMemo(
+    () => plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today),
+    [tpl, profile.plannedAbsences, profile.industry, today],
+  );
+  const leaveFormValid =
+    Boolean(leavePersonId) &&
+    isCalendarDate(leaveFrom) &&
+    isCalendarDate(leaveTo) &&
+    leaveFrom <= leaveTo;
+  const addLeave = () => {
+    if (!leaveFormValid) return;
+    const person = people.find((p) => p.id === leavePersonId);
+    if (!person) return;
+    setPlannedAbsences((current) => [
+      ...current,
+      {
+        id: makePlannedAbsenceId(),
+        personId: person.id,
+        industry: profile.industry,
+        from: leaveFrom,
+        to: leaveTo,
+      },
+    ]);
+    setLeaveFrom("");
+    setLeaveTo("");
+    toast.success(`${person.name.split(" ")[0]} out ${formatDateRange(leaveFrom, leaveTo)} added.`);
+  };
+  const removeLeave = (id: string) =>
+    setPlannedAbsences((current) => current.filter((a) => a.id !== id));
+  const leaveHistory = [...leave.past, ...leave.unmatched];
   const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -1209,6 +1255,124 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="size-4 text-muted" />
+                Planned leave
+              </CardTitle>
+              <CardDescription>
+                Known absences — holidays, parental leave, surgery. What stops during each one, who
+                is left, and what to hand off before it starts. Overlapping leave is flagged.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {people.length === 0 ? (
+                <p className="text-muted">Add people to the team to record leave.</p>
+              ) : (
+                <form
+                  className="flex flex-wrap items-end gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addLeave();
+                  }}
+                >
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    Who
+                    <select
+                      className={inputClass}
+                      value={leavePersonId}
+                      onChange={(e) => setLeavePersonId(e.target.value)}
+                    >
+                      <option value="">Choose…</option>
+                      {people.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    First day out
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={leaveFrom}
+                      onChange={(e) => setLeaveFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    Last day out
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={leaveTo}
+                      min={leaveFrom || undefined}
+                      onChange={(e) => setLeaveTo(e.target.value)}
+                    />
+                  </label>
+                  <Button type="submit" size="sm" disabled={!leaveFormValid}>
+                    <Plus className="size-4" /> Add leave
+                  </Button>
+                </form>
+              )}
+              {leave.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
+                <p className="text-xs text-muted">
+                  No leave recorded. Add known absences and the weekly plan, printed report and
+                  Pioneer will warn ahead of each one.
+                </p>
+              )}
+              {leave.windows.map((w) => (
+                <LeaveWindow
+                  key={w.absence.id}
+                  window={w}
+                  today={today}
+                  onRemove={() => removeLeave(w.absence.id)}
+                  onSelect={setSelectedId}
+                  tracked={absenceStepTracked}
+                  onLog={(a) => logAbsenceAction(a, handoffDeadline(w, today))}
+                />
+              ))}
+              {leaveHistory.length > 0 && (
+                <div className="text-xs text-muted">
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={() => setShowPastLeave((v) => !v)}
+                  >
+                    {showPastLeave ? "Hide" : "Show"} {leaveHistory.length} past or unmatched{" "}
+                    {leaveHistory.length === 1 ? "entry" : "entries"}
+                  </button>
+                  {showPastLeave && (
+                    <ul className="mt-1 space-y-1">
+                      {leaveHistory.map((a) => {
+                        const person = tpl.people.find((p) => p.id === a.personId);
+                        return (
+                          <li key={a.id} className="flex items-center justify-between gap-2">
+                            <span>
+                              {person?.name ?? "Someone no longer on the team"} ·{" "}
+                              {formatDateRange(a.from, a.to)}
+                              {!person || !person.active ? " · not on the active team" : ""}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1.5"
+                              aria-label="Remove leave"
+                              onClick={() => removeLeave(a.id)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Who the business leans on</CardTitle>
               <CardDescription>
                 Share of critical work that stops if each person is out. Spread the top names' sole
@@ -1280,6 +1444,134 @@ function Stat({
         {value}
       </div>
       <div className="mt-1 text-xs text-muted">{hint}</div>
+    </div>
+  );
+}
+
+function LeaveWindow({
+  window: w,
+  today,
+  onRemove,
+  onSelect,
+  tracked,
+  onLog,
+}: {
+  window: AbsenceWindow;
+  today: string;
+  onRemove: () => void;
+  onSelect: (knowledgeId: string) => void;
+  tracked: (a: AbsenceAction) => string | undefined;
+  onLog: (a: AbsenceAction) => void;
+}) {
+  const first = w.person.name.split(" ")[0];
+  const impact = w.impact;
+  const deadline = handoffDeadline(w, today);
+  return (
+    <div className="rounded-md border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">
+            {w.person.name} · {formatDateRange(w.absence.from, w.absence.to)}
+          </span>
+          <Badge
+            variant={w.status === "current" ? "danger" : w.daysUntil <= 7 ? "warn" : "default"}
+          >
+            {w.status === "current" ? "Out now" : leadLabel(w.daysUntil)}
+          </Badge>
+          <span className="text-xs text-muted">
+            {w.lengthDays} day{w.lengthDays === 1 ? "" : "s"}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-1.5"
+          aria-label={`Remove ${first}'s leave`}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+      {w.overlaps.length > 0 && (
+        <p className="mt-1 text-xs text-warn">
+          Overlapping leave:{" "}
+          {w.overlaps
+            .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
+            .join("; ")}
+          . Stops below assume everyone away at once.
+        </p>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge
+          variant={impact.dependence >= 50 ? "danger" : impact.dependence >= 25 ? "warn" : "ok"}
+        >
+          {impact.dependence}% of critical work stops
+        </Badge>
+        <span className="text-xs text-muted">
+          {impact.stops.length} stop · {impact.continues.length} continue
+          {impact.orphanedProcesses.length > 0 &&
+            ` · ${impact.orphanedProcesses.length} process${impact.orphanedProcesses.length === 1 ? "" : "es"} without an owner`}
+        </span>
+      </div>
+      {impact.stops.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {impact.stops.map((s) => (
+            <li
+              key={s.item.id}
+              className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
+              onClick={() => onSelect(s.item.id)}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{s.item.name}</span>
+                <Badge variant={s.item.criticality === "critical" ? "danger" : "default"}>
+                  {CRITICALITY_LABEL[s.item.criticality]}
+                </Badge>
+                <span className="text-xs text-muted">
+                  → {s.standIn ? s.standIn.name : "nobody"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-muted">{s.note}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-2">
+        <PeopleLine label="Left in the business" people={impact.remaining.map((p) => p.name)} />
+      </div>
+      {impact.orphanedProcesses.length > 0 && (
+        <p className="mt-1 text-xs text-muted">
+          No owner left for: {impact.orphanedProcesses.join(", ")}
+        </p>
+      )}
+      {impact.actions.length > 0 && (
+        <div className="mt-2">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+            {w.status === "current" ? "Do today" : `Before ${deadline}`}
+          </div>
+          <ol className="list-decimal space-y-1 pl-5">
+            {impact.actions.map((a) => (
+              <li key={a.text}>
+                {a.text}
+                {a.knowledgeIds.length > 0 &&
+                  (tracked(a) ? (
+                    <span className="ml-2 text-xs text-subtle">
+                      In the Journal · review by {tracked(a)}
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-1 h-6 px-1.5 text-xs"
+                      onClick={() => onLog(a)}
+                    >
+                      <BookOpen className="size-3.5" /> Log as decision
+                    </Button>
+                  ))}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,14 @@ import {
   localDateKey,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
-import type { DecisionEntry } from "@/lib/precog/practice-profile";
+import {
+  absencesNeedingAttention,
+  formatDateRange,
+  handoffDeadline,
+  leadLabel,
+  plannedAbsenceReport,
+} from "@/lib/precog/continuity/planned-absence";
+import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
@@ -131,6 +138,8 @@ export function buildWeeklyActions(input: {
   trackFreshness?: boolean;
   /** The Journal, so steps already logged are reported as in progress rather than recommended again. */
   decisions?: readonly DecisionEntry[];
+  /** Known leave, so hand-offs are advised ahead of time. */
+  plannedAbsences?: readonly PlannedAbsence[];
 }): WeeklyAction[] {
   const { tpl } = input;
   const today = input.today ?? localDateKey(new Date());
@@ -220,6 +229,56 @@ export function buildWeeklyActions(input: {
   remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
   for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
     if (freshLeft === 0 && remindersLeft === 0) break;
+  const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
+  for (const w of absencesNeedingAttention(leave.windows).slice(0, 2)) {
+    const first = w.person.name.split(" ")[0];
+    const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
+    const also = w.overlaps.length
+      ? ` ${w.overlaps.map((o) => o.person.name.split(" ")[0]).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
+      : "";
+    const stops = w.impact.stops;
+    if (stops.length === 0) {
+      const orphaned = w.impact.orphanedProcesses;
+      if (orphaned.length > 0) {
+        actions.push({
+          id: `leave-${w.absence.id}`,
+          title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+          why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
+          effort: "low",
+          tab: "knowledge",
+          priority: 70,
+        });
+      }
+      continue;
+    }
+    const open = stops.filter((s) => !committed.get(continuityStepKey(s.item.id, "handoff")));
+    const critical = open.filter((s) => s.item.criticality === "critical");
+    const lead = critical[0] ?? open[0];
+    const urgency = w.status === "current" ? 92 : w.daysUntil <= 7 ? 89 : 85;
+    if (!lead) {
+      const c = committed.get(continuityStepKey(stops[0].item.id, "handoff"));
+      if (c) actions.push(committedAction(c, urgency, `${first} is out ${when}`));
+      continue;
+    }
+    const noOne = open.filter((s) => !s.standIn);
+    const others = open.length - 1;
+    actions.push({
+      id: `leave-${w.absence.id}`,
+      title: lead.standIn
+        ? `${first} is out ${when}: hand off ${lead.item.name} to ${lead.standIn.name.split(" ")[0]}${others > 0 ? ` and ${others} more` : ""}`
+        : `${first} is out ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
+      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`} for the whole absence${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
+        w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : ""
+      }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => p.name.split(" ")[0]).join(", ")}.` : " Nobody else is left in the business."}`,
+      effort: lead.standIn ? "low" : "medium",
+      tab: "knowledge",
+      priority: lead.item.criticality === "critical" ? urgency : urgency - 10,
+    });
+  }
+
+  for (const g of documentationDebt(tpl)
+    .gaps.filter((x) => x.item.criticality === "critical")
+    .slice(0, 2)) {
     const priority =
       g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
     const c = committed.get(

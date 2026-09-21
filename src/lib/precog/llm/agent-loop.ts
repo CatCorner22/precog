@@ -297,6 +297,11 @@ function chickenLittleCritique(tools: ToolResult[]): string[] {
       `"${scenario.title}" assumes ${usd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
     );
   }
+  const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
+    { windows: { summary: string; stops: unknown[]; overlaps: unknown[] }[] } | undefined;
+  for (const w of (leave?.windows ?? []).filter((x) => x.stops.length > 0).slice(0, 2)) {
+    warnings.push(w.summary);
+  }
   if (!warnings.length) {
     warnings.push("No single red alert — still re-score after staff or insurance change.");
   }
@@ -388,6 +393,25 @@ function localSynthesize(
     unheld: { name: string }[];
   } | null;
 
+  const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as {
+    windows: {
+      person: { name: string };
+      from: string;
+      to: string;
+      daysUntil: number;
+      status: "current" | "upcoming";
+      handoffBy: string;
+      overlaps: { person: { name: string } }[];
+      stops: {
+        name: string;
+        standIn: { name: string } | null;
+        handoffCommitted: { reviewBy: string | null; overdue: boolean } | null;
+      }[];
+      remaining: { name: string }[];
+      summary: string;
+    }[];
+  } | null;
+
   const top = residual?.top ?? [];
   const bestCascade = cas?.topByCostOfRisk?.[0];
   const adv = tools.find((t) => t.tool === "run_advanced_reasoning")?.data as {
@@ -476,6 +500,46 @@ function localSynthesize(
     horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
     cascadeEffects: ["register accuracy ↑"],
   });
+  const leaveDecision = () => {
+    const w = leave?.windows.find((x) => x.stops.length > 0);
+    if (!w) return [];
+    const open = w.stops.filter((s) => !s.handoffCommitted);
+    const committed = w.stops.filter((s) => s.handoffCommitted);
+    if (open.length === 0 && committed.length > 0) {
+      const c = committed[0];
+      return [
+        {
+          action: `In progress: hand-off of ${c.name} before ${w.person.name} is out${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`,
+          rationale: `You already logged the hand-off in the Journal${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
+          evidenceIds: [] as string[],
+          effort: "low" as const,
+          horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.journal, w.daysUntil)),
+          cascadeEffects: ["continuity during leave ↑"],
+        },
+      ];
+    }
+    const first = open[0];
+    const noOne = open.filter((s) => !s.standIn);
+    const when =
+      w.status === "current"
+        ? "is out now"
+        : `is out ${w.from} to ${w.to}, in ${w.daysUntil} day${w.daysUntil === 1 ? "" : "s"}`;
+    const also = w.overlaps.length
+      ? ` ${w.overlaps.map((o) => o.person.name).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also away for part of it.`
+      : "";
+    return [
+      {
+        action: first.standIn
+          ? `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
+          : `Decide who covers ${first.name} while ${w.person.name} is out${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`} for the whole absence${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        evidenceIds: [] as string[],
+        effort: first.standIn ? ("low" as const) : ("medium" as const),
+        horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, w.daysUntil)),
+        cascadeEffects: ["continuity during leave ↑"],
+      },
+    ];
+  };
   const beamAction = adv?.recommendedSequence?.join(" → ");
   // Steps the owner already logged are followed up, not recommended again.
   const committedSpof = spofs?.find((s) => s.committed);
@@ -497,6 +561,7 @@ function localSynthesize(
       horizonDays: REVIEW_HORIZON_DAYS.control,
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
+    ...leaveDecision(),
     ...(committedSpof && commitment
       ? [
           {
