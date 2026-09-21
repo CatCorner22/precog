@@ -10,6 +10,7 @@ import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import {
   absenceImpact,
   daysBetween,
+  firstName,
   isCalendarDate,
   relationLevel,
   STRONG_LEVELS,
@@ -125,7 +126,7 @@ export function describeDebriefItem(debrief: LeaveDebrief, entry: DebriefItem): 
   if (!entry.standIn) {
     return `Nobody was lined up for ${entry.item.name} for those ${days} — did someone step in?`;
   }
-  const first = entry.standIn.name.split(" ")[0];
+  const first = firstName(entry.standIn.name);
   if (standInAlreadyStrong(entry)) {
     return `${first} covered ${entry.item.name} for ${days} and the register already says they can run it alone.`;
   }
@@ -134,7 +135,7 @@ export function describeDebriefItem(debrief: LeaveDebrief, entry: DebriefItem): 
 
 /** "Maya's back — Chris covered PMS admin for 8 days; can he run it alone now?" plus a count of the rest. */
 export function describeDebrief(debrief: LeaveDebrief): string {
-  const first = debrief.person.name.split(" ")[0];
+  const first = firstName(debrief.person.name);
   const lead = debrief.items[0];
   const more = debrief.items.length - 1;
   return `${first}'s back — ${describeDebriefItem(debrief, lead)}${more > 0 ? ` (and ${more} more ${more === 1 ? "entry" : "entries"} to debrief)` : ""}`;

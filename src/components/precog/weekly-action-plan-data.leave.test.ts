@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
+import { firstName } from "@/lib/precog/continuity/coverage";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import { buildWeeklyActions } from "./weekly-action-plan-data";
 
@@ -192,7 +193,7 @@ describe("buildWeeklyActions planned leave", () => {
     const actions = build([leave], [], "2025-04-22");
     const debrief = actions.find((a) => a.id === "debrief-abs-1");
     expect(debrief?.title).toBe(
-      `${maya.name.split(" ")[0]}'s back: can ${chris.name.split(" ")[0]} run ${item.name} alone now?`,
+      `${firstName(maya.name)}'s back: can ${firstName(chris.name)} run ${item.name} alone now?`,
     );
     expect(debrief?.why).toContain("covered");
     expect(debrief?.why).toContain("8 days");

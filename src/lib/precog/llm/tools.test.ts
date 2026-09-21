@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
+import { firstName } from "../continuity/coverage";
 import { executeTool } from "./tools";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import type { PracticeProfile } from "../practice-profile";
@@ -344,7 +345,7 @@ describe("get_planned_absences", () => {
       }),
     ]);
     expect(d.items[0].question).toContain("can they run it alone now?");
-    expect(result.summary).toContain(`Debrief due: ${holder.name.split(" ")[0]}'s back`);
+    expect(result.summary).toContain(`Debrief due: ${firstName(holder.name)}'s back`);
   });
 
   it("drops a debrief the owner has already answered", () => {

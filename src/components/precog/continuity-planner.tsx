@@ -37,6 +37,7 @@ import {
   isCalendarDate,
   LEVEL_LABEL,
   LEVEL_ORDER,
+  firstName,
   makeKnowledgeId,
   relationLevel,
   setRelationLevel,
@@ -276,7 +277,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     ]);
     setLeaveFrom("");
     setLeaveTo("");
-    toast.success(`${person.name.split(" ")[0]} out ${formatDateRange(leaveFrom, leaveTo)} added.`);
+    toast.success(`${firstName(person.name)} out ${formatDateRange(leaveFrom, leaveTo)} added.`);
   };
   const removeLeave = (id: string) =>
     setPlannedAbsences((current) => current.filter((a) => a.id !== id));
@@ -297,7 +298,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const settleDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
     const key = debriefKey(debrief.absence.id, entry.item.id);
     const rest = debrief.items.filter(
-      (e) => e.item.id !== entry.item.id && !debriefed.has(debriefKey(debrief.absence.id, e.item.id)),
+      (e) =>
+        e.item.id !== entry.item.id && !debriefed.has(debriefKey(debrief.absence.id, e.item.id)),
     );
     if (rest.length === 0) markDebriefed(debrief.absence.id);
     else setDebriefed((current) => new Set(current).add(key));
@@ -307,8 +309,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
   /** Stand-in ran it for real: register says "can do", confirmed today, hand-off (and training aimed at them) closed. */
   const promoteStandIn = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
-    const first = standIn.name.split(" ")[0];
-    const note = `${first} covered ${entry.item.name} while ${debrief.person.name.split(" ")[0]} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
+    const first = firstName(standIn.name);
+    const note = `${first} covered ${entry.item.name} while ${firstName(debrief.person.name)} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
     setLevel(standIn.id, entry.item.id, "proficient");
     closeHandoff(entry, note);
     if (
@@ -321,11 +323,14 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
   /** Stand-in got through it but not alone yet: keep them as a learner and make the training a tracked step. */
   const keepTraining = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
-    const first = standIn.name.split(" ")[0];
-    const during = `while ${debrief.person.name.split(" ")[0]} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)})`;
+    const first = firstName(standIn.name);
+    const during = `while ${firstName(debrief.person.name)} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)})`;
     if (!entry.standInLevel || entry.standInLevel === "aware")
       setLevel(standIn.id, entry.item.id, "basic");
-    closeHandoff(entry, `${first} covered ${entry.item.name} ${during}; not yet able to run it alone.`);
+    closeHandoff(
+      entry,
+      `${first} covered ${entry.item.name} ${during}; not yet able to run it alone.`,
+    );
     if (entry.training) {
       toast.success(`Cross-training ${first} on ${entry.item.name} is already in the Journal.`);
     } else {
@@ -346,7 +351,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const closeDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
     closeHandoff(
       entry,
-      `Leave over (${formatDateRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${debrief.person.name.split(" ")[0]}.`,
+      `Leave over (${formatDateRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${firstName(debrief.person.name)}.`,
     );
     settleDebriefItem(debrief, entry);
   };
@@ -1262,8 +1267,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                 <>
                   {absence.people.length > 1 && (
                     <p className="text-xs font-medium text-muted">
-                      If {naturalNames(absence.people.map((p) => p.name.split(" ")[0]))} are all
-                      out:
+                      If {naturalNames(absence.people.map((p) => firstName(p.name)))} are all out:
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
@@ -1579,7 +1583,7 @@ function LeaveWindow({
   tracked: (a: AbsenceAction) => string | undefined;
   onLog: (a: AbsenceAction) => void;
 }) {
-  const first = w.person.name.split(" ")[0];
+  const first = firstName(w.person.name);
   const impact = w.impact;
   const deadline = handoffDeadline(w, today);
   return (
@@ -1612,13 +1616,13 @@ function LeaveWindow({
         <p className="mt-1 text-xs text-warn">
           Overlapping leave:{" "}
           {w.overlaps
-            .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
+            .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
             .join("; ")}
           .{" "}
           {w.peak.extraStops.length > 0
             ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
                 .filter((p) => p.id !== w.person.id)
-                .map((p) => p.name.split(" ")[0])
+                .map((p) => firstName(p.name))
                 .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
             : "Nothing extra stops on the shared days."}
         </p>
@@ -1715,7 +1719,7 @@ function LeaveDebriefCard({
   onClose: (entry: DebriefItem) => void;
   onDismiss: () => void;
 }) {
-  const first = debrief.person.name.split(" ")[0];
+  const first = firstName(debrief.person.name);
   /** Who the owner says actually stepped in, when the register had nobody lined up. */
   const [pickedStandIn, setPickedStandIn] = useState<Record<string, string>>({});
   const candidates = people.filter((p) => p.id !== debrief.person.id);
@@ -1745,7 +1749,7 @@ function LeaveDebriefCard({
         {open.map((e) => {
           const standIn =
             e.standIn ?? candidates.find((p) => p.id === pickedStandIn[e.item.id]) ?? null;
-          const standInFirst = standIn?.name.split(" ")[0];
+          const standInFirst = standIn ? firstName(standIn.name) : undefined;
           return (
             <li key={e.item.id} className="rounded-md border border-border bg-surface px-2.5 py-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -1758,9 +1762,7 @@ function LeaveDebriefCard({
                     {standInFirst} today: {LEVEL_SHORT[e.standInLevel]}
                   </span>
                 )}
-                {e.handoff && (
-                  <span className="text-xs text-subtle">Hand-off in the Journal</span>
-                )}
+                {e.handoff && <span className="text-xs text-subtle">Hand-off in the Journal</span>}
               </div>
               <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

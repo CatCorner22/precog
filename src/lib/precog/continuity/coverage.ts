@@ -16,6 +16,13 @@ import type {
   Person,
 } from "../types";
 
+/** Short form of a name for advice wording: the first given name, skipping an honorific such as "Dr.". */
+export function firstName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const given = parts.find((p) => !/^(dr|mr|mrs|ms|mx|prof|rev)\.?$/i.test(p));
+  return given ?? parts[0] ?? "";
+}
+
 export const LEVEL_ORDER: KnowledgeLevel[] = ["aware", "basic", "proficient", "expert"];
 export const STRONG_LEVELS = new Set<KnowledgeLevel>(["expert", "proficient"]);
 
@@ -572,7 +579,7 @@ export function absenceImpact(
   const report = coverageReport(tpl);
   const remaining = tpl.people.filter((p) => p.active && !absent.has(p.id));
   const single = absentPeople.length === 1;
-  const firstNames = absentPeople.map((p) => p.name.split(" ")[0]);
+  const firstNames = absentPeople.map((p) => firstName(p.name));
   const names =
     firstNames.length <= 1
       ? (firstNames[0] ?? "")
@@ -815,7 +822,7 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
       if (!author) {
         action = `Nobody can run "${i.item.name}" and nothing is written down — find the last person who did it, or an outside provider, and get the steps on paper.`;
       } else if (i.status === "single" || i.status === "uncovered") {
-        action = `Have ${author.name} write down "${i.item.name}" — it lives only in ${author.name.split(" ")[0]}'s head today.`;
+        action = `Have ${author.name} write down "${i.item.name}" — it lives only in ${firstName(author.name)}'s head today.`;
       } else {
         action = `Have ${author.name} write down "${i.item.name}" so the backup follows the same steps.`;
       }

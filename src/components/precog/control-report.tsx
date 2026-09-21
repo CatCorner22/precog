@@ -15,6 +15,7 @@ import {
   documentationDebt,
   documentationState,
   checkInPlan,
+  firstName,
   LEVEL_LABEL,
   staleItems,
   STATUS_LABEL,
@@ -70,7 +71,7 @@ function fmtDate(iso: string) {
 /** Marks a recommended step the owner has already logged in the Journal, so it reads as follow-up, not fresh advice. */
 function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
   if (!c) return null;
-  const first = c.person?.name.split(" ")[0];
+  const first = c.person ? firstName(c.person.name) : undefined;
   return (
     <span className={`ml-1 text-xs ${c.overdue ? "text-amber-700" : "text-neutral-500"}`}>
       {c.overdue
@@ -578,10 +579,10 @@ export function ControlReport() {
             </p>
             <ul className="mt-2 space-y-3">
               {leave.windows.slice(0, 8).map((w) => {
-                const others = w.overlaps.map((o) => o.person.name.split(" ")[0]);
+                const others = w.overlaps.map((o) => firstName(o.person.name));
                 const peakOthers = w.peak.people
                   .filter((p) => p.id !== w.person.id)
-                  .map((p) => p.name.split(" ")[0]);
+                  .map((p) => firstName(p.name));
                 return (
                   <li
                     key={w.absence.id}
@@ -671,10 +672,10 @@ export function ControlReport() {
         {debriefs.length > 0 && (
           <Section title="Leave just ended — debrief the stand-ins">
             <p className="text-xs text-neutral-500">
-              Leave is the one time a stand-in runs the work for real. For each entry covered, decide
-              whether the register can now say they can do it alone (confirmed today, hand-off
-              closed) or whether it becomes a tracked cross-training step. Answer on the Who knows
-              what tab so it stops appearing here.
+              Leave is the one time a stand-in runs the work for real. For each entry covered,
+              decide whether the register can now say they can do it alone (confirmed today,
+              hand-off closed) or whether it becomes a tracked cross-training step. Answer on the
+              Who knows what tab so it stops appearing here.
             </p>
             <ul className="mt-2 space-y-3">
               {debriefs.slice(0, 6).map((d) => (
@@ -814,7 +815,10 @@ export function ControlReport() {
                     {" "}
                     · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas ·{" "}
                     {(p.ownerPersonIds ?? [])
-                      .map((id) => tpl.people.find((x) => x.id === id)?.name.split(" ")[0])
+                      .map((id) => {
+                        const p = tpl.people.find((x) => x.id === id);
+                        return p ? firstName(p.name) : undefined;
+                      })
                       .filter(Boolean)
                       .join(", ") || "no owner"}
                   </span>
