@@ -29,6 +29,11 @@ import {
 } from "@/lib/precog/continuity/planned-absence";
 import { leaveDebriefs, standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import {
+  handoverDeadline,
+  leaverLead,
+  leavers as leaversReport,
+} from "@/lib/precog/continuity/leavers";
+import {
   continuityCommitments,
   continuitySlips,
   continuityStepKey,
@@ -115,6 +120,7 @@ export function ControlReport() {
       profile.industry,
       today,
     );
+    const leaving = leaversReport(tpl, profile.decisions, today);
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
     const coso = assessCoso(tpl);
@@ -165,6 +171,7 @@ export function ControlReport() {
       cards,
       leave,
       debriefs,
+      leaving,
       slips,
       committed,
       coso,
@@ -189,6 +196,7 @@ export function ControlReport() {
     cards,
     leave,
     debriefs,
+    leaving,
     slips,
     committed,
     coso,
@@ -754,6 +762,94 @@ export function ControlReport() {
             {debriefs.length > 6 && (
               <p className="mt-2 text-xs text-neutral-500">
                 {debriefs.length - 6} more to debrief; see the Who knows what tab.
+              </p>
+            )}
+          </Section>
+        )}
+
+        {leaving.length > 0 && (
+          <Section title="Leaving the team — hand-over before the last day">
+            <p className="text-xs text-neutral-500">
+              People working their notice still count as cover until their last day. Every register
+              entry only they can run alone must be handed to a named successor, written down and
+              placed where the successor can find it before that date; processes they alone own need
+              a new owner. Once the date has passed, mark them as left on the Who knows what tab so
+              the coverage figures stop counting them (the record stays in the history).
+            </p>
+            <ul className="mt-2 space-y-3">
+              {leaving.slice(0, 6).map((l) => (
+                <li
+                  key={l.person.id}
+                  className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {l.person.name} — {leaverLead(l.daysLeft)} (last day {l.lastDay})
+                    </span>
+                    <span className="text-xs text-neutral-600">
+                      {l.status === "gone"
+                        ? "Still counted as cover — mark as left"
+                        : l.handover.length === 0
+                          ? "Nothing on the register depends on them alone"
+                          : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over by ${handoverDeadline(l, today)}${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`}
+                    </span>
+                  </div>
+                  {l.handover.length > 0 && (
+                    <table className="mt-2 w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-neutral-500">
+                          <th className="py-0.5 font-normal">Only they can run</th>
+                          <th className="py-0.5 font-normal">Successor to train</th>
+                          <th className="py-0.5 font-normal">Written procedure</th>
+                          <th className="py-0.5 font-normal">Journal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {l.handover.map((h) => (
+                          <tr key={h.item.id} className="border-t border-neutral-200 align-top">
+                            <td className="py-1 pr-2">
+                              {h.item.name}
+                              {h.item.criticality === "critical" ? " (critical)" : ""}
+                            </td>
+                            <td className="py-1 pr-2">
+                              {h.successor
+                                ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_LABEL[h.successorLevel].toLowerCase()})` : " (starting cold)"}`
+                                : "Nobody left to take it"}
+                            </td>
+                            <td className="py-1 pr-2">
+                              {!h.item.documented
+                                ? "Nothing written down"
+                                : h.item.procedureLocation?.trim()
+                                  ? h.item.procedureLocation.trim()
+                                  : "Written; location not recorded"}
+                            </td>
+                            <td className="py-1 text-neutral-600">
+                              {h.training
+                                ? `Training logged${h.training.reviewBy ? `, review ${h.training.reviewBy}` : ""}`
+                                : "Not logged"}
+                              {h.documenting ? "; write-up logged" : ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {l.orphanedProcesses.length > 0 && (
+                    <p className="mt-2 text-xs text-neutral-600">
+                      Processes needing a new owner: {l.orphanedProcesses.join(", ")}.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-neutral-600">
+                    {l.remaining.length > 0
+                      ? `Left in the business after ${l.lastDay}: ${l.remaining.map((p) => p.name).join(", ")}.`
+                      : "Nobody else is left in the business."}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            {leaving.length > 6 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                {leaving.length - 6} more leaving; see the Who knows what tab.
               </p>
             )}
           </Section>

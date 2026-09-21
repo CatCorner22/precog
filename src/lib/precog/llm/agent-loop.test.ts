@@ -103,3 +103,63 @@ describe("local brief journal awareness", () => {
     expect(actions.some((a) => /In progress|Review overdue/.test(a))).toBe(false);
   });
 });
+
+describe("local brief leavers", () => {
+  const item = dental.knowledge[0];
+  const [holder, successor] = dental.people;
+  const profileWith = (
+    lastDay: string,
+    extra: Partial<Parameters<typeof pioneerProfileFrom>[0]> = {},
+  ) =>
+    pioneerProfileFrom({
+      industry: "dental",
+      customPeople: dental.people.map((p) => (p.id === holder.id ? { ...p, lastDay } : p)),
+      customKnowledge: [
+        { ...item, criticality: "critical", documented: false, confirmedAt: "2025-03-20" },
+      ],
+      customRelations: [
+        { personId: holder.id, knowledgeId: item.id, level: "expert" },
+        { personId: successor.id, knowledgeId: item.id, level: "basic" },
+      ],
+      ...extra,
+    });
+
+  it("makes the hand-over the decision, due by the last day, and warns about it", () => {
+    const { brief } = runLocalAgentLoop("continuity", {
+      profile: profileWith("2025-04-20"),
+      today: "2025-04-01",
+    });
+    const d = brief.decisions.find((x) => x.action.startsWith("Train "));
+    expect(d?.action).toBe(
+      `Train ${successor.name} on ${item.name} before ${holder.name} leaves (by 2025-04-20)`,
+    );
+    expect(d?.rationale).toContain(`Have ${holder.name} write down ${item.name}`);
+    expect(d?.horizonDays).toBeLessThanOrEqual(19);
+    expect(brief.decisions.some((x) => x.action.startsWith("Cross-train"))).toBe(false);
+    expect(brief.chickenLittleWarnings.some((w) => w.includes("leaves in 19 days"))).toBe(true);
+  });
+
+  it("asks to mark them as left once the last day has passed", () => {
+    const { brief } = runLocalAgentLoop("continuity", {
+      profile: profileWith("2025-04-20"),
+      today: "2025-04-25",
+    });
+    const d = brief.decisions.find((x) => x.action.startsWith("Mark "));
+    expect(d?.action).toBe(`Mark ${holder.name} as left on the register`);
+    expect(d?.rationale).toContain("keeps the record in the history");
+    expect(d?.horizonDays).toBe(1);
+  });
+
+  it("says nothing about a leaver already marked as left", () => {
+    const { brief } = runLocalAgentLoop("continuity", {
+      profile: profileWith("2025-04-20", {
+        customPeople: dental.people.map((p) =>
+          p.id === holder.id ? { ...p, lastDay: "2025-04-20", active: false } : p,
+        ),
+      }),
+      today: "2025-04-25",
+    });
+    expect(brief.decisions.some((x) => /leaves|as left/.test(x.action))).toBe(false);
+    expect(brief.chickenLittleWarnings.some((w) => /left \d+ days ago/.test(w))).toBe(false);
+  });
+});

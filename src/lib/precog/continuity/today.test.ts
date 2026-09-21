@@ -3,7 +3,7 @@ import { getBaseTemplate } from "../active-template";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
-import { SOON_DAYS, todayBrief } from "./today";
+import { LEAVING_SOON_DAYS, SOON_DAYS, todayBrief } from "./today";
 
 const people: Person[] = [
   { id: "maya", name: "Dr. Maya Chen", role: "Office manager", active: true },
@@ -166,6 +166,86 @@ describe("todayBrief", () => {
     expect(brief.out).toEqual([]);
     expect(brief.debriefs).toBe(1);
     expect(brief.headline).toBe("1 absence just ended — debrief the stand-ins.");
+  });
+
+  it("counts down to a leaver's last day with the hand-over and what is not yet in the Journal", () => {
+    const leaving = {
+      ...register,
+      people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-11-17" } : p)),
+    };
+    const brief = todayBrief(leaving, [], [], "general", TODAY);
+    expect(brief.leaving).toHaveLength(1);
+    expect(brief.leaving[0]).toMatchObject({ daysLeft: 12, status: "notice", unlogged: 2 });
+    expect(brief.leaving[0].handover.map((h) => h.item.id).sort()).toEqual(["payroll", "pms"]);
+    expect(brief.gone).toEqual([]);
+    expect(brief.headline).toBe(
+      "Maya leaves in 12 days — 2 entries to hand over, 2 not yet in the Journal.",
+    );
+  });
+
+  it("only counts down within LEAVING_SOON_DAYS, but leave starting soon outranks the countdown", () => {
+    const far = {
+      ...register,
+      people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-12-10" } : p)),
+    };
+    expect(todayBrief(far, [], [], "general", TODAY).leaving).toEqual([]);
+    const edge = {
+      ...register,
+      people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-12-05" } : p)),
+    };
+    expect(todayBrief(edge, [], [], "general", TODAY).leaving[0]?.daysLeft).toBe(
+      LEAVING_SOON_DAYS,
+    );
+
+    const near = {
+      ...register,
+      people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-11-17" } : p)),
+    };
+    const soon = absence({
+      personId: "sam",
+      unplanned: undefined,
+      from: "2025-11-07",
+      to: "2025-11-08",
+    });
+    const brief = todayBrief(near, [soon], [], "general", TODAY);
+    expect(brief.leaving).toHaveLength(1);
+    expect(brief.headline).toMatch(/^Sam is out 7–8 Nov, in 2 days/);
+  });
+
+  it("puts someone whose last day has passed but is still active ahead of everything but today's absences", () => {
+    const overdue = {
+      ...register,
+      people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-11-03" } : p)),
+    };
+    const brief = todayBrief(overdue, [], [], "general", TODAY);
+    expect(brief.gone).toHaveLength(1);
+    expect(brief.gone[0]).toMatchObject({ daysLeft: -2, status: "gone" });
+    expect(brief.headline).toBe(
+      "Maya left 2 days ago but still counts as cover — mark Maya as left (2 entries only Maya could run alone).",
+    );
+
+    const withSick = todayBrief(
+      overdue,
+      [absence({ id: "abs-sam", personId: "sam" })],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(withSick.gone).toHaveLength(1);
+    expect(withSick.headline).toMatch(/^Sam is out unexpectedly today/);
+  });
+
+  it("drops a leaver from the countdown once marked as left", () => {
+    const left = {
+      ...register,
+      people: people.map((p) =>
+        p.id === "maya" ? { ...p, lastDay: "2025-11-03", active: false } : p,
+      ),
+    };
+    const brief = todayBrief(left, [], [], "general", TODAY);
+    expect(brief.gone).toEqual([]);
+    expect(brief.leaving).toEqual([]);
+    expect(brief.headline).toBeNull();
   });
 
   it("ignores another industry's absences", () => {

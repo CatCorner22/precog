@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarDays,
   Download,
+  LogOut,
   Plus,
   RotateCcw,
   Trash2,
@@ -69,6 +70,17 @@ import {
   type DebriefItem,
   type LeaveDebrief,
 } from "@/lib/precog/continuity/leave-debrief";
+import {
+  describeLeaver,
+  HANDOVER_URGENT_DAYS,
+  handoverDeadline,
+  leaverLead,
+  leavers,
+  markLeft,
+  setLastDay,
+  type HandoverItem,
+  type Leaver,
+} from "@/lib/precog/continuity/leavers";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import type {
   Criticality,
@@ -125,6 +137,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     profile,
     setCustomKnowledge,
     setCustomRelations,
+    setCustomPeople,
     setPlannedAbsences,
     addDecision,
     reviewDecision,
@@ -393,6 +406,50 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       `Leave over (${formatDateRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${firstName(debrief.person.name)}.`,
     );
     settleDebriefItem(debrief, entry);
+  };
+  const leaving = useMemo(
+    () => leavers(tpl, profile.decisions, today),
+    [tpl, profile.decisions, today],
+  );
+  const [leaverPersonId, setLeaverPersonId] = useState("");
+  const [leaverLastDay, setLeaverLastDay] = useState("");
+  /** People still on the team with no last day recorded yet. */
+  const staying = useMemo(() => people.filter((p) => !p.lastDay), [people]);
+  const leaverFormValid = Boolean(leaverPersonId) && isCalendarDate(leaverLastDay);
+  const recordLastDay = () => {
+    if (!leaverFormValid) return;
+    const person = staying.find((p) => p.id === leaverPersonId);
+    if (!person) return;
+    setCustomPeople((current) => setLastDay(current, person.id, leaverLastDay));
+    setLeaverPersonId("");
+    setLeaverLastDay("");
+    toast.success(
+      `${firstName(person.name)}'s last day recorded — the hand-over checklist is below.`,
+    );
+  };
+  const changeLastDay = (l: Leaver, lastDay: string) => {
+    if (!isCalendarDate(lastDay)) return;
+    setCustomPeople((current) => setLastDay(current, l.person.id, lastDay));
+  };
+  const cancelLeaving = (l: Leaver) => {
+    setCustomPeople((current) => setLastDay(current, l.person.id, null));
+    toast.success(`${firstName(l.person.name)} is staying — last day cleared.`);
+  };
+  /** They have gone: kept on the team list as history, no longer counted for coverage. */
+  const markAsLeft = (l: Leaver) => {
+    const first = firstName(l.person.name);
+    if (
+      !window.confirm(
+        `Mark ${l.person.name} as left? ${first} stays in the history but no longer counts as cover for anything on the register${
+          l.handover.length > 0
+            ? ` — ${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} will have nobody who can run ${l.handover.length === 1 ? "it" : "them"} alone`
+            : ""
+        }.`,
+      )
+    )
+      return;
+    setCustomPeople((current) => markLeft(current, l.person.id));
+    toast.success(`${first} marked as left.`);
   };
   const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -1558,6 +1615,75 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LogOut className="size-4 text-muted" />
+                Leaving the team
+              </CardTitle>
+              <CardDescription>
+                Someone has given notice? Record their last day. They keep counting as cover until
+                then, and the hand-over below lists everything only they can run, who to train and
+                what to write down &mdash; each step due before they go.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {staying.length > 0 && (
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    Who
+                    <select
+                      className={inputClass}
+                      value={leaverPersonId}
+                      onChange={(e) => setLeaverPersonId(e.target.value)}
+                      aria-label="Who is leaving"
+                    >
+                      <option value="">Choose…</option>
+                      {staying.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-muted">
+                    Last working day
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={leaverLastDay}
+                      onChange={(e) => setLeaverLastDay(e.target.value)}
+                      aria-label="Last working day"
+                    />
+                  </label>
+                  <Button size="sm" disabled={!leaverFormValid} onClick={recordLastDay}>
+                    <Plus className="size-3.5" /> Record last day
+                  </Button>
+                </div>
+              )}
+              {leaving.length === 0 && (
+                <p className="text-xs text-muted">
+                  Nobody has given notice. When someone does, record the date here rather than
+                  removing them &mdash; the weekly plan, printed report and Pioneer will count down to
+                  it and chase the hand-over.
+                </p>
+              )}
+              {leaving.map((l) => (
+                <LeaverCard
+                  key={l.person.id}
+                  leaver={l}
+                  today={today}
+                  onSelect={setSelectedId}
+                  onChangeDate={(d) => changeLastDay(l, d)}
+                  onCancel={() => cancelLeaving(l)}
+                  onMarkLeft={() => markAsLeft(l)}
+                  tracked={(a) => absenceStepTracked(a)}
+                  onLog={(a) => logAbsenceAction(a, handoverDeadline(l, today))}
+                />
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Who the business leans on</CardTitle>
               <CardDescription>
                 Share of critical work that stops if each person is out. Spread the top names' sole
@@ -1780,6 +1906,185 @@ function LeaveWindow({
           </div>
           <ol className="list-decimal space-y-1 pl-5">
             {impact.actions.map((a) => (
+              <li key={a.text}>
+                {a.text}
+                {a.knowledgeIds.length > 0 &&
+                  (tracked(a) ? (
+                    <span className="ml-2 text-xs text-subtle">
+                      In the Journal · review by {tracked(a)}
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-1 h-6 px-1.5 text-xs"
+                      onClick={() => onLog(a)}
+                    >
+                      <BookOpen className="size-3.5" /> Log as decision
+                    </Button>
+                  ))}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) => void }) {
+  const journal = h.training ?? h.documenting;
+  return (
+    <li
+      className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
+      onClick={() => onSelect(h.item.id)}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">{h.item.name}</span>
+        <Badge variant={h.item.criticality === "critical" ? "danger" : "default"}>
+          {CRITICALITY_LABEL[h.item.criticality]}
+        </Badge>
+        <span className="text-xs text-muted">
+          →{" "}
+          {h.successor
+            ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_SHORT[h.successorLevel]})` : " (starting cold)"}`
+            : "nobody to hand it to"}
+        </span>
+        <span className={cn("text-xs", h.item.documented ? "text-muted" : "text-warn")}>
+          ·{" "}
+          {h.item.documented
+            ? h.item.procedureLocation?.trim()
+              ? `written · ${h.item.procedureLocation.trim()}`
+              : "written, location not recorded"
+            : "nothing written down"}
+        </span>
+        {journal?.reviewBy && (
+          <span className="text-xs text-subtle">
+            In the Journal · {h.training ? "training" : "writing it down"} · review by{" "}
+            {journal.reviewBy}
+          </span>
+        )}
+      </div>
+      <p className="mt-0.5 text-xs text-muted">{h.note}</p>
+    </li>
+  );
+}
+
+function LeaverCard({
+  leaver: l,
+  today,
+  onSelect,
+  onChangeDate,
+  onCancel,
+  onMarkLeft,
+  tracked,
+  onLog,
+}: {
+  leaver: Leaver;
+  today: string;
+  onSelect: (knowledgeId: string) => void;
+  onChangeDate: (lastDay: string) => void;
+  onCancel: () => void;
+  onMarkLeft: () => void;
+  tracked: (a: AbsenceAction) => string | undefined;
+  onLog: (a: AbsenceAction) => void;
+}) {
+  const first = firstName(l.person.name);
+  const gone = l.status === "gone";
+  const urgent = !gone && l.daysLeft <= HANDOVER_URGENT_DAYS;
+  const deadline = handoverDeadline(l, today);
+  return (
+    <div
+      className={cn(
+        "rounded-md border p-3",
+        gone ? "border-danger/50" : urgent ? "border-warn/50" : "border-border",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">
+            {l.person.name} · last day {l.lastDay}
+          </span>
+          <Badge variant={gone ? "danger" : urgent ? "warn" : "default"}>
+            {leaverLead(l.daysLeft)}
+          </Badge>
+          <Badge variant={l.dependence >= 50 ? "danger" : l.dependence >= 25 ? "warn" : "ok"}>
+            {l.dependence}% of critical work
+          </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <label className="flex items-center gap-1 text-xs text-muted">
+            Change
+            <input
+              type="date"
+              className="h-6 rounded-md border border-border bg-elevated px-1.5 text-xs text-fg"
+              value={l.lastDay}
+              aria-label={`Change ${first}'s last day`}
+              onChange={(e) => onChangeDate(e.target.value)}
+            />
+          </label>
+          <Button
+            size="sm"
+            variant={gone ? "default" : "outline"}
+            className="h-6 px-2 text-xs"
+            onClick={onMarkLeft}
+          >
+            <UserMinus className="size-3.5" /> Mark as left
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
+            aria-label={`${first} is staying`}
+            onClick={onCancel}
+          >
+            Staying after all
+          </Button>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-muted">{describeLeaver(l)}</p>
+      {gone && (
+        <p className="mt-1 text-xs text-danger">
+          {first}&apos;s last day has passed but {first} still counts as cover. Mark as left to take{" "}
+          {first} out of the coverage figures; the record stays in the history.
+        </p>
+      )}
+      {l.handover.length > 0 && (
+        <>
+          <div className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
+            Hand-over checklist · {l.handover.length} only {first} can run alone
+            {l.unlogged > 0 && ` · ${l.unlogged} not yet in the Journal`}
+          </div>
+          <ul className="mt-1 space-y-1">
+            {l.handover.map((h) => (
+              <HandoverRow key={h.item.id} h={h} onSelect={onSelect} />
+            ))}
+          </ul>
+        </>
+      )}
+      {l.shared.length > 0 && (
+        <p className="mt-2 text-xs text-muted">
+          Shared with others, keeps running: {l.shared.map((k) => k.name).join(", ")}
+        </p>
+      )}
+      {l.orphanedProcesses.length > 0 && (
+        <p className="mt-1 text-xs text-warn">
+          Processes needing a new owner: {l.orphanedProcesses.join(", ")}
+        </p>
+      )}
+      <div className="mt-2">
+        <PeopleLine
+          label={gone ? "Left in the business" : `Left in the business after ${l.lastDay}`}
+          people={l.remaining.map((p) => p.name)}
+        />
+      </div>
+      {l.actions.length > 0 && (
+        <div className="mt-2">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+            {gone ? "Overdue — do now" : `Before ${deadline}`}
+          </div>
+          <ol className="list-decimal space-y-1 pl-5">
+            {l.actions.map((a) => (
               <li key={a.text}>
                 {a.text}
                 {a.knowledgeIds.length > 0 &&

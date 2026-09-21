@@ -5,6 +5,7 @@ import type { KnowledgeItem, Person } from "../types";
 import { continuityCommitments, handoffCommitment } from "../decisions/follow-through";
 import { firstName } from "./coverage";
 import { leaveDebriefs } from "./leave-debrief";
+import { leaverLead, leavers, type Leaver } from "./leavers";
 import {
   formatDateRange,
   plannedAbsenceReport,
@@ -14,6 +15,8 @@ import {
 
 /** Leave starting within this many days counts as "starting soon" on the dashboard. */
 export const SOON_DAYS = 7;
+/** A last day within this many days puts the leaver on the dashboard. */
+export const LEAVING_SOON_DAYS = 30;
 
 export interface TodayStop {
   item: KnowledgeItem;
@@ -54,6 +57,10 @@ export interface TodayBrief {
   startingSoon: TodayUpcoming[];
   /** Absences that ended and still await a debrief. */
   debriefs: number;
+  /** People working their notice with a last day within LEAVING_SOON_DAYS, soonest first. */
+  leaving: Leaver[];
+  /** People whose last day has passed but who are still counted as cover. */
+  gone: Leaver[];
   /** One plain sentence for the top of the dashboard; null when there is nothing to say. */
   headline: string | null;
 }
@@ -99,6 +106,7 @@ export function todayBrief(
         .length,
     }));
   const debriefs = leaveDebriefs(tpl, absences, decisions, industry, today).length;
+  const departing = leavers(tpl, decisions, today);
   const brief: TodayBrief = {
     out,
     cold: stops.filter((s) => s.cold).length,
@@ -106,6 +114,8 @@ export function todayBrief(
     unlogged: stops.filter((s) => !s.handoffLogged).length,
     startingSoon,
     debriefs,
+    leaving: departing.filter((l) => l.status === "notice" && l.daysLeft <= LEAVING_SOON_DAYS),
+    gone: departing.filter((l) => l.status === "gone"),
     headline: null,
   };
   brief.headline = headline(brief);
@@ -137,10 +147,24 @@ function headline(b: TodayBrief): string | null {
     ].filter(Boolean);
     return `${who} ${names.length === 1 ? "is" : "are"} ${how} today — ${stops}${tail.length ? `, ${tail.join(", ")}` : ""}.`;
   }
+  if (b.gone.length > 0) {
+    const l = b.gone[0];
+    const first = firstName(l.person.name);
+    return `${first} ${leaverLead(l.daysLeft)} but still counts as cover — mark ${first} as left${l.handover.length > 0 ? ` (${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} only ${first} could run alone)` : ""}.`;
+  }
   if (b.startingSoon.length > 0) {
     const w = b.startingSoon[0];
     const when = w.daysUntil === 1 ? "tomorrow" : `in ${w.daysUntil} days`;
     return `${firstName(w.person.name)} is out ${formatDateRange(w.window.absence.from, w.window.absence.to)}, ${when}${w.unlogged > 0 ? ` — ${w.unlogged} hand-off${w.unlogged === 1 ? "" : "s"} not yet logged` : ""}.`;
+  }
+  if (b.leaving.length > 0) {
+    const l = b.leaving[0];
+    const first = firstName(l.person.name);
+    const work =
+      l.handover.length === 0
+        ? "nothing on the register depends on them alone"
+        : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`;
+    return `${first} ${leaverLead(l.daysLeft)} — ${work}.`;
   }
   if (b.debriefs > 0) {
     return `${b.debriefs} absence${b.debriefs === 1 ? "" : "s"} just ended — debrief the stand-ins.`;

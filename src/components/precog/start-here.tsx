@@ -20,6 +20,7 @@ import {
   firstName,
   staleItems,
 } from "@/lib/precog/continuity/coverage";
+import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";
 import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
@@ -353,9 +354,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   >
                     {staffingToday.out.length > 0
                       ? "Open the cover sheet"
-                      : staffingToday.startingSoon.length > 0
-                        ? "Log the hand-offs"
-                        : "Debrief the stand-ins"}
+                      : staffingToday.gone.length > 0
+                        ? "Mark them as left"
+                        : staffingToday.startingSoon.length > 0
+                          ? "Log the hand-offs"
+                          : staffingToday.leaving.length > 0
+                            ? "Open the hand-over"
+                            : "Debrief the stand-ins"}
                     <ArrowRight className="size-3.5" aria-hidden />
                   </button>
                 )}
@@ -399,6 +404,38 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                           ))}
                           {o.stops.length > 4 && <li>and {o.stops.length - 4} more</li>}
                         </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(staffingToday.gone.length > 0 || staffingToday.leaving.length > 0) && (
+                <ul className="space-y-1 text-sm">
+                  {[...staffingToday.gone, ...staffingToday.leaving].map((l) => (
+                    <li key={l.person.id} className="flex flex-wrap items-center gap-x-2">
+                      <span className="font-medium">{l.person.name}</span>
+                      <Badge
+                        variant={
+                          l.status === "gone"
+                            ? "danger"
+                            : l.daysLeft <= HANDOVER_URGENT_DAYS
+                              ? "warn"
+                              : "default"
+                        }
+                      >
+                        {leaverLead(l.daysLeft)}
+                      </Badge>
+                      <span className="text-xs text-muted">
+                        {l.status === "gone"
+                          ? "still counted as cover"
+                          : l.handover.length === 0
+                            ? "nothing depends on them alone"
+                            : `${l.handover.length} to hand over`}
+                      </span>
+                      {l.status === "notice" && l.unlogged > 0 && (
+                        <span className="text-xs text-warn">
+                          · {l.unlogged} not in the Journal
+                        </span>
                       )}
                     </li>
                   ))}
