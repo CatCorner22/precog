@@ -171,11 +171,22 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
   const checkIns = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
   const [checkInChoice, setCheckInChoice] = useState<string | null>(null);
-  /** Coverage as it stood when this check-in started, so drops caused by it can be shown. */
-  const [checkInBaseline, setCheckInBaseline] = useState<CoverageReport | null>(null);
+  /**
+   * Coverage as it stood when this check-in started, so drops caused by it can be
+   * shown. Keyed to the business and industry it was taken from: template item ids
+   * repeat across industries, so a baseline from another register must not be compared.
+   */
+  const registerKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
+  const [checkInBaseline, setCheckInBaseline] = useState<{
+    key: string;
+    report: CoverageReport;
+  } | null>(null);
   const checkInDrops = useMemo(
-    () => (checkInBaseline ? coverageDrops(checkInBaseline, report) : []),
-    [checkInBaseline, report],
+    () =>
+      checkInBaseline && checkInBaseline.key === registerKey
+        ? coverageDrops(checkInBaseline.report, report)
+        : [],
+    [checkInBaseline, registerKey, report],
   );
   const checkInView =
     checkInChoice === UNHELD_VIEW && checkIns.unheld.length > 0
@@ -250,7 +261,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     knowledgeId: string,
     level: KnowledgeLevel | undefined,
   ) => {
-    if (!checkInBaseline) setCheckInBaseline(report);
+    if (!checkInBaseline || checkInBaseline.key !== registerKey) {
+      setCheckInBaseline({ key: registerKey, report });
+    }
     setLevel(personId, knowledgeId, level);
   };
 
@@ -283,6 +296,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       setCustomKnowledge(result.knowledge);
       setCustomRelations(result.relations);
       setSelectedId(null);
+      setCheckInBaseline(null);
       toast.success(
         `Imported ${result.knowledge.length} items and ${result.relations.length} assignments${
           result.issues.length ? `; ${result.issues.length} thing(s) need attention` : ""

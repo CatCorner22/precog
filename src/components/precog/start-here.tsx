@@ -81,7 +81,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       coverageIndex: coverage.coverageIndex,
       documentationIndex: documentationDebt(template).documentedIndex,
       freshness: staleItems(template, localDateKey(today)),
-      nextCheckIn: checkInPlan(template, localDateKey(today)).checkIns[0],
+      checkIns: checkInPlan(template, localDateKey(today)),
       mostDepended: coverage.people.find((load) => load.person.active && load.dependence > 0),
     };
   }, [template, today]);
@@ -342,9 +342,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 <p className="mt-1 text-xs text-subtle">
                   {!trackFreshness
                     ? "starts once you enter your own register"
-                    : continuityReadiness.nextCheckIn
-                      ? `next: check in with ${continuityReadiness.nextCheckIn.person.name.split(" ")[0]} (${continuityReadiness.nextCheckIn.items.length})`
-                      : "checked in the last 90 days"}
+                    : continuityReadiness.checkIns.checkIns[0]
+                      ? `next: check in with ${continuityReadiness.checkIns.checkIns[0].person.name.split(" ")[0]} (${continuityReadiness.checkIns.checkIns[0].items.length})`
+                      : continuityReadiness.checkIns.unheld.length > 0
+                        ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
+                        : "checked in the last 90 days"}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
