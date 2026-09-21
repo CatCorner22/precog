@@ -370,6 +370,12 @@ function localSynthesize(
         documented?: boolean;
         stale?: boolean;
         nextStep?: string | null;
+        committed?: {
+          subject: string;
+          trainee: { name: string } | null;
+          reviewBy: string | null;
+          overdue: boolean;
+        } | null;
       }[]
     | null;
 
@@ -471,6 +477,10 @@ function localSynthesize(
     cascadeEffects: ["register accuracy ↑"],
   });
   const beamAction = adv?.recommendedSequence?.join(" → ");
+  // Steps the owner already logged are followed up, not recommended again.
+  const committedSpof = spofs?.find((s) => s.committed);
+  const commitment = committedSpof?.committed;
+  const uncommittedSpof = spofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
       action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
@@ -487,23 +497,48 @@ function localSynthesize(
       horizonDays: REVIEW_HORIZON_DAYS.control,
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
-    {
-      action: spofs?.[0]
-        ? spofs[0].suggestedTrainee
-          ? `Cross-train ${spofs[0].suggestedTrainee.name} on ${spofs[0].name}${spofs[0].owners[0] ? ` with ${spofs[0].owners[0].name}` : ""}`
-          : `Cross-train backup for ${spofs[0].name}`
-        : "Cross-train top knowledge SPOF",
-      rationale:
-        spofs?.[0]?.nextStep ??
-        "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
-      evidenceIds: evidence
-        .filter((e) => e.kind === "spof")
-        .map((e) => e.id)
-        .slice(0, 2),
-      effort: spofs?.[0]?.documented ? "low" : "medium",
-      horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-      cascadeEffects: ["continuity residual index ↓"],
-    },
+    ...(committedSpof && commitment
+      ? [
+          {
+            action: commitment.overdue
+              ? `Review overdue: can ${commitment.trainee?.name ?? "the backup"} run ${committedSpof.name} alone yet?`
+              : `In progress: ${commitment.trainee?.name ?? "a backup"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
+            rationale: `You already logged "${commitment.subject}" in the Journal, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
+              commitment.overdue
+                ? "Close it as done there — which updates the register — or push the review date if training is still under way."
+                : "Nothing new to start; when the training is finished, close it as done in the Journal so the register catches up."
+            }`,
+            evidenceIds: evidence
+              .filter((e) => e.kind === "spof")
+              .map((e) => e.id)
+              .slice(0, 2),
+            effort: "low" as const,
+            horizonDays: REVIEW_HORIZON_DAYS.journal,
+            cascadeEffects: ["continuity residual index ↓"],
+          },
+        ]
+      : []),
+    ...(spofs && spofs.length > 0 && !uncommittedSpof
+      ? []
+      : [
+          {
+            action: uncommittedSpof
+              ? uncommittedSpof.suggestedTrainee
+                ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
+                : `Cross-train backup for ${uncommittedSpof.name}`
+              : "Cross-train top knowledge SPOF",
+            rationale:
+              uncommittedSpof?.nextStep ??
+              "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
+            evidenceIds: evidence
+              .filter((e) => e.kind === "spof")
+              .map((e) => e.id)
+              .slice(0, 2),
+            effort: uncommittedSpof?.documented ? ("low" as const) : ("medium" as const),
+            horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+            cascadeEffects: ["continuity residual index ↓"],
+          },
+        ]),
     ...(checkIns
       ? [
           ...(checkIns.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),

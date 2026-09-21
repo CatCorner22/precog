@@ -19,8 +19,11 @@ import {
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
+  continuityCommitments,
   continuitySlips,
+  continuityStepKey,
   isDecisionOpen,
+  type ContinuityCommitment,
   linkedContinuityStep,
   linkedKnowledgeId,
   localDateKey,
@@ -55,6 +58,19 @@ function fmtDate(iso: string) {
   });
 }
 
+/** Marks a recommended step the owner has already logged in the Journal, so it reads as follow-up, not fresh advice. */
+function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
+  if (!c) return null;
+  const first = c.person?.name.split(" ")[0];
+  return (
+    <span className={`ml-1 text-xs ${c.overdue ? "text-amber-700" : "text-neutral-500"}`}>
+      {c.overdue
+        ? `— review overdue since ${c.reviewBy}: did it happen? Close it in the Journal`
+        : `— in progress${first && c.step === "cover" ? ` (${first})` : ""} since ${c.decision.createdAt.slice(0, 10)}${c.reviewBy ? `, review ${c.reviewBy}` : ""}`}
+    </span>
+  );
+}
+
 /** Print-friendly control priorities report — File → Print → Save as PDF. */
 export function ControlReport() {
   const { profile, mapCustomized } = usePractice();
@@ -81,6 +97,7 @@ export function ControlReport() {
     const checkIns = checkInPlan(tpl, today);
     const cards = contingencyCards(tpl);
     const slips = continuitySlips(profile.decisions, tpl);
+    const committed = continuityCommitments(profile.decisions, tpl, today);
     const coso = assessCoso(tpl);
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
@@ -90,6 +107,7 @@ export function ControlReport() {
       mapSnapshots: snapshots,
       today,
       trackFreshness,
+      decisions: profile.decisions,
     });
     const issues = validateProcessMap(
       tpl.processes,
@@ -126,6 +144,7 @@ export function ControlReport() {
       docs,
       cards,
       slips,
+      committed,
       coso,
       actions,
       mapHealth,
@@ -147,6 +166,7 @@ export function ControlReport() {
     docs,
     cards,
     slips,
+    committed,
     coso,
     actions,
     mapHealth,
@@ -455,7 +475,10 @@ export function ControlReport() {
           {continuity.plan.length > 0 && (
             <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
               {continuity.plan.slice(0, 5).map((m) => (
-                <li key={m.item.id}>{m.action}</li>
+                <li key={m.item.id}>
+                  {m.action}
+                  <CommitmentTag c={committed.get(continuityStepKey(m.item.id, "cover"))} />
+                </li>
               ))}
             </ol>
           )}
@@ -470,6 +493,11 @@ export function ControlReport() {
                 <li key={g.item.id}>
                   <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
                   {g.action}
+                  <CommitmentTag
+                    c={committed.get(
+                      continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
+                    )}
+                  />
                 </li>
               ))}
             </ol>

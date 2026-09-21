@@ -12,6 +12,7 @@ import {
   checkInPlan,
   staleItems,
 } from "../continuity/coverage";
+import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -79,7 +80,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_knowledge_spofs",
     description:
-      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, and whether each entry was confirmed in the last 90 days.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, whether each entry was confirmed in the last 90 days, and whether the owner has already logged that step in the Journal (with its review date) so it is followed up rather than recommended again.",
     args: "none",
   },
   {
@@ -254,12 +255,31 @@ export function executeTool(
           freshness && freshness.stale.length > 0
             ? `; ${freshness.stale.length} item(s) not confirmed in ${CONFIRMATION_MAX_AGE_DAYS} days (${freshness.confirmedIndex}% confirmed)`
             : "";
+        const committed = continuityCommitments(
+          profile.decisions,
+          tpl,
+          ctx.today ?? new Date().toISOString().slice(0, 10),
+        );
+        const committedRows = risks.filter((r) =>
+          committed.has(continuityStepKey(r.knowledgeId, "cover")),
+        ).length;
+        const overdueRows = risks.filter(
+          (r) => committed.get(continuityStepKey(r.knowledgeId, "cover"))?.overdue,
+        ).length;
+        const commitmentSummary =
+          committedRows > 0
+            ? `; ${committedRows} already being cross-trained per the Journal${overdueRows > 0 ? ` (${overdueRows} past review date)` : ""} — do not recommend those again, ask whether they happened`
+            : "";
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}`,
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
           data: risks.map((r) => {
             const move = moveByItem.get(r.knowledgeId);
+            const commitment = committed.get(continuityStepKey(r.knowledgeId, "cover"));
+            const docCommitment =
+              committed.get(continuityStepKey(r.knowledgeId, "document")) ??
+              committed.get(continuityStepKey(r.knowledgeId, "locate"));
             return {
               knowledgeId: r.knowledgeId,
               name: r.name,
@@ -278,6 +298,25 @@ export function executeTool(
               confirmedAt: move?.item.confirmedAt ?? null,
               stale: staleIds.has(r.knowledgeId),
               nextStep: move?.action ?? null,
+              committed: commitment
+                ? {
+                    subject: commitment.decision.subject,
+                    trainee: commitment.person
+                      ? { id: commitment.person.id, name: commitment.person.name }
+                      : null,
+                    loggedOn: commitment.decision.createdAt.slice(0, 10),
+                    reviewBy: commitment.reviewBy,
+                    overdue: commitment.overdue,
+                  }
+                : null,
+              documentationCommitted: docCommitment
+                ? {
+                    step: docCommitment.step,
+                    subject: docCommitment.decision.subject,
+                    reviewBy: docCommitment.reviewBy,
+                    overdue: docCommitment.overdue,
+                  }
+                : null,
             };
           }),
           links: [{ tab: "knowledge", label: "Who knows what" }],

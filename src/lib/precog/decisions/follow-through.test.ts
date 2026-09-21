@@ -10,6 +10,7 @@ import {
   applyDecisionReview,
   captureContinuitySnapshot,
   captureDecisionSnapshot,
+  continuityCommitments,
   continuityStepKey,
   continuitySlips,
   decisionDelta,
@@ -686,5 +687,94 @@ describe("registerCloseOut", () => {
     expect(registerCloseOut(decision(), dental)).toBeNull();
     expect(registerCloseOut(coverDecision({ linkedId: "missing" }), dental)).toBeNull();
     expect(registerCloseOut(coverDecision({ linkedIndustry: "retail" }), dental)).toBeNull();
+  });
+});
+
+describe("continuityCommitments", () => {
+  const item = dental.knowledge[0];
+  const trainee = dental.people[1];
+  const open = (overrides: Partial<DecisionEntry> = {}) =>
+    decision({
+      id: "c-1",
+      createdAt: "2025-03-01T09:00:00.000Z",
+      subject: `Train ${trainee.name} on ${item.name}`,
+      kind: "remediate",
+      reviewBy: "2025-05-01",
+      linkedTab: "knowledge",
+      linkedId: item.id,
+      linkedIndustry: "dental",
+      linkedStep: "cover",
+      linkedPersonId: trainee.id,
+      status: "open",
+      ...overrides,
+    });
+
+  it("returns the open decision for an item in this register, with its trainee and due state", () => {
+    const map = continuityCommitments([open()], dental, "2025-04-01");
+    const c = map.get(continuityStepKey(item.id, "cover"));
+    expect(c).toMatchObject({
+      item: { id: item.id },
+      step: "cover",
+      person: { id: trainee.id },
+      reviewBy: "2025-05-01",
+      overdue: false,
+    });
+    expect(c?.decision.id).toBe("c-1");
+  });
+
+  it("marks the commitment overdue only after the review date", () => {
+    const due = continuityCommitments([open()], dental, "2025-05-01");
+    expect(due.get(continuityStepKey(item.id, "cover"))?.overdue).toBe(false);
+    const late = continuityCommitments([open()], dental, "2025-05-02");
+    expect(late.get(continuityStepKey(item.id, "cover"))?.overdue).toBe(true);
+    const undated = continuityCommitments([open({ reviewBy: undefined })], dental, "2030-01-01");
+    expect(undated.get(continuityStepKey(item.id, "cover"))).toMatchObject({
+      reviewBy: null,
+      overdue: false,
+    });
+  });
+
+  it("defaults the step to cover for decisions logged before steps were recorded", () => {
+    const map = continuityCommitments([open({ linkedStep: undefined })], dental, "2025-04-01");
+    expect(map.has(continuityStepKey(item.id, "cover"))).toBe(true);
+  });
+
+  it("drops the person when they are no longer in the register", () => {
+    const map = continuityCommitments([open({ linkedPersonId: "p-gone" })], dental, "2025-04-01");
+    expect(map.get(continuityStepKey(item.id, "cover"))?.person).toBeNull();
+  });
+
+  it("leaves out closed, unlinked, other-industry and deleted-item decisions", () => {
+    const map = continuityCommitments(
+      [
+        open({ id: "closed", status: "closed" }),
+        open({ id: "unlinked", linkedTab: undefined, linkedId: undefined }),
+        open({ id: "retail", linkedIndustry: "retail" }),
+        open({ id: "deleted", linkedId: "k-deleted" }),
+        open({ id: "other-tab", linkedTab: "process" }),
+      ],
+      dental,
+      "2025-04-01",
+    );
+    expect(map.size).toBe(0);
+  });
+
+  it("keys each step separately and keeps the first entry logged for a step", () => {
+    const map = continuityCommitments(
+      [
+        open({ id: "later", createdAt: "2025-03-10T00:00:00.000Z" }),
+        open({ id: "first", createdAt: "2025-03-02T00:00:00.000Z" }),
+        open({ id: "doc", linkedStep: "document", linkedPersonId: undefined }),
+        open({ id: "loc", linkedStep: "locate", linkedPersonId: undefined }),
+        open({ id: "hand", linkedStep: "handoff" }),
+      ],
+      dental,
+      "2025-04-01",
+    );
+    expect(map.size).toBe(4);
+    expect(map.get(continuityStepKey(item.id, "cover"))?.decision.id).toBe("first");
+    expect(map.get(continuityStepKey(item.id, "document"))?.person).toBeNull();
+    expect(map.get(continuityStepKey(item.id, "locate"))?.step).toBe("locate");
+    expect(map.get(continuityStepKey(item.id, "handoff"))?.step).toBe("handoff");
   });
 });

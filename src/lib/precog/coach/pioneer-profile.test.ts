@@ -48,6 +48,25 @@ describe("pioneerProfileFrom", () => {
     expect(p.practiceName.length).toBeLessThanOrEqual(80);
   });
 
+  it("keeps well-formed journal entries, caps them, and drops malformed ones", () => {
+    const entry = {
+      id: "d",
+      createdAt: "2025-01-01T00:00:00.000Z",
+      subject: "s",
+      kind: "monitor" as const,
+      note: "",
+    };
+    const many = Array.from({ length: 600 }, (_, i) => ({ ...entry, id: `d${i}` }));
+    expect(pioneerProfileFrom({ industry: "retail", decisions: many }).decisions.length).toBe(500);
+    expect(pioneerProfileFrom({ industry: "retail" }).decisions).toEqual([]);
+    const cleaned = pioneerProfileFrom({
+      industry: "retail",
+      // @ts-expect-error deliberately malformed wire input
+      decisions: [entry, null, { subject: "no id" }, { ...entry, id: 7 }],
+    });
+    expect(cleaned.decisions).toEqual([entry]);
+  });
+
   it("localizes the dual-release policy to the industry's roles", () => {
     const p = pioneerProfileFrom({ industry: "retail" });
     const roles = new Set(retail.people.map((x) => x.role));

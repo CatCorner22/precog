@@ -1,7 +1,7 @@
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
-import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { defaultProfile, type DecisionEntry, type PracticeProfile } from "../practice-profile";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
@@ -22,10 +22,13 @@ export interface PioneerProfileInput {
   customPeople?: Person[] | null;
   customKnowledge?: KnowledgeItem[] | null;
   customRelations?: KnowledgeRelation[] | null;
+  /** Journal entries, so Pioneer knows which continuity steps are already committed to. */
+  decisions?: DecisionEntry[] | null;
 }
 
 const MAX_CUSTOM_NODES = 250;
 const MAX_RELATIONS = 2500;
+const MAX_DECISIONS = 500;
 
 function isIndustryId(value: unknown): value is IndustryId {
   return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
@@ -61,6 +64,17 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     hasIndependentBankRec: staff.independentBankRec,
   };
   const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
+  const decisions = Array.isArray(input.decisions)
+    ? input.decisions
+        .filter(
+          (d): d is DecisionEntry =>
+            typeof d === "object" &&
+            d !== null &&
+            typeof d.id === "string" &&
+            typeof d.createdAt === "string",
+        )
+        .slice(0, MAX_DECISIONS)
+    : base.decisions;
   return {
     ...base,
     practiceName: practiceName || base.practiceName,
@@ -72,5 +86,6 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     customPeople,
     customKnowledge,
     customRelations,
+    decisions,
   };
 }
