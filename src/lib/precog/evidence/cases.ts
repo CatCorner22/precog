@@ -384,6 +384,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Reactivating any employee record requires a second person's approval, not the same manager who runs the payroll",
       },
+      {
+        control: "compare-across-locations",
+        asApplied:
+          "Compare labor hours and payroll cost against sales for each location every month; a location whose payroll carries hours nobody scheduled stands out against its sister sites",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Idaho",
