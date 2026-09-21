@@ -1,7 +1,6 @@
-import { scenarios } from "../demo-data";
 import { runPrecogScenario } from "../engine";
+import type { IndustryTemplate } from "../templates";
 import type { PrecogResult, StaffComposition } from "../types";
-import { staffComposition as defaultStaff } from "../demo-data";
 import type { RiskVariableState } from "./dynamic-variables";
 
 export interface CompareColumn {
@@ -53,14 +52,16 @@ function priorityIndex(result: PrecogResult): number {
 }
 
 export function buildCompareColumn(
+  tpl: IndustryTemplate,
   scenarioId: string,
   mitigationIds: string[],
   staff: StaffComposition,
   label?: string,
   riskVariables?: RiskVariableState,
 ): CompareColumn | null {
+  const { scenarios } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId);
-  const result = runPrecogScenario(scenarioId, {
+  const result = runPrecogScenario(tpl, scenarioId, {
     mitigationIds,
     staff,
     riskVariables,
@@ -91,59 +92,69 @@ export function buildCompareColumn(
 }
 
 export function compareScenarios(
+  tpl: IndustryTemplate,
   scenarioIds: string[],
-  staff: StaffComposition = defaultStaff,
+  staff?: StaffComposition,
   mitigationByScenario: Record<string, string[]> = {},
   riskVariables?: RiskVariableState,
 ): CompareReport {
+  const staffResolved = staff ?? tpl.staffComposition;
   const columns = scenarioIds
     .map((id) =>
-      buildCompareColumn(id, mitigationByScenario[id] ?? [], staff, undefined, riskVariables),
+      buildCompareColumn(
+        tpl,
+        id,
+        mitigationByScenario[id] ?? [],
+        staffResolved,
+        undefined,
+        riskVariables,
+      ),
     )
     .filter(Boolean) as CompareColumn[];
 
-  return finalizeReport(columns, staff);
+  return finalizeReport(columns, staffResolved);
 }
 
 export function compareScenarioFutures(
+  tpl: IndustryTemplate,
   scenarioId: string,
-  staff: StaffComposition = defaultStaff,
+  staff?: StaffComposition,
   selectedMitigationIds: string[] = [],
   riskVariables?: RiskVariableState,
 ): CompareReport {
+  const { scenarios, staffComposition: defaultStaff } = tpl;
+  const staffResolved = staff ?? defaultStaff;
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) {
-    return finalizeReport([], staff);
+    return finalizeReport([], staffResolved);
   }
 
   const columns: CompareColumn[] = [];
 
-  const base = buildCompareColumn(scenarioId, [], staff, "Do nothing", riskVariables);
+  const base = buildCompareColumn(tpl, scenarioId, [], staffResolved, "Do nothing", riskVariables);
   if (base) columns.push(base);
 
   for (const m of scenario.mitigations) {
-    const col = buildCompareColumn(scenarioId, [m.id], staff, m.label, riskVariables);
+    const col = buildCompareColumn(tpl, scenarioId, [m.id], staffResolved, m.label, riskVariables);
     if (col) columns.push(col);
   }
 
   if (selectedMitigationIds.length > 1) {
     const combined = buildCompareColumn(
+      tpl,
       scenarioId,
       selectedMitigationIds,
-      staff,
+      staffResolved,
       "Selected package",
       riskVariables,
     );
     if (combined) columns.push(combined);
   }
 
-  return finalizeReport(columns, staff);
+  return finalizeReport(columns, staffResolved);
 }
 
-function finalizeReport(
-  columns: CompareColumn[],
-  staff: StaffComposition,
-): CompareReport {
+function finalizeReport(columns: CompareColumn[], staff: StaffComposition): CompareReport {
   if (columns.length === 0) {
     return {
       baselineId: "",
@@ -217,28 +228,6 @@ function finalizeReport(
     winnerByAnnualCor,
     staff,
   };
-}
-
-export function compareChartSeries(report: CompareReport) {
-  const maxDay = Math.max(
-    30,
-    ...report.columns.map((c) => Math.round(c.result.timelineDays.p95High * 1.15)),
-  );
-  const days = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(maxDay * t));
-
-  return days.map((day) => {
-    const row: Record<string, number | string> = { day };
-    for (const c of report.columns) {
-      const { p50, p95Low, p95High } = c.result.timelineDays;
-      let risk = 5;
-      if (day >= p95High) risk = 95;
-      else if (day >= p50) risk = 70 + ((day - p50) / Math.max(1, p95High - p50)) * 25;
-      else if (day >= p95Low) risk = 40 + ((day - p95Low) / Math.max(1, p50 - p95Low)) * 30;
-      else risk = 5 + (day / Math.max(1, p95Low)) * 35;
-      row[c.id] = Math.round(Math.min(98, Math.max(0, risk)));
-    }
-    return row;
-  });
 }
 
 export const COMPARE_PALETTE = [

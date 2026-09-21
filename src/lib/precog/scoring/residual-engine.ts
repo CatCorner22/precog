@@ -1,14 +1,13 @@
-import { controls, knowledge, staffComposition } from "../demo-data";
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
-import { scenarios } from "../demo-data";
-import type { ControlItem, StaffComposition } from "../types";
+import { documentationState } from "../continuity/coverage";
+import type { IndustryTemplate } from "../templates";
+import type { ControlItem, KnowledgeItem, StaffComposition } from "../types";
 import {
   ACTION_BANDS,
   bandForScore,
-  CONTROL_EFFECTIVENESS_WEIGHTS,
-  INHERENT_WEIGHTS,
+  DEFAULT_WEIGHTS,
+  type ScoringWeights,
   SCORING_VERSION,
-  STAFF_MODIFIERS,
   type ActionBand,
 } from "./weights";
 
@@ -48,25 +47,25 @@ function clamp100(n: number) {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-function staffUplift(staff: StaffComposition): { factor: number; drivers: RiskDriver[] } {
+function staffUplift(
+  staff: StaffComposition,
+  weights: ScoringWeights,
+): { factor: number; drivers: RiskDriver[] } {
   let factor = 1;
   const drivers: RiskDriver[] = [];
 
   if (staff.teamSize <= 6) {
-    factor += STAFF_MODIFIERS.smallTeamUplift;
+    factor += weights.staff.smallTeamUplift;
     drivers.push({
       id: "staff-small",
       label: "Small team",
       direction: "increases",
-      weight: STAFF_MODIFIERS.smallTeamUplift,
+      weight: weights.staff.smallTeamUplift,
       detail: `Team size ${staff.teamSize} reduces natural SoD options.`,
     });
   }
   if (staff.soleOwnerKnowledgeCount > 0) {
-    const u = Math.min(
-      0.24,
-      staff.soleOwnerKnowledgeCount * STAFF_MODIFIERS.soleOwnerUpliftPerItem,
-    );
+    const u = Math.min(0.24, staff.soleOwnerKnowledgeCount * weights.staff.soleOwnerUpliftPerItem);
     factor += u;
     drivers.push({
       id: "staff-spof",
@@ -77,22 +76,22 @@ function staffUplift(staff: StaffComposition): { factor: number; drivers: RiskDr
     });
   }
   if (staff.segregationScore < 50) {
-    factor += STAFF_MODIFIERS.weakSegregationUplift;
+    factor += weights.staff.weakSegregationUplift;
     drivers.push({
       id: "staff-seg",
       label: "Weak segregation score",
       direction: "increases",
-      weight: STAFF_MODIFIERS.weakSegregationUplift,
+      weight: weights.staff.weakSegregationUplift,
       detail: `Segregation score ${staff.segregationScore}/100.`,
     });
   }
   if (staff.avgTenureYears < 3) {
-    factor += STAFF_MODIFIERS.lowTenureUplift;
+    factor += weights.staff.lowTenureUplift;
     drivers.push({
       id: "staff-tenure",
       label: "Low average tenure",
       direction: "increases",
-      weight: STAFF_MODIFIERS.lowTenureUplift,
+      weight: weights.staff.lowTenureUplift,
       detail: `Avg tenure ${staff.avgTenureYears} years.`,
     });
   }
@@ -100,22 +99,26 @@ function staffUplift(staff: StaffComposition): { factor: number; drivers: RiskDr
   return { factor, drivers };
 }
 
-function controlInherent(c: ControlItem): { score: number; drivers: RiskDriver[] } {
+function controlInherent(
+  c: ControlItem,
+  weights: ScoringWeights,
+): { score: number; drivers: RiskDriver[] } {
   const duties = c.duties.length;
-  const fraudClass = c.id.includes("sod") || c.id.includes("cash") || c.id.includes("ap") || c.id.includes("ar")
-    ? 0.85
-    : 0.45;
+  const fraudClass =
+    c.id.includes("sod") || c.id.includes("cash") || c.id.includes("ap") || c.id.includes("ar")
+      ? 0.85
+      : 0.45;
   const criticality = duties >= 2 ? 0.8 : 0.5;
   const exposure = c.id.includes("cash") || c.id.includes("ap") ? 0.9 : 0.55;
   const detectHard = !c.segregated ? 0.75 : 0.35;
   const cascade = c.id.includes("sod") ? 0.7 : 0.4;
 
   const score =
-    INHERENT_WEIGHTS.assetExposure * exposure +
-    INHERENT_WEIGHTS.processCriticality * criticality +
-    INHERENT_WEIGHTS.fraudOpportunityClass * fraudClass +
-    INHERENT_WEIGHTS.detectionDifficulty * detectHard +
-    INHERENT_WEIGHTS.cascadePotential * cascade;
+    weights.inherent.assetExposure * exposure +
+    weights.inherent.processCriticality * criticality +
+    weights.inherent.fraudOpportunityClass * fraudClass +
+    weights.inherent.detectionDifficulty * detectHard +
+    weights.inherent.cascadePotential * cascade;
 
   return {
     score: clamp01(score),
@@ -142,13 +145,15 @@ function controlEffectiveness(
   c: ControlItem,
   staff: StaffComposition,
   knowledgeRedundancy: number,
+  weights: ScoringWeights,
 ): { score: number; drivers: RiskDriver[] } {
-  const seg = c.segregated ? 0.9 : staff.segregationScore / 100 * 0.45;
-  const dual = staff.dualControlPayments && (c.id.includes("ap") || c.id.includes("cash"))
-    ? 0.85
-    : staff.dualControlPayments
-      ? 0.5
-      : 0.15;
+  const seg = c.segregated ? 0.9 : (staff.segregationScore / 100) * 0.45;
+  const dual =
+    staff.dualControlPayments && (c.id.includes("ap") || c.id.includes("cash"))
+      ? 0.85
+      : staff.dualControlPayments
+        ? 0.5
+        : 0.15;
   const indRec =
     staff.independentBankRec && (c.id.includes("cash") || c.id.includes("sod-cash"))
       ? 0.9
@@ -163,12 +168,12 @@ function controlEffectiveness(
   const know = knowledgeRedundancy;
 
   const score =
-    CONTROL_EFFECTIVENESS_WEIGHTS.segregationQuality * seg +
-    CONTROL_EFFECTIVENESS_WEIGHTS.dualAuthorization * dual +
-    CONTROL_EFFECTIVENESS_WEIGHTS.independentReconciliation * indRec +
-    CONTROL_EFFECTIVENESS_WEIGHTS.compensatingControls * comp +
-    CONTROL_EFFECTIVENESS_WEIGHTS.monitoringCadence * mon +
-    CONTROL_EFFECTIVENESS_WEIGHTS.knowledgeRedundancy * know;
+    weights.control.segregationQuality * seg +
+    weights.control.dualAuthorization * dual +
+    weights.control.independentReconciliation * indRec +
+    weights.control.compensatingControls * comp +
+    weights.control.monitoringCadence * mon +
+    weights.control.knowledgeRedundancy * know;
 
   const drivers: RiskDriver[] = [];
   if (!c.segregated) {
@@ -214,11 +219,12 @@ function scoreControl(
   c: ControlItem,
   staff: StaffComposition,
   knowledgeRedundancy: number,
+  weights: ScoringWeights,
 ): ResidualRiskScore {
-  const inherent = controlInherent(c);
-  const effectiveness = controlEffectiveness(c, staff, knowledgeRedundancy);
+  const inherent = controlInherent(c, weights);
+  const effectiveness = controlEffectiveness(c, staff, knowledgeRedundancy, weights);
   const residualRaw = inherent.score * (1 - effectiveness.score);
-  const uplift = staffUplift(staff);
+  const uplift = staffUplift(staff, weights);
   const residual = clamp100(residualRaw * 100 * uplift.factor);
   const band = bandForScore(residual);
 
@@ -250,27 +256,41 @@ function scoreControl(
 }
 
 function scoreKnowledge(
+  tpl: IndustryTemplate,
   knowledgeId: string,
   name: string,
   soleOwner: boolean,
   ownerCount: number,
-  criticality: string,
+  item: KnowledgeItem | undefined,
   staff: StaffComposition,
+  weights: ScoringWeights,
 ): ResidualRiskScore {
+  const criticality = item?.criticality ?? "important";
   const crit = criticality === "critical" ? 0.9 : 0.6;
-  const ownership =
-    ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
+  const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
   const inherent = clamp01(0.55 * crit + 0.45 * ownership);
-  const effectiveness = clamp01(ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05);
+  const docState = item ? documentationState(item) : "none";
+  const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
+  const docCredit =
+    docState === "located"
+      ? weights.knowledge.documentedLocatedCredit
+      : docState === "unlocated"
+        ? weights.knowledge.documentedUnlocatedCredit
+        : 0;
+  const effectiveness = clamp01(base + docCredit);
   const residualRaw = inherent * (1 - effectiveness);
-  const uplift = staffUplift(staff);
+  const uplift = staffUplift(staff, weights);
   const residual = clamp100(residualRaw * 100 * uplift.factor);
   const band = bandForScore(residual);
 
   const drivers: RiskDriver[] = [
     {
       id: `k-${knowledgeId}-own`,
-      label: soleOwner ? "Single point of failure" : ownerCount === 0 ? "No strong owner" : "Redundant ownership",
+      label: soleOwner
+        ? "Single point of failure"
+        : ownerCount === 0
+          ? "No strong owner"
+          : "Redundant ownership",
       direction: soleOwner || ownerCount === 0 ? "increases" : "decreases",
       weight: ownership,
       detail: `${ownerCount} proficient/expert holder(s).`,
@@ -281,6 +301,23 @@ function scoreKnowledge(
       direction: "increases",
       weight: crit,
       detail: criticality,
+    },
+    {
+      id: `k-${knowledgeId}-doc`,
+      label:
+        docState === "located"
+          ? "Written procedure, findable"
+          : docState === "unlocated"
+            ? "Written procedure, location unknown"
+            : "Nothing written down",
+      direction: docState === "none" ? "increases" : "decreases",
+      weight: docState === "none" ? 0.3 : docCredit,
+      detail:
+        docState === "none"
+          ? "No written procedure a stand-in could follow."
+          : docState === "unlocated"
+            ? "Procedure exists but nobody has recorded where it lives."
+            : `Procedure at ${item?.procedureLocation?.trim() ?? ""}.`,
     },
     ...uplift.drivers,
   ];
@@ -298,53 +335,54 @@ function scoreKnowledge(
     bandGuidance: band.guidance,
     drivers: drivers.sort((a, b) => b.weight - a.weight).slice(0, 6),
     linkedKnowledgeId: knowledgeId,
-    linkedScenarioId:
-      knowledgeId === "k1"
-        ? "sc-front-desk-leaves"
-        : knowledgeId === "k7"
-          ? "sc-writeoff-abuse"
-          : undefined,
+    linkedScenarioId: tpl.scenarios.find((s) => s.knowledgeId === knowledgeId)?.id,
     scoringVersion: SCORING_VERSION,
   };
 }
 
 export function scoreAllResidualRisks(
-  staff: StaffComposition = staffComposition,
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+  weights: ScoringWeights = DEFAULT_WEIGHTS,
 ): ResidualRiskScore[] {
-  const risks = findKnowledgeRisks();
+  const staffResolved = staff ?? tpl.staffComposition;
+  const risks = findKnowledgeRisks(tpl);
   const knowledgeRedundancy =
-    risks.filter((r) => r.ownerCount >= 2).length /
-    Math.max(1, risks.length);
+    risks.filter((r) => r.ownerCount >= 2).length / Math.max(1, risks.length);
 
-  const controlScores = controls.map((c) =>
-    scoreControl(c, staff, knowledgeRedundancy),
+  const controlScores = tpl.controls.map((c) =>
+    scoreControl(c, staffResolved, knowledgeRedundancy, weights),
   );
 
   const knowledgeScores = risks.map((r) => {
-    const k = knowledge.find((x) => x.id === r.knowledgeId);
+    const k = tpl.knowledge.find((x) => x.id === r.knowledgeId);
     return scoreKnowledge(
+      tpl,
       r.knowledgeId,
       r.name,
       r.soleOwner,
       r.ownerCount,
-      k?.criticality ?? "important",
-      staff,
+      k,
+      staffResolved,
+      weights,
     );
   });
 
-  const scenarioScores = scenarios.map((s) => {
-    const result = runPrecogScenario(s.id, { staff })!;
-    const lossNorm = clamp01(result.financialImpact.expected / 125000);
-    const timeNorm = clamp01(1 - result.timelineDays.p50 / 240);
-    const inherent = clamp01(0.55 * lossNorm + 0.45 * (0.5 + timeNorm * 0.5));
-    const effectiveness = clamp01(
-      0.2 +
-        (staff.dualControlPayments ? 0.15 : 0) +
-        (staff.independentBankRec ? 0.15 : 0) +
-        staff.segregationScore / 100 * 0.25,
+  const scenarioScores = tpl.scenarios.map((s) => {
+    const result = runPrecogScenario(tpl, s.id, { staff: staffResolved })!;
+    const lossNorm = clamp01(result.financialImpact.expected / weights.scenario.lossSaturationUsd);
+    const timeNorm = clamp01(1 - result.timelineDays.p50 / weights.scenario.daysSaturation);
+    const inherent = clamp01(
+      weights.scenario.lossShare * lossNorm + weights.scenario.timeShare * (0.5 + timeNorm * 0.5),
     );
-    const residualRaw = inherent * (1 - effectiveness * 0.5);
-    const uplift = staffUplift(staff);
+    const effectiveness = clamp01(
+      weights.scenario.baseEffectiveness +
+        (staffResolved.dualControlPayments ? weights.scenario.dualControlCredit : 0) +
+        (staffResolved.independentBankRec ? weights.scenario.independentBankRecCredit : 0) +
+        (staffResolved.segregationScore / 100) * weights.scenario.segregationCredit,
+    );
+    const residualRaw = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
+    const uplift = staffUplift(staffResolved, weights);
     const residual = clamp100(residualRaw * 100 * uplift.factor);
     const band = bandForScore(residual);
 
@@ -388,11 +426,14 @@ export function scoreAllResidualRisks(
   );
 }
 
-export function portfolioSummary(staff?: StaffComposition) {
-  const scores = scoreAllResidualRisks(staff);
+export function portfolioSummary(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+  weights: ScoringWeights = DEFAULT_WEIGHTS,
+) {
+  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights);
   const top = scores.slice(0, 8);
-  const avg =
-    scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
+  const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
   const criticalPath = scores.filter((s) => s.band === "critical_path").length;
   const actNow = scores.filter((s) => s.band === "act_now").length;
 
@@ -408,40 +449,41 @@ export function portfolioSummary(staff?: StaffComposition) {
 }
 
 /** Tornado sensitivity: which staff/control lever moves average residual most */
-export function tornadoSensitivity(baseStaff: StaffComposition = staffComposition) {
-  const base = portfolioSummary(baseStaff).averageResidual;
+export function tornadoSensitivity(tpl: IndustryTemplate, baseStaff?: StaffComposition) {
+  const baseStaffResolved = baseStaff ?? tpl.staffComposition;
+  const base = portfolioSummary(tpl, baseStaffResolved).averageResidual;
   const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
 
   const trials: { id: string; label: string; staff: StaffComposition }[] = [
     {
       id: "dual",
       label: "Enable dual control on payments",
-      staff: { ...baseStaff, dualControlPayments: true },
+      staff: { ...baseStaffResolved, dualControlPayments: true },
     },
     {
       id: "bank",
       label: "Independent bank reconciliation",
-      staff: { ...baseStaff, independentBankRec: true },
+      staff: { ...baseStaffResolved, independentBankRec: true },
     },
     {
       id: "seg",
       label: "Raise segregation score to 75",
-      staff: { ...baseStaff, segregationScore: 75 },
+      staff: { ...baseStaffResolved, segregationScore: 75 },
     },
     {
       id: "spof",
       label: "Eliminate sole-owner knowledge",
-      staff: { ...baseStaff, soleOwnerKnowledgeCount: 0 },
+      staff: { ...baseStaffResolved, soleOwnerKnowledgeCount: 0 },
     },
     {
       id: "team",
       label: "Grow team to 10 (more SoD room)",
-      staff: { ...baseStaff, teamSize: 10 },
+      staff: { ...baseStaffResolved, teamSize: 10 },
     },
   ];
 
   for (const t of trials) {
-    const improved = portfolioSummary(t.staff).averageResidual;
+    const improved = portfolioSummary(tpl, t.staff).averageResidual;
     levers.push({
       id: t.id,
       label: t.label,

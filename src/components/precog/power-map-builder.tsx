@@ -25,6 +25,7 @@ import {
   type RoleAssignment,
 } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,6 @@ import { evaluateAssignmentChange } from "@/lib/precog/sod/change-impact";
 import { buildCoveragePlans, buildCoverageProgram, type CoveragePlan } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
-import { processes } from "@/lib/precog/demo-data";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 
 const FAMILY_META: Record<DutyFamily, { label: string; color: string; description: string }> = {
@@ -49,8 +49,9 @@ const FAMILY_META: Record<DutyFamily, { label: string; color: string; descriptio
 };
 
 export function PowerMapBuilder() {
+  const tpl = useTemplate();
   const { profile } = usePractice();
-  const [assignments, setAssignments] = useState<RoleAssignment[]>(buildAssignments);
+  const [assignments, setAssignments] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
@@ -62,7 +63,7 @@ export function PowerMapBuilder() {
   const [storageReady, setStorageReady] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
-  const [baseline, setBaseline] = useState<RoleAssignment[]>(buildAssignments);
+  const [baseline, setBaseline] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
   const [processId, setProcessId] = useState("all");
 
   useEffect(() => {
@@ -97,8 +98,8 @@ export function PowerMapBuilder() {
   }, [assignments, storageReady]);
 
   const report = useMemo(
-    () => detectSodConflicts(profile.staff, { assignments }),
-    [assignments, profile.staff],
+    () => detectSodConflicts(tpl, profile.staff, { assignments }),
+    [assignments, profile.staff, tpl],
   );
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
   const coveragePlans = useMemo(() => buildCoveragePlans(assignments, profile.staff), [assignments, profile.staff]);
@@ -178,7 +179,7 @@ export function PowerMapBuilder() {
   }
 
   function reset() {
-    const defaults = buildAssignments();
+    const defaults = buildAssignments(tpl);
     commit(defaults);
     setSelectedId(defaults[0]?.personId ?? "");
     setConflictsOnly(false);
@@ -297,7 +298,7 @@ export function PowerMapBuilder() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-border bg-elevated p-2">
               {Object.entries(FAMILY_META).map(([id, meta]) => <span key={id} className="flex items-center gap-1.5 text-[10px] text-muted" title={meta.description}><span className="size-2 rounded-full" style={{ background: meta.color }} />{meta.label}</span>)}
-              <label className="ml-auto flex items-center gap-2 text-[10px] text-muted"><span>Process lens</span><select value={processId} onChange={(event) => setProcessId(event.target.value)} className="max-w-56 rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"><option value="all">All processes</option>{processes.map((process) => <option key={process.id} value={process.id}>{process.name}</option>)}</select></label>
+              <label className="ml-auto flex items-center gap-2 text-[10px] text-muted"><span>Process lens</span><select value={processId} onChange={(event) => setProcessId(event.target.value)} className="max-w-56 rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"><option value="all">All processes</option>{tpl.processes.map((process) => <option key={process.id} value={process.id}>{process.name}</option>)}</select></label>
             </div>
           </CardHeader>
           <CardContent>

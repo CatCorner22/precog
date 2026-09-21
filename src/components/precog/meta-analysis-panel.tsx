@@ -74,8 +74,7 @@ export function MetaAnalysisPanel({
     if (filter === "all") return true;
     if (filter === "critical")
       return (
-        i.classification !== "known_known" &&
-        (i.severity === "critical" || i.severity === "high")
+        i.classification !== "known_known" && (i.severity === "critical" || i.severity === "high")
       );
     return i.classification === filter;
   });
@@ -84,20 +83,20 @@ export function MetaAnalysisPanel({
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Epistemic meta-analysis</Badge>
-          <Badge variant="primary">Real-time evaluation quality</Badge>
-          <Badge variant={live ? "ok" : "default"}>
-            {live ? "Live · 4s pulse" : "Paused"}
-          </Badge>
+          <Badge variant="accent">What this app can see</Badge>
+          <Badge variant="primary">Inventory, not a score</Badge>
+          <Badge variant={live ? "ok" : "default"}>{live ? "Live · 4s pulse" : "Paused"}</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Radar className="size-5 text-primary" />
-          How well can Precog evaluate this practice — right now?
+          What this app measures, what it knows it cannot see, and what lies outside its model
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          This tool scores the <strong className="text-fg">quality of knowing</strong>: what is
-          measured, gaps we admit (known unknowns), and what the model cannot see yet (unknown
-          unknowns). Live pulse re-evaluates as your profile, dual release, and decisions change.
+          An inventory of{" "}
+          <strong className="text-fg">what is behind every other number here</strong>: items
+          measured from your profile, gaps this app admits (known unknowns), and areas outside what
+          it models (unknown unknowns). It is a list to work through, not a score. It re-evaluates
+          as your profile, dual release, and decisions change.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => setTick((t) => t + 1)}>
@@ -119,38 +118,10 @@ export function MetaAnalysisPanel({
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ScoreCard
-          label="Evaluation readiness"
-          value={report.evaluationReadiness}
-          band={report.readinessBand}
-          hint="Can we re-score from current inputs?"
-        />
-        <ScoreCard
-          label="Epistemic confidence"
-          value={report.epistemicConfidence}
-          band={report.confidenceBand}
-          hint="Should we trust the outputs?"
-        />
-        <ScoreCard
-          label="Real-time capability"
-          value={report.realtimeScore}
-          band={
-            report.realtimeScore >= 70
-              ? "high"
-              : report.realtimeScore >= 50
-                ? "solid"
-                : report.realtimeScore >= 35
-                  ? "partial"
-                  : "fragile"
-          }
-          hint={`${report.realtimeCapabilities.filter((c) => c.ready).length}/${report.realtimeCapabilities.length} streams live`}
-        />
         <Card>
           <CardContent className="p-4">
             <Badge variant="danger">Critical / high unknowns</Badge>
-            <p className="mt-2 text-2xl font-semibold tabular">
-              {report.summary.criticalUnknowns}
-            </p>
+            <p className="mt-2 text-2xl font-semibold tabular">{report.summary.criticalUnknowns}</p>
             <p className="text-xs text-muted">Need probes or ontology expansion</p>
           </CardContent>
         </Card>
@@ -211,9 +182,7 @@ export function MetaAnalysisPanel({
             <Sparkles className="size-4 text-primary" />
             Live analysis narrative
           </CardTitle>
-          <CardDescription>
-            Updates as profile, dual release, and decisions change
-          </CardDescription>
+          <CardDescription>Updates as profile, dual release, and decisions change</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted">
           {report.narrative.map((n) => (
@@ -271,37 +240,6 @@ export function MetaAnalysisPanel({
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Domain coverage</CardTitle>
-              <CardDescription>How much of each risk surface is evaluable</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {report.coverage.map((c) => (
-                <div key={c.domain}>
-                  <div className="mb-1 flex justify-between text-xs">
-                    <span className="font-medium text-fg">{c.domain}</span>
-                    <span className="tabular text-muted">{c.coveredPct}%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-elevated">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        c.coveredPct >= 65
-                          ? "bg-ok"
-                          : c.coveredPct >= 40
-                            ? "bg-warn"
-                            : "bg-danger",
-                      )}
-                      style={{ width: `${c.coveredPct}%` }}
-                    />
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-subtle">{c.note}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Eye className="size-4" />
                 Johari window (control system)
@@ -335,9 +273,7 @@ export function MetaAnalysisPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Epistemic inventory ({filtered.length})
-          </CardTitle>
+          <CardTitle className="text-base">Epistemic inventory ({filtered.length})</CardTitle>
           <CardDescription>
             Known unknowns admit ignorance. Unknown unknowns expand what we should look for next.
           </CardDescription>
@@ -346,36 +282,10 @@ export function MetaAnalysisPanel({
           {filtered.map((item) => (
             <ItemCard key={item.id} item={item} onNavigate={onNavigate} />
           ))}
-          {filtered.length === 0 && (
-            <p className="text-sm text-muted">No items in this filter.</p>
-          )}
+          {filtered.length === 0 && <p className="text-sm text-muted">No items in this filter.</p>}
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function ScoreCard({
-  label,
-  value,
-  band,
-  hint,
-}: {
-  label: string;
-  value: number;
-  band: string;
-  hint: string;
-}) {
-  const tone = value >= 70 ? "ok" : value >= 50 ? "warn" : ("danger" as const);
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <Badge variant={tone}>{label}</Badge>
-        <p className="mt-2 text-2xl font-semibold tabular">{value}</p>
-        <p className="text-xs capitalize text-muted">{band}</p>
-        <p className="mt-1 text-[11px] text-subtle">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -409,15 +319,7 @@ function CountChip({
   );
 }
 
-function JohariCell({
-  title,
-  icon,
-  items,
-}: {
-  title: string;
-  icon: ReactNode;
-  items: string[];
-}) {
+function JohariCell({ title, icon, items }: { title: string; icon: ReactNode; items: string[] }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-2.5">
       <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-subtle uppercase">
@@ -457,20 +359,11 @@ function ItemCard({
         <Badge variant={meta.variant}>{meta.label}</Badge>
         <Badge
           variant={
-            item.severity === "critical"
-              ? "danger"
-              : item.severity === "high"
-                ? "warn"
-                : "default"
+            item.severity === "critical" ? "danger" : item.severity === "high" ? "warn" : "default"
           }
         >
           {item.severity}
         </Badge>
-        {item.confidenceDrag > 0 && (
-          <span className="text-[11px] tabular text-subtle">
-            −{Math.round(item.confidenceDrag * 100)} conf
-          </span>
-        )}
         {item.metric && <span className="text-[11px] text-muted">{item.metric}</span>}
       </div>
       <p className="mt-1.5 font-medium">{item.title}</p>

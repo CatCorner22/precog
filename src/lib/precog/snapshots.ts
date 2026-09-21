@@ -101,6 +101,7 @@ function sanitizeProfile(value: unknown): { profile: PracticeProfile; json: stri
   // persisted and malformed nested containers cannot reach merge functions.
   const candidate: Partial<PracticeProfile> = {
     practiceName: typeof value.practiceName === "string" ? value.practiceName : undefined,
+    industry: typeof value.industry === "string" ? (value.industry as PracticeProfile["industry"]) : undefined,
     staff: isRecord(value.staff) ? (value.staff as unknown as PracticeProfile["staff"]) : undefined,
     riskVariables: isRecord(value.riskVariables)
       ? (value.riskVariables as unknown as PracticeProfile["riskVariables"])
@@ -112,6 +113,20 @@ function sanitizeProfile(value: unknown): { profile: PracticeProfile; json: stri
         ? (value.dualRelease as unknown as PracticeProfile["dualRelease"])
         : undefined,
     decisions: Array.isArray(value.decisions) ? value.decisions : undefined,
+    onboardingComplete:
+      typeof value.onboardingComplete === "boolean" ? value.onboardingComplete : undefined,
+    customProcesses: Array.isArray(value.customProcesses) ? value.customProcesses : undefined,
+    customPeople: Array.isArray(value.customPeople) ? value.customPeople : undefined,
+    customKnowledge: Array.isArray(value.customKnowledge) ? value.customKnowledge : undefined,
+    customRelations: Array.isArray(value.customRelations) ? value.customRelations : undefined,
+    plannedAbsences: Array.isArray(value.plannedAbsences) ? value.plannedAbsences : undefined,
+    mapLayout: isRecord(value.mapLayout)
+      ? (value.mapLayout as unknown as PracticeProfile["mapLayout"])
+      : undefined,
+    savedProcessBlocks: Array.isArray(value.savedProcessBlocks) ? value.savedProcessBlocks : undefined,
+    mapHealthHistory: Array.isArray(value.mapHealthHistory) ? value.mapHealthHistory : undefined,
+    mapVersions: Array.isArray(value.mapVersions) ? value.mapVersions : undefined,
+    businessId: typeof value.businessId === "string" ? value.businessId : undefined,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
   const profile = normalizeProfile(candidate);

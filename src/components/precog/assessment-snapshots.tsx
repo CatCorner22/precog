@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Archive, Clock3, RefreshCw, Save, Scale, Trash2, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   createAssessmentSnapshot,
   deleteAssessmentSnapshot,
@@ -29,6 +30,7 @@ import { compareAssessmentStates } from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
 
 export function AssessmentSnapshots() {
+  const tpl = useTemplate();
   const { profile, replaceProfile } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
@@ -120,7 +122,7 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       replaceProfile(snapshot.profile);
-      const restoredPowerMap = snapshot.powerMap ?? buildAssignments();
+      const restoredPowerMap = snapshot.powerMap ?? buildAssignments(tpl);
       window.localStorage.setItem(
         POWER_MAP_STORAGE_KEY,
         JSON.stringify(createPowerMapFile(restoredPowerMap)),
@@ -166,13 +168,13 @@ export function AssessmentSnapshots() {
         result: compareAssessmentStates(
           {
             profile,
-            powerMap: currentMap ?? buildAssignments(),
+            powerMap: currentMap ?? buildAssignments(tpl),
             valueCase: currentValue,
             evidence: currentEvidence,
           },
           {
             profile: snapshot.profile,
-            powerMap: snapshot.powerMap ?? buildAssignments(),
+            powerMap: snapshot.powerMap ?? buildAssignments(tpl),
             valueCase: snapshot.valueCase ?? DEFAULT_VALUE_CASE,
             evidence: snapshot.valueEvidence ?? [],
           },
