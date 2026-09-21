@@ -7,6 +7,7 @@ import {
   documentationDebt,
   DOCUMENTATION_LABEL,
   firstName,
+  ownerlessProcesses,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
@@ -375,6 +376,21 @@ export function buildWeeklyActions(input: {
       effort: top.successor ? "medium" : "high",
       tab: "knowledge",
       priority: top.item.criticality === "critical" ? urgency : urgency - 10,
+    });
+  }
+
+  // A process whose every listed owner has been marked as left still looks
+  // owned on the map; the owner slot is the leaver's last unfinished hand-over.
+  for (const o of ownerlessProcesses(tpl).slice(0, 2)) {
+    const former = o.formerOwners.map((p) => firstName(p.name));
+    actions.push({
+      id: `map-owner-left-${o.id}`,
+      title: `Name a new owner for ${o.name}`,
+      why: `${former.join(" and ")} ${former.length === 1 ? "was" : "were"} the only listed owner${former.length === 1 ? "" : "s"} and ${former.length === 1 ? "has" : "have"} left. Until someone on the team owns it, nobody is accountable for its controls and it drops out of the segregation and continuity figures.`,
+      effort: "low",
+      tab: "map",
+      processId: o.id,
+      priority: 86,
     });
   }
 

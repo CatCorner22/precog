@@ -12,6 +12,7 @@ import {
   documentationDebt,
   firstName,
   documentationState,
+  ownerlessProcesses,
   resolveClientDate,
   staleItems,
   setRelationLevel,
@@ -352,6 +353,29 @@ describe("setRelationLevel", () => {
   });
 });
 
+describe("ownerlessProcesses", () => {
+  it("names processes whose every listed owner has left, and ignores unknown ids", () => {
+    const base = tpl([], []);
+    const t: IndustryTemplate = {
+      ...base,
+      processes: [
+        ...base.processes,
+        { ...base.processes[0], id: "proc-close", name: "Month-end close", ownerPersonIds: ["d"] },
+        { ...base.processes[0], id: "proc-ghost", name: "Ghost", ownerPersonIds: ["zz"] },
+        { ...base.processes[0], id: "proc-none", name: "Unowned", ownerPersonIds: [] },
+      ],
+    };
+    expect(ownerlessProcesses(t)).toEqual([
+      { id: "proc-close", name: "Month-end close", formerOwners: [people[3]] },
+    ]);
+    const afterBenLeaves: IndustryTemplate = {
+      ...t,
+      people: people.map((p) => (p.id === "b" ? { ...p, active: false } : p)),
+    };
+    expect(ownerlessProcesses(afterBenLeaves).map((o) => o.id)).toEqual(["proc-close"]);
+  });
+});
+
 describe("absenceImpact", () => {
   const t = tpl(
     [
@@ -407,6 +431,13 @@ describe("absenceImpact", () => {
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
     expect(absenceImpact(solo, "b")!.orphanedProcesses).toEqual(["Payroll run"]);
+  });
+
+  it("names a cold stand-in for a backed-up item when every holder is out at once", () => {
+    const both = absenceImpact(t, ["a", "b"])!;
+    const ordering = both.stops.find((s) => s.item.id === "ordering")!;
+    expect(ordering.standIn?.id).toBe("c");
+    expect(ordering.note).toMatch(/starting cold/);
   });
 
   it("returns null for an unknown person and says so when nobody else is left", () => {

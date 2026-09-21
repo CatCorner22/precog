@@ -96,7 +96,7 @@ describe("buildWeeklyActions leavers", () => {
   });
 
   it("stops once they are marked as left, and the entry falls back to ordinary coverage advice", () => {
-    const actions = build(markLeft(notice, maya.id), [], "2025-04-23");
+    const actions = build(markLeft(notice, maya.id, "2025-04-23"), [], "2025-04-23");
     expect(actions.some((a) => a.id.startsWith("leaver-"))).toBe(false);
     expect(actions.find((a) => a.id === `spof-${item.id}`)?.title).toBe(
       `Find someone to own ${item.name}`,

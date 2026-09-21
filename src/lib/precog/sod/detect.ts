@@ -342,21 +342,23 @@ export function buildAssignments(
 ): RoleAssignment[] {
   const activeTemplate = tpl ?? getIndustryTemplate("dental");
   const { people, roleTemplates } = activeTemplate;
-  return people.map((p) => {
-    const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
-    const fromRole = (fromPerson ??
-      roleTemplates[p.role] ??
-      ROLE_TEMPLATES[p.role] ??
-      ["view_reports_only"]) as EntitlementId[];
-    const extra = overrides?.[p.id] ?? [];
-    const entitlements = Array.from(new Set([...fromRole, ...extra]));
-    return {
-      personId: p.id,
-      personName: p.name,
-      role: p.role,
-      entitlements,
-    };
-  });
+  // People marked as left stay on the list for history but hold no live access.
+  return people
+    .filter((p) => p.active)
+    .map((p) => {
+      const fromPerson = (p.entitlements?.length ? p.entitlements : null) as EntitlementId[] | null;
+      const fromRole = (fromPerson ??
+        roleTemplates[p.role] ??
+        ROLE_TEMPLATES[p.role] ?? ["view_reports_only"]) as EntitlementId[];
+      const extra = overrides?.[p.id] ?? [];
+      const entitlements = Array.from(new Set([...fromRole, ...extra]));
+      return {
+        personId: p.id,
+        personName: p.name,
+        role: p.role,
+        entitlements,
+      };
+    });
 }
 
 export function detectSodConflicts(

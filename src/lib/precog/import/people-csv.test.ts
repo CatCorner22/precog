@@ -110,4 +110,50 @@ describe("parsePeopleCsv", () => {
 
     expect(parsePeopleCsv(peopleToCsv(people), dental).people).toEqual(people);
   });
+
+  it("carries each person's last day through export and import", () => {
+    const people = [
+      {
+        id: "p-maya",
+        name: "Maya Chen",
+        role: "Office Manager",
+        active: true,
+        lastDay: "2026-10-14",
+      },
+      { id: "p-chris", name: "Chris Diaz", role: "Front Desk Lead", active: true },
+    ];
+    const csv = peopleToCsv(people);
+    expect(csv.split(/\r?\n/)[0]).toBe("name,role,tenure_years,active,last_day,entitlements");
+    const back = parsePeopleCsv(csv, { ...dental, people }).people;
+    expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
+    expect("lastDay" in (back.find((p) => p.name === "Chris Diaz") ?? {})).toBe(false);
+  });
+
+  it("keeps a matched person's last day when the file has no such column, and validates it when it does", () => {
+    const team = [
+      {
+        id: "p-maya",
+        name: "Maya Chen",
+        role: "Office Manager",
+        active: true,
+        lastDay: "2026-10-14",
+      },
+    ];
+    const tpl = { ...dental, people: team };
+    expect(parsePeopleCsv("name,role\nMaya Chen,Office Manager", tpl).people[0].lastDay).toBe(
+      "2026-10-14",
+    );
+    expect(
+      "lastDay" in parsePeopleCsv("name,role,last day\nMaya Chen,Office Manager,", tpl).people[0],
+    ).toBe(false);
+    const bad = parsePeopleCsv("name,leaving date\nMaya Chen,next month", tpl);
+    expect(bad.people[0].lastDay).toBe("2026-10-14");
+    expect(bad.issues).toContainEqual({
+      row: 1,
+      message: "Last day must be a date like 2026-10-14",
+    });
+    expect(parsePeopleCsv("name,last_day\nMaya Chen,2026-12-01", tpl).people[0].lastDay).toBe(
+      "2026-12-01",
+    );
+  });
 });
