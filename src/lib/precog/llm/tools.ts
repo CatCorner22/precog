@@ -108,7 +108,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_planned_absences",
     description:
-      "Known leave from the owner's register that has started or starts within 30 days: who is away and when, days of lead time, which duties stop while they (and anyone whose leave overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also leave that just ended and awaits a debrief: who covered which duty for how many days, and whether the register can now promote them.",
+      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -359,6 +359,7 @@ export function executeTool(
           person: { id: w.person.id, name: w.person.name, role: w.person.role },
           from: w.absence.from,
           to: w.absence.to,
+          unplanned: Boolean(w.absence.unplanned),
           daysUntil: w.daysUntil,
           status: w.status,
           handoffBy: handoffDeadline(w, today),
@@ -409,6 +410,7 @@ export function executeTool(
           person: { id: d.person.id, name: d.person.name },
           from: d.absence.from,
           to: d.absence.to,
+          unplanned: Boolean(d.absence.unplanned),
           lengthDays: d.lengthDays,
           daysSince: d.daysSince,
           items: d.items.map((e) => ({
@@ -427,7 +429,7 @@ export function executeTool(
         const later = report.windows.length - soon.length;
         const ahead =
           report.windows.length === 0
-            ? "No planned leave on the register"
+            ? "Nobody on the register is out or has leave booked"
             : soon.length === 0
               ? `${later} planned absence(s), none within 30 days`
               : `${soon

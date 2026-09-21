@@ -25,6 +25,7 @@ import {
   handoffDeadline,
   leadLabel,
   plannedAbsenceReport,
+  procedurePointer,
 } from "@/lib/precog/continuity/planned-absence";
 import { leaveDebriefs, standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import {
@@ -572,10 +573,18 @@ export function ControlReport() {
         </Section>
 
         {leave.windows.length > 0 && (
-          <Section title="Planned leave — what stops and who covers">
+          <Section
+            title={
+              leave.windows.some((w) => w.absence.unplanned)
+                ? "Out today and planned leave — what stops and who covers"
+                : "Planned leave — what stops and who covers"
+            }
+          >
             <p className="text-xs text-neutral-500">
-              Known absences on the register, soonest first. Hand-offs already logged in the Journal
-              are marked; everything else needs a named stand-in before the leave starts.
+              Absences on the register, soonest first — leave booked ahead and anyone recorded out
+              on the day (sick, emergency). Hand-offs already logged in the Journal are marked;
+              everything else needs a named stand-in before the leave starts, or today for anyone
+              already out.
             </p>
             <ul className="mt-2 space-y-3">
               {leave.windows.slice(0, 8).map((w) => {
@@ -592,9 +601,13 @@ export function ControlReport() {
                       <span className="font-medium">
                         {w.person.name} — {formatDateRange(w.absence.from, w.absence.to)}
                         <span className="ml-2 text-xs font-normal text-neutral-600">
-                          {w.status === "current"
-                            ? `out now, back after ${w.absence.to}`
-                            : `${leadLabel(w.daysUntil)} · ${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
+                          {w.absence.unplanned
+                            ? w.status === "current"
+                              ? `out unexpectedly${w.absence.to === today ? ", today" : `, through ${w.absence.to}`}`
+                              : `unplanned · ${leadLabel(w.daysUntil)}`
+                            : w.status === "current"
+                              ? `out now, back after ${w.absence.to}`
+                              : `${leadLabel(w.daysUntil)} · ${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
                         </span>
                       </span>
                       <span className="text-xs text-neutral-600">
@@ -615,6 +628,9 @@ export function ControlReport() {
                           <tr className="text-left text-neutral-500">
                             <th className="py-0.5 font-normal">Stops</th>
                             <th className="py-0.5 font-normal">Stand-in</th>
+                            {w.status === "current" && (
+                              <th className="py-0.5 font-normal">Procedure</th>
+                            )}
                             <th className="py-0.5 font-normal">Hand-off</th>
                           </tr>
                         </thead>
@@ -627,6 +643,11 @@ export function ControlReport() {
                                 <td className="py-1 pr-2">
                                   {s.standIn?.name ?? "Nobody — outside provider or it waits"}
                                 </td>
+                                {w.status === "current" && (
+                                  <td className="py-1 pr-2 text-neutral-600">
+                                    {procedurePointer(s)}
+                                  </td>
+                                )}
                                 <td className="py-1 text-neutral-600">
                                   {c
                                     ? c.overdue
@@ -670,12 +691,12 @@ export function ControlReport() {
         )}
 
         {debriefs.length > 0 && (
-          <Section title="Leave just ended — debrief the stand-ins">
+          <Section title="Absence just ended — debrief the stand-ins">
             <p className="text-xs text-neutral-500">
-              Leave is the one time a stand-in runs the work for real. For each entry covered,
-              decide whether the register can now say they can do it alone (confirmed today,
-              hand-off closed) or whether it becomes a tracked cross-training step. Answer on the
-              Who knows what tab so it stops appearing here.
+              Leave, or a day out sick, is the one time a stand-in runs the work for real. For each
+              entry covered, decide whether the register can now say they can do it alone (confirmed
+              today, hand-off closed) or whether it becomes a tracked cross-training step. Answer on
+              the Who knows what tab so it stops appearing here.
             </p>
             <ul className="mt-2 space-y-3">
               {debriefs.slice(0, 6).map((d) => (
@@ -688,7 +709,8 @@ export function ControlReport() {
                       {d.person.name} — back from {formatDateRange(d.absence.from, d.absence.to)}
                     </span>
                     <span className="text-xs text-neutral-600">
-                      {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"} away
+                      {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"}{" "}
+                      {d.absence.unplanned ? "out unexpectedly" : "away"}
                       {d.daysSince > 0
                         ? `, ended ${d.daysSince} day${d.daysSince === 1 ? "" : "s"} ago`
                         : ", ended today"}

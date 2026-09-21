@@ -238,6 +238,19 @@ describe("leaveDebriefs", () => {
       "Sam covered billing for 8 days and the register already says they can run it alone.",
     );
   });
+
+  it("says the cover was at short notice when the absence was unplanned", () => {
+    const [debrief] = leaveDebriefs(
+      register,
+      [leave({ from: "2025-11-04", to: "2025-11-04", unplanned: true })],
+      [],
+      "general",
+      today,
+    );
+    expect(describeDebrief(debrief)).toBe(
+      "Maya's back — Chris covered pms for 1 day at short notice; can they run it alone now?",
+    );
+  });
 });
 
 describe("normalizePlannedAbsences", () => {

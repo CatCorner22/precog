@@ -405,6 +405,7 @@ function localSynthesize(
       person: { id: string; name: string };
       from: string;
       to: string;
+      unplanned: boolean;
       daysUntil: number;
       status: "current" | "upcoming";
       handoffBy: string;
@@ -418,6 +419,8 @@ function localSynthesize(
       stops: {
         name: string;
         standIn: { name: string } | null;
+        documented: boolean;
+        procedureLocation: string | null;
         handoffCommitted: { reviewBy: string | null; overdue: boolean } | null;
       }[];
       remaining: { name: string }[];
@@ -427,6 +430,7 @@ function localSynthesize(
       person: { id: string; name: string };
       from: string;
       to: string;
+      unplanned?: boolean;
       lengthDays: number;
       items: {
         name: string;
@@ -533,16 +537,20 @@ function localSynthesize(
     if (!w) return [];
     const open = w.stops.filter((s) => !s.handoffCommitted);
     const committed = w.stops.filter((s) => s.handoffCommitted);
+    const out = w.unplanned ? "is out unexpectedly" : "is out";
+    const cascade = w.unplanned ? "cover while out sick ↑" : "continuity during leave ↑";
     if (open.length === 0 && committed.length > 0) {
       const c = committed[0];
       return [
         {
-          action: `In progress: hand-off of ${c.name} before ${w.person.name} is out${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`,
+          action: w.status === "current"
+            ? `In progress: ${c.name} is covered while ${w.person.name} ${out}${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`
+            : `In progress: hand-off of ${c.name} before ${w.person.name} is out${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`,
           rationale: `You already logged the hand-off in the Journal${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.journal, w.daysUntil)),
-          cascadeEffects: ["continuity during leave ↑"],
+          cascadeEffects: [cascade],
         },
       ];
     }
@@ -550,8 +558,19 @@ function localSynthesize(
     const noOne = open.filter((s) => !s.standIn);
     const when =
       w.status === "current"
-        ? "is out now"
+        ? w.unplanned
+          ? `${out} today (${w.from}${w.to !== w.from ? ` to ${w.to}` : ""})`
+          : "is out now"
         : `is out ${w.from} to ${w.to}, in ${w.daysUntil} day${w.daysUntil === 1 ? "" : "s"}`;
+    const procedure = !first.documented
+      ? "nothing is written down"
+      : first.procedureLocation
+        ? `the procedure is at ${first.procedureLocation}`
+        : "it is written down but the location is not recorded";
+    const coverNow =
+      w.status === "current" && first.standIn
+        ? ` Tell ${first.standIn.name} today that ${first.name} is theirs for now; ${procedure}.`
+        : "";
     const also = w.overlaps.length
       ? ` ${w.overlaps.map((o) => o.person.name).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also away for part of it.`
       : "";
@@ -563,13 +582,15 @@ function localSynthesize(
     return [
       {
         action: first.standIn
-          ? `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
-          : `Decide who covers ${first.name} while ${w.person.name} is out${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
-        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+          ? w.status === "current"
+            ? `${first.standIn.name} covers ${first.name} today while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
+            : `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
+          : `Decide who covers ${first.name} while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
         evidenceIds: [] as string[],
         effort: first.standIn ? ("low" as const) : ("medium" as const),
         horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, w.daysUntil)),
-        cascadeEffects: ["continuity during leave ↑"],
+        cascadeEffects: [cascade],
       },
     ];
   };
@@ -586,7 +607,7 @@ function localSynthesize(
             ? `${d.person.name} is back: can ${lead.standIn.name} run ${lead.name} alone now?${more > 0 ? ` — and ${more} more` : ""}`
             : `${d.person.name} is back: close the ${lead.name} hand-off${more > 0 ? ` — and ${more} more` : ""}`
           : `${d.person.name} is back: who covered ${lead.name}?${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${lead.question} Leave is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
+        rationale: `${lead.question} ${d.unplanned ? "Unexpected cover" : "Leave"} is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
         evidenceIds: [] as string[],
         effort: "low" as const,
         horizonDays: REVIEW_HORIZON_DAYS.journal,

@@ -123,14 +123,15 @@ export function standInAlreadyStrong(entry: DebriefItem): boolean {
 /** "Chris covered PMS admin for 8 days; can he run it alone now?" */
 export function describeDebriefItem(debrief: LeaveDebrief, entry: DebriefItem): string {
   const days = `${debrief.lengthDays} day${debrief.lengthDays === 1 ? "" : "s"}`;
+  const notice = debrief.absence.unplanned ? " at short notice" : "";
   if (!entry.standIn) {
-    return `Nobody was lined up for ${entry.item.name} for those ${days} — did someone step in?`;
+    return `Nobody was lined up for ${entry.item.name} for those ${days}${notice} — did someone step in?`;
   }
   const first = firstName(entry.standIn.name);
   if (standInAlreadyStrong(entry)) {
-    return `${first} covered ${entry.item.name} for ${days} and the register already says they can run it alone.`;
+    return `${first} covered ${entry.item.name} for ${days}${notice} and the register already says they can run it alone.`;
   }
-  return `${first} covered ${entry.item.name} for ${days}; can they run it alone now?`;
+  return `${first} covered ${entry.item.name} for ${days}${notice}; can they run it alone now?`;
 }
 
 /** "Maya's back — Chris covered PMS admin for 8 days; can he run it alone now?" plus a count of the rest. */
