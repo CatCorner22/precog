@@ -27,6 +27,7 @@ import {
 import {
   absenceImpact,
   checkInPlan,
+  coverageDrops,
   coverageReport,
   DOCUMENTATION_LABEL,
   documentationDebt,
@@ -39,6 +40,7 @@ import {
   STATUS_LABEL,
   type AbsenceAction,
   type ContinuityStep,
+  type CoverageReport,
   type CoverageStatus,
   type CrossTrainingMove,
   type DocumentationGap,
@@ -169,6 +171,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
   const checkIns = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
   const [checkInChoice, setCheckInChoice] = useState<string | null>(null);
+  /** Coverage as it stood when this check-in started, so drops caused by it can be shown. */
+  const [checkInBaseline, setCheckInBaseline] = useState<CoverageReport | null>(null);
+  const checkInDrops = useMemo(
+    () => (checkInBaseline ? coverageDrops(checkInBaseline, report) : []),
+    [checkInBaseline, report],
+  );
   const checkInView =
     checkInChoice === UNHELD_VIEW && checkIns.unheld.length > 0
       ? UNHELD_VIEW
@@ -237,10 +245,20 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     );
   };
 
+  const checkInSetLevel = (
+    personId: string,
+    knowledgeId: string,
+    level: KnowledgeLevel | undefined,
+  ) => {
+    if (!checkInBaseline) setCheckInBaseline(report);
+    setLevel(personId, knowledgeId, level);
+  };
+
   const resetToTemplate = () => {
     setCustomKnowledge(null);
     setCustomRelations(null);
     setImportIssues([]);
+    setCheckInBaseline(null);
   };
 
   const downloadCsv = (text: string, filename: string) => {
@@ -786,7 +804,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                                 className={cn(inputClass, "text-xs")}
                                 value={entry.level}
                                 onChange={(e) =>
-                                  setLevel(
+                                  checkInSetLevel(
                                     activeCheckIn.person.id,
                                     entry.item.id,
                                     e.target.value as KnowledgeLevel,
@@ -813,7 +831,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                                 variant="ghost"
                                 className="h-7 px-2 text-xs text-danger"
                                 onClick={() =>
-                                  setLevel(activeCheckIn.person.id, entry.item.id, undefined)
+                                  checkInSetLevel(activeCheckIn.person.id, entry.item.id, undefined)
                                 }
                               >
                                 No longer
@@ -875,6 +893,71 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                     )}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {trackFreshness && checkInDrops.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>What this check-in changed</CardTitle>
+                <CardDescription>
+                  {checkInDrops.length} item(s) lost coverage since you started re-confirming. The
+                  register is more honest now — these are the gaps it uncovered.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <ol className="space-y-2">
+                  {checkInDrops.map((d, i) => {
+                    const move = d.move;
+                    return (
+                      <li
+                        key={d.item.id}
+                        className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                      >
+                        <span className="font-mono text-xs text-muted">{i + 1}.</span>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{d.item.name}</span>
+                            <Badge variant={STATUS_VARIANT[d.to]}>{STATUS_LABEL[d.to]}</Badge>
+                            <span className="text-xs text-muted">was: {STATUS_LABEL[d.from]}</span>
+                          </div>
+                          <p className="text-muted">
+                            {d.remaining.length === 0
+                              ? "Nobody left on the active team can run this alone."
+                              : `${d.remaining.map((p) => p.name).join(" and ")} ${
+                                  d.remaining.length === 1 ? "is" : "are"
+                                } left to run it alone.`}
+                            {move && ` ${move.action}`}
+                          </p>
+                          {move &&
+                            (trackedBy(d.item.id, "cover") ? (
+                              <span className="text-xs text-muted">
+                                In the Journal · review by {trackedBy(d.item.id, "cover")}
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => logMove(move)}
+                              >
+                                <BookOpen className="size-3.5" /> Log as decision
+                              </Button>
+                            ))}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => setCheckInBaseline(null)}
+                >
+                  Done reviewing these
+                </Button>
               </CardContent>
             </Card>
           )}

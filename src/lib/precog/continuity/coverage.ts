@@ -473,6 +473,44 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
   return { items, people: peopleLoad, counts, singlePoints, coverageIndex, plan };
 }
 
+export interface CoverageDrop {
+  item: KnowledgeItem;
+  from: CoverageStatus;
+  to: CoverageStatus;
+  /** Who can still run it alone after the change. */
+  remaining: Person[];
+  /** The cross-training move that would repair it, when there is one. */
+  move: CrossTrainingMove | null;
+}
+
+/**
+ * Items whose coverage got worse between two registers — e.g. after a check-in
+ * removed someone, or lowered them below "can do it alone". Items only in one
+ * register are ignored; the register being edited decides what exists.
+ */
+export function coverageDrops(before: CoverageReport, after: CoverageReport): CoverageDrop[] {
+  const was = new Map(before.items.map((i) => [i.item.id, i.status]));
+  return after.items
+    .flatMap((i) => {
+      const from = was.get(i.item.id);
+      if (from === undefined || STATUS_URGENCY[i.status] <= STATUS_URGENCY[from]) return [];
+      return [
+        {
+          item: i.item,
+          from,
+          to: i.status,
+          remaining: i.primaries,
+          move: after.plan.find((m) => m.item.id === i.item.id) ?? null,
+        },
+      ];
+    })
+    .sort(
+      (a, b) =>
+        CRITICALITY_WEIGHT[b.item.criticality] * STATUS_URGENCY[b.to] -
+        CRITICALITY_WEIGHT[a.item.criticality] * STATUS_URGENCY[a.to],
+    );
+}
+
 export interface AbsenceStop {
   item: KnowledgeItem;
   /** Best person to pick it up while the holder is out, if anyone. */
