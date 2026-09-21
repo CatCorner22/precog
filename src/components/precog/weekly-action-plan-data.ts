@@ -225,10 +225,6 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  freshLeft = MAX_FRESH_PER_GAP_KIND;
-  remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
-    if (freshLeft === 0 && remindersLeft === 0) break;
   const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
   for (const w of absencesNeedingAttention(leave.windows).slice(0, 2)) {
     const first = w.person.name.split(" ")[0];
@@ -276,9 +272,10 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  for (const g of documentationDebt(tpl)
-    .gaps.filter((x) => x.item.criticality === "critical")
-    .slice(0, 2)) {
+  freshLeft = MAX_FRESH_PER_GAP_KIND;
+  remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
+  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
+    if (freshLeft === 0 && remindersLeft === 0) break;
     const priority =
       g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
     const c = committed.get(

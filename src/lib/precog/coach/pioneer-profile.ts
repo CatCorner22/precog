@@ -4,17 +4,13 @@ import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual
 import {
   DECISION_KIND_LABEL,
   defaultProfile,
-  type DecisionEntry,
-  type DecisionKind,
-  type PracticeProfile,
-} from "../practice-profile";
-import type { ContinuityStep } from "../continuity/coverage";
-  defaultProfile,
   normalizePlannedAbsences,
   type DecisionEntry,
+  type DecisionKind,
   type PlannedAbsence,
   type PracticeProfile,
 } from "../practice-profile";
+import type { ContinuityStep } from "../continuity/coverage";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
