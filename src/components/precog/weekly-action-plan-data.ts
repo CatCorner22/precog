@@ -6,11 +6,13 @@ import {
   coverageReport,
   documentationDebt,
   DOCUMENTATION_LABEL,
+  firstName,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import {
   continuityCommitments,
   continuityStepKey,
+  handoffCommitment,
   localDateKey,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
@@ -21,6 +23,7 @@ import {
   leadLabel,
   plannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
+import { describeDebriefItem, leaveDebriefs } from "@/lib/precog/continuity/leave-debrief";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
@@ -84,7 +87,7 @@ function committedAction(
   priority: number,
   stillSays: string,
 ): WeeklyAction {
-  const first = c.person?.name.split(" ")[0];
+  const first = c.person ? firstName(c.person.name) : undefined;
   const what =
     c.step === "cover" && first
       ? `${first} on ${c.item.name}`
@@ -192,12 +195,23 @@ export function buildWeeklyActions(input: {
     });
   }
 
+  const debriefs = leaveDebriefs(
+    tpl,
+    input.plannedAbsences ?? [],
+    input.decisions ?? [],
+    tpl.id,
+    today,
+  );
+  // An entry someone just covered during leave is asked about as a debrief,
+  // not recommended as fresh cross-training on top.
+  const debriefing = new Set(debriefs.flatMap((d) => d.items.map((e) => e.item.id)));
+
   // Steps already in the Journal do not use up the fresh-advice slots, so the
   // next uncommitted gap still gets recommended.
   let freshLeft = MAX_FRESH_PER_GAP_KIND;
   let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
   for (const m of continuity.plan.filter(
-    (x) => x.item.criticality === "critical" && x.status !== "thin",
+    (x) => x.item.criticality === "critical" && x.status !== "thin" && !debriefing.has(x.item.id),
   )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority = m.status === "uncovered" ? 86 : 82;
@@ -216,7 +230,7 @@ export function buildWeeklyActions(input: {
         m.status === "uncovered"
           ? `Find someone to own ${m.item.name}`
           : m.trainee
-            ? `Cross-train ${m.trainee.name.split(" ")[0]} on ${m.item.name}`
+            ? `Cross-train ${firstName(m.trainee.name)} on ${m.item.name}`
             : `Cross-train a backup for ${m.item.name}`,
       why: `${m.action} One person holding critical work is both a continuity gap and a fraud-detection blind spot.`,
       effort: m.item.documented ? "low" : "medium",
@@ -225,60 +239,83 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  freshLeft = MAX_FRESH_PER_GAP_KIND;
-  remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
-    if (freshLeft === 0 && remindersLeft === 0) break;
   const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
-  for (const w of absencesNeedingAttention(leave.windows).slice(0, 2)) {
-    const first = w.person.name.split(" ")[0];
+  // Covered leave adds nothing, so it must not use up the two slots.
+  const leaveWorthRaising = absencesNeedingAttention(leave.windows).filter(
+    (w) => w.impact.stops.length > 0 || w.impact.orphanedProcesses.length > 0,
+  );
+  for (const w of leaveWorthRaising.slice(0, 2)) {
+    const first = firstName(w.person.name);
     const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
     const also = w.overlaps.length
-      ? ` ${w.overlaps.map((o) => o.person.name.split(" ")[0]).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
+      ? ` ${w.overlaps.map((o) => firstName(o.person.name)).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
       : "";
     const stops = w.impact.stops;
     if (stops.length === 0) {
       const orphaned = w.impact.orphanedProcesses;
-      if (orphaned.length > 0) {
-        actions.push({
-          id: `leave-${w.absence.id}`,
-          title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
-          why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
-          effort: "low",
-          tab: "knowledge",
-          priority: 70,
-        });
-      }
+      actions.push({
+        id: `leave-${w.absence.id}`,
+        title: `${first} is out ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} Name a stand-in owner before the leave starts.`,
+        effort: "low",
+        tab: "knowledge",
+        priority: 70,
+      });
       continue;
     }
-    const open = stops.filter((s) => !committed.get(continuityStepKey(s.item.id, "handoff")));
+    const open = stops.filter((s) => !handoffCommitment(committed, s.item.id, w.absence.id));
     const critical = open.filter((s) => s.item.criticality === "critical");
     const lead = critical[0] ?? open[0];
     const urgency = w.status === "current" ? 92 : w.daysUntil <= 7 ? 89 : 85;
     if (!lead) {
-      const c = committed.get(continuityStepKey(stops[0].item.id, "handoff"));
+      const c = handoffCommitment(committed, stops[0].item.id, w.absence.id);
       if (c) actions.push(committedAction(c, urgency, `${first} is out ${when}`));
       continue;
     }
     const noOne = open.filter((s) => !s.standIn);
     const others = open.length - 1;
+    const othersAway = w.peak.people.filter((p) => p.id !== w.person.id);
+    const during =
+      w.peak.extraStops.length > 0
+        ? ` ${formatDateRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => firstName(p.name)).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
+        : " for the whole absence";
     actions.push({
       id: `leave-${w.absence.id}`,
       title: lead.standIn
-        ? `${first} is out ${when}: hand off ${lead.item.name} to ${lead.standIn.name.split(" ")[0]}${others > 0 ? ` and ${others} more` : ""}`
+        ? `${first} is out ${when}: hand off ${lead.item.name} to ${firstName(lead.standIn.name)}${others > 0 ? ` and ${others} more` : ""}`
         : `${first} is out ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
-      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`} for the whole absence${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
+      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
         w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : ""
-      }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => p.name.split(" ")[0]).join(", ")}.` : " Nobody else is left in the business."}`,
+      }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else is left in the business."}`,
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
       priority: lead.item.criticality === "critical" ? urgency : urgency - 10,
     });
   }
 
-  for (const g of documentationDebt(tpl)
-    .gaps.filter((x) => x.item.criticality === "critical")
-    .slice(0, 2)) {
+  // Leave that just ended is a cross-training result waiting to be recorded:
+  // the stand-in ran the work for real, so ask while it is fresh.
+  for (const d of debriefs.slice(0, 2)) {
+    const first = firstName(d.person.name);
+    const lead = d.items[0];
+    const more = d.items.length - 1;
+    const standIn = lead.standIn ? firstName(lead.standIn.name) : undefined;
+    actions.push({
+      id: `debrief-${d.absence.id}`,
+      title: standIn
+        ? `${first}'s back: can ${standIn} run ${lead.item.name} alone now?${more > 0 ? ` (+${more} more)` : ""}`
+        : `${first}'s back: who covered ${lead.item.name}?${more > 0 ? ` (+${more} more)` : ""}`,
+      why: `${describeDebriefItem(d, lead)} On the register, one click moves the stand-in to "can do" and closes the hand-off; "Not yet" turns it into a tracked cross-training step.`,
+      effort: "low",
+      tab: "knowledge",
+      priority: lead.item.criticality === "critical" ? 78 : 68,
+    });
+  }
+
+  freshLeft = MAX_FRESH_PER_GAP_KIND;
+  remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
+  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
+    if (freshLeft === 0 && remindersLeft === 0) break;
     const priority =
       g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
     const c = committed.get(
@@ -314,7 +351,7 @@ export function buildWeeklyActions(input: {
         first.soleCount > 0 ? `${first.soleCount} of them nobody else can run alone. ` : "";
       actions.push({
         id: `check-in-${first.person.id}`,
-        title: `Check in with ${first.person.name.split(" ")[0]}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"}`,
+        title: `Check in with ${firstName(first.person.name)}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"}`,
         why: `The register says ${first.person.name} can do ${first.items
           .slice(0, 3)
           .map((entry) => entry.item.name)
@@ -347,7 +384,7 @@ export function buildWeeklyActions(input: {
   if (leanedOn && leanedOn.dependence >= 50 && leanedOn.soleItems.length >= 2) {
     actions.push({
       id: `dependence-${leanedOn.person.id}`,
-      title: `Spread ${leanedOn.person.name.split(" ")[0]}'s sole duties`,
+      title: `Spread ${firstName(leanedOn.person.name)}'s sole duties`,
       why: `${leanedOn.dependence}% of critical work stops if ${leanedOn.person.name} is out — ${leanedOn.soleItems.length} items nobody else can run. Run the absence check on the Who-knows-what tab.`,
       effort: "medium",
       tab: "knowledge",

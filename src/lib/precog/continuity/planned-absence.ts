@@ -1,7 +1,7 @@
 import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
-import type { Person } from "../types";
+import type { KnowledgeItem, Person } from "../types";
 import { absenceImpact, daysBetween, isCalendarDate, type AbsenceImpact } from "./coverage";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
@@ -15,6 +15,16 @@ export interface AbsenceOverlap {
   to: string;
 }
 
+/** The stretch of a leave window with the most work stopped, and who is away during it. */
+export interface AbsencePeak {
+  from: string;
+  to: string;
+  /** Everyone away on those days: the person on leave plus anyone overlapping then. */
+  people: Person[];
+  /** Register entries that stop only because of the overlapping leave; empty when this person alone stops them all. */
+  extraStops: KnowledgeItem[];
+}
+
 export interface AbsenceWindow {
   absence: PlannedAbsence;
   person: Person;
@@ -26,10 +36,13 @@ export interface AbsenceWindow {
   /** Other planned leave sharing at least one day with this one. */
   overlaps: AbsenceOverlap[];
   /**
-   * What stops with everyone whose leave overlaps this one away at once — the
-   * worst day of the window, not an average of it.
+   * What stops on the worst stretch of the window — the days when the most
+   * people are away together — not an average of it. Overlaps that never
+   * share a day are never combined.
    */
   impact: AbsenceImpact;
+  /** The stretch `impact` describes. Spans the whole window when nobody's leave overlaps. */
+  peak: AbsencePeak;
 }
 
 export interface PlannedAbsenceReport {
@@ -47,6 +60,75 @@ function activePerson(tpl: IndustryTemplate, id: string): Person | undefined {
 
 function overlapsWith(a: PlannedAbsence, b: PlannedAbsence): boolean {
   return a.from <= b.to && b.from <= a.to;
+}
+
+function shiftDay(day: string, delta: number): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Stops, then critical share, then orphaned processes; ties keep the earlier stretch. */
+function worse(a: AbsenceImpact, b: AbsenceImpact): boolean {
+  return (
+    a.stops.length > b.stops.length ||
+    (a.stops.length === b.stops.length &&
+      (a.dependence > b.dependence ||
+        (a.dependence === b.dependence &&
+          a.orphanedProcesses.length > b.orphanedProcesses.length)))
+  );
+}
+
+/**
+ * Cut the window at every day someone's overlapping leave starts or ends, work
+ * out who is away in each stretch, and keep the stretch where the most stops.
+ * Two coworkers who each overlap a different part of the leave are never
+ * treated as away on the same day.
+ */
+function peakImpact(
+  tpl: IndustryTemplate,
+  person: Person,
+  absence: PlannedAbsence,
+  overlaps: readonly AbsenceOverlap[],
+): { impact: AbsenceImpact; peak: AbsencePeak } | null {
+  const cuts = new Set<string>([absence.from]);
+  for (const o of overlaps) {
+    cuts.add(o.from);
+    if (o.to < absence.to) cuts.add(shiftDay(o.to, 1));
+  }
+  const starts = [...cuts].sort();
+  const solo = absenceImpact(tpl, [person.id]);
+  if (!solo) return null;
+  const soloStops = new Set(solo.stops.map((s) => s.item.id));
+  let best: { impact: AbsenceImpact; peak: AbsencePeak } | null = null;
+  const seen = new Map<string, AbsenceImpact>();
+  for (const [index, from] of starts.entries()) {
+    const to = index + 1 < starts.length ? shiftDay(starts[index + 1], -1) : absence.to;
+    const away: Person[] = [person];
+    for (const o of overlaps) {
+      if (o.from <= from && from <= o.to && !away.some((p) => p.id === o.person.id)) {
+        away.push(o.person);
+      }
+    }
+    const key = away.map((p) => p.id).join("|");
+    let impact = seen.get(key);
+    if (!impact) {
+      const computed = absenceImpact(
+        tpl,
+        away.map((p) => p.id),
+      );
+      if (!computed) continue;
+      impact = computed;
+      seen.set(key, impact);
+    }
+    if (!best || worse(impact, best.impact)) {
+      const extraStops = impact.stops
+        .filter((s) => !soloStops.has(s.item.id))
+        .map((s) => s.item);
+      best = { impact, peak: { from, to, people: away, extraStops } };
+    }
+  }
+  return best;
 }
 
 /**
@@ -87,9 +169,8 @@ export function plannedAbsenceReport(
     overlaps.sort(
       (a, b) => a.from.localeCompare(b.from) || a.person.name.localeCompare(b.person.name),
     );
-    const away = [person.id, ...new Set(overlaps.map((o) => o.person.id))];
-    const impact = absenceImpact(tpl, away);
-    if (!impact) continue;
+    const peak = peakImpact(tpl, person, absence, overlaps);
+    if (!peak) continue;
     const daysUntil = Math.max(0, daysBetween(today, absence.from) ?? 0);
     windows.push({
       absence,
@@ -98,7 +179,8 @@ export function plannedAbsenceReport(
       lengthDays: (daysBetween(absence.from, absence.to) ?? 0) + 1,
       status: absence.from <= today ? "current" : "upcoming",
       overlaps,
-      impact,
+      impact: peak.impact,
+      peak: peak.peak,
     });
   }
   windows.sort(
@@ -160,15 +242,27 @@ export function handoffDeadline(window: AbsenceWindow, today: string): string {
   return day.toISOString().slice(0, 10);
 }
 
+/**
+ * "Cy also out 8–10 Nov" for each overlapping coworker; with several of them,
+ * names the stretch the stops are taken from: "worst 8–10 Nov, with Cy also out".
+ */
+export function describeOverlaps(w: AbsenceWindow): string {
+  if (w.overlaps.length === 0) return "";
+  const listed = w.overlaps
+    .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
+    .join("; ");
+  const others = w.peak.people.filter((p) => p.id !== w.person.id);
+  if (w.overlaps.length === 1 || w.peak.extraStops.length === 0) return ` (${listed})`;
+  return ` (${listed}; worst ${formatDateRange(w.peak.from, w.peak.to)}, with ${others
+    .map((p) => p.name.split(" ")[0])
+    .join(" and ")} also out)`;
+}
+
 /** One line an advisor can say about a window: who, when, and the first thing that stops. */
 export function describeWindow(w: AbsenceWindow): string {
   const first = w.person.name.split(" ")[0];
   const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
-  const overlap = w.overlaps.length
-    ? ` (${w.overlaps
-        .map((o) => `${o.person.name.split(" ")[0]} also out ${formatDateRange(o.from, o.to)}`)
-        .join("; ")})`
-    : "";
+  const overlap = describeOverlaps(w);
   const stops = w.impact.stops;
   if (stops.length === 0 && w.impact.orphanedProcesses.length === 0) {
     return `${first} is out ${when}${overlap}: nothing stops.`;

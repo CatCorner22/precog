@@ -15,6 +15,8 @@ import {
   documentationDebt,
   documentationState,
   checkInPlan,
+  firstName,
+  LEVEL_LABEL,
   staleItems,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
@@ -24,10 +26,12 @@ import {
   leadLabel,
   plannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
+import { leaveDebriefs, standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import {
   continuityCommitments,
   continuitySlips,
   continuityStepKey,
+  handoffCommitment,
   isDecisionOpen,
   type ContinuityCommitment,
   linkedContinuityStep,
@@ -67,7 +71,7 @@ function fmtDate(iso: string) {
 /** Marks a recommended step the owner has already logged in the Journal, so it reads as follow-up, not fresh advice. */
 function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
   if (!c) return null;
-  const first = c.person?.name.split(" ")[0];
+  const first = c.person ? firstName(c.person.name) : undefined;
   return (
     <span className={`ml-1 text-xs ${c.overdue ? "text-amber-700" : "text-neutral-500"}`}>
       {c.overdue
@@ -103,6 +107,13 @@ export function ControlReport() {
     const checkIns = checkInPlan(tpl, today);
     const cards = contingencyCards(tpl);
     const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
+    const debriefs = leaveDebriefs(
+      tpl,
+      profile.plannedAbsences ?? [],
+      profile.decisions,
+      profile.industry,
+      today,
+    );
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
     const coso = assessCoso(tpl);
@@ -152,6 +163,7 @@ export function ControlReport() {
       docs,
       cards,
       leave,
+      debriefs,
       slips,
       committed,
       coso,
@@ -175,6 +187,7 @@ export function ControlReport() {
     docs,
     cards,
     leave,
+    debriefs,
     slips,
     committed,
     coso,
@@ -566,7 +579,10 @@ export function ControlReport() {
             </p>
             <ul className="mt-2 space-y-3">
               {leave.windows.slice(0, 8).map((w) => {
-                const others = w.overlaps.map((o) => o.person.name.split(" ")[0]);
+                const others = w.overlaps.map((o) => firstName(o.person.name));
+                const peakOthers = w.peak.people
+                  .filter((p) => p.id !== w.person.id)
+                  .map((p) => firstName(p.name));
                 return (
                   <li
                     key={w.absence.id}
@@ -587,7 +603,10 @@ export function ControlReport() {
                     </div>
                     {others.length > 0 && (
                       <p className="mt-1 text-xs text-amber-800">
-                        Overlapping leave: {others.join(", ")} also out for part of this window.
+                        Overlapping leave: {others.join(", ")} also out for part of this window.{" "}
+                        {w.peak.extraStops.length > 0
+                          ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
+                          : "Nothing extra stops on the shared days."}
                       </p>
                     )}
                     {w.impact.stops.length > 0 ? (
@@ -601,7 +620,7 @@ export function ControlReport() {
                         </thead>
                         <tbody>
                           {w.impact.stops.map((s) => {
-                            const c = committed.get(continuityStepKey(s.item.id, "handoff"));
+                            const c = handoffCommitment(committed, s.item.id, w.absence.id);
                             return (
                               <tr key={s.item.id} className="border-t border-neutral-200 align-top">
                                 <td className="py-1 pr-2">{s.item.name}</td>
@@ -645,6 +664,74 @@ export function ControlReport() {
             {leave.windows.length > 8 && (
               <p className="mt-2 text-xs text-neutral-500">
                 {leave.windows.length - 8} more absences further out; see the Who knows what tab.
+              </p>
+            )}
+          </Section>
+        )}
+
+        {debriefs.length > 0 && (
+          <Section title="Leave just ended — debrief the stand-ins">
+            <p className="text-xs text-neutral-500">
+              Leave is the one time a stand-in runs the work for real. For each entry covered,
+              decide whether the register can now say they can do it alone (confirmed today,
+              hand-off closed) or whether it becomes a tracked cross-training step. Answer on the
+              Who knows what tab so it stops appearing here.
+            </p>
+            <ul className="mt-2 space-y-3">
+              {debriefs.slice(0, 6).map((d) => (
+                <li
+                  key={d.absence.id}
+                  className="break-inside-avoid rounded border border-neutral-300 p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">
+                      {d.person.name} — back from {formatDateRange(d.absence.from, d.absence.to)}
+                    </span>
+                    <span className="text-xs text-neutral-600">
+                      {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"} away
+                      {d.daysSince > 0
+                        ? `, ended ${d.daysSince} day${d.daysSince === 1 ? "" : "s"} ago`
+                        : ", ended today"}
+                    </span>
+                  </div>
+                  <table className="mt-2 w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-neutral-500">
+                        <th className="py-0.5 font-normal">Covered</th>
+                        <th className="py-0.5 font-normal">Stand-in</th>
+                        <th className="py-0.5 font-normal">Decide</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.items.map((e) => (
+                        <tr key={e.item.id} className="border-t border-neutral-200 align-top">
+                          <td className="py-1 pr-2">{e.item.name}</td>
+                          <td className="py-1 pr-2">
+                            {e.standIn
+                              ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}`
+                              : "Nobody was lined up"}
+                          </td>
+                          <td className="py-1 text-neutral-600">
+                            {!e.standIn
+                              ? "Who stepped in? Record them on the register."
+                              : standInAlreadyStrong(e)
+                                ? e.handoff
+                                  ? "Already can do it alone; close the logged hand-off."
+                                  : "Already can do it alone; nothing to change."
+                                : e.training
+                                  ? "Can do alone now? Then close the cross-training entry."
+                                  : "Can do alone now? Or log it as cross-training."}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </li>
+              ))}
+            </ul>
+            {debriefs.length > 6 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                {debriefs.length - 6} more to debrief; see the Who knows what tab.
               </p>
             )}
           </Section>
@@ -728,7 +815,10 @@ export function ControlReport() {
                     {" "}
                     · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas ·{" "}
                     {(p.ownerPersonIds ?? [])
-                      .map((id) => tpl.people.find((x) => x.id === id)?.name.split(" ")[0])
+                      .map((id) => {
+                        const p = tpl.people.find((x) => x.id === id);
+                        return p ? firstName(p.name) : undefined;
+                      })
                       .filter(Boolean)
                       .join(", ") || "no owner"}
                   </span>

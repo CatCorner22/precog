@@ -12,6 +12,7 @@ import {
   captureDecisionSnapshot,
   continuityCommitments,
   continuityStepKey,
+  handoffCommitment,
   continuitySlips,
   decisionDelta,
   decisionsDue,
@@ -313,6 +314,16 @@ describe("continuity steps", () => {
     ]);
     expect(keys.size).toBe(5);
     expect(continuityStepKey("k1", "cover")).toBe(continuityStepKey("k1", "cover"));
+  });
+
+  it("keys hand-offs per planned absence and ignores the absence for other steps", () => {
+    expect(continuityStepKey("k1", "handoff", "abs-1")).not.toBe(
+      continuityStepKey("k1", "handoff", "abs-2"),
+    );
+    expect(continuityStepKey("k1", "handoff", "abs-1")).not.toBe(
+      continuityStepKey("k1", "handoff"),
+    );
+    expect(continuityStepKey("k1", "cover", "abs-1")).toBe(continuityStepKey("k1", "cover"));
   });
 
   it("shows then-vs-now documentation once the procedure is written and located", () => {
@@ -801,5 +812,21 @@ describe("continuityCommitments", () => {
     expect(map.get(continuityStepKey(item.id, "document"))?.person).toBeNull();
     expect(map.get(continuityStepKey(item.id, "locate"))?.step).toBe("locate");
     expect(map.get(continuityStepKey(item.id, "handoff"))?.step).toBe("handoff");
+  });
+
+  it("keeps one leave's hand-off from standing in for another, but honours older unkeyed ones", () => {
+    const map = continuityCommitments(
+      [open({ id: "april", linkedStep: "handoff", linkedAbsenceId: "abs-april" })],
+      dental,
+      "2025-04-01",
+    );
+    expect(handoffCommitment(map, item.id, "abs-april")?.decision.id).toBe("april");
+    expect(handoffCommitment(map, item.id, "abs-july")).toBeUndefined();
+    const legacy = continuityCommitments(
+      [open({ id: "legacy", linkedStep: "handoff" })],
+      dental,
+      "2025-04-01",
+    );
+    expect(handoffCommitment(legacy, item.id, "abs-july")?.decision.id).toBe("legacy");
   });
 });

@@ -10,6 +10,7 @@ import {
   coverageReport,
   coverageStatus,
   documentationDebt,
+  firstName,
   documentationState,
   resolveClientDate,
   staleItems,
@@ -651,5 +652,15 @@ describe("resolveClientDate", () => {
     expect(resolveClientDate("2026-99-99", serverNow)).toBe("2026-09-20");
     expect(resolveClientDate("2026-09-22", serverNow)).toBe("2026-09-20");
     expect(resolveClientDate("2025-01-01", serverNow)).toBe("2026-09-20");
+  });
+});
+
+describe("firstName", () => {
+  it("uses the first given name and skips an honorific", () => {
+    expect(firstName("Maya Chen")).toBe("Maya");
+    expect(firstName("Dr. Elena Vargas")).toBe("Elena");
+    expect(firstName("Prof Amir Khan")).toBe("Amir");
+    expect(firstName("  Chris ")).toBe("Chris");
+    expect(firstName("Dr.")).toBe("Dr.");
   });
 });

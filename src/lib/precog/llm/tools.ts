@@ -18,7 +18,17 @@ import {
   handoffDeadline,
   plannedAbsenceReport,
 } from "../continuity/planned-absence";
-import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
+import {
+  describeDebrief,
+  describeDebriefItem,
+  leaveDebriefs,
+  standInAlreadyStrong,
+} from "../continuity/leave-debrief";
+import {
+  continuityCommitments,
+  continuityStepKey,
+  handoffCommitment,
+} from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
@@ -98,7 +108,7 @@ export const TOOL_CATALOG: {
   {
     name: "get_planned_absences",
     description:
-      "Known leave from the owner's register that has started or starts within 30 days: who is away and when, days of lead time, which duties stop while they (and anyone whose leave overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal.",
+      "Known leave from the owner's register that has started or starts within 30 days: who is away and when, days of lead time, which duties stop while they (and anyone whose leave overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also leave that just ended and awaits a debrief: who covered which duty for how many days, and whether the register can now promote them.",
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
@@ -357,9 +367,15 @@ export function executeTool(
             from: o.from,
             to: o.to,
           })),
+          worstStretch: {
+            from: w.peak.from,
+            to: w.peak.to,
+            away: w.peak.people.map((p) => ({ id: p.id, name: p.name })),
+            extraStops: w.peak.extraStops.map((k) => k.name),
+          },
           dependence: w.impact.dependence,
           stops: w.impact.stops.map((s) => {
-            const handoff = committed.get(continuityStepKey(s.item.id, "handoff"));
+            const handoff = handoffCommitment(committed, s.item.id, w.absence.id);
             return {
               knowledgeId: s.item.id,
               name: s.item.name,
@@ -382,8 +398,34 @@ export function executeTool(
           remaining: w.impact.remaining.map((p) => ({ id: p.id, name: p.name })),
           summary: describeWindow(w),
         }));
+        const debriefs = leaveDebriefs(
+          tpl,
+          profile.plannedAbsences ?? [],
+          profile.decisions,
+          profile.industry,
+          today,
+        ).map((d) => ({
+          absenceId: d.absence.id,
+          person: { id: d.person.id, name: d.person.name },
+          from: d.absence.from,
+          to: d.absence.to,
+          lengthDays: d.lengthDays,
+          daysSince: d.daysSince,
+          items: d.items.map((e) => ({
+            knowledgeId: e.item.id,
+            name: e.item.name,
+            criticality: e.item.criticality,
+            standIn: e.standIn ? { id: e.standIn.id, name: e.standIn.name } : null,
+            standInLevel: e.standInLevel ?? null,
+            canPromote: Boolean(e.standIn) && !standInAlreadyStrong(e),
+            handoffOpen: Boolean(e.handoff),
+            trainingLogged: Boolean(e.training),
+            question: describeDebriefItem(d, e),
+          })),
+          summary: describeDebrief(d),
+        }));
         const later = report.windows.length - soon.length;
-        const summary =
+        const ahead =
           report.windows.length === 0
             ? "No planned leave on the register"
             : soon.length === 0
@@ -392,11 +434,18 @@ export function executeTool(
                   .slice(0, 3)
                   .map((w) => describeWindow(w))
                   .join(" ")}${later > 0 ? ` ${later} more further out.` : ""}`;
+        const summary =
+          debriefs.length === 0
+            ? ahead
+            : `${ahead}${ahead.endsWith(".") ? "" : "."} Debrief due: ${debriefs
+                .slice(0, 2)
+                .map((d) => d.summary)
+                .join(" ")}`;
         return {
           tool,
           ok: true,
           summary,
-          data: { windows, later, unmatched: report.unmatched.length },
+          data: { windows, later, unmatched: report.unmatched.length, debriefs },
           links: [{ tab: "knowledge", label: "Who knows what" }],
         };
       }
