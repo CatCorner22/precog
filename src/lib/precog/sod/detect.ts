@@ -114,7 +114,26 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
     "approve_writeoffs",
     "view_reports_only",
   ],
+  "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
+  "Practice Administrator": ["approve_vendor", "approve_payroll", "approve_writeoffs", "view_reports_only", "review_audit_logs"],
+  Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
+  "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
+  "Insurance Coordinator": ["submit_claims", "post_adjustments", "post_payments", "view_reports_only"],
+  Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile", "enter_payroll", "view_reports_only"],
+  "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
+  "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
+  "Procurement Coordinator": ["order_supplies", "receive_goods", "enter_invoices", "view_reports_only"],
+  "IT Administrator": ["pms_admin_roles", "manage_user_access", "manage_backups", "view_reports_only"],
+  "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
+  "External Billing Service": ["submit_claims", "post_adjustments", "post_payments", "export_bulk_data", "view_reports_only"],
+  "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
+  "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
 };
+
+/** Common jobs available to the visual assignment sandbox. */
+export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
+  ([role, entitlements]) => ({ role, entitlements }),
+);
 
 function entLabel(id: EntitlementId) {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
@@ -143,6 +162,20 @@ function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
     return fa === "master_data" || fa === "custody";
   }
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
+}
+
+function sharesProcess(a: EntitlementId, b: EntitlementId): boolean {
+  const left = entProcesses(a);
+  const right = new Set(entProcesses(b));
+  return left.some((processId) => right.has(processId));
+}
+
+function canonicalPair(a: EntitlementId, b: EntitlementId): [EntitlementId, EntitlementId] {
+  return a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+}
+
+function familyRuleId(a: DutyFamily, b: DutyFamily) {
+  return `family-${[a, b].sort().join("-")}`;
 }
 
 function scoreConflict(
@@ -224,10 +257,15 @@ export function detectSodConflicts(
         const fa = entFamily(a);
         const fb = entFamily(b);
 
-        if (!rule && !familiesConflict(fa, fb)) continue;
+        // Family heuristics are a backstop, not a reason to flag unrelated
+        // workflows. Explicit rulebook conflicts remain global; generic family
+        // conflicts require the powers to participate in the same process.
+        if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
 
         if (rule) {
+          const canonicalA = rule.a;
+          const canonicalB = rule.b;
           const dualMitigated = dualMitigatedRules.has(rule.id);
           const comps = [
             ...rule.compensatingDefaults,
@@ -247,18 +285,18 @@ export function detectSodConflicts(
             personId: person.personId,
             personName: person.personName,
             role: person.role,
-            entitlementA: a,
-            entitlementB: b,
-            labelA: entLabel(a),
-            labelB: entLabel(b),
+            entitlementA: canonicalA,
+            entitlementB: canonicalB,
+            labelA: entLabel(canonicalA),
+            labelB: entLabel(canonicalB),
             severity: rule.severity,
             title: rule.title,
             why: rule.why,
             fraudPath: rule.fraudPath,
             score: scoreConflict(
               rule.severity,
-              a,
-              b,
+              canonicalA,
+              canonicalB,
               accepted,
               comps.length,
               dualMitigated,
@@ -270,25 +308,28 @@ export function detectSodConflicts(
             linkedScenarioId: rule.linkedScenarioId,
             linkedControlId: rule.linkedControlId,
             processIds: Array.from(
-              new Set([...entProcesses(a), ...entProcesses(b)]),
+              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
             ),
           });
         } else {
+          const [canonicalA, canonicalB] = canonicalPair(a, b);
+          const canonicalFamilyA = entFamily(canonicalA);
+          const canonicalFamilyB = entFamily(canonicalB);
           conflicts.push({
-            id: `${person.personId}:family:${a}:${b}`,
-            ruleId: `family-${fa}-${fb}`,
+            id: `${person.personId}:family:${canonicalA}:${canonicalB}`,
+            ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
             personId: person.personId,
             personName: person.personName,
             role: person.role,
-            entitlementA: a,
-            entitlementB: b,
-            labelA: entLabel(a),
-            labelB: entLabel(b),
+            entitlementA: canonicalA,
+            entitlementB: canonicalB,
+            labelA: entLabel(canonicalA),
+            labelB: entLabel(canonicalB),
             severity: "family",
-            title: `${fa} + ${fb} combination`,
-            why: "Duty families are classically incompatible under COSO-style SoD.",
+            title: `${canonicalFamilyA} + ${canonicalFamilyB} combination`,
+            why: "These duty families are incompatible within the same operating process.",
             fraudPath: "Opportunity from combined incompatible duty families",
-            score: scoreConflict("family", a, b, false, 0, false, staff),
+            score: scoreConflict("family", canonicalA, canonicalB, false, 0, false, staff),
             compensatingControls: [
               "Document residual acceptance",
               "Add independent review cadence",
@@ -296,7 +337,7 @@ export function detectSodConflicts(
             residualRiskAccepted: false,
             dualReleaseMitigated: false,
             processIds: Array.from(
-              new Set([...entProcesses(a), ...entProcesses(b)]),
+              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
             ),
           });
         }
@@ -304,7 +345,7 @@ export function detectSodConflicts(
     }
   }
 
-  conflicts.sort((a, b) => b.score - a.score);
+  conflicts.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 
   const entitlementOrder = ENTITLEMENTS.map((e) => e.id);
   const matrix: SodMatrixCell[] = [];
@@ -323,12 +364,12 @@ export function detectSodConflicts(
           ruleIds: [rule.id],
           severity: rule.severity,
         });
-      } else if (familiesConflict(entFamily(row), entFamily(col))) {
+      } else if (familiesConflict(entFamily(row), entFamily(col)) && sharesProcess(row, col)) {
         matrix.push({
           row,
           col,
           status: "conflict",
-          ruleIds: [`family-${entFamily(row)}-${entFamily(col)}`],
+          ruleIds: [familyRuleId(entFamily(row), entFamily(col))],
           severity: "family",
         });
       } else {

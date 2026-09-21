@@ -18,10 +18,9 @@
  *
  * Educational / decision-support — not actuarial or legal advice.
  */
-import { controls, knowledge, people, relations, scenarios } from "../demo-data";
+import { knowledge, people, relations } from "../demo-data";
 import { detectSodConflicts } from "../sod/detect";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
-import type { DualReleasePolicy } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";

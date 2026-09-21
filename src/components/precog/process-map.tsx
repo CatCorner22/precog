@@ -41,8 +41,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  ChevronDown,
-  ChevronUp,
   Crosshair,
   Eye,
   Layers,
