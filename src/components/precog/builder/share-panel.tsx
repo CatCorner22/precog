@@ -72,7 +72,7 @@ export function SharePanel({
           expiresAt: res.expiresAt,
           revoked: false,
           redacted: redactNames,
-          hasPasscode: passcode.trim().length >= 4,
+          hasPasscode: passcode.trim().length >= 8,
           views: 0,
           lastViewedAt: null,
         },
@@ -160,7 +160,7 @@ export function SharePanel({
           <input
             type="password"
             className={cn(inputCls, "min-w-0 flex-1")}
-            placeholder="4+ characters; share it separately"
+            placeholder="8+ characters; share it separately"
             value={passcode}
             onChange={(e) => setPasscode(e.target.value)}
           />
