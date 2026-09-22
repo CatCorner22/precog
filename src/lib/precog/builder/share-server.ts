@@ -6,6 +6,7 @@ import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
 import { validateSharePayload } from "./share-schema";
 import { passcodeLocked, recordPasscodeFailure } from "./share-attempts";
+import { purgeOldShareViews } from "../account-store";
 
 /** Frozen, self-contained view of a map for the public share page. */
 export interface SharedMapPayload {
@@ -122,6 +123,10 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
+    // Owner-triggered housekeeping: view logs are kept for a bounded period only.
+    await purgeOldShareViews(sql).catch((error) =>
+      console.error("Failed to purge old share views", error),
+    );
     const rows = await sql<ShareListRow>`
       select
         token, business_name, industry, created_at, expires_at, revoked_at,
