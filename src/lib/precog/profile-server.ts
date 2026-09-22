@@ -109,23 +109,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const name = data.profile.practiceName.trim().slice(0, 80) || "My Business";
-    const { businessId } = data;
-    const existingRows = await sql<{
-      revision: number | string;
-      profile: PracticeProfile;
-      industry: string;
-      name: string;
-      updated_at: string;
-    }>`
-      select revision, profile, industry, name, updated_at
-      from businesses
-      where id = ${businessId} and user_id = ${context.userId}
-    `;
-    const existing = existingRows[0];
-    if (isStaleSave(existing ? Number(existing.revision) : null, data.baseRevision)) {
-    const name = data.profile.practiceName.slice(0, 80);
-    const businessId = data.profile.businessId ?? "biz_default";
-    const profileJson = JSON.stringify(data.profile);
+    const { businessId, json: profileJson } = data;
 
     // Revision check and write are a single compare-and-swap statement; see
     // business-store.ts. The table is keyed by (user_id, id), so another
@@ -148,35 +132,12 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
-    const updatedRows = await sql<{ revision: number | string; updated_at: string }>`
-      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
-      values (
-        ${businessId},
-        ${context.userId},
-        ${name},
-        ${data.industry},
-        ${data.json}::jsonb,
-        1,
-        now()
-      )
-      on conflict (user_id, id) do update set
-        name = excluded.name,
-        industry = excluded.industry,
-        profile = excluded.profile,
-        revision = coalesce(businesses.revision, 0) + 1,
-        updated_at = now()
-      returning revision, updated_at
-    `;
-    const updated = updatedRows[0];
-    if (!updated) throw new Error("Unable to save business profile");
-
     await sql`
       insert into business_profiles (user_id, name, industry, profile, updated_at)
       values (
         ${context.userId},
         ${name},
         ${data.industry},
-        ${data.json}::jsonb,
         ${profileJson}::jsonb,
         now()
       )
