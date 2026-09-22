@@ -8,7 +8,7 @@ import {
   normalizePlannedAbsences,
   type PracticeProfile,
 } from "./practice-profile";
-import { isStaleSave } from "./save-conflict";
+import { saveBusinessRevision } from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
 
 type ProfileRow = {
@@ -103,50 +103,28 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     const sql = await getSql();
     const name = data.profile.practiceName.slice(0, 80);
     const businessId = data.profile.businessId ?? "biz_default";
-    const existingRows = await sql<{
-      revision: number | string;
-      profile: PracticeProfile;
-      industry: string;
-      name: string;
-      updated_at: string;
-    }>`
-      select revision, profile, industry, name, updated_at
-      from businesses
-      where id = ${businessId} and user_id = ${context.userId}
-    `;
-    const existing = existingRows[0];
-    if (isStaleSave(existing ? Number(existing.revision) : null, data.baseRevision)) {
+    const profileJson = JSON.stringify(data.profile);
+
+    // Revision check and write are a single compare-and-swap statement; see
+    // business-store.ts. The table is keyed by (user_id, id), so another
+    // user's business with the same client-generated id is a different row.
+    const saved = await saveBusinessRevision<PracticeProfile>(sql, {
+      userId: context.userId,
+      businessId,
+      name,
+      industry: data.industry,
+      profileJson,
+      baseRevision: data.baseRevision,
+    });
+    if (!saved.ok) {
       return {
         ok: false as const,
         conflict: true as const,
-        revision: Number(existing.revision),
-        updatedAt: String(existing.updated_at),
-        profile: { ...mergeProfile(existing, data.today), businessId },
+        revision: saved.existing.revision,
+        updatedAt: saved.existing.updated_at,
+        profile: { ...mergeProfile(saved.existing, data.today), businessId },
       };
     }
-
-    const updatedRows = await sql<{ revision: number | string; updated_at: string }>`
-      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
-      values (
-        ${businessId},
-        ${context.userId},
-        ${name},
-        ${data.industry},
-        ${JSON.stringify(data.profile)}::jsonb,
-        1,
-        now()
-      )
-      on conflict (id) do update set
-        name = excluded.name,
-        industry = excluded.industry,
-        profile = excluded.profile,
-        revision = coalesce(businesses.revision, 0) + 1,
-        updated_at = now()
-      where businesses.user_id = ${context.userId}
-      returning revision, updated_at
-    `;
-    const updated = updatedRows[0];
-    if (!updated) throw new Error("Unable to save business profile");
 
     await sql`
       insert into business_profiles (user_id, name, industry, profile, updated_at)
@@ -154,7 +132,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
         ${context.userId},
         ${name},
         ${data.industry},
-        ${JSON.stringify(data.profile)}::jsonb,
+        ${profileJson}::jsonb,
         now()
       )
       on conflict (user_id) do update set
@@ -165,8 +143,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     `;
     return {
       ok: true as const,
-      revision: Number(updated.revision),
-      updatedAt: String(updated.updated_at),
+      revision: saved.revision,
+      updatedAt: saved.updatedAt,
     };
   });
 

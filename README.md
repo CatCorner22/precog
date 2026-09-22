@@ -34,8 +34,11 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 
 Cloud saves carry a per-business revision, so edits made in another tab or device are
 identified before they can overwrite local work. The app asks whether to load the remote
-version or keep the local version and overwrite it; migration `0006_business_revision.sql`
-runs automatically through the existing migration runner.
+version or keep the local version and overwrite it. The revision check and the write are one
+statement server-side (`src/lib/precog/business-store.ts`), so two clients racing on the same
+revision cannot both succeed. Businesses are keyed per user (`0007_businesses_per_user_key.sql`),
+so two accounts that both hold the legacy `biz_default` id no longer collide. Both migrations run
+automatically through the existing migration runner.
 
 ## Core loop
 
