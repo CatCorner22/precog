@@ -44,7 +44,12 @@ export type ControlId =
   | "count-inventory-independently"
   | "controlled-substance-count"
   | "no-shared-logins"
-  | "recovery-copy-out-of-reach";
+  | "recovery-copy-out-of-reach"
+  | "payroll-tax-remittance-verified"
+  | "same-day-access-removal"
+  | "check-stock-custody"
+  | "void-refund-second-approval"
+  | "vendor-master-change-log";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -255,5 +260,39 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
       "Keep one backup copy that no employee login can delete — under the owner's own account, or offline",
     why: "A backup the administrator can reach is a backup the administrator can erase, and an angry administrator erases it first. A copy only the owner controls turns a wipe into an afternoon's restore.",
     effort: "an hour",
+  },
+  "payroll-tax-remittance-verified": {
+    id: "payroll-tax-remittance-verified",
+    label:
+      "Each quarter, log in to the IRS and state payroll-tax portals yourself and confirm the deposits were made",
+    why: "A bookkeeper who is short of cash can stop paying the payroll taxes and keep the money; the notices arrive months later, addressed to the person who caused them. The portals show in minutes whether the deposits exist.",
+    effort: "ongoing",
+  },
+  "same-day-access-removal": {
+    id: "same-day-access-removal",
+    label:
+      "Remove every login, administrator right, and shared password the day a person's duties change or they leave",
+    why: "Access that outlives the job is how a departed or demoted employee reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
+    effort: "an hour",
+  },
+  "check-stock-custody": {
+    id: "check-stock-custody",
+    label:
+      "Lock the blank check stock, never sign a check in blank, and log the check numbers used each week",
+    why: "A pre-signed blank check is cash with your signature on it, and a printed check to a home address is one line in a ledger. Locked stock and a numbered log make a missing check visible before it clears.",
+    effort: "minutes",
+  },
+  "void-refund-second-approval": {
+    id: "void-refund-second-approval",
+    label: "A second person approves every void, refund, and credit memo before it posts",
+    why: "A refund with no sale behind it is a payment, and a void after the customer paid is cash in a pocket. Requiring a second name on each one turns a private key into a shared decision.",
+    effort: "ongoing",
+  },
+  "vendor-master-change-log": {
+    id: "vendor-master-change-log",
+    label:
+      "Read the month's list of new suppliers and changed bank details, and confirm any you do not recognise",
+    why: "A shell company is added once and paid for years. The one moment it is visible is the month it appears; a monthly list of additions and bank-detail changes, read by someone who cannot add them, catches it then.",
+    effort: "minutes",
   },
 };

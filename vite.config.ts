@@ -63,7 +63,9 @@ function authPopupPlugin(): Plugin {
             return;
           }
 
-          const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080");
+          const host = String(
+            req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080",
+          );
           const proto = String(
             req.headers["x-forwarded-proto"] ??
               ((req.socket as { encrypted?: boolean } | undefined)?.encrypted ? "https" : "http"),
@@ -137,7 +139,28 @@ export default defineConfig(({ command }) => ({
     authPopupPlugin(),
     tailwindcss(),
     tanstackStart(),
-    ...(command === "build" ? [nitro({ preset: "vercel" })] : []),
+    ...(command === "build"
+      ? [
+          nitro({
+            preset: "vercel",
+            // Response headers for every route. frame-ancestors keeps the app and
+            // the public share page out of third-party frames (clickjacking);
+            // the referrer policy keeps a share token out of Referer headers
+            // when a viewer follows a link off the page.
+            routeRules: {
+              "/**": {
+                headers: {
+                  "content-security-policy": "frame-ancestors 'self'",
+                  "referrer-policy": "strict-origin-when-cross-origin",
+                  "x-content-type-options": "nosniff",
+                  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+                  "strict-transport-security": "max-age=31536000; includeSubDomains",
+                },
+              },
+            },
+          }),
+        ]
+      : []),
     viteReact(),
   ],
 }));

@@ -93,7 +93,14 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({ connectionString: databaseUrl });
+    // Small and short-lived: each warm serverless instance keeps its own pool,
+    // so a large default (10) multiplied by instances exhausts the database.
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      max: 3,
+      idleTimeoutMillis: 10_000,
+      allowExitOnIdle: true,
+    });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];

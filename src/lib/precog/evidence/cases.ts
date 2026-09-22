@@ -1087,6 +1087,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "no-self-approval",
         asApplied: "Nobody approves their own pay or changes their own pay rate, at any amount",
       },
+      {
+        control: "payroll-tax-remittance-verified",
+        asApplied:
+          "Owner logs in to the IRS and state portals each quarter to confirm the payroll-tax deposits the bookkeeper reports were made",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Northern District of Iowa",
@@ -1531,6 +1536,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "owner-opens-bank-statement",
         asApplied: "Founder opens the bank statement first and reads cleared-check images",
       },
+      {
+        control: "check-stock-custody",
+        asApplied:
+          "No check signed in blank, ever; blank stock locked and the numbers used logged each week by someone other than the controller",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -1618,6 +1628,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Identity verified against the person in front of you, not just the documents presented",
       },
+      {
+        control: "void-refund-second-approval",
+        asApplied:
+          "Every refund approved by a second person before it posts, with the original sale attached",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Nebraska",
@@ -1702,6 +1717,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Quarterly list of accounts with elevated privileges and their recent login locations, read by the owner",
       },
+      {
+        control: "same-day-access-removal",
+        asApplied:
+          "The departing employee's own login disabled on their last day, and every shared password changed the same day",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Alabama",
@@ -1785,6 +1805,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
       },
+      {
+        control: "vendor-master-change-log",
+        asApplied:
+          "Monthly list of new suppliers and changed bank details, read by the owner and confirmed by phone with the supplier",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -1867,6 +1892,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "no-shared-logins",
         asApplied:
           "Each system administered under a named login the owner can switch off in one step, with the owner holding a second administrator account",
+      },
+      {
+        control: "same-day-access-removal",
+        asApplied:
+          "Every login, cloud credential, and backup-provider account revoked the day his duties were taken away, not left until he resigned",
       },
     ],
     source: {
@@ -2032,6 +2062,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "The outside auditor samples the largest vendors each year and asks the program staff, not the fiscal officer, what was delivered",
       },
+      {
+        control: "vendor-master-change-log",
+        asApplied:
+          "The month a new vendor appears, the executive director reads the addition and checks its owner and address against staff records",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
@@ -2071,6 +2106,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "independent-bank-reconciliation",
         asApplied: "Someone who cannot print checks reconciles the bank account each month",
+      },
+      {
+        control: "check-stock-custody",
+        asApplied:
+          "Blank check stock locked away from the office manager, with the numbers used logged and compared to the bank statement weekly",
       },
     ],
     source: {
