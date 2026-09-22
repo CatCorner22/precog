@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
   Background,
@@ -9,11 +9,13 @@ import {
   Panel,
   Position,
   ReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type Node,
   type NodeChange,
   type NodeProps,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import { toast } from "sonner";
 import "@xyflow/react/dist/style.css";
@@ -24,6 +26,7 @@ import {
   HEAT_BANDS,
   layoutProcessMap,
   priorityKeyForNode,
+  stageLanes,
   type MapGraphNode,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
@@ -52,6 +55,7 @@ import {
   Crosshair,
   Eye,
   Hammer,
+  LayoutGrid,
   Layers,
   Lightbulb,
   ListOrdered,
@@ -103,6 +107,18 @@ function nodeAccent(vision: MapVisionMode, heat: number, priority: number): stri
   return heatColorStandard(heat);
 }
 
+/** Below this zoom the canvas is an overview: cards drop detail and scale their title up so names stay legible. */
+const COMPACT_ZOOM = 0.6;
+
+function useCanvasZoom(): number {
+  return useStore((s) => s.transform[2]);
+}
+
+/** Title size that reads at any zoom: grows as the viewport zooms out, capped so cards do not explode. */
+function compactTitlePx(zoom: number): number {
+  return Math.min(30, Math.max(14, Math.round(14 / Math.max(zoom, 0.25))));
+}
+
 function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
   const d = asMapNode(data);
   const vision = d.vision ?? "standard";
@@ -112,6 +128,8 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
   const interactive = d.interactive !== false;
   const hot = vision === "predator" && priority >= 72;
   const locked = vision === "terminator" && (d.immediate || priority >= 78);
+  const zoom = useCanvasZoom();
+  const compact = zoom < COMPACT_ZOOM;
 
   return (
     <div
@@ -136,39 +154,45 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       }}
     >
       <Handle type="target" position={Position.Left} className="!bg-primary" />
-      <div
-        className={cn(
-          "flex items-center gap-1.5 text-[10px] tracking-wide uppercase",
-          vision === "terminator" ? "terminator-hud" : "text-subtle",
-          vision === "predator" && "predator-hud text-orange-200/90",
-        )}
-      >
-        <Workflow className="size-3" />
-        {vision === "predator"
-          ? `THERMAL ${priority}`
-          : vision === "terminator"
-            ? `THREAT ${priority}`
-            : `process · ${heat}`}
-      </div>
+      {!compact && (
+        <div
+          className={cn(
+            "flex items-center gap-1.5 text-[10px] tracking-wide uppercase",
+            vision === "terminator" ? "terminator-hud" : "text-subtle",
+            vision === "predator" && "predator-hud text-orange-200/90",
+          )}
+        >
+          <Workflow className="size-3" />
+          {vision === "predator"
+            ? `THERMAL ${priority}`
+            : vision === "terminator"
+              ? `THREAT ${priority}`
+              : `process · ${heat}`}
+        </div>
+      )}
       <p
         className={cn(
-          "mt-1 text-sm font-semibold leading-tight",
+          "font-semibold leading-tight",
+          compact ? "py-1" : "mt-1 text-sm",
           vision === "terminator" ? "text-red-300" : "text-fg",
           vision === "predator" && "text-white",
         )}
+        style={compact ? { fontSize: compactTitlePx(zoom) } : undefined}
       >
         {d.label}
       </p>
-      <p
-        className={cn(
-          "mt-1 line-clamp-2 text-[11px]",
-          vision === "terminator" ? "text-red-400/80" : "text-muted",
-          vision === "predator" && "text-white/70",
-        )}
-      >
-        {d.subtitle}
-      </p>
-      {(d.badges ?? []).length > 0 && (
+      {!compact && (
+        <p
+          className={cn(
+            "mt-1 line-clamp-2 text-[11px]",
+            vision === "terminator" ? "text-red-400/80" : "text-muted",
+            vision === "predator" && "text-white/70",
+          )}
+        >
+          {d.subtitle}
+        </p>
+      )}
+      {!compact && (d.badges ?? []).length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {(d.badges ?? []).slice(0, 3).map((b) => (
             <span
@@ -205,6 +229,7 @@ function SatelliteNode({
   const accent = vision === "standard" ? accentDefault : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
   const locked = vision === "terminator" && (d.immediate || priority >= 78);
+  const compact = useCanvasZoom() < COMPACT_ZOOM;
 
   return (
     <div
@@ -244,7 +269,7 @@ function SatelliteNode({
       >
         {d.label}
       </p>
-      {d.subtitle && (
+      {d.subtitle && !compact && (
         <p
           className={cn(
             "mt-0.5 line-clamp-2 text-[10px]",
@@ -351,6 +376,38 @@ function layerForKind(kind: string): MapLayerId {
   return "process";
 }
 
+/**
+ * Stable identity matters: React Flow syncs this prop into its store on every
+ * render, and a fresh object would overwrite the options queued by focusOn().
+ */
+const FIT_ALL_OPTIONS = { padding: 0.15 } as const;
+
+/**
+ * Stage headers pinned to the top edge of the canvas, tracking each lane's x as
+ * the user pans and zooms. Screen-space so they stay 11px at any zoom.
+ */
+function LaneHeaders({ lanes }: { lanes: { stage: number; x: number; count: number }[] }) {
+  const [tx, , zoom] = useStore((s) => s.transform);
+  const width = useStore((s) => s.width);
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[72px] z-[4] h-8">
+      {lanes.map((lane) => {
+        const left = lane.x * zoom + tx;
+        if (left < -160 || left > width + 20) return null;
+        return (
+          <div
+            key={lane.stage}
+            className="absolute top-1.5 rounded-md border border-border/60 bg-surface/85 px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted uppercase"
+            style={{ left }}
+          >
+            Stage {lane.stage} · {lane.count}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ProcessMap({
   onNavigate,
   initialProcessId,
@@ -373,7 +430,9 @@ export function ProcessMap({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialProcessId ?? processes[0]?.id ?? null,
   );
-  const [focusProcessId, setFocusProcessId] = useState<string | null>(initialProcessId ?? null);
+  const [focusProcessId, setFocusProcessId] = useState<string | null>(
+    initialProcessId ?? processes[0]?.id ?? null,
+  );
 
   useEffect(() => {
     if (initialProcessId) {
@@ -381,37 +440,6 @@ export function ProcessMap({
       setFocusProcessId(initialProcessId);
     }
   }, [initialProcessId]);
-
-  // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo — only in build mode, never inside inputs.
-  useEffect(() => {
-    if (!build) return;
-    function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.tagName === "SELECT" ||
-          t.isContentEditable)
-      )
-        return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
-      const k = e.key.toLowerCase();
-      if (k === "z" && e.shiftKey) {
-        e.preventDefault();
-        redoMap();
-      } else if (k === "z") {
-        e.preventDefault();
-        undoMap();
-      } else if (k === "y") {
-        e.preventDefault();
-        redoMap();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [build, undoMap, redoMap]);
 
   const layerMap = useMemo(() => {
     const m = new Map<MapLayerId, LayerConfig>();
@@ -448,10 +476,162 @@ export function ProcessMap({
     [profile.mapLayout, liveLayout],
   );
 
-  const positions = useMemo(
-    () => layoutProcessMap(graph.nodes, graph.edges, pinned),
-    [graph, pinned],
+  /** Nodes on the canvas after layer toggles; the layout only reserves room for what is shown. */
+  const visibleNodes = useMemo(
+    () =>
+      graph.nodes.filter((n) => {
+        const layer = layerMap.get(layerForKind(n.kind));
+        if (n.kind === "person" && !(layerMap.get("person")?.visible ?? true)) return false;
+        if (n.kind === "control" && !(layerMap.get("control")?.visible ?? true)) return false;
+        return layer?.visible !== false;
+      }),
+    [graph.nodes, layerMap],
   );
+
+  const positions = useMemo(
+    () => layoutProcessMap(visibleNodes, graph.edges, pinned),
+    [visibleNodes, graph.edges, pinned],
+  );
+
+  const lanes = useMemo(() => stageLanes(visibleNodes, positions), [visibleNodes, positions]);
+
+  const rf = useRef<ReactFlowInstance<ProcessFlowNode, Edge> | null>(null);
+  /** Process to frame once the canvas has mounted (deep link from another tab). */
+  const pendingFocus = useRef<string | null>(initialProcessId ?? null);
+
+  /** Zoom to a process and everything wired to it. */
+  const focusOn = useCallback(
+    (id: string) => {
+      const inst = rf.current;
+      if (!inst) return;
+      const ids = new Set<string>([id]);
+      for (const e of graph.edges) {
+        if (e.source === id) ids.add(e.target);
+        if (e.target === id) ids.add(e.source);
+      }
+      const nodes = visibleNodes.filter((n) => ids.has(n.id)).map((n) => ({ id: n.id }));
+      if (!nodes.length) return;
+      void inst.fitView({ nodes, duration: 400, padding: 0.35, maxZoom: 1.2 });
+    },
+    [graph.edges, visibleNodes],
+  );
+
+  const fitAll = useCallback(() => {
+    void rf.current?.fitView({ ...FIT_ALL_OPTIONS, duration: 400 });
+  }, []);
+
+  /** Drop every hand-placed position and return to stage lanes. */
+  const autoArrange = useCallback(() => {
+    const pinnedCount = Object.keys(profile.mapLayout ?? {}).length;
+    setLiveLayout({});
+    setMapLayout({});
+    window.requestAnimationFrame(() => fitAll());
+    toast.success("Arranged by stage", {
+      description: pinnedCount
+        ? `${pinnedCount} hand-placed position(s) cleared. Ctrl+Z to put them back.`
+        : "Every process sits in its stage lane.",
+    });
+  }, [profile.mapLayout, setMapLayout, fitAll]);
+
+  /** Processes in reading order: stage lane, then top to bottom. */
+  const processOrder = useMemo(
+    () =>
+      visibleNodes
+        .filter((n) => n.kind === "process")
+        .map((n) => ({
+          id: n.id,
+          stage: Number(n.data.stage ?? 0),
+          y: positions.get(n.id)?.y ?? 0,
+        }))
+        .sort((a, b) => a.stage - b.stage || a.y - b.y),
+    [visibleNodes, positions],
+  );
+
+  // Build-mode keyboard: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo; arrows step between
+  // processes (left/right = stage, up/down = within a stage); F frames the selection; Enter edits
+  // the name. Never fires inside inputs.
+  useEffect(() => {
+    if (!build) return;
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      )
+        return;
+      const mod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (mod) {
+        if (k === "z" && e.shiftKey) {
+          e.preventDefault();
+          redoMap();
+        } else if (k === "z") {
+          e.preventDefault();
+          undoMap();
+        } else if (k === "y") {
+          e.preventDefault();
+          redoMap();
+        }
+        return;
+      }
+      if (e.altKey) return;
+      const current = processOrder.findIndex((p) => p.id === focusProcessId);
+      const select = (next: { id: string } | undefined) => {
+        if (!next) return;
+        e.preventDefault();
+        setSelectedId(next.id);
+        setFocusProcessId(next.id);
+        focusOn(next.id);
+      };
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        if (!processOrder.length) return;
+        if (current < 0) return select(processOrder[0]);
+        const here = processOrder[current];
+        const dir = e.key === "ArrowRight" ? 1 : -1;
+        // Nearest process in the adjacent stage lane, matching vertical position when possible.
+        const laneStages = [...new Set(processOrder.map((p) => p.stage))];
+        const li = laneStages.indexOf(here.stage) + dir;
+        if (li < 0 || li >= laneStages.length) return select(here);
+        const lane = processOrder.filter((p) => p.stage === laneStages[li]);
+        const target = lane.reduce((best, p) =>
+          Math.abs(p.y - here.y) < Math.abs(best.y - here.y) ? p : best,
+        );
+        return select(target);
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (!processOrder.length) return;
+        if (current < 0) return select(processOrder[0]);
+        const dir = e.key === "ArrowDown" ? 1 : -1;
+        const here = processOrder[current];
+        const lane = processOrder.filter((p) => p.stage === here.stage);
+        const i = lane.findIndex((p) => p.id === here.id) + dir;
+        return select(lane[Math.max(0, Math.min(lane.length - 1, i))]);
+      }
+      if (k === "f" && focusProcessId) {
+        e.preventDefault();
+        focusOn(focusProcessId);
+        return;
+      }
+      if (k === "a" && e.shiftKey) {
+        e.preventDefault();
+        autoArrange();
+        return;
+      }
+      if (e.key === "Enter" && focusProcessId) {
+        const field = document.querySelector<HTMLInputElement>('[data-builder-field="name"]');
+        if (field) {
+          e.preventDefault();
+          field.focus();
+          field.select();
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [build, undoMap, redoMap, processOrder, focusProcessId, focusOn, autoArrange]);
 
   /** Priority targets for Predator / Terminator + priority list */
   const priorities: PriorityTarget[] = useMemo(() => {
@@ -552,42 +732,35 @@ export function ProcessMap({
   }, [priorities]);
 
   const rfNodes: ProcessFlowNode[] = useMemo(() => {
-    return graph.nodes
-      .filter((n) => {
-        const layer = layerMap.get(layerForKind(n.kind));
-        if (n.kind === "person" && !(layerMap.get("person")?.visible ?? true)) return false;
-        if (n.kind === "control" && !(layerMap.get("control")?.visible ?? true)) return false;
-        return layer?.visible !== false;
-      })
-      .map((n) => {
-        const p = positions.get(n.id) ?? { x: 0, y: 0 };
-        const layer = layerMap.get(layerForKind(n.kind));
-        const pri =
-          priorityById.get(n.id) ??
-          priorityById.get(
-            n.processId && n.kind !== "process"
-              ? `${n.processId}::${n.kind}::${priorityKeyForNode(n)}`
-              : priorityKeyForNode(n),
-          );
-        const priority = pri?.priority ?? n.severity ?? 0;
-        return {
-          id: n.id,
-          type: n.kind,
-          position: p,
-          draggable: build && n.kind === "process",
-          connectable: build && n.kind === "process",
-          data: {
-            ...n,
-            vision,
-            interactive: layer?.interactive !== false,
-            priority,
-            immediate: pri?.immediate,
-          },
-          selected: n.id === selectedId,
-          style: layer?.interactive === false ? { opacity: 0.4 } : undefined,
-        };
-      });
-  }, [graph.nodes, positions, selectedId, vision, layerMap, priorityById, build]);
+    return visibleNodes.map((n) => {
+      const p = positions.get(n.id) ?? { x: 0, y: 0 };
+      const layer = layerMap.get(layerForKind(n.kind));
+      const pri =
+        priorityById.get(n.id) ??
+        priorityById.get(
+          n.processId && n.kind !== "process"
+            ? `${n.processId}::${n.kind}::${priorityKeyForNode(n)}`
+            : priorityKeyForNode(n),
+        );
+      const priority = pri?.priority ?? n.severity ?? 0;
+      return {
+        id: n.id,
+        type: n.kind,
+        position: p,
+        draggable: build && n.kind === "process",
+        connectable: build && n.kind === "process",
+        data: {
+          ...n,
+          vision,
+          interactive: layer?.interactive !== false,
+          priority,
+          immediate: pri?.immediate,
+        },
+        selected: n.id === selectedId,
+        style: layer?.interactive === false ? { opacity: 0.4 } : undefined,
+      };
+    });
+  }, [visibleNodes, positions, selectedId, vision, layerMap, priorityById, build]);
 
   const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
     const moves: Record<string, { x: number; y: number }> = {};
@@ -943,13 +1116,22 @@ export function ProcessMap({
                 nodesDraggable={build}
                 nodesConnectable={build}
                 deleteKeyCode={build ? "Delete" : null}
+                onInit={(inst) => {
+                  rf.current = inst;
+                  if (pendingFocus.current) {
+                    const id = pendingFocus.current;
+                    pendingFocus.current = null;
+                    window.requestAnimationFrame(() => focusOn(id));
+                  }
+                }}
                 fitView
-                fitViewOptions={{ padding: 0.15 }}
-                minZoom={0.25}
+                fitViewOptions={FIT_ALL_OPTIONS}
+                minZoom={0.2}
                 maxZoom={1.6}
                 proOptions={{ hideAttribution: true }}
                 defaultEdgeOptions={{ type: "smoothstep" }}
               >
+                {vision === "standard" && <LaneHeaders lanes={lanes} />}
                 <Background
                   gap={18}
                   size={1}
@@ -979,7 +1161,28 @@ export function ProcessMap({
                     <TerminatorLegend immediate={immediate} />
                   )}
                 </Panel>
-                <Panel position="top-right" className="m-2!">
+                <Panel position="top-right" className="m-2! flex items-center gap-1">
+                  {build && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={autoArrange}
+                        title="Put every process back in its stage lane (Shift+A)"
+                      >
+                        <LayoutGrid className="size-3.5" /> Arrange
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={!focusProcessId}
+                        onClick={() => focusProcessId && focusOn(focusProcessId)}
+                        title="Zoom to the selected process and its links (F)"
+                      >
+                        <Crosshair className="size-3.5" /> Focus
+                      </Button>
+                    </>
+                  )}
                   <ExportMapImageButton
                     fileName={`${(profile.practiceName || "process-map")
                       .toLowerCase()
@@ -1006,6 +1209,7 @@ export function ProcessMap({
               onSelectProcess={(id) => {
                 setSelectedId(id);
                 setFocusProcessId(id);
+                focusOn(id);
               }}
               onClose={() => setBuild(false)}
             />

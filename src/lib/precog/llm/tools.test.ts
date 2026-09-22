@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { firstName } from "../continuity/coverage";
-import { executeTool } from "./tools";
+import { executeTool, planTools } from "./tools";
+import { resolveTemplate } from "../active-template";
+import { defaultProfile } from "../practice-profile";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import type { PracticeProfile } from "../practice-profile";
 
@@ -508,5 +510,41 @@ describe("get_planned_absences", () => {
     );
     expect((left.data as Leave).leavers).toEqual([]);
     expect(left.summary).not.toContain("Leaving:");
+  });
+});
+
+describe("get_process_records", () => {
+  it("ranks undocumented processes first and reports the documented index", () => {
+    const profile = defaultProfile();
+    const base = resolveTemplate(profile).processes;
+    profile.customProcesses = base.map((p, i) =>
+      i === 0
+        ? { ...p, cadence: "daily", documented: true, procedureLocation: "Drive > SOPs" }
+        : i === 1
+          ? { ...p, cadence: "annual", documented: true }
+          : { ...p, cadence: "daily" },
+    );
+    const r = executeTool("get_process_records", {}, { profile });
+    expect(r.ok).toBe(true);
+    const data = r.data as {
+      documentedIndex: number;
+      counts: { none: number; unlocated: number; located: number };
+      gaps: { name: string; state: string; stopsWithinDays: number }[];
+    };
+    expect(data.counts.located).toBe(1);
+    expect(data.counts.unlocated).toBe(1);
+    expect(data.counts.none).toBe(base.length - 2);
+    expect(data.documentedIndex).toBe(Math.round((1 / base.length) * 100));
+    // Nothing-written daily processes come before the written-but-unlocated annual one.
+    expect(data.gaps.at(-1)!.state).toBe("unlocated");
+    expect(data.gaps[0].state).toBe("none");
+    expect(data.gaps[0].stopsWithinDays).toBe(1);
+    expect(r.summary).toMatch(/written, findable procedure/);
+  });
+
+  it("is planned for questions about what is written down or what stops", () => {
+    expect(planTools("what should we write down first?")).toContain("get_process_records");
+    expect(planTools("which processes stop if Maya is out sick")).toContain("get_process_records");
+    expect(planTools("insurance premium")).not.toContain("get_process_records");
   });
 });

@@ -10,6 +10,7 @@ export type ToolName =
   | "get_register_checkins"
   | "get_planned_absences"
   | "get_knowledge_graph"
+  | "get_process_records"
   | "run_precog_scenario"
   | "compare_scenario_futures"
   | "get_tornado_levers"
