@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
+import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,14 +17,6 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-
-const PROMPTS = [
-  "Run advanced reasoning: Bayesian P(fail), beam-optimal control sequence, and EVOI.",
-  "What counterfactual intervention most reduces Bayesian expected annual loss?",
-  "Where is residual risk worst, and what do leading indicators say?",
-  "If I turn on dual control and cameras, what else moves?",
-  "Give me a multi-agent board brief with the beam search plan.",
-];
 
 function renderInline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);
@@ -75,30 +69,49 @@ type CoachResult = {
   specialistNotes?: { agent: string; title: string; bullets: string[] }[];
 };
 
-export function PioneerCoach({
-  onNavigate,
-}: {
-  onNavigate?: (tab: string, id?: string) => void;
-}) {
+export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: string) => void }) {
   const { profile, addDecision } = usePractice();
-  const [question, setQuestion] = useState(PROMPTS[0]);
+  const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
+  const [question, setQuestion] = useState(prompts[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
   const [copied, setCopied] = useState(false);
+  // A brief answers one business; a run whose business changed underneath it is discarded.
+  const runId = useRef(0);
+  useEffect(() => {
+    runId.current += 1;
+    setQuestion(getIndustryCopy(profile.industry).pioneerPrompts[0]);
+    setResult(null);
+    setError(null);
+    setLoading(false);
+  }, [profile.industry, profile.businessId]);
 
   async function run() {
+    const id = ++runId.current;
     setLoading(true);
     setError(null);
     try {
       const res = await runPioneerCoach({
         data: {
           question,
-          riskVariables: profile.riskVariables,
-          staff: profile.staff,
-          practiceName: profile.practiceName,
+          today: localDateKey(new Date()),
+          profile: {
+            industry: profile.industry,
+            practiceName: profile.practiceName,
+            staff: profile.staff,
+            riskVariables: profile.riskVariables,
+            dualRelease: profile.dualRelease,
+            customProcesses: profile.customProcesses ?? null,
+            customPeople: profile.customPeople ?? null,
+            customKnowledge: profile.customKnowledge ?? null,
+            customRelations: profile.customRelations ?? null,
+            decisions: profile.decisions.filter((d) => d.linkedTab === "knowledge"),
+            plannedAbsences: profile.plannedAbsences ?? [],
+          },
         },
       });
+      if (id !== runId.current) return;
       if (!res.ok) {
         setError(res.error);
         setResult(null);
@@ -118,9 +131,16 @@ export function PioneerCoach({
         });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Coach failed");
+      if (id !== runId.current) return;
+      setError(
+        e && typeof e === "object" && "status" in e && e.status === 429
+          ? "Too many requests — try again in a minute."
+          : e instanceof Error
+            ? e.message
+            : "Coach failed",
+      );
     } finally {
-      setLoading(false);
+      if (id === runId.current) setLoading(false);
     }
   }
 
@@ -142,31 +162,28 @@ export function PioneerCoach({
       subject: d.action.slice(0, 120),
       kind: "remediate",
       note: d.rationale,
-      reviewBy: new Date(Date.now() + d.horizonDays * 86400000)
-        .toISOString()
-        .slice(0, 10),
+      reviewBy: dateAfter(new Date(), d.horizonDays),
     });
   }
 
   const usedReasoning = result?.toolsUsed?.includes("run_advanced_reasoning");
-  const reasoningEvidence =
-    result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
+  const reasoningEvidence = result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
 
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Advanced reasoning</Badge>
-          <Badge variant="primary">Bayesian · Beam · CF · EVOI</Badge>
+          <Badge variant="accent">Coach</Badge>
+          <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" />
           Precog Pioneer
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Not a chat wrapper. Every run can fire Bayesian posteriors, causal multi-hop paths,
-          beam search over control sequences, twin-world counterfactuals, and EVOI — then the
-          multi-agent board writes the scout brief.
+          Every answer is built from this app&rsquo;s own tools: the residual register, duty
+          conflicts, scenarios, the guidance corpus, and the evidence library. Where it orders
+          levers it uses this app&rsquo;s weights and says so. It never invents a measurement.
         </p>
       </section>
 
@@ -179,7 +196,7 @@ export function PioneerCoach({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {PROMPTS.map((p) => (
+            {prompts.map((p) => (
               <button
                 key={p}
                 type="button"
@@ -242,8 +259,8 @@ export function PioneerCoach({
                 </CardTitle>
                 <CardDescription>
                   {result.toolsUsed?.length ?? 0} tools
-                  {usedReasoning ? " · advanced reasoning on" : ""} ·{" "}
-                  {result.latencyMs ?? "—"}ms · {result.source}
+                  {usedReasoning ? " · advanced reasoning on" : ""} · {result.latencyMs ?? "—"}ms ·{" "}
+                  {result.source}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -287,9 +304,7 @@ export function PioneerCoach({
                   >
                     <span className="text-[10px] text-subtle">{e.id}</span>
                     <span className="block font-medium">{e.label}</span>
-                    {e.metric && (
-                      <span className="block text-xs text-muted">{e.metric}</span>
-                    )}
+                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
                   </button>
                 ))}
               </CardContent>
@@ -358,9 +373,7 @@ export function PioneerCoach({
                       {e.kind} · {e.id}
                     </span>
                     <span className="block font-medium">{e.label}</span>
-                    {e.metric && (
-                      <span className="block text-xs text-muted">{e.metric}</span>
-                    )}
+                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
                   </button>
                 ))}
               </CardContent>

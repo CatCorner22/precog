@@ -18,6 +18,7 @@ import {
   applyVerifiedAnnualHours,
   VALUE_CASE_STORAGE_KEY,
   type ValueCaseInputs,
+  hasOwnObservations,
 } from "@/lib/precog/value-case";
 import { formatUsd } from "@/lib/utils";
 import { ValueEvidenceRegister } from "./value-evidence-register";
@@ -64,6 +65,10 @@ export function ValueProofCenter() {
     }
   }, [inputs, evidence, loaded]);
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
+  const ownObservations = useMemo(
+    () => hasOwnObservations(inputs) || evidence.length > 0,
+    [inputs, evidence],
+  );
   const evidenceSummary = useMemo(() => summarizeValueEvidence(evidence), [evidence]);
   const update = (key: keyof ValueCaseInputs, next: number) =>
     setInputs((current) => normalizeValueCase({ ...current, [key]: next }));
@@ -124,28 +129,40 @@ export function ValueProofCenter() {
         />
         <Metric
           icon={Calculator}
-          label="Expected loss baseline"
+          label="Assumed loss baseline"
           value={formatUsd(value.modeled.expectedLossBefore)}
-          note="Exposure × probability"
+          note="Your exposure × your probability assumption"
           warning
         />
       </div>
 
       <Card>
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-3">
-          <MetricInline label="Net observed value" value={formatUsd(value.observed.net)} />
-          <MetricInline
-            label="Observed ROI"
-            value={value.observed.roi === null ? "—" : `${(value.observed.roi * 100).toFixed(0)}%`}
-          />
-          <MetricInline
-            label="Observed payback"
-            value={
-              value.observed.paybackMonths === null
-                ? "—"
-                : `${value.observed.paybackMonths.toFixed(1)} months`
-            }
-          />
+          {ownObservations ? (
+            <>
+              <MetricInline label="Net observed value" value={formatUsd(value.observed.net)} />
+              <MetricInline
+                label="Observed ROI"
+                value={
+                  value.observed.roi === null ? "—" : `${(value.observed.roi * 100).toFixed(0)}%`
+                }
+              />
+              <MetricInline
+                label="Observed payback"
+                value={
+                  value.observed.paybackMonths === null
+                    ? "—"
+                    : `${value.observed.paybackMonths.toFixed(1)} months`
+                }
+              />
+            </>
+          ) : (
+            <p className="text-sm text-muted sm:col-span-3">
+              No observed value yet. The figures on this tab start as the app&apos;s own
+              assumptions; enter your own review hours, costs and recoveries below, or add an item
+              to the evidence register, and the net value, return and payback appear here.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -198,7 +215,8 @@ export function ValueProofCenter() {
           <CardHeader>
             <CardTitle>Value assumptions</CardTitle>
             <CardDescription>
-              Use customer evidence where available. Values save in this browser.
+              The starting figures are the app&apos;s own assumptions, not measured results; replace
+              each one with your own evidence where you have it. Values save in this browser.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">

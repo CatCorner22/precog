@@ -202,6 +202,42 @@ export const DUTY_CONTROL_MEASURES: Record<EntitlementId, DutyControlMeasures> =
       "Disable compromised credentials and investigate the payment chain",
     ],
   ),
+  edit_payroll_master: measures(
+    [
+      "Require a signed form for every new hire, rate change, and deposit-account change",
+      "Name who may change employee records and who may not",
+    ],
+    [
+      "Restrict employee-record changes to a role that does not run payroll",
+      "Have the payroll service confirm bank-account changes with the employee directly",
+    ],
+    [
+      "Owner reads the payroll change report every cycle against the signed forms",
+      "Compare the people paid against the people scheduled and the terminated list",
+    ],
+    [
+      "Reverse unauthorized changes and recover any pay they produced",
+      "Remove the access that allowed the change and record the review",
+    ],
+  ),
+  post_journal_entries: measures(
+    [
+      "Define which entries need support and a second reviewer",
+      "Prohibit entries that adjust cash or receivables without a stated reason",
+    ],
+    [
+      "Restrict manual entries to a role that does not reconcile the bank",
+      "Require support attached before an entry can post",
+    ],
+    [
+      "Owner or outside accountant reads the manual-entry log each month",
+      "Question every entry that changes cash, receivables, or a suspense account",
+    ],
+    [
+      "Reverse unsupported entries and trace what they concealed",
+      "Escalate any entry that adjusted cash to an independent review",
+    ],
+  ),
   enter_payroll: measures(
     [
       "Document payroll calendars, inputs, and exception evidence",

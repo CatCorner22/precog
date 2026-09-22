@@ -12,17 +12,18 @@ import { formatUsd, cn } from "@/lib/utils";
 import { GitBranch } from "lucide-react";
 
 export function CascadePanel() {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   const [leverId, setLeverId] = useState<CascadeLeverId>("enable_dual_control");
 
   const all = useMemo(
-    () => simulateAllCascades(profile.riskVariables, profile.staff),
-    [profile.riskVariables, profile.staff],
+    () => simulateAllCascades(template, profile.riskVariables, profile.staff),
+    [template, profile.riskVariables, profile.staff],
   );
 
   const selected = useMemo(
-    () => simulateCascadeLever(leverId, profile.riskVariables, profile.staff, all.scenarioId),
-    [leverId, profile.riskVariables, profile.staff, all.scenarioId],
+    () =>
+      simulateCascadeLever(template, leverId, profile.riskVariables, profile.staff, all.scenarioId),
+    [template, leverId, profile.riskVariables, profile.staff, all.scenarioId],
   );
 
   return (
@@ -48,8 +49,7 @@ export function CascadePanel() {
         </CardHeader>
         <CardContent className="space-y-2">
           {all.rankedByCor.slice(0, 8).map((s) => {
-            const dCor =
-              s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk;
+            const dCor = s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk;
             const active = s.lever.id === leverId;
             return (
               <button

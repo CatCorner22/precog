@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { INDUSTRIES } from "./industry";
+
+describe("resolveTemplate", () => {
+  it("returns each industry's own template, unchanged", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = resolveTemplate({ industry: id });
+      const base = getBaseTemplate(id);
+      expect(tpl.id).toBe(id);
+      expect(tpl.people).toBe(base.people);
+      expect(tpl.knowledge).toBe(base.knowledge);
+      expect(tpl.relations).toBe(base.relations);
+      expect(tpl.controls).toBe(base.controls);
+      expect(tpl.scenarios).toBe(base.scenarios);
+      expect(tpl.processes.map((p) => p.id)).toEqual(base.processes.map((p) => p.id));
+    }
+  });
+
+  it("does not default to dental when the industry differs", () => {
+    const retail = resolveTemplate({ industry: "retail" });
+    const dental = getBaseTemplate("dental");
+    expect(retail.id).toBe("retail");
+    expect(retail.people.map((p) => p.name)).not.toContain("Maya Chen");
+    expect(retail.knowledge.map((k) => k.id)).not.toEqual(dental.knowledge.map((k) => k.id));
+  });
+
+  it("replaces people and drops relations and process owners that point at removed people", () => {
+    const base = getBaseTemplate("dental");
+    const keep = base.people.slice(0, 2);
+    const tpl = resolveTemplate({ industry: "dental", customPeople: keep });
+    const ids = new Set(keep.map((p) => p.id));
+
+    expect(tpl.people).toBe(keep);
+    expect(tpl.relations.length).toBeLessThan(base.relations.length);
+    expect(tpl.relations.every((r) => ids.has(r.personId))).toBe(true);
+    for (const proc of tpl.processes) {
+      expect((proc.ownerPersonIds ?? []).every((id) => ids.has(id))).toBe(true);
+    }
+  });
+
+  it("does not leak overrides into later calls", () => {
+    const base = getBaseTemplate("dental");
+    resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });
+    const again = resolveTemplate({ industry: "dental" });
+    expect(again.people).toBe(base.people);
+    expect(again.relations).toBe(base.relations);
+  });
+
+  it("uses custom processes verbatim when provided", () => {
+    const base = getBaseTemplate("retail");
+    const custom = [{ ...base.processes[0], id: "proc-custom", name: "Custom step" }];
+    const tpl = resolveTemplate({ industry: "retail", customProcesses: custom });
+    expect(tpl.processes.map((p) => p.id)).toEqual(["proc-custom"]);
+  });
+});

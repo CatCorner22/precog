@@ -54,17 +54,69 @@
 .matrix-grid {
   background-image:
     linear-gradient(color-mix(in oklab, var(--color-primary) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--color-primary) 6%, transparent) 1px, transparent 1px);
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--color-primary) 6%, transparent) 1px,
+      transparent 1px
+    );
   background-size: 32px 32px;
 }
 
 .glow-primary {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
     0 0 24px color-mix(in oklab, var(--color-primary) 12%, transparent);
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Print: the /report route is a clean white document ── */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .report {
+    min-height: auto !important;
+  }
+  .report a {
+    text-decoration: none;
+    color: inherit;
+  }
+}
+
+/* ── React Flow chrome (minimap + controls) on the dark canvas ── */
+.react-flow .react-flow__minimap {
+  background: rgba(21, 24, 32, 0.92);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.react-flow .react-flow__minimap svg {
+  background: transparent;
+}
+.react-flow .react-flow__controls {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.react-flow .react-flow__controls-button {
+  background: var(--color-elevated);
+  border-bottom: 1px solid var(--color-border-strong);
+  color: var(--color-fg);
+  fill: var(--color-fg);
+}
+.react-flow .react-flow__controls-button:hover {
+  background: var(--color-panel);
+}
+.react-flow .react-flow__controls-button svg {
+  fill: var(--color-fg);
 }
 
 /* ── Risk Predator thermal vision ── */
@@ -81,8 +133,13 @@
   animation: predator-pulse 1.6s ease-in-out infinite;
 }
 @keyframes predator-pulse {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.25); }
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.25);
+  }
 }
 .predator-hud {
   font-family: var(--font-mono, ui-monospace, monospace);
@@ -125,11 +182,18 @@
 }
 .terminator-target {
   animation: term-lock 1.2s steps(2, end) infinite;
-  box-shadow: 0 0 0 1px rgba(255, 50, 40, 0.9), 0 0 16px rgba(255, 30, 20, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(255, 50, 40, 0.9),
+    0 0 16px rgba(255, 30, 20, 0.45);
 }
 @keyframes term-lock {
-  0%, 100% { outline-offset: 0; }
-  50% { outline-offset: 2px; }
+  0%,
+  100% {
+    outline-offset: 0;
+  }
+  50% {
+    outline-offset: 2px;
+  }
 }
 .terminator-scan-sweep {
   background: linear-gradient(
@@ -144,8 +208,12 @@
   pointer-events: none;
 }
 @keyframes term-sweep {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 /* Friendly T-1000 mascot — liquid chrome, not scary */
@@ -164,8 +232,13 @@
   animation: t1000-morph 4s ease-in-out infinite;
 }
 @keyframes t1000-morph {
-  0%, 100% { border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%; }
-  50% { border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%; }
+  0%,
+  100% {
+    border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
+  }
+  50% {
+    border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -176,7 +249,6 @@
     animation: none !important;
   }
 }
-
 
 /* ── Threat Assessment SOF / tactical HUD ── */
 .threat-ops {
@@ -192,8 +264,7 @@
 .threat-panel {
   position: relative;
   border: 1px solid var(--sof-border);
-  background:
-    linear-gradient(135deg, rgba(13, 26, 16, 0.95), rgba(8, 14, 10, 0.98));
+  background: linear-gradient(135deg, rgba(13, 26, 16, 0.95), rgba(8, 14, 10, 0.98));
   border-radius: 4px;
   padding: 1rem 1.1rem;
   box-shadow:
@@ -247,8 +318,12 @@
 }
 
 @keyframes threat-sweep {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

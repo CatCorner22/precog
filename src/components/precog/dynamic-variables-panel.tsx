@@ -36,8 +36,8 @@ export function DynamicVariablesPanel({
             <div>
               <CardTitle>Dynamic risk variables</CardTitle>
               <CardDescription>
-                Change premium, deductible, discounts, or controls — likelihood and severity recompute
-                live (educational model, not a quote).
+                Change premium, deductible, discounts, or controls — likelihood and severity
+                recompute live (educational model, not a quote).
               </CardDescription>
             </div>
             <Button
@@ -74,12 +74,12 @@ export function DynamicVariablesPanel({
                 hint={`−${d.discountPctApplied}% credits`}
               />
               <Mini
-                label="Gross expected"
+                label="Assumed loss if it happens"
                 value={formatUsd(d.grossExpected)}
                 hint="before retention"
               />
               <Mini
-                label="Retained expected"
+                label="Assumed retained loss"
                 value={formatUsd(d.retainedExpected)}
                 hint={`transferred ${formatUsd(d.transferredExpected)}`}
               />
@@ -226,7 +226,11 @@ export function DynamicVariablesPanel({
             <>
               <div>
                 <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
-                  Active reasoning drivers
+                  Assumptions in play
+                </p>
+                <p className="mb-2 text-xs leading-relaxed text-subtle">
+                  Every multiplier and credit below is an assumption this app makes, listed so you
+                  can judge it. None comes from a carrier, a study, or your own loss history.
                 </p>
                 <ul className="space-y-1.5">
                   {d.drivers.map((dr) => (
@@ -304,15 +308,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Mini({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
+function Mini({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
       <p className="text-[10px] tracking-wide text-subtle uppercase">{label}</p>
