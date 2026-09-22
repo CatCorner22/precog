@@ -13,12 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  POWER_MAP_STORAGE_KEY,
-  createPowerMapFile,
-  normalizeRoleAssignments,
-} from "@/lib/precog/sod/model-io";
 import { buildAssignments } from "@/lib/precog/sod/detect";
+import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   DEFAULT_VALUE_CASE,
   VALUE_CASE_STORAGE_KEY,
@@ -33,6 +31,7 @@ import { formatUsd } from "@/lib/utils";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
+  const tpl = useTemplate();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<AssessmentSnapshotSummary[]>([]);
@@ -66,17 +65,10 @@ export function AssessmentSnapshots() {
     setBusy(true);
     setError(null);
     try {
-      let powerMap;
       let valueCase;
       let valueEvidence;
-      const storedPowerMap = window.localStorage.getItem(POWER_MAP_STORAGE_KEY);
-      if (storedPowerMap) {
-        try {
-          powerMap = normalizeRoleAssignments(JSON.parse(storedPowerMap));
-        } catch {
-          /* ignore invalid local state */
-        }
-      }
+      // The map lives on the profile's people; capture it as the engines read it.
+      const powerMap = buildAssignments(tpl);
       const storedValueCase = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
       if (storedValueCase) {
         try {
@@ -122,14 +114,18 @@ export function AssessmentSnapshots() {
     try {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
-      replaceProfile(snapshot.profile);
-      const restoredPowerMap = snapshot.powerMap ?? buildAssignments();
-      window.localStorage.setItem(
-        POWER_MAP_STORAGE_KEY,
-        JSON.stringify(createPowerMapFile(restoredPowerMap)),
-      );
-      window.dispatchEvent(
-        new CustomEvent("precog:power-map-restored", { detail: restoredPowerMap }),
+      // Older snapshots carried the map beside the profile; write it onto the
+      // restored people so the register and every conflict view agree.
+      replaceProfile(
+        snapshot.powerMap
+          ? {
+              ...snapshot.profile,
+              customPeople: applyAssignmentsToPeople(
+                resolveTemplate(snapshot.profile).people,
+                snapshot.powerMap,
+              ),
+            }
+          : snapshot.profile,
       );
       const restoredValueCase = snapshot.valueCase ?? DEFAULT_VALUE_CASE;
       const restoredEvidence = snapshot.valueEvidence ?? [];
@@ -153,8 +149,7 @@ export function AssessmentSnapshots() {
     try {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
-      const storedMap = readStoredJson(POWER_MAP_STORAGE_KEY);
-      const currentMap = storedMap ? normalizeRoleAssignments(storedMap) : null;
+      const currentMap = buildAssignments(tpl);
       const storedValue = readStoredJson(VALUE_CASE_STORAGE_KEY);
       const currentValue = storedValue
         ? normalizeValueCase(storedValue as Partial<typeof DEFAULT_VALUE_CASE>)
@@ -167,14 +162,14 @@ export function AssessmentSnapshots() {
         result: compareAssessmentStates(
           {
             profile,
-            powerMap: currentMap ?? buildAssignments(),
+            powerMap: currentMap,
             valueCase: currentValue,
             evidence: currentEvidence,
             asOf: new Date(),
           },
           {
             profile: snapshot.profile,
-            powerMap: snapshot.powerMap ?? buildAssignments(),
+            powerMap: snapshot.powerMap ?? buildAssignments(resolveTemplate(snapshot.profile)),
             valueCase: snapshot.valueCase ?? DEFAULT_VALUE_CASE,
             evidence: snapshot.valueEvidence ?? [],
             asOf: new Date(snapshot.createdAt),

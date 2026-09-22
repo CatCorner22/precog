@@ -30,11 +30,12 @@ import {
   Users,
 } from "lucide-react";
 import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import {
   buildAssignments,
   COMMON_JOB_TEMPLATES,
   detectSodConflicts,
-  dropInactiveAssignments,
+  sodDetectionOptions,
   type DetectedConflict,
   type RoleAssignment,
 } from "@/lib/precog/sod/detect";
@@ -98,8 +99,11 @@ const FAMILY_META: Record<DutyFamily, { label: string; color: string; descriptio
 
 export function PowerMapBuilder() {
   const tpl = useTemplate();
-  const { profile } = usePractice();
-  const [assignments, setAssignments] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
+  const { profile, setCustomPeople } = usePractice();
+  // The map is a view of the people register: every grant, revocation, hire,
+  // or import writes through to the profile, so the conflict list, the
+  // matrix, and the dashboard summary all read the same assignments.
+  const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
@@ -108,63 +112,28 @@ export function PowerMapBuilder() {
   const [simulationName, setSimulationName] = useState("");
   const [history, setHistory] = useState<RoleAssignment[][]>([]);
   const [absentPersonId, setAbsentPersonId] = useState("");
-  const [storageReady, setStorageReady] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
-  const [baseline, setBaseline] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
+  const [baseline, setBaseline] = useState<RoleAssignment[]>(assignments);
   const [processId, setProcessId] = useState("all");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(POWER_MAP_STORAGE_KEY);
-    if (stored) {
-      try {
-        const restored = normalizeRoleAssignments(JSON.parse(stored));
-        if (restored) {
-          setAssignments(restored);
-          setBaseline(restored);
-        }
-      } catch {
-        window.localStorage.removeItem(POWER_MAP_STORAGE_KEY);
-      }
+    // Earlier builds kept a separate sandbox copy of the map in this browser.
+    // The profile is the only copy now, so drop the orphaned key.
+    try {
+      window.localStorage.removeItem(POWER_MAP_STORAGE_KEY);
+    } catch {
+      /* storage unavailable */
     }
-    setStorageReady(true);
   }, []);
-
-  useEffect(() => {
-    const restore = (event: Event) => {
-      const assignments = normalizeRoleAssignments((event as CustomEvent<unknown>).detail);
-      if (!assignments) return;
-      setAssignments(assignments);
-      setSelectedId(assignments[0]?.personId ?? "");
-      setHistory([]);
-      setBaseline(assignments);
-      setImportMessage("Restored from assessment snapshot");
-    };
-    window.addEventListener("precog:power-map-restored", restore);
-    return () => window.removeEventListener("precog:power-map-restored", restore);
-  }, []);
-
-  useEffect(() => {
-    const live = dropInactiveAssignments(assignments, tpl.people);
-    if (live.length === assignments.length) return;
-    setAssignments(live);
-    setBaseline((current) => dropInactiveAssignments(current, tpl.people));
-    setSelectedId((current) =>
-      live.some((a) => a.personId === current) ? current : (live[0]?.personId ?? ""),
-    );
-  }, [assignments, tpl.people]);
-
-  useEffect(() => {
-    if (storageReady)
-      window.localStorage.setItem(
-        POWER_MAP_STORAGE_KEY,
-        JSON.stringify(createPowerMapFile(assignments)),
-      );
-  }, [assignments, storageReady]);
 
   const report = useMemo(
-    () => detectSodConflicts(tpl, profile.staff, { assignments }),
-    [assignments, profile.staff, tpl],
+    () =>
+      detectSodConflicts(tpl, profile.staff, {
+        ...sodDetectionOptions(tpl, profile.dualRelease),
+        assignments,
+      }),
+    [assignments, profile.dualRelease, profile.staff, tpl],
   );
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
   const coveragePlans = useMemo(
@@ -266,7 +235,13 @@ export function PowerMapBuilder() {
   }
 
   function reset() {
-    const defaults = buildAssignments(tpl);
+    // Back to what each person's role implies, with simulated hires removed.
+    const defaults = buildAssignments({
+      ...tpl,
+      people: tpl.people
+        .filter((person) => !person.id.startsWith("sim-"))
+        .map((person) => ({ ...person, entitlements: undefined })),
+    });
     commit(defaults);
     setSelectedId(defaults[0]?.personId ?? "");
     setConflictsOnly(false);
@@ -284,15 +259,19 @@ export function PowerMapBuilder() {
     (item) => item.severity === "critical" && !item.dualReleaseMitigated,
   ).length;
 
+  function write(next: RoleAssignment[]) {
+    setCustomPeople((people) => applyAssignmentsToPeople(people, next));
+  }
+
   function commit(next: RoleAssignment[]) {
     setHistory((items) => [...items.slice(-19), assignments]);
-    setAssignments(next);
+    write(next);
   }
 
   function undo() {
     const previous = history.at(-1);
     if (!previous) return;
-    setAssignments(previous);
+    write(previous);
     setHistory((items) => items.slice(0, -1));
   }
 
@@ -792,7 +771,7 @@ export function PowerMapBuilder() {
                 Reset model
               </Button>
               <span aria-live="polite" className="ml-auto text-[11px] text-subtle">
-                {importMessage || (storageReady ? "Saved in this browser" : "Loading model…")}
+                {importMessage || "Saved with your business"}
               </span>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-border bg-elevated p-2">
