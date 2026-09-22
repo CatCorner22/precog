@@ -189,6 +189,18 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
                   >
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium">{h.chunk.title}</span>
+                      {h.chunk.sourceUrl ? (
+                        <a
+                          href={h.chunk.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <Badge variant="default">{h.chunk.source} ↗</Badge>
+                        </a>
+                      ) : (
+                        <Badge variant="default">{h.chunk.source}</Badge>
+                      )}
                       {h.chunk.basis.kind === "cited" ? (
                         <a
                           href={h.chunk.basis.url}

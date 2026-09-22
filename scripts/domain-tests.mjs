@@ -31,6 +31,7 @@ try {
   const sodRules = await server.ssrLoadModule("/src/lib/precog/sod/conflict-rules.ts");
   const sodDetect = await server.ssrLoadModule("/src/lib/precog/sod/detect.ts");
   const powerGuidance = await server.ssrLoadModule("/src/lib/precog/sod/power-guidance.ts");
+  const controlMeasures = await server.ssrLoadModule("/src/lib/precog/sod/control-measures.ts");
   const resolutionPlanner = await server.ssrLoadModule("/src/lib/precog/sod/resolution-planner.ts");
   const coverageAnalysis = await server.ssrLoadModule("/src/lib/precog/sod/coverage-analysis.ts");
   const modelIo = await server.ssrLoadModule("/src/lib/precog/sod/model-io.ts");
@@ -42,6 +43,18 @@ try {
   const valueCase = await server.ssrLoadModule("/src/lib/precog/value-case.ts");
   const valueEvidence = await server.ssrLoadModule("/src/lib/precog/value-evidence.ts");
   const snapshotComparison = await server.ssrLoadModule("/src/lib/precog/snapshot-comparison.ts");
+
+  await test("every duty has complete four-category control alternatives", () => {
+    const categories = ["directive", "preventive", "detective", "corrective"];
+    assert.deepEqual(Object.keys(controlMeasures.DUTY_CONTROL_MEASURES).sort(), sodRules.ENTITLEMENTS.map((item) => item.id).sort());
+    for (const entitlement of sodRules.ENTITLEMENTS) {
+      const catalog = controlMeasures.DUTY_CONTROL_MEASURES[entitlement.id];
+      for (const category of categories) {
+        assert.ok(catalog[category].length >= 2, `${entitlement.id} needs ${category} alternatives`);
+        assert.ok(catalog[category].every((action) => action.trim().length >= 12));
+      }
+    }
+  });
 
   await test("value evidence is bounded, deduplicated, and summarized from verified records", () => {
     const records = valueEvidence.normalizeValueEvidence([
@@ -164,6 +177,18 @@ try {
     assert.ok(high.reasons.includes("Open control / SoD gap"));
   });
 
+  await test("control guidance retrieval returns authoritative access guidance", () => {
+    const [hit] = rag.retrieveKnowledge("least privilege MFA termination access review", {
+      topK: 1,
+    });
+    assert.equal(hit?.chunk.id, "logical-access-leavers");
+    assert.match(hit.chunk.sourceUrl, /^https:\/\//);
+  });
+
+  await test("every authoritative corpus URL uses HTTPS", () => {
+    const sourced = corpus.KNOWLEDGE_CORPUS.filter((chunk) => chunk.sourceUrl);
+    assert.ok(sourced.length >= 7);
+    for (const chunk of sourced) assert.match(chunk.sourceUrl, /^https:\/\//);
   await test("control guidance retrieval returns authoritative guidance", () => {
     const [hit] = rag.retrieveKnowledge("weekly owner bank reconciliation ongoing monitoring", {
       topK: 1,
@@ -186,6 +211,15 @@ try {
 
   await test("core control domains return targeted guidance", () => {
     const cases = [
+      ["payroll direct deposit rate change", "payroll-change-controls"],
+      ["patient refund credit balance", "refund-controls"],
+      ["PMS configuration production rollback", "system-change-management"],
+      ["HIPAA ePHI risk analysis", "hipaa-risk-analysis"],
+      ["management override unusual journal entry", "management-override"],
+    ];
+    for (const [query, expectedId] of cases) {
+      const [hit] = rag.retrieveKnowledge(query, { topK: 1 });
+      assert.equal(hit?.chunk.id, expectedId, query);
       "payroll direct deposit rate change",
       "patient refund credit balance",
       "PMS configuration production rollback",
@@ -325,6 +359,8 @@ try {
   });
 
   await test("every duty process lens resolves to a known process", async () => {
+    const demo = await server.ssrLoadModule("/src/lib/precog/demo-data.ts");
+    const processIds = new Set(demo.processes.map((process) => process.id));
     const templates = await server.ssrLoadModule("/src/lib/precog/active-template.ts");
     const processIds = new Set(
       templates.getBaseTemplate("dental").processes.map((process) => process.id),
@@ -393,6 +429,7 @@ try {
     const assignments = [{ personId: "csv", personName: "=Injected", role: "Reviewer", entitlements: ["bank_reconcile"] }];
     const csv = modelIo.createResponsibilityMatrixCsv(assignments);
     assert.match(csv, /"'=Injected · Reviewer"/);
+    assert.match(csv, /"Reconcile bank to PMS","reconciliation","5","Assigned"/);
     assert.match(csv, /"Reconcile the bank account","reconciliation","5","Assigned"/);
     assert.equal(csv.split("\r\n").length, sodRules.ENTITLEMENTS.length);
   });

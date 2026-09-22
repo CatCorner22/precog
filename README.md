@@ -112,4 +112,8 @@ Educational tool only — not actuarial, legal, or forensic advice. The cases de
 
 ## Product strategy
 
+Educational projections only — not actuarial advice; never scores people as “fraudulent.”
+
+## Product strategy
+
 See [`docs/COMMERCIAL_ASSESSMENT.md`](docs/COMMERCIAL_ASSESSMENT.md) for the competitive landscape, market wedge, avoided-cost measurement framework, commercialization requirements, and explicit go/no-go gates.

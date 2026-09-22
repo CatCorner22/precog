@@ -321,6 +321,10 @@ export function loadProfile(): PracticeProfile {
   try {
     // migrate v1
     const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem("precog.practiceProfile.v1");
+    if (!raw) return defaultProfile();
+    return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>);
       localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>, false);
@@ -329,6 +333,16 @@ export function loadProfile(): PracticeProfile {
   }
 }
 
+/** Merge stored/imported profiles with current defaults as the model evolves. */
+export function normalizeProfile(parsed: Partial<PracticeProfile>): PracticeProfile {
+  const base = defaultProfile();
+  const staff = { ...base.staff, ...parsed.staff };
+  const dualRelease = mergeDualReleasePolicy(
+    parsed.dualRelease as DualReleasePolicy | undefined,
+    staff,
+  );
+  if (!parsed.dualRelease) dualRelease.enabled = staff.dualControlPayments;
+  else staff.dualControlPayments = dualRelease.enabled;
 export function normalizeProfile(
   parsed: Partial<PracticeProfile>,
   onboardingCompleteFallback = true,
@@ -363,6 +377,20 @@ export function normalizeProfile(
   const decisions = Array.isArray(parsed.decisions)
     ? parsed.decisions.slice(0, 100).flatMap((entry) => {
         if (!entry || typeof entry !== "object" || !validKinds.has(entry.kind)) return [];
+        return [{
+          id: String(entry.id ?? "").slice(0, 80),
+          createdAt: String(entry.createdAt ?? "").slice(0, 40),
+          subject: String(entry.subject ?? "").slice(0, 200),
+          kind: entry.kind,
+          note: String(entry.note ?? "").slice(0, 2_000),
+          reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
+          residualAtDecision: Number.isFinite(entry.residualAtDecision) ? entry.residualAtDecision : undefined,
+          linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
+          linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
+        }];
+      })
+    : [];
+  return {
         return [
           {
             ...entry,
@@ -393,6 +421,12 @@ export function normalizeProfile(
     },
     dualRelease,
     decisions,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function saveProfile(profile: PracticeProfile): void {
+  if (typeof window === "undefined") return;
     onboardingComplete: parsed.onboardingComplete ?? onboardingCompleteFallback,
     customProcesses,
     customPeople,

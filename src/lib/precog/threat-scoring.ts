@@ -5,6 +5,8 @@
  * Educational decision-support for dental practice owners.
  * "Threat" = control failure / residual risk / continuity exposure — never people.
  */
+import { controls } from "./demo-data";
+import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
 import { getIndustryTemplate } from "./templates";
@@ -20,6 +22,10 @@ import {
   type PriorityTarget,
 } from "./map-vision";
 import type { StaffComposition } from "./types";
+import {
+  DEFAULT_RISK_VARIABLES,
+  type RiskVariableState,
+} from "./scoring/dynamic-variables";
 import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
 import { mitigatedSodRuleIds } from "./controls/dual-release";
 import type { DualReleasePolicy } from "./controls/dual-release";
@@ -72,6 +78,16 @@ export function buildThreatAssessment(input: {
     staff,
     riskVariables,
   });
+  const leading = scoreLeadingIndicators(
+    staff,
+    riskVariables ?? {
+      ...DEFAULT_RISK_VARIABLES,
+      basePremiumAnnual: 2400,
+      deductible: 2500,
+      hasDualControl: staff.dualControlPayments,
+      hasIndependentBankRec: staff.independentBankRec,
+    },
+  );
   const leading = scoreLeadingIndicators(tpl, staff, {
     ...DEFAULT_RISK_VARIABLES,
     ...(riskVariables ?? {}),

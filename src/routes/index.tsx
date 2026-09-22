@@ -1,3 +1,4 @@
+import { lazy, Suspense, useMemo, useState } from "react";
 import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
 import {
@@ -20,6 +21,11 @@ import {
   Compass,
   Crosshair,
   Eye,
+  Gauge,
+  Grid3x3,
+  LibraryBig,
+  Layers,
+  Map,
   FileText,
   Gauge,
   Grid3x3,
@@ -35,10 +41,16 @@ import {
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { controls } from "@/lib/precog/demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
+import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { usePractice } from "@/lib/precog/practice-context";
+import type { MatrixLayerId } from "@/lib/precog/types";
+import { PracticeSetup } from "@/components/precog/practice-setup";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
@@ -66,6 +78,55 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
+
+const CosoHeatmap = lazy(() =>
+  import("@/components/precog/coso-heatmap").then((m) => ({ default: m.CosoHeatmap })),
+);
+const AssessmentSnapshots = lazy(() =>
+  import("@/components/precog/assessment-snapshots").then((m) => ({ default: m.AssessmentSnapshots })),
+);
+const OperatingBlueprint = lazy(() =>
+  import("@/components/precog/operating-blueprint").then((m) => ({ default: m.OperatingBlueprint })),
+);
+const ValueProofCenter = lazy(() =>
+  import("@/components/precog/value-proof-center").then((m) => ({ default: m.ValueProofCenter })),
+);
+const DecisionJournal = lazy(() =>
+  import("@/components/precog/decision-journal").then((m) => ({ default: m.DecisionJournal })),
+);
+const IntelligencePanel = lazy(() =>
+  import("@/components/precog/intelligence-panel").then((m) => ({ default: m.IntelligencePanel })),
+);
+const KnowledgeMap = lazy(() =>
+  import("@/components/precog/knowledge-map").then((m) => ({ default: m.KnowledgeMap })),
+);
+const LayerDetail = lazy(() =>
+  import("@/components/precog/layers-panel").then((m) => ({ default: m.LayerDetail })),
+);
+const LayersPanel = lazy(() =>
+  import("@/components/precog/layers-panel").then((m) => ({ default: m.LayersPanel })),
+);
+const PioneerCoach = lazy(() =>
+  import("@/components/precog/pioneer-coach").then((m) => ({ default: m.PioneerCoach })),
+);
+const ProcessMap = lazy(() =>
+  import("@/components/precog/process-map").then((m) => ({ default: m.ProcessMap })),
+);
+const ResidualRadar = lazy(() =>
+  import("@/components/precog/residual-radar").then((m) => ({ default: m.ResidualRadar })),
+);
+const ScenarioRunner = lazy(() =>
+  import("@/components/precog/scenario-runner").then((m) => ({ default: m.ScenarioRunner })),
+);
+const SodPanel = lazy(() =>
+  import("@/components/precog/sod-panel").then((m) => ({ default: m.SodPanel })),
+);
+
+export const Route = createFileRoute("/")({
+  component: Home,
+});
+
+type TabId =
 import { useHydrated } from "@/lib/use-hydrated";
 
 export const Route = createFileRoute("/")({
@@ -261,6 +322,25 @@ type TabId =
   | "blueprint"
   | "value";
 
+const TABS: { id: TabId; label: string; icon: typeof Eye }[] = [
+  { id: "command", label: "Command", icon: Activity },
+  { id: "value", label: "Value", icon: TrendingUp },
+  { id: "blueprint", label: "Blueprint", icon: LibraryBig },
+  { id: "map", label: "Map", icon: Map },
+  { id: "pioneer", label: "Pioneer", icon: Compass },
+  { id: "intel", label: "Intel", icon: Brain },
+  { id: "residual", label: "Residual", icon: Gauge },
+  { id: "coso", label: "COSO", icon: Grid3x3 },
+  { id: "layers", label: "Layers", icon: Layers },
+  { id: "knowledge", label: "Knowledge", icon: Network },
+  { id: "precog", label: "Precog", icon: Sparkles },
+  { id: "sod", label: "SoD", icon: Shield },
+  { id: "journal", label: "Journal", icon: BookOpen },
+  { id: "snapshots", label: "Snapshots", icon: Archive },
+];
+
+function Home() {
+  const [tab, setTab] = useState<TabId>("command");
 const TAB_IDS: readonly TabId[] = [
   "start",
   "command",
@@ -325,6 +405,40 @@ function Home() {
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
+  const { isPending } = useCurrentUserState();
+  const { profile } = usePractice();
+
+  const risks = useMemo(() => findKnowledgeRisks(), []);
+  const ranked = useMemo(
+    () =>
+      rankDangerousScenarios({
+        staff: profile.staff,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.staff, profile.riskVariables],
+  );
+  const coso = useMemo(() => assessCoso(), []);
+  const portfolio = useMemo(
+    () => portfolioSummary(profile.staff),
+    [profile.staff],
+  );
+  const leading = useMemo(
+    () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
+    [profile.staff, profile.riskVariables],
+  );
+  const sodReport = useMemo(
+    () =>
+      detectSodConflicts(profile.staff, {
+        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+      }),
+    [profile.staff, profile.dualRelease],
+  );
+  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= 65).length;
+  const sodGaps = controls.filter((c) => !c.segregated).length;
+  const top = ranked[0];
+  const overdueDecisions = profile.decisions.filter(
+    (d) => d.reviewBy && new Date(d.reviewBy).getTime() < Date.now(),
+  ).length;
   const [mapBuild, setMapBuild] = useState(false);
   const { isPending } = useCurrentUserState();
   const { profile, ready, mapCustomized } = usePractice();
@@ -419,6 +533,13 @@ function Home() {
       setTab("intel");
       return;
     }
+    if (
+      ["residual", "coso", "sod", "journal", "snapshots", "blueprint", "value", "command", "pioneer", "layers"].includes(
+        tabName,
+      )
+    ) {
+      setTab(tabName as TabId);
+    }
     if (isTabId(tabName)) setTab(tabName);
   }
 
@@ -432,6 +553,15 @@ function Home() {
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Eye className="size-4" />
               </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold tracking-tight">
+                  Precog Pioneer
+                </p>
+                <p className="truncate text-xs text-muted">{profile.practiceName}</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
               <BusinessSwitcher />
             </div>
           </div>
@@ -475,6 +605,7 @@ function Home() {
             )}
           </div>
         </div>
+        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
         <TabStrip activeId={tab}>
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -495,6 +626,7 @@ function Home() {
                 )}
               >
                 <Icon className="size-4" />
+                {t.label}
                 {say(t.label, t.tactical)}
                 {t.id === "sod" && sodReport.summary.critical > 0 && (
                   <span className="rounded-full bg-danger/20 px-1.5 text-[10px] text-danger">
@@ -504,6 +636,39 @@ function Home() {
               </button>
             );
           })}
+        </nav>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <Suspense fallback={<PanelLoading />}>
+        {tab === "command" && (
+          <div className="space-y-6">
+            <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+              <Badge variant="accent">SoD detection · process map · Pioneer</Badge>
+              <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+                See every process, risk, and SoD conflict before it bites
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
+                Automated segregation-of-duties scanning finds who holds incompatible powers
+                (cash + recon, vendor + pay, write-off approve + post). Pair with the process map
+                and Precog scenarios for full residual picture.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button onClick={() => setTab("sod")}>
+                  SoD conflicts ({sodReport.conflicts.length})
+                </Button>
+                <Button variant="secondary" onClick={() => setTab("map")}>
+                  Process map
+                </Button>
+                <Button variant="outline" onClick={() => setTab("pioneer")}>
+                  Run Pioneer
+                </Button>
+                <Link
+                  to="/threat"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-fg transition-colors hover:bg-elevated"
+                >
+                  <Crosshair className="size-4" />
+                  Threat Assessment
         </TabStrip>
       </header>
       <SaveConflictBanner />
@@ -568,6 +733,31 @@ function Home() {
               </div>
             </section>
 
+            {/* SOF Threat Assessment entry */}
+            <Link
+              to="/threat"
+              className="block rounded-2xl border border-danger/30 bg-danger/5 p-5 transition-colors hover:border-danger/50 hover:bg-danger/10"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <Badge variant="danger">OPS · THREAT ASSESSMENT</Badge>
+                  <p className="mt-2 text-lg font-semibold tracking-tight">
+                    Military-style residual threat HUD
+                  </p>
+                  <p className="mt-1 max-w-xl text-sm text-muted">
+                    Special-operations aesthetic for priority control gaps, SoD conflicts,
+                    knowledge SPOFs, and Precog scenarios. Rules of engagement = dual-release,
+                    bank rec, and owner review — educational only.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  <Crosshair className="size-4" />
+                  Open /threat
+                </span>
+              </div>
+            </Link>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <MapHealthCard
               onOpenMap={(id) => {
                 setMapBuild(false);
@@ -602,6 +792,7 @@ function Home() {
                 label="Avg residual"
                 value={String(portfolio.averageResidual)}
                 hint={`${portfolio.criticalPath} critical`}
+                tone={portfolio.averageResidual >= 60 ? "danger" : "warn"}
                 tone={
                   portfolio.averageResidual >= RISK_SCALE.actNow
                     ? "danger"
@@ -616,6 +807,9 @@ function Home() {
                 value={String(sodReport.summary.segregationHealth)}
                 hint={`${sodReport.summary.critical} critical conflicts`}
                 tone={
+                  sodReport.summary.segregationHealth < 40
+                    ? "danger"
+                    : sodReport.summary.segregationHealth < 65
                   sodReport.summary.segregationHealth < HEALTH_SCALE.weak
                     ? "danger"
                     : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
@@ -639,6 +833,16 @@ function Home() {
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
+                label="Top retained"
+                value={
+                  top
+                    ? formatUsd(
+                        top.result.retainedImpact?.expected ??
+                          top.result.financialImpact.expected,
+                      )
+                    : "—"
+                }
+                hint={top ? `p50 ${top.result.timelineDays.p50}d` : ""}
                 label="Largest assumed retained loss"
                 value={
                   top
@@ -682,6 +886,8 @@ function Home() {
                 <CardHeader>
                   <CardTitle>Top residual risks</CardTitle>
                   <CardDescription>
+                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length}{" "}
+                    detected conflicts · pressure {leading.band}
                     Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length} detected
                     conflicts · pressure {leading.band}
                   </CardDescription>
@@ -695,6 +901,9 @@ function Home() {
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
                     >
                       <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">
+                          {item.name}
+                        </span>
                         <span className="block truncate text-sm font-medium">{item.name}</span>
                         <span className="text-xs text-muted">{item.bandLabel}</span>
                       </span>
@@ -712,6 +921,7 @@ function Home() {
 
         {tab === "map" && (
           <ProcessMap
+            initialProcessId={processId}
             key={mapBuild ? "build" : "view"}
             initialProcessId={processId}
             initialBuild={mapBuild}
@@ -728,6 +938,9 @@ function Home() {
           />
         )}
 
+        {tab === "intel" && (
+          <IntelligencePanel onNavigate={(t) => navigateTab(t)} />
+        )}
         {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
 
         {tab === "residual" && (
@@ -772,6 +985,8 @@ function Home() {
         {tab === "knowledge" && (
           <div className="space-y-4">
             <div>
+              <h2 className="text-lg font-semibold">Knowledge continuity map</h2>
+              <p className="text-sm text-muted">Critical knowledge SPOFs.</p>
               <h2 className="text-lg font-semibold">Continuity of operations</h2>
               <p className="text-sm text-muted">
                 List the duties, tasks and know-how the business runs on, mark who can do each,
@@ -799,6 +1014,20 @@ function Home() {
           </div>
         )}
 
+        {tab === "sod" && (
+          <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />
+        )}
+
+        {tab === "journal" && (
+          <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
+        )}
+
+        {tab === "snapshots" && <AssessmentSnapshots />}
+
+        {tab === "blueprint" && <OperatingBlueprint />}
+
+        {tab === "value" && <ValueProofCenter />}
+        </Suspense>
         {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
         {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
@@ -807,6 +1036,16 @@ function Home() {
         {tab === "value" && <ValueProofCenter />}
         </Suspense></TabErrorBoundary>
       </main>
+    </div>
+  );
+}
+
+function PanelLoading() {
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-6" role="status">
+      <div className="h-4 w-32 animate-pulse rounded bg-elevated" />
+      <div className="mt-4 h-24 animate-pulse rounded-xl bg-elevated/70" />
+      <span className="sr-only">Loading analysis panel</span>
     </div>
   );
 }

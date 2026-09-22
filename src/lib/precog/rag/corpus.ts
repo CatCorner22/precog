@@ -39,9 +39,14 @@ export interface KnowledgeChunk {
     | "fraud"
     | "insurance"
     | "continuity"
-    | "ai_governance";
+    | "ai_governance"
+    | "cybersecurity"
+    | "privacy";
   tags: string[];
   text: string;
+  source: string;
+  /** Primary or authoritative reference used for the educational summary. */
+  sourceUrl?: string;
   basis: ChunkBasis;
   /** Ids in CASE_LIBRARY (evidence/cases.ts) of prosecuted cases that demonstrate this chunk. */
   caseIds?: string[];
@@ -362,5 +367,101 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     text: "Payroll fraud shows up as ghost employees, unapproved rate increases, and padded hours. Owner approves every new hire in the payroll system, reviews the payroll register total and headcount each cycle, and someone other than the payroll preparer reconciles payroll to the bank debit.",
     basis: practice("Payroll control practice."),
     caseIds: ["case-restaurant-franchisee-idaho", "case-florida-construction-payroll"],
+  },
+  {
+    id: "coso-17-principles",
+    title: "COSO principles and control effectiveness",
+    domain: "coso",
+    tags: ["coso", "17 principles", "design", "implementation", "operating effectiveness"],
+    text: "COSO's five components are supported by 17 principles. An effective system requires the relevant principles to be present and functioning and the five components to operate together. A policy on paper is not enough: assess whether a control is suitably designed, placed in operation, and operating consistently, then retain evidence of review and remediation.",
+    source: "COSO Internal Control—Integrated Framework",
+    sourceUrl: "https://www.coso.org/internal-control",
+  },
+  {
+    id: "green-book-documentation",
+    title: "Document control design, execution, and corrective action",
+    domain: "coso",
+    tags: ["green book", "documentation", "evidence", "deficiency", "corrective action"],
+    text: "The GAO Green Book organizes internal control into five components and 17 principles and emphasizes appropriate documentation. For a small practice, retain who performed and reviewed each key control, the date, exceptions found, evidence inspected, corrective owner, and due date. Escalate deficiencies based on impact and likelihood, and verify corrective actions rather than closing them on assertion alone.",
+    source: "U.S. GAO Standards for Internal Control in the Federal Government (2025 Green Book)",
+    sourceUrl: "https://www.gao.gov/products/gao-25-107721",
+  },
+  {
+    id: "logical-access-leavers",
+    title: "Logical access and workforce changes",
+    domain: "cybersecurity",
+    tags: ["access", "least privilege", "mfa", "termination", "pms", "banking", "audit log"],
+    text: "Access control should follow least privilege and unique user identity. Avoid shared PMS, accounting, email, and banking credentials; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
+    source: "NIST Cybersecurity Framework 2.0",
+    sourceUrl: "https://www.nist.gov/cyberframework",
+  },
+  {
+    id: "hipaa-risk-analysis",
+    title: "HIPAA security risk analysis and safeguards",
+    domain: "privacy",
+    tags: ["hipaa", "phi", "ephi", "risk analysis", "audit controls", "dental", "security"],
+    text: "A dental practice handling electronic protected health information should perform an accurate and thorough risk analysis, implement reasonable and appropriate administrative, physical, and technical safeguards, and revisit the analysis when systems or operations change. Internal-control evidence should include system inventory, access decisions, security incidents, contingency procedures, and audit-control review. This educational summary is not a legal compliance determination.",
+    source: "HHS HIPAA Security Rule risk-analysis guidance",
+    sourceUrl: "https://www.hhs.gov/hipaa/for-professionals/security/guidance/guidance-risk-analysis/index.html",
+  },
+  {
+    id: "vendor-change-verification",
+    title: "Verify vendor and payment instruction changes out of band",
+    domain: "sod",
+    tags: ["vendor", "bank change", "callback", "business email compromise", "payment"],
+    text: "Treat changes to vendor banking, remittance addresses, and payment contacts as high-risk master-data events. Require approval independent of the requester and verify the change using a trusted phone number or contact already on file—not contact details supplied in the change request. Log the verification and hold first payment when risk indicators are present.",
+    source: "FBI business email compromise prevention guidance",
+    sourceUrl: "https://www.fbi.gov/how-we-can-help-you/scams-and-safety/common-scams-and-crimes/business-email-compromise",
+  },
+  {
+    id: "refund-controls",
+    title: "Patient refunds and credit-balance controls",
+    domain: "dental_ops",
+    tags: ["refund", "credit balance", "patient", "approval", "original payment"],
+    text: "Patient refunds combine cash disbursement and account adjustment risk. Require a documented credit-balance basis, approval independent of preparation, pay back to the original payment method when feasible, prohibit the same person from creating a fictitious credit and releasing the refund, and reconcile the refund register to the ledger and bank activity.",
+    source: "Healthcare revenue-cycle control practice (educational)",
+  },
+  {
+    id: "backup-recovery-tests",
+    title: "Backups require restoration tests",
+    domain: "continuity",
+    tags: ["backup", "restore", "ransomware", "continuity", "recovery", "immutable"],
+    text: "A successful backup job is not proof of recoverability. Keep protected or offline copies for critical PMS, imaging, accounting, and configuration data; define recovery priorities and responsible owners; and test restoration on a schedule. Record recovery time, gaps, and remediation. Restrict deletion of backups from ordinary administrator credentials.",
+    source: "NIST Cybersecurity Framework 2.0 recovery outcomes",
+    sourceUrl: "https://www.nist.gov/cyberframework",
+  },
+  {
+    id: "incident-response-escalation",
+    title: "Incident response roles and escalation",
+    domain: "cybersecurity",
+    tags: ["incident response", "ransomware", "breach", "escalation", "communications"],
+    text: "Define who can isolate systems, contact vendors and counsel, preserve evidence, communicate with patients, and authorize recovery before an incident. Maintain an offline contact list, decision thresholds, and a short exercise schedule. After an event, document lessons learned and update risk analysis, safeguards, and continuity plans.",
+    source: "NIST Cybersecurity Framework 2.0 Respond and Recover functions",
+    sourceUrl: "https://www.nist.gov/cyberframework",
+  },
+  {
+    id: "payroll-change-controls",
+    title: "Payroll master-file and off-cycle payment controls",
+    domain: "sod",
+    tags: ["payroll", "ghost employee", "direct deposit", "rate change", "off-cycle"],
+    text: "Separate payroll master-file changes from payroll approval and funding. Independently review new workers, terminations, pay-rate changes, direct-deposit changes, bonuses, and off-cycle payments against authorized personnel records. Reconcile the payroll register to bank funding and the general ledger, investigate duplicate accounts or addresses, and retain approval evidence.",
+    source: "Payroll internal-control practice (educational)",
+  },
+  {
+    id: "system-change-management",
+    title: "Control changes to financial and clinical systems",
+    domain: "cybersecurity",
+    tags: ["change management", "configuration", "pms", "accounting", "testing", "rollback"],
+    text: "Changes to PMS, accounting, payment, interface, and security configurations can alter control behavior. Record the request and business reason, require appropriate approval, test high-risk changes away from production when feasible, preserve prior configuration or a rollback path, restrict production change access, and review emergency changes after implementation.",
+    source: "NIST Cybersecurity Framework 2.0 Protect outcomes",
+    sourceUrl: "https://www.nist.gov/cyberframework",
+  },
+  {
+    id: "management-override",
+    title: "Management override is a distinct control risk",
+    domain: "fraud",
+    tags: ["management override", "journal entry", "exception", "owner", "related party"],
+    text: "Owner involvement can compensate for limited staffing, but it can also bypass ordinary controls. Treat manual journal entries, unusual write-offs, related-party vendors, threshold splitting, and after-hours overrides as reviewable exceptions. Preserve the business purpose, preparer, approver, evidence, and follow-up; use an independent CPA or other qualified reviewer where the owner is the transaction initiator.",
+    source: "Internal-control and fraud-risk practice (educational)",
   },
 ];

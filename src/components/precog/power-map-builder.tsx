@@ -39,6 +39,9 @@ import { evaluateAssignmentChange } from "@/lib/precog/sod/change-impact";
 import { buildCoveragePlans, buildCoverageProgram, type CoveragePlan } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
+import { processes } from "@/lib/precog/demo-data";
+import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
+import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 
 const FAMILY_META: Record<DutyFamily, { label: string; color: string; description: string }> = {
@@ -50,6 +53,8 @@ const FAMILY_META: Record<DutyFamily, { label: string; color: string; descriptio
 };
 
 export function PowerMapBuilder() {
+  const { profile } = usePractice();
+  const [assignments, setAssignments] = useState<RoleAssignment[]>(buildAssignments);
   const tpl = useTemplate();
   const { profile } = usePractice();
   const [assignments, setAssignments] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
@@ -64,6 +69,7 @@ export function PowerMapBuilder() {
   const [storageReady, setStorageReady] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
+  const [baseline, setBaseline] = useState<RoleAssignment[]>(buildAssignments);
   const [baseline, setBaseline] = useState<RoleAssignment[]>(() => buildAssignments(tpl));
   const [processId, setProcessId] = useState("all");
 
@@ -107,6 +113,8 @@ export function PowerMapBuilder() {
   }, [assignments, storageReady]);
 
   const report = useMemo(
+    () => detectSodConflicts(profile.staff, { assignments }),
+    [assignments, profile.staff],
     () => detectSodConflicts(tpl, profile.staff, { assignments }),
     [assignments, profile.staff, tpl],
   );
@@ -188,6 +196,7 @@ export function PowerMapBuilder() {
   }
 
   function reset() {
+    const defaults = buildAssignments();
     const defaults = buildAssignments(tpl);
     commit(defaults);
     setSelectedId(defaults[0]?.personId ?? "");
@@ -307,6 +316,7 @@ export function PowerMapBuilder() {
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-border bg-elevated p-2">
               {Object.entries(FAMILY_META).map(([id, meta]) => <span key={id} className="flex items-center gap-1.5 text-[10px] text-muted" title={meta.description}><span className="size-2 rounded-full" style={{ background: meta.color }} />{meta.label}</span>)}
+              <label className="ml-auto flex items-center gap-2 text-[10px] text-muted"><span>Process lens</span><select value={processId} onChange={(event) => setProcessId(event.target.value)} className="max-w-56 rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"><option value="all">All processes</option>{processes.map((process) => <option key={process.id} value={process.id}>{process.name}</option>)}</select></label>
               <label className="ml-auto flex items-center gap-2 text-[10px] text-muted"><span>Process lens</span><select value={processId} onChange={(event) => setProcessId(event.target.value)} className="max-w-56 rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"><option value="all">All processes</option>{tpl.processes.map((process) => <option key={process.id} value={process.id}>{process.name}</option>)}</select></label>
             </div>
           </CardHeader>
@@ -354,9 +364,16 @@ export function PowerMapBuilder() {
 
       {selectedConflicts.length > 0 && <Card><CardHeader><CardTitle className="text-base">Resolution planner · {selected?.personName}</CardTitle><CardDescription>Compare conflict-safe transfers before changing the model. Suggestions never create a new detected conflict; apply one, inspect the new health score, and undo at any time.</CardDescription></CardHeader><CardContent className="space-y-3">{selectedConflicts.map((conflict) => <div key={conflict.id} className="grid gap-2 rounded-xl border border-border bg-elevated p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"><ConflictCard conflict={conflict} /><ResolutionOptions assignments={assignments} conflict={conflict} onApply={(plan) => commit(applyResolutionPlan(assignments, plan))} /></div>)}</CardContent></Card>}
 
+      <ControlMeasuresMatrix duties={visibleEntitlements} />
+
       {selected && <Card><CardHeader><CardTitle className="text-base">Responsibility charter · {selected.personName}</CardTitle><CardDescription>A review-ready definition of each assigned power, its expected evidence, and its boundary.</CardDescription></CardHeader><CardContent className="grid gap-2 lg:grid-cols-2">{selected.entitlements.filter((id) => id !== "view_reports_only").map((id) => { const entitlement = ENTITLEMENTS.find((item) => item.id === id); const guidance = POWER_GUIDANCE[id]; return <div key={id} className="rounded-xl border border-border bg-elevated p-3"><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{entitlement?.label}</p><Badge>{entitlement ? FAMILY_META[entitlement.family].label : "Duty"}</Badge></div><p className="mt-2 text-xs text-muted">{guidance.purpose}</p><p className="mt-2 text-[11px] text-subtle"><strong className="text-muted">Evidence:</strong> {guidance.evidence}</p><p className="mt-1 text-[11px] text-subtle"><strong className="text-muted">Boundary:</strong> {guidance.boundary}</p></div>; })}</CardContent></Card>}
     </div>
   );
+}
+
+function ControlMeasuresMatrix({ duties }: { duties: typeof ENTITLEMENTS }) {
+  const categories = ["directive", "preventive", "detective", "corrective"] as const;
+  return <Card><CardHeader><CardTitle className="text-base">Internal control action catalog</CardTitle><CardDescription>A comprehensive menu of directive, preventive, detective, and corrective measures for every visible duty. Select proportionate primary controls and documented alternatives; no single action replaces accountable review.</CardDescription></CardHeader><CardContent><div className="max-h-[760px] overflow-auto rounded-xl border border-border"><table className="min-w-[1280px] border-separate border-spacing-0 text-xs"><caption className="sr-only">Internal control measures for each duty, organized by directive, preventive, detective, and corrective category.</caption><thead className="sticky top-0 z-20 bg-surface"><tr><th scope="col" className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left">Power / duty</th>{categories.map((category) => <th key={category} scope="col" className="w-64 border-b border-r border-border p-3 text-left capitalize">{category}</th>)}</tr></thead><tbody>{duties.map((duty) => { const controls = DUTY_CONTROL_MEASURES[duty.id]; return <tr key={duty.id} className="align-top"><th scope="row" className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"><span className="block font-medium text-fg">{duty.label}</span><span className="mt-1 block text-[10px] font-normal text-subtle">{FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5</span></th>{categories.map((category) => <td key={category} className="border-b border-r border-border bg-bg p-3"><ul className="space-y-2 text-muted">{controls[category].map((action) => <li key={action} className="flex gap-2"><span aria-hidden="true" className="text-primary">•</span><span>{action}</span></li>)}</ul></td>)}</tr>; })}</tbody></table></div></CardContent></Card>;
 }
 
 function ResponsibilityMatrix({ assignments, conflicts, conflictsOnly, processId, onToggle }: { assignments: RoleAssignment[]; conflicts: DetectedConflict[]; conflictsOnly: boolean; processId: string; onToggle: (personId: string, entitlement: EntitlementId) => void }) {
