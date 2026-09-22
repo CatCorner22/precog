@@ -56,8 +56,40 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
   return result;
 }
 
-export function summarizeValueEvidence(items: ValueEvidence[]) {
-  const verified = items.filter((item) => item.verified);
+/** The observation window: evidence counts as observed for twelve months. */
+const OBSERVATION_WINDOW_DAYS = 365;
+
+function observationWindow(asOf: Date) {
+  const cutoff = new Date(asOf);
+  cutoff.setUTCDate(cutoff.getUTCDate() - OBSERVATION_WINDOW_DAYS);
+  return {
+    cutoffDate: cutoff.toISOString().slice(0, 10),
+    asOfDate: asOf.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * One rule for what counts as a verified observation, shared by the totals
+ * the Value screen applies and the quality score the register shows: the
+ * item is marked verified, names a source, and carries a valid observation
+ * date inside the window (not missing, not in the future, not older than
+ * twelve months). A record imported with the verified flag but no usable
+ * date keeps the flag, so the owner can fix the date, but it counts nowhere
+ * until they do.
+ */
+export function isVerifiedObservation(item: ValueEvidence, asOf: Date = new Date()): boolean {
+  const { cutoffDate, asOfDate } = observationWindow(asOf);
+  return (
+    item.verified &&
+    Boolean(item.source) &&
+    Boolean(item.observedAt) &&
+    item.observedAt >= cutoffDate &&
+    item.observedAt <= asOfDate
+  );
+}
+
+export function summarizeValueEvidence(items: ValueEvidence[], asOf: Date = new Date()) {
+  const verified = items.filter((item) => isVerifiedObservation(item, asOf));
   return {
     total: items.length,
     verified: verified.length,
@@ -78,17 +110,11 @@ export function formatEvidenceAmount(item: Pick<ValueEvidence, "kind" | "amount"
 }
 
 export function assessEvidenceQuality(items: ValueEvidence[], asOf: Date = new Date()) {
-  const cutoff = new Date(asOf);
-  cutoff.setUTCDate(cutoff.getUTCDate() - 365);
-  const cutoffDate = cutoff.toISOString().slice(0, 10);
-  const asOfDate = asOf.toISOString().slice(0, 10);
+  const { cutoffDate, asOfDate } = observationWindow(asOf);
   const unsourced = items.filter((item) => !item.source).length;
   const stale = items.filter((item) => !item.observedAt || item.observedAt < cutoffDate).length;
   const future = items.filter((item) => item.observedAt > asOfDate).length;
-  const verified = items.filter(
-    (item) =>
-      item.verified && item.source && item.observedAt >= cutoffDate && item.observedAt <= asOfDate,
-  ).length;
+  const verified = items.filter((item) => isVerifiedObservation(item, asOf)).length;
   return {
     unsourced,
     stale,

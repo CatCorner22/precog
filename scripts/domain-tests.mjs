@@ -89,7 +89,8 @@ try {
     assert.equal("injected" in records[0], false);
     assert.equal(records[1].amount, 0);
     assert.equal(records[1].observedAt, "");
-    assert.deepEqual(valueEvidence.summarizeValueEvidence(records), {
+    const asOf = new Date("2026-09-20T00:00:00.000Z");
+    assert.deepEqual(valueEvidence.summarizeValueEvidence(records, asOf), {
       total: 2,
       verified: 1,
       recoveries: 500,
@@ -131,6 +132,18 @@ try {
       new Date("2026-09-20T00:00:00.000Z"),
     );
     assert.deepEqual(futureQuality, { unsourced: 0, stale: 0, future: 1, verified: 0, score: 0 });
+    // The totals the Value screen applies follow the same rule as the quality score.
+    const futureSummary = valueEvidence.summarizeValueEvidence(
+      [{ ...records[0], observedAt: "2026-09-21" }],
+      asOf,
+    );
+    assert.equal(futureSummary.verified, 0);
+    assert.equal(futureSummary.recoveries, 0);
+    const undatedSummary = valueEvidence.summarizeValueEvidence(
+      [{ ...records[0], observedAt: "" }],
+      asOf,
+    );
+    assert.equal(undatedSummary.recoveries, 0);
     const serialized = valueEvidence.serializeValueEvidence(
       records,
       new Date("2026-09-20T00:00:00.000Z"),
