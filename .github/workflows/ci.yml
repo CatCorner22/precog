@@ -58,6 +58,9 @@ jobs:
           done
           echo "dev server did not start"; cat dev.log; exit 1
 
+      - name: Warm the dev server so dependency discovery finishes before the tests
+        run: node scripts/e2e-warmup.mjs http://127.0.0.1:8080/
+
       - run: npm run e2e -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-failure.png

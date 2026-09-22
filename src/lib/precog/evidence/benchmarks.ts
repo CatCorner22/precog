@@ -96,7 +96,7 @@ export const BENCHMARKS: Benchmark[] = [
     value: "5%, as estimated by Certified Fraud Examiners",
     numeric: 0.05,
     soWhat:
-      "The most useful figure for sizing your own exposure, because it scales to your business rather than to a study population. On $1M of revenue that is $50,000 a year.",
+      "Not a figure to apply to your own revenue. It is the examiners' opinion of losses across all organizations together; a single business either has a scheme running or does not. To size your own exposure, use the stated losses in the cases for your sector.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,

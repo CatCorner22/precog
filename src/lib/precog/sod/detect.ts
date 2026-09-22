@@ -152,12 +152,33 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   ],
   Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
   "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
-  "Insurance Coordinator": ["submit_claims", "post_adjustments", "post_payments", "view_reports_only"],
-  Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile", "enter_payroll", "view_reports_only"],
+  "Insurance Coordinator": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "view_reports_only",
+  ],
+  Bookkeeper: [
+    "enter_invoices",
+    "post_payments",
+    "bank_reconcile",
+    "enter_payroll",
+    "view_reports_only",
+  ],
   "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
   "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
-  "Procurement Coordinator": ["order_supplies", "receive_goods", "enter_invoices", "view_reports_only"],
-  "IT Administrator": ["pms_admin_roles", "manage_user_access", "manage_backups", "view_reports_only"],
+  "Procurement Coordinator": [
+    "order_supplies",
+    "receive_goods",
+    "enter_invoices",
+    "view_reports_only",
+  ],
+  "IT Administrator": [
+    "pms_admin_roles",
+    "manage_user_access",
+    "manage_backups",
+    "view_reports_only",
+  ],
   "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
   "External Billing Service": [
     "submit_claims",
@@ -170,9 +191,10 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
 };
 
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
-  ([role, entitlements]) => ({ role, entitlements }),
-);
+export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
+  role,
+  entitlements,
+}));
 
 /**
  * Plain wording for the duty families.
@@ -257,7 +279,12 @@ function findRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined 
 
 function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
   if (fa === fb) {
-    return fa === "master_data" || fa === "custody";
+    // Two custody duties are one custody chain: the person who takes the
+    // payment also bags the deposit in every small office, and the control is
+    // that someone else posts and reconciles it (named rules cover that).
+    // Two master-data duties still conflict: one person shaping both the
+    // payee list and the price list is the shell-vendor setup.
+    return fa === "master_data";
   }
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
 }
@@ -390,11 +417,17 @@ export function detectSodConflicts(
 ): SodDetectionReport {
   const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
   const staff = isIndustryTemplate(tplOrStaff)
-    ? (isSodDetectionOptions(staffOrOptions) ? undefined : staffOrOptions)
+    ? isSodDetectionOptions(staffOrOptions)
+      ? undefined
+      : staffOrOptions
     : tplOrStaff;
   const options = isIndustryTemplate(tplOrStaff)
-    ? (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions)
-    : (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions);
+    ? isSodDetectionOptions(staffOrOptions)
+      ? staffOrOptions
+      : maybeOptions
+    : isSodDetectionOptions(staffOrOptions)
+      ? staffOrOptions
+      : maybeOptions;
 
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
@@ -405,6 +438,18 @@ export function detectSodConflicts(
 
   for (const person of assignments) {
     const ents = person.entitlements;
+    // Family findings are the catch-all for pairs no named rule describes.
+    // Once a named rule has already flagged one of the two duties for this
+    // person, a second, vaguer finding on the same duty adds noise, not risk.
+    const namedDuties = new Set<EntitlementId>();
+    for (let i = 0; i < ents.length; i++) {
+      for (let j = i + 1; j < ents.length; j++) {
+        if (findRule(ents[i], ents[j])) {
+          namedDuties.add(ents[i]);
+          namedDuties.add(ents[j]);
+        }
+      }
+    }
     for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
@@ -415,6 +460,7 @@ export function detectSodConflicts(
 
         if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
+        if (!rule && (namedDuties.has(a) || namedDuties.has(b))) continue;
 
         if (rule) {
           const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);
@@ -555,7 +601,10 @@ export function detectSodConflicts(
     family * 2 +
     openWithoutAcceptance * 1.5 -
     dualReleaseMitigated * 4;
-  const segregationHealth = Math.max(5, Math.min(100, Math.round(100 - pressure)));
+  // Linear down to 50, then a decay that never hits a floor: every demo team
+  // and most real small offices carry pressure above 100, and a fixed floor
+  // (formerly 5) hid the movement when an owner fixed a conflict.
+  const segregationHealth = segregationHealthIndex(pressure);
 
   const recommendations: string[] = [];
   if (critical > 0) {
@@ -617,6 +666,18 @@ export function detectSodConflicts(
     },
     recommendations,
   };
+}
+
+/**
+ * Turns conflict pressure into the 0–100 index. Pressure at or under 50 maps
+ * linearly (100 − pressure) so a lightly loaded team reads the same as before;
+ * above 50 the index decays by half every 35 points of pressure, so a team at
+ * 140 still moves visibly when one critical conflict (14 points) is removed.
+ */
+export function segregationHealthIndex(pressure: number): number {
+  if (pressure <= 0) return 100;
+  if (pressure <= 50) return Math.round(100 - pressure);
+  return Math.max(1, Math.round(50 * Math.pow(0.5, (pressure - 50) / 35)));
 }
 
 export function conflictMatrixForPerson(

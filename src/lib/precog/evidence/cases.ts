@@ -245,6 +245,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-vendor-create-pay",
       "rule-payroll",
       "rule-admin-pay",
+      "rule-sign-rec",
     ],
     wouldHaveCaughtIt: [
       {
@@ -368,7 +369,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 36,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "terminated-staff-vs-payroll",
@@ -528,7 +529,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 1400000,
     lossIsFloor: true,
     durationMonths: 108,
-    detection: "owner-review",
+    detection: "bank-or-insurer",
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
@@ -552,7 +553,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. The owner and manager reported the theft to Bellingham police in August 2022; the federal release puts the scheme at 2013 to 2022.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. On 12 August 2022 a bank representative told the owners that an electronic check had moved from the business account to her personal account; the owners' review of past transactions then found nine more, and they reported the theft to Bellingham police that month (Cascadia Daily News, from the charging papers). The detection route is recorded as the bank on that basis; the federal release itself does not say how the theft was found. The release puts the scheme at 2013 to 2022.",
   },
   {
     id: "case-kearny-medical-receptionist",
@@ -568,7 +569,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 48,
     detection: "unknown",
     resolvedYear: 2015,
-    sodRuleIds: ["rule-collect-post", "rule-custody-rec", "rule-deposit-post"],
+    sodRuleIds: [
+      "rule-collect-post",
+      "rule-custody-rec",
+      "rule-deposit-post",
+      "rule-payments-adjust",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "log-payments-at-the-mail",
@@ -1024,7 +1030,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 172,
     detection: "unknown",
     resolvedYear: 2013,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "payee-account-not-an-employee",
@@ -1080,6 +1086,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "no-self-approval",
         asApplied: "Nobody approves their own pay or changes their own pay rate, at any amount",
+      },
+      {
+        control: "payroll-tax-remittance-verified",
+        asApplied:
+          "Owner logs in to the IRS and state portals each quarter to confirm the payroll-tax deposits the bookkeeper reports were made",
       },
     ],
     source: {
@@ -1189,7 +1200,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-payroll", "rule-je-rec", "rule-admin-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1433,7 +1444,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 15,
     detection: "law-enforcement",
     resolvedYear: 2021,
-    sodRuleIds: ["rule-collect-post", "rule-writeoff"],
+    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-payments-adjust"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -1525,6 +1536,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "owner-opens-bank-statement",
         asApplied: "Founder opens the bank statement first and reads cleared-check images",
       },
+      {
+        control: "check-stock-custody",
+        asApplied:
+          "No check signed in blank, ever; blank stock locked and the numbers used logged each week by someone other than the controller",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -1550,7 +1566,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 25,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-payroll", "rule-vendor-create-pay", "rule-invoice-pay"],
+    sodRuleIds: [
+      "rule-payroll",
+      "rule-payroll-master-run",
+      "rule-vendor-create-pay",
+      "rule-invoice-pay",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1612,6 +1633,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Identity verified against the person in front of you, not just the documents presented",
       },
+      {
+        control: "void-refund-second-approval",
+        asApplied:
+          "Every refund approved by a second person before it posts, with the original sale attached",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Nebraska",
@@ -1637,7 +1663,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 23,
     detection: "owner-review",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-collect-post"],
+    sodRuleIds: [
+      "rule-cash-rec",
+      "rule-custody-rec",
+      "rule-collect-post",
+      "rule-payments-adjust",
+      "rule-sign-rec",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "expected-receipts-vs-deposits",
@@ -1689,6 +1721,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "permission-review",
         asApplied:
           "Quarterly list of accounts with elevated privileges and their recent login locations, read by the owner",
+      },
+      {
+        control: "same-day-access-removal",
+        asApplied:
+          "The departing employee's own login disabled on their last day, and every shared password changed the same day",
       },
     ],
     source: {
@@ -1773,6 +1810,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
       },
+      {
+        control: "vendor-master-change-log",
+        asApplied:
+          "Monthly list of new suppliers and changed bank details, read by the owner and confirmed by phone with the supplier",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
@@ -1855,6 +1897,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         control: "no-shared-logins",
         asApplied:
           "Each system administered under a named login the owner can switch off in one step, with the owner holding a second administrator account",
+      },
+      {
+        control: "same-day-access-removal",
+        asApplied:
+          "Every login, cloud credential, and backup-provider account revoked the day his duties were taken away, not left until he resigned",
       },
     ],
     source: {
@@ -2020,6 +2067,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
         asApplied:
           "The outside auditor samples the largest vendors each year and asks the program staff, not the fiscal officer, what was delivered",
       },
+      {
+        control: "vendor-master-change-log",
+        asApplied:
+          "The month a new vendor appears, the executive director reads the addition and checks its owner and address against staff records",
+      },
     ],
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
@@ -2028,5 +2080,50 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Marcia Joseph pleaded guilty to wire fraud in January 2024 and was sentenced in September 2025 by U.S. District Judge Eric N. Vitaliano to 21 months in prison, with restitution and forfeiture of about $2.3 million; the loss recorded here is the $2,339,700 the release states she took. The release describes the span as nearly 17 years, recorded as 200 months. It does not name the nonprofit, state her hire date, or say how the invoices were discovered.",
+  },
+  {
+    id: "case-baton-rouge-mattress-retailer-forged-checks",
+    title:
+      "Retail chain's office manager printed herself more than 300 checks of $1,500 to $4,000 over six and a half years, $1.2 million",
+    sector: "retail",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The office manager at the Baton Rouge headquarters of Mattress Direct, a regional mattress retailer, printed company checks payable to herself and to one other person in amounts between $1,500 and $4,000, forged the company treasurer's signature, and deposited them. From June 2012 to December 2018 she diverted more than 300 checking transactions worth more than $1.2 million.",
+    controlGap:
+      "Each check was small enough to pass unnoticed inside a retailer's daily volume, and the same person printed the checks, held the signature, and kept the books. Nobody who did not print checks looked at the cleared-check images, and the bank had no list of approved checks to compare against.",
+    lossUsd: 1200000,
+    lossIsFloor: true,
+    durationMonths: 78,
+    detection: "unknown",
+    resolvedYear: 2019,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only checks whose number, payee, and amount the treasurer has uploaded; a check to the office manager is not on the list",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "The treasurer opens the bank statement first and looks at every cleared-check image for a payee who works in the office",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied: "Someone who cannot print checks reconciles the bank account each month",
+      },
+      {
+        control: "check-stock-custody",
+        asApplied:
+          "Blank check stock locked away from the office manager, with the numbers used logged and compared to the bank statement weekly",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Middle District of Louisiana",
+      url: "https://www.justice.gov/usao-mdla/pr/former-office-manager-sentenced-federal-prison-embezzling-over-one-million-dollars",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Katherine Dyson of Denham Springs, Louisiana was sentenced in December 2019 to 42 months in prison after pleading guilty; the release states the loss as more than $1.2 million across more than 300 transactions, so the figure is recorded as a floor. The employer's name comes from the release and from The Advocate's coverage. The release does not say how the checks were discovered, give her hire date, or state the company's headcount.",
   },
 ];

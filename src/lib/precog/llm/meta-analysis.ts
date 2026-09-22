@@ -333,7 +333,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
         kind: "interview",
         action: "After each remediate decision, attach proof (policy, bank setting, screenshot)",
         effort: "minutes",
-        expectedLift: "Turns decisions into audit-ready control evidence",
+        expectedLift: "Turns decisions into documented control evidence",
       },
       link: { tab: "journal" },
     },

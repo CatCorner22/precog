@@ -5,6 +5,8 @@ import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
 import { validateSharePayload } from "./share-schema";
+import { passcodeLocked, recordPasscodeFailure } from "./share-attempts";
+import { purgeOldShareViews } from "../account-store";
 
 /** Frozen, self-contained view of a map for the public share page. */
 export interface SharedMapPayload {
@@ -81,7 +83,8 @@ export const createMapShare = createServerFn({ method: "POST" })
         payload: validateSharePayload(input.payload),
         expiresInDays: Math.min(365, Math.max(1, Number(input.expiresInDays) || 30)),
         redacted: Boolean(input.redacted),
-        passcode: passcode && passcode.length >= 4 && passcode.length <= 64 ? passcode : undefined,
+        // Eight characters or more: a four-digit PIN falls to a few thousand guesses.
+        passcode: passcode && passcode.length >= 8 && passcode.length <= 64 ? passcode : undefined,
       };
     },
   )
@@ -120,6 +123,10 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
+    // Owner-triggered housekeeping: view logs are kept for a bounded period only.
+    await purgeOldShareViews(sql).catch((error) =>
+      console.error("Failed to purge old share views", error),
+    );
     const rows = await sql<ShareListRow>`
       select
         token, business_name, industry, created_at, expires_at, revoked_at,
@@ -182,19 +189,35 @@ export const loadMapShare = createServerFn({ method: "POST" })
     if (row.revoked_at) return { found: false as const, reason: "revoked" as const };
     if (row.expires_at && new Date(row.expires_at).getTime() < Date.now())
       return { found: false as const, reason: "expired" as const };
-    const [{ createHash, scryptSync, timingSafeEqual }, { requestIp }, { getRequest }] =
+    const [{ createHash, scrypt, timingSafeEqual }, { requestIp }, { getRequest }] =
       await Promise.all([
         import("node:crypto"),
         import("@/lib/request-ip.server"),
         import("@tanstack/react-start/server"),
       ]);
+    const ipHash = createHash("sha256")
+      .update(`${row.token}:${requestIp()}`)
+      .digest("hex")
+      .slice(0, 32);
     if (row.passcode_hash) {
       if (!data.passcode) return { found: false as const, reason: "passcode" as const };
+      // Two limits: the per-process limiter answers fast; the per-token count
+      // in Postgres holds across instances and cold starts.
       const attempt = passcodeLimiter.take(requestIp());
       if (!attempt.allowed) return { found: false as const, reason: "rate_limited" as const };
+      if (await passcodeLocked(sql, row.token))
+        return { found: false as const, reason: "rate_limited" as const };
       const expected = Buffer.from(row.passcode_hash, "hex");
-      const actual = scryptSync(data.passcode, row.passcode_salt ?? "", expected.length);
+      // Asynchronous: a guess must not block the event loop for every other request.
+      const actual = await new Promise<Buffer>((resolve, reject) =>
+        scrypt(data.passcode as string, row.passcode_salt ?? "", expected.length, (err, key) =>
+          err ? reject(err) : resolve(key),
+        ),
+      );
       if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+        await recordPasscodeFailure(sql, row.token, ipHash).catch((error) =>
+          console.error("Failed to record a passcode failure", error),
+        );
         return { found: false as const, reason: "passcode_wrong" as const };
       }
     }
@@ -203,7 +226,7 @@ export const loadMapShare = createServerFn({ method: "POST" })
         insert into map_share_views (token, ip_hash, user_agent)
         values (
           ${row.token},
-          ${createHash("sha256").update(`${row.token}:${requestIp()}`).digest("hex").slice(0, 32)},
+          ${ipHash},
           ${getRequest()?.headers.get("user-agent")?.slice(0, 200) ?? null}
         )
       `;

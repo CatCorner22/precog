@@ -42,6 +42,12 @@ const HEADER_ALIASES = {
 const ENTITLEMENT_ALIASES: Record<string, EntitlementId> = {
   payroll: "enter_payroll",
   "approve payroll": "approve_payroll",
+  "employee records": "edit_payroll_master",
+  "payroll master": "edit_payroll_master",
+  "pay rates": "edit_payroll_master",
+  "journal entries": "post_journal_entries",
+  "journal entry": "post_journal_entries",
+  je: "post_journal_entries",
   "pay bills": "release_payment",
   ap: "release_payment",
   "pay vendors": "release_payment",

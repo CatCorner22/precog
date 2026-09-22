@@ -39,6 +39,7 @@ import {
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
+import { ownBusinessProfile } from "./onboarding/own-team";
 import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
 import {
   applyDecisionReview,
@@ -117,6 +118,12 @@ interface PracticeContextValue {
   resetProfile: () => void;
   /** First-visit picker: load the template and mark onboarding done. */
   completeOnboarding: (industry: IndustryId) => void;
+  /** Onboarding for the owner's own business: their name and their people replace the sample. */
+  startOwnBusiness: (input: {
+    industry: IndustryId;
+    practiceName: string;
+    people: Person[];
+  }) => void;
   /** Map builder: replace the process map (null = back to industry template). */
   setCustomProcesses: (
     v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
@@ -408,14 +415,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     };
   }, [ready, isPending, userId, userIsDevFallback, activateProfile, saveCloud]);
 
-  // Persist locally on every change; the portfolio (every business, in full)
-  // and the cloud copy are debounced so a keystroke does not serialise the
-  // whole portfolio or hit the server.
+  // The active profile is written locally on every change, so a cleared
+  // store or a closed tab never resurrects stale state. The portfolio (every
+  // business, in full) and the cloud copy are debounced: re-serialising and
+  // re-parsing the whole portfolio on each keystroke measurably lagged typing.
   useEffect(() => {
     if (!ready) return;
     const savedLocally = saveProfile(profile);
-    setPortfolioVersion((v) => v + 1);
-
     const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
     if (!cloud) setSyncStatus(savedLocally ? "local" : "local-error");
 
@@ -431,6 +437,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
       savePortfolioEntry(profile);
+      setPortfolioVersion((v) => v + 1);
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(() => setSyncStatus("error"));
     }, SAVE_DEBOUNCE_MS);
@@ -665,6 +672,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [clearHistory],
   );
 
+  const startOwnBusiness = useCallback(
+    (input: { industry: IndustryId; practiceName: string; people: Person[] }) => {
+      clearHistory();
+      setProfile((p) =>
+        ownBusinessProfile(
+          { ...defaultProfile(input.industry), decisions: [], businessId: p.businessId },
+          { practiceName: input.practiceName, people: input.people },
+        ),
+      );
+    },
+    [clearHistory],
+  );
+
   const setCustomPeople = useCallback(
     (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
       pushUndo();
@@ -883,7 +903,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     profile.businessId,
     profile.practiceName,
     profile.industry,
-    profile.updatedAt,
     portfolioVersion,
   ]);
 
@@ -1004,6 +1023,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       reviewDecision,
       resetProfile,
       completeOnboarding,
+      startOwnBusiness,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,
@@ -1046,6 +1066,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       reviewDecision,
       resetProfile,
       completeOnboarding,
+      startOwnBusiness,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,

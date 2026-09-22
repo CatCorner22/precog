@@ -366,7 +366,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     "3. Invite HIDDEN disclosure (interviews, exception logging, trust map)",
     "4. Attack UNKNOWN with probes and scenario design (meta UU list)",
     "5. Re-score epistemic confidence — OPEN should grow each cycle",
-    "6. Log decisions so OPEN becomes audit-ready evidence",
+    "6. Log decisions so OPEN becomes documented evidence",
   ],
   antiPatterns: [
     "Growing OPEN with paperwork only (facade compliance)",

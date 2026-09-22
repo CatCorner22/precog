@@ -444,6 +444,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium">{ex.label}</span>
+                    {ex.sample && <Badge variant="default">Sample</Badge>}
                     <Badge
                       variant={
                         ex.action === "waive_dual"

@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
@@ -34,6 +35,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { AccountMenu } from "@/components/precog/account-menu";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
@@ -183,7 +185,15 @@ function HomeShell() {
  * edge still has hidden tabs, and the active tab scrolled into view so the
  * tabs past the viewport (12 through 15 on a laptop) are discoverable.
  */
-function TabStrip({ activeId, children }: { activeId: string; children: ReactNode }) {
+function TabStrip({
+  activeId,
+  children,
+  onKeyDown,
+}: {
+  activeId: string;
+  children: ReactNode;
+  onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+}) {
   const ref = useRef<HTMLElement | null>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
@@ -213,7 +223,9 @@ function TabStrip({ activeId, children }: { activeId: string; children: ReactNod
     <div className="relative">
       <nav
         ref={ref}
+        role="tablist"
         aria-label="Sections"
+        onKeyDown={onKeyDown}
         className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
       >
         {children}
@@ -399,6 +411,21 @@ function Home() {
     }
   }
 
+  /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
+  function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const index = TABS.findIndex((t) => t.id === tab);
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % TABS.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = TABS.length - 1;
+    else return;
+    event.preventDefault();
+    const id = TABS[next].id;
+    setTab(id);
+    requestAnimationFrame(() => document.getElementById(`tab-${id}`)?.focus());
+  }
+
   function navigateTab(tabName: string, id?: string) {
     if (tabName === "knowledge") {
       setKnowledgeId(id ?? null);
@@ -425,6 +452,12 @@ function Home() {
   return (
     <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
       {ready && profile.onboardingComplete === false && <IndustryOnboarding />}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-elevated focus:px-3 focus:py-2 focus:text-sm"
+      >
+        Skip to content
+      </a>
       <header className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="min-w-0">
@@ -470,21 +503,26 @@ function Home() {
                 </SignedOut>
                 <SignedIn>
                   <UserButton />
+                  <AccountMenu />
                 </SignedIn>
               </>
             )}
           </div>
         </div>
-        <TabStrip activeId={tab}>
+        <TabStrip activeId={tab} onKeyDown={onTabKeyDown}>
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
               <button
                 key={t.id}
+                id={`tab-${t.id}`}
                 type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls="main-content"
+                tabIndex={active ? 0 : -1}
                 onClick={() => setTab(t.id)}
-                aria-current={active ? "page" : undefined}
                 aria-label={say(t.label, t.tactical)}
                 data-active={active || undefined}
                 className={cn(
@@ -508,7 +546,13 @@ function Home() {
       </header>
       <SaveConflictBanner />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <main
+        id="main-content"
+        role="tabpanel"
+        aria-labelledby={`tab-${tab}`}
+        tabIndex={-1}
+        className="mx-auto max-w-7xl px-4 py-6 sm:px-6"
+      >
         {/* prettier-ignore */}
         <TabErrorBoundary resetKey={tab} onReset={() => navigateTab("start")}><Suspense fallback={<TabLoading />}>
         {tab === "start" && <StartHere onOpenDetail={navigateTab} />}

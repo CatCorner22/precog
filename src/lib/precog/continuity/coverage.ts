@@ -305,12 +305,30 @@ export function checkInPlan(tpl: IndustryTemplate, today: string): CheckInPlan {
   return { checkIns, unheld: stale.filter((entry) => !held.has(entry.item.id)) };
 }
 
+/**
+ * One lookup index per relations array. Reports call relationLevel inside a
+ * people-by-items loop, so a linear scan per cell cost people × items ×
+ * relations comparisons per report; the index makes each lookup constant.
+ * Keyed on array identity, so any edit (a new array) rebuilds it.
+ */
+const relationIndexCache = new WeakMap<KnowledgeRelation[], Map<string, KnowledgeLevel>>();
+
+function relationIndex(relations: KnowledgeRelation[]): Map<string, KnowledgeLevel> {
+  let index = relationIndexCache.get(relations);
+  if (!index) {
+    index = new Map();
+    for (const r of relations) index.set(`${r.personId}\u0000${r.knowledgeId}`, r.level);
+    relationIndexCache.set(relations, index);
+  }
+  return index;
+}
+
 export function relationLevel(
   relations: KnowledgeRelation[],
   personId: string,
   knowledgeId: string,
 ): KnowledgeLevel | undefined {
-  return relations.find((r) => r.personId === personId && r.knowledgeId === knowledgeId)?.level;
+  return relationIndex(relations).get(`${personId}\u0000${knowledgeId}`);
 }
 
 /** Replace, add, or (when level is undefined) remove one person's level on one item. */
