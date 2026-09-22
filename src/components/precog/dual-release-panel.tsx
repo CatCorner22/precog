@@ -54,7 +54,8 @@ const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
 
 export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const tpl = useTemplate();
-  const { people } = tpl;
+  // Only people still on the team can sign or be granted an exception.
+  const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
   const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
@@ -463,7 +464,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                     {ex.channels.length ? ex.channels.join(", ") : "all channels"}
                     {ex.payeeContains ? ` · payee ~"${ex.payeeContains}"` : ""}
                     {ex.personId
-                      ? ` · person ${people.find((p) => p.id === ex.personId)?.name ?? ex.personId}`
+                      ? ` · person ${tpl.people.find((p) => p.id === ex.personId)?.name ?? ex.personId}`
                       : ""}
                     {ex.role ? ` · role ${ex.role}` : ""}
                     {ex.effectiveFrom || ex.effectiveTo
