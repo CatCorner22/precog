@@ -431,7 +431,6 @@ function localSynthesize(
     evoi?: { topObservation?: string };
     confidence?: { score?: number; label?: string };
   } | null;
-  const advancedLines = advancedReasoning;
   const endFc = forecast?.points[forecast.points.length - 1];
 
   const highestRisks = top.slice(0, 4).map((t) => {

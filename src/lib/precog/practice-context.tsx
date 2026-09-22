@@ -18,6 +18,7 @@ import {
   defaultProfile,
   loadProfile,
   makeDecisionId,
+  normalizeProfile,
   saveProfile,
   type DecisionEntry,
   type DecisionKind,
@@ -45,6 +46,7 @@ interface PracticeContextValue {
     linkedId?: string;
   }) => void;
   removeDecision: (id: string) => void;
+  replaceProfile: (profile: PracticeProfile) => void;
   resetProfile: () => void;
 }
 
@@ -176,6 +178,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile(defaultProfile());
   }, []);
 
+  const replaceProfile = useCallback((next: PracticeProfile) => {
+    setProfile(normalizeProfile(next));
+  }, []);
+
   const value = useMemo(
     () => ({
       profile,
@@ -186,6 +192,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      replaceProfile,
       resetProfile,
     }),
     [
@@ -197,6 +204,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setDualRelease,
       addDecision,
       removeDecision,
+      replaceProfile,
       resetProfile,
     ],
   );
@@ -206,6 +214,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Context modules intentionally export their provider and matching consumer hook.
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePractice() {
   const ctx = useContext(PracticeContext);
   if (!ctx) throw new Error("usePractice requires PracticeProvider");
