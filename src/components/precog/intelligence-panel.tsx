@@ -221,7 +221,18 @@ export function IntelligencePanel({
                   >
                     <div className="flex flex-wrap gap-2">
                       <span className="font-medium">{h.chunk.title}</span>
-                      <Badge variant="default">{h.chunk.source}</Badge>
+                      {h.chunk.sourceUrl ? (
+                        <a
+                          href={h.chunk.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <Badge variant="default">{h.chunk.source} ↗</Badge>
+                        </a>
+                      ) : (
+                        <Badge variant="default">{h.chunk.source}</Badge>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-muted line-clamp-3">{h.chunk.text}</p>
                   </li>
