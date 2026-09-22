@@ -814,6 +814,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const replaceProfile = useCallback((next: PracticeProfile) => {
+    setProfile(normalizeProfile(next));
+  }, []);
   const restoreMapVersion = useCallback(
     (id: string) => {
       const v = profileRef.current.mapVersions?.find((x) => x.id === id);

@@ -153,6 +153,15 @@ export function AssessmentSnapshots() {
     try {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
+      const storedMap = readStoredJson(POWER_MAP_STORAGE_KEY);
+      const currentMap = storedMap ? normalizeRoleAssignments(storedMap) : null;
+      const storedValue = readStoredJson(VALUE_CASE_STORAGE_KEY);
+      const currentValue = storedValue
+        ? normalizeValueCase(storedValue as Partial<typeof DEFAULT_VALUE_CASE>)
+        : DEFAULT_VALUE_CASE;
+      const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
+      const currentEvidence = storedEvidence
+        ? normalizeValueEvidence(storedEvidence)
       const storedMap = window.localStorage.getItem(POWER_MAP_STORAGE_KEY);
       const currentMap = storedMap ? normalizeRoleAssignments(JSON.parse(storedMap)) : null;
       const storedValue = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
@@ -491,6 +500,17 @@ export function AssessmentSnapshots() {
       )}
     </div>
   );
+}
+
+function readStoredJson(key: string): unknown {
+  const stored = window.localStorage.getItem(key);
+  if (!stored) return undefined;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    window.localStorage.removeItem(key);
+    return undefined;
+  }
 }
 
 function signed(value: number) {

@@ -261,6 +261,8 @@ try {
   await test("profile normalization constrains untrusted decision content", () => {
     const restored = profile.normalizeProfile({
       practiceName: "A".repeat(200),
+      staff: { teamSize: "many", segregationScore: 900, dualControlPayments: "false" },
+      riskVariables: { deductible: "free", claimsLoadFactor: 99, hasAlarmAccess: "yes" },
       decisions: [
         { id: "safe", createdAt: "2026-01-01", subject: "S".repeat(400), kind: "monitor", note: "N".repeat(3_000) },
         { id: "bad", createdAt: "2026-01-01", subject: "Bad", kind: "not-a-kind", note: "ignored" },
@@ -271,6 +273,12 @@ try {
     assert.equal(restored.decisions.length, 1);
     assert.equal(restored.decisions[0].subject.length, 200);
     assert.equal(restored.decisions[0].note.length, 2_000);
+    assert.equal(restored.staff.teamSize, profile.defaultProfile().staff.teamSize);
+    assert.equal(restored.staff.segregationScore, 100);
+    assert.equal(typeof restored.staff.dualControlPayments, "boolean");
+    assert.equal(restored.riskVariables.deductible, profile.defaultProfile().riskVariables.deductible);
+    assert.equal(restored.riskVariables.claimsLoadFactor, 2.5);
+    assert.equal(typeof restored.riskVariables.hasAlarmAccess, "boolean");
     assert.equal("injected" in restored, false);
   });
 
