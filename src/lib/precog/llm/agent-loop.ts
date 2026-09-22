@@ -12,6 +12,7 @@ import type {
   StructuredBrief,
   ToolResult,
 } from "./types";
+import { checkGrounding, groundingNote } from "./grounding";
 
 function usd(n: number) {
   return new Intl.NumberFormat("en-US", {
@@ -1068,6 +1069,11 @@ export async function runGrokAgentLoop(
     });
     if (!response) return { ...local, latencyMs: Date.now() - started };
 
+    // The prompt asks for tool-sourced numbers only; verify that rather than
+    // trust it. Unverifiable figures stay visible but are flagged in the brief.
+    const grounding = checkGrounding(response.text, toolResults);
+    const note = groundingNote(grounding);
+
     return {
       ok: true,
       source: "grok-agent",
@@ -1080,9 +1086,16 @@ export async function runGrokAgentLoop(
           title: "Grok multi-agent synthesis",
           detail: `Model ${response.model} over ${toolResults.length} tools incl. RAG/ML`,
         },
+        {
+          phase: "synthesize",
+          title: "Number grounding check",
+          detail: grounding.unsupported.length
+            ? `${grounding.unsupported.length} of ${grounding.checked.length} figure(s) not found in tool output: ${grounding.unsupported.join(", ")}`
+            : `${grounding.checked.length} money/percent figure(s) all trace to tool output`,
+        },
       ],
       toolsUsed: local.toolsUsed,
-      brief: { ...local.brief, markdown: response.text },
+      brief: { ...local.brief, markdown: note ? response.text + note : response.text },
       contextFingerprint: local.contextFingerprint,
       latencyMs: Date.now() - started,
     };

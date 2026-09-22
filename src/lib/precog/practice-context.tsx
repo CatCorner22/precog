@@ -46,6 +46,7 @@ import {
 } from "./decisions/follow-through";
 import {
   defaultProfile,
+  hasUserWork,
   loadPortfolio,
   loadProfile,
   makeBusinessId,
@@ -65,9 +66,14 @@ import {
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 
-export type SyncStatus = "idle" | "loading" | "synced" | "local" | "error" | "conflict";
+export type SyncStatus =
+  "idle" | "loading" | "synced" | "local" | "local-error" | "error" | "conflict";
+
+/** Why the conflict banner is up: another writer beat us, or a sign-in met local work. */
+export type SaveConflictReason = "remote-edit" | "sign-in";
 
 interface SaveConflictState {
+  reason: SaveConflictReason;
   remote: PracticeProfile;
   revision: number;
   updatedAt: string;
@@ -77,7 +83,7 @@ interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
   syncStatus: SyncStatus;
-  saveConflict: { remoteUpdatedAt: string } | null;
+  saveConflict: { remoteUpdatedAt: string; reason: SaveConflictReason } | null;
   resolveSaveConflict: (choice: "reload" | "overwrite") => Promise<void>;
   /** Industry template with this profile's custom people/processes applied. */
   template: IndustryTemplate;
@@ -291,6 +297,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       return true;
     }
     const nextConflict: SaveConflictState = {
+      reason: "remote-edit",
       remote: result.profile,
       revision: result.revision,
       updatedAt: result.updatedAt,
@@ -326,18 +333,51 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       loadBusinessProfile({ data: { today: localDateKey(new Date()) } }),
       listBusinesses().catch(() => []),
     ])
-      .then(([res, list]) => {
+      .then(async ([res, list]) => {
         if (cancelled) return;
         cloudLoadedFor.current = userId;
+        const local = profileRef.current;
+        const localId = local.businessId ?? "biz_default";
         if (res.found && res.profile) {
           const id = res.profile.businessId ?? "biz_default";
           if (res.revision === null) cloudRevision.current.delete(id);
           else cloudRevision.current.set(id, res.revision);
+
+          if (id !== localId && hasUserWork(local) && !list.some((b) => b.id === localId)) {
+            // Work done signed-out under a different business id: keep it as
+            // its own business in the account instead of dropping it. Awaited
+            // so the account's active-business pointer ends on the remote
+            // business activated below, not on this one.
+            cloudRevision.current.delete(localId);
+            await saveCloud(local).catch(() => undefined);
+            if (cancelled) return;
+          }
+
+          if (id === localId && hasUserWork(local) && res.revision !== null) {
+            const localNewer =
+              new Date(local.updatedAt).getTime() > new Date(res.updatedAt).getTime();
+            if (localNewer) {
+              // Same business, edited here before signing in: let the user
+              // choose instead of silently replacing their work.
+              const conflict: SaveConflictState = {
+                reason: "sign-in",
+                remote: res.profile,
+                revision: res.revision,
+                updatedAt: res.updatedAt,
+              };
+              saveConflictRef.current = conflict;
+              setSaveConflict(conflict);
+              setRemoteBusinesses(list);
+              setSyncStatus("conflict");
+              return;
+            }
+          }
+
           activateProfile(res.profile);
           saveProfile(res.profile);
           savePortfolioEntry(res.profile);
         } else {
-          cloudRevision.current.delete(profileRef.current.businessId ?? "biz_default");
+          cloudRevision.current.delete(localId);
         }
         setRemoteBusinesses(list);
         setSyncStatus("synced");
@@ -349,28 +389,28 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, isPending, userId, userIsDevFallback, activateProfile]);
+  }, [ready, isPending, userId, userIsDevFallback, activateProfile, saveCloud]);
 
-  // Persist locally + debounced cloud save
+  // Persist locally on every change; the portfolio (every business, in full)
+  // and the cloud copy are debounced so a keystroke does not serialise the
+  // whole portfolio or hit the server.
   useEffect(() => {
     if (!ready) return;
-    saveProfile(profile);
-    savePortfolioEntry(profile);
+    const savedLocally = saveProfile(profile);
     setPortfolioVersion((v) => v + 1);
 
-    if (!authEnabled || !userId || userIsDevFallback) {
-      setSyncStatus("local");
-      return;
-    }
-    if (saveConflictRef.current) return;
-    if (skipNextCloudSave.current) {
-      skipNextCloudSave.current = false;
-      return;
-    }
+    const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
+    if (!cloud) setSyncStatus(savedLocally ? "local" : "local-error");
+
+    const skipOnce = skipNextCloudSave.current;
+    skipNextCloudSave.current = false;
+    const skipCloud = !cloud || Boolean(saveConflictRef.current) || skipOnce;
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      if (saveConflictRef.current) return;
+      saveTimer.current = null;
+      savePortfolioEntry(profile);
+      if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(() => setSyncStatus("error"));
     }, SAVE_DEBOUNCE_MS);
 
@@ -378,6 +418,33 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [profile, ready, userId, userIsDevFallback, saveCloud]);
+
+  // A pending debounced save must not die with the tab. On hide, write the
+  // portfolio now and push the cloud copy immediately (best effort: the
+  // browser may still cancel the request, but the local copy is safe).
+  useEffect(() => {
+    if (!ready) return;
+    const flush = () => {
+      if (!saveTimer.current) return;
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      const cur = profileRef.current;
+      savePortfolioEntry(cur);
+      const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
+      if (cloud && !saveConflictRef.current) {
+        void saveCloud(cur).catch(() => setSyncStatus("error"));
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [ready, userId, userIsDevFallback, saveCloud]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
@@ -659,10 +726,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const replaceProfile = useCallback((next: PracticeProfile) => {
-    clearHistory();
-    setProfile(normalizeProfile(next));
-  }, [clearHistory]);
+  const replaceProfile = useCallback(
+    (next: PracticeProfile) => {
+      clearHistory();
+      setProfile(normalizeProfile(next));
+    },
+    [clearHistory],
+  );
 
   const setMapLayout = useCallback(
     (
@@ -819,9 +889,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
             data: { id, today: localDateKey(new Date()) },
           }).catch(() => null);
           if (remote?.found && remote.profile) {
+            // The local copy is only trustworthy if it was built on the
+            // revision the server still holds; any newer revision means
+            // another device wrote since, and clocks are not a tiebreaker.
+            const seen = cloudRevision.current.get(id);
+            const localCurrent = next !== null && seen !== undefined && seen === remote.revision;
             cloudRevision.current.set(id, remote.revision);
-            if (!next || new Date(remote.profile.updatedAt) >= new Date(next.updatedAt))
-              next = remote.profile;
+            if (!localCurrent) next = remote.profile;
           } else if (remote?.found === false) {
             cloudRevision.current.delete(id);
           }
@@ -837,6 +911,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const createBusiness = useCallback(
     (industry: IndustryId, name?: string) => {
+      // A conflict on the outgoing business must not be lost behind the new
+      // one: the banner stays up and the switch waits for the user's choice.
+      if (saveConflictRef.current) return;
       void flushActive();
       const fresh = defaultProfile(industry);
       const next: PracticeProfile = {
@@ -890,7 +967,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       profile,
       ready,
       syncStatus,
-      saveConflict: saveConflict ? { remoteUpdatedAt: saveConflict.updatedAt } : null,
+      saveConflict: saveConflict
+        ? { remoteUpdatedAt: saveConflict.updatedAt, reason: saveConflict.reason }
+        : null,
       resolveSaveConflict,
       template,
       setPracticeName,

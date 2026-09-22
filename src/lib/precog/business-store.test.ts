@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
-import { saveBusinessRevision } from "./business-store";
+import { loadActiveBusiness, saveBusinessRevision, setActiveBusiness } from "./business-store";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -18,8 +18,7 @@ let sql: Sql;
 
 /** Same placeholder rewriting as src/lib/db.ts `toSql`, without importing the app's db bootstrap. */
 function pgliteSql(db: PGlite): Sql {
-  const run = async <T>(text: string, params: unknown[]) =>
-    (await db.query<T>(text, params)).rows;
+  const run = async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows;
   const tagged = (async <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -48,12 +47,7 @@ async function seedUser(id: string): Promise<void> {
   );
 }
 
-function input(
-  userId: string,
-  businessId: string,
-  baseRevision: number | null,
-  name = "Business",
-) {
+function input(userId: string, businessId: string, baseRevision: number | null, name = "Business") {
   return {
     userId,
     businessId,
@@ -83,7 +77,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pg.exec(`delete from businesses; delete from "user";`);
+  await pg.exec(`delete from businesses; delete from business_profiles; delete from "user";`);
   await seedUser("user-a");
   await seedUser("user-b");
 });
@@ -210,5 +204,42 @@ describe("saveBusinessRevision — compare-and-swap", () => {
     const result = await saveBusinessRevision(sql, input("user-a", "gone", 7, "recreated"));
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.revision).toBe(1);
+  });
+});
+
+describe("loadActiveBusiness", () => {
+  it("returns null for a user with no saved business", async () => {
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+  });
+
+  it("prefers the revision-checked row over the active pointer", async () => {
+    // Simulates the pointer write failing after the businesses row succeeded:
+    // the pointer still holds v1, the authoritative row is at v2.
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
+    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "v1") });
+    await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v2"));
+
+    const active = await loadActiveBusiness<{ practiceName: string; businessId?: string }>(
+      sql,
+      "user-a",
+    );
+    expect(active?.businessId).toBe("biz_1");
+    expect(active?.name).toBe("v2");
+    expect(active?.profile.practiceName).toBe("v2");
+    expect(active?.revision).toBe(2);
+  });
+
+  it("falls back to the pointer row for a legacy user with no businesses row", async () => {
+    await setActiveBusiness(sql, { ...input("user-a", "biz_default", null, "legacy") });
+    const active = await loadActiveBusiness(sql, "user-a");
+    expect(active?.businessId).toBe("biz_default");
+    expect(active?.name).toBe("legacy");
+    expect(active?.revision).toBeNull();
+  });
+
+  it("never returns another user's business", async () => {
+    await saveBusinessRevision(sql, input("user-b", "biz_1", null, "B"));
+    await setActiveBusiness(sql, { ...input("user-b", "biz_1", null, "B") });
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
   });
 });

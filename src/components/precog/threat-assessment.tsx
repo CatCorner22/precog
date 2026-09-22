@@ -25,7 +25,9 @@ function bandClass(band: string) {
 
 export function ThreatAssessmentPanel() {
   const { profile, template } = usePractice();
-  const [now, setNow] = useState(clockString);
+  // Starts empty so the server and the first client render agree; the clock
+  // fills in from the interval below (a live timestamp can never hydrate).
+  const [now, setNow] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(
@@ -41,6 +43,7 @@ export function ThreatAssessmentPanel() {
   );
 
   useEffect(() => {
+    setNow(clockString());
     const t = setInterval(() => setNow(clockString()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -79,7 +82,7 @@ export function ThreatAssessmentPanel() {
             <span className="text-[#5a9a68]">
               AO · <span className="text-[#c8e6c8]">{report.ao}</span>
             </span>
-            <span className="tabular text-[#4ade80]">{now}</span>
+            <span className="tabular text-[#4ade80]">{now || "--:--:--"}</span>
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-semibold",

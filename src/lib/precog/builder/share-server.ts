@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
+import { validateSharePayload } from "./share-schema";
 
 /** Frozen, self-contained view of a map for the public share page. */
 export interface SharedMapPayload {
@@ -77,7 +78,7 @@ export const createMapShare = createServerFn({ method: "POST" })
     }) => {
       const passcode = input.passcode?.trim();
       return {
-        payload: input.payload,
+        payload: validateSharePayload(input.payload),
         expiresInDays: Math.min(365, Math.max(1, Number(input.expiresInDays) || 30)),
         redacted: Boolean(input.redacted),
         passcode: passcode && passcode.length >= 4 && passcode.length <= 64 ? passcode : undefined,
@@ -155,8 +156,12 @@ export const revokeMapShare = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Public: anyone with the token can read a live, non-revoked, non-expired share. */
-export const loadMapShare = createServerFn({ method: "GET" })
+/**
+ * Public: anyone with the token can read a live, non-revoked, non-expired share.
+ * POST so the passcode travels in the body, not in a URL that lands in access
+ * logs and browser history.
+ */
+export const loadMapShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => ({
     token: String(input.token).slice(0, 64),
     passcode: input.passcode?.trim(),

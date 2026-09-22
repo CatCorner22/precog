@@ -62,11 +62,17 @@ jobs:
         env:
           E2E_SCREENSHOT: e2e-failure.png
 
+      - name: Every tab, every industry, plus /threat, /report, /login, /share
+        run: npm run e2e:tabs -- http://127.0.0.1:8080/
+        env:
+          E2E_SCREENSHOT: e2e-tabs-failure.png
+
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-failure
           path: |
             e2e-failure.png
+            e2e-tabs-failure.png
             dev.log
           if-no-files-found: ignore
