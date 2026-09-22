@@ -67,6 +67,53 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Print: the /report route is a clean white document ── */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .report {
+    min-height: auto !important;
+  }
+  .report a {
+    text-decoration: none;
+    color: inherit;
+  }
+}
+
+/* ── React Flow chrome (minimap + controls) on the dark canvas ── */
+.react-flow .react-flow__minimap {
+  background: rgba(21, 24, 32, 0.92);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.react-flow .react-flow__minimap svg {
+  background: transparent;
+}
+.react-flow .react-flow__controls {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.react-flow .react-flow__controls-button {
+  background: var(--color-elevated);
+  border-bottom: 1px solid var(--color-border-strong);
+  color: var(--color-fg);
+  fill: var(--color-fg);
+}
+.react-flow .react-flow__controls-button:hover {
+  background: var(--color-panel);
+}
+.react-flow .react-flow__controls-button svg {
+  fill: var(--color-fg);
+}
+
 /* ── Risk Predator thermal vision ── */
 .vision-predator {
   --predator-void: #05060a;

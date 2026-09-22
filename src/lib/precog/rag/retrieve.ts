@@ -2,7 +2,8 @@
  * Lightweight TF-IDF retrieval over the curated corpus.
  * No external embedding API required — works offline and in SSR.
  */
-import { KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
+import { describeChunkBasis, KNOWLEDGE_CORPUS, type KnowledgeChunk } from "./corpus";
+import type { IndustryId } from "../industry";
 
 function tokenize(text: string): string[] {
   return text
@@ -118,10 +119,11 @@ export interface RetrievalHit {
 
 export function retrieveKnowledge(
   query: string,
-  opts: { topK?: number; domain?: KnowledgeChunk["domain"] } = {},
+  opts: { topK?: number; domain?: KnowledgeChunk["domain"]; industry?: IndustryId } = {},
 ): RetrievalHit[] {
   const topK = opts.topK ?? 4;
   const qVec = tfidfVec(meaningful(tokenize(query)), IDF);
+  const industry = opts.industry;
 
   const scored = KNOWLEDGE_CORPUS.map((chunk, i) => {
     if (opts.domain && chunk.domain !== opts.domain) {
@@ -132,6 +134,15 @@ export function retrieveKnowledge(
     const q = query.toLowerCase();
     for (const tag of chunk.tags) {
       if (q.includes(tag.toLowerCase())) score += 0.08;
+    }
+    // A chunk written for one vertical is only ever served to that vertical;
+    // a retail owner never reads dental guidance. Chunks for every vertical
+    // (industry: "general", or untagged) are always eligible. The boost is a
+    // ranking heuristic, not a measured quantity, and nothing is boosted when
+    // the caller's industry is unknown.
+    if (industry && chunk.industry && chunk.industry !== "general") {
+      if (chunk.industry !== industry) return { chunk, score: -1, rank: 0 };
+      score += 0.12;
     }
     return { chunk, score, rank: 0 };
   })
@@ -149,6 +160,7 @@ export function formatRetrievalForPrompt(hits: RetrievalHit[]): string {
     .map(
       (h) =>
         `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text} Source: ${h.chunk.source}${h.chunk.sourceUrl ? ` (${h.chunk.sourceUrl})` : ""}`,
+        `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text} Basis: ${describeChunkBasis(h.chunk)}`,
     )
     .join("\n\n");
 }

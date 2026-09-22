@@ -1,3 +1,4 @@
+import { HEAT_BANDS } from "./process-graph";
 /**
  * Map vision modes: Risk Predator (thermal) + Risk Terminator (threat scan).
  * Priority scoring for process / control nodes.
@@ -6,14 +7,7 @@
 export type MapVisionMode = "standard" | "predator" | "terminator";
 
 export type MapLayerId =
-  | "process"
-  | "risk"
-  | "idea"
-  | "waste"
-  | "control"
-  | "knowledge"
-  | "person"
-  | "depends";
+  "process" | "risk" | "idea" | "waste" | "control" | "knowledge" | "person" | "depends";
 
 export interface LayerConfig {
   id: MapLayerId;
@@ -204,10 +198,14 @@ export function scorePriority(input: {
     Math.max(
       0,
       Math.min(100, heat * 0.55 + impact * 100 * 0.45 + (heat >= 70 && impact >= 0.7 ? 8 : 0)),
+      Math.min(
+        100,
+        heat * 0.55 + impact * 100 * 0.45 + (heat >= HEAT_BANDS.hot && impact >= 0.7 ? 8 : 0),
+      ),
     ),
   );
 
-  if (heat >= 70) reasons.push("High thermal heat");
+  if (heat >= HEAT_BANDS.hot) reasons.push("High thermal heat");
   if (impact >= 0.7) reasons.push("High realistic impact");
 
   const immediate = priority >= 78 && impact >= 0.6;

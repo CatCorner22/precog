@@ -162,6 +162,15 @@ export function AssessmentSnapshots() {
       const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
       const currentEvidence = storedEvidence
         ? normalizeValueEvidence(storedEvidence)
+      const storedMap = window.localStorage.getItem(POWER_MAP_STORAGE_KEY);
+      const currentMap = storedMap ? normalizeRoleAssignments(JSON.parse(storedMap)) : null;
+      const storedValue = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
+      const currentValue = storedValue
+        ? normalizeValueCase(JSON.parse(storedValue))
+        : DEFAULT_VALUE_CASE;
+      const storedEvidence = window.localStorage.getItem(VALUE_EVIDENCE_STORAGE_KEY);
+      const currentEvidence = storedEvidence
+        ? normalizeValueEvidence(JSON.parse(storedEvidence))
         : [];
       setComparison({
         title: snapshot.title,

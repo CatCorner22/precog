@@ -10,10 +10,10 @@ function Login() {
   return (
     <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <p className="text-[11px] tracking-[0.2em] text-primary uppercase">Precog</p>
+        <p className="text-[11px] tracking-[0.2em] text-primary uppercase">Precog Pioneer</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-muted">
-          Save practice maps and scenario history to your account.
+          Sync your business profile, decision journal, and control settings across devices.
         </p>
         <div className="mt-6 space-y-2">
           {authEnabled ? (

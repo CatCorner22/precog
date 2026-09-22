@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { people } from "@/lib/precog/demo-data";
+import { useEffect, useMemo, useState } from "react";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
+import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
   dualReleaseCoverage,
@@ -26,14 +27,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-const CHANNELS: ReleaseChannel[] = [
-  "ach",
-  "check",
-  "writeoff",
-  "vendor_new",
-  "deposit",
-  "payroll",
-];
+const CHANNELS: ReleaseChannel[] = ["ach", "check", "writeoff", "vendor_new", "deposit", "payroll"];
 
 const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
   {
@@ -58,19 +52,33 @@ const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
   },
 ];
 
-export function DualReleasePanel({
-  onOpenSod,
-}: {
-  onOpenSod?: () => void;
-}) {
+export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
+  const tpl = useTemplate();
+  // Only people still on the team can sign or be granted an exception.
+  const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
+  const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
-  const [initiatorId, setInitiatorId] = useState("p2");
-  const [secondId, setSecondId] = useState<string>("p1");
-  const [payee, setPayee] = useState("Apex Dental Lab");
+  const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
+  const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
+  const [payee, setPayee] = useState(seed.defaultPayee);
+
+  useEffect(() => {
+    setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
+  }, [profile.industry]);
+
+  // Keep signer picks valid when the team changes (industry switch or team editor).
+  useEffect(() => {
+    if (!people.some((p) => p.id === initiatorId)) {
+      setInitiatorId(people[1]?.id ?? people[0]?.id ?? "");
+    }
+    if (secondId && !people.some((p) => p.id === secondId)) {
+      setSecondId(people[0]?.id ?? "");
+    }
+  }, [people, initiatorId, secondId]);
   const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
   const [showExForm, setShowExForm] = useState(false);
 
@@ -100,9 +108,7 @@ export function DualReleasePanel({
   function toggleChannel(ch: ReleaseChannel, enabled: boolean) {
     setDualRelease({
       ...policy,
-      rules: policy.rules.map((r) =>
-        r.channel === ch ? { ...r, enabled } : r,
-      ),
+      rules: policy.rules.map((r) => (r.channel === ch ? { ...r, enabled } : r)),
     });
   }
 
@@ -110,15 +116,13 @@ export function DualReleasePanel({
     setDualRelease({
       ...policy,
       rules: policy.rules.map((r) =>
-        r.channel === ch
-          ? { ...r, thresholdUsd: Math.max(0, Math.round(thresholdUsd)) }
-          : r,
+        r.channel === ch ? { ...r, thresholdUsd: Math.max(0, Math.round(thresholdUsd)) } : r,
       ),
     });
   }
 
   function runEval() {
-    const result = evaluateRelease(policy, {
+    const result = evaluateRelease(tpl, policy, {
       channel,
       amountUsd: amount,
       initiatorPersonId: initiatorId,
@@ -144,9 +148,7 @@ export function DualReleasePanel({
   function toggleException(id: string, enabled: boolean) {
     setDualRelease({
       ...policy,
-      exceptions: exceptions.map((e) =>
-        e.id === id ? { ...e, enabled } : e,
-      ),
+      exceptions: exceptions.map((e) => (e.id === id ? { ...e, enabled } : e)),
     });
   }
 
@@ -201,9 +203,7 @@ export function DualReleasePanel({
   }
 
   function toggleExChannel(ch: ReleaseChannel) {
-    setExChannels((prev) =>
-      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
-    );
+    setExChannels((prev) => (prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]));
   }
 
   return (
@@ -226,9 +226,9 @@ export function DualReleasePanel({
           Dual-release controls
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Base thresholds plus <strong className="text-fg">exceptions</strong> for trusted
-          payees, temporary raises, force-dual bands, or rare waives. Exceptions are
-          time-bound, reason-coded, and feed the decision journal.
+          Base thresholds plus <strong className="text-fg">exceptions</strong> for trusted payees,
+          temporary raises, force-dual bands, or rare waives. Exceptions are time-bound,
+          reason-coded, and feed the decision journal.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
@@ -309,8 +309,7 @@ export function DualReleasePanel({
                     {ACTIONS.find((a) => a.id === exAction)?.hint}
                   </span>
                 </label>
-                {(exAction === "raise_threshold" ||
-                  exAction === "lower_threshold") && (
+                {(exAction === "raise_threshold" || exAction === "lower_threshold") && (
                   <label className="block text-xs text-muted">
                     Exception threshold (USD)
                     <input
@@ -328,7 +327,7 @@ export function DualReleasePanel({
                   <input
                     value={exPayee}
                     onChange={(e) => setExPayee(e.target.value)}
-                    placeholder="Apex Dental Lab"
+                    placeholder={seed.defaultPayee}
                     className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                   />
                 </label>
@@ -437,9 +436,7 @@ export function DualReleasePanel({
               key={ex.id}
               className={cn(
                 "rounded-xl border px-3 py-3 text-sm",
-                ex.enabled
-                  ? "border-border bg-elevated"
-                  : "border-border/60 bg-panel opacity-70",
+                ex.enabled ? "border-border bg-elevated" : "border-border/60 bg-panel opacity-70",
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -464,12 +461,10 @@ export function DualReleasePanel({
                   </div>
                   <p className="mt-1 text-xs text-muted">{ex.reason}</p>
                   <p className="mt-1 text-[11px] text-subtle">
-                    {ex.channels.length
-                      ? ex.channels.join(", ")
-                      : "all channels"}
+                    {ex.channels.length ? ex.channels.join(", ") : "all channels"}
                     {ex.payeeContains ? ` · payee ~"${ex.payeeContains}"` : ""}
                     {ex.personId
-                      ? ` · person ${people.find((p) => p.id === ex.personId)?.name ?? ex.personId}`
+                      ? ` · person ${tpl.people.find((p) => p.id === ex.personId)?.name ?? ex.personId}`
                       : ""}
                     {ex.role ? ` · role ${ex.role}` : ""}
                     {ex.effectiveFrom || ex.effectiveTo
@@ -512,9 +507,7 @@ export function DualReleasePanel({
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="text-sm">{c.label}</CardTitle>
                 <div className="flex gap-1">
-                  {c.activeExceptions > 0 && (
-                    <Badge variant="warn">{c.activeExceptions} ex</Badge>
-                  )}
+                  {c.activeExceptions > 0 && <Badge variant="warn">{c.activeExceptions} ex</Badge>}
                   <Badge variant={c.covered ? "ok" : "default"}>
                     {c.covered ? "active" : "off"}
                   </Badge>
@@ -529,9 +522,7 @@ export function DualReleasePanel({
               <label className="flex items-center gap-2 text-xs">
                 <input
                   type="checkbox"
-                  checked={
-                    policy.rules.find((r) => r.channel === c.channel)?.enabled ?? false
-                  }
+                  checked={policy.rules.find((r) => r.channel === c.channel)?.enabled ?? false}
                   disabled={!policy.enabled}
                   onChange={(e) => toggleChannel(c.channel, e.target.checked)}
                   className="size-3.5 accent-[var(--color-primary)]"
@@ -545,12 +536,8 @@ export function DualReleasePanel({
                   min={0}
                   step={50}
                   disabled={!policy.enabled}
-                  value={
-                    policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0
-                  }
-                  onChange={(e) =>
-                    setThreshold(c.channel, Number(e.target.value) || 0)
-                  }
+                  value={policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0}
+                  onChange={(e) => setThreshold(c.channel, Number(e.target.value) || 0)}
                   className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1 text-sm text-fg"
                 />
               </label>
@@ -595,9 +582,9 @@ export function DualReleasePanel({
               Hard-block release if second signer missing
             </label>
             <p className="rounded-lg border border-border bg-panel p-3 text-xs text-muted">
-              Exceptions never hide themselves: the simulator shows base vs effective
-              threshold and residual notes. Active dual-waives reduce insurance dual-control
-              credit eligibility.
+              Exceptions never hide themselves: the simulator shows base vs effective threshold and
+              residual notes. An active dual-waive shows here and in every evaluation; whether it
+              affects your premium depends on your carrier's control warranties.
             </p>
           </CardContent>
         </Card>
@@ -609,7 +596,7 @@ export function DualReleasePanel({
               Release simulator
             </CardTitle>
             <CardDescription>
-              Includes payee matching for exceptions (try “Apex Dental Lab”)
+              Includes payee matching for exceptions (try “{seed.defaultPayee}”)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -744,23 +731,39 @@ function EvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
         )}
         <Badge variant={ok ? "ok" : "danger"}>{result.status}</Badge>
         <span className="text-xs text-muted">
-          {formatUsd(result.amountUsd)} · effective {formatUsd(result.thresholdUsd === Infinity ? 0 : result.thresholdUsd)}
-          {result.baseThresholdUsd !== result.thresholdUsd &&
-            result.thresholdUsd !== Infinity && (
-              <span className="text-subtle">
-                {" "}
-                (base {formatUsd(result.baseThresholdUsd)})
-              </span>
-            )}
+          {formatUsd(result.amountUsd)} ·{" "}
+          {/*
+            The weakest state and the strictest state must never render alike.
+            A waiver means one person can move any amount alone; "$0" means two
+            people are needed for every amount. Each is named in words, and the
+            base threshold is shown whenever an exception changed anything —
+            which is exactly what the "Exceptions never hide themselves" note
+            above promises.
+          */}
+          {result.dualWaived ? (
+            <span className="text-danger">
+              dual waived — no second signer required at any amount
+            </span>
+          ) : result.dualForced ? (
+            <span>dual required at every amount</span>
+          ) : (
+            <>
+              effective {formatUsd(result.thresholdUsd)}
+              {result.thresholdUsd === 0 && <span className="text-subtle"> (always dual)</span>}
+            </>
+          )}
+          {(result.dualWaived ||
+            result.dualForced ||
+            result.baseThresholdUsd !== result.thresholdUsd) && (
+            <span className="text-subtle"> (base {formatUsd(result.baseThresholdUsd)})</span>
+          )}
         </span>
       </div>
       {result.appliedException && (
         <p className="mt-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 text-xs text-fg">
           Exception: <strong>{result.appliedException.label}</strong> (
           {result.appliedException.action.replace("_", " ")})
-          {result.appliedException.residualNote
-            ? ` — ${result.appliedException.residualNote}`
-            : ""}
+          {result.appliedException.residualNote ? ` — ${result.appliedException.residualNote}` : ""}
         </p>
       )}
       <ul className="mt-2 space-y-1 text-xs text-muted">
