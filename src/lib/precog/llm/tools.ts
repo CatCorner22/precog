@@ -52,6 +52,7 @@ import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { StaffComposition } from "../types";
+import { CADENCE_LABEL, processRecordReport } from "../process-record";
 import type { ToolName, ToolResult } from "./types";
 
 export interface ToolContext {
@@ -113,6 +114,12 @@ export const TOOL_CATALOG: {
     args: "none",
   },
   { name: "get_knowledge_graph", description: "Person↔knowledge continuity edges.", args: "none" },
+  {
+    name: "get_process_records",
+    description:
+      "The process map's continuity record: for each process, how often it runs, which systems it runs in, its owners, and whether a written procedure exists and where it lives. Lists the processes a stand-in could not run from paper, most urgent first (nothing written before written-but-unlocated, then the ones that stop soonest by cadence, then unowned). Use when the owner asks what is written down, what stops if someone is out, or which SOPs to write first.",
+    args: "none",
+  },
   {
     name: "run_precog_scenario",
     description: "A scenario's assumed timeline, assumed retained loss, and cost-of-risk figure.",
@@ -578,6 +585,42 @@ export function executeTool(
         };
       }
 
+      case "get_process_records": {
+        const report = processRecordReport(tpl.processes);
+        const personName = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+        return {
+          tool,
+          ok: true,
+          summary: `${report.total} process(es); ${report.documentedIndex}% have a written, findable procedure; ${report.counts.none} with nothing written down, ${report.counts.unlocated} written but unlocated, ${report.cadenceUnknown} with no cadence recorded`,
+          data: {
+            documentedIndex: report.documentedIndex,
+            counts: report.counts,
+            cadenceUnknown: report.cadenceUnknown,
+            gaps: report.gaps.map((g) => ({
+              processId: g.process.id,
+              name: g.process.name,
+              state: g.state,
+              cadence: g.process.cadence ? CADENCE_LABEL[g.process.cadence] : null,
+              stopsWithinDays: g.stopsWithinDays,
+              systems: g.process.systems ?? [],
+              owners: (g.process.ownerPersonIds ?? []).map(personName),
+              unowned: g.unowned,
+              nextStep: g.nextStep,
+            })),
+            processes: tpl.processes.map((p) => ({
+              processId: p.id,
+              name: p.name,
+              cadence: p.cadence ?? null,
+              systems: p.systems ?? [],
+              owners: (p.ownerPersonIds ?? []).map(personName),
+              documented: p.documented ?? null,
+              procedureLocation: p.procedureLocation ?? null,
+            })),
+          },
+          links: [{ tab: "map", label: "How work flows" }],
+        };
+      }
+
       case "run_precog_scenario": {
         const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
         const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
@@ -941,6 +984,13 @@ export function planTools(question: string): ToolName[] {
   }
   if (/knowledge|spof|leave|quit|cross-?train|continuity|document|written|procedure/.test(q)) {
     tools.add("get_knowledge_graph");
+  }
+  if (
+    /process|procedure|sop|document|written|write.?down|cadence|how often|system|software|stand-?in|cover|out sick|vacation|map|workflow/.test(
+      q,
+    )
+  ) {
+    tools.add("get_process_records");
   }
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");

@@ -1,3 +1,4 @@
+import { normalizeSystems, parseCadence } from "@/lib/precog/process-record";
 import { BlockLibrary } from "@/components/precog/builder/block-library";
 import { ChangesView } from "@/components/precog/builder/changes-view";
 import { DeparturePanel } from "@/components/precog/builder/departure-panel";
@@ -9,6 +10,7 @@ import { slug, labelCls } from "@/components/precog/builder/form-shared";
 import { TeamEditor } from "@/components/precog/builder/team-editor";
 import { ValidationPanel } from "@/components/precog/builder/validation-panel";
 import { VersionsPanel } from "@/components/precog/builder/versions-panel";
+import { SpreadsheetPanel } from "@/components/precog/builder/spreadsheet-panel";
 import { WorkloadView } from "@/components/precog/builder/workload-view";
 
 import { useMemo, useRef, useState } from "react";
@@ -20,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Download, Hammer, Plus, RotateCcw, Upload, Users, X } from "lucide-react";
+import { Download, Hammer, Plus, RotateCcw, Upload, Users, X, FileSpreadsheet } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 
 import { industryMeta } from "@/lib/precog/industry";
@@ -95,6 +97,7 @@ export function ProcessBuilder({
   const [reviewing, setReviewing] = useState(false);
   const [showDeparture, setShowDeparture] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showSpreadsheet, setShowSpreadsheet] = useState(false);
   const tour = useBuilderTour();
 
   const departures = useMemo(
@@ -398,7 +401,7 @@ export function ProcessBuilder({
 
   function exportMap() {
     const payload = {
-      version: 2,
+      version: 3,
       industry: profile.industry,
       businessName: profile.practiceName,
       exportedAt: new Date().toISOString(),
@@ -448,6 +451,15 @@ export function ProcessBuilder({
           inputs: Array.isArray(p.inputs) ? p.inputs : [],
           outputs: Array.isArray(p.outputs) ? p.outputs : [],
           evidence: Array.isArray(p.evidence) ? p.evidence : [],
+          cadence: parseCadence(typeof p.cadence === "string" ? p.cadence : undefined),
+          systems: Array.isArray(p.systems)
+            ? normalizeSystems(p.systems.filter((s): s is string => typeof s === "string"))
+            : undefined,
+          documented: typeof p.documented === "boolean" ? p.documented : undefined,
+          procedureLocation:
+            typeof p.procedureLocation === "string"
+              ? p.procedureLocation.trim().slice(0, 200) || undefined
+              : undefined,
         }));
       if (Array.isArray(parsed.people) && parsed.people.length) {
         setCustomPeople(
@@ -575,10 +587,23 @@ export function ProcessBuilder({
               <Redo2 className="size-3.5" />
             </button>
           </div>
-          <Button size="sm" variant="secondary" onClick={exportMap}>
+          <Button
+            size="sm"
+            variant={showSpreadsheet ? "default" : "secondary"}
+            onClick={() => setShowSpreadsheet((v) => !v)}
+            title="Export to or import from a CSV spreadsheet"
+          >
+            <FileSpreadsheet className="size-3.5" /> Spreadsheet
+          </Button>
+          <Button size="sm" variant="secondary" onClick={exportMap} title="Full backup as JSON">
             <Download className="size-3.5" /> Export
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => fileRef.current?.click()}
+            title="Restore a JSON backup"
+          >
             <Upload className="size-3.5" /> Import
           </Button>
           <input
@@ -699,6 +724,14 @@ export function ProcessBuilder({
               update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), backup.id] });
               toast.success(`${backup.name} added as backup owner on ${proc.name}`);
             }}
+          />
+        )}
+
+        {showSpreadsheet && (
+          <SpreadsheetPanel
+            businessName={profile.practiceName}
+            onApply={(next) => setCustomProcesses(next)}
+            onSelectProcess={onSelectProcess}
           />
         )}
 

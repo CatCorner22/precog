@@ -21,25 +21,7 @@ export function diffMaps(
   const removed = base.processes.filter((p) => !curById.has(p.id));
   const modified = current.processes
     .filter((p) => baseById.has(p.id))
-    .map((p) => {
-      const b = baseById.get(p.id)!;
-      const changes: string[] = [];
-      if (p.name !== b.name) changes.push("renamed");
-      if (p.description !== b.description) changes.push("description");
-      if ((p.stage ?? 0) !== (b.stage ?? 0)) changes.push("stage");
-      if (p.dependencies.join("|") !== b.dependencies.join("|")) changes.push("dependencies");
-      if ((p.ownerPersonIds ?? []).join("|") !== (b.ownerPersonIds ?? []).join("|"))
-        changes.push("owners");
-      if (p.controlIds.join("|") !== b.controlIds.join("|")) changes.push("controls");
-      const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
-      const dr = d(p.risks, b.risks);
-      const di = d(p.ideas, b.ideas);
-      const dw = d(p.wastes, b.wastes);
-      if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
-      if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
-      if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);
-      return { p, changes };
-    })
+    .map((p) => ({ p, changes: processChanges(baseById.get(p.id)!, p) }))
     .filter((x) => x.changes.length);
 
   const basePeople = new Set(base.people.map((p) => p.id));
@@ -56,4 +38,33 @@ export function diffMaps(
     total:
       added.length + removed.length + modified.length + peopleAdded.length + peopleRemoved.length,
   };
+}
+
+/** Human-readable list of what differs between two versions of one process. */
+export function processChanges(before: ProcessNode, after: ProcessNode): string[] {
+  const changes: string[] = [];
+  if (after.name !== before.name) changes.push("renamed");
+  if (after.description !== before.description) changes.push("description");
+  if ((after.stage ?? 0) !== (before.stage ?? 0)) changes.push("stage");
+  if (after.dependencies.join("|") !== before.dependencies.join("|")) changes.push("dependencies");
+  if ((after.ownerPersonIds ?? []).join("|") !== (before.ownerPersonIds ?? []).join("|"))
+    changes.push("owners");
+  if (after.controlIds.join("|") !== before.controlIds.join("|")) changes.push("controls");
+  if ((after.cadence ?? "") !== (before.cadence ?? "")) changes.push("cadence");
+  if ((after.systems ?? []).join("|") !== (before.systems ?? []).join("|")) changes.push("systems");
+  if (
+    Boolean(after.documented) !== Boolean(before.documented) ||
+    (after.procedureLocation ?? "") !== (before.procedureLocation ?? "")
+  )
+    changes.push("procedure");
+  if ((after.inputs ?? []).join("|") !== (before.inputs ?? []).join("|")) changes.push("inputs");
+  if ((after.outputs ?? []).join("|") !== (before.outputs ?? []).join("|")) changes.push("outputs");
+  const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
+  const dr = d(after.risks, before.risks);
+  const di = d(after.ideas, before.ideas);
+  const dw = d(after.wastes, before.wastes);
+  if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
+  if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
+  if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);
+  return changes;
 }

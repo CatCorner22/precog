@@ -7,6 +7,7 @@ import type { IndustryTemplate } from "./templates";
 import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type { Person, ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
+import { processDocumentationState, processRecordReport } from "./process-record";
 
 export interface MapValidationIssue {
   id: string;
@@ -169,6 +170,23 @@ export function validateProcessMap(
         id: `fraud-nocontrol-${p.id}`,
         severity: "warn",
         message: `"${p.name}" has fraud risks but no controls mapped`,
+        processId: p.id,
+      });
+    }
+    // Documentation is scored in its own health dimension, so this stays "info"
+    // and does not double-count against integrity. One issue per process keeps
+    // the Validate panel readable on an unedited template.
+    const docState = processDocumentationState(p);
+    const missing: string[] = [];
+    if (docState === "none") missing.push("no written procedure a stand-in could follow");
+    else if (docState === "unlocated")
+      missing.push("procedure exists but nobody recorded where it lives");
+    if (!p.cadence) missing.push("no cadence, so the continuity view cannot say when it stops");
+    if (missing.length) {
+      issues.push({
+        id: `record-${p.id}`,
+        severity: "info",
+        message: `"${p.name}": ${missing.join("; ")}`,
         processId: p.id,
       });
     }
@@ -716,13 +734,19 @@ export function computeMapHealth(
   const calm = Math.max(0, 100 - avgHeat);
   const hotProcesses = snapshots.filter((s) => s.heat >= HEAT_BANDS.hot).length;
   const unownedProcesses = total - owned;
+  const record = processRecordReport(snapshots.map((s) => s.process));
+  // Half credit for "written but nobody knows where": the procedure exists, a stand-in still has to hunt for it.
+  const documentation =
+    snapshots.length === 0
+      ? 100
+      : Math.round(((record.counts.located + record.counts.unlocated * 0.5) / total) * 100);
 
   const dimensions: MapHealthDimension[] = [
     {
       id: "integrity",
       label: "Integrity",
       score: integrity,
-      weight: 0.25,
+      weight: 0.2,
       hint: errors ? `${errors} structural issue(s)` : "No broken dependencies or cycles",
     },
     {
@@ -738,11 +762,23 @@ export function computeMapHealth(
       id: "controls",
       label: "Controls",
       score: controls,
-      weight: 0.25,
+      weight: 0.2,
       hint:
         withControls < total
           ? `${total - withControls} without controls`
           : "Controls mapped across the stream",
+    },
+    {
+      id: "documentation",
+      label: "Written down",
+      score: documentation,
+      weight: 0.1,
+      hint:
+        record.counts.none > 0
+          ? `${record.counts.none} with nothing written down${record.counts.unlocated ? `, ${record.counts.unlocated} written but unlocated` : ""}`
+          : record.counts.unlocated > 0
+            ? `${record.counts.unlocated} written but location not recorded`
+            : "Every process has a findable procedure",
     },
     {
       id: "calm",

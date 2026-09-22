@@ -96,6 +96,10 @@ export interface EvidenceItem {
   note?: string;
 }
 
+/** How often a process runs. Drives the continuity view of what stops, and how soon, when the owner is out. */
+export type ProcessCadence =
+  "continuous" | "daily" | "weekly" | "monthly" | "quarterly" | "annual" | "ad-hoc";
+
 export interface ProcessNode {
   id: string;
   name: string;
@@ -112,6 +116,18 @@ export interface ProcessNode {
   inputs?: string[];
   outputs?: string[];
   evidence?: EvidenceItem[];
+  /** How often the process runs. Absent = not recorded. */
+  cadence?: ProcessCadence;
+  /** Software, portals, or physical systems the process runs in (practice-management system, bank portal, payroll provider). */
+  systems?: string[];
+  /**
+   * A written procedure exists that a stand-in could follow. Mirrors
+   * KnowledgeItem.documented so continuity logic reads both the same way.
+   * Absent = not recorded, which the map treats as nothing written down.
+   */
+  documented?: boolean;
+  /** Where that procedure lives (shared drive path, binder, URL). */
+  procedureLocation?: string;
 }
 
 export interface ControlItem {

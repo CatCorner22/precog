@@ -16,7 +16,15 @@ import type {
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Lightbulb, Recycle, Trash2 } from "lucide-react";
+import { AlertTriangle, BookOpen, Lightbulb, Recycle, Trash2 } from "lucide-react";
+import {
+  CADENCE_LABEL,
+  PROCESS_CADENCES,
+  PROCESS_DOCUMENTATION_LABEL,
+  normalizeSystems,
+  parseCadence,
+  processDocumentationState,
+} from "@/lib/precog/process-record";
 
 import { Save } from "lucide-react";
 
@@ -49,6 +57,8 @@ export function ProcessForm({
   const [desc, setDesc] = useState(process.description);
   const [inputs, setInputs] = useState((process.inputs ?? []).join(", "));
   const [outputs, setOutputs] = useState((process.outputs ?? []).join(", "));
+  const [systems, setSystems] = useState((process.systems ?? []).join(", "));
+  const [location, setLocation] = useState(process.procedureLocation ?? "");
 
   // Debounce text field commits so typing doesn't thrash the graph.
   useEffect(() => {
@@ -65,11 +75,18 @@ export function ProcessForm({
       const po = parse(outputs);
       if (pi.join("|") !== (process.inputs ?? []).join("|")) patch.inputs = pi;
       if (po.join("|") !== (process.outputs ?? []).join("|")) patch.outputs = po;
+      const ps = normalizeSystems(parse(systems));
+      if (ps.join("|") !== (process.systems ?? []).join("|"))
+        patch.systems = ps.length ? ps : undefined;
+      const loc = location.trim().slice(0, 200);
+      if (loc !== (process.procedureLocation ?? "")) patch.procedureLocation = loc || undefined;
       if (Object.keys(patch).length) onChange(patch);
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, desc, inputs, outputs]);
+  }, [name, desc, inputs, outputs, systems, location]);
+
+  const docState = processDocumentationState(process);
 
   const stages = useMemo(() => {
     const max = Math.max(4, ...all.map((p) => p.stage ?? 0));
@@ -122,6 +139,89 @@ export function ProcessForm({
             onChange={(e) => setOutputs(e.target.value)}
           />
         </label>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+            <BookOpen className="size-3.5 text-primary" /> Continuity record
+          </p>
+          <p className="text-[11px] text-muted">
+            What a stand-in needs on day one: how often this runs, where it runs, and where the
+            written steps live.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label>
+            <span className={labelCls}>How often it runs</span>
+            <select
+              className={inputCls}
+              value={process.cadence ?? ""}
+              onChange={(e) => onChange({ cadence: parseCadence(e.target.value) ?? undefined })}
+            >
+              <option value="">Not recorded</option>
+              {PROCESS_CADENCES.map((c) => (
+                <option key={c} value={c}>
+                  {CADENCE_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className={labelCls}>Systems used (comma-separated)</span>
+            <input
+              className={inputCls}
+              placeholder="Practice management system, bank portal"
+              value={systems}
+              onChange={(e) => setSystems(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label>
+            <span className={labelCls}>Written procedure</span>
+            <select
+              className={inputCls}
+              value={process.documented === undefined ? "" : process.documented ? "yes" : "no"}
+              onChange={(e) => {
+                const v = e.target.value;
+                onChange({
+                  documented: v === "" ? undefined : v === "yes",
+                  ...(v !== "yes" ? { procedureLocation: undefined } : {}),
+                });
+                if (v !== "yes") setLocation("");
+              }}
+            >
+              <option value="">Not recorded</option>
+              <option value="no">No, nothing written down</option>
+              <option value="yes">Yes, a stand-in could follow it</option>
+            </select>
+          </label>
+          <label>
+            <span className={labelCls}>Where it lives</span>
+            <input
+              className={inputCls}
+              placeholder="Shared drive path, binder, or link"
+              value={location}
+              disabled={!process.documented}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </label>
+        </div>
+        <p
+          className={cn(
+            "text-[11px]",
+            docState === "located"
+              ? "text-ok"
+              : docState === "unlocated"
+                ? "text-warn"
+                : "text-muted",
+          )}
+        >
+          {PROCESS_DOCUMENTATION_LABEL[docState]}
+          {docState === "none" && " — if this owner is out, a stand-in has nothing to follow."}
+          {docState === "unlocated" && " — record where it lives so a stand-in can find it."}
+        </p>
       </div>
 
       <ChipPicker
