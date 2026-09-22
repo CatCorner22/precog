@@ -86,7 +86,7 @@ export function todayBrief(
       window: w,
       person: w.person,
       unplanned: Boolean(w.absence.unplanned),
-      stops: w.impact.stops.map((s) => ({
+      stops: (w.todayImpact ?? w.impact).stops.map((s) => ({
         item: s.item,
         standIn: s.standIn,
         cold: !s.standIn || !touched.has(`${s.standIn.id}\u0000${s.item.id}`),
@@ -94,7 +94,11 @@ export function todayBrief(
         handoffLogged: Boolean(handoffCommitment(committed, s.item.id, w.absence.id)),
       })),
     }))
-    .sort((a, b) => b.window.impact.dependence - a.window.impact.dependence);
+    .sort(
+      (a, b) =>
+        (b.window.todayImpact ?? b.window.impact).dependence -
+        (a.window.todayImpact ?? a.window.impact).dependence,
+    );
   const stops = out.flatMap((o) => o.stops);
   const startingSoon: TodayUpcoming[] = leave.windows
     .filter((w) => w.status === "upcoming" && w.daysUntil <= SOON_DAYS)
@@ -131,11 +135,15 @@ function headline(b: TodayBrief): string | null {
         : names.length === 2
           ? `${names[0]} and ${names[1]}`
           : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-    const how = b.out.every((o) => o.unplanned)
-      ? "out unexpectedly"
-      : b.out.some((o) => o.unplanned)
-        ? "out (one unexpectedly)"
-        : "out";
+    const unexpected = b.out.filter((o) => o.unplanned).length;
+    const how =
+      unexpected === b.out.length
+        ? "out unexpectedly"
+        : unexpected === 1
+          ? "out (one unexpectedly)"
+          : unexpected > 1
+            ? `out (${unexpected} unexpectedly)`
+            : "out";
     const count = b.out.flatMap((o) => o.stops).length;
     const stops =
       count === 0

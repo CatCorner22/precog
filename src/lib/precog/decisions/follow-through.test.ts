@@ -146,7 +146,9 @@ describe("applyDecisionReview", () => {
 
   it("extends still-open decisions and appends reviews in order", () => {
     const original = decision({ reviewBy: "2025-01-15", reviews: [review("still_open")] });
-    const next = applyDecisionReview(original, review("still_open"), 30);
+    // Noon local time, so the 30-day extension lands on the same calendar day in every zone.
+    const at = new Date(2025, 0, 15, 12).toISOString();
+    const next = applyDecisionReview(original, review("still_open", at), 30);
 
     expect(next.status).toBe("open");
     expect(next.reviewBy).toBe("2025-02-14");

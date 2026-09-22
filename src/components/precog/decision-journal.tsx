@@ -12,6 +12,7 @@ import {
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
+  dateAfter,
   linkedKnowledgeId,
   linkedToIndustry,
   localDateKey,
@@ -292,14 +293,12 @@ export function DecisionJournal({
 
   function submit() {
     if (!subject.trim()) return;
-    const reviewBy = new Date();
-    reviewBy.setDate(reviewBy.getDate() + reviewDays);
     const match = portfolio.top.find((t) => t.name === subject);
     addDecision({
       subject: subject.trim(),
       kind,
       note: note.trim() || DECISION_KIND_LABEL[kind],
-      reviewBy: reviewBy.toISOString().slice(0, 10),
+      reviewBy: dateAfter(today, reviewDays),
       residualAtDecision: match?.residual,
       linkedTab:
         match?.category === "knowledge"
@@ -578,7 +577,7 @@ export function DecisionJournal({
             )}
             {orderedDecisions.map((d) => {
               const past =
-                isDecisionOpen(d) && d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
+                isDecisionOpen(d) && Boolean(d.reviewBy) && d.reviewBy! < localDateKey(today);
               return (
                 <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">

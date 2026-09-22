@@ -572,7 +572,7 @@ export function ControlReport() {
                 .map((l) => (
                   <li key={l.person.id}>
                     <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
-                    {l.dependence}% of critical work stops if out; only they can do:{" "}
+                    {l.dependence}% of must-do work stops if out; only they can do:{" "}
                     {l.soleItems.map((k) => k.name).join(", ")}
                   </li>
                 ))}
@@ -619,7 +619,7 @@ export function ControlReport() {
                         </span>
                       </span>
                       <span className="text-xs text-neutral-600">
-                        {w.impact.dependence}% of critical work stops
+                        {(w.todayImpact ?? w.impact).dependence}% of must-do work stops
                       </span>
                     </div>
                     {others.length > 0 && (
@@ -870,7 +870,7 @@ export function ControlReport() {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">If {c.people[0].name} is out</span>
                     <span className="text-xs text-neutral-600">
-                      {c.dependence}% of critical work stops
+                      {c.dependence}% of must-do work stops
                     </span>
                   </div>
                   {c.stops.length > 0 && (

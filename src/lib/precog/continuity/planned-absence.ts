@@ -50,6 +50,12 @@ export interface AbsenceWindow {
   impact: AbsenceImpact;
   /** The stretch `impact` describes. Spans the whole window when nobody's leave overlaps. */
   peak: AbsencePeak;
+  /**
+   * What stops today, counting only the people away today. Null for an
+   * upcoming window. Differs from `impact` when the worst stretch is still
+   * ahead, so the cover sheet never lists a stop that has not happened yet.
+   */
+  todayImpact: AbsenceImpact | null;
 }
 
 export interface PlannedAbsenceReport {
@@ -123,8 +129,7 @@ function worse(a: AbsenceImpact, b: AbsenceImpact): boolean {
     a.stops.length > b.stops.length ||
     (a.stops.length === b.stops.length &&
       (a.dependence > b.dependence ||
-        (a.dependence === b.dependence &&
-          a.orphanedProcesses.length > b.orphanedProcesses.length)))
+        (a.dependence === b.dependence && a.orphanedProcesses.length > b.orphanedProcesses.length)))
   );
 }
 
@@ -171,9 +176,7 @@ function peakImpact(
       seen.set(key, impact);
     }
     if (!best || worse(impact, best.impact)) {
-      const extraStops = impact.stops
-        .filter((s) => !soloStops.has(s.item.id))
-        .map((s) => s.item);
+      const extraStops = impact.stops.filter((s) => !soloStops.has(s.item.id)).map((s) => s.item);
       best = { impact, peak: { from, to, people: away, extraStops } };
     }
   }
@@ -221,15 +224,23 @@ export function plannedAbsenceReport(
     const peak = peakImpact(tpl, person, absence, overlaps);
     if (!peak) continue;
     const daysUntil = Math.max(0, daysBetween(today, absence.from) ?? 0);
+    const current = absence.from <= today;
+    const awayToday = current
+      ? [
+          person.id,
+          ...overlaps.filter((o) => o.from <= today && today <= o.to).map((o) => o.person.id),
+        ]
+      : [];
     windows.push({
       absence,
       person,
       daysUntil,
       lengthDays: (daysBetween(absence.from, absence.to) ?? 0) + 1,
-      status: absence.from <= today ? "current" : "upcoming",
+      status: current ? "current" : "upcoming",
       overlaps,
       impact: peak.impact,
       peak: peak.peak,
+      todayImpact: current ? absenceImpact(tpl, awayToday) : null,
     });
   }
   windows.sort(

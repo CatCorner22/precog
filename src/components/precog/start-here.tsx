@@ -507,7 +507,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 <p className="text-sm text-muted">
                   {isSampleTeam && "Sample register — "}
                   {continuityReadiness.mostDepended.person.name} carries{" "}
-                  {continuityReadiness.mostDepended.dependence}% of critical work alone
+                  {continuityReadiness.mostDepended.dependence}% of must-do work alone
                 </p>
               ) : (
                 <span />

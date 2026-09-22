@@ -42,7 +42,11 @@ export function ExportMapImageButton({
         filter: (node) => {
           const el = node as HTMLElement;
           const cls = typeof el.className === "string" ? el.className : "";
-          return !cls.includes("react-flow__minimap") && !cls.includes("react-flow__controls") && !cls.includes("no-export");
+          return (
+            !cls.includes("react-flow__minimap") &&
+            !cls.includes("react-flow__controls") &&
+            !cls.includes("no-export")
+          );
         },
       });
       const a = document.createElement("a");

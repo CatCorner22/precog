@@ -8,6 +8,7 @@ import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
 import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import { useToday } from "@/lib/precog/decisions/use-today";
 
 export function WeeklyActionPlan({
   onNavigate,
@@ -15,6 +16,7 @@ export function WeeklyActionPlan({
   onNavigate: (tab: string, processId?: string) => void;
 }) {
   const { profile, template } = usePractice();
+  const today = useToday();
   const actions = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(template, profile.staff);
     return buildWeeklyActions({
@@ -22,7 +24,7 @@ export function WeeklyActionPlan({
       staff: profile.staff,
       dualRelease: profile.dualRelease,
       mapSnapshots: snapshots,
-      today: localDateKey(new Date()),
+      today: localDateKey(today),
       trackFreshness: Boolean(profile.customKnowledge || profile.customRelations),
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
@@ -35,6 +37,7 @@ export function WeeklyActionPlan({
     profile.customRelations,
     profile.decisions,
     profile.plannedAbsences,
+    today,
   ]);
 
   return (

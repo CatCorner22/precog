@@ -43,9 +43,7 @@ export function PresentationToggle({ className }: { className?: string }) {
           onClick={() => setMode(opt.mode)}
           className={cn(
             "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-            mode === opt.mode
-              ? "bg-surface text-fg shadow-sm"
-              : "text-subtle hover:text-muted",
+            mode === opt.mode ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-muted",
           )}
         >
           {opt.label}

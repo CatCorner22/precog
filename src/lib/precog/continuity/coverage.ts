@@ -82,7 +82,7 @@ export interface PersonLoad {
   sharedItems: KnowledgeItem[];
   /** Items this person is learning (basic). */
   learningItems: KnowledgeItem[];
-  /** 0–100 index: share of critical work that stops if this person is out. */
+  /** 0–100 index: share of must-do work that stops if this person is out (critical weighs 3, important 2). */
   dependence: number;
 }
 
@@ -541,7 +541,7 @@ export interface AbsenceImpact {
   continues: KnowledgeItem[];
   /** Processes where this person is the only listed owner. */
   orphanedProcesses: string[];
-  /** 0–100 share of critical work that stops (same figure as PersonLoad.dependence). */
+  /** 0–100 share of must-do work that stops (same weighted index as PersonLoad.dependence). */
   dependence: number;
   /** What to do now, then what to do before the next absence. */
   actions: AbsenceAction[];

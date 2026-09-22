@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
@@ -172,7 +173,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
       reason: exReason.trim().slice(0, 300),
       residualNote: exResidual.trim().slice(0, 300) || undefined,
       approvedByPersonId: "p1",
-      createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: localDateKey(new Date()),
     };
     upsertException(ex);
     addDecision({
@@ -197,7 +198,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
         .filter((c) => c.covered)
         .map((c) => c.label)
         .join(", ")}`,
-      reviewBy: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
+      reviewBy: dateAfter(new Date(), 90),
       linkedTab: "sod",
     });
   }

@@ -110,7 +110,8 @@ export function leaveDebriefs(
     });
   }
   out.sort(
-    (a, b) => b.absence.to.localeCompare(a.absence.to) || a.person.name.localeCompare(b.person.name),
+    (a, b) =>
+      b.absence.to.localeCompare(a.absence.to) || a.person.name.localeCompare(b.person.name),
   );
   return out;
 }

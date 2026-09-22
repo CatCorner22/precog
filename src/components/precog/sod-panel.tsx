@@ -27,9 +27,7 @@ type NavFn = (tab: string, id?: string) => void;
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
   const { profile } = usePractice();
-  const [view, setView] = useState<
-    "conflicts" | "matrix" | "roles" | "dual" | "power"
-  >("dual");
+  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">("dual");
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
