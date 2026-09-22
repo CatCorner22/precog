@@ -348,7 +348,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
-      url: "https://www.justice.gov/usao-ma/pr/attleboro-woman-pleads-guilty-embezzling-more-400000",
+      url: "https://www.justice.gov/usao-ma/pr/attleboro-woman-sentenced-18-months-prison-embezzling-more-400000",
       grade: "primary-document-reported",
     },
     caveat:
@@ -400,18 +400,18 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-nonprofit-human-first",
-    title: "Nonprofit executive director spent $836,000 of agency money over five years",
+    title: "Nonprofit executive director and co-conspirators took $1.4 million of agency money over five years",
     sector: "nonprofit",
     schemes: ["expense-reimbursement", "corruption"],
     howItWorked:
       "The executive director of Human First, Inc., a Long Island nonprofit, used agency funds over more than five years in the role for personal spending including international travel, spas, salons, restaurants, and elective cosmetic surgery.",
     controlGap:
       "A board that meets quarterly and reads a summary is not a control over the executive director's own spending. Without someone reviewing the ED's card statement line by line, the position reviews itself.",
-    lossUsd: 836000,
+    lossUsd: 1415000,
     lossIsFloor: false,
     durationMonths: 64,
     detection: "unknown",
-    resolvedYear: 2019,
+    resolvedYear: 2023,
     sodRuleIds: ["rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
       {
@@ -434,7 +434,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentence was 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016 and acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
+      "Wafa Abboud was sentenced in January 2023 to 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution to Human First. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization, so it is the loss recorded here; the release's headline says over $1 million. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016 and acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
   },
   {
     id: "case-modest-needs-fake-board",
@@ -489,7 +489,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     durationMonths: 100,
     detection: "unknown",
-    resolvedYear: 2016,
+    resolvedYear: 2017,
     sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
@@ -513,7 +513,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      'Restitution and forfeiture were each ordered at $279,611, which is the figure recorded here; the charging office\'s headline of "nearly $280,000" is that number rounded up, so it is not a floor. Pled guilty November 2016; six months in prison.',
+      'Restitution and forfeiture were each ordered at $279,611, which is the figure recorded here; the charging office\'s headline of "nearly $280,000" is that number rounded up, so it is not a floor. Pled guilty November 2016 and was sentenced in February 2017 to six months in prison.',
   },
   {
     id: "case-bellingham-assistant-manager",
@@ -566,7 +566,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: true,
     durationMonths: 48,
     detection: "unknown",
-    resolvedYear: 2013,
+    resolvedYear: 2015,
     sodRuleIds: ["rule-collect-post", "rule-custody-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
       {
@@ -589,7 +589,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-nj/pr/medical-office-receptionist-sentenced-34-months-prison-embezzlement-credit-card-fraud-and",
       grade: "primary-document-reported",
     },
-    caveat: "Sentence was 34 months. Gwendolyn Muller was ordered to pay $556,000 in restitution.",
+    caveat: "Gwendolyn Muller was sentenced in March 2015 to 34 months and ordered to pay $556,000 in restitution.",
   },
   {
     id: "case-void-no-sale-counter",
@@ -1300,5 +1300,603 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       'Jennifer L. Bengston Cook, 56, of Greer, South Carolina, pleaded guilty to wire fraud and was sentenced in June 2025 by U.S. District Judge Jacquelin D. Austin to 36 months in prison and restitution of $2,276,830.09, the loss figure recorded here; the release\'s headline rounds it to $2 million. The release says she was employed for more than a decade and does not give dates, so the duration is recorded as 120 months and ten years of tenure, both floors. The detection route is recorded as "someone else covered the desk": the release says the conduct was discovered when she was on vacation and her supervisor needed to find the record of a vendor payment. The release does not name the business or its trade, so the sector is recorded as any.',
+  },
+  {
+    id: "case-evansville-parts-manager",
+    title: "Parts manager ordered HVAC units the business did not need, then sold about 400 items on eBay",
+    sector: "trades",
+    schemes: ["inventory-theft"],
+    howItWorked:
+      "The parts manager of a multi-state business was responsible for ordering parts, signing for them when they arrived, and logging them into inventory. From 2018 to 2020 he ordered parts and products the business did not need, paid for with company funds, took them, and sold roughly 400 items — including HVAC units and LED display kits — on eBay, collecting the proceeds through PayPal.",
+    controlGap:
+      "Ordering, receiving, and the inventory record sat with one person. An order placed for resale looks identical to a legitimate one on the supplier invoice, and when the same person signs the delivery and writes the stock record, nothing in the paperwork ever disagrees with itself.",
+    lossUsd: 431557.61,
+    lossIsFloor: false,
+    durationMonths: 24,
+    tenureYearsStated: 5,
+    detection: "unknown",
+    resolvedYear: 2023,
+    sodRuleIds: ["rule-order-receive"],
+    wouldHaveCaughtIt: [
+      {
+        control: "count-inventory-independently",
+        asApplied:
+          "Quarterly stock count by someone outside the parts desk, compared against purchase invoices for the quarter",
+      },
+      {
+        control: "volume-vs-recorded-sales",
+        asApplied: "Parts purchased compared against parts sold or installed, by category, each quarter",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Indiana",
+      url: "https://www.justice.gov/usao-sdin/pr/evansville-parts-manager-sentenced-three-and-half-years-federal-prison-5-year-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "James H. Cox, 45, of Kentucky was sentenced in May 2023 by U.S. District Judge Richard L. Young to 3.5 years in prison after pleading guilty to wire fraud and tax counts. The release puts the employer's loss at $431,557.61 and splits restitution into $82,482.11 to the employer and $349,075.50 to its insurer, which is why the total rather than either restitution line is recorded here. He worked there from March 2015 to November 2020, the source of the five years of tenure; the release dates the fraudulent orders to 2018 through 2020, so 24 months is recorded as a floor. It does not say how the scheme was discovered or how large the business was.",
+  },
+  {
+    id: "case-helena-it-salesman",
+    title: "IT company salesman created bogus purchase orders, stole the inventory, and sold it online",
+    sector: "professional-services",
+    schemes: ["inventory-theft", "billing-shell-vendor"],
+    howItWorked:
+      "A salesman at Information Technology Corporation, a Helena, Montana company owned by the accounting firm Anderson ZurMuehlen, created fictitious purchase orders and invoices, directed payments to fictitious companies and unauthorized vendors, stole inventory, and sold it on eBay and KSL Classifieds between March 2020 and August 2021. When colleagues questioned discrepancies in orders and payments, he sent what the release calls lulling emails to reassure them and keep the scheme running, and moved the proceeds through third-party accounts he controlled.",
+    controlGap:
+      "A sales role held enough purchasing and vendor-payment power to create a supplier, order against it, and have it paid. The people who noticed the discrepancies raised them with the person committing the fraud rather than with someone independent of him, so the questions were answered instead of investigated.",
+    lossUsd: 700000,
+    lossIsFloor: false,
+    durationMonths: 17,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-invoice-pay", "rule-order-receive", "rule-vendor-create-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "new-payee-review",
+        asApplied: "Owner reviews every vendor added that month and who requested it",
+      },
+      {
+        control: "count-inventory-independently",
+        asApplied: "Someone outside sales counts stock against purchase orders each quarter",
+      },
+      {
+        control: "verify-oversight-is-real",
+        asApplied:
+          "Questions about order or payment discrepancies go to the owner, never back to the person who placed the order",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Montana",
+      url: "https://www.justice.gov/usao-mt/pr/utah-man-sentenced-21-months-prison-defrauding-montana-employer-700000-restitution",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Thomas Lynn Syddall, 50, of American Fork, Utah was sentenced in May 2024 to 21 months in prison and ordered to pay $700,000 in restitution after pleading guilty to wire fraud and money-laundering concealment. The release gives the loss only as the approximately $700,000 restitution figure, which is recorded here. The release names the victim and its owner; it does not state the company's size, the salesman's length of service, or how the scheme came to light.",
+  },
+  {
+    id: "case-littleton-oral-surgery-fentanyl",
+    title: "Oral surgery assistant removed fentanyl from the practice safe and refilled vials with another liquid",
+    sector: "dental",
+    schemes: ["inventory-theft"],
+    howItWorked:
+      "A surgical assistant at an oral surgery practice in Littleton, Colorado took fentanyl from the practice's controlled-substance safe. Boxes of fentanyl citrate in the safe had been tampered with; testing found seven vials contained a replacement liquid, and one of those was contaminated with bacteria. The theft came to light in June 2023 when her roommate found fentanyl vials and safety caps in her purse and reported it to the practice, which called the county sheriff.",
+    controlGap:
+      "Controlled substances were stocked and drawn from a safe the assistant could reach without a second person counting or inspecting what came out. A daily two-person count with a tamper check would have exposed a refilled vial the day it happened; instead the practice learned of it from someone outside the business.",
+    lossUsd: 0,
+    lossIsFloor: false,
+    detection: "tip",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-order-receive"],
+    wouldHaveCaughtIt: [
+      {
+        control: "controlled-substance-count",
+        asApplied:
+          "Two people count the fentanyl and other scheduled drugs against the log at open and close, and inspect caps and seals",
+      },
+      {
+        control: "verify-oversight-is-real",
+        asApplied: "The surgeon, not the assistant who stocks the safe, signs the daily count",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Colorado",
+      url: "https://www.justice.gov/usao-co/pr/former-dental-assistant-sentenced-tampering-fentanyl-vials-littleton-oral-surgery",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Amber June Hyatt, 47, of Evergreen, Colorado pleaded guilty to one count of tampering with a consumer product and was sentenced in January 2026 to a year and a day in prison and two years of supervised release. The release states no dollar loss — the harm is to patients, who may have received a replacement liquid in place of an anesthetic — so the loss is recorded as zero and this case is excluded from loss arithmetic. It does not state when the tampering began or the assistant's length of service. The detection route is recorded as a tip because the release says the roommate reported the vials to the practice.",
+  },
+  {
+    id: "case-st-albans-dental-billing",
+    title: "Dental practice employee falsified payment records in the billing software while filling forged prescriptions",
+    sector: "dental",
+    schemes: ["receivables-diversion"],
+    howItWorked:
+      "An employee of a dental practice in St. Albans, Vermont embezzled $71,942.60 between May 2016 and August 2017 by manipulating and falsifying payment records in the practice's billing software. During roughly the same period she and another employee generated 46 fake prescriptions for controlled substances, typically oxycodone, forged a licensed prescriber's signature on them, and filled them at area pharmacies.",
+    controlGap:
+      "The person who could take a patient payment could also edit the record of it, so the ledger always matched the drawer. The embezzlement was found only because a separate drug-diversion investigation brought local police into the practice's records.",
+    lossUsd: 71942.6,
+    lossIsFloor: false,
+    durationMonths: 15,
+    detection: "law-enforcement",
+    resolvedYear: 2021,
+    sodRuleIds: ["rule-collect-post", "rule-writeoff"],
+    wouldHaveCaughtIt: [
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Payment edits, deletions, and adjustments in the practice-management software, listed by user, reviewed by the dentist monthly",
+      },
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied: "Day-sheet collections compared with the bank deposit by someone other than the front desk",
+      },
+      {
+        control: "permission-review",
+        asApplied: "Only the dentist or an outside bookkeeper can edit or delete a posted payment",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Vermont",
+      url: "https://www.justice.gov/usao-vt/pr/swanton-woman-sentenced-prescription-fraud-and-embezzlement-scheme-and-ordered-pay",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Lindsey Cox, 37, of Swanton, Vermont was sentenced in December 2021 to five years of probation and ordered to pay $71,942.60 in restitution, the figure recorded here, after pleading guilty to conspiring to acquire controlled substances by fraud and to theft in connection with health care. The release says only that payment records were manipulated and falsified, not how the money left the practice, so the scheme is recorded as receivables diversion. The detection route is recorded as law enforcement because the release credits the St. Albans Police Department, working alongside the DEA's drug-diversion investigation, with uncovering the embezzlement. The practice's size and the employee's role and length of service are not stated.",
+  },
+  {
+    id: "case-bellevue-dental-card",
+    title: "Dental office worker ran $174,336 of cash advances and personal spending through the practice credit card",
+    sector: "dental",
+    schemes: ["expense-reimbursement"],
+    howItWorked:
+      "An office worker for a Bellevue, Washington dentist used the practice credit card, meant for office expenses, for $122,880 in ATM cash advances plus fees, more than $46,534 in retail purchases, $25,606 in private school tuition, and a $4,692 family vacation — about $7,924 a month. She destroyed correspondence from licensing and insurance authorities and let the practice's licensing, insurance, and tax obligations go unpaid. Over the same period she obtained roughly 8,580 hydrocodone pills on about 200 occasions using forged prescriptions in her own name and the names of relatives and friends.",
+    controlGap:
+      "The card statement went to the person spending on the card, and so did the practice's mail. A card that can take cash advances, with a statement nobody else reads, is a checking account under a different name. The dentist learned of it when a pharmacy reported unusual prescribing to the DEA.",
+    lossUsd: 174336,
+    lossIsFloor: false,
+    detection: "law-enforcement",
+    resolvedYear: 2012,
+    sodRuleIds: ["rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "card-statement-line-review",
+        asApplied: "Dentist reads the card statement line by line each month; cash advances are disabled on the card",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Card and bank statements and licensing-board mail go to the dentist directly, not through the front desk",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Washington",
+      url: "https://www.justice.gov/archive/usao/waw/press/2012/September/bowman.html",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Lori Elizabeth Bowman, 38, of Bothell, Washington was sentenced in September 2012 to 30 months in prison and $174,336 in restitution for acquiring a controlled substance by fraud, access-device fraud, and aggravated identity theft. The release gives the card loss as approximately $174,336 and the monthly average as about $7,924 but no start date for the charges, so no duration is recorded. It describes detection as a pharmacy notifying the DEA about the dentist's prescribing, which led investigators to the employee; the card fraud surfaced from that investigation. The practice's size and her job title and tenure are not stated.",
+  },
+  {
+    id: "case-marion-veteran-owned-payroll",
+    title: "Bookkeeper paid herself by paper payroll check on top of her direct deposit for eight years",
+    sector: "any",
+    schemes: ["payroll", "check-tampering"],
+    howItWorked:
+      "The bookkeeper of a small veteran-owned business in Marion, Iowa managed payroll and the company's employee retirement-plan contributions. From 2013 to 2021 she wrote physical payroll checks to herself that she was not entitled to while also receiving her regular pay by direct deposit, altered her pay rate, forged signatures, and made false entries in the books to conceal the checks. For a period she also stopped paying the company's federal and state taxes and employee retirement contributions.",
+    controlGap:
+      "Payroll, the checkbook, the books, and the retirement-plan contact were one job. A second payroll payment to the same person is invisible inside a payroll system that person runs; it shows only on the bank statement and the payroll register, and nobody else was reading either.",
+    lossUsd: 500000,
+    lossIsFloor: true,
+    durationMonths: 96,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-payroll", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied: "Owner reviews the payroll register every cycle — a name appearing twice is the finding",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied: "Owner opens the bank statement first and looks at every cleared check payable to an employee",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "Outside accountant confirms annually that payroll-tax and retirement-plan deposits were actually made",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Northern District of Iowa",
+      url: "https://www.justice.gov/usao-ndia/pr/springville-woman-sent-federal-prison-embezzlement-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Debra Ann Vaughn, 67, of Springville, Iowa was sentenced in May 2026 to 41 months in prison for bank fraud. The release says she stole over $500,000, recorded here as a floor; restitution was set at $158,135.77 because the company had already recovered $373,732.27 by seizing an inheritance in a state civil case. The release does not describe how the fraud was discovered, so the detection route is unknown. Her hire year and the company's headcount are not stated.",
+  },
+  {
+    id: "case-boston-suburb-controller",
+    title: "Newly hired controller took $229,088 in nine months using pre-signed checks and online banking",
+    sector: "any",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "A small company in a Boston suburb hired a controller in April 2017 and gave her the checkbook, the QuickBooks file, and the online banking login. Some checks had been pre-signed in blank by a founder for business use; she wrote them to herself, and later forged the founder's signature on others, sometimes writing 'Consulting Fees' on the memo line although she was salaried. She deposited about $141,845 in checks to her own account and logged into online banking to send another $87,243 to her personal credit cards. She was fired in January 2018.",
+    controlGap:
+      "A founder who pre-signs blank checks has delegated the signature itself, and an online banking login with no second approver is the same thing in electronic form. The loss ran above $25,000 a month from the first month of employment — the short tenure that fraud-benchmark averages would call lowest-risk.",
+    lossUsd: 229088,
+    lossIsFloor: false,
+    durationMonths: 9,
+    tenureYearsStated: 0,
+    detection: "unknown",
+    resolvedYear: 2018,
+    sodRuleIds: ["rule-ach-release", "rule-cash-rec"],
+    wouldHaveCaughtIt: [
+      {
+        control: "dual-release-above-threshold",
+        asApplied: "Bank-enforced dual approval on every online transfer, using the founder's own login",
+      },
+      {
+        control: "positive-pay",
+        asApplied: "Positive Pay, and no pre-signed checks — a check the founder has not listed does not clear",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied: "Founder opens the bank statement first and reads cleared-check images",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Massachusetts",
+      url: "https://www.justice.gov/usao-ma/pr/former-controller-small-business-sentenced-stealing-over-229000",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Kelly A. Lynch, 40, was sentenced in October 2018 to 18 months in prison and $229,088 in restitution after pleading guilty to bank fraud. The release gives the two components as approximately $141,845 in checks and $87,243 in transfers; their sum is recorded as the loss. She was hired in April 2017 and the scheme ran until her termination in January 2018, so tenure is recorded as under a year and duration as nine months. The release does not say how the theft was found or how large the company was.",
+  },
+  {
+    id: "case-st-louis-floor-covering",
+    title: "Warehouse supervisor of 25 years ran ghost timesheets, fake vendors, and padded receipts for six and a half years",
+    sector: "trades",
+    schemes: ["payroll", "billing-shell-vendor", "expense-reimbursement"],
+    howItWorked:
+      "A warehouse and labor supervisor at a small floor-covering business in St. Louis County, Missouri, employed there for 25 years, submitted timesheets for a partner who did not work for the company and deposited the paychecks by forging the partner's signature; inflated his son's hours without the son's knowledge; inflated his own hours by claiming installation work; submitted invoices from two fake companies and had the company cut checks for them; paid himself on company credit cards; and altered receipts for real purchases to claim larger reimbursements. It began in March 2014 and ran six and a half years.",
+    controlGap:
+      "One trusted supervisor could put a name on payroll, approve hours, create a vendor, and submit a receipt, and 25 years of tenure had replaced review with trust. Each of the five schemes would have appeared on a different one-page report — the payroll register, the new-vendor list, the card statement, the reimbursement log — and none of those pages was being read by anyone else.",
+    lossUsd: 339844,
+    lossIsFloor: false,
+    durationMonths: 78,
+    tenureYearsStated: 25,
+    detection: "unknown",
+    resolvedYear: 2023,
+    sodRuleIds: ["rule-payroll", "rule-vendor-create-pay", "rule-invoice-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reviews the payroll register against the crew roster every cycle — a name that has never been on a job site is the finding",
+      },
+      {
+        control: "new-payee-review",
+        asApplied: "Owner reviews every vendor added that month and asks to see the work",
+      },
+      {
+        control: "receipt-and-second-approval",
+        asApplied: "Reimbursements need the original receipt and approval from someone other than the claimant's own crew",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied: "Owner reads the company card statement line by line each month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Eastern District of Missouri",
+      url: "https://www.justice.gov/usao-edmo/pr/former-employee-sentenced-3-years-prison-embezzling-339000-st-louis-county-company",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Ronald Scott Miller of Waterloo, Illinois was sentenced in March 2023 by U.S. District Judge Stephen R. Clark to three years and five months in prison after pleading guilty to wire fraud; the release states the loss as $339,844 and says he was ordered to repay it. The 25 years of tenure and the six-and-a-half-year duration are stated in the release. It does not say how the scheme was discovered or give the company's headcount.",
+  },
+  {
+    id: "case-idaho-franchise-ghost-payroll",
+    title: "Restaurant district manager revived former employees' payroll numbers and paid himself $685,376 in hours never worked",
+    sector: "restaurant",
+    schemes: ["payroll"],
+    howItWorked:
+      "A district manager for a franchisee of national restaurant chains, who supervised a number of Idaho restaurants and their payroll, changed the names and details attached to former employees' payroll numbers and entered hours against them for work that was never done. From at least April 2021 through April 2024 he collected the resulting pay by cashing checks, loading it onto pay cards, and direct deposit.",
+    controlGap:
+      "The person entering hours could also edit the employee master record, so a departed worker's number became a payee under his control. Nobody compared the list of people who had left against the list of people being paid, and pay cards let the money leave without a bank account in his name.",
+    lossUsd: 685376,
+    lossIsFloor: false,
+    durationMonths: 36,
+    detection: "unknown",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-payroll"],
+    wouldHaveCaughtIt: [
+      {
+        control: "terminated-staff-vs-payroll",
+        asApplied: "Owner compares the list of people who have left against everyone paid this month, every month",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied:
+          "Every payroll destination — bank account or pay card — belongs to a current employee the store manager can name",
+      },
+      {
+        control: "compare-across-locations",
+        asApplied: "Labor hours per location compared against sales and posted schedules month over month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Idaho",
+      url: "https://www.justice.gov/usao-id/pr/mountain-home-man-sentenced-27-months-embezzlement",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Javier D. Ruiz, 35, of Mountain Home, Idaho was sentenced in December 2025 to 27 months in prison, two years of supervised release, and $685,376 in restitution for wire fraud. The release names neither the franchisee nor the number of restaurants, and does not say how the scheme was discovered or how long he had worked there. The scheme dates are given as 'at least April 2021 through April 2024', so 36 months is a floor.",
+  },
+  {
+    id: "case-omaha-fake-refunds",
+    title: "Area manager issued 275 credit-card refunds with no sale behind them to his own eight cards",
+    sector: "restaurant",
+    schemes: ["refund-fraud"],
+    howItWorked:
+      "An area manager hired in July 2017 to run three fast-food franchise locations in the Omaha area initiated about 275 credit-card refunds through the point-of-sale system between October 2017 and June 2018 — none tied to a real purchase — and directed them to eight of his own credit cards, pulling $30,075.16 from the company's bank account. He had passed the hiring background check by using his brother's identity on his I-9 and W-4.",
+    controlGap:
+      "A refund with no original sale is a payment, and the manager who could issue it was also the manager who reviewed the store's refunds. A monthly refunds-by-employee report, or a rule that refunds go only to the card that paid, would have shown 275 refunds to the same eight card numbers. The background check that should have stopped the hire was defeated by borrowed identity documents.",
+    lossUsd: 30075.16,
+    lossIsFloor: false,
+    durationMonths: 8,
+    tenureYearsStated: 0,
+    detection: "unknown",
+    resolvedYear: 2020,
+    sodRuleIds: ["rule-refund-adjust"],
+    wouldHaveCaughtIt: [
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Refunds and voids grouped by employee and by destination card, reviewed monthly; refunds allowed only to the original card",
+      },
+      {
+        control: "compare-across-locations",
+        asApplied: "Refund rate per location compared month over month — three stores under one manager all rising is the finding",
+      },
+      {
+        control: "background-check-money-handlers",
+        asApplied: "Identity verified against the person in front of you, not just the documents presented",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Nebraska",
+      url: "https://www.justice.gov/usao-ne/pr/former-omaha-restaurant-manager-sentenced-wire-fraud",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Robert Giardina, 39, was sentenced in September 2020 by Senior U.S. District Judge Laurie Smith Camp to 30 months in prison and $30,075.16 in restitution for wire fraud, the figure recorded here. The release names neither the management company nor the brand. The refunds ran from October 24, 2017 to June 5, 2018; he was hired on July 24, 2017, so tenure is recorded as under one year. The release does not say how the refunds were detected.",
+  },
+  {
+    id: "case-msp-airport-cash-lapping",
+    title: "Fast-food manager pocketed daily cash and used later days' takings to make earlier deposits look merely late",
+    sector: "restaurant",
+    schemes: ["cash-larceny"],
+    howItWorked:
+      "The manager of a fast-food franchise at Minneapolis–St. Paul International Airport was responsible for collecting each day's cash receipts and depositing them. From September 2022 through October 2023 he kept some or all of the cash, used later days' receipts to make earlier deposits, and emailed the company's accounting staff that he was catching up on delayed deposits. About $144,000 never arrived.",
+    controlGap:
+      "Recorded sales said what cash should exist, the deposits said what did, and the person explaining the gap between them was the person causing it. Lapping works only while the reconciler accepts the custodian's explanation instead of matching each day's deposit to that day's sales.",
+    lossUsd: 144000,
+    lossIsFloor: false,
+    durationMonths: 13,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-custody-rec", "rule-deposit-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied:
+          "Each day's register cash total matched to a same-day deposit by accounting, with any gap escalated to the owner rather than to the manager",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied: "Someone who never handles the cash reconciles deposits to the register report weekly",
+      },
+      {
+        control: "mandatory-time-away",
+        asApplied: "The manager takes a week off each year while someone else makes the deposits",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Minnesota",
+      url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Timothy Michael Hill, Jr., 36, of Woodbury, Minnesota pleaded guilty in June 2024 to one count of wire fraud; the release says a sentencing date would be set later, and this record has not been updated with a sentence. The loss is stated as approximately $144,000 over 13 months. The release identifies the employer only as Company A, gives no headcount or length of service, and does not say how the shortfall was discovered.",
+  },
+  {
+    id: "case-burlington-dealership-cash",
+    title: "Dealership office manager of 23 years took customer cash receipts and edited the accounting entries to match",
+    sector: "retail",
+    schemes: ["skimming", "check-tampering"],
+    howItWorked:
+      "The office manager of automobile dealerships in Burlington, Vermont, employed there for 23 years and in charge of all accounting with check-signing authority from about 2012, took cash paid by customers and also wrote checks to herself for non-business purposes, beginning no later than 2013. She concealed it by manipulating and falsifying entries for individual transactions in the dealerships' accounting system. An officer of the business found it in January 2024 and she was fired the same month.",
+    controlGap:
+      "Cash custody, check signing, and the accounting record were one seat for more than a decade. When the person who takes the cash also writes the entry describing it, the books balance by construction; only a comparison of what customers were charged against what was banked, done by someone else, breaks the loop.",
+    lossUsd: 192675,
+    lossIsFloor: false,
+    durationMonths: 132,
+    tenureYearsStated: 23,
+    detection: "owner-review",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-collect-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied: "Owner compares cash sales and repair-order cash payments against bank deposits monthly",
+      },
+      {
+        control: "adjustments-report-by-employee",
+        asApplied: "Edited or deleted transactions in the dealer management system, listed by user, reviewed monthly",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied: "Owner opens the bank statement first and reads every cleared check payable to an employee",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Vermont",
+      url: "https://www.justice.gov/usao-vt/pr/jennifer-labonte-imprisoned-embezzling-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jennifer LaBonte, 45, of Essex Junction, Vermont was sentenced in March 2025 to four months in prison, a $7,500 fine, and $192,675 in restitution, which she had paid in full before sentencing; the release gives the loss as about $192,000 and the restitution figure is recorded here. It says the theft began 'no later than 2013' and was uncovered in January 2024, so 132 months is a floor. The 23 years of tenure come from the stated employment dates of 2001 through January 2024. The detection route is recorded as owner review because the release says an officer of the dealerships uncovered the fraud; the dealerships are not named or sized.",
+  },
+  {
+    id: "case-dothan-printing-credentials",
+    title: "Former employee handed a competitor a colleague's login, exposing 30 customer accounts and their pricing for a year",
+    sector: "any",
+    schemes: ["data-theft"],
+    howItWorked:
+      "In March 2016 a printing company's former employee, recruited by the owner of a competing print shop in Dothan, Alabama, sent that owner the email address and password of a current employee whose account had elevated privileges. The competitor logged in repeatedly from his home for about a year, reading more than 30 customer account profiles and their pricing, and used the information to win the company's existing and prospective clients. The company discovered the intrusion on April 4, 2017 and cut off the access.",
+    controlGap:
+      "A departing employee knew a colleague's password, and the password did not change when he left. Elevated access lived in an account nobody reviewed, so a year of logins from an outside address raised no alarm. The loss here is not cash but the customer list itself.",
+    lossUsd: 40000,
+    lossIsFloor: true,
+    durationMonths: 12,
+    detection: "unknown",
+    resolvedYear: 2022,
+    sodRuleIds: ["rule-access-export", "rule-access-log"],
+    wouldHaveCaughtIt: [
+      {
+        control: "no-shared-logins",
+        asApplied:
+          "Every person has their own login, and passwords known to a departing employee change the day they leave",
+      },
+      {
+        control: "permission-review",
+        asApplied:
+          "Quarterly list of accounts with elevated privileges and their recent login locations, read by the owner",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Alabama",
+      url: "https://www.justice.gov/usao-sdal/pr/kentucky-man-sentenced-conspiracy-intrude-protected-computer-system-competitor-business",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Daniel Bruck LaCour, 33, of Lexington, Kentucky — the competitor, not the former employee — was sentenced in June 2022 to two years of probation, a $3,500 fine, and $40,000 in restitution to the victim company for conspiring to intrude into a protected computer. The release does not quantify the business lost; the $40,000 restitution is recorded as a floor. It describes the victim only as a printing company based in New York and Tennessee, does not state its size, and does not say how the intrusion was discovered. The insider is the former employee who supplied the credentials; the release does not describe any charge against that person.",
+  },
+  {
+    id: "case-lenoir-secret-bank-account",
+    title: "Office manager kept open a bank account the owner told him to close and routed customer payments into it",
+    sector: "any",
+    schemes: ["receivables-diversion", "check-tampering"],
+    howItWorked:
+      "The office manager of two family-owned businesses in Lenoir, North Carolina worked there from 2013 to 2019, keeping the books, paying vendors and the IRS, and reconciling the bank accounts. Told by the owner to close one company bank account, he instead kept it open, instructed customers to pay into it, and drew the money out with checks to himself deposited to his personal accounts — more than $1 million in all, spent on his mortgage, vehicle loans, a home theater, travel, and shopping.",
+    controlGap:
+      "The owner's instruction to close the account was never verified with the bank, and the person who would have reported the account's continued existence was the person using it. An account that receives customer money and appears on no statement the owner reads is, in effect, a second business the owner does not know he has.",
+    lossUsd: 1000000,
+    lossIsFloor: true,
+    tenureYearsStated: 6,
+    detection: "unknown",
+    resolvedYear: 2021,
+    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-deposit-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "verify-oversight-is-real",
+        asApplied: "Owner confirms directly with the bank, annually, which accounts exist in the company's name",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied: "Every account's statement goes to the owner first, including any the owner believes is closed",
+      },
+      {
+        control: "confirm-remittance-account",
+        asApplied: "Major customers confirm each year which account they are paying into",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of North Carolina",
+      url: "https://www.justice.gov/usao-wdnc/pr/office-manager-sentenced-four-years-embezzling-more-1-million-his-former-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Richard Allen Clark, 55, of Lenoir, North Carolina was sentenced in October 2021 to 48 months in prison, $980,000 in restitution to the businesses, and $194,750 to the IRS after pleading guilty to mail fraud, money laundering, and filing a false tax return. The release says more than $1 million, recorded as a floor. The six years of tenure come from the stated employment dates of 2013 to 2019; the release does not date the scheme itself within that span, so no duration is recorded. The businesses are not named and their size is not stated; the release does not say how the scheme was discovered.",
+  },
+  {
+    id: "case-dartmouth-serial-embezzler",
+    title: "Bookkeeper redirected vendor payments at one employer, then inflated her own payroll at the next",
+    sector: "any",
+    schemes: ["billing-shell-vendor", "payroll"],
+    howItWorked:
+      "From September 2017 to April 2020 an employee in Dartmouth, Massachusetts took at least $280,000 from one employer by directing payments meant for vendors to bank accounts she controlled and paying her personal credit cards and auto loan with company funds, falsifying the books so the payments appeared to have gone to legitimate vendors. From May 2022 to December 2023, at a second employer, she inflated her own payroll by more than $160,000 and paid herself phony reimbursements, hiding both by manipulating the payroll and accounting software.",
+    controlGap:
+      "The second employer hired someone who had left the first two years earlier after a $280,000 loss, and gave her the same combination of payment authority and control of the record. A reference call, or a bank alert on vendor account-detail changes at the first employer, would have stopped either half of this.",
+    lossUsd: 443122.59,
+    lossIsFloor: true,
+    detection: "unknown",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-vendor-create-pay", "rule-payroll", "rule-invoice-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "background-check-money-handlers",
+        asApplied: "Reference calls to the previous employer before anyone is given payment authority",
+      },
+      {
+        control: "bank-alerts-on-payee-change",
+        asApplied: "Bank alerts the owner on any change to a vendor's account details",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied: "No vendor is paid to a bank account matching an employee's",
+      },
+      {
+        control: "payroll-register-review",
+        asApplied: "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Massachusetts",
+      url: "https://www.justice.gov/usao-ma/pr/dartmouth-woman-sentenced-prison-embezzling-multiple-employers",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jasmyne Botelho, 42, of Dartmouth, Massachusetts was sentenced in March 2025 to 20 months in prison and ordered to pay $443,122.59 in restitution and forfeiture after pleading guilty to two counts of wire fraud. The release gives the two losses as 'at least $280,000' and 'more than $160,000'; the restitution total is recorded as the loss and marked as a floor. Neither employer is named or sized, no job title is given — 'bookkeeper' in the title describes the duties, not a stated title — and the release does not say how either scheme was discovered. The two schemes ran 32 and 20 months and are not combined into a single duration.",
+  },
+  {
+    id: "case-jersey-city-condo-kickbacks",
+    title: "Property manager steered repair work to a contractor who doubled his invoices and kicked back $440,000",
+    sector: "any",
+    schemes: ["corruption", "billing-shell-vendor"],
+    howItWorked:
+      "From November 2018 through October 2020 the lead property manager of a Jersey City, New Jersey condominium complex, together with the building superintendent, steered repair and maintenance work to one contractor and falsified invoices that grossly inflated the value of the work. The complex paid the contractor over $1 million for work worth about $500,000; the contractor paid $440,000 of the excess back to the property manager and about $30,000 to the superintendent.",
+    controlGap:
+      "The person choosing the contractor was the person approving the invoice, and no one independent compared what was billed against what was done. Kickback schemes leave no missing money in the books — every payment is to a real vendor for real work — so the only place they show is in prices, and someone has to be looking at prices.",
+    lossUsd: 470000,
+    lossIsFloor: false,
+    durationMonths: 23,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-invoice-pay", "rule-vendor-approve-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "billing-matches-the-schedule",
+        asApplied: "Owner or board spot-checks invoiced repairs against the work order and a walk of the property",
+      },
+      {
+        control: "dual-release-above-threshold",
+        asApplied: "Repair invoices above a set amount need a second approver who did not select the contractor",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied: "Annual outside review of spend by vendor — one contractor's share doubling is the finding",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of New Jersey",
+      url: "https://www.justice.gov/usao-nj/pr/lead-property-manager-admits-conspiracy-committ-wire-fraud-470000-kickback-scheme",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "The lead property manager, 56, of Jersey City pleaded guilty in April 2024 to conspiracy to commit wire fraud, with sentencing scheduled for August 2024; this record has not been updated with the sentence and does not name him for that reason. The release states the loss to the complex's owner as $470,000, the sum of the kickbacks. It does not name the complex or its owner, or say how the scheme was discovered. The victim is a property owner rather than an operating business, so the sector is recorded as any.",
   },
 ];
