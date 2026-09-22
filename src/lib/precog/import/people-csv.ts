@@ -178,9 +178,13 @@ export function parsePeopleCsv(
       activeValue,
     );
 
+    // Only the first row naming someone already on the team takes over that
+    // person's identity; later duplicates are new people.
+    const candidate = existingByName.get(normalize(name));
+    const existing = candidate && !usedIds.has(candidate.id) ? candidate : undefined;
+
     // A file without the column keeps whatever last day the matched person
     // already has; a blank cell in a file that has the column clears it.
-    const existing = existingByName.get(normalize(name));
     let lastDay: string | undefined = existing?.lastDay;
     if (columns.has("last_day")) {
       const raw = (cells[columns.get("last_day")!] ?? "").trim();
@@ -225,7 +229,7 @@ export function parsePeopleCsv(
       });
     }
 
-    const baseId = existing && !usedIds.has(existing.id) ? existing.id : `p-${slug(name)}`;
+    const baseId = existing ? existing.id : `p-${slug(name)}`;
     let id = baseId;
     let suffix = 2;
     while (usedIds.has(id)) id = `${baseId}-${suffix++}`;

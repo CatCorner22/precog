@@ -19,7 +19,7 @@ import {
   type DutyFamily,
   type EntitlementId,
 } from "./conflict-rules";
-import type { StaffComposition } from "../types";
+import type { Person, StaffComposition } from "../types";
 
 export interface RoleAssignment {
   personId: string;
@@ -359,6 +359,19 @@ export function buildAssignments(
         entitlements,
       };
     });
+}
+
+/**
+ * Drop assignments held by people the team marks as left. Ids not on the team
+ * (simulation-only hires) are kept.
+ */
+export function dropInactiveAssignments(
+  assignments: readonly RoleAssignment[],
+  people: readonly Person[],
+): RoleAssignment[] {
+  const inactive = new Set(people.filter((p) => !p.active).map((p) => p.id));
+  if (inactive.size === 0) return [...assignments];
+  return assignments.filter((a) => !inactive.has(a.personId));
 }
 
 export function detectSodConflicts(

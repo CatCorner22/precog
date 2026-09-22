@@ -3,7 +3,7 @@ import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { CONFLICT_RULES } from "./conflict-rules";
-import { buildAssignments, detectSodConflicts } from "./detect";
+import { buildAssignments, detectSodConflicts, dropInactiveAssignments } from "./detect";
 
 const dental = getBaseTemplate("dental");
 
@@ -45,6 +45,22 @@ describe("buildAssignments", () => {
     expect(buildAssignments(tpl).map((x) => x.personId)).toEqual(["x1"]);
     const report = detectSodConflicts(tpl);
     expect(report.conflicts.some((c) => c.ruleId === "rule-vendor-create-pay")).toBe(false);
+  });
+});
+
+describe("dropInactiveAssignments", () => {
+  it("removes saved assignments for people marked as left but keeps simulation-only ids", () => {
+    const people: Person[] = [
+      { id: "x1", name: "Solo Clerk", role: "Clerk", active: true },
+      { id: "x2", name: "Former Clerk", role: "Clerk", active: false },
+    ];
+    const saved = [
+      { personId: "x1", personName: "Solo Clerk", role: "Clerk", entitlements: ["collect_cash" as const] },
+      { personId: "x2", personName: "Former Clerk", role: "Clerk", entitlements: ["create_vendor" as const] },
+      { personId: "sim-1", personName: "New hire", role: "Receptionist", entitlements: ["view_reports_only" as const] },
+    ];
+    expect(dropInactiveAssignments(saved, people).map((a) => a.personId)).toEqual(["x1", "sim-1"]);
+    expect(dropInactiveAssignments(saved, [people[0]])).toHaveLength(3);
   });
 });
 
