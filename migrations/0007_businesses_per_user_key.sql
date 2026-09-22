@@ -1,3 +1,10 @@
+-- A business id is chosen in the browser, so it is only unique per owner.
+-- Keying the table on (user_id, id) means two owners whose profiles both carry
+-- the legacy "biz_default" id no longer fight over one row, and a save can
+-- never touch a row that belongs to someone else.
+
+alter table businesses drop constraint if exists businesses_pkey;
+alter table businesses add primary key (user_id, id);
 -- A business belongs to one user, and its id is generated on the client — so
 -- the same id can legitimately exist for two different users. Under the old
 -- `id text primary key`, the first user to save a given id (in practice the

@@ -561,6 +561,31 @@ export interface AbsenceAction {
   knowledgeIds: string[];
 }
 
+export interface OwnerlessProcess {
+  id: string;
+  name: string;
+  /** The listed owners, all of whom have left the team. */
+  formerOwners: Person[];
+}
+
+/**
+ * Processes whose every listed owner has been marked as left. The owner ids
+ * stay on the process for history, so nothing else notices the gap. Pure.
+ */
+export function ownerlessProcesses(tpl: IndustryTemplate): OwnerlessProcess[] {
+  const byId = new Map(tpl.people.map((p) => [p.id, p]));
+  const out: OwnerlessProcess[] = [];
+  for (const p of tpl.processes) {
+    const owners = (p.ownerPersonIds ?? [])
+      .map((id) => byId.get(id))
+      .filter((x): x is Person => Boolean(x));
+    if (owners.length > 0 && owners.every((o) => !o.active)) {
+      out.push({ id: p.id, name: p.name, formerOwners: owners });
+    }
+  }
+  return out;
+}
+
 /**
  * What happens if one person is unavailable tomorrow — sick, on leave, or
  * gone. Reads the coverage report and names a stand-in per stopped item;
@@ -579,6 +604,13 @@ export function absenceImpact(
   const report = coverageReport(tpl);
   const remaining = tpl.people.filter((p) => p.active && !absent.has(p.id));
   const single = absentPeople.length === 1;
+  const soleCountByPerson = new Map<string, number>();
+  for (const i of report.items) {
+    if (i.primaries.length === 1) {
+      const id = i.primaries[0].id;
+      soleCountByPerson.set(id, (soleCountByPerson.get(id) ?? 0) + 1);
+    }
+  }
   const firstNames = absentPeople.map((p) => firstName(p.name));
   const names =
     firstNames.length <= 1
@@ -610,8 +642,12 @@ export function absenceImpact(
             : `${learner.name} has the basics but nothing is written down — expect mistakes.`,
         };
       }
-      const candidate =
-        i.suggestedBackups.find((s) => s.person.active && !absent.has(s.person.id)) ?? null;
+      // A covered item carries no ranked backups; when every holder is out at
+      // once it still needs a stand-in, so rank the remaining team here.
+      const ranked = i.suggestedBackups.length
+        ? i.suggestedBackups
+        : suggestBackups(tpl, i.item, soleCountByPerson);
+      const candidate = ranked.find((s) => s.person.active && !absent.has(s.person.id)) ?? null;
       if (!candidate) {
         return {
           item: i.item,

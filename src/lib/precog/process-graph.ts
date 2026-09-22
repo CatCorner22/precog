@@ -114,6 +114,7 @@ export function validateProcessMap(
   const issues: MapValidationIssue[] = [];
   const ids = new Set(processes.map((p) => p.id));
   const personIds = new Set(people.map((p) => p.id));
+  const activeIds = new Set(people.filter((p) => p.active).map((p) => p.id));
 
   const cycle = detectDependencyCycle(processes);
   if (cycle?.length) {
@@ -162,6 +163,16 @@ export function validateProcessMap(
             processId: p.id,
           });
         }
+      }
+      const owners = (p.ownerPersonIds ?? []).filter((oid) => personIds.has(oid));
+      if (owners.length > 0 && !owners.some((oid) => activeIds.has(oid))) {
+        const names = owners.map((oid) => people.find((x) => x.id === oid)?.name ?? oid);
+        issues.push({
+          id: `owner-left-${p.id}`,
+          severity: "warn",
+          message: `"${p.name}" has no owner left on the team — ${names.join(", ")} ${owners.length === 1 ? "has" : "have"} left; name a new owner`,
+          processId: p.id,
+        });
       }
     }
     if (p.controlIds.length === 0 && (p.risks ?? []).some((r) => r.kind === "fraud")) {

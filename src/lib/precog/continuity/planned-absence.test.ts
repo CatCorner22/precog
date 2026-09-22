@@ -191,7 +191,12 @@ describe("plannedAbsenceReport", () => {
       "general",
       today,
     ).windows;
-    expect(w.peak).toEqual({ from: "2025-11-13", to: "2025-11-20", people: [people[1]], extraStops: [] });
+    expect(w.peak).toEqual({
+      from: "2025-11-13",
+      to: "2025-11-20",
+      people: [people[1]],
+      extraStops: [],
+    });
   });
 
   it("does not count two entries for the same person as overlapping", () => {
@@ -247,7 +252,7 @@ describe("describeWindow", () => {
     expect(describeWindow(w)).toBe("Ben is out 13–20 Nov, in 12 days: payroll — hand off to Cy.");
   });
 
-  it("says when nobody is left and mentions overlapping leave", () => {
+  it("hands shared work to whoever is left when overlapping leave takes every holder out", () => {
     const report = plannedAbsenceReport(
       register,
       [
@@ -259,8 +264,19 @@ describe("describeWindow", () => {
     );
     const ben = report.windows.find((w) => w.absence.id === "ben")!;
     expect(describeWindow(ben)).toBe(
-      "Ben is out 3–10 Nov, in 2 days (Cy also out 8–10 Nov): billing has no one; payroll — hand off to Ana.",
+      "Ben is out 3–10 Nov, in 2 days (Cy also out 8–10 Nov): billing — hand off to Ana; payroll — hand off to Ana.",
     );
+  });
+
+  it("says when nobody is left at all", () => {
+    const alone = { ...register, people: register.people.filter((p) => p.id === "b") };
+    const report = plannedAbsenceReport(
+      alone,
+      [absence("ben", "b", "2025-11-03", "2025-11-10")],
+      "general",
+      today,
+    );
+    expect(describeWindow(report.windows[0])).toMatch(/has no one/);
   });
 
   it("names the worst stretch only when several overlaps make it ambiguous", () => {

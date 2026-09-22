@@ -42,6 +42,13 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-payroll": ["payroll", "expense-reimbursement"],
   "rule-admin-pay": ["check-tampering", "payroll", "corruption"],
   "rule-admin-writeoff": ["financial-statement", "receivables-diversion"],
+  "rule-refund-adjust": ["skimming", "receivables-diversion", "expense-reimbursement"],
+  "rule-invoice-pay": ["billing-shell-vendor", "check-tampering"],
+  "rule-order-receive": ["billing-shell-vendor", "corruption"],
+  "rule-ach-release": ["check-tampering", "billing-shell-vendor"],
+  "rule-access-log": ["financial-statement", "check-tampering"],
+  "rule-access-export": ["corruption", "financial-statement"],
+  "rule-backup-access": ["financial-statement", "check-tampering"],
   // Refund custody plus the power to post the credit that justifies it.
   "rule-refund-adjust": ["refund-fraud", "receivables-diversion"],
   // Enter an invoice and pay it: a shell vendor needs nothing else, and a

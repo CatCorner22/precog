@@ -76,6 +76,7 @@ import {
   handoverDeadline,
   leaverLead,
   leavers,
+  canMarkLeft,
   markLeft,
   setLastDay,
   type HandoverItem,
@@ -438,6 +439,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   /** They have gone: kept on the team list as history, no longer counted for coverage. */
   const markAsLeft = (l: Leaver) => {
     const first = firstName(l.person.name);
+    if (!canMarkLeft(l.person, today)) {
+      toast.error(
+        `${first}'s last day is ${l.lastDay} — mark ${first} as left once it has passed.`,
+      );
+      return;
+    }
     if (
       !window.confirm(
         `Mark ${l.person.name} as left? ${first} stays in the history but no longer counts as cover for anything on the register${
@@ -448,7 +455,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       )
     )
       return;
-    setCustomPeople((current) => markLeft(current, l.person.id));
+    setCustomPeople((current) => markLeft(current, l.person.id, today));
     toast.success(`${first} marked as left.`);
   };
   const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
@@ -1662,8 +1669,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               {leaving.length === 0 && (
                 <p className="text-xs text-muted">
                   Nobody has given notice. When someone does, record the date here rather than
-                  removing them &mdash; the weekly plan, printed report and Pioneer will count down to
-                  it and chase the hand-over.
+                  removing them &mdash; the weekly plan, printed report and Pioneer will count down
+                  to it and chase the hand-over.
                 </p>
               )}
               {leaving.map((l) => (
@@ -2023,14 +2030,11 @@ function LeaverCard({
               onChange={(e) => onChangeDate(e.target.value)}
             />
           </label>
-          <Button
-            size="sm"
-            variant={gone ? "default" : "outline"}
-            className="h-6 px-2 text-xs"
-            onClick={onMarkLeft}
-          >
-            <UserMinus className="size-3.5" /> Mark as left
-          </Button>
+          {gone && (
+            <Button size="sm" className="h-6 px-2 text-xs" onClick={onMarkLeft}>
+              <UserMinus className="size-3.5" /> Mark as left
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"

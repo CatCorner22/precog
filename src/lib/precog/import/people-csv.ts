@@ -1,6 +1,7 @@
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
+import { isCalendarDate } from "../continuity/coverage";
 import { parseRows } from "./csv";
 
 export interface PeopleImportIssue {
@@ -25,6 +26,7 @@ export const PEOPLE_CSV_HEADER = [
   "role",
   "tenure_years",
   "active",
+  "last_day",
   "entitlements",
 ] as const;
 
@@ -33,6 +35,7 @@ const HEADER_ALIASES = {
   role: ["role", "title", "job title", "position"],
   tenure_years: ["tenure_years", "tenure", "years", "years of service", "years_employed"],
   active: ["active", "status", "employed"],
+  last_day: ["last_day", "last day", "leaving date", "leaving", "end date", "final day"],
   entitlements: ["entitlements", "permissions", "duties", "access", "rights"],
 } as const;
 
@@ -175,6 +178,20 @@ export function parsePeopleCsv(
       activeValue,
     );
 
+    // A file without the column keeps whatever last day the matched person
+    // already has; a blank cell in a file that has the column clears it.
+    const existing = existingByName.get(normalize(name));
+    let lastDay: string | undefined = existing?.lastDay;
+    if (columns.has("last_day")) {
+      const raw = (cells[columns.get("last_day")!] ?? "").trim();
+      if (!raw) lastDay = undefined;
+      else if (isCalendarDate(raw)) lastDay = raw;
+      else {
+        issues.push({ row: rowNumber, message: "Last day must be a date like 2026-10-14" });
+        lastDay = existing?.lastDay;
+      }
+    }
+
     const entitlementValue = columns.has("entitlements")
       ? (cells[columns.get("entitlements")!] ?? "")
       : "";
@@ -208,7 +225,6 @@ export function parsePeopleCsv(
       });
     }
 
-    const existing = existingByName.get(normalize(name));
     const baseId = existing && !usedIds.has(existing.id) ? existing.id : `p-${slug(name)}`;
     let id = baseId;
     let suffix = 2;
@@ -220,6 +236,7 @@ export function parsePeopleCsv(
       role: role.slice(0, 40),
       active,
       tenureYears,
+      ...(lastDay ? { lastDay } : {}),
       entitlements: entitlements.length ? entitlements : undefined,
     });
   });
@@ -252,6 +269,7 @@ export function peopleToCsv(people: readonly Person[]): string {
         person.role,
         person.tenureYears === undefined ? "" : String(person.tenureYears),
         person.active ? "true" : "false",
+        person.lastDay ?? "",
         (person.entitlements ?? []).join(";"),
       ]
         .map(escapeCsv)

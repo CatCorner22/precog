@@ -22,6 +22,7 @@ import {
   type DualReleasePolicy,
 } from "./controls/dual-release";
 import { INDUSTRIES, type IndustryId } from "./industry";
+import { isBusinessId } from "./profile-input";
 
 function isIndustryId(value: unknown): value is IndustryId {
   return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
@@ -371,7 +372,7 @@ export function normalizeProfile(
     savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
     mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
     mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
-    businessId: typeof parsed.businessId === "string" ? parsed.businessId : base.businessId,
+    businessId: isBusinessId(parsed.businessId) ? parsed.businessId : base.businessId,
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
   };
 }

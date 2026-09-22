@@ -4,6 +4,7 @@ import type { DecisionEntry } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
+  canMarkLeft,
   describeLeaver,
   handoverDeadline,
   leaverLead,
@@ -89,14 +90,17 @@ describe("leavers", () => {
     expect(maya.remaining.map((p) => p.id)).toEqual(["chris", "sam"]);
     expect(maya.unlogged).toBe(2);
     expect(maya.actions.map((a) => a.step)).toEqual(["cover", "document", "locate", "cover"]);
-    expect(maya.actions[0].text).toContain("Chris Diaz on \"pms\"");
-    expect(maya.actions[1].text).toContain("write down \"pms\"");
+    expect(maya.actions[0].text).toContain('Chris Diaz on "pms"');
+    expect(maya.actions[1].text).toContain('write down "pms"');
     expect(maya.actions[2].knowledgeIds).toEqual(["vendors"]);
     expect(maya.actions[3].text).toContain("Month-end close");
   });
 
   it("skips people who have already left, and people with no last day", () => {
-    const none = tpl(register.relations, people.map((p) => ({ ...p, lastDay: undefined })));
+    const none = tpl(
+      register.relations,
+      people.map((p) => ({ ...p, lastDay: undefined })),
+    );
     expect(leavers(none, [], "2026-10-02")).toEqual([]);
     expect(leavers(register, [], "2026-10-02").some((l) => l.person.id === "dee")).toBe(false);
   });
@@ -166,8 +170,89 @@ describe("leavers", () => {
     expect(withDay.find((p) => p.id === "chris")?.lastDay).toBe("2026-11-01");
     const cleared = setLastDay(withDay, "chris", null);
     expect("lastDay" in (cleared.find((p) => p.id === "chris") ?? {})).toBe(false);
-    const left = markLeft(people, "maya");
-    expect(left.find((p) => p.id === "maya")).toMatchObject({ active: false, lastDay: "2026-10-14" });
+    const left = markLeft(people, "maya", "2026-10-15");
+    expect(left.find((p) => p.id === "maya")).toMatchObject({
+      active: false,
+      lastDay: "2026-10-14",
+    });
     expect(left).toHaveLength(people.length);
+  });
+
+  it("refuses to mark someone as left before their last day has passed", () => {
+    expect(canMarkLeft(people[0], "2026-10-01")).toBe(false);
+    expect(canMarkLeft(people[0], "2026-10-14")).toBe(false);
+    expect(canMarkLeft(people[0], "2026-10-15")).toBe(true);
+    expect(canMarkLeft(people[1], "2026-10-15")).toBe(false);
+    expect(markLeft(people, "maya", "2026-10-14").find((p) => p.id === "maya")?.active).toBe(true);
+    expect(markLeft(people, "chris", "2026-10-15").find((p) => p.id === "chris")?.active).toBe(
+      true,
+    );
+  });
+
+  it("does not let two leavers count each other as cover for shared work", () => {
+    const team: Person[] = [
+      {
+        id: "maya",
+        name: "Maya Chen",
+        role: "Office manager",
+        active: true,
+        lastDay: "2026-10-14",
+      },
+      { id: "chris", name: "Chris Diaz", role: "Assistant", active: true, lastDay: "2026-10-30" },
+      { id: "sam", name: "Sam Roy", role: "Hygienist", active: true },
+    ];
+    const both = tpl(
+      [
+        { personId: "maya", knowledgeId: "billing", level: "proficient" },
+        { personId: "chris", knowledgeId: "billing", level: "proficient" },
+        { personId: "sam", knowledgeId: "billing", level: "basic" },
+        { personId: "chris", knowledgeId: "pms", level: "expert" },
+        { personId: "maya", knowledgeId: "pms", level: "basic" },
+      ],
+      team,
+    );
+    const out = leavers(both, [], "2026-10-01");
+    expect(out.map((l) => l.person.id)).toEqual(["maya", "chris"]);
+    const maya = out[0];
+    const chris = out[1];
+    // Maya goes first: Chris is still here on her last day, so billing continues for now.
+    expect(maya.shared.map((i) => i.id)).toEqual(["billing"]);
+    expect(maya.handover.map((h) => h.item.id)).toEqual([]);
+    // By Chris's last day Maya is gone too: billing must be handed to Sam, not "shared with Maya".
+    expect(chris.shared).toEqual([]);
+    expect(chris.handover.map((h) => h.item.id).sort()).toEqual(["billing", "pms"]);
+    expect(chris.handover.every((h) => h.successor?.id === "sam")).toBe(true);
+    expect(chris.remaining.map((p) => p.id)).toEqual(["sam"]);
+    // Only Chris's own work is on Chris's list; Maya's month-end close is not.
+    expect(chris.orphanedProcesses).toEqual([]);
+    expect(maya.orphanedProcesses).toEqual(["Month-end close"]);
+  });
+
+  it("puts shared work on both lists when two people leave the same day", () => {
+    const team: Person[] = [
+      {
+        id: "maya",
+        name: "Maya Chen",
+        role: "Office manager",
+        active: true,
+        lastDay: "2026-10-14",
+      },
+      { id: "chris", name: "Chris Diaz", role: "Assistant", active: true, lastDay: "2026-10-14" },
+      { id: "sam", name: "Sam Roy", role: "Hygienist", active: true },
+    ];
+    const both = tpl(
+      [
+        { personId: "maya", knowledgeId: "billing", level: "proficient" },
+        { personId: "chris", knowledgeId: "billing", level: "proficient" },
+      ],
+      team,
+    );
+    const out = leavers(both, [], "2026-10-01");
+    expect(out).toHaveLength(2);
+    for (const l of out) {
+      expect(l.shared).toEqual([]);
+      expect(l.handover.map((h) => h.item.id)).toEqual(["billing"]);
+      expect(l.handover[0].successor?.id).toBe("sam");
+    }
   });
 });

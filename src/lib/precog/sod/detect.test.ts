@@ -28,6 +28,24 @@ describe("buildAssignments", () => {
     const a = buildAssignments(tpl, { x1: ["collect_cash", "collect_cash"] });
     expect(a[0].entitlements).toEqual(["view_reports_only", "collect_cash"]);
   });
+
+  it("leaves people marked as left out of the live access map and its conflicts", () => {
+    const gone: Person = {
+      id: "x2",
+      name: "Former Clerk",
+      role: "Clerk",
+      active: false,
+      lastDay: "2020-01-01",
+      entitlements: ["create_vendor", "release_payment"],
+    };
+    const tpl: IndustryTemplate = {
+      ...oneClerk(["collect_cash"]),
+      people: [gone, ...oneClerk(["collect_cash"]).people],
+    };
+    expect(buildAssignments(tpl).map((x) => x.personId)).toEqual(["x1"]);
+    const report = detectSodConflicts(tpl);
+    expect(report.conflicts.some((c) => c.ruleId === "rule-vendor-create-pay")).toBe(false);
+  });
 });
 
 describe("detectSodConflicts", () => {

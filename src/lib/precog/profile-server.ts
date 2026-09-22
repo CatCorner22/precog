@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
+import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
 import {
   defaultProfile,
   normalizeCustomKnowledge,
@@ -92,15 +93,36 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       industry?: IndustryId;
       baseRevision?: number | null;
       today?: string;
-    }) => ({
-      profile: input.profile,
-      industry: input.industry ?? "dental",
-      baseRevision: input.baseRevision == null ? null : Number(input.baseRevision),
-      today: resolveClientDate(input.today),
-    }),
+    }) => {
+      const checked = validateProfileInput(input.profile);
+      const industry = input.industry ?? checked.profile.industry;
+      if (!isIndustryId(industry)) throw new Error("Unknown industry");
+      const baseRevision = input.baseRevision == null ? null : Number(input.baseRevision);
+      return {
+        ...checked,
+        industry,
+        baseRevision: Number.isFinite(baseRevision) ? baseRevision : null,
+        today: resolveClientDate(input.today),
+      };
+    },
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    const name = data.profile.practiceName.trim().slice(0, 80) || "My Business";
+    const { businessId } = data;
+    const existingRows = await sql<{
+      revision: number | string;
+      profile: PracticeProfile;
+      industry: string;
+      name: string;
+      updated_at: string;
+    }>`
+      select revision, profile, industry, name, updated_at
+      from businesses
+      where id = ${businessId} and user_id = ${context.userId}
+    `;
+    const existing = existingRows[0];
+    if (isStaleSave(existing ? Number(existing.revision) : null, data.baseRevision)) {
     const name = data.profile.practiceName.slice(0, 80);
     const businessId = data.profile.businessId ?? "biz_default";
     const profileJson = JSON.stringify(data.profile);
@@ -126,12 +148,35 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
+    const updatedRows = await sql<{ revision: number | string; updated_at: string }>`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+      values (
+        ${businessId},
+        ${context.userId},
+        ${name},
+        ${data.industry},
+        ${data.json}::jsonb,
+        1,
+        now()
+      )
+      on conflict (user_id, id) do update set
+        name = excluded.name,
+        industry = excluded.industry,
+        profile = excluded.profile,
+        revision = coalesce(businesses.revision, 0) + 1,
+        updated_at = now()
+      returning revision, updated_at
+    `;
+    const updated = updatedRows[0];
+    if (!updated) throw new Error("Unable to save business profile");
+
     await sql`
       insert into business_profiles (user_id, name, industry, profile, updated_at)
       values (
         ${context.userId},
         ${name},
         ${data.industry},
+        ${data.json}::jsonb,
         ${profileJson}::jsonb,
         now()
       )
@@ -223,10 +268,10 @@ export const listBusinesses = createServerFn({ method: "GET" })
 
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; today?: string }) => ({
-    id: String(input.id).slice(0, 64),
-    today: resolveClientDate(input.today),
-  }))
+  .validator((input: { id: string; today?: string }) => {
+    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
+    return { id: input.id, today: resolveClientDate(input.today) };
+  })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const rows = await sql<BusinessRow>`
@@ -245,7 +290,10 @@ export const loadBusiness = createServerFn({ method: "GET" })
 
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => ({ id: String(input.id).slice(0, 64) }))
+  .validator((input: { id: string }) => {
+    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
+    return { id: input.id };
+  })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await sql`delete from businesses where user_id = ${context.userId} and id = ${data.id}`;
