@@ -7,6 +7,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useTemplate } from "@/lib/precog/use-template";
+import { INDUSTRIES } from "@/lib/precog/industry";
 
 const DOMAINS: (PracticeProcessDomain | "all")[] = [
   "all",
@@ -20,6 +22,8 @@ const DOMAINS: (PracticeProcessDomain | "all")[] = [
 ];
 
 export function OperatingBlueprint() {
+  const tpl = useTemplate();
+  const industryLabel = INDUSTRIES.find((i) => i.id === tpl.id)?.label ?? tpl.id;
   const [domain, setDomain] = useState<(typeof DOMAINS)[number]>("all");
   const [openId, setOpenId] = useState(PRACTICE_PROCESS_BLUEPRINTS[0].id);
   const filtered = useMemo(
@@ -29,6 +33,21 @@ export function OperatingBlueprint() {
       ),
     [domain],
   );
+
+  if (tpl.id !== "dental") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>No blueprint written for {industryLabel} yet</CardTitle>
+          <CardDescription>
+            The process-and-control blueprint on this tab was written for a dental practice, so it
+            is not shown for your industry. The duty-conflict, continuity, and case-evidence tabs
+            already use your industry&apos;s template.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">

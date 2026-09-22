@@ -50,6 +50,8 @@ export interface ThresholdException {
   createdAt: string;
   /** Residual risk note when waive/raise is used */
   residualNote?: string;
+  /** Seeded with the demo, not entered by the owner; shown with a "Sample" badge. */
+  sample?: boolean;
 }
 
 export interface DualReleaseRule {
@@ -290,6 +292,7 @@ export function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
   return [
     {
       id: "ex-vendor-recurring",
+      sample: true,
       label: copy.dualReleaseSeed.exceptionLabel,
       channels: ["ach"],
       action: "raise_threshold",
@@ -314,6 +317,7 @@ export function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
     },
     {
       id: "ex-temp-om-writeoff",
+      sample: true,
       label: "Temp OM write-off raise (vacation cover)",
       channels: ["writeoff"],
       action: "raise_threshold",

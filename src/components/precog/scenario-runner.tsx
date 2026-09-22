@@ -183,7 +183,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <Outcome
                   label="Assumed time to impact"
-                  value={`${result.timelineDays.p50}d`}
+                  value={`~${result.timelineDays.p50}d`}
                   sub={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}d`}
                 />
                 <Outcome
@@ -279,7 +279,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <Stat
                     label="Assumed time to impact"
-                    value={`${result.timelineDays.p50} days`}
+                    value={`about ${result.timelineDays.p50} days`}
                     hint={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High} days`}
                   />
                   <Stat

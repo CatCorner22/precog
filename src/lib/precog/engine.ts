@@ -98,13 +98,13 @@ function fraudMultiplier(tpl: IndustryTemplate, scenario: ScenarioTemplate): num
     scenario.id.includes("vendor") ||
     scenario.controlId?.includes("sod");
   if (!fraudRelated) return 1;
-  // Small organizations carry a higher median loss than the study population
-  // as a whole ($126,000 against $104,000), so a fraud-related scenario's
-  // assumed loss is scaled by that observed ratio. Applying the square root of
-  // the same ratio to the timeline (below) is this app's assumption, not the
-  // study's. The previous multiplier was derived from an invented annual
-  // embezzlement rate and had no source behind it.
-  return crimeFraudStats.medianLossSmallOrgUsd / crimeFraudStats.medianLossAllUsd;
+  // The ACFE medians are shown beside a fraud scenario as reference figures
+  // (see crimeModifiers below). They are medians of two sub-populations of
+  // investigated frauds, and the ratio between them is not a multiplier for
+  // any one business's assumed loss, so no scaling is applied. Returning a
+  // value above 1 only marks the scenario as fraud-related for the caller.
+  void crimeFraudStats;
+  return 1;
 }
 
 export function runPrecogScenario(
@@ -196,9 +196,14 @@ export function runPrecogScenario(
   }
 
   const crimeModifiers: string[] = [];
-  if (fMult > 1) {
+  const isFraudScenario =
+    scenario.id.includes("cash") ||
+    scenario.id.includes("writeoff") ||
+    scenario.id.includes("vendor") ||
+    Boolean(scenario.controlId?.includes("sod"));
+  if (isFraudScenario) {
     crimeModifiers.push(
-      `Small organizations carry the higher median loss: $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
+      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
     );
     crimeModifiers.push(
       `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is more than $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,

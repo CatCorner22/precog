@@ -77,11 +77,11 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   deductible: 5000,
   policyLimit: 100000,
   coinsurancePct: 0,
-  discountCamerasPct: 5,
-  discountDualControlPct: 8,
-  discountBankRecPct: 5,
-  discountAlarmPct: 3,
-  discountBondedStaffPct: 4,
+  discountCamerasPct: 0,
+  discountDualControlPct: 0,
+  discountBankRecPct: 0,
+  discountAlarmPct: 0,
+  discountBondedStaffPct: 0,
   maxDiscountPct: 25,
   hasSecurityCameras: false,
   hasDualControl: false,
@@ -160,10 +160,11 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountCamerasPct",
-    label: "Insurer discount: cameras",
+    label: "Credit from your quote: cameras",
     category: "insurance",
     kind: "percent",
-    description: "Typical carrier credit if cameras are in place (illustrative).",
+    description:
+      "The credit your own carrier quoted for cameras, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect — only if cameras are actually installed.",
     severityEffect: "Reduces premium cost-of-risk.",
     min: 0,
@@ -184,7 +185,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountDualControlPct",
-    label: "Insurer discount: dual control",
+    label: "Credit from your quote: dual control",
     category: "insurance",
     kind: "percent",
     description: "Illustrative premium credit for dual signature / dual release.",
@@ -208,7 +209,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountBankRecPct",
-    label: "Insurer discount: bank rec / CPA",
+    label: "Credit from your quote: bank rec / CPA",
     category: "insurance",
     kind: "percent",
     description: "Credit for independent recon or external bookkeeping review.",
@@ -232,7 +233,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountAlarmPct",
-    label: "Insurer discount: alarm",
+    label: "Credit from your quote: alarm",
     category: "insurance",
     kind: "percent",
     description: "Illustrative alarm credit.",
@@ -256,7 +257,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountBondedStaffPct",
-    label: "Insurer discount: bonded staff",
+    label: "Credit from your quote: bonded staff",
     category: "insurance",
     kind: "percent",
     description: "Illustrative credit for bonding / screening program.",
@@ -384,7 +385,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountCamerasPct,
       active: v.hasSecurityCameras,
       reason: v.hasSecurityCameras
-        ? "Cameras present — carrier credit applied."
+        ? "Cameras present — the credit you entered is applied."
         : "No cameras — credit not earned.",
     },
     {
@@ -393,7 +394,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountDualControlPct,
       active: v.hasDualControl,
       reason: v.hasDualControl
-        ? "Dual control present — carrier credit applied."
+        ? "Dual control present — the credit you entered is applied."
         : "No dual control — credit not earned.",
     },
     {
@@ -402,7 +403,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountBankRecPct,
       active: v.hasIndependentBankRec,
       reason: v.hasIndependentBankRec
-        ? "Independent recon present — carrier credit applied."
+        ? "Independent reconciliation present — the credit you entered is applied."
         : "No independent recon — credit not earned.",
     },
     {
@@ -411,7 +412,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountAlarmPct,
       active: v.hasAlarmAccess,
       reason: v.hasAlarmAccess
-        ? "Alarm/access present — carrier credit applied."
+        ? "Alarm/access present — the credit you entered is applied."
         : "No alarm credit.",
     },
     {
@@ -420,7 +421,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountBondedStaffPct,
       active: v.hasBondedCashHandlers,
       reason: v.hasBondedCashHandlers
-        ? "Bonding/screening present — carrier credit applied."
+        ? "Bonding/screening present — the credit you entered is applied."
         : "No bonding credit.",
     },
   ];

@@ -152,12 +152,33 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   ],
   Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
   "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
-  "Insurance Coordinator": ["submit_claims", "post_adjustments", "post_payments", "view_reports_only"],
-  Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile", "enter_payroll", "view_reports_only"],
+  "Insurance Coordinator": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "view_reports_only",
+  ],
+  Bookkeeper: [
+    "enter_invoices",
+    "post_payments",
+    "bank_reconcile",
+    "enter_payroll",
+    "view_reports_only",
+  ],
   "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
   "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
-  "Procurement Coordinator": ["order_supplies", "receive_goods", "enter_invoices", "view_reports_only"],
-  "IT Administrator": ["pms_admin_roles", "manage_user_access", "manage_backups", "view_reports_only"],
+  "Procurement Coordinator": [
+    "order_supplies",
+    "receive_goods",
+    "enter_invoices",
+    "view_reports_only",
+  ],
+  "IT Administrator": [
+    "pms_admin_roles",
+    "manage_user_access",
+    "manage_backups",
+    "view_reports_only",
+  ],
   "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
   "External Billing Service": [
     "submit_claims",
@@ -170,9 +191,10 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
 };
 
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
-  ([role, entitlements]) => ({ role, entitlements }),
-);
+export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
+  role,
+  entitlements,
+}));
 
 /**
  * Plain wording for the duty families.
@@ -390,11 +412,17 @@ export function detectSodConflicts(
 ): SodDetectionReport {
   const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
   const staff = isIndustryTemplate(tplOrStaff)
-    ? (isSodDetectionOptions(staffOrOptions) ? undefined : staffOrOptions)
+    ? isSodDetectionOptions(staffOrOptions)
+      ? undefined
+      : staffOrOptions
     : tplOrStaff;
   const options = isIndustryTemplate(tplOrStaff)
-    ? (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions)
-    : (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions);
+    ? isSodDetectionOptions(staffOrOptions)
+      ? staffOrOptions
+      : maybeOptions
+    : isSodDetectionOptions(staffOrOptions)
+      ? staffOrOptions
+      : maybeOptions;
 
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();

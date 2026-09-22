@@ -351,7 +351,7 @@ export function ScenarioCompare({
                     />
                     <Metric
                       label="Assumed time to impact"
-                      value={`${col.result.timelineDays.p50} days`}
+                      value={`about ${col.result.timelineDays.p50} days`}
                       sub={`assumed range ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High}d`}
                     />
                     {!isBase && d && (
@@ -419,7 +419,7 @@ export function ScenarioCompare({
                         </td>
                         <td className="py-2.5 pr-3 tabular">{formatUsd(retained)}</td>
                         <td className="py-2.5 pr-3 tabular">{formatUsd(cor)}</td>
-                        <td className="py-2.5 pr-3 tabular">{c.result.timelineDays.p50}d</td>
+                        <td className="py-2.5 pr-3 tabular">~{c.result.timelineDays.p50}d</td>
                         <td
                           className={cn(
                             "py-2.5 tabular",
