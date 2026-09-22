@@ -148,7 +148,7 @@ export function formatRetrievalForPrompt(hits: RetrievalHit[]): string {
   return hits
     .map(
       (h) =>
-        `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text}`,
+        `[${h.chunk.id} · score ${h.score.toFixed(3)} · ${h.chunk.domain}] ${h.chunk.title}: ${h.chunk.text} Source: ${h.chunk.source}${h.chunk.sourceUrl ? ` (${h.chunk.sourceUrl})` : ""}`,
     )
     .join("\n\n");
 }
