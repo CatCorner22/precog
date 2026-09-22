@@ -3,20 +3,7 @@ import { toast } from "sonner";
 import { Download, Trash2 } from "lucide-react";
 import { deleteAccount, exportAccountData } from "@/lib/precog/account-server";
 import { signOut } from "@/lib/auth/client";
-
-/** Clears every local copy this app keeps, so a deleted account leaves nothing behind on the device. */
-function clearLocalCopies() {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const key = window.localStorage.key(i);
-      if (key && key.startsWith("precog.")) keys.push(key);
-    }
-    for (const key of keys) window.localStorage.removeItem(key);
-  } catch {
-    /* storage unavailable: nothing to clear */
-  }
-}
+import { clearLocalCopies } from "@/lib/precog/local-data";
 
 /** Export and delete controls for the signed-in account. */
 export function AccountMenu() {

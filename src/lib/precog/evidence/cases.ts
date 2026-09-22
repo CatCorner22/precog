@@ -369,7 +369,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 36,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "terminated-staff-vs-payroll",
@@ -1030,7 +1030,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 172,
     detection: "unknown",
     resolvedYear: 2013,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "payee-account-not-an-employee",
@@ -1200,7 +1200,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-payroll", "rule-je-rec", "rule-admin-pay", "rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1566,7 +1566,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 25,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-payroll", "rule-vendor-create-pay", "rule-invoice-pay"],
+    sodRuleIds: [
+      "rule-payroll",
+      "rule-payroll-master-run",
+      "rule-vendor-create-pay",
+      "rule-invoice-pay",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",

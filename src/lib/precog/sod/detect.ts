@@ -601,7 +601,10 @@ export function detectSodConflicts(
     family * 2 +
     openWithoutAcceptance * 1.5 -
     dualReleaseMitigated * 4;
-  const segregationHealth = Math.max(5, Math.min(100, Math.round(100 - pressure)));
+  // Linear down to 50, then a decay that never hits a floor: every demo team
+  // and most real small offices carry pressure above 100, and a fixed floor
+  // (formerly 5) hid the movement when an owner fixed a conflict.
+  const segregationHealth = segregationHealthIndex(pressure);
 
   const recommendations: string[] = [];
   if (critical > 0) {
@@ -663,6 +666,18 @@ export function detectSodConflicts(
     },
     recommendations,
   };
+}
+
+/**
+ * Turns conflict pressure into the 0–100 index. Pressure at or under 50 maps
+ * linearly (100 − pressure) so a lightly loaded team reads the same as before;
+ * above 50 the index decays by half every 35 points of pressure, so a team at
+ * 140 still moves visibly when one critical conflict (14 points) is removed.
+ */
+export function segregationHealthIndex(pressure: number): number {
+  if (pressure <= 0) return 100;
+  if (pressure <= 50) return Math.round(100 - pressure);
+  return Math.max(1, Math.round(50 * Math.pow(0.5, (pressure - 50) / 35)));
 }
 
 export function conflictMatrixForPerson(

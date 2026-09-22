@@ -3,7 +3,13 @@ import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { CONFLICT_RULES } from "./conflict-rules";
-import { buildAssignments, detectSodConflicts, dropInactiveAssignments } from "./detect";
+import {
+  buildAssignments,
+  detectSodConflicts,
+  dropInactiveAssignments,
+  ROLE_TEMPLATES,
+  segregationHealthIndex,
+} from "./detect";
 
 const dental = getBaseTemplate("dental");
 
@@ -167,6 +173,42 @@ describe("detectSodConflicts", () => {
     const b = detectSodConflicts(oneClerk(["sign_checks", "bank_reconcile"]));
     expect(b.conflicts.map((c) => c.ruleId)).toEqual(["rule-sign-rec"]);
     expect(b.conflicts[0].severity).toBe("critical");
+  });
+
+  it("flags journal entries with reconciliation, and employee-record changes with running payroll", () => {
+    const a = detectSodConflicts(oneClerk(["post_journal_entries", "bank_reconcile"]));
+    expect(a.conflicts.map((c) => c.ruleId)).toEqual(["rule-je-rec"]);
+    expect(a.conflicts[0].severity).toBe("critical");
+    const b = detectSodConflicts(oneClerk(["edit_payroll_master", "enter_payroll"]));
+    expect(b.conflicts.map((c) => c.ruleId)).toEqual(["rule-payroll-master-run"]);
+    expect(b.conflicts[0].severity).toBe("high");
+  });
+
+  it("moves the health index when a heavily loaded team removes one conflict", () => {
+    const before = detectSodConflicts(dental).summary.segregationHealth;
+    const bookkeeperFreed = {
+      ...dental,
+      people: dental.people.map((p) =>
+        p.role === "Office Manager"
+          ? {
+              ...p,
+              entitlements: (ROLE_TEMPLATES[p.role] ?? []).filter((e) => e !== "release_payment"),
+            }
+          : p,
+      ),
+    };
+    const after = detectSodConflicts(bookkeeperFreed).summary.segregationHealth;
+    expect(before).toBeGreaterThan(5);
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("maps pressure to a monotone index with no floor", () => {
+    expect(segregationHealthIndex(0)).toBe(100);
+    expect(segregationHealthIndex(20)).toBe(80);
+    expect(segregationHealthIndex(50)).toBe(50);
+    const series = [60, 100, 140, 200, 400].map(segregationHealthIndex);
+    for (let i = 1; i < series.length; i += 1) expect(series[i]).toBeLessThan(series[i - 1]);
+    expect(segregationHealthIndex(140) - segregationHealthIndex(155)).toBeGreaterThanOrEqual(1);
   });
 
   it("reports the sample dental team's conflicts deterministically", () => {

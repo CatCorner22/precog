@@ -35,6 +35,10 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
   // Sign the check and reconcile the account it clears through.
   "rule-sign-rec": ["check-tampering", "financial-statement"],
+  // Post the entry that makes a reconciliation tie around the missing money.
+  "rule-je-rec": ["check-tampering", "financial-statement", "cash-larceny"],
+  // Put a name or a bank account on payroll and run the payroll that pays it.
+  "rule-payroll-master-run": ["payroll"],
   "rule-custody-rec": ["skimming", "cash-larceny", "receivables-diversion"],
   "rule-collect-post": ["skimming", "cash-larceny"],
   "rule-deposit-post": ["receivables-diversion", "skimming"],

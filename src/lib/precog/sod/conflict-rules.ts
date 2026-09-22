@@ -22,6 +22,8 @@ export type EntitlementId =
   | "release_payment"
   | "approve_payroll"
   | "enter_payroll"
+  | "edit_payroll_master"
+  | "post_journal_entries"
   | "pms_admin_roles"
   | "issue_refunds"
   | "change_fee_schedule"
@@ -141,6 +143,20 @@ export const ENTITLEMENTS: Entitlement[] = [
     label: "Approve payroll",
     family: "authorization",
     processIds: ["proc-payroll"],
+    riskWeight: 4,
+  },
+  {
+    id: "edit_payroll_master",
+    label: "Add employees or change pay rates and bank details",
+    family: "master_data",
+    processIds: ["proc-payroll"],
+    riskWeight: 4,
+  },
+  {
+    id: "post_journal_entries",
+    label: "Post manual journal entries",
+    family: "recording",
+    processIds: ["proc-cash", "proc-ar"],
     riskWeight: 4,
   },
   {
@@ -366,6 +382,35 @@ export const CONFLICT_RULES: ConflictRule[] = [
     ],
     linkedScenarioId: "sc-cash-sod-failure",
     linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-je-rec",
+    a: "post_journal_entries",
+    b: "bank_reconcile",
+    severity: "critical",
+    title: "Manual journal entries + bank reconciliation",
+    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; a Caseyville, Illinois office manager covered five schemes the same way. Both cases are in the library below.",
+    fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
+    compensatingDefaults: [
+      "Owner or outside accountant reviews every manual journal entry each month with its support",
+      "Owner opens the bank statement first",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-payroll-master-run",
+    a: "edit_payroll_master",
+    b: "enter_payroll",
+    severity: "high",
+    title: "Change employee records + run payroll",
+    why: "Whoever can add a name, change a pay rate, or change a bank account and also run the payroll can pay anyone they invent. An Idaho district manager reactivated departed employees' records and entered their hours for three years; a St. Louis warehouse supervisor kept a person who never worked there on payroll for six and a half years. Both cases are in the library below.",
+    fraudPath:
+      "Reactivate a former employee, point the deposit at your own account, enter the hours",
+    compensatingDefaults: [
+      "Owner reads the new-hire, rate-change, and bank-change report every payroll",
+      "Owner compares the people paid against the people scheduled",
+    ],
+    linkedControlId: "c-payroll",
   },
   {
     id: "rule-custody-rec",

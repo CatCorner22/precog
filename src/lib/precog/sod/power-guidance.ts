@@ -63,6 +63,16 @@ export const POWER_GUIDANCE: Record<EntitlementId, PowerGuidance> = {
     evidence: "Payroll register and documented variance review",
     boundary: "Should be independent of employee master changes and payroll entry.",
   },
+  edit_payroll_master: {
+    purpose: "Add or remove employees and change pay rates, deductions, and deposit accounts.",
+    evidence: "Payroll change report signed by someone who does not run payroll",
+    boundary: "Should not enter hours or run the payroll the change feeds.",
+  },
+  post_journal_entries: {
+    purpose: "Post manual entries that move balances outside the normal transaction flow.",
+    evidence: "Entry log with support attached and a reviewer's initials",
+    boundary: "Should not reconcile the bank account the entries adjust.",
+  },
   enter_payroll: {
     purpose: "Enter hours, earnings, deductions, and approved exceptions.",
     evidence: "Input report tied to time and authorization records",
