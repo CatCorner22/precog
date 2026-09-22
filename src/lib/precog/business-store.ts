@@ -100,3 +100,91 @@ export async function saveBusinessRevision<TProfile = unknown>(
     },
   };
 }
+
+/**
+ * `business_profiles` is only the "which business is active" pointer (one row
+ * per user, kept for clients that predate the portfolio). The revision-checked
+ * `businesses` row is the authoritative copy, so it is written first and read
+ * back preferentially: if the pointer write fails or lags, the next load still
+ * sees the newest saved profile rather than resurrecting a stale one.
+ */
+export async function setActiveBusiness(
+  sql: Sql,
+  input: Omit<BusinessSaveInput, "baseRevision">,
+): Promise<void> {
+  await sql`
+    insert into business_profiles (user_id, name, industry, profile, updated_at)
+    values (
+      ${input.userId},
+      ${input.name},
+      ${input.industry},
+      ${input.profileJson}::jsonb,
+      now()
+    )
+    on conflict (user_id) do update set
+      name = excluded.name,
+      industry = excluded.industry,
+      profile = excluded.profile,
+      updated_at = now()
+  `;
+}
+
+export interface ActiveBusiness<TProfile = unknown> {
+  businessId: string;
+  name: string;
+  industry: string;
+  profile: TProfile;
+  updated_at: string;
+  /** null when only the legacy pointer row exists (no revision-tracked copy yet). */
+  revision: number | null;
+}
+
+export async function loadActiveBusiness<
+  TProfile extends { businessId?: string } = { businessId?: string },
+>(sql: Sql, userId: string): Promise<ActiveBusiness<TProfile> | null> {
+  const pointer = await sql<{
+    name: string;
+    industry: string;
+    profile: TProfile;
+    updated_at: string;
+  }>`
+    select name, industry, profile, updated_at
+    from business_profiles
+    where user_id = ${userId}
+  `;
+  const active = pointer[0];
+  if (!active) return null;
+  const businessId =
+    typeof active.profile.businessId === "string" ? active.profile.businessId : "biz_default";
+
+  const rows = await sql<{
+    name: string;
+    industry: string;
+    profile: TProfile;
+    updated_at: string;
+    revision: number | string;
+  }>`
+    select name, industry, profile, updated_at, revision
+    from businesses
+    where user_id = ${userId} and id = ${businessId}
+  `;
+  const authoritative = rows[0];
+  if (authoritative) {
+    return {
+      businessId,
+      name: authoritative.name,
+      industry: authoritative.industry,
+      profile: authoritative.profile,
+      updated_at: String(authoritative.updated_at),
+      revision: Number(authoritative.revision),
+    };
+  }
+  return {
+    businessId,
+    name: active.name,
+    industry: active.industry,
+    profile: active.profile,
+    updated_at: String(active.updated_at),
+    revision: null,
+  };
+}

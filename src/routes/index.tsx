@@ -1,6 +1,15 @@
 import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
-import { lazy, Suspense, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -61,6 +70,11 @@ import { useHydrated } from "@/lib/use-hydrated";
 
 export const Route = createFileRoute("/")({
   component: HomeGate,
+  // The open tab lives in the URL (?tab=map) so refresh, back/forward, and
+  // shared links land on the same view instead of always resetting to Start.
+  validateSearch: (search: Record<string, unknown>): { tab?: TabId } => ({
+    tab: isTabId(search.tab) && search.tab !== "start" ? search.tab : undefined,
+  }),
 });
 
 const ProcessMap = lazy(() =>
@@ -164,6 +178,64 @@ function HomeShell() {
   );
 }
 
+/**
+ * Horizontal tab strip that tells the user there is more: a fade on whichever
+ * edge still has hidden tabs, and the active tab scrolled into view so the
+ * tabs past the viewport (12 through 15 on a laptop) are discoverable.
+ */
+function TabStrip({ activeId, children }: { activeId: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const active = ref.current?.querySelector<HTMLElement>("[data-active]");
+    active?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [activeId]);
+
+  return (
+    <div className="relative">
+      <nav
+        ref={ref}
+        aria-label="Sections"
+        className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
+      >
+        {children}
+      </nav>
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-bg to-transparent transition-opacity",
+          edges.left ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent transition-opacity",
+          edges.right ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </div>
+  );
+}
+
 function TabLoading() {
   return (
     <Card>
@@ -188,6 +260,28 @@ type TabId =
   | "snapshots"
   | "blueprint"
   | "value";
+
+const TAB_IDS: readonly TabId[] = [
+  "start",
+  "command",
+  "map",
+  "pioneer",
+  "intel",
+  "residual",
+  "coso",
+  "layers",
+  "knowledge",
+  "precog",
+  "sod",
+  "journal",
+  "snapshots",
+  "blueprint",
+  "value",
+];
+
+function isTabId(value: unknown): value is TabId {
+  return typeof value === "string" && (TAB_IDS as readonly string[]).includes(value);
+}
 
 /**
  * Every tab carries both wordings. Plain is what a business owner reads by
@@ -215,7 +309,18 @@ const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] =
 
 function Home() {
   const tpl = useTemplate();
-  const [tab, setTab] = useState<TabId>("start");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const tab: TabId = search.tab ?? "start";
+  const setTab = useCallback(
+    (next: TabId) => {
+      void navigate({
+        search: (prev) => ({ ...prev, tab: next === "start" ? undefined : next }),
+        resetScroll: false,
+      });
+    },
+    [navigate],
+  );
   const [layer, setLayer] = useState<MatrixLayerId>("control");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
@@ -314,13 +419,7 @@ function Home() {
       setTab("intel");
       return;
     }
-    if (
-      ["residual", "coso", "sod", "journal", "snapshots", "blueprint", "value", "command", "pioneer", "layers", "start"].includes(
-        tabName,
-      )
-    ) {
-      setTab(tabName as TabId);
-    }
+    if (isTabId(tabName)) setTab(tabName);
   }
 
   return (
@@ -376,7 +475,7 @@ function Home() {
             )}
           </div>
         </div>
-        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
+        <TabStrip activeId={tab}>
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
@@ -385,6 +484,9 @@ function Home() {
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
+                aria-current={active ? "page" : undefined}
+                aria-label={say(t.label, t.tactical)}
+                data-active={active || undefined}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   active
@@ -402,7 +504,7 @@ function Home() {
               </button>
             );
           })}
-        </nav>
+        </TabStrip>
       </header>
       <SaveConflictBanner />
 

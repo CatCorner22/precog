@@ -9,31 +9,16 @@ import {
   normalizePlannedAbsences,
   type PracticeProfile,
 } from "./practice-profile";
-import { saveBusinessRevision } from "./business-store";
+import { loadActiveBusiness, saveBusinessRevision, setActiveBusiness } from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
-
-type ProfileRow = {
-  name: string;
-  industry: string;
-  profile: PracticeProfile;
-  updated_at: string;
-};
-
-type RevisionRow = {
-  revision: number | string;
-};
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input?: { today?: string }) => ({ today: resolveClientDate(input?.today) }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<ProfileRow>`
-      select name, industry, profile, updated_at
-      from business_profiles
-      where user_id = ${context.userId}
-    `;
-    if (rows.length === 0) {
+    const active = await loadActiveBusiness<PracticeProfile>(sql, context.userId);
+    if (!active) {
       return {
         found: false as const,
         profile: null,
@@ -41,47 +26,12 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
         revision: null,
       };
     }
-    const row = rows[0];
-    const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
-    const merged: PracticeProfile = {
-      ...base,
-      ...row.profile,
-      practiceName: row.name || row.profile.practiceName || base.practiceName,
-      staff: { ...base.staff, ...row.profile.staff },
-      riskVariables: { ...base.riskVariables, ...row.profile.riskVariables },
-      dualRelease: { ...base.dualRelease, ...row.profile.dualRelease },
-      decisions: Array.isArray(row.profile.decisions) ? row.profile.decisions : [],
-      customProcesses: Array.isArray(row.profile.customProcesses)
-        ? row.profile.customProcesses
-        : null,
-      customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-      customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge, data.today),
-      customRelations: Array.isArray(row.profile.customRelations)
-        ? row.profile.customRelations
-        : null,
-      plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
-      mapLayout: row.profile.mapLayout ?? {},
-      savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
-        ? row.profile.savedProcessBlocks
-        : [],
-      mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
-        ? row.profile.mapHealthHistory
-        : [],
-      mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
-      businessId:
-        typeof row.profile.businessId === "string" ? row.profile.businessId : "biz_default",
-    };
-    const revisionRows = await sql<RevisionRow>`
-      select revision
-      from businesses
-      where id = ${merged.businessId ?? "biz_default"} and user_id = ${context.userId}
-    `;
     return {
       found: true as const,
-      profile: merged,
-      industry: (row.industry as IndustryId) || "dental",
-      updatedAt: row.updated_at,
-      revision: revisionRows[0] ? Number(revisionRows[0].revision) : null,
+      profile: { ...mergeProfile(active, data.today), businessId: active.businessId },
+      industry: (active.industry as IndustryId) || "dental",
+      updatedAt: active.updated_at,
+      revision: active.revision,
     };
   });
 
@@ -132,21 +82,16 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
-    await sql`
-      insert into business_profiles (user_id, name, industry, profile, updated_at)
-      values (
-        ${context.userId},
-        ${name},
-        ${data.industry},
-        ${profileJson}::jsonb,
-        now()
-      )
-      on conflict (user_id) do update set
-        name = excluded.name,
-        industry = excluded.industry,
-        profile = excluded.profile,
-        updated_at = now()
-    `;
+    // Second write is only the active-business pointer; loads read the
+    // revision-checked row above first, so a failure here cannot resurrect a
+    // stale profile (see loadActiveBusiness).
+    await setActiveBusiness(sql, {
+      userId: context.userId,
+      businessId,
+      name,
+      industry: data.industry,
+      profileJson,
+    });
     return {
       ok: true as const,
       revision: saved.revision,

@@ -7,6 +7,7 @@ const LABEL: Record<SyncStatus, string> = {
   loading: "Syncing…",
   synced: "Saved to account",
   local: "Saved on this device",
+  "local-error": "Not saved — this device's storage is full",
   error: "Sync failed — saved locally",
   conflict: "Edited elsewhere — not saved",
 };
@@ -21,7 +22,7 @@ export function SyncStatusBadge({ className }: { className?: string }) {
       ? Loader2
       : syncStatus === "synced"
         ? Cloud
-        : syncStatus === "conflict"
+        : syncStatus === "conflict" || syncStatus === "local-error"
           ? CloudAlert
           : CloudOff;
 
@@ -33,6 +34,7 @@ export function SyncStatusBadge({ className }: { className?: string }) {
         syncStatus === "local" && "border-border bg-elevated text-muted",
         syncStatus === "loading" && "border-border bg-elevated text-muted",
         syncStatus === "error" && "border-warn/40 bg-warn/10 text-warn",
+        syncStatus === "local-error" && "border-danger/40 bg-danger/10 text-danger",
         syncStatus === "conflict" && "border-danger/40 bg-danger/10 text-danger",
         className,
       )}

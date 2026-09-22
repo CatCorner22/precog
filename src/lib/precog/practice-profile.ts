@@ -241,8 +241,33 @@ export function removePortfolioEntry(id: string): void {
   if (typeof window === "undefined") return;
   const all = loadPortfolio();
   delete all[id];
-  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
+  try {
+    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
+  } catch {
+    // quota — a stale portfolio entry is harmless; it is re-derived on next save
+  }
 }
+
+/**
+ * True when this profile holds something the user made, as opposed to an
+ * untouched industry demo: their own processes, people, register, decisions,
+ * saved versions, or a business name that is not one of the demo names.
+ */
+export function hasUserWork(profile: PracticeProfile): boolean {
+  return Boolean(
+    profile.customProcesses ||
+    profile.customPeople ||
+    profile.customKnowledge?.length ||
+    profile.customRelations?.length ||
+    profile.decisions.length ||
+    profile.mapVersions?.length ||
+    profile.savedProcessBlocks?.length ||
+    Object.keys(profile.mapLayout ?? {}).length ||
+    !DEMO_PRACTICE_NAMES.has(profile.practiceName),
+  );
+}
+
+const DEMO_PRACTICE_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 export interface MapVersion {
   id: string;
@@ -313,7 +338,10 @@ export function normalizeProfile(
   const staff = { ...base.staff, ...parsed.staff };
   const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
   const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
-  const customKnowledge = normalizeCustomKnowledge(parsed.customKnowledge, localDateKey(new Date()));
+  const customKnowledge = normalizeCustomKnowledge(
+    parsed.customKnowledge,
+    localDateKey(new Date()),
+  );
   const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
@@ -335,19 +363,22 @@ export function normalizeProfile(
   const decisions = Array.isArray(parsed.decisions)
     ? parsed.decisions.slice(0, 100).flatMap((entry) => {
         if (!entry || typeof entry !== "object" || !validKinds.has(entry.kind)) return [];
-        return [{
-          ...entry,
-          id: String(entry.id ?? "").slice(0, 80),
-          createdAt: String(entry.createdAt ?? "").slice(0, 40),
-          subject: String(entry.subject ?? "").slice(0, 200),
-          kind: entry.kind,
-          note: String(entry.note ?? "").slice(0, 2_000),
-          reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
-          residualAtDecision:
-            Number.isFinite(entry.residualAtDecision) ? entry.residualAtDecision : undefined,
-          linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
-          linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
-        }];
+        return [
+          {
+            ...entry,
+            id: String(entry.id ?? "").slice(0, 80),
+            createdAt: String(entry.createdAt ?? "").slice(0, 40),
+            subject: String(entry.subject ?? "").slice(0, 200),
+            kind: entry.kind,
+            note: String(entry.note ?? "").slice(0, 2_000),
+            reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
+            residualAtDecision: Number.isFinite(entry.residualAtDecision)
+              ? entry.residualAtDecision
+              : undefined,
+            linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
+            linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
+          },
+        ];
       })
     : [];
   return {
@@ -377,10 +408,20 @@ export function normalizeProfile(
   };
 }
 
-export function saveProfile(profile: PracticeProfile): void {
-  if (typeof window === "undefined") return;
+/**
+ * Write the active profile to this device. Returns false when the browser
+ * refused the write (private mode, storage quota); callers surface that instead
+ * of letting the exception unwind through React and blank the page.
+ */
+export function saveProfile(profile: PracticeProfile): boolean {
+  if (typeof window === "undefined") return false;
   const next = { ...profile, updatedAt: new Date().toISOString() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function makeDecisionId(): string {

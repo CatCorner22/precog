@@ -38,7 +38,13 @@ version or keep the local version and overwrite it. The revision check and the w
 statement server-side (`src/lib/precog/business-store.ts`), so two clients racing on the same
 revision cannot both succeed. Businesses are keyed per user (`0007_businesses_per_user_key.sql`),
 so two accounts that both hold the legacy `biz_default` id no longer collide. Both migrations run
-automatically through the existing migration runner.
+automatically through the existing migration runner. The same prompt appears when you sign in on a device that already holds edits to the
+business your account has, and work done signed-out under a separate business is added to
+the account rather than replaced. Switching businesses trusts the local copy only when it
+was built on the revision the server still holds. A pending save is flushed when the tab is
+hidden or closed, and if the browser refuses local storage (private mode, quota) the header
+badge says so instead of the page failing. The open tab is part of the URL (`/?tab=map`),
+so refresh, back, and shared links keep the view.
 
 ## Core loop
 
@@ -75,11 +81,12 @@ npm run build
 npm run typecheck
 npm test       # vitest unit tests + domain checks
 npm run e2e    # headless builder walk-through against the running dev server (needs: npx playwright install chromium)
+npm run e2e:tabs  # every tab of every industry demo plus /threat, /report, /login, /share; fails on any page error
 ```
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evidence` and `verify:template` on every pull request, plus the builder end-to-end smoke (`scripts/e2e-builder.mjs`), which loads the demo, adds a process, drives the keyboard shortcuts, imports a CSV and undoes it.
 
-Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally.
+Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally. The limiters are in-process memory: on serverless hosting each instance counts separately, so treat them as cost control, not abuse control; put a platform-level limit (Vercel Firewall, Cloudflare) in front for the latter. Every Grok brief is post-checked deterministically: dollar figures and percentages in the answer must appear in the tool results it was given, and any that do not are listed under "Check before quoting" at the end of the brief.
 
 Team CSV imports use the columns `name`, `role`, `tenure_years`, `active`, and `entitlements`. With an imported team, active headcount, known-tenure averages, and segregation health are derived from the team's duties; the segregation slider remains available as an explicit manual override. Re-importing matches rows to the current team by name (case and punctuation ignored), so who-knows-what assignments and process ownership carry over; anyone missing from the file is removed and the import notes what left with them.
 
