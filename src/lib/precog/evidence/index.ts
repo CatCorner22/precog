@@ -31,6 +31,10 @@ export function casesForSodRule(ruleId: string): CaseStudy[] {
  */
 const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-cash-rec": ["skimming", "cash-larceny", "check-tampering"],
+  // Record the payment and post the write-off that hides its absence.
+  "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
+  // Sign the check and reconcile the account it clears through.
+  "rule-sign-rec": ["check-tampering", "financial-statement"],
   "rule-custody-rec": ["skimming", "cash-larceny", "receivables-diversion"],
   "rule-collect-post": ["skimming", "cash-larceny"],
   "rule-deposit-post": ["receivables-diversion", "skimming"],

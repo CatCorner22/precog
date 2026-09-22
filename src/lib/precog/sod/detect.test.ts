@@ -146,6 +146,29 @@ describe("detectSodConflicts", () => {
     }
   });
 
+  it("does not flag a cashier for taking the payment and bagging the same deposit", () => {
+    const report = detectSodConflicts(oneClerk(["collect_cash", "prepare_deposit"]));
+    expect(report.conflicts).toEqual([]);
+  });
+
+  it("names the rule and skips the vaguer family finding on the same duty", () => {
+    const report = detectSodConflicts(
+      oneClerk(["post_payments", "bank_reconcile", "prepare_deposit"]),
+    );
+    const named = report.conflicts.filter((c) => !c.ruleId.startsWith("family-"));
+    const family = report.conflicts.filter((c) => c.ruleId.startsWith("family-"));
+    expect(named.map((c) => c.ruleId).sort()).toEqual(["rule-cash-rec", "rule-deposit-post"]);
+    expect(family).toEqual([]);
+  });
+
+  it("flags payment posting with write-off entry, and check signing with reconciliation", () => {
+    const a = detectSodConflicts(oneClerk(["post_payments", "post_adjustments"]));
+    expect(a.conflicts.map((c) => c.ruleId)).toEqual(["rule-payments-adjust"]);
+    const b = detectSodConflicts(oneClerk(["sign_checks", "bank_reconcile"]));
+    expect(b.conflicts.map((c) => c.ruleId)).toEqual(["rule-sign-rec"]);
+    expect(b.conflicts[0].severity).toBe("critical");
+  });
+
   it("reports the sample dental team's conflicts deterministically", () => {
     const a = detectSodConflicts(dental);
     const b = detectSodConflicts(dental);

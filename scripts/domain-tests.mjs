@@ -336,11 +336,21 @@ try {
     assert.equal(report.conflicts.length, 0);
     const cell = report.matrix.find((item) => item.row === "collect_cash" && item.col === "manage_backups");
     assert.equal(cell.status, "safe");
+    // Two custody duties in one cash chain (take the payment, bag the deposit)
+    // are no longer a finding on their own; the control is that someone else
+    // posts and reconciles, which the named rules cover. A recording duty and
+    // a reconciliation duty on the same process still fall through to a
+    // family finding when no named rule describes the pair.
     const sameProcess = sodDetect.detectSodConflicts(undefined, { assignments: [{
       personId: "same-process", personName: "Same Process", role: "Test",
-      entitlements: ["collect_cash", "prepare_deposit"],
+      entitlements: ["post_adjustments", "bank_reconcile"],
     }] });
     assert.ok(sameProcess.conflicts.some((item) => item.severity === "family"));
+    const cashChain = sodDetect.detectSodConflicts(undefined, { assignments: [{
+      personId: "cash-chain", personName: "Cash Chain", role: "Test",
+      entitlements: ["collect_cash", "prepare_deposit"],
+    }] });
+    assert.equal(cashChain.conflicts.length, 0);
   });
 
   await test("conflict identity is invariant to entitlement order", () => {

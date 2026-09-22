@@ -245,6 +245,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-vendor-create-pay",
       "rule-payroll",
       "rule-admin-pay",
+      "rule-sign-rec",
     ],
     wouldHaveCaughtIt: [
       {
@@ -568,7 +569,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 48,
     detection: "unknown",
     resolvedYear: 2015,
-    sodRuleIds: ["rule-collect-post", "rule-custody-rec", "rule-deposit-post"],
+    sodRuleIds: [
+      "rule-collect-post",
+      "rule-custody-rec",
+      "rule-deposit-post",
+      "rule-payments-adjust",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "log-payments-at-the-mail",
@@ -1433,7 +1439,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 15,
     detection: "law-enforcement",
     resolvedYear: 2021,
-    sodRuleIds: ["rule-collect-post", "rule-writeoff"],
+    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-payments-adjust"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -1637,7 +1643,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 23,
     detection: "owner-review",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-collect-post"],
+    sodRuleIds: [
+      "rule-cash-rec",
+      "rule-custody-rec",
+      "rule-collect-post",
+      "rule-payments-adjust",
+      "rule-sign-rec",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "expected-receipts-vs-deposits",

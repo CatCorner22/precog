@@ -279,7 +279,12 @@ function findRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined 
 
 function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
   if (fa === fb) {
-    return fa === "master_data" || fa === "custody";
+    // Two custody duties are one custody chain: the person who takes the
+    // payment also bags the deposit in every small office, and the control is
+    // that someone else posts and reconciles it (named rules cover that).
+    // Two master-data duties still conflict: one person shaping both the
+    // payee list and the price list is the shell-vendor setup.
+    return fa === "master_data";
   }
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
 }
@@ -433,6 +438,18 @@ export function detectSodConflicts(
 
   for (const person of assignments) {
     const ents = person.entitlements;
+    // Family findings are the catch-all for pairs no named rule describes.
+    // Once a named rule has already flagged one of the two duties for this
+    // person, a second, vaguer finding on the same duty adds noise, not risk.
+    const namedDuties = new Set<EntitlementId>();
+    for (let i = 0; i < ents.length; i++) {
+      for (let j = i + 1; j < ents.length; j++) {
+        if (findRule(ents[i], ents[j])) {
+          namedDuties.add(ents[i]);
+          namedDuties.add(ents[j]);
+        }
+      }
+    }
     for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
@@ -443,6 +460,7 @@ export function detectSodConflicts(
 
         if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
+        if (!rule && (namedDuties.has(a) || namedDuties.has(b))) continue;
 
         if (rule) {
           const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);

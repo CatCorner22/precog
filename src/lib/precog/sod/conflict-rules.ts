@@ -325,6 +325,34 @@ export const CONFLICT_RULES: ConflictRule[] = [
     ],
   },
   {
+    id: "rule-payments-adjust",
+    a: "post_payments",
+    b: "post_adjustments",
+    severity: "high",
+    title: "Payment posting + write-off entry",
+    why: "The same person records what customers paid and can write off or credit what they still owe, so a payment that never reached the bank can be covered by an adjustment and the customer's account still looks settled.",
+    fraudPath: "Take a payment, then post a write-off or credit so the balance closes without it",
+    compensatingDefaults: [
+      "Monthly report of every write-off and credit, by employee, read by the owner",
+      "Adjustments above a set amount approved by a second person before posting",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-sign-rec",
+    a: "sign_checks",
+    b: "bank_reconcile",
+    severity: "critical",
+    title: "Check signing + bank reconciliation",
+    why: "The same person signs or releases the checks and reconciles the account they clear through, so a check to themselves is approved and then confirmed by the same hand.",
+    fraudPath: "Sign a check to yourself and reconcile the statement so nobody else sees it clear",
+    compensatingDefaults: [
+      "Owner opens the bank statement first and reads every cleared-check image",
+      "Bank Positive Pay: only checks on the owner's list are paid",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
     id: "rule-cash-rec",
     a: "post_payments",
     b: "bank_reconcile",
@@ -436,7 +464,9 @@ export const CONFLICT_RULES: ConflictRule[] = [
     id: "rule-vendor-approve-pay",
     a: "approve_vendor",
     b: "release_payment",
-    severity: "medium",
+    // Approving a supplier and paying it is the fictitious-vendor path in the
+    // case library (Human First, Dartmouth, Brooklyn), so it ranks high.
+    severity: "high",
     title: "Approve vendor + release payment",
     why: "The approval meant to confirm a supplier is real is given by the person releasing the money, which removes the only check on where it goes.",
     fraudPath: "Approve and pay in one motion, with no one else looking",
