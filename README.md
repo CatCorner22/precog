@@ -12,6 +12,9 @@ Frontier Lean + Internal Controls coach for small dental practices — a **Davy 
 | Precog scenarios | `engine.ts` | p50 / 95% CI timelines + $ impact |
 | Knowledge SPOF map | knowledge UI | Continuity / single points of failure |
 | Pioneer LLM coach | `coach/` | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always |
+| Operating blueprint | `operating-blueprint.ts` + UI | 10 core practice processes with standard, leading, optimal, and fallback designs |
+| Power map builder | SoD UI | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
+| Assessment snapshots | `snapshots.ts` + UI | Private, versioned practice records with model/corpus provenance |
 
 ## Core loop
 
@@ -32,3 +35,7 @@ npm run dev
 **Ridgeview Family Dental** sample data ships with the app.
 
 Educational projections only — not actuarial advice; never scores people as “fraudulent.”
+
+## Product strategy
+
+See [`docs/COMMERCIAL_ASSESSMENT.md`](docs/COMMERCIAL_ASSESSMENT.md) for the competitive landscape, market wedge, avoided-cost measurement framework, commercialization requirements, and explicit go/no-go gates.

@@ -60,35 +60,52 @@ export function loadProfile(): PracticeProfile {
       localStorage.getItem(STORAGE_KEY) ??
       localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return defaultProfile();
-    const parsed = JSON.parse(raw) as Partial<PracticeProfile>;
-    const base = defaultProfile();
-    const staff = { ...base.staff, ...parsed.staff };
-    const dualRelease = mergeDualReleasePolicy(
-      parsed.dualRelease as DualReleasePolicy | undefined,
-      staff,
-    );
-    // Keep dual release master switch in sync with staff flag if policy missing
-    if (!parsed.dualRelease) {
-      dualRelease.enabled = staff.dualControlPayments;
-    } else {
-      staff.dualControlPayments = dualRelease.enabled;
-    }
-    return {
-      ...base,
-      ...parsed,
-      staff,
-      riskVariables: {
-        ...base.riskVariables,
-        ...parsed.riskVariables,
-        hasDualControl: dualRelease.enabled,
-        hasIndependentBankRec: staff.independentBankRec,
-      },
-      dualRelease,
-      decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
-    };
+    return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>);
   } catch {
     return defaultProfile();
   }
+}
+
+/** Merge stored/imported profiles with current defaults as the model evolves. */
+export function normalizeProfile(parsed: Partial<PracticeProfile>): PracticeProfile {
+  const base = defaultProfile();
+  const staff = { ...base.staff, ...parsed.staff };
+  const dualRelease = mergeDualReleasePolicy(
+    parsed.dualRelease as DualReleasePolicy | undefined,
+    staff,
+  );
+  if (!parsed.dualRelease) dualRelease.enabled = staff.dualControlPayments;
+  else staff.dualControlPayments = dualRelease.enabled;
+  const validKinds = new Set<DecisionKind>(["accept_residual", "remediate", "monitor", "insure"]);
+  const decisions = Array.isArray(parsed.decisions)
+    ? parsed.decisions.slice(0, 100).flatMap((entry) => {
+        if (!entry || typeof entry !== "object" || !validKinds.has(entry.kind)) return [];
+        return [{
+          id: String(entry.id ?? "").slice(0, 80),
+          createdAt: String(entry.createdAt ?? "").slice(0, 40),
+          subject: String(entry.subject ?? "").slice(0, 200),
+          kind: entry.kind,
+          note: String(entry.note ?? "").slice(0, 2_000),
+          reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
+          residualAtDecision: Number.isFinite(entry.residualAtDecision) ? entry.residualAtDecision : undefined,
+          linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
+          linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
+        }];
+      })
+    : [];
+  return {
+    practiceName: String(parsed.practiceName ?? base.practiceName).slice(0, 80),
+    staff,
+    riskVariables: {
+      ...base.riskVariables,
+      ...parsed.riskVariables,
+      hasDualControl: dualRelease.enabled,
+      hasIndependentBankRec: staff.independentBankRec,
+    },
+    dualRelease,
+    decisions,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export function saveProfile(profile: PracticeProfile): void {
