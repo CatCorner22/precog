@@ -1,8 +1,15 @@
+import { jobCatalogEntry } from "./job-catalog";
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { resolveTemplate } from "../active-template";
-import { CORE_DUTIES, OWN_TEAM_MAX, buildOwnTeam, ownBusinessProfile } from "./own-team";
+import {
+  CORE_DUTIES,
+  OWN_TEAM_MAX,
+  buildOwnTeam,
+  ownBusinessProfile,
+  rowsForJobTitle,
+} from "./own-team";
 
 describe("buildOwnTeam", () => {
   it("drops empty rows, trims, defaults the role, and carries the ticked duties", () => {
@@ -82,5 +89,24 @@ describe("ownBusinessProfile", () => {
     const base = defaultProfile("dental");
     const profile = ownBusinessProfile(base, { practiceName: "   ", people: [] });
     expect(profile.practiceName).toBe(base.practiceName);
+  });
+});
+
+describe("rowsForJobTitle", () => {
+  it("makes numbered placeholder rows with the title's core duties", () => {
+    const server = jobCatalogEntry("server")!;
+    const rows = rowsForJobTitle(server, 3, 2);
+    expect(rows.map((r) => r.name)).toEqual(["Server 3", "Server 4", "Server 5"]);
+    expect(rows[0]).toMatchObject({ role: "Server / Host", duties: ["collect_cash"] });
+  });
+
+  it("bounds the count and keeps only the eight grid duties", () => {
+    const controller = jobCatalogEntry("controller")!;
+    expect(rowsForJobTitle(controller, 0)).toEqual([]);
+    const [row] = rowsForJobTitle(controller, 1);
+    expect(row.duties).toEqual(
+      expect.arrayContaining(["release_payment", "bank_reconcile", "approve_payroll"]),
+    );
+    expect(row.duties).not.toContain("post_journal_entries");
   });
 });

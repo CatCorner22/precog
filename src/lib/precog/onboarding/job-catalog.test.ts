@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   JOB_CATALOG,
   entitlementsForTitle,
+  jobCatalogMissingDescriptions,
   jobCatalogUnknownEntitlements,
   matchJobTitle,
 } from "./job-catalog";
@@ -10,6 +11,28 @@ describe("job catalog", () => {
   it("cites only duties the rulebook defines, and every entry carries at least one", () => {
     expect(jobCatalogUnknownEntitlements()).toEqual([]);
     for (const e of JOB_CATALOG) expect(e.entitlements.length, e.id).toBeGreaterThan(0);
+  });
+
+  it("describes every job in one bounded sentence and records only well-formed SOC codes", () => {
+    expect(jobCatalogMissingDescriptions()).toEqual([]);
+    for (const e of JOB_CATALOG) {
+      expect(e.description.length, e.id).toBeLessThanOrEqual(220);
+      expect(e.description.endsWith("."), e.id).toBe(true);
+      if (e.soc) expect(e.soc, e.id).toMatch(/^\d{2}-\d{4}$/);
+    }
+    expect(JOB_CATALOG.length).toBeGreaterThanOrEqual(80);
+  });
+
+  it("reads the hospitality, dealership, property, and nonprofit titles HR systems carry", () => {
+    expect(matchJobTitle("Night Auditor")?.entry.id).toBe("night-auditor");
+    expect(matchJobTitle("Guest Services Agent")?.entry.id).toBe("hotel-front-desk");
+    expect(matchJobTitle("Service Advisor")?.entry.id).toBe("service-advisor");
+    expect(matchJobTitle("F&I Manager")?.entry.id).toBe("fi-manager");
+    expect(matchJobTitle("Delivery Driver")?.entry.id).toBe("driver");
+    expect(matchJobTitle("Community Association Manager")?.entry.id).toBe("property-manager");
+    expect(matchJobTitle("Director of Development")?.entry.id).toBe("development-director");
+    expect(matchJobTitle("Assistant Controller")?.entry.id).toBe("controller");
+    expect(matchJobTitle("Revenue Cycle Manager")?.entry.id).toBe("billing-manager");
   });
 
   it("keeps ids and aliases unique across entries", () => {

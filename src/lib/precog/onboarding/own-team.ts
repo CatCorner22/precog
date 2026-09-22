@@ -1,4 +1,5 @@
 import type { EntitlementId } from "../sod/conflict-rules";
+import type { JobCatalogEntry } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
@@ -30,6 +31,22 @@ export interface OwnTeamRow {
   name: string;
   role: string;
   duties: EntitlementId[];
+}
+
+/**
+ * Grid rows for `count` people with the same job, when the owner has no
+ * roster to paste: "Server 1", "Server 2", … with the title's core duties
+ * ticked. Names are placeholders the owner replaces.
+ */
+export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing = 0): OwnTeamRow[] {
+  const core = new Set<string>(CORE_DUTIES);
+  const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
+  const duties = entry.entitlements.filter((d) => core.has(d));
+  return Array.from({ length: n }, (_, i) => ({
+    name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
+    role: entry.title,
+    duties: [...duties],
+  }));
 }
 
 /** Maximum people the grid accepts; larger teams continue in the register. */
