@@ -3,6 +3,7 @@
  * Utility = −(α·Δresidual + β·ΔCoR_norm + γ·effort) with second-order cascade fidelity.
  */
 import type { StaffComposition } from "../../types";
+import type { IndustryTemplate } from "../../templates";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import {
   CASCADE_LEVERS,
@@ -34,8 +35,7 @@ export interface BeamSearchResult {
 
 function effortCost(id: CascadeLeverId): number {
   if (id.includes("stack") || id === "raise_segregation_75") return 0.35;
-  if (id.includes("deductible") || id.includes("limit") || id.includes("claims"))
-    return 0.15;
+  if (id.includes("deductible") || id.includes("limit") || id.includes("claims")) return 0.15;
   if (id.includes("cash")) return 0.2;
   return 0.25;
 }
@@ -54,6 +54,7 @@ function nodeUtility(
 }
 
 export function beamSearchLevers(
+  tpl: IndustryTemplate,
   staff: StaffComposition,
   vars: RiskVariableState,
   opts: { beamWidth?: number; depth?: number } = {},
@@ -61,7 +62,7 @@ export function beamSearchLevers(
   const beamWidth = opts.beamWidth ?? 4;
   const depth = opts.depth ?? 3;
 
-  const baseSim = simulateCascadeLever("enable_dual_control", vars, staff);
+  const baseSim = simulateCascadeLever(tpl, "enable_dual_control", vars, staff);
   // snapshot baseline metrics without applying dual control — use empty path via identity
   const baselineResidual = baseSim.before.residualAverage;
   const baselineCor = baseSim.before.expectedAnnualCostOfRisk;
@@ -89,13 +90,11 @@ export function beamSearchLevers(
         if (node.sequence.includes(id)) continue;
         // skip redundant toggles if already on
         if (id === "enable_dual_control" && node.vars.hasDualControl) continue;
-        if (id === "enable_independent_bank_rec" && node.vars.hasIndependentBankRec)
-          continue;
+        if (id === "enable_independent_bank_rec" && node.vars.hasIndependentBankRec) continue;
         if (id === "enable_cameras" && node.vars.hasSecurityCameras) continue;
 
-        const sim = simulateCascadeLever(id, node.vars, node.staff);
-        const effort =
-          node.sequence.reduce((s, x) => s + effortCost(x), 0) + effortCost(id);
+        const sim = simulateCascadeLever(tpl, id, node.vars, node.staff);
+        const effort = node.sequence.reduce((s, x) => s + effortCost(x), 0) + effortCost(id);
         const utility = nodeUtility(
           sim.after.residualAverage,
           sim.after.expectedAnnualCostOfRisk,

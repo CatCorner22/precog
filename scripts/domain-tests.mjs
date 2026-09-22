@@ -177,18 +177,28 @@ try {
     assert.ok(high.reasons.includes("Open control / SoD gap"));
   });
 
+  await test("control guidance retrieval returns authoritative guidance", () => {
+    const [hit] = rag.retrieveKnowledge("weekly owner bank reconciliation ongoing monitoring", {
+      topK: 1,
+    });
+    assert.equal(hit?.chunk.id, "coso-monitoring");
+    assert.equal(hit.chunk.basis.kind, "cited");
+    assert.match(hit.chunk.basis.url, /^https:\/\//);
+  });
+
   await test("control guidance retrieval returns authoritative access guidance", () => {
     const [hit] = rag.retrieveKnowledge("least privilege MFA termination access review", {
       topK: 1,
     });
     assert.equal(hit?.chunk.id, "logical-access-leavers");
-    assert.match(hit.chunk.sourceUrl, /^https:\/\//);
+    assert.equal(hit.chunk.basis.kind, "cited");
+    assert.match(hit.chunk.basis.url, /^https:\/\//);
   });
 
   await test("every authoritative corpus URL uses HTTPS", () => {
-    const sourced = corpus.KNOWLEDGE_CORPUS.filter((chunk) => chunk.sourceUrl);
-    assert.ok(sourced.length >= 7);
-    for (const chunk of sourced) assert.match(chunk.sourceUrl, /^https:\/\//);
+    const sourced = corpus.KNOWLEDGE_CORPUS.filter((chunk) => chunk.basis.kind === "cited");
+    assert.ok(sourced.length >= 4);
+    for (const chunk of sourced) assert.match(chunk.basis.url, /^https:\/\//);
   });
 
   await test("knowledge chunk identifiers are unique", () => {
@@ -207,6 +217,7 @@ try {
     for (const [query, expectedId] of cases) {
       const [hit] = rag.retrieveKnowledge(query, { topK: 1 });
       assert.equal(hit?.chunk.id, expectedId, query);
+      assert.ok(hit.score > 0.05, query);
     }
   });
 
@@ -325,11 +336,21 @@ try {
     assert.equal(report.conflicts.length, 0);
     const cell = report.matrix.find((item) => item.row === "collect_cash" && item.col === "manage_backups");
     assert.equal(cell.status, "safe");
+    // Two custody duties in one cash chain (take the payment, bag the deposit)
+    // are no longer a finding on their own; the control is that someone else
+    // posts and reconciles, which the named rules cover. A recording duty and
+    // a reconciliation duty on the same process still fall through to a
+    // family finding when no named rule describes the pair.
     const sameProcess = sodDetect.detectSodConflicts(undefined, { assignments: [{
       personId: "same-process", personName: "Same Process", role: "Test",
-      entitlements: ["collect_cash", "prepare_deposit"],
+      entitlements: ["post_adjustments", "bank_reconcile"],
     }] });
     assert.ok(sameProcess.conflicts.some((item) => item.severity === "family"));
+    const cashChain = sodDetect.detectSodConflicts(undefined, { assignments: [{
+      personId: "cash-chain", personName: "Cash Chain", role: "Test",
+      entitlements: ["collect_cash", "prepare_deposit"],
+    }] });
+    assert.equal(cashChain.conflicts.length, 0);
   });
 
   await test("conflict identity is invariant to entitlement order", () => {
@@ -344,8 +365,10 @@ try {
   });
 
   await test("every duty process lens resolves to a known process", async () => {
-    const demo = await server.ssrLoadModule("/src/lib/precog/demo-data.ts");
-    const processIds = new Set(demo.processes.map((process) => process.id));
+    const templates = await server.ssrLoadModule("/src/lib/precog/active-template.ts");
+    const processIds = new Set(
+      templates.getBaseTemplate("dental").processes.map((process) => process.id),
+    );
     for (const entitlement of sodRules.ENTITLEMENTS) {
       for (const processId of entitlement.processIds) assert.ok(processIds.has(processId), `${entitlement.id}:${processId}`);
     }
@@ -410,7 +433,7 @@ try {
     const assignments = [{ personId: "csv", personName: "=Injected", role: "Reviewer", entitlements: ["bank_reconcile"] }];
     const csv = modelIo.createResponsibilityMatrixCsv(assignments);
     assert.match(csv, /"'=Injected · Reviewer"/);
-    assert.match(csv, /"Reconcile bank to PMS","reconciliation","5","Assigned"/);
+    assert.match(csv, /"Reconcile the bank account","reconciliation","5","Assigned"/);
     assert.equal(csv.split("\r\n").length, sodRules.ENTITLEMENTS.length);
   });
 

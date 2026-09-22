@@ -2,30 +2,206 @@ import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   DECISION_KIND_LABEL,
+  type DecisionEntry,
   type DecisionKind,
 } from "@/lib/precog/practice-profile";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import {
+  captureDecisionSnapshot,
+  continuitySlips,
+  decisionDelta,
+  decisionsDue,
+  isDecisionOpen,
+  dateAfter,
+  linkedKnowledgeId,
+  linkedToIndustry,
+  localDateKey,
+  registerCloseOut,
+  slipLabels,
+  type RegisterCloseOut,
+} from "@/lib/precog/decisions/follow-through";
+import {
+  DOCUMENTATION_LABEL,
+  setRelationLevel,
+  STATUS_LABEL,
+} from "@/lib/precog/continuity/coverage";
+import { useToday } from "@/lib/precog/decisions/use-today";
+import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
+import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 
-const KINDS: DecisionKind[] = [
-  "remediate",
-  "accept_residual",
-  "monitor",
-  "insure",
-];
+const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
+
+function signed(value: number): string {
+  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
+}
+
+function reviewDelta(
+  d: DecisionEntry,
+  current: ReturnType<typeof captureDecisionSnapshot>,
+): string {
+  const delta = decisionDelta(d, current);
+  if (!delta || !d.snapshot) return "no snapshot on record";
+  if (!delta.comparable) {
+    return `scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}) — values not directly comparable`;
+  }
+  if (delta.continuity && d.snapshot.continuity && current.continuity) {
+    const c = delta.continuity;
+    const item = c.itemThen
+      ? `${STATUS_LABEL[c.itemThen].toLowerCase()} → ${
+          c.itemNow ? STATUS_LABEL[c.itemNow].toLowerCase() : "no longer on the register"
+        } · `
+      : "";
+    const docs =
+      c.docsThen && c.docsNow && c.docsThen !== c.docsNow
+        ? `${DOCUMENTATION_LABEL[c.docsThen].toLowerCase()} → ${DOCUMENTATION_LABEL[c.docsNow].toLowerCase()} · `
+        : "";
+    return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
+  }
+  if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
+    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+  }
+  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+}
+
+/**
+ * "Done" for a register step, when the register does not yet say so: closing
+ * the decision also writes the outcome to the register (and re-confirms the
+ * entry), so the Journal and the register cannot drift apart. "Done anyway"
+ * closes without touching the register.
+ */
+function RegisterCloseOutControls({
+  closeOut,
+  onDone,
+  onDoneAnyway,
+}: {
+  closeOut: RegisterCloseOut;
+  onDone: (write: RegisterWrite, note: string) => void;
+  onDoneAnyway: () => void;
+}) {
+  const [personId, setPersonId] = useState(
+    closeOut.step === "cover" ? (closeOut.trainee ?? closeOut.candidates[0])?.id : undefined,
+  );
+  const [location, setLocation] = useState("");
+  const person =
+    closeOut.step === "cover" ? closeOut.candidates.find((p) => p.id === personId) : undefined;
+  const trimmedLocation = location.trim();
+  const inputClass =
+    "rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-foreground";
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-2.5 text-xs">
+      <p className="text-muted">
+        {closeOut.step === "cover"
+          ? `The register still says "${closeOut.item.name}" is ${STATUS_LABEL[closeOut.status].toLowerCase()}. Who can run it alone now?`
+          : closeOut.step === "document"
+            ? `The register still says nothing is written down for "${closeOut.item.name}".`
+            : `The register still has no location for the written "${closeOut.item.name}" procedure.`}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {closeOut.step === "cover" && closeOut.candidates.length > 0 && (
+          <select
+            value={personId}
+            onChange={(e) => setPersonId(e.target.value)}
+            className={inputClass}
+            aria-label="Who can now run it alone"
+          >
+            {closeOut.candidates.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {closeOut.step !== "cover" && (
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder={
+              closeOut.step === "document"
+                ? "Where it lives (optional)"
+                : "Where it lives — drive path, binder, link"
+            }
+            className={`${inputClass} min-w-56 flex-1`}
+            aria-label="Where the written procedure lives"
+          />
+        )}
+        {closeOut.step === "cover" && person && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "level", knowledgeId: closeOut.item.id, personId: person.id },
+                `${person.name} can now run it alone`,
+              )
+            }
+          >
+            Done — {person.name.split(" ")[0]} can now do it alone
+          </Button>
+        )}
+        {closeOut.step === "document" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                trimmedLocation ? `Written down at ${trimmedLocation}` : "Written down",
+              )
+            }
+          >
+            Done — it&apos;s written down
+          </Button>
+        )}
+        {closeOut.step === "locate" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!trimmedLocation}
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                `Procedure lives at ${trimmedLocation}`,
+              )
+            }
+          >
+            Done — it lives there
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" className="text-muted" onClick={onDoneAnyway}>
+          Done anyway
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+type RegisterWrite =
+  | { kind: "level"; knowledgeId: string; personId: string }
+  | { kind: "documented"; knowledgeId: string; location: string };
 
 export function DecisionJournal({
   onOpenLinked,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
-  const { profile, addDecision, removeDecision } = usePractice();
+  const {
+    profile,
+    template,
+    addDecision,
+    removeDecision,
+    reviewDecision,
+    setCustomKnowledge,
+    setCustomRelations,
+  } = usePractice();
   const portfolio = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff],
+    () => portfolioSummary(template, profile.staff),
+    [template, profile.staff],
   );
 
   const [subject, setSubject] = useState(portfolio.top[0]?.name ?? "");
@@ -33,23 +209,96 @@ export function DecisionJournal({
   const [note, setNote] = useState("");
   const [reviewDays, setReviewDays] = useState(30);
 
-  const overdue = useMemo(() => {
-    const now = Date.now();
-    return profile.decisions.filter(
-      (d) => d.reviewBy && new Date(d.reviewBy).getTime() < now,
+  /**
+   * What accepting this particular gap has cost other businesses.
+   *
+   * Accepting residual risk is a legitimate decision, and the journal exists
+   * so it is a recorded one. When the subject is a control and the owner has
+   * chosen "accept residual", the prosecuted cases behind the duty conflicts
+   * that control addresses are put in front of them before they save, with
+   * the loss figures as stated in the sources. Subjects with no such cases
+   * get no note rather than a loosely related one.
+   */
+  const acceptEvidence = useMemo(() => {
+    if (kind !== "accept_residual") return null;
+    const match = portfolio.top.find((t) => t.name === subject);
+    if (!match?.linkedControlId) return null;
+    const ruleIds = CONFLICT_RULES.filter((r) => r.linkedControlId === match.linkedControlId).map(
+      (r) => r.id,
     );
-  }, [profile.decisions]);
+    if (ruleIds.length === 0) return null;
+    const cases = casesForSodRules(ruleIds);
+    if (cases.length === 0) return null;
+    const largest = cases.reduce((best, c) => (c.lossUsd > best.lossUsd ? c : best), cases[0]);
+    return { count: cases.length, range: observedLossRange(cases), largest };
+  }, [kind, subject, portfolio.top]);
+
+  const today = useToday();
+  const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
+  const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
+  const slips = useMemo(
+    () => continuitySlips(profile.decisions, template),
+    [profile.decisions, template],
+  );
+  const currentSnapshots = useMemo(() => {
+    return new Map(
+      profile.decisions.map((d) => [
+        d.id,
+        captureDecisionSnapshot(
+          template,
+          profile.staff,
+          profile.dualRelease,
+          d.subject,
+          new Date(),
+          linkedKnowledgeId(d, profile.industry),
+        ),
+      ]),
+    );
+  }, [profile.decisions, profile.industry, template, profile.staff, profile.dualRelease]);
+  const closeOuts = useMemo(
+    () => new Map(dueDecisions.map((d) => [d.id, registerCloseOut(d, template)])),
+    [dueDecisions, template],
+  );
+  /** Write the decision's outcome to the register, then close it; the "done" snapshot sees the updated register. */
+  const closeWithRegister = (d: DecisionEntry, write: RegisterWrite, note: string) => {
+    const todayKey = localDateKey(today);
+    if (write.kind === "level") {
+      setCustomRelations((current) =>
+        setRelationLevel(current, write.personId, write.knowledgeId, "proficient"),
+      );
+      setCustomKnowledge((current) =>
+        current.map((k) => (k.id === write.knowledgeId ? { ...k, confirmedAt: todayKey } : k)),
+      );
+    } else {
+      setCustomKnowledge((current) =>
+        current.map((k) =>
+          k.id === write.knowledgeId
+            ? {
+                ...k,
+                documented: true,
+                ...(write.location ? { procedureLocation: write.location } : {}),
+                confirmedAt: todayKey,
+              }
+            : k,
+        ),
+      );
+    }
+    reviewDecision(d.id, "done", note);
+  };
+  const orderedDecisions = useMemo(
+    () =>
+      [...profile.decisions].sort((a, b) => Number(isDecisionOpen(b)) - Number(isDecisionOpen(a))),
+    [profile.decisions],
+  );
 
   function submit() {
     if (!subject.trim()) return;
-    const reviewBy = new Date();
-    reviewBy.setDate(reviewBy.getDate() + reviewDays);
     const match = portfolio.top.find((t) => t.name === subject);
     addDecision({
       subject: subject.trim(),
       kind,
       note: note.trim() || DECISION_KIND_LABEL[kind],
-      reviewBy: reviewBy.toISOString().slice(0, 10),
+      reviewBy: dateAfter(today, reviewDays),
       residualAtDecision: match?.residual,
       linkedTab:
         match?.category === "knowledge"
@@ -73,111 +322,268 @@ export function DecisionJournal({
           Write it down or it did not happen
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or
-          insure decisions with a review date. Stored on this device for the demo profile.
+          Checking that controls still work (what the COSO framework calls monitoring) needs a paper
+          trail. Record remediate, accept residual, monitor, or insure decisions with a review date.
+          Syncs to your account when signed in.
         </p>
-        {overdue.length > 0 && (
-          <p className="mt-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
-            {overdue.length} decision(s) past review date — re-open residual radar and re-score.
-          </p>
-        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Log a decision</CardTitle>
-            <CardDescription>Plain language. Owner-owned. Review-dated.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <label className="block text-sm">
-              <span className="text-muted">Subject</span>
-              <select
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              >
-                {portfolio.top.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name} ({t.residual})
-                  </option>
+        <div className="space-y-4">
+          {slips.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Slipped since closed</CardTitle>
+                <CardDescription>
+                  You closed these as done, but the register no longer backs them up or the
+                  procedure is no longer written/findable. Reopen to put the step back on a review
+                  date.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {slips.map((slip) => {
+                  const { decision: d } = slip;
+                  const labels = slipLabels(slip);
+                  return (
+                    <div
+                      key={d.id}
+                      className="rounded-lg border border-danger/40 bg-elevated px-3 py-2.5"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="danger">Slipped</Badge>
+                        <span className="font-medium">{d.subject}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {labels.from} when closed → {labels.to} now
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            reviewDecision(
+                              d.id,
+                              "still_open",
+                              `Reopened: ${
+                                slip.measure === "coverage" ? "coverage" : "documentation"
+                              } slipped to "${labels.to}"`,
+                              30,
+                            )
+                          }
+                        >
+                          Reopen +30d
+                        </Button>
+                        {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
+                          >
+                            Open
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => reviewDecision(d.id, "no_longer_relevant")}
+                        >
+                          Not relevant
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+          {dueDecisions.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Reviews due</CardTitle>
+                <CardDescription>
+                  Re-score the decision before you close the loop. The figures below are the
+                  app&apos;s own scores at the time you decided and now, not measured outcomes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {dueDecisions.map((d) => (
+                  <div
+                    key={d.id}
+                    className="rounded-lg border border-border bg-elevated px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant={
+                          d.kind === "accept_residual"
+                            ? "warn"
+                            : d.kind === "remediate"
+                              ? "ok"
+                              : "primary"
+                        }
+                      >
+                        {DECISION_KIND_LABEL[d.kind]}
+                      </Badge>
+                      <span className="font-medium">{d.subject}</span>
+                      {d.reviewBy && (
+                        <span className="text-[11px] text-subtle">review by {d.reviewBy}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs tabular text-muted">
+                      {reviewDelta(d, currentSnapshots.get(d.id)!)}
+                    </p>
+                    {closeOuts.get(d.id) && (
+                      <RegisterCloseOutControls
+                        key={`${d.id}:${d.reviews?.length ?? 0}`}
+                        closeOut={closeOuts.get(d.id)!}
+                        onDone={(write, note) => closeWithRegister(d, write, note)}
+                        onDoneAnyway={() => reviewDecision(d.id, "done")}
+                      />
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {!closeOuts.get(d.id) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => reviewDecision(d.id, "done")}
+                        >
+                          Done
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "still_open", undefined, 90)}
+                      >
+                        Still open +90d
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => reviewDecision(d.id, "no_longer_relevant")}
+                      >
+                        Not relevant
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-                <option value="Practice-wide monitoring">Practice-wide monitoring</option>
-                <option value="Insurance / transfer terms">Insurance / transfer terms</option>
-              </select>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setKind(k)}
-                  className={
-                    kind === k
-                      ? "rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs"
-                      : "rounded-full border border-border bg-elevated px-3 py-1 text-xs text-muted"
-                  }
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Log a decision</CardTitle>
+              <CardDescription>Plain language. Owner-owned. Review-dated.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="block text-sm">
+                <span className="text-muted">Subject</span>
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
                 >
-                  {DECISION_KIND_LABEL[k]}
-                </button>
-              ))}
-            </div>
-            <label className="block text-sm">
-              <span className="text-muted">Note</span>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={3}
-                placeholder="Why this choice? What compensating control? Who owns the review?"
-                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted">Review in (days)</span>
-                <span className="tabular font-medium">{reviewDays}</span>
+                  {portfolio.top.map((t) => (
+                    <option key={t.id} value={t.name}>
+                      {t.name} ({t.residual})
+                    </option>
+                  ))}
+                  <option value="Practice-wide monitoring">Practice-wide monitoring</option>
+                  <option value="Insurance / transfer terms">Insurance / transfer terms</option>
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {KINDS.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKind(k)}
+                    className={
+                      kind === k
+                        ? "rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs"
+                        : "rounded-full border border-border bg-elevated px-3 py-1 text-xs text-muted"
+                    }
+                  >
+                    {DECISION_KIND_LABEL[k]}
+                  </button>
+                ))}
               </div>
-              <input
-                type="range"
-                min={7}
-                max={180}
-                step={7}
-                value={reviewDays}
-                onChange={(e) => setReviewDays(Number(e.target.value))}
-                className="mt-1 w-full accent-[var(--color-primary)]"
-              />
-            </label>
-            <Button onClick={submit}>
-              <Plus className="size-3.5" />
-              Save decision
-            </Button>
-          </CardContent>
-        </Card>
+              {acceptEvidence && (
+                <div className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm leading-relaxed text-muted">
+                  <p className="font-medium text-warn">Before you accept this</p>
+                  <p className="mt-1">
+                    {acceptEvidence.count} prosecuted{" "}
+                    {acceptEvidence.count === 1 ? "case involves" : "cases involve"} the duty
+                    conflicts this control addresses
+                    {acceptEvidence.range
+                      ? `; median stated loss ${formatUsd(acceptEvidence.range.median)}`
+                      : ""}
+                    . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
+                    {acceptEvidence.largest.lossIsFloor ? "at least " : ""}
+                    {formatUsd(acceptEvidence.largest.lossUsd)}). Accepting is a legitimate
+                    decision; write down which compensating control makes it acceptable and who
+                    reviews it.
+                  </p>
+                  {onOpenLinked && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenLinked("start")}
+                      className="mt-1.5 text-xs font-medium text-primary hover:underline"
+                    >
+                      Read the cases on Start here
+                    </button>
+                  )}
+                </div>
+              )}
+              <label className="block text-sm">
+                <span className="text-muted">Note</span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Why this choice? What compensating control? Who owns the review?"
+                  className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted">Review in (days)</span>
+                  <span className="tabular font-medium">{reviewDays}</span>
+                </div>
+                <input
+                  type="range"
+                  min={7}
+                  max={180}
+                  step={7}
+                  value={reviewDays}
+                  onChange={(e) => setReviewDays(Number(e.target.value))}
+                  className="mt-1 w-full accent-[var(--color-primary)]"
+                />
+              </label>
+              <Button onClick={submit}>
+                <Plus className="size-3.5" />
+                Save decision
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              Log ({profile.decisions.length})
-            </CardTitle>
-            <CardDescription>
-              Newest first · residual snapshot when available
-            </CardDescription>
+            <CardTitle className="text-base">Log ({profile.decisions.length})</CardTitle>
+            <CardDescription>Newest first · residual snapshot when available</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {profile.decisions.length === 0 && (
               <p className="text-sm text-muted">
-                No decisions yet. Accepting residual risk without a log is how small practices get
+                No decisions yet. Accepting residual risk without a log is how small businesses get
                 surprised.
               </p>
             )}
-            {profile.decisions.map((d) => {
+            {orderedDecisions.map((d) => {
               const past =
-                d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
+                isDecisionOpen(d) && Boolean(d.reviewBy) && d.reviewBy! < localDateKey(today);
               return (
-                <div
-                  key={d.id}
-                  className="rounded-xl border border-border bg-elevated px-3 py-3"
-                >
+                <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -192,6 +598,7 @@ export function DecisionJournal({
                         >
                           {DECISION_KIND_LABEL[d.kind]}
                         </Badge>
+                        {!isDecisionOpen(d) && <Badge variant="default">Closed</Badge>}
                         {past && <Badge variant="danger">Review overdue</Badge>}
                         {d.residualAtDecision != null && (
                           <span className="text-xs tabular text-muted">
@@ -204,10 +611,11 @@ export function DecisionJournal({
                       <p className="mt-1 text-[11px] text-subtle">
                         {new Date(d.createdAt).toLocaleDateString()}
                         {d.reviewBy ? ` · review by ${d.reviewBy}` : ""}
+                        {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                       </p>
                     </div>
                     <div className="flex gap-1">
-                      {d.linkedTab && onOpenLinked && (
+                      {d.linkedTab && onOpenLinked && linkedToIndustry(d, profile.industry) && (
                         <Button
                           size="sm"
                           variant="ghost"

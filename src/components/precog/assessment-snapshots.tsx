@@ -160,9 +160,7 @@ export function AssessmentSnapshots() {
         ? normalizeValueCase(storedValue as Partial<typeof DEFAULT_VALUE_CASE>)
         : DEFAULT_VALUE_CASE;
       const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
-      const currentEvidence = storedEvidence
-        ? normalizeValueEvidence(storedEvidence)
-        : [];
+      const currentEvidence = storedEvidence ? normalizeValueEvidence(storedEvidence) : [];
       setComparison({
         title: snapshot.title,
         createdAt: snapshot.createdAt,
@@ -493,6 +491,7 @@ export function AssessmentSnapshots() {
   );
 }
 
+/** Parses one localStorage entry, dropping it when it is not valid JSON. */
 function readStoredJson(key: string): unknown {
   const stored = window.localStorage.getItem(key);
   if (!stored) return undefined;

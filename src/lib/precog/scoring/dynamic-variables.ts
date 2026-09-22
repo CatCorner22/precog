@@ -77,11 +77,11 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   deductible: 5000,
   policyLimit: 100000,
   coinsurancePct: 0,
-  discountCamerasPct: 5,
-  discountDualControlPct: 8,
-  discountBankRecPct: 5,
-  discountAlarmPct: 3,
-  discountBondedStaffPct: 4,
+  discountCamerasPct: 0,
+  discountDualControlPct: 0,
+  discountBankRecPct: 0,
+  discountAlarmPct: 0,
+  discountBondedStaffPct: 0,
   maxDiscountPct: 25,
   hasSecurityCameras: false,
   hasDualControl: false,
@@ -138,7 +138,8 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Unreimbursed share above deductible",
     category: "transfer",
     kind: "percent",
-    description: "Simplified coinsurance / gap % after deductible (0 if first-dollar after deductible).",
+    description:
+      "Simplified coinsurance / gap % after deductible (0 if first-dollar after deductible).",
     likelihoodEffect: "None.",
     severityEffect: "Increases retained severity on large losses.",
     min: 0,
@@ -159,10 +160,11 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountCamerasPct",
-    label: "Insurer discount: cameras",
+    label: "Credit from your quote: cameras",
     category: "insurance",
     kind: "percent",
-    description: "Typical carrier credit if cameras are in place (illustrative).",
+    description:
+      "The credit your own carrier quoted for cameras, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect — only if cameras are actually installed.",
     severityEffect: "Reduces premium cost-of-risk.",
     min: 0,
@@ -183,7 +185,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountDualControlPct",
-    label: "Insurer discount: dual control",
+    label: "Credit from your quote: dual control",
     category: "insurance",
     kind: "percent",
     description: "Illustrative premium credit for dual signature / dual release.",
@@ -207,7 +209,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountBankRecPct",
-    label: "Insurer discount: bank rec / CPA",
+    label: "Credit from your quote: bank rec / CPA",
     category: "insurance",
     kind: "percent",
     description: "Credit for independent recon or external bookkeeping review.",
@@ -231,7 +233,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountAlarmPct",
-    label: "Insurer discount: alarm",
+    label: "Credit from your quote: alarm",
     category: "insurance",
     kind: "percent",
     description: "Illustrative alarm credit.",
@@ -255,7 +257,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountBondedStaffPct",
-    label: "Insurer discount: bonded staff",
+    label: "Credit from your quote: bonded staff",
     category: "insurance",
     kind: "percent",
     description: "Illustrative credit for bonding / screening program.",
@@ -335,7 +337,12 @@ export interface LikelihoodSeverityBreakdown {
   grossSeverityMultiplier: number;
   /** Detection lag multiplier (<1 = faster detection) */
   detectionLagMultiplier: number;
-  drivers: { id: string; label: string; effect: string; on: "likelihood" | "severity" | "detection" }[];
+  drivers: {
+    id: string;
+    label: string;
+    effect: string;
+    on: "likelihood" | "severity" | "detection";
+  }[];
 }
 
 export interface InsuranceTransferResult {
@@ -378,7 +385,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountCamerasPct,
       active: v.hasSecurityCameras,
       reason: v.hasSecurityCameras
-        ? "Cameras present — carrier credit applied."
+        ? "Cameras present — the credit you entered is applied."
         : "No cameras — credit not earned.",
     },
     {
@@ -387,7 +394,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountDualControlPct,
       active: v.hasDualControl,
       reason: v.hasDualControl
-        ? "Dual control present — carrier credit applied."
+        ? "Dual control present — the credit you entered is applied."
         : "No dual control — credit not earned.",
     },
     {
@@ -396,7 +403,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountBankRecPct,
       active: v.hasIndependentBankRec,
       reason: v.hasIndependentBankRec
-        ? "Independent recon present — carrier credit applied."
+        ? "Independent reconciliation present — the credit you entered is applied."
         : "No independent recon — credit not earned.",
     },
     {
@@ -405,7 +412,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountAlarmPct,
       active: v.hasAlarmAccess,
       reason: v.hasAlarmAccess
-        ? "Alarm/access present — carrier credit applied."
+        ? "Alarm/access present — the credit you entered is applied."
         : "No alarm credit.",
     },
     {
@@ -414,7 +421,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
       pct: v.discountBondedStaffPct,
       active: v.hasBondedCashHandlers,
       reason: v.hasBondedCashHandlers
-        ? "Bonding/screening present — carrier credit applied."
+        ? "Bonding/screening present — the credit you entered is applied."
         : "No bonding credit.",
     },
   ];
@@ -454,7 +461,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "cam-l",
       label: "Security cameras",
-      effect: "−12% opportunity likelihood; faster detection",
+      effect: "Assumed −12% opportunity likelihood; faster detection",
       on: "likelihood",
     });
   }
@@ -464,7 +471,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "dual-l",
       label: "Dual control",
-      effect: "−28% fraud likelihood; −15% scheme size",
+      effect: "Assumed −28% fraud likelihood; −15% scheme size",
       on: "likelihood",
     });
   }
@@ -475,7 +482,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "rec-d",
       label: "Independent bank rec",
-      effect: "−25% detection lag; −12% cumulative severity",
+      effect: "Assumed −25% detection lag; −12% cumulative severity",
       on: "detection",
     });
   }
@@ -484,7 +491,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "alarm-l",
       label: "Alarm / access",
-      effect: "−6% external theft likelihood",
+      effect: "Assumed −6% external theft likelihood",
       on: "likelihood",
     });
   }
@@ -494,12 +501,12 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "bond-l",
       label: "Bonded handlers",
-      effect: "−7% dishonesty likelihood",
+      effect: "Assumed −7% dishonesty likelihood",
       on: "likelihood",
     });
   }
 
-  // Cash intensity: relative to $2,500 baseline daily
+  // Cash intensity relative to an assumed $2,500/day reference (this app's choice, not a norm)
   if (cash && v.dailyCashExposure > 0) {
     const intensity = clamp(v.dailyCashExposure / 2500, 0.5, 3);
     if (intensity !== 1) {
@@ -508,7 +515,7 @@ export function computeLikelihoodSeverity(
       drivers.push({
         id: "cash-int",
         label: "Daily cash exposure",
-        effect: `×${intensity.toFixed(2)} severity; √ intensity on likelihood`,
+        effect: `Assumed ×${intensity.toFixed(2)} severity against a $2,500/day reference; √ on likelihood`,
         on: "severity",
       });
     }
@@ -520,7 +527,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "claims-load",
       label: "Claims load factor",
-      effect: `Underwriting history factor ${v.claimsLoadFactor.toFixed(2)}`,
+      effect: `Assumed uplift from a claims-load factor of ${v.claimsLoadFactor.toFixed(2)}`,
       on: "likelihood",
     });
   }
@@ -531,7 +538,7 @@ export function computeLikelihoodSeverity(
     drivers.push({
       id: "ded-hi",
       label: "High deductible",
-      effect: "Slight risk that monitoring investment lags (+3% likelihood)",
+      effect: "Assumed +3% likelihood: a high deductible can let monitoring lag",
       on: "likelihood",
     });
   }
@@ -545,7 +552,10 @@ export function computeLikelihoodSeverity(
 }
 
 /** Retained loss after deductible, coinsurance, and limit */
-export function retainLoss(gross: number, v: RiskVariableState): {
+export function retainLoss(
+  gross: number,
+  v: RiskVariableState,
+): {
   retained: number;
   transferred: number;
 } {
@@ -577,9 +587,7 @@ export function applyInsuranceTransfer(
   const rL = retainLoss(grossLow, v);
   const rH = retainLoss(grossHigh, v);
 
-  const expectedAnnualCostOfRisk = Math.round(
-    premiumAnnualNet + rE.retained * annualFreqWeight,
-  );
+  const expectedAnnualCostOfRisk = Math.round(premiumAnnualNet + rE.retained * annualFreqWeight);
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
 
   const notes: string[] = [

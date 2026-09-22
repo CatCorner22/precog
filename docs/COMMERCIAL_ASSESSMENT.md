@@ -3,8 +3,6 @@
 **Assessment date:** 2026-09-19  
 **Verdict:** promising vertical workflow product, but not yet a stand-alone category winner.
 
-The detailed validation program, interview instruments, benchmark protocol, paid-pilot design, and 12-week decision gates are maintained in [`COMMERCIAL_VALIDATION_PLAN.md`](COMMERCIAL_VALIDATION_PLAN.md).
-
 ## Executive judgment
 
 Precog is not a bad commercial idea. It addresses a real gap between dental-practice analytics, which explain operational performance, and enterprise governance tools, which are too expensive and abstract for most dental groups. The strongest product is not “AI risk software for every dentist.” It is a **dental-specific responsibility, control, and evidence system for growing groups and their advisors**.

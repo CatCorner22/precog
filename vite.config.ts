@@ -63,7 +63,9 @@ function authPopupPlugin(): Plugin {
             return;
           }
 
-          const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080");
+          const host = String(
+            req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080",
+          );
           const proto = String(
             req.headers["x-forwarded-proto"] ??
               ((req.socket as { encrypted?: boolean } | undefined)?.encrypted ? "https" : "http"),
@@ -131,13 +133,54 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // Dependencies Vite only discovers after the first page load. Left to
+  // discovery, it re-bundles them a few seconds into a session and force-reloads
+  // every open page, which lands mid-test in CI ("Failed to fetch dynamically
+  // imported module"). Naming them here bundles them before the first request.
+  optimizeDeps: {
+    include: [
+      "@better-auth/core/env",
+      "@better-auth/core/error",
+      "@better-auth/core/utils/error-codes",
+      "@better-auth/core/utils/string",
+      "@better-auth/core/utils/url",
+      "@better-fetch/fetch",
+      "@tanstack/router-core",
+      "@tanstack/router-core/isServer",
+      "@tanstack/router-core/ssr/client",
+      "defu",
+      "nanostores",
+      "seroval",
+    ],
+  },
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
     tailwindcss(),
     tanstackStart(),
-    ...(command === "build" ? [nitro({ preset: "vercel" })] : []),
+    ...(command === "build"
+      ? [
+          nitro({
+            preset: "vercel",
+            // Response headers for every route. frame-ancestors keeps the app and
+            // the public share page out of third-party frames (clickjacking);
+            // the referrer policy keeps a share token out of Referer headers
+            // when a viewer follows a link off the page.
+            routeRules: {
+              "/**": {
+                headers: {
+                  "content-security-policy": "frame-ancestors 'self'",
+                  "referrer-policy": "strict-origin-when-cross-origin",
+                  "x-content-type-options": "nosniff",
+                  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+                  "strict-transport-security": "max-age=31536000; includeSubDomains",
+                },
+              },
+            },
+          }),
+        ]
+      : []),
     viteReact(),
   ],
 }));

@@ -22,25 +22,49 @@ export function diffAssignments(
   for (const person of current) {
     const prior = before.get(person.personId);
     if (!prior) {
-      changes.push({ id: `person_added:${person.personId}`, personId: person.personId, personName: person.personName, role: person.role, kind: "person_added" });
+      changes.push({
+        id: `person_added:${person.personId}`,
+        personId: person.personId,
+        personName: person.personName,
+        role: person.role,
+        kind: "person_added",
+      });
       continue;
     }
     const priorDuties = new Set(prior.entitlements);
     for (const entitlement of person.entitlements) {
-      if (!priorDuties.has(entitlement)) changes.push(makeDutyChange(person, entitlement, "duty_granted"));
+      if (!priorDuties.has(entitlement))
+        changes.push(makeDutyChange(person, entitlement, "duty_granted"));
     }
     const currentDuties = new Set(person.entitlements);
     for (const entitlement of prior.entitlements) {
-      if (!currentDuties.has(entitlement)) changes.push(makeDutyChange(person, entitlement, "duty_revoked"));
+      if (!currentDuties.has(entitlement))
+        changes.push(makeDutyChange(person, entitlement, "duty_revoked"));
     }
   }
   for (const person of baseline) {
-    if (!after.has(person.personId)) changes.push({ id: `person_removed:${person.personId}`, personId: person.personId, personName: person.personName, role: person.role, kind: "person_removed" });
+    if (!after.has(person.personId))
+      changes.push({
+        id: `person_removed:${person.personId}`,
+        personId: person.personId,
+        personName: person.personName,
+        role: person.role,
+        kind: "person_removed",
+      });
   }
-  return changes.sort((a, b) => a.personName.localeCompare(b.personName) || a.kind.localeCompare(b.kind) || (a.dutyLabel ?? "").localeCompare(b.dutyLabel ?? ""));
+  return changes.sort(
+    (a, b) =>
+      a.personName.localeCompare(b.personName) ||
+      a.kind.localeCompare(b.kind) ||
+      (a.dutyLabel ?? "").localeCompare(b.dutyLabel ?? ""),
+  );
 }
 
-function makeDutyChange(person: RoleAssignment, entitlement: EntitlementId, kind: "duty_granted" | "duty_revoked"): AssignmentChange {
+function makeDutyChange(
+  person: RoleAssignment,
+  entitlement: EntitlementId,
+  kind: "duty_granted" | "duty_revoked",
+): AssignmentChange {
   return {
     id: `${kind}:${person.personId}:${entitlement}`,
     personId: person.personId,

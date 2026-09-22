@@ -37,18 +37,25 @@ export interface AbsenceImpact {
  * duty. Read-only reporting is excluded because it is not an operating duty.
  */
 export function analyzeDutyCoverage(assignments: RoleAssignment[]): CoverageAnalysis {
-  const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map((entitlement) => {
-    const assignees = assignments
-      .filter((person) => person.entitlements.includes(entitlement.id))
-      .map(({ personId, personName, role }) => ({ personId, personName, role }));
-    return {
-      entitlementId: entitlement.id,
-      label: entitlement.label,
-      riskWeight: entitlement.riskWeight,
-      assignees,
-      status: assignees.length === 0 ? "unassigned" as const : assignees.length === 1 ? "single_point" as const : "covered" as const,
-    };
-  });
+  const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map(
+    (entitlement) => {
+      const assignees = assignments
+        .filter((person) => person.entitlements.includes(entitlement.id))
+        .map(({ personId, personName, role }) => ({ personId, personName, role }));
+      return {
+        entitlementId: entitlement.id,
+        label: entitlement.label,
+        riskWeight: entitlement.riskWeight,
+        assignees,
+        status:
+          assignees.length === 0
+            ? ("unassigned" as const)
+            : assignees.length === 1
+              ? ("single_point" as const)
+              : ("covered" as const),
+      };
+    },
+  );
 
   const highRiskConcentration = assignments
     .map((person) => {
@@ -66,10 +73,13 @@ export function analyzeDutyCoverage(assignments: RoleAssignment[]): CoverageAnal
     .sort((a, b) => b.count - a.count || a.personName.localeCompare(b.personName));
 
   const unassigned = duties.filter((item) => item.status === "unassigned");
-  const singlePoints = duties.filter((item) => item.status === "single_point" && item.riskWeight >= 4);
+  const singlePoints = duties.filter(
+    (item) => item.status === "single_point" && item.riskWeight >= 4,
+  );
   const maximumPenalty = duties.reduce((sum, item) => sum + item.riskWeight * 2, 0);
-  const penalty = unassigned.reduce((sum, item) => sum + item.riskWeight * 2, 0)
-    + singlePoints.reduce((sum, item) => sum + item.riskWeight, 0);
+  const penalty =
+    unassigned.reduce((sum, item) => sum + item.riskWeight * 2, 0) +
+    singlePoints.reduce((sum, item) => sum + item.riskWeight, 0);
 
   return {
     duties,
@@ -91,10 +101,16 @@ export function analyzeAbsenceImpact(
   const before = analyzeDutyCoverage(assignments);
   const after = analyzeDutyCoverage(assignments.filter((item) => item.personId !== personId));
   const beforeById = new Map(before.duties.map((item) => [item.entitlementId, item]));
-  const newlyUnassigned = after.duties.filter((item) =>
-    item.status === "unassigned" && beforeById.get(item.entitlementId)?.status !== "unassigned");
-  const newlySinglePoint = after.duties.filter((item) =>
-    item.status === "single_point" && beforeById.get(item.entitlementId)?.status === "covered" && item.riskWeight >= 4);
+  const newlyUnassigned = after.duties.filter(
+    (item) =>
+      item.status === "unassigned" && beforeById.get(item.entitlementId)?.status !== "unassigned",
+  );
+  const newlySinglePoint = after.duties.filter(
+    (item) =>
+      item.status === "single_point" &&
+      beforeById.get(item.entitlementId)?.status === "covered" &&
+      item.riskWeight >= 4,
+  );
 
   return {
     personId,
