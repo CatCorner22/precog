@@ -133,6 +133,26 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // Dependencies Vite only discovers after the first page load. Left to
+  // discovery, it re-bundles them a few seconds into a session and force-reloads
+  // every open page, which lands mid-test in CI ("Failed to fetch dynamically
+  // imported module"). Naming them here bundles them before the first request.
+  optimizeDeps: {
+    include: [
+      "@better-auth/core/env",
+      "@better-auth/core/error",
+      "@better-auth/core/utils/error-codes",
+      "@better-auth/core/utils/string",
+      "@better-auth/core/utils/url",
+      "@better-fetch/fetch",
+      "@tanstack/router-core",
+      "@tanstack/router-core/isServer",
+      "@tanstack/router-core/ssr/client",
+      "defu",
+      "nanostores",
+      "seroval",
+    ],
+  },
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
