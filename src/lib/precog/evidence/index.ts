@@ -54,9 +54,9 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-ach-release": ["check-tampering", "billing-shell-vendor"],
   // Administrative power over access, exports, logs, and backups is how data
   // leaves and how the trail that would show it is erased.
-  "rule-access-log": ["data-theft", "financial-statement"],
+  "rule-access-log": ["data-theft", "data-destruction", "financial-statement"],
   "rule-access-export": ["data-theft"],
-  "rule-backup-access": ["data-theft", "financial-statement"],
+  "rule-backup-access": ["data-destruction", "data-theft"],
 };
 
 /**

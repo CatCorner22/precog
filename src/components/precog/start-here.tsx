@@ -433,9 +433,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                             : `${l.handover.length} to hand over`}
                       </span>
                       {l.status === "notice" && l.unlogged > 0 && (
-                        <span className="text-xs text-warn">
-                          · {l.unlogged} not in the Journal
-                        </span>
+                        <span className="text-xs text-warn">· {l.unlogged} not in the Journal</span>
                       )}
                     </li>
                   ))}
@@ -1031,6 +1029,7 @@ const SCHEME_ORDER: SchemeKind[] = [
   "refund-fraud",
   "inventory-theft",
   "data-theft",
+  "data-destruction",
   "financial-statement",
   "corruption",
 ];
@@ -1048,6 +1047,7 @@ const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "refund-fraud": "Refunds and voids with no sale behind them",
   "inventory-theft": "Stock, equipment, and drugs taken",
   "data-theft": "Customer and pricing data taken",
+  "data-destruction": "Company data deleted or wiped by an insider",
 };
 
 /** Plain wording for each detection route, matching the case card. */

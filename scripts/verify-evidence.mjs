@@ -55,6 +55,7 @@ const caseBlocks = casesSrc
   .map((b) => b.split(/\n {2}\},\n/)[0]);
 
 const seenCaseIds = new Set();
+const seenSourceUrls = new Map();
 const citedRules = new Set();
 
 for (const block of caseBlocks) {
@@ -73,8 +74,15 @@ for (const block of caseBlocks) {
     }
   }
 
-  if (!/url:\s*"https:\/\//.test(block)) {
+  const sourceUrl = block.match(/url:\s*"(https:\/\/[^"]+)"/)?.[1];
+  if (!sourceUrl) {
     fail(`Case ${id} has no source URL.`);
+  } else if (seenSourceUrls.has(sourceUrl)) {
+    // One release, one case: a second record from the same URL double-counts
+    // that case in every tally and median the app shows.
+    fail(`Case ${id} cites the same source URL as case ${seenSourceUrls.get(sourceUrl)}.`);
+  } else {
+    seenSourceUrls.set(sourceUrl, id);
   }
   if (!/sodRuleIds:\s*\[\s*"/.test(block)) {
     fail(`Case ${id} is not tied to any segregation-of-duties rule.`);

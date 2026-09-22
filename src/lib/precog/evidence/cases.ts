@@ -39,7 +39,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 24,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-deposit-post", "rule-access-log", "rule-access-export", "rule-backup-access"],
+    sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -400,7 +400,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-nonprofit-human-first",
-    title: "Nonprofit executive director and co-conspirators took $1.4 million of agency money over five years",
+    title:
+      "Nonprofit executive director and co-conspirators took $1.4 million of agency money over five years",
     sector: "nonprofit",
     schemes: ["expense-reimbursement", "corruption"],
     howItWorked:
@@ -589,7 +590,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-nj/pr/medical-office-receptionist-sentenced-34-months-prison-embezzlement-credit-card-fraud-and",
       grade: "primary-document-reported",
     },
-    caveat: "Gwendolyn Muller was sentenced in March 2015 to 34 months and ordered to pay $556,000 in restitution.",
+    caveat:
+      "Gwendolyn Muller was sentenced in March 2015 to 34 months and ordered to pay $556,000 in restitution.",
   },
   {
     id: "case-void-no-sale-counter",
@@ -678,7 +680,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "restaurant",
     schemes: ["cash-larceny"],
     howItWorked:
-      "The manager of a Chick-fil-A franchise at Minneapolis–St. Paul airport, owned by The Grove, Inc., was responsible for collecting the daily cash receipts from that restaurant and a sister pizzeria and depositing them in a safe-deposit box. From September 2022 to October 2023 he kept some or all of the cash. He hid the gap by depositing later days' receipts against earlier days, so the record showed deposits running late rather than missing.",
+      "The manager of a Chick-fil-A franchise at Minneapolis–St. Paul airport, owned by The Grove, Inc., was responsible for collecting the daily cash receipts from that restaurant and a sister pizzeria and depositing them in a safe-deposit box. From September 2022 to October 2023 he kept some or all of the cash. He hid the gap by depositing later days' receipts against earlier days, so the record showed deposits running late rather than missing, and he emailed the company's accounting staff regularly to say he was catching up on late deposits.",
     controlGap:
       "One person carried the cash from the register to the bank and nobody matched each day's point-of-sale cash total to a deposit of the same date. Lapping — using tomorrow's cash to cover today's — only works when deposits are checked by amount and not by date.",
     lossUsd: 144819,
@@ -709,7 +711,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The linked release is the charging document (February 2024). Timothy Michael Hill Jr. pleaded guilty in June 2024 and, per press reports of the sentencing hearing, was sentenced in October 2024 to one year in prison with restitution of about $145,000. The loss figure is the amount charged.",
+      "The linked release is the charging document (February 2024). Timothy Michael Hill Jr. pleaded guilty in June 2024 (release: justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer, which names the employer only as Company A and puts the loss at about $144,000) and, per press reports of the sentencing hearing, was sentenced in October 2024 to one year in prison with restitution of about $145,000. The loss figure is the amount charged.",
   },
   {
     id: "case-san-antonio-dermatology-side-account",
@@ -766,7 +768,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 60,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay", "rule-ach-release", "rule-admin-pay"],
+    sodRuleIds: [
+      "rule-vendor-create-pay",
+      "rule-invoice-pay",
+      "rule-ach-release",
+      "rule-admin-pay",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -1050,7 +1057,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "any",
     schemes: ["payroll", "check-tampering"],
     howItWorked:
-      "The bookkeeper of a small veteran-owned business in Marion, Iowa had access to all of the company's financial records, ran its payroll, and was the contact for its employee retirement plan. From 2013 to 2021 she wrote physical payroll checks to herself that she was not owed, even though her own pay already arrived electronically, forged signatures, changed her own pay rate, and made false entries in the books to hide the checks. She took more than $500,000. After the company found the theft and fired her, it recovered $373,732 of an inheritance from her in a state civil case.",
+      "The bookkeeper of a small veteran-owned business in Marion, Iowa had access to all of the company's financial records, ran its payroll, and was the contact for its employee retirement plan. From 2013 to 2021 she wrote physical payroll checks to herself that she was not owed, even though her own pay already arrived electronically, forged signatures, changed her own pay rate, and made false entries in the books to hide the checks. For a period she also stopped paying the company's federal and state taxes and its employee retirement-plan contributions. She took more than $500,000. After the company found the theft and fired her, it recovered $373,732 of an inheritance from her in a state civil case.",
     controlGap:
       "One person entered payroll, approved it, signed checks, and kept the ledger, so a second paycheck to the payroll clerk looked like any other payroll entry. Nobody outside the role compared the payroll register against the people actually employed or against the bank's cleared-check images.",
     lossUsd: 500000,
@@ -1303,7 +1310,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-evansville-parts-manager",
-    title: "Parts manager ordered HVAC units the business did not need, then sold about 400 items on eBay",
+    title:
+      "Parts manager ordered HVAC units the business did not need, then sold about 400 items on eBay",
     sector: "trades",
     schemes: ["inventory-theft"],
     howItWorked:
@@ -1325,7 +1333,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "volume-vs-recorded-sales",
-        asApplied: "Parts purchased compared against parts sold or installed, by category, each quarter",
+        asApplied:
+          "Parts purchased compared against parts sold or installed, by category, each quarter",
       },
     ],
     source: {
@@ -1338,7 +1347,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-helena-it-salesman",
-    title: "IT company salesman created bogus purchase orders, stole the inventory, and sold it online",
+    title:
+      "IT company salesman created bogus purchase orders, stole the inventory, and sold it online",
     sector: "professional-services",
     schemes: ["inventory-theft", "billing-shell-vendor"],
     howItWorked:
@@ -1376,7 +1386,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-littleton-oral-surgery-fentanyl",
-    title: "Oral surgery assistant removed fentanyl from the practice safe and refilled vials with another liquid",
+    title:
+      "Oral surgery assistant removed fentanyl from the practice safe and refilled vials with another liquid",
     sector: "dental",
     schemes: ["inventory-theft"],
     howItWorked:
@@ -1409,7 +1420,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-st-albans-dental-billing",
-    title: "Dental practice employee falsified payment records in the billing software while filling forged prescriptions",
+    title:
+      "Dental practice employee falsified payment records in the billing software while filling forged prescriptions",
     sector: "dental",
     schemes: ["receivables-diversion"],
     howItWorked:
@@ -1430,7 +1442,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "expected-receipts-vs-deposits",
-        asApplied: "Day-sheet collections compared with the bank deposit by someone other than the front desk",
+        asApplied:
+          "Day-sheet collections compared with the bank deposit by someone other than the front desk",
       },
       {
         control: "permission-review",
@@ -1447,7 +1460,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-bellevue-dental-card",
-    title: "Dental office worker ran $174,336 of cash advances and personal spending through the practice credit card",
+    title:
+      "Dental office worker ran $174,336 of cash advances and personal spending through the practice credit card",
     sector: "dental",
     schemes: ["expense-reimbursement"],
     howItWorked:
@@ -1462,7 +1476,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
-        asApplied: "Dentist reads the card statement line by line each month; cash advances are disabled on the card",
+        asApplied:
+          "Dentist reads the card statement line by line each month; cash advances are disabled on the card",
       },
       {
         control: "owner-opens-bank-statement",
@@ -1479,46 +1494,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Lori Elizabeth Bowman, 38, of Bothell, Washington was sentenced in September 2012 to 30 months in prison and $174,336 in restitution for acquiring a controlled substance by fraud, access-device fraud, and aggravated identity theft. The release gives the card loss as approximately $174,336 and the monthly average as about $7,924 but no start date for the charges, so no duration is recorded. It describes detection as a pharmacy notifying the DEA about the dentist's prescribing, which led investigators to the employee; the card fraud surfaced from that investigation. The practice's size and her job title and tenure are not stated.",
   },
   {
-    id: "case-marion-veteran-owned-payroll",
-    title: "Bookkeeper paid herself by paper payroll check on top of her direct deposit for eight years",
-    sector: "any",
-    schemes: ["payroll", "check-tampering"],
-    howItWorked:
-      "The bookkeeper of a small veteran-owned business in Marion, Iowa managed payroll and the company's employee retirement-plan contributions. From 2013 to 2021 she wrote physical payroll checks to herself that she was not entitled to while also receiving her regular pay by direct deposit, altered her pay rate, forged signatures, and made false entries in the books to conceal the checks. For a period she also stopped paying the company's federal and state taxes and employee retirement contributions.",
-    controlGap:
-      "Payroll, the checkbook, the books, and the retirement-plan contact were one job. A second payroll payment to the same person is invisible inside a payroll system that person runs; it shows only on the bank statement and the payroll register, and nobody else was reading either.",
-    lossUsd: 500000,
-    lossIsFloor: true,
-    durationMonths: 96,
-    detection: "unknown",
-    resolvedYear: 2026,
-    sodRuleIds: ["rule-payroll", "rule-cash-rec"],
-    wouldHaveCaughtIt: [
-      {
-        control: "payroll-register-review",
-        asApplied: "Owner reviews the payroll register every cycle — a name appearing twice is the finding",
-      },
-      {
-        control: "owner-opens-bank-statement",
-        asApplied: "Owner opens the bank statement first and looks at every cleared check payable to an employee",
-      },
-      {
-        control: "independent-financial-review",
-        asApplied:
-          "Outside accountant confirms annually that payroll-tax and retirement-plan deposits were actually made",
-      },
-    ],
-    source: {
-      publisher: "U.S. Attorney's Office, Northern District of Iowa",
-      url: "https://www.justice.gov/usao-ndia/pr/springville-woman-sent-federal-prison-embezzlement-scheme",
-      grade: "primary-document-reported",
-    },
-    caveat:
-      "Debra Ann Vaughn, 67, of Springville, Iowa was sentenced in May 2026 to 41 months in prison for bank fraud. The release says she stole over $500,000, recorded here as a floor; restitution was set at $158,135.77 because the company had already recovered $373,732.27 by seizing an inheritance in a state civil case. The release does not describe how the fraud was discovered, so the detection route is unknown. Her hire year and the company's headcount are not stated.",
-  },
-  {
     id: "case-boston-suburb-controller",
-    title: "Newly hired controller took $229,088 in nine months using pre-signed checks and online banking",
+    title:
+      "Newly hired controller took $229,088 in nine months using pre-signed checks and online banking",
     sector: "any",
     schemes: ["check-tampering"],
     howItWorked:
@@ -1535,11 +1513,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "dual-release-above-threshold",
-        asApplied: "Bank-enforced dual approval on every online transfer, using the founder's own login",
+        asApplied:
+          "Bank-enforced dual approval on every online transfer, using the founder's own login",
       },
       {
         control: "positive-pay",
-        asApplied: "Positive Pay, and no pre-signed checks — a check the founder has not listed does not clear",
+        asApplied:
+          "Positive Pay, and no pre-signed checks — a check the founder has not listed does not clear",
       },
       {
         control: "owner-opens-bank-statement",
@@ -1556,7 +1536,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-st-louis-floor-covering",
-    title: "Warehouse supervisor of 25 years ran ghost timesheets, fake vendors, and padded receipts for six and a half years",
+    title:
+      "Warehouse supervisor of 25 years ran ghost timesheets, fake vendors, and padded receipts for six and a half years",
     sector: "trades",
     schemes: ["payroll", "billing-shell-vendor", "expense-reimbursement"],
     howItWorked:
@@ -1582,7 +1563,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "receipt-and-second-approval",
-        asApplied: "Reimbursements need the original receipt and approval from someone other than the claimant's own crew",
+        asApplied:
+          "Reimbursements need the original receipt and approval from someone other than the claimant's own crew",
       },
       {
         control: "card-statement-line-review",
@@ -1598,46 +1580,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Ronald Scott Miller of Waterloo, Illinois was sentenced in March 2023 by U.S. District Judge Stephen R. Clark to three years and five months in prison after pleading guilty to wire fraud; the release states the loss as $339,844 and says he was ordered to repay it. The 25 years of tenure and the six-and-a-half-year duration are stated in the release. It does not say how the scheme was discovered or give the company's headcount.",
   },
   {
-    id: "case-idaho-franchise-ghost-payroll",
-    title: "Restaurant district manager revived former employees' payroll numbers and paid himself $685,376 in hours never worked",
-    sector: "restaurant",
-    schemes: ["payroll"],
-    howItWorked:
-      "A district manager for a franchisee of national restaurant chains, who supervised a number of Idaho restaurants and their payroll, changed the names and details attached to former employees' payroll numbers and entered hours against them for work that was never done. From at least April 2021 through April 2024 he collected the resulting pay by cashing checks, loading it onto pay cards, and direct deposit.",
-    controlGap:
-      "The person entering hours could also edit the employee master record, so a departed worker's number became a payee under his control. Nobody compared the list of people who had left against the list of people being paid, and pay cards let the money leave without a bank account in his name.",
-    lossUsd: 685376,
-    lossIsFloor: false,
-    durationMonths: 36,
-    detection: "unknown",
-    resolvedYear: 2025,
-    sodRuleIds: ["rule-payroll"],
-    wouldHaveCaughtIt: [
-      {
-        control: "terminated-staff-vs-payroll",
-        asApplied: "Owner compares the list of people who have left against everyone paid this month, every month",
-      },
-      {
-        control: "payee-account-not-an-employee",
-        asApplied:
-          "Every payroll destination — bank account or pay card — belongs to a current employee the store manager can name",
-      },
-      {
-        control: "compare-across-locations",
-        asApplied: "Labor hours per location compared against sales and posted schedules month over month",
-      },
-    ],
-    source: {
-      publisher: "U.S. Attorney's Office, District of Idaho",
-      url: "https://www.justice.gov/usao-id/pr/mountain-home-man-sentenced-27-months-embezzlement",
-      grade: "primary-document-reported",
-    },
-    caveat:
-      "Javier D. Ruiz, 35, of Mountain Home, Idaho was sentenced in December 2025 to 27 months in prison, two years of supervised release, and $685,376 in restitution for wire fraud. The release names neither the franchisee nor the number of restaurants, and does not say how the scheme was discovered or how long he had worked there. The scheme dates are given as 'at least April 2021 through April 2024', so 36 months is a floor.",
-  },
-  {
     id: "case-omaha-fake-refunds",
-    title: "Area manager issued 275 credit-card refunds with no sale behind them to his own eight cards",
+    title:
+      "Area manager issued 275 credit-card refunds with no sale behind them to his own eight cards",
     sector: "restaurant",
     schemes: ["refund-fraud"],
     howItWorked:
@@ -1659,11 +1604,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "compare-across-locations",
-        asApplied: "Refund rate per location compared month over month — three stores under one manager all rising is the finding",
+        asApplied:
+          "Refund rate per location compared month over month — three stores under one manager all rising is the finding",
       },
       {
         control: "background-check-money-handlers",
-        asApplied: "Identity verified against the person in front of you, not just the documents presented",
+        asApplied:
+          "Identity verified against the person in front of you, not just the documents presented",
       },
     ],
     source: {
@@ -1675,46 +1622,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Robert Giardina, 39, was sentenced in September 2020 by Senior U.S. District Judge Laurie Smith Camp to 30 months in prison and $30,075.16 in restitution for wire fraud, the figure recorded here. The release names neither the management company nor the brand. The refunds ran from October 24, 2017 to June 5, 2018; he was hired on July 24, 2017, so tenure is recorded as under one year. The release does not say how the refunds were detected.",
   },
   {
-    id: "case-msp-airport-cash-lapping",
-    title: "Fast-food manager pocketed daily cash and used later days' takings to make earlier deposits look merely late",
-    sector: "restaurant",
-    schemes: ["cash-larceny"],
-    howItWorked:
-      "The manager of a fast-food franchise at Minneapolis–St. Paul International Airport was responsible for collecting each day's cash receipts and depositing them. From September 2022 through October 2023 he kept some or all of the cash, used later days' receipts to make earlier deposits, and emailed the company's accounting staff that he was catching up on delayed deposits. About $144,000 never arrived.",
-    controlGap:
-      "Recorded sales said what cash should exist, the deposits said what did, and the person explaining the gap between them was the person causing it. Lapping works only while the reconciler accepts the custodian's explanation instead of matching each day's deposit to that day's sales.",
-    lossUsd: 144000,
-    lossIsFloor: false,
-    durationMonths: 13,
-    detection: "unknown",
-    resolvedYear: 2024,
-    sodRuleIds: ["rule-custody-rec", "rule-deposit-post"],
-    wouldHaveCaughtIt: [
-      {
-        control: "expected-receipts-vs-deposits",
-        asApplied:
-          "Each day's register cash total matched to a same-day deposit by accounting, with any gap escalated to the owner rather than to the manager",
-      },
-      {
-        control: "independent-bank-reconciliation",
-        asApplied: "Someone who never handles the cash reconciles deposits to the register report weekly",
-      },
-      {
-        control: "mandatory-time-away",
-        asApplied: "The manager takes a week off each year while someone else makes the deposits",
-      },
-    ],
-    source: {
-      publisher: "U.S. Attorney's Office, District of Minnesota",
-      url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer",
-      grade: "primary-document-reported",
-    },
-    caveat:
-      "Timothy Michael Hill, Jr., 36, of Woodbury, Minnesota pleaded guilty in June 2024 to one count of wire fraud; the release says a sentencing date would be set later, and this record has not been updated with a sentence. The loss is stated as approximately $144,000 over 13 months. The release identifies the employer only as Company A, gives no headcount or length of service, and does not say how the shortfall was discovered.",
-  },
-  {
     id: "case-burlington-dealership-cash",
-    title: "Dealership office manager of 23 years took customer cash receipts and edited the accounting entries to match",
+    title:
+      "Dealership office manager of 23 years took customer cash receipts and edited the accounting entries to match",
     sector: "retail",
     schemes: ["skimming", "check-tampering"],
     howItWorked:
@@ -1731,15 +1641,18 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "expected-receipts-vs-deposits",
-        asApplied: "Owner compares cash sales and repair-order cash payments against bank deposits monthly",
+        asApplied:
+          "Owner compares cash sales and repair-order cash payments against bank deposits monthly",
       },
       {
         control: "adjustments-report-by-employee",
-        asApplied: "Edited or deleted transactions in the dealer management system, listed by user, reviewed monthly",
+        asApplied:
+          "Edited or deleted transactions in the dealer management system, listed by user, reviewed monthly",
       },
       {
         control: "owner-opens-bank-statement",
-        asApplied: "Owner opens the bank statement first and reads every cleared check payable to an employee",
+        asApplied:
+          "Owner opens the bank statement first and reads every cleared check payable to an employee",
       },
     ],
     source: {
@@ -1752,7 +1665,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-dothan-printing-credentials",
-    title: "Former employee handed a competitor a colleague's login, exposing 30 customer accounts and their pricing for a year",
+    title:
+      "Former employee handed a competitor a colleague's login, exposing 30 customer accounts and their pricing for a year",
     sector: "any",
     schemes: ["data-theft"],
     howItWorked:
@@ -1787,7 +1701,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-lenoir-secret-bank-account",
-    title: "Office manager kept open a bank account the owner told him to close and routed customer payments into it",
+    title:
+      "Office manager kept open a bank account the owner told him to close and routed customer payments into it",
     sector: "any",
     schemes: ["receivables-diversion", "check-tampering"],
     howItWorked:
@@ -1803,11 +1718,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "verify-oversight-is-real",
-        asApplied: "Owner confirms directly with the bank, annually, which accounts exist in the company's name",
+        asApplied:
+          "Owner confirms directly with the bank, annually, which accounts exist in the company's name",
       },
       {
         control: "owner-opens-bank-statement",
-        asApplied: "Every account's statement goes to the owner first, including any the owner believes is closed",
+        asApplied:
+          "Every account's statement goes to the owner first, including any the owner believes is closed",
       },
       {
         control: "confirm-remittance-account",
@@ -1824,7 +1741,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-dartmouth-serial-embezzler",
-    title: "Bookkeeper redirected vendor payments at one employer, then inflated her own payroll at the next",
+    title:
+      "Bookkeeper redirected vendor payments at one employer, then inflated her own payroll at the next",
     sector: "any",
     schemes: ["billing-shell-vendor", "payroll"],
     howItWorked:
@@ -1839,7 +1757,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "background-check-money-handlers",
-        asApplied: "Reference calls to the previous employer before anyone is given payment authority",
+        asApplied:
+          "Reference calls to the previous employer before anyone is given payment authority",
       },
       {
         control: "bank-alerts-on-payee-change",
@@ -1851,7 +1770,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "payroll-register-review",
-        asApplied: "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
+        asApplied:
+          "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
       },
     ],
     source: {
@@ -1864,7 +1784,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-jersey-city-condo-kickbacks",
-    title: "Property manager steered repair work to a contractor who doubled his invoices and kicked back $440,000",
+    title:
+      "Property manager steered repair work to a contractor who doubled his invoices and kicked back $440,000",
     sector: "any",
     schemes: ["corruption", "billing-shell-vendor"],
     howItWorked:
@@ -1880,15 +1801,18 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "billing-matches-the-schedule",
-        asApplied: "Owner or board spot-checks invoiced repairs against the work order and a walk of the property",
+        asApplied:
+          "Owner or board spot-checks invoiced repairs against the work order and a walk of the property",
       },
       {
         control: "dual-release-above-threshold",
-        asApplied: "Repair invoices above a set amount need a second approver who did not select the contractor",
+        asApplied:
+          "Repair invoices above a set amount need a second approver who did not select the contractor",
       },
       {
         control: "independent-financial-review",
-        asApplied: "Annual outside review of spend by vendor — one contractor's share doubling is the finding",
+        asApplied:
+          "Annual outside review of spend by vendor — one contractor's share doubling is the finding",
       },
     ],
     source: {
@@ -1898,5 +1822,47 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "The lead property manager, 56, of Jersey City pleaded guilty in April 2024 to conspiracy to commit wire fraud, with sentencing scheduled for August 2024; this record has not been updated with the sentence and does not name him for that reason. The release states the loss to the complex's owner as $470,000, the sum of the kickbacks. It does not name the complex or its owner, or say how the scheme was discovered. The victim is a property owner rather than an operating business, so the sector is recorded as any.",
+  },
+  {
+    id: "case-irvine-consultancy-it-wipe",
+    title:
+      "Consulting firm's IT lead, stripped of his duties but not his logins, deleted eight years of work and the off-site backups",
+    sector: "professional-services",
+    schemes: ["data-destruction"],
+    howItWorked:
+      "A senior strategist hired in April 2014 by Blue Stone Strategy Group, an Irvine, California consulting firm serving tribal governments, ran the firm's information technology and marketing. In November 2014, after he fell behind and the firm took those duties away and sent him to a client project in Florida, he used the administrator access he still held to delete files on the office server and the firm's cloud services, and sent a remote wipe command to the office Mac Pro from his phone. After resigning he kept deleting: client information, the firm's work product, its website and marketing materials built over eight years, and the backup copies a third-party provider held for the firm.",
+    controlGap:
+      "One person administered the user accounts, the cloud services, and the backup provider, and nobody revoked that access when his duties changed or when he resigned. A backup the same login can delete is not a backup. Only a recovery copy outside every employee's reach, plus removing administrator rights the day a role changes, would have limited the damage to an afternoon.",
+    lossUsd: 53305,
+    lossIsFloor: true,
+    durationMonths: 1,
+    tenureYearsStated: 0,
+    detection: "unknown",
+    resolvedYear: 2019,
+    sodRuleIds: ["rule-backup-access", "rule-access-log"],
+    wouldHaveCaughtIt: [
+      {
+        control: "recovery-copy-out-of-reach",
+        asApplied:
+          "One backup copy that no employee login can delete — held by a provider under the owner's own account, or offline",
+      },
+      {
+        control: "permission-review",
+        asApplied:
+          "Administrator rights on the server, cloud services, and backup provider revoked the day a person's duties change, not the day they leave",
+      },
+      {
+        control: "no-shared-logins",
+        asApplied:
+          "Each system administered under a named login the owner can switch off in one step, with the owner holding a second administrator account",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Central District of California",
+      url: "https://www.justice.gov/usao-cdca/pr/former-it-administrator-sentenced-more-2-years-prison-hacking-his-ex-employer-s",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Nikishna Polequaptewa, 37, of Avondale, Arizona was found guilty by a federal jury in November 2018 of one count of unauthorized impairment of the integrity and availability of data and was sentenced in July 2019 to 27 months in prison and $53,305 in restitution. The loss recorded here is the restitution figure and is a floor: the release describes eight years of website and marketing work destroyed but puts no price on it. He was hired in April 2014, so tenure is recorded as under one year. The deletions ran over days in November 2014, recorded as one month. The release does not say how the firm discovered the deletions, so the detection route is unknown.",
   },
 ];

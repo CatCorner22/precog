@@ -400,17 +400,17 @@ export function scoreAllResidualRisks(
       drivers: [
         {
           id: `${s.id}-loss`,
-          label: "Expected financial impact",
+          label: "Assumed loss if this happened",
           direction: "increases" as const,
           weight: lossNorm,
-          detail: `~$${result.financialImpact.expected.toLocaleString()} expected`,
+          detail: `~$${result.financialImpact.expected.toLocaleString()} — the app's scenario assumption, not a measured figure`,
         },
         {
           id: `${s.id}-time`,
-          label: "Time to material impact",
+          label: "Assumed time before it hurts",
           direction: "increases" as const,
           weight: timeNorm,
-          detail: `p50 ${result.timelineDays.p50} days (95% ${result.timelineDays.p95Low}–${result.timelineDays.p95High})`,
+          detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High} — the app's scenario assumption`,
         },
         ...uplift.drivers,
       ].slice(0, 6),

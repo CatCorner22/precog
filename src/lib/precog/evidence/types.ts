@@ -43,7 +43,9 @@ export type SchemeKind =
   /** Register disbursements: refunds, voids, or credits issued with no sale behind them. */
   | "refund-fraud"
   /** Customer, pricing, or patient data taken for a competitor or for sale. */
-  | "data-theft";
+  | "data-theft"
+  /** An insider deleted, wiped, or locked the business out of its own data. */
+  | "data-destruction";
 
 /**
  * How the scheme ended. Detection route matters more than any other single
