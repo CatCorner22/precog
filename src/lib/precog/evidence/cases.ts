@@ -528,7 +528,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 1400000,
     lossIsFloor: true,
     durationMonths: 108,
-    detection: "owner-review",
+    detection: "bank-or-insurer",
     resolvedYear: 2025,
     sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
@@ -552,7 +552,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. The owner and manager reported the theft to Bellingham police in August 2022; the federal release puts the scheme at 2013 to 2022.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. On 12 August 2022 a bank representative told the owners that an electronic check had moved from the business account to her personal account; the owners' review of past transactions then found nine more, and they reported the theft to Bellingham police that month (Cascadia Daily News, from the charging papers). The detection route is recorded as the bank on that basis; the federal release itself does not say how the theft was found. The release puts the scheme at 2013 to 2022.",
   },
   {
     id: "case-kearny-medical-receptionist",
@@ -2028,5 +2028,45 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Marcia Joseph pleaded guilty to wire fraud in January 2024 and was sentenced in September 2025 by U.S. District Judge Eric N. Vitaliano to 21 months in prison, with restitution and forfeiture of about $2.3 million; the loss recorded here is the $2,339,700 the release states she took. The release describes the span as nearly 17 years, recorded as 200 months. It does not name the nonprofit, state her hire date, or say how the invoices were discovered.",
+  },
+  {
+    id: "case-baton-rouge-mattress-retailer-forged-checks",
+    title:
+      "Retail chain's office manager printed herself more than 300 checks of $1,500 to $4,000 over six and a half years, $1.2 million",
+    sector: "retail",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The office manager at the Baton Rouge headquarters of Mattress Direct, a regional mattress retailer, printed company checks payable to herself and to one other person in amounts between $1,500 and $4,000, forged the company treasurer's signature, and deposited them. From June 2012 to December 2018 she diverted more than 300 checking transactions worth more than $1.2 million.",
+    controlGap:
+      "Each check was small enough to pass unnoticed inside a retailer's daily volume, and the same person printed the checks, held the signature, and kept the books. Nobody who did not print checks looked at the cleared-check images, and the bank had no list of approved checks to compare against.",
+    lossUsd: 1200000,
+    lossIsFloor: true,
+    durationMonths: 78,
+    detection: "unknown",
+    resolvedYear: 2019,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only checks whose number, payee, and amount the treasurer has uploaded; a check to the office manager is not on the list",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "The treasurer opens the bank statement first and looks at every cleared-check image for a payee who works in the office",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied: "Someone who cannot print checks reconciles the bank account each month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Middle District of Louisiana",
+      url: "https://www.justice.gov/usao-mdla/pr/former-office-manager-sentenced-federal-prison-embezzling-over-one-million-dollars",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Katherine Dyson of Denham Springs, Louisiana was sentenced in December 2019 to 42 months in prison after pleading guilty; the release states the loss as more than $1.2 million across more than 300 transactions, so the figure is recorded as a floor. The employer's name comes from the release and from The Advocate's coverage. The release does not say how the checks were discovered, give her hire date, or state the company's headcount.",
   },
 ];
