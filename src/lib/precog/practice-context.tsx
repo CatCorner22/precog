@@ -408,12 +408,15 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     };
   }, [ready, isPending, userId, userIsDevFallback, activateProfile, saveCloud]);
 
-  // Every write is debounced: the local copy, the portfolio (every business,
-  // in full) and the cloud copy. Serialising a large profile on each keystroke
-  // measurably lagged typing; the tab-hide flush below covers a closed tab.
+  // The active profile is written locally on every change, so a cleared
+  // store or a closed tab never resurrects stale state. The portfolio (every
+  // business, in full) and the cloud copy are debounced: re-serialising and
+  // re-parsing the whole portfolio on each keystroke measurably lagged typing.
   useEffect(() => {
     if (!ready) return;
+    const savedLocally = saveProfile(profile);
     const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
+    if (!cloud) setSyncStatus(savedLocally ? "local" : "local-error");
 
     const skipOnce = skipNextCloudSave.current;
     skipNextCloudSave.current = false;
@@ -426,10 +429,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      const savedLocally = saveProfile(profile);
       savePortfolioEntry(profile);
       setPortfolioVersion((v) => v + 1);
-      if (!cloud) setSyncStatus(savedLocally ? "local" : "local-error");
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(() => setSyncStatus("error"));
     }, SAVE_DEBOUNCE_MS);
@@ -449,7 +450,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
       const cur = profileRef.current;
-      saveProfile(cur);
       savePortfolioEntry(cur);
       const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
       if (cloud && cloudLoadedFor.current === userId && !saveConflictRef.current) {
