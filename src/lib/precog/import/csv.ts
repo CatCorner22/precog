@@ -1,4 +1,8 @@
-export function parseRows(text: string): string[][] {
+/**
+ * Splits delimited text into rows. The delimiter defaults to a comma; pass
+ * "\t" for text pasted from a spreadsheet, or use `sniffDelimiter`.
+ */
+export function parseRows(text: string, delimiter: "," | "\t" | ";" = ","): string[][] {
   const source = text.startsWith("\uFEFF") ? text.slice(1) : text;
   const rows: string[][] = [];
   let row: string[] = [];
@@ -22,7 +26,7 @@ export function parseRows(text: string): string[][] {
     }
     if (char === '"' && field.length === 0) {
       quoted = true;
-    } else if (char === ",") {
+    } else if (char === delimiter) {
       row.push(field);
       field = "";
     } else if (char === "\r" || char === "\n") {
@@ -40,4 +44,12 @@ export function parseRows(text: string): string[][] {
     rows.push(row);
   }
   return rows.filter((cells) => cells.some((cell) => cell.trim()));
+}
+
+/** The delimiter the first line uses: a tab when pasted from a spreadsheet, else a comma or semicolon. */
+export function sniffDelimiter(text: string): "," | "\t" | ";" {
+  const first = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  if (first.includes("\t")) return "\t";
+  if (!first.includes(",") && first.includes(";")) return ";";
+  return ",";
 }
