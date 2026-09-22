@@ -21,6 +21,7 @@ import {
   buildAssignments,
   COMMON_JOB_TEMPLATES,
   detectSodConflicts,
+  dropInactiveAssignments,
   type DetectedConflict,
   type RoleAssignment,
 } from "@/lib/precog/sod/detect";
@@ -92,6 +93,14 @@ export function PowerMapBuilder() {
     window.addEventListener("precog:power-map-restored", restore);
     return () => window.removeEventListener("precog:power-map-restored", restore);
   }, []);
+
+  useEffect(() => {
+    const live = dropInactiveAssignments(assignments, tpl.people);
+    if (live.length === assignments.length) return;
+    setAssignments(live);
+    setBaseline((current) => dropInactiveAssignments(current, tpl.people));
+    setSelectedId((current) => (live.some((a) => a.personId === current) ? current : live[0]?.personId ?? ""));
+  }, [assignments, tpl.people]);
 
   useEffect(() => {
     if (storageReady) window.localStorage.setItem(POWER_MAP_STORAGE_KEY, JSON.stringify(createPowerMapFile(assignments)));

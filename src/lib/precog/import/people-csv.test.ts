@@ -156,4 +156,20 @@ describe("parsePeopleCsv", () => {
       "2026-12-01",
     );
   });
+
+  it("gives only the first duplicate row the matched person's id and last day", () => {
+    const tpl = {
+      ...dental,
+      people: [
+        { id: "p-maya", name: "Maya Chen", role: "Office Manager", active: true, lastDay: "2026-10-14" },
+      ],
+    };
+    const { people } = parsePeopleCsv(
+      "name,role\nMaya Chen,Office Manager\nMaya Chen,Hygienist",
+      tpl,
+    );
+    expect(people.map((p) => p.id)).toEqual(["p-maya", "p-maya-chen"]);
+    expect(people[0].lastDay).toBe("2026-10-14");
+    expect("lastDay" in people[1]).toBe(false);
+  });
 });
