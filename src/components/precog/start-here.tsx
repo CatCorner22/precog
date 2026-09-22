@@ -1028,6 +1028,9 @@ const SCHEME_ORDER: SchemeKind[] = [
   "receivables-diversion",
   "skimming",
   "cash-larceny",
+  "refund-fraud",
+  "inventory-theft",
+  "data-theft",
   "financial-statement",
   "corruption",
 ];
@@ -1042,6 +1045,9 @@ const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "cash-larceny": "Cash taken after it was recorded",
   "financial-statement": "Doctored books and statements",
   corruption: "Kickbacks and conflicts of interest",
+  "refund-fraud": "Refunds and voids with no sale behind them",
+  "inventory-theft": "Stock, equipment, and drugs taken",
+  "data-theft": "Customer and pricing data taken",
 };
 
 /** Plain wording for each detection route, matching the case card. */

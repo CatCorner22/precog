@@ -9,7 +9,7 @@ import {
   normalizePlannedAbsences,
   type PracticeProfile,
 } from "./practice-profile";
-import { isStaleSave } from "./save-conflict";
+import { saveBusinessRevision } from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
 
 type ProfileRow = {
@@ -123,12 +123,28 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     `;
     const existing = existingRows[0];
     if (isStaleSave(existing ? Number(existing.revision) : null, data.baseRevision)) {
+    const name = data.profile.practiceName.slice(0, 80);
+    const businessId = data.profile.businessId ?? "biz_default";
+    const profileJson = JSON.stringify(data.profile);
+
+    // Revision check and write are a single compare-and-swap statement; see
+    // business-store.ts. The table is keyed by (user_id, id), so another
+    // user's business with the same client-generated id is a different row.
+    const saved = await saveBusinessRevision<PracticeProfile>(sql, {
+      userId: context.userId,
+      businessId,
+      name,
+      industry: data.industry,
+      profileJson,
+      baseRevision: data.baseRevision,
+    });
+    if (!saved.ok) {
       return {
         ok: false as const,
         conflict: true as const,
-        revision: Number(existing.revision),
-        updatedAt: String(existing.updated_at),
-        profile: { ...mergeProfile(existing, data.today), businessId },
+        revision: saved.existing.revision,
+        updatedAt: saved.existing.updated_at,
+        profile: { ...mergeProfile(saved.existing, data.today), businessId },
       };
     }
 
@@ -161,6 +177,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
         ${name},
         ${data.industry},
         ${data.json}::jsonb,
+        ${profileJson}::jsonb,
         now()
       )
       on conflict (user_id) do update set
@@ -171,8 +188,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     `;
     return {
       ok: true as const,
-      revision: Number(updated.revision),
-      updatedAt: String(updated.updated_at),
+      revision: saved.revision,
+      updatedAt: saved.updatedAt,
     };
   });
 
