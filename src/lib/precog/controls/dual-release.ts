@@ -355,25 +355,144 @@ export function makeExceptionId(): string {
   return `ex_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const RELEASE_CHANNELS = new Set<ReleaseChannel>([
+  "ach",
+  "check",
+  "writeoff",
+  "vendor_new",
+  "deposit",
+  "payroll",
+]);
+const EXCEPTION_ACTIONS = new Set<ExceptionAction>([
+  "raise_threshold",
+  "force_dual",
+  "waive_dual",
+  "lower_threshold",
+]);
+const MAX_USD = 1_000_000_000;
+
+const str = (value: unknown, max: number): string | undefined =>
+  typeof value === "string" ? value.trim().slice(0, max) : undefined;
+const usd = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(MAX_USD, value))
+    : undefined;
+const isoDay = (value: unknown): string | undefined =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+const roleList = (value: unknown, fallback: string[]): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((r): r is string => typeof r === "string")
+        .map((r) => r.trim().slice(0, 60))
+        .filter(Boolean)
+        .slice(0, 20)
+    : fallback;
+
+/**
+ * Reads one stored or imported exception, keeping only fields of the right
+ * shape. Returns null when the record cannot be an exception at all (no id,
+ * unknown action), so a corrupt or crafted snapshot never reaches the
+ * evaluator with, say, `channels: null`.
+ */
+export function normalizeThresholdException(value: unknown): ThresholdException | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const id = str(v.id, 80);
+  const action = v.action as ExceptionAction;
+  if (!id || !EXCEPTION_ACTIONS.has(action)) return null;
+  const channels = Array.isArray(v.channels)
+    ? v.channels.filter((c): c is ReleaseChannel => RELEASE_CHANNELS.has(c as ReleaseChannel))
+    : [];
+  const out: ThresholdException = {
+    id,
+    label: str(v.label, 120) ?? "",
+    channels,
+    action,
+    enabled: v.enabled === true,
+    reason: str(v.reason, 400) ?? "",
+    createdAt: str(v.createdAt, 40) ?? new Date().toISOString(),
+  };
+  const thresholdUsd = usd(v.thresholdUsd);
+  if (thresholdUsd !== undefined) out.thresholdUsd = thresholdUsd;
+  const amountMinUsd = usd(v.amountMinUsd);
+  if (amountMinUsd !== undefined) out.amountMinUsd = amountMinUsd;
+  const amountMaxUsd = usd(v.amountMaxUsd);
+  if (amountMaxUsd !== undefined) out.amountMaxUsd = amountMaxUsd;
+  for (const key of [
+    "payeeContains",
+    "personId",
+    "role",
+    "approvedByPersonId",
+    "residualNote",
+  ] as const) {
+    const text = str(v[key], key === "residualNote" ? 400 : 120);
+    if (text) out[key] = text;
+  }
+  const from = isoDay(v.effectiveFrom);
+  if (from) out.effectiveFrom = from;
+  const to = isoDay(v.effectiveTo);
+  if (to) out.effectiveTo = to;
+  if (v.sample === true) out.sample = true;
+  return out;
+}
+
+/** Applies a stored rule override onto the template's rule, field by field, ignoring anything malformed. */
+function mergeRule(base: DualReleaseRule, override: unknown): DualReleaseRule {
+  if (!override || typeof override !== "object") return base;
+  const o = override as Record<string, unknown>;
+  return {
+    ...base,
+    label: str(o.label, 120) || base.label,
+    description: str(o.description, 400) ?? base.description,
+    enabled: typeof o.enabled === "boolean" ? o.enabled : base.enabled,
+    thresholdUsd: usd(o.thresholdUsd) ?? base.thresholdUsd,
+    requireDistinctPeople:
+      typeof o.requireDistinctPeople === "boolean"
+        ? o.requireDistinctPeople
+        : base.requireDistinctPeople,
+    firstApproverRoles: roleList(o.firstApproverRoles, base.firstApproverRoles),
+    secondApproverRoles: roleList(o.secondApproverRoles, base.secondApproverRoles),
+    // Which conflicts a channel mitigates and which processes it touches come from the template, never from stored data.
+    mitigatesRuleIds: base.mitigatesRuleIds,
+    processIds: base.processIds,
+    channel: base.channel,
+  };
+}
+
 export function mergeDualReleasePolicy(
   tpl: IndustryTemplate,
   partial?: Partial<DualReleasePolicy> | null,
   staff?: StaffComposition,
 ): DualReleasePolicy {
   const base = defaultDualReleasePolicy(tpl, staff);
-  if (!partial) return base;
-  const rulesByChannel = new Map((partial.rules ?? []).map((r) => [r.channel, r] as const));
+  if (!partial || typeof partial !== "object") return base;
+  const rulesByChannel = new Map<string, unknown>();
+  if (Array.isArray(partial.rules)) {
+    for (const r of partial.rules as unknown[]) {
+      if (r && typeof r === "object" && typeof (r as { channel?: unknown }).channel === "string") {
+        rulesByChannel.set((r as { channel: string }).channel, r);
+      }
+    }
+  }
+  const exceptions = Array.isArray(partial.exceptions)
+    ? (partial.exceptions as unknown[])
+        .slice(0, 200)
+        .map(normalizeThresholdException)
+        .filter((e): e is ThresholdException => e !== null)
+    : base.exceptions;
   return {
-    enabled: partial.enabled ?? base.enabled,
-    ownerCanSecondAny: partial.ownerCanSecondAny ?? base.ownerCanSecondAny,
-    hardBlockWithoutSecond: partial.hardBlockWithoutSecond ?? base.hardBlockWithoutSecond,
-    rules: base.rules.map((r) => ({
-      ...r,
-      ...rulesByChannel.get(r.channel),
-      channel: r.channel,
-    })),
-    exceptions: Array.isArray(partial.exceptions) ? partial.exceptions : base.exceptions,
-    updatedAt: partial.updatedAt,
+    enabled: typeof partial.enabled === "boolean" ? partial.enabled : base.enabled,
+    ownerCanSecondAny:
+      typeof partial.ownerCanSecondAny === "boolean"
+        ? partial.ownerCanSecondAny
+        : base.ownerCanSecondAny,
+    hardBlockWithoutSecond:
+      typeof partial.hardBlockWithoutSecond === "boolean"
+        ? partial.hardBlockWithoutSecond
+        : base.hardBlockWithoutSecond,
+    rules: base.rules.map((r) => mergeRule(r, rulesByChannel.get(r.channel))),
+    exceptions,
+    updatedAt: typeof partial.updatedAt === "string" ? partial.updatedAt : undefined,
   };
 }
 
