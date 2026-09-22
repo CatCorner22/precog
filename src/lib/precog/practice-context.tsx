@@ -39,6 +39,7 @@ import {
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
+import { ownBusinessProfile } from "./onboarding/own-team";
 import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
 import {
   applyDecisionReview,
@@ -117,6 +118,12 @@ interface PracticeContextValue {
   resetProfile: () => void;
   /** First-visit picker: load the template and mark onboarding done. */
   completeOnboarding: (industry: IndustryId) => void;
+  /** Onboarding for the owner's own business: their name and their people replace the sample. */
+  startOwnBusiness: (input: {
+    industry: IndustryId;
+    practiceName: string;
+    people: Person[];
+  }) => void;
   /** Map builder: replace the process map (null = back to industry template). */
   setCustomProcesses: (
     v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
@@ -665,6 +672,19 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [clearHistory],
   );
 
+  const startOwnBusiness = useCallback(
+    (input: { industry: IndustryId; practiceName: string; people: Person[] }) => {
+      clearHistory();
+      setProfile((p) =>
+        ownBusinessProfile(
+          { ...defaultProfile(input.industry), decisions: [], businessId: p.businessId },
+          { practiceName: input.practiceName, people: input.people },
+        ),
+      );
+    },
+    [clearHistory],
+  );
+
   const setCustomPeople = useCallback(
     (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
       pushUndo();
@@ -1003,6 +1023,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       reviewDecision,
       resetProfile,
       completeOnboarding,
+      startOwnBusiness,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,
@@ -1045,6 +1066,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       reviewDecision,
       resetProfile,
       completeOnboarding,
+      startOwnBusiness,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,
