@@ -400,7 +400,10 @@ export function DecisionJournal({
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Reviews due</CardTitle>
-                <CardDescription>Re-score the decision before you close the loop.</CardDescription>
+                <CardDescription>
+                  Re-score the decision before you close the loop. The figures below are the
+                  app&apos;s own scores at the time you decided and now, not measured outcomes.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {dueDecisions.map((d) => (

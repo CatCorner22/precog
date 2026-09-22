@@ -52,6 +52,7 @@ import {
   type CrossTrainingMove,
   type DocumentationGap,
   type ItemCoverage,
+  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import {
   endAbsence,
@@ -496,7 +497,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     );
     toast.success(
       ids.length === 1
-        ? "Confirmed — re-check again in 90 days."
+        ? `Confirmed — re-check again in ${CONFIRMATION_MAX_AGE_DAYS} days.`
         : `${ids.length} items confirmed.`,
     );
   };
@@ -1012,9 +1013,10 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               <CardHeader>
                 <CardTitle>Confirm it&apos;s still true</CardTitle>
                 <CardDescription>
-                  {freshness.stale.length} item(s) not confirmed in the last 90 days. People leave,
-                  learn and forget; a register nobody re-checks is a false comfort. Sit down with
-                  each person and go through what the register says they can do.
+                  {freshness.stale.length} item(s) not confirmed in the last{" "}
+                  {CONFIRMATION_MAX_AGE_DAYS} days. People leave, learn and forget; a register
+                  nobody re-checks is a false comfort. Sit down with each person and go through what
+                  the register says they can do.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">

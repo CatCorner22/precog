@@ -305,10 +305,6 @@ export function checkInPlan(tpl: IndustryTemplate, today: string): CheckInPlan {
   return { checkIns, unheld: stale.filter((entry) => !held.has(entry.item.id)) };
 }
 
-export function levelRank(level: KnowledgeLevel | undefined): number {
-  return level ? LEVEL_ORDER.indexOf(level) + 1 : 0;
-}
-
 export function relationLevel(
   relations: KnowledgeRelation[],
   personId: string,

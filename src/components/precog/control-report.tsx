@@ -19,6 +19,7 @@ import {
   LEVEL_LABEL,
   staleItems,
   STATUS_LABEL,
+  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import {
   formatDateRange,
@@ -537,7 +538,7 @@ export function ControlReport() {
           {trackFreshness && (
             <p className="mt-3 text-sm text-neutral-700">
               <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
-              confirmed in the last 90 days.
+              confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
               {staleness.stale.length > 0 && <> {staleness.stale.length} item(s) to re-confirm.</>}
             </p>
           )}
