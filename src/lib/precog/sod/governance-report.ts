@@ -5,7 +5,10 @@ import { POWER_GUIDANCE } from "./power-guidance";
 import type { StaffComposition } from "../types";
 
 function clean(value: string) {
-  return value.replaceAll("|", "\\|").replace(/[\r\n]+/g, " ").trim();
+  return value
+    .replaceAll("|", "\\|")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
 }
 
 /** Produce a portable, review-ready record of the current control design. */
@@ -36,14 +39,24 @@ export function createGovernanceReport(
     "",
     "| Person | Severity | Conflict | Why it matters | Recommended fallback |",
     "|---|---|---|---|---|",
-    ...report.conflicts.map((item) => `| ${clean(item.personName)} | ${item.severity} | ${clean(item.labelA)} × ${clean(item.labelB)} | ${clean(item.why)} | ${clean(item.compensatingControls.slice(0, 2).join("; "))} |`),
+    ...report.conflicts.map(
+      (item) =>
+        `| ${clean(item.personName)} | ${item.severity} | ${clean(item.labelA)} × ${clean(item.labelB)} | ${clean(item.why)} | ${clean(item.compensatingControls.slice(0, 2).join("; "))} |`,
+    ),
     ...(report.conflicts.length ? [] : ["| — | — | No conflicts detected | — | — |"]),
     "",
     "## Continuity register",
     "",
-    ...coverage.unassigned.map((item) => `- **Owner required:** ${clean(item.label)} (risk ${item.riskWeight}/5)`),
-    ...coverage.singlePoints.map((item) => `- **Backup required:** ${clean(item.label)} — currently only ${clean(item.assignees[0]?.personName ?? "one assignee")}`),
-    ...(coverage.unassigned.length || coverage.singlePoints.length ? [] : ["- No material ownership or backup gaps detected."]),
+    ...coverage.unassigned.map(
+      (item) => `- **Owner required:** ${clean(item.label)} (risk ${item.riskWeight}/5)`,
+    ),
+    ...coverage.singlePoints.map(
+      (item) =>
+        `- **Backup required:** ${clean(item.label)} — currently only ${clean(item.assignees[0]?.personName ?? "one assignee")}`,
+    ),
+    ...(coverage.unassigned.length || coverage.singlePoints.length
+      ? []
+      : ["- No material ownership or backup gaps detected."]),
     "",
     "## Responsibility charters",
     "",

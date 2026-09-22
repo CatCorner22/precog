@@ -72,6 +72,24 @@ export function normalizeValueCase(
   };
 }
 
+/**
+ * True once the owner has replaced at least one observed input (hours, cost,
+ * recoveries, program cost) with their own figure. Until then the observed
+ * metrics are the app's own assumptions and must not be shown as a return.
+ */
+export function hasOwnObservations(raw: ValueCaseInputs): boolean {
+  const inputs = normalizeValueCase(raw);
+  const keys: (keyof ValueCaseInputs)[] = [
+    "reviewHoursBefore",
+    "reviewHoursAfter",
+    "hourlyCost",
+    "annualReviews",
+    "directRecoveries",
+    "annualProgramCost",
+  ];
+  return keys.some((key) => inputs[key] !== DEFAULT_VALUE_CASE[key]);
+}
+
 export function calculateValueCase(raw: ValueCaseInputs) {
   const inputs = normalizeValueCase(raw);
   const hoursSaved =
@@ -146,9 +164,9 @@ export function createValueCaseMemo(
     "",
     "## Modeled risk reduction (not realized savings)",
     "",
-    `- Annual exposure: ${money(value.inputs.annualExposure)}`,
-    `- Baseline event probability: ${percent(value.inputs.eventProbability)}`,
-    `- Estimated control effectiveness: ${percent(value.inputs.controlEffectiveness)}`,
+    `- Annual exposure (your assumption): ${money(value.inputs.annualExposure)}`,
+    `- Baseline event probability (your assumption): ${percent(value.inputs.eventProbability)}`,
+    `- Estimated control effectiveness (your assumption): ${percent(value.inputs.controlEffectiveness)}`,
     `- Low / base / high: ${money(value.modeled.low)} / ${money(value.modeled.base)} / ${money(value.modeled.high)}`,
     "",
     "> Modeled avoided loss is a decision scenario, not booked savings. Validate assumptions independently and report it separately from observed value.",

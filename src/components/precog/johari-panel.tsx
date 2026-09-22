@@ -12,15 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import {
-  ArrowRight,
-  Eye,
-  EyeOff,
-  Grid2x2,
-  HelpCircle,
-  Lightbulb,
-  Search,
-} from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Lightbulb, Search } from "lucide-react";
 
 type NavFn = (tab: string, id?: string) => void;
 
@@ -76,9 +68,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Grid2x2 className="size-5 text-primary" />
           See what you see — and what you don’t
         </h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          {JOHARI_PLAYBOOK.coreInsight}
-        </p>
+        <p className="mt-2 max-w-2xl text-sm text-muted">{JOHARI_PLAYBOOK.coreInsight}</p>
         <p className="mt-2 text-xs text-subtle">{JOHARI_PLAYBOOK.modelOrigin}</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-border bg-elevated px-3 py-2 text-xs">
@@ -176,7 +166,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <div>
                 <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  Dental examples
+                  Examples (dental office reference)
                 </p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
                   {guide.dentalExamples.map((e) => (
@@ -222,9 +212,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               <CardTitle className="text-base">
                 Live items in {Q_META[activeQ].label} ({liveItems.length})
               </CardTitle>
-              <CardDescription>
-                Mapped from meta-analysis epistemic inventory
-              </CardDescription>
+              <CardDescription>Mapped from meta-analysis epistemic inventory</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {liveItems.length === 0 && (
@@ -239,13 +227,9 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Badge variant="default">{item.severity}</Badge>
                     <span className="font-medium">{item.title}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted line-clamp-2">
-                    {item.description}
-                  </p>
+                  <p className="mt-1 text-xs text-muted line-clamp-2">{item.description}</p>
                   {item.probe && (
-                    <p className="mt-1 text-[11px] text-ok">
-                      Probe: {item.probe.action}
-                    </p>
+                    <p className="mt-1 text-[11px] text-ok">Probe: {item.probe.action}</p>
                   )}
                   {item.link && (
                     <Button
@@ -324,7 +308,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 {domainApp.primaryMove}
               </p>
               <p className="text-xs text-muted">
-                <span className="font-medium text-fg">Why it matters for dental · </span>
+                <span className="font-medium text-fg">Why it matters for small teams · </span>
                 {domainApp.valueForDental}
               </p>
             </CardContent>
@@ -373,6 +357,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <p className="font-medium text-fg">{m.name}</p>
                     <p className="text-muted">{m.how}</p>
                     <p className="text-ok">Target: {m.target}</p>
+                    <p className="text-subtle">{m.basis}</p>
                   </div>
                 ))}
               </CardContent>

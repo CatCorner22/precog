@@ -1,11 +1,5 @@
 export type PracticeProcessDomain =
-  | "revenue"
-  | "cash"
-  | "purchasing"
-  | "payroll"
-  | "clinical"
-  | "technology"
-  | "governance";
+  "revenue" | "cash" | "purchasing" | "payroll" | "clinical" | "technology" | "governance";
 
 export interface PracticeProcessBlueprint {
   id: string;
@@ -30,10 +24,24 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Accurate patient, coverage, consent, and appointment data before care.",
     primaryOwner: "Front Desk Lead",
     independentReviewer: "Office Manager",
-    standard: ["Verify identity and coverage", "Document consent and estimates", "Review no-shows and overrides"],
-    leading: ["Automated eligibility checks", "Same-day exception queue", "Role-based schedule overrides"],
-    optimal: ["Daily exception dashboard with owner trends", "Measured access, utilization, and no-show causes"],
-    fallback: ["Weekly sample of registrations and overrides", "Owner review of unresolved eligibility exceptions"],
+    standard: [
+      "Verify identity and coverage",
+      "Document consent and estimates",
+      "Review no-shows and overrides",
+    ],
+    leading: [
+      "Automated eligibility checks",
+      "Same-day exception queue",
+      "Role-based schedule overrides",
+    ],
+    optimal: [
+      "Daily exception dashboard with owner trends",
+      "Measured access, utilization, and no-show causes",
+    ],
+    fallback: [
+      "Weekly sample of registrations and overrides",
+      "Owner review of unresolved eligibility exceptions",
+    ],
     evidence: ["Eligibility result", "Consent", "Override report"],
     cadence: "Daily; monthly trend review",
   },
@@ -44,8 +52,16 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Complete, supported, timely records and charges for services performed.",
     primaryOwner: "Treating Provider",
     independentReviewer: "Clinical Lead / Billing Specialist",
-    standard: ["Provider closes notes", "Codes trace to documentation", "Late changes retain an audit trail"],
-    leading: ["Pre-bill missing-note edits", "Targeted coding QA", "Exception analytics by procedure"],
+    standard: [
+      "Provider closes notes",
+      "Codes trace to documentation",
+      "Late changes retain an audit trail",
+    ],
+    leading: [
+      "Pre-bill missing-note edits",
+      "Targeted coding QA",
+      "Exception analytics by procedure",
+    ],
     optimal: ["Automated documentation-to-charge reconciliation", "Risk-based coding samples"],
     fallback: ["Weekly unsigned-note list", "Monthly sample by provider and high-risk code"],
     evidence: ["Closed note report", "Coding sample", "Late-entry log"],
@@ -58,10 +74,24 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Submit valid claims, resolve denials, and protect collectible revenue.",
     primaryOwner: "Billing Specialist",
     independentReviewer: "Office Manager / Owner",
-    standard: ["Reconcile charges to claims", "Work aging by priority", "Reason-code adjustments and write-offs"],
-    leading: ["Denial root-cause analytics", "Payer-specific work queues", "Approval thresholds for adjustments"],
-    optimal: ["Closed-loop denial prevention", "Independent trend review tied to corrective actions"],
-    fallback: ["Owner reviews top aging and write-offs monthly", "Separate approval from posting above threshold"],
+    standard: [
+      "Reconcile charges to claims",
+      "Work aging by priority",
+      "Reason-code adjustments and write-offs",
+    ],
+    leading: [
+      "Denial root-cause analytics",
+      "Payer-specific work queues",
+      "Approval thresholds for adjustments",
+    ],
+    optimal: [
+      "Closed-loop denial prevention",
+      "Independent trend review tied to corrective actions",
+    ],
+    fallback: [
+      "Owner reviews top aging and write-offs monthly",
+      "Separate approval from posting above threshold",
+    ],
     evidence: ["Claim reconciliation", "Aging report", "Adjustment register"],
     cadence: "Daily queues; monthly owner review",
   },
@@ -72,10 +102,20 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "All receipts are recorded, deposited intact, and independently reconciled.",
     primaryOwner: "Front Desk / Deposit Custodian",
     independentReviewer: "Owner or independent bookkeeper",
-    standard: ["Daily drawer close", "Deposit equals PMS receipts", "Bank reconciliation independent of custody/posting"],
+    standard: [
+      "Daily drawer close",
+      "Deposit equals PMS receipts",
+      "Bank reconciliation independent of custody/posting",
+    ],
     leading: ["Dual deposit custody", "Daily electronic exception match", "Surprise cash counts"],
-    optimal: ["Automated bank-to-PMS reconciliation", "Continuous void and deposit anomaly monitoring"],
-    fallback: ["Owner opens bank statement and reviews recon", "Two-person count documented on deposit log"],
+    optimal: [
+      "Automated bank-to-PMS reconciliation",
+      "Continuous void and deposit anomaly monitoring",
+    ],
+    fallback: [
+      "Owner opens bank statement and reviews recon",
+      "Two-person count documented on deposit log",
+    ],
     evidence: ["Drawer report", "Deposit slip", "Bank reconciliation"],
     cadence: "Daily; weekly independent review",
   },
@@ -86,8 +126,16 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Only valid, supported account reductions and refunds are processed.",
     primaryOwner: "Billing Specialist",
     independentReviewer: "Owner / Office Manager",
-    standard: ["Required reason and support", "Independent approval above threshold", "Refund to original method when feasible"],
-    leading: ["Daily exception queue", "Duplicate payee/account detection", "Trend review by user and reason"],
+    standard: [
+      "Required reason and support",
+      "Independent approval above threshold",
+      "Refund to original method when feasible",
+    ],
+    leading: [
+      "Daily exception queue",
+      "Duplicate payee/account detection",
+      "Trend review by user and reason",
+    ],
     optimal: ["System-enforced maker-checker", "Continuous outlier detection with case workflow"],
     fallback: ["Weekly owner report of all refunds and write-offs", "No preparer self-approval"],
     evidence: ["Refund register", "Approval", "Credit-balance support"],
@@ -100,10 +148,24 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Authorized goods and services are purchased from valid vendors and paid once.",
     primaryOwner: "Office Manager",
     independentReviewer: "Owner",
-    standard: ["Approved purchase and receipt", "Vendor changes verified out of band", "Separate setup from payment release"],
-    leading: ["Dual release by risk threshold", "New-vendor report", "Duplicate invoice/payment analytics"],
-    optimal: ["System maker-checker with trusted callback registry", "Continuous master-data monitoring"],
-    fallback: ["Owner approves all new vendors and payments", "Monthly independent vendor-master review"],
+    standard: [
+      "Approved purchase and receipt",
+      "Vendor changes verified out of band",
+      "Separate setup from payment release",
+    ],
+    leading: [
+      "Dual release by risk threshold",
+      "New-vendor report",
+      "Duplicate invoice/payment analytics",
+    ],
+    optimal: [
+      "System maker-checker with trusted callback registry",
+      "Continuous master-data monitoring",
+    ],
+    fallback: [
+      "Owner approves all new vendors and payments",
+      "Monthly independent vendor-master review",
+    ],
     evidence: ["Invoice and receipt", "Callback record", "Payment approval"],
     cadence: "Per transaction; monthly master review",
   },
@@ -114,10 +176,24 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Only authorized workers and compensation changes are paid accurately.",
     primaryOwner: "Office Manager / Payroll Preparer",
     independentReviewer: "Owner",
-    standard: ["Authorized master changes", "Review payroll register before funding", "Remove terminated access promptly"],
-    leading: ["Direct-deposit change callback", "Duplicate account/address scan", "Off-cycle exception review"],
-    optimal: ["HR-to-payroll automated reconciliation", "Independent analytics before every release"],
-    fallback: ["Owner compares register to prior period and personnel file", "External payroll provider plus owner release"],
+    standard: [
+      "Authorized master changes",
+      "Review payroll register before funding",
+      "Remove terminated access promptly",
+    ],
+    leading: [
+      "Direct-deposit change callback",
+      "Duplicate account/address scan",
+      "Off-cycle exception review",
+    ],
+    optimal: [
+      "HR-to-payroll automated reconciliation",
+      "Independent analytics before every release",
+    ],
+    fallback: [
+      "Owner compares register to prior period and personnel file",
+      "External payroll provider plus owner release",
+    ],
     evidence: ["Change authorization", "Payroll register", "Funding reconciliation"],
     cadence: "Each payroll; quarterly access review",
   },
@@ -128,10 +204,24 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Access and configuration remain authorized, least-privileged, and recoverable.",
     primaryOwner: "System Administrator / Office Manager",
     independentReviewer: "Owner / Managed service provider",
-    standard: ["Unique IDs and MFA", "Prompt joiner-mover-leaver updates", "Approved and logged configuration changes"],
-    leading: ["Quarterly access certification", "Privileged activity alerts", "Tested restoration and incident playbooks"],
-    optimal: ["Central identity lifecycle", "Immutable logs/backups and continuous control monitoring"],
-    fallback: ["Quarterly exported user list signed by owner", "Vendor-assisted restore test and change log"],
+    standard: [
+      "Unique IDs and MFA",
+      "Prompt joiner-mover-leaver updates",
+      "Approved and logged configuration changes",
+    ],
+    leading: [
+      "Quarterly access certification",
+      "Privileged activity alerts",
+      "Tested restoration and incident playbooks",
+    ],
+    optimal: [
+      "Central identity lifecycle",
+      "Immutable logs/backups and continuous control monitoring",
+    ],
+    fallback: [
+      "Quarterly exported user list signed by owner",
+      "Vendor-assisted restore test and change log",
+    ],
     evidence: ["Access review", "Change ticket", "Restore test"],
     cadence: "Event-driven; quarterly review",
   },
@@ -142,8 +232,16 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     objective: "Books are complete, reconciled, reviewed, and used for timely decisions.",
     primaryOwner: "Bookkeeper / Office Manager",
     independentReviewer: "Owner / CPA",
-    standard: ["Reconcile cash and key balances", "Review unusual journal entries", "Document review and follow-up"],
-    leading: ["Close checklist with certification", "Variance and KPI thresholds", "Open-item aging"],
+    standard: [
+      "Reconcile cash and key balances",
+      "Review unusual journal entries",
+      "Document review and follow-up",
+    ],
+    leading: [
+      "Close checklist with certification",
+      "Variance and KPI thresholds",
+      "Open-item aging",
+    ],
     optimal: ["Continuous close dashboard", "Independent data-driven journal and override review"],
     fallback: ["Monthly CPA review", "Owner receives statements directly and documents questions"],
     evidence: ["Close checklist", "Reconciliations", "Review notes"],
@@ -157,9 +255,19 @@ export const PRACTICE_PROCESS_BLUEPRINTS: PracticeProcessBlueprint[] = [
     primaryOwner: "Practice Owner",
     independentReviewer: "Advisor / CPA / designated backup",
     standard: ["Named process backups", "Dated risk decisions", "Incident and continuity contacts"],
-    leading: ["Cross-training validation", "Scenario exercises", "Expiring risk acceptance workflow"],
-    optimal: ["Measured recovery objectives", "Quarterly control health and remediation governance"],
-    fallback: ["Document critical procedures and emergency contacts", "Quarterly owner/advisor review"],
+    leading: [
+      "Cross-training validation",
+      "Scenario exercises",
+      "Expiring risk acceptance workflow",
+    ],
+    optimal: [
+      "Measured recovery objectives",
+      "Quarterly control health and remediation governance",
+    ],
+    fallback: [
+      "Document critical procedures and emergency contacts",
+      "Quarterly owner/advisor review",
+    ],
     evidence: ["Training record", "Exercise result", "Risk acceptance"],
     cadence: "Quarterly; after material change",
   },
