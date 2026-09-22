@@ -161,7 +161,13 @@ describe("parsePeopleCsv", () => {
     const tpl = {
       ...dental,
       people: [
-        { id: "p-maya", name: "Maya Chen", role: "Office Manager", active: true, lastDay: "2026-10-14" },
+        {
+          id: "p-maya",
+          name: "Maya Chen",
+          role: "Office Manager",
+          active: true,
+          lastDay: "2026-10-14",
+        },
       ],
     };
     const { people } = parsePeopleCsv(

@@ -55,9 +55,24 @@ describe("dropInactiveAssignments", () => {
       { id: "x2", name: "Former Clerk", role: "Clerk", active: false },
     ];
     const saved = [
-      { personId: "x1", personName: "Solo Clerk", role: "Clerk", entitlements: ["collect_cash" as const] },
-      { personId: "x2", personName: "Former Clerk", role: "Clerk", entitlements: ["create_vendor" as const] },
-      { personId: "sim-1", personName: "New hire", role: "Receptionist", entitlements: ["view_reports_only" as const] },
+      {
+        personId: "x1",
+        personName: "Solo Clerk",
+        role: "Clerk",
+        entitlements: ["collect_cash" as const],
+      },
+      {
+        personId: "x2",
+        personName: "Former Clerk",
+        role: "Clerk",
+        entitlements: ["create_vendor" as const],
+      },
+      {
+        personId: "sim-1",
+        personName: "New hire",
+        role: "Receptionist",
+        entitlements: ["view_reports_only" as const],
+      },
     ];
     expect(dropInactiveAssignments(saved, people).map((a) => a.personId)).toEqual(["x1", "sim-1"]);
     expect(dropInactiveAssignments(saved, [people[0]])).toHaveLength(3);

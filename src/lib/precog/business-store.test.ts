@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
-import { loadActiveBusiness, saveBusinessRevision, setActiveBusiness } from "./business-store";
+import {
+  deleteBusinessRow,
+  loadActiveBusiness,
+  saveBusinessRevision,
+  setActiveBusiness,
+} from "./business-store";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -235,6 +240,27 @@ describe("loadActiveBusiness", () => {
     expect(active?.businessId).toBe("biz_default");
     expect(active?.name).toBe("legacy");
     expect(active?.revision).toBeNull();
+  });
+
+  it("drops the active pointer with the business so a later load cannot resurrect it", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
+    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "one") });
+    await saveBusinessRevision(sql, input("user-a", "biz_2", null, "two"));
+
+    await deleteBusinessRow(sql, "user-a", "biz_1");
+
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+    expect(await revisionOf("user-a", "biz_1")).toBeNull();
+    expect(await revisionOf("user-a", "biz_2")).toBe(1);
+  });
+
+  it("ignores a dangling pointer when the user has other businesses", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
+    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "one") });
+    await saveBusinessRevision(sql, input("user-a", "biz_2", null, "two"));
+    await sql`delete from businesses where user_id = ${"user-a"} and id = ${"biz_1"}`;
+
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
   });
 
   it("never returns another user's business", async () => {

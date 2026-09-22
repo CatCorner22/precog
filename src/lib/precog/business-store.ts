@@ -169,6 +169,13 @@ export async function loadActiveBusiness<
     where user_id = ${userId} and id = ${businessId}
   `;
   const authoritative = rows[0];
+  if (!authoritative) {
+    // The pointer names a business that no longer exists. For a user who has
+    // any revision-tracked business, that is a dangling pointer (the business
+    // was deleted), not a legacy account, so nothing is resurrected from it.
+    const others = await sql`select 1 from businesses where user_id = ${userId} limit 1`;
+    if (others.length > 0) return null;
+  }
   if (authoritative) {
     return {
       businessId,
@@ -187,4 +194,22 @@ export async function loadActiveBusiness<
     updated_at: String(active.updated_at),
     revision: null,
   };
+}
+
+/**
+ * Removes one business and, when the active pointer names it, the pointer
+ * too, so a later load cannot bring the deleted business back from the
+ * pointer's frozen copy.
+ */
+export async function deleteBusinessRow(
+  sql: Sql,
+  userId: string,
+  businessId: string,
+): Promise<void> {
+  await sql`delete from businesses where user_id = ${userId} and id = ${businessId}`;
+  await sql`
+    delete from business_profiles
+    where user_id = ${userId}
+      and coalesce(profile->>'businessId', 'biz_default') = ${businessId}
+  `;
 }

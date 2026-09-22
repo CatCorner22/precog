@@ -203,7 +203,7 @@ export const loadMapShare = createServerFn({ method: "POST" })
         insert into map_share_views (token, ip_hash, user_agent)
         values (
           ${row.token},
-          ${createHash("sha256").update(requestIp()).digest("hex").slice(0, 32)},
+          ${createHash("sha256").update(`${row.token}:${requestIp()}`).digest("hex").slice(0, 32)},
           ${getRequest()?.headers.get("user-agent")?.slice(0, 200) ?? null}
         )
       `;

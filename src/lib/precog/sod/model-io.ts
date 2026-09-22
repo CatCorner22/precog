@@ -12,10 +12,12 @@ export interface PowerMapModelFile {
 
 /** Allow-list and bound imported/local assignment data before it reaches analysis. */
 export function normalizeRoleAssignments(value: unknown): RoleAssignment[] | undefined {
-  const container = value && typeof value === "object" && "assignments" in value
-    ? (value as { assignments?: unknown }).assignments
-    : value;
-  if (!Array.isArray(container) || container.length === 0 || container.length > 100) return undefined;
+  const container =
+    value && typeof value === "object" && "assignments" in value
+      ? (value as { assignments?: unknown }).assignments
+      : value;
+  if (!Array.isArray(container) || container.length === 0 || container.length > 100)
+    return undefined;
   const allowed = new Set(ENTITLEMENTS.map((item) => item.id));
   const ids = new Set<string>();
   const normalized: RoleAssignment[] = [];
@@ -24,13 +26,19 @@ export function normalizeRoleAssignments(value: unknown): RoleAssignment[] | und
     if (!raw || typeof raw !== "object") return undefined;
     const item = raw as Record<string, unknown>;
     const personId = typeof item.personId === "string" ? item.personId.trim().slice(0, 80) : "";
-    const personName = typeof item.personName === "string" ? item.personName.trim().slice(0, 80) : "";
+    const personName =
+      typeof item.personName === "string" ? item.personName.trim().slice(0, 80) : "";
     const role = typeof item.role === "string" ? item.role.trim().slice(0, 80) : "";
-    if (!personId || !personName || !role || ids.has(personId) || !Array.isArray(item.entitlements)) return undefined;
+    if (!personId || !personName || !role || ids.has(personId) || !Array.isArray(item.entitlements))
+      return undefined;
     ids.add(personId);
-    const entitlements = Array.from(new Set(item.entitlements.filter(
-      (id): id is EntitlementId => typeof id === "string" && allowed.has(id as EntitlementId),
-    )));
+    const entitlements = Array.from(
+      new Set(
+        item.entitlements.filter(
+          (id): id is EntitlementId => typeof id === "string" && allowed.has(id as EntitlementId),
+        ),
+      ),
+    );
     if (entitlements.length === 0) entitlements.push("view_reports_only");
     normalized.push({ personId, personName, role, entitlements });
   }
@@ -53,12 +61,17 @@ export function createResponsibilityMatrixCsv(assignments: RoleAssignment[]): st
   };
   const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only");
   const rows = [
-    ["Power / duty", "Duty family", "Risk", ...assignments.map((item) => `${item.personName} · ${item.role}`)],
+    [
+      "Power / duty",
+      "Duty family",
+      "Risk",
+      ...assignments.map((item) => `${item.personName} · ${item.role}`),
+    ],
     ...duties.map((duty) => [
       duty.label,
       duty.family.replace("_", " "),
       String(duty.riskWeight),
-      ...assignments.map((person) => person.entitlements.includes(duty.id) ? "Assigned" : ""),
+      ...assignments.map((person) => (person.entitlements.includes(duty.id) ? "Assigned" : "")),
     ]),
   ];
   return rows.map((row) => row.map(escape).join(",")).join("\r\n");

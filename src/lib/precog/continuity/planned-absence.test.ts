@@ -137,6 +137,25 @@ describe("plannedAbsenceReport", () => {
     });
   });
 
+  it("reports today's impact from the people away today, and none for an upcoming window", () => {
+    const report = plannedAbsenceReport(
+      register,
+      [
+        absence("ben", "b", "2025-11-03", "2025-11-10"),
+        absence("cy", "c", "2025-11-08", "2025-11-12"),
+      ],
+      "general",
+      "2025-11-05",
+    );
+    const ben = report.windows.find((w) => w.absence.id === "ben");
+    const cy = report.windows.find((w) => w.absence.id === "cy");
+    expect(ben?.status).toBe("current");
+    expect(ben?.todayImpact?.people.map((p) => p.id)).toEqual(["b"]);
+    expect(ben?.todayImpact?.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+    expect(cy?.status).toBe("upcoming");
+    expect(cy?.todayImpact).toBeNull();
+  });
+
   it("never treats coworkers away on different days as away together", () => {
     // Ana is out all of 1–10 Nov; Ben leaves before Cy arrives, so billing (Ben or Cy) never stops.
     const report = plannedAbsenceReport(

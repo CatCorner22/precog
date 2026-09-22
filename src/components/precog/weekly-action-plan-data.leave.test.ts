@@ -123,7 +123,13 @@ describe("buildWeeklyActions planned leave", () => {
       decisions: [],
       plannedAbsences: [
         leave,
-        { id: "abs-3", personId: third.id, industry: "dental", from: "2025-04-18", to: "2025-04-22" },
+        {
+          id: "abs-3",
+          personId: third.id,
+          industry: "dental",
+          from: "2025-04-18",
+          to: "2025-04-22",
+        },
       ],
     }).find((a) => a.id === "leave-abs-1");
     expect(action?.why).toContain("2 register entries stop 18–20 Apr, while");
@@ -186,7 +192,12 @@ describe("buildWeeklyActions planned leave", () => {
   });
 
   it("does not let one leave's hand-off stand in for a later leave", () => {
-    const later: PlannedAbsence = { ...leave, id: "abs-later", from: "2025-04-25", to: "2025-04-28" };
+    const later: PlannedAbsence = {
+      ...leave,
+      id: "abs-later",
+      from: "2025-04-25",
+      to: "2025-04-28",
+    };
     const logged: DecisionEntry = {
       id: "d-handoff",
       createdAt: "2025-04-01T09:00:00.000Z",

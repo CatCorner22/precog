@@ -18,7 +18,6 @@
  *
  * Educational / decision-support — not actuarial or legal advice.
  */
-import { knowledge, people, relations } from "../demo-data";
 import { detectSodConflicts } from "../sod/detect";
 import { resolveTemplate } from "../active-template";
 import { mitigatedSodRuleIds } from "../controls/dual-release";

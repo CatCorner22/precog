@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +162,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
       subject: d.action.slice(0, 120),
       kind: "remediate",
       note: d.rationale,
-      reviewBy: new Date(Date.now() + d.horizonDays * 86400000).toISOString().slice(0, 10),
+      reviewBy: dateAfter(new Date(), d.horizonDays),
     });
   }
 

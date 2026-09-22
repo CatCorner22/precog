@@ -28,7 +28,8 @@ export function localDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function dateAfter(date: Date, days: number): string {
+/** The local calendar day `days` after `date`, in the same YYYY-MM-DD form `localDateKey` uses. */
+export function dateAfter(date: Date, days: number): string {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return localDateKey(next);

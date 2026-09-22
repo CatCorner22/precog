@@ -197,7 +197,6 @@ export function scorePriority(input: {
   const priority = Math.round(
     Math.max(
       0,
-      Math.min(100, heat * 0.55 + impact * 100 * 0.45 + (heat >= 70 && impact >= 0.7 ? 8 : 0)),
       Math.min(
         100,
         heat * 0.55 + impact * 100 * 0.45 + (heat >= HEAT_BANDS.hot && impact >= 0.7 ? 8 : 0),

@@ -12,6 +12,7 @@ import {
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
+  dateAfter,
   linkedKnowledgeId,
   linkedToIndustry,
   localDateKey,
@@ -62,9 +63,9 @@ function reviewDelta(
     return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
   }
   if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
-    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
   }
-  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
 }
 
 /**
@@ -292,14 +293,12 @@ export function DecisionJournal({
 
   function submit() {
     if (!subject.trim()) return;
-    const reviewBy = new Date();
-    reviewBy.setDate(reviewBy.getDate() + reviewDays);
     const match = portfolio.top.find((t) => t.name === subject);
     addDecision({
       subject: subject.trim(),
       kind,
       note: note.trim() || DECISION_KIND_LABEL[kind],
-      reviewBy: reviewBy.toISOString().slice(0, 10),
+      reviewBy: dateAfter(today, reviewDays),
       residualAtDecision: match?.residual,
       linkedTab:
         match?.category === "knowledge"
@@ -323,8 +322,9 @@ export function DecisionJournal({
           Write it down or it did not happen
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or insure
-          decisions with a review date. Syncs to your account when signed in.
+          Checking that controls still work (what the COSO framework calls monitoring) needs a paper
+          trail. Record remediate, accept residual, monitor, or insure decisions with a review date.
+          Syncs to your account when signed in.
         </p>
       </section>
 
@@ -400,7 +400,10 @@ export function DecisionJournal({
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Reviews due</CardTitle>
-                <CardDescription>Re-score the decision before you close the loop.</CardDescription>
+                <CardDescription>
+                  Re-score the decision before you close the loop. The figures below are the
+                  app&apos;s own scores at the time you decided and now, not measured outcomes.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {dueDecisions.map((d) => (
@@ -578,7 +581,7 @@ export function DecisionJournal({
             )}
             {orderedDecisions.map((d) => {
               const past =
-                isDecisionOpen(d) && d.reviewBy && new Date(d.reviewBy).getTime() < Date.now();
+                isDecisionOpen(d) && Boolean(d.reviewBy) && d.reviewBy! < localDateKey(today);
               return (
                 <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">

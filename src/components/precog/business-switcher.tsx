@@ -57,11 +57,15 @@ export function BusinessSwitcher() {
         title="Switch business"
       >
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold tracking-tight">Precog Pioneer</span>
+          <span className="block truncate text-sm font-semibold tracking-tight">
+            Precog Pioneer
+          </span>
           <span className="flex items-center gap-1 text-xs text-muted">
             <span className="truncate">{profile.practiceName}</span>
             {businesses.length > 1 && (
-              <span className="rounded-full bg-elevated px-1.5 text-[10px] text-subtle">{businesses.length}</span>
+              <span className="rounded-full bg-elevated px-1.5 text-[10px] text-subtle">
+                {businesses.length}
+              </span>
             )}
             {switchingBusiness ? (
               <Loader2 className="size-3 animate-spin" />
@@ -91,12 +95,15 @@ export function BusinessSwitcher() {
                     aria-checked={active}
                     disabled={switchingBusiness}
                     onClick={() => {
-                      if (!active) void switchBusiness(b.id).then(() => toast(`Switched to ${b.name}`));
+                      if (!active)
+                        void switchBusiness(b.id).then(() => toast(`Switched to ${b.name}`));
                       setOpen(false);
                     }}
                     className={cn(
                       "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs",
-                      active ? "bg-primary/10 text-fg" : "text-muted hover:bg-elevated hover:text-fg",
+                      active
+                        ? "bg-primary/10 text-fg"
+                        : "text-muted hover:bg-elevated hover:text-fg",
                     )}
                   >
                     <Building2 className="size-3.5 shrink-0" />
@@ -113,7 +120,12 @@ export function BusinessSwitcher() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!window.confirm(`Remove "${b.name}" from your portfolio? This can't be undone.`)) return;
+                        if (
+                          !window.confirm(
+                            `Remove "${b.name}" from your portfolio? This can't be undone.`,
+                          )
+                        )
+                          return;
                         void deleteBusiness(b.id).then(() => toast(`Removed ${b.name}`));
                       }}
                       className="rounded p-1 text-subtle opacity-0 hover:text-danger group-hover/row:opacity-100 focus:opacity-100"
@@ -153,7 +165,12 @@ export function BusinessSwitcher() {
                   <Button size="sm" className="flex-1" onClick={submitNew}>
                     <Plus className="size-3.5" /> Create
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setAdding(false)} aria-label="Cancel">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setAdding(false)}
+                    aria-label="Cancel"
+                  >
                     <X className="size-3.5" />
                   </Button>
                 </div>

@@ -19,6 +19,7 @@ import {
   documentationDebt,
   firstName,
   staleItems,
+  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";
@@ -491,7 +492,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
                       : continuityReadiness.checkIns.unheld.length > 0
                         ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
-                        : "checked in the last 90 days"}
+                        : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
@@ -507,7 +508,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 <p className="text-sm text-muted">
                   {isSampleTeam && "Sample register — "}
                   {continuityReadiness.mostDepended.person.name} carries{" "}
-                  {continuityReadiness.mostDepended.dependence}% of critical work alone
+                  {continuityReadiness.mostDepended.dependence}% of must-do work alone
                 </p>
               ) : (
                 <span />

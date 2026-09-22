@@ -127,6 +127,48 @@ describe("todayBrief", () => {
     expect(brief.headline).toMatch(/^Maya and Sam are out \(one unexpectedly\) today — /);
   });
 
+  it("counts how many are out unexpectedly when more than one is", () => {
+    const brief = todayBrief(
+      register,
+      [
+        absence({ unplanned: undefined, from: "2025-11-03", to: "2025-11-10" }),
+        absence({ id: "abs-2", personId: "sam", unplanned: true }),
+        absence({ id: "abs-3", personId: "chris", unplanned: true }),
+      ],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(brief.headline).toMatch(/^Maya, Chris and Sam are out \(2 unexpectedly\) today — /);
+  });
+
+  it("lists only what stops today when the worst stretch of a current window is still ahead", () => {
+    // Maya is out now; Sam joins her later. Billing stops only once both are away.
+    const brief = todayBrief(
+      register,
+      [
+        absence({ unplanned: undefined, from: "2025-11-03", to: "2025-11-14" }),
+        absence({
+          id: "abs-2",
+          personId: "sam",
+          unplanned: undefined,
+          from: "2025-11-10",
+          to: "2025-11-12",
+        }),
+      ],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(brief.out).toHaveLength(1);
+    expect(brief.out[0].stops.map((s) => s.item.id).sort()).toEqual(["payroll", "pms"]);
+    expect(brief.out[0].window.impact.stops.map((s) => s.item.id).sort()).toEqual([
+      "billing",
+      "payroll",
+      "pms",
+    ]);
+  });
+
   it("does not count a stand-in as unlogged when a window-less hand-off exists", () => {
     const brief = todayBrief(
       register,
@@ -193,9 +235,7 @@ describe("todayBrief", () => {
       ...register,
       people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-12-05" } : p)),
     };
-    expect(todayBrief(edge, [], [], "general", TODAY).leaving[0]?.daysLeft).toBe(
-      LEAVING_SOON_DAYS,
-    );
+    expect(todayBrief(edge, [], [], "general", TODAY).leaving[0]?.daysLeft).toBe(LEAVING_SOON_DAYS);
 
     const near = {
       ...register,

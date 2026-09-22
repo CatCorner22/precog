@@ -19,6 +19,7 @@ import {
   LEVEL_LABEL,
   staleItems,
   STATUS_LABEL,
+  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import {
   formatDateRange,
@@ -537,7 +538,7 @@ export function ControlReport() {
           {trackFreshness && (
             <p className="mt-3 text-sm text-neutral-700">
               <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
-              confirmed in the last 90 days.
+              confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
               {staleness.stale.length > 0 && <> {staleness.stale.length} item(s) to re-confirm.</>}
             </p>
           )}
@@ -572,7 +573,7 @@ export function ControlReport() {
                 .map((l) => (
                   <li key={l.person.id}>
                     <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
-                    {l.dependence}% of critical work stops if out; only they can do:{" "}
+                    {l.dependence}% of must-do work stops if out; only they can do:{" "}
                     {l.soleItems.map((k) => k.name).join(", ")}
                   </li>
                 ))}
@@ -619,7 +620,7 @@ export function ControlReport() {
                         </span>
                       </span>
                       <span className="text-xs text-neutral-600">
-                        {w.impact.dependence}% of critical work stops
+                        {(w.todayImpact ?? w.impact).dependence}% of must-do work stops
                       </span>
                     </div>
                     {others.length > 0 && (
@@ -870,7 +871,7 @@ export function ControlReport() {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">If {c.people[0].name} is out</span>
                     <span className="text-xs text-neutral-600">
-                      {c.dependence}% of critical work stops
+                      {c.dependence}% of must-do work stops
                     </span>
                   </div>
                   {c.stops.length > 0 && (

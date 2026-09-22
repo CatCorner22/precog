@@ -198,7 +198,8 @@ export function ValueProofCenter() {
           <CardHeader>
             <CardTitle>Value assumptions</CardTitle>
             <CardDescription>
-              Use customer evidence where available. Values save in this browser.
+              The starting figures are the app&apos;s own assumptions, not measured results; replace
+              each one with your own evidence where you have it. Values save in this browser.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">

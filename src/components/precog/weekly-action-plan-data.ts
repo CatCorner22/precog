@@ -523,7 +523,7 @@ export function buildWeeklyActions(input: {
       actions.push({
         id: `map-heat-${snap.process.id}`,
         title: `Review hot process: ${snap.process.name}`,
-        why: `Heat ${snap.heat} — ${snap.risks.length} risk(s)${gaps ? `, ${gaps} SoD gap(s)` : ""}. Open the map builder to assign owners and controls.`,
+        why: `Heat ${snap.heat} — ${snap.risks.length} risk(s)${gaps ? `, ${gaps} duty-conflict gap(s)` : ""}. Open the map builder to assign owners and controls.`,
         effort: gaps > 0 ? "medium" : "low",
         tab: "map",
         processId: snap.process.id,
@@ -536,7 +536,7 @@ export function buildWeeklyActions(input: {
       actions.push({
         id: `map-owner-${snap.process.id}`,
         title: `Assign owner: ${snap.process.name}`,
-        why: "Processes without owners don't get SoD or continuity scoring — assign someone on your team.",
+        why: "Processes without owners don't get duty-conflict or continuity scoring — assign someone on your team.",
         effort: "low",
         tab: "map",
         processId: snap.process.id,

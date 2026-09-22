@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useToday } from "@/lib/precog/decisions/use-today";
 import {
   BookOpen,
   CalendarDays,
@@ -51,6 +52,7 @@ import {
   type CrossTrainingMove,
   type DocumentationGap,
   type ItemCoverage,
+  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import {
   endAbsence,
@@ -145,7 +147,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   } = usePractice();
   const report = useMemo(() => coverageReport(tpl), [tpl]);
   const docs = useMemo(() => documentationDebt(tpl), [tpl]);
-  const today = localDateKey(new Date());
+  const today = localDateKey(useToday());
   /** Review date of the open journal entry for each (item, step) logged from this register. */
   const tracked = useMemo(() => {
     const byStep = new Map<string, string>();
@@ -180,7 +182,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       subject,
       kind: "remediate",
       note,
-      reviewBy: typeof reviewBy === "string" ? reviewBy : reviewBy.toISOString().slice(0, 10),
+      reviewBy: typeof reviewBy === "string" ? reviewBy : localDateKey(reviewBy),
       linkedTab: "knowledge",
       linkedId: knowledgeId,
       linkedStep: step,
@@ -495,7 +497,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     );
     toast.success(
       ids.length === 1
-        ? "Confirmed — re-check again in 90 days."
+        ? `Confirmed — re-check again in ${CONFIRMATION_MAX_AGE_DAYS} days.`
         : `${ids.length} items confirmed.`,
     );
   };
@@ -564,7 +566,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     }
   };
 
-  const mostDepended = report.people[0];
+  const mostDepended = report.people.find((l) => l.person.active);
   const effectiveAbsentIds = useMemo(() => {
     const valid = absentIds.filter((id) => people.some((p) => p.id === id));
     if (valid.length > 0) return valid;
@@ -608,7 +610,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
           value={mostDepended ? mostDepended.person.name : "—"}
           hint={
             mostDepended
-              ? `${mostDepended.dependence}% of critical work stops if they are out.`
+              ? `${mostDepended.dependence}% of must-do work stops if they are out (app's own index).`
               : "Add people to see who the business leans on."
           }
           tone={mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"}
@@ -1011,9 +1013,10 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               <CardHeader>
                 <CardTitle>Confirm it&apos;s still true</CardTitle>
                 <CardDescription>
-                  {freshness.stale.length} item(s) not confirmed in the last 90 days. People leave,
-                  learn and forget; a register nobody re-checks is a false comfort. Sit down with
-                  each person and go through what the register says they can do.
+                  {freshness.stale.length} item(s) not confirmed in the last{" "}
+                  {CONFIRMATION_MAX_AGE_DAYS} days. People leave, learn and forget; a register
+                  nobody re-checks is a false comfort. Sit down with each person and go through what
+                  the register says they can do.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1383,7 +1386,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                             : "ok"
                       }
                     >
-                      {absence.dependence}% of critical work stops
+                      {absence.dependence}% of must-do work stops
                     </Badge>
                     <span className="text-xs text-muted">
                       {absence.stops.length} stop · {absence.continues.length} continue
@@ -1693,8 +1696,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
             <CardHeader>
               <CardTitle>Who the business leans on</CardTitle>
               <CardDescription>
-                Share of critical work that stops if each person is out. Spread the top names' sole
-                items to bring these down.
+                Share of must-do work that stops if each person is out — the app's own index, in
+                which a critical item counts three, an important item two, and a can-wait item
+                nothing. Spread the top names' sole items to bring these down.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1786,9 +1790,10 @@ function LeaveWindow({
   onLog: (a: AbsenceAction) => void;
 }) {
   const first = firstName(w.person.name);
-  const impact = w.impact;
-  const deadline = handoffDeadline(w, today);
   const current = w.status === "current";
+  // A window that has started shows what stops today; the peak stays for planning.
+  const impact = current && w.todayImpact ? w.todayImpact : w.impact;
+  const deadline = handoffDeadline(w, today);
   const unplanned = Boolean(w.absence.unplanned);
   return (
     <div className={cn("rounded-md border p-3", current ? "border-danger/50" : "border-border")}>
@@ -1805,7 +1810,7 @@ function LeaveWindow({
               : `${unplanned ? "Unplanned · " : ""}${leadLabel(w.daysUntil)}`}
           </Badge>
           <span className="text-xs text-muted">
-            {w.absence.to === today
+            {unplanned && w.absence.from === today && w.absence.to === today
               ? "today only so far"
               : `${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
           </span>
@@ -1813,15 +1818,17 @@ function LeaveWindow({
         <div className="flex items-center gap-1">
           {current && (
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 px-2 text-xs"
-                aria-label={`${first} still out tomorrow`}
-                onClick={onExtend}
-              >
-                Still out tomorrow
-              </Button>
+              {w.absence.to <= today && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  aria-label={`${first} still out tomorrow`}
+                  onClick={onExtend}
+                >
+                  Still out tomorrow
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -1863,7 +1870,7 @@ function LeaveWindow({
         <Badge
           variant={impact.dependence >= 50 ? "danger" : impact.dependence >= 25 ? "warn" : "ok"}
         >
-          {impact.dependence}% of critical work stops
+          {impact.dependence}% of must-do work stops
         </Badge>
         <span className="text-xs text-muted">
           {impact.stops.length} stop · {impact.continues.length} continue
@@ -2016,7 +2023,7 @@ function LeaverCard({
             {leaverLead(l.daysLeft)}
           </Badge>
           <Badge variant={l.dependence >= 50 ? "danger" : l.dependence >= 25 ? "warn" : "ok"}>
-            {l.dependence}% of critical work
+            {l.dependence}% of must-do work
           </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-1">

@@ -44,7 +44,7 @@ export interface Leaver {
   /** Processes where they are the only listed owner. */
   orphanedProcesses: string[];
   remaining: Person[];
-  /** 0–100 share of critical work that leaves with them today. */
+  /** 0–100 share of must-do work that leaves with them today (same weighted index as PersonLoad.dependence). */
   dependence: number;
   /** Hand-over items with no cross-training step in the Journal yet. */
   unlogged: number;

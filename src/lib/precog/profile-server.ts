@@ -9,7 +9,12 @@ import {
   normalizePlannedAbsences,
   type PracticeProfile,
 } from "./practice-profile";
-import { loadActiveBusiness, saveBusinessRevision, setActiveBusiness } from "./business-store";
+import {
+  deleteBusinessRow,
+  loadActiveBusiness,
+  saveBusinessRevision,
+  setActiveBusiness,
+} from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
@@ -202,6 +207,6 @@ export const deleteBusiness = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`delete from businesses where user_id = ${context.userId} and id = ${data.id}`;
+    await deleteBusinessRow(sql, context.userId, data.id);
     return { ok: true as const };
   });

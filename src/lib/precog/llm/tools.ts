@@ -303,7 +303,7 @@ export function executeTool(
         return {
           tool,
           ok: true,
-          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of critical work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
+          summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
           data: risks.map((r) => {
             const move = moveByItem.get(r.knowledgeId);
             const commitment = committed.get(continuityStepKey(r.knowledgeId, "cover"));

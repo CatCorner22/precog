@@ -157,7 +157,10 @@ describe("leaveDebriefs", () => {
     const [debrief] = leaveDebriefs(
       register,
       [leave()],
-      [handoff({ id: "other", linkedAbsenceId: "abs-2" }), handoff({ id: "closed", status: "closed" })],
+      [
+        handoff({ id: "other", linkedAbsenceId: "abs-2" }),
+        handoff({ id: "closed", status: "closed" }),
+      ],
       "general",
       today,
     );
@@ -200,10 +203,7 @@ describe("leaveDebriefs", () => {
     // Nobody has touched billing, so the register's best candidate stands in on paper.
     expect(debrief.items[1].standIn?.id).toBeDefined();
     expect(debrief.items[1].standInLevel).toBeUndefined();
-    const nobody = tpl(
-      [{ personId: "maya", knowledgeId: "pms", level: "expert" }],
-      [item("pms")],
-    );
+    const nobody = tpl([{ personId: "maya", knowledgeId: "pms", level: "expert" }], [item("pms")]);
     const solo = { ...nobody, people: people.filter((p) => p.id === "maya" || p.id === "dee") };
     const [alone] = leaveDebriefs(solo, [leave()], [], "general", today);
     expect(alone.items[0].standIn).toBeNull();

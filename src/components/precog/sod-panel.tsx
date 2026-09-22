@@ -189,10 +189,6 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
       {view === "power" && <PowerMapBuilder />}
 
-      {view === "power" && <PowerMapBuilder />}
-
-      {view === "power" && <PowerMapBuilder />}
-
       {view === "conflicts" && (
         <Card>
           <CardHeader>
