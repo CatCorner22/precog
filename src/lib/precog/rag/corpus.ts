@@ -121,16 +121,36 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Control activities for small teams",
     domain: "coso",
     tags: ["control activities", "sod", "approvals", "reconciliations"],
-    text: "Control activities in the COSO framework include authorizations, verifications, reconciliations, physical controls, and segregation of duties. Where a small entity cannot separate every duty, the framework's answer is management oversight and compensating controls. In practice for a small business that means dual signatures, independent bank reconciliation by the owner, exception reports, and documented residual-risk acceptance with review dates.",
+    text: "Control activities in the COSO framework include authorizations, verifications, reconciliations, physical controls, and segregation of duties. Where a small entity cannot separate every duty, the framework's answer is management oversight and compensating controls.",
     basis: COSO_ICIF,
+  },
+  {
+    id: "sod-small-team-practice",
+    title: "Compensating controls for a small team",
+    domain: "coso",
+    tags: ["control activities", "sod", "compensating controls", "residual risk"],
+    text: "When a small business cannot separate every duty, the usual compensating controls are dual signatures or dual release above a threshold, a bank reconciliation done or reviewed by the owner, exception reports the owner reads, and a written note of each residual risk the owner accepts, with a date to revisit it. COSO names the categories of control; the specific measures and the practice of writing down accepted risk with a review date are practitioner guidance, not a framework requirement.",
+    basis: practice(
+      "Small-business compensating-control practice; the framework describes control categories, not these measures.",
+    ),
   },
   {
     id: "coso-monitoring",
     title: "Monitoring activities",
     domain: "coso",
     tags: ["monitoring", "ongoing", "separate evaluations"],
-    text: "The COSO framework describes monitoring as ongoing (built into daily and weekly work) or as separate evaluations (periodic deep dives). In practice for a small business: weekly owner bank-reconciliation review, monthly write-off aging, and quarterly vendor-master review. Undocumented monitoring does not count.",
+    text: "The COSO framework describes monitoring as ongoing evaluations built into daily and weekly work, separate evaluations run periodically, or a mix of both, with deficiencies reported to those responsible for corrective action.",
     basis: COSO_ICIF,
+  },
+  {
+    id: "monitoring-cadence-practice",
+    title: "A monitoring rhythm for a small business",
+    domain: "coso",
+    tags: ["monitoring", "ongoing", "cadence", "owner review", "bank reconciliation"],
+    text: "A workable rhythm for a small business: the owner reviews the bank reconciliation weekly, reads write-off and adjustment aging monthly, and reads the new-supplier and bank-detail change list quarterly. Keep a dated note of each review; a review nobody can show happened is not one an outside reviewer will credit. The cadence is practitioner guidance; COSO does not prescribe review frequencies.",
+    basis: practice(
+      "Review cadence written for this app; COSO describes ongoing and separate evaluations but sets no frequencies.",
+    ),
   },
   {
     id: "sod-three-way",

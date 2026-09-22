@@ -11,14 +11,14 @@ The present product is differentiated in design depth: it can model people, powe
 
 The likely outcome by segment:
 
-| Segment | Commercial attractiveness | Why |
-|---|---:|---|
-| Solo and two-provider practices | Low | Low willingness to pay, few people to segregate, owner attention is the real constraint. |
-| 3–10 location groups | High | Enough complexity and loss exposure, but usually no enterprise GRC team. |
-| 10–50 location DSOs | High | Central finance/IT, acquisitions, turnover, and payer complexity create repeatable need. |
-| Very large DSOs | Medium | Strong need, but enterprise IAM/GRC, procurement, security, and integration requirements are much higher. |
-| Dental CPAs, fractional CFOs, compliance and transaction advisors | Very high wedge | One advisor can reuse the system across many clients and already owns the review cadence. |
-| Insurers and lenders | Long-term option | Strong interest in loss prevention, but proof, data rights, and sales cycles are difficult. |
+| Segment                                                           | Commercial attractiveness | Why                                                                                                       |
+| ----------------------------------------------------------------- | ------------------------: | --------------------------------------------------------------------------------------------------------- |
+| Solo and two-provider practices                                   |                       Low | Low willingness to pay, few people to segregate, owner attention is the real constraint.                  |
+| 3–10 location groups                                              |                      High | Enough complexity and loss exposure, but usually no enterprise GRC team.                                  |
+| 10–50 location DSOs                                               |                      High | Central finance/IT, acquisitions, turnover, and payer complexity create repeatable need.                  |
+| Very large DSOs                                                   |                    Medium | Strong need, but enterprise IAM/GRC, procurement, security, and integration requirements are much higher. |
+| Dental CPAs, fractional CFOs, compliance and transaction advisors |           Very high wedge | One advisor can reuse the system across many clients and already owns the review cadence.                 |
+| Insurers and lenders                                              |          Long-term option | Strong interest in loss prevention, but proof, data rights, and sales cycles are difficult.               |
 
 ## Competitive landscape
 
@@ -51,21 +51,21 @@ The most important competitors may be spreadsheets, office-manager knowledge, de
 
 ## Current product scorecard
 
-| Capability | Current position | Commercial requirement |
-|---|---|---|
-| Dental-specific duty ontology | Strong early asset | Expand and validate with operators, CPAs, billers, and investigators. |
-| Conflict detection | Good prototype | Measure precision/recall and support configurable policy packs. |
-| Visual map and matrix | Differentiated | Validate usability on real 20–200-person organizations. |
-| Continuity and absence modeling | Differentiated | Add designated backups, effective dates, and drill evidence. |
-| Resolution planning | Promising | Add constraints for location, license, capacity, employment, and system access. |
-| Snapshots and exports | Useful | Add approvals, signatures, retention, comparison, and audit history. |
-| Knowledge and operating blueprint | Useful | Establish expert editorial governance and dated source provenance. |
-| Actual-vs-modeled validation | Missing | Highest priority: ingest real users, roles, transactions, and logs. |
-| Evidence workflow | Missing | Assign tests, request evidence, record reviewer conclusion, remediate exceptions. |
-| Integrations | Missing | PMS, accounting, banking/payment, payroll, identity, ticketing, and HRIS. |
-| Multi-entity administration | Missing | Required for groups, advisors, and scalable revenue. |
-| Security/compliance assurance | Early | Tenant controls, audit logs, encryption, recovery, SOC 2 path, BAA posture. |
-| Outcome proof | Missing | Required to sell an avoided-loss product to executives. |
+| Capability                        | Current position   | Commercial requirement                                                            |
+| --------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
+| Dental-specific duty ontology     | Strong early asset | Expand and validate with operators, CPAs, billers, and investigators.             |
+| Conflict detection                | Good prototype     | Measure precision/recall and support configurable policy packs.                   |
+| Visual map and matrix             | Differentiated     | Validate usability on real 20–200-person organizations.                           |
+| Continuity and absence modeling   | Differentiated     | Add designated backups, effective dates, and drill evidence.                      |
+| Resolution planning               | Promising          | Add constraints for location, license, capacity, employment, and system access.   |
+| Snapshots and exports             | Useful             | Add approvals, signatures, retention, comparison, and audit history.              |
+| Knowledge and operating blueprint | Useful             | Establish expert editorial governance and dated source provenance.                |
+| Actual-vs-modeled validation      | Missing            | Highest priority: ingest real users, roles, transactions, and logs.               |
+| Evidence workflow                 | Missing            | Assign tests, request evidence, record reviewer conclusion, remediate exceptions. |
+| Integrations                      | Missing            | PMS, accounting, banking/payment, payroll, identity, ticketing, and HRIS.         |
+| Multi-entity administration       | Missing            | Required for groups, advisors, and scalable revenue.                              |
+| Security/compliance assurance     | Early              | Tenant controls, audit logs, encryption, recovery, SOC 2 path, BAA posture.       |
+| Outcome proof                     | Missing            | Required to sell an avoided-loss product to executives.                           |
 
 ## Best market opportunities
 

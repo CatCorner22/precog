@@ -28,9 +28,9 @@ import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
   CASE_LIBRARY,
+  detectionBreakdown,
   METHOD_CAVEATS,
   casesForSodRules,
-  detectionBreakdown,
   observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
@@ -1009,6 +1009,12 @@ function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId:
           </button>
         ))}
       </div>
+      <p className="text-xs text-subtle">
+        {(() => {
+          const found = detectionBreakdown(CASE_LIBRARY);
+          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} cases; in the other ${found.unknown} it does not say.`;
+        })()}
+      </p>
       <div className="space-y-2">
         {ordered.map((c) => (
           <CaseCard key={c.id} study={c} />

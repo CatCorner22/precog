@@ -41,7 +41,6 @@ function parsePastedAmounts(value: string): { transactions: Transaction[]; issue
       id: `pasted-${index + 1}`,
       date: today,
       amount: negative ? -Math.abs(amount) : amount,
-      kind: "charge",
     });
   });
   return { transactions, issues };
@@ -109,8 +108,13 @@ export function ForensicPanel() {
           </div>
           <div className="space-y-2">
             <label htmlFor="forensic-paste" className="text-xs font-medium text-muted">
-              Paste amounts or a transaction CSV
+              Paste payment or deposit amounts, or a transaction CSV
             </label>
+            <p className="text-xs text-subtle">
+              Paste what was received or banked, not the fee schedule: set prices do not follow the
+              digit pattern the screen compares against. A CSV with a kind column is screened by
+              kind.
+            </p>
             <textarea
               id="forensic-paste"
               value={paste}

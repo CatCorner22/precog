@@ -20,7 +20,10 @@
     "e2e": "node scripts/e2e-builder.mjs",
     "e2e:tabs": "node scripts/e2e-tabs.mjs",
     "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "check:bundle": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",

@@ -98,7 +98,10 @@ try {
       );
     }
     await page.reload({ waitUntil: "networkidle", timeout });
-    const current = await page.locator('nav [role="tab"][aria-selected="true"]').first().innerText();
+    const current = await page
+      .locator('nav [role="tab"][aria-selected="true"]')
+      .first()
+      .innerText();
     if (current.trim().split("\n")[0] !== tabs[tabs.length - 1].trim().split("\n")[0]) {
       throw new Error(`${industry}: tab did not survive reload (got "${current}")`);
     }

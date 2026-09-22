@@ -37,7 +37,16 @@ export interface ForensicReport {
 export const FORENSIC_DISCLAIMER =
   "Educational screening only — not proof of fraud or error. Patterns here are prompts for a conversation about process, never a basis to accuse anyone.";
 
-const BENFORD_KINDS = new Set(["charge", "payment", "deposit"]);
+/**
+ * Digit tests apply to amounts that arise from many independent transactions:
+ * payments received and deposits made. Charges are set prices from a fee
+ * schedule, adjustments and refunds are chosen by a person, and Benford's
+ * expectation does not hold for either, so they are excluded. An amount with
+ * no kind (pasted by the owner, or a CSV without a kind column) is treated as
+ * a money movement, which is what the paste instructions ask for.
+ */
+const DIGIT_TEST_KINDS = new Set<Transaction["kind"]>(["payment", "deposit", undefined]);
+const SET_PRICE_KINDS = new Set<Transaction["kind"]>(["charge"]);
 
 function absoluteAmounts(txns: Transaction[]): number[] {
   return txns.map((txn) => Math.abs(txn.amount));
@@ -82,6 +91,7 @@ function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest)
     detail: [
       `Chi-square ${test.chiSquare.toFixed(2)} with ${test.df} degrees of freedom (${test.pValueBand}).`,
       "This screen compares the distribution of leading digits with a mathematical reference pattern.",
+      "Only payments and deposits are tested. Charges are set prices, and adjustments and refunds are chosen amounts, so the reference pattern does not apply to them.",
     ],
     examples: [],
   };
@@ -89,7 +99,7 @@ function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest)
 
 export function runForensicSuite(txns: Transaction[]): ForensicReport {
   const findings: ForensicFinding[] = [];
-  const eligible = txns.filter((txn) => txn.kind !== undefined && BENFORD_KINDS.has(txn.kind));
+  const eligible = txns.filter((txn) => DIGIT_TEST_KINDS.has(txn.kind));
   const eligibleAmounts = absoluteAmounts(eligible);
 
   const first = benfordFirstDigit(eligibleAmounts);
@@ -101,17 +111,22 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     findings.push(benfordFinding("benford_second", second));
   }
 
-  const threshold = txns.every((txn) => Math.abs(txn.amount) < 1000) ? 10 : 100;
-  const roundCount = txns.filter((txn) => Math.abs(txn.amount) % threshold === 0).length;
-  const roundShare = txns.length === 0 ? 0 : roundCount / txns.length;
+  // Fee-schedule prices are round by design, so they are left out here too.
+  const priced = txns.filter((txn) => !SET_PRICE_KINDS.has(txn.kind));
+  const threshold = priced.every((txn) => Math.abs(txn.amount) < 1000) ? 10 : 100;
+  const roundCount = priced.filter((txn) => Math.abs(txn.amount) % threshold === 0).length;
+  const roundShare = priced.length === 0 ? 0 : roundCount / priced.length;
   findings.push({
     id: "round_amounts",
     title: "Round-amount concentration",
     severity:
       roundShare > 0.15 && txns.length >= 50 ? "review" : roundShare > 0.1 ? "watch" : "info",
-    summary: `${roundCount} of ${txns.length} amounts (${(roundShare * 100).toFixed(1)}%) are exact multiples of ${threshold}.`,
-    detail: ["Round values can be useful prompts to review how amounts are entered and approved."],
-    examples: txns
+    summary: `${roundCount} of ${priced.length} amounts (${(roundShare * 100).toFixed(1)}%) are exact multiples of ${threshold}.`,
+    detail: [
+      "Round values can be useful prompts to review how amounts are entered and approved.",
+      "Charges are excluded: fee-schedule prices are round by design.",
+    ],
+    examples: priced
       .filter((txn) => Math.abs(txn.amount) % threshold === 0)
       .slice(0, 8)
       .map((txn) => txn.id),
