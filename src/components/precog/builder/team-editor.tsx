@@ -11,6 +11,12 @@ import type { Person } from "@/lib/precog/types";
 
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
+  JOB_CATALOG,
+  JOB_FAMILY_LABEL,
+  jobCatalogEntry,
+} from "@/lib/precog/onboarding/job-catalog";
+import { parseRoster } from "@/lib/precog/import/roster";
+import {
   parsePeopleCsv,
   removedPeopleImpact,
   peopleToCsv,
@@ -69,11 +75,14 @@ export function TeamEditor({
   const [entitlements, setEntitlements] = useState<EntitlementId[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importIssues, setImportIssues] = useState<PeopleImportIssue[]>([]);
+  const [showPaste, setShowPaste] = useState(false);
+  const [paste, setPaste] = useState("");
   const csvInputRef = useRef<HTMLInputElement>(null);
   const useCustom = role === "__custom";
+  const catalogChoice = role.startsWith("catalog:") ? jobCatalogEntry(role.slice(8)) : undefined;
 
   function add() {
-    const finalRole = (useCustom ? customRole : role).trim();
+    const finalRole = (useCustom ? customRole : catalogChoice ? catalogChoice.title : role).trim();
     if (!name.trim() || !finalRole) return;
     let id = `p-${slug(name)}`;
     let n = 2;
@@ -86,7 +95,13 @@ export function TeamEditor({
         role: finalRole.slice(0, 40),
         active: true,
         tenureYears: tenure === "" ? undefined : tenure,
-        entitlements: useCustom && entitlements.length ? entitlements : undefined,
+        entitlements: useCustom
+          ? entitlements.length
+            ? entitlements
+            : undefined
+          : catalogChoice
+            ? [...catalogChoice.entitlements]
+            : undefined,
       },
     ]);
     setName("");
@@ -113,7 +128,21 @@ export function TeamEditor({
   async function importCsv(file: File) {
     setImportIssues([]);
     try {
-      const result = parsePeopleCsv(await file.text(), tpl);
+      applyImport(parsePeopleCsv(await file.text(), tpl));
+    } catch {
+      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
+    }
+  }
+
+  function importPaste() {
+    setImportIssues([]);
+    applyImport(parseRoster(paste, tpl));
+    setPaste("");
+    setShowPaste(false);
+  }
+
+  function applyImport(result: ReturnType<typeof parsePeopleCsv>) {
+    {
       const issues = [...result.issues];
       const impact = removedPeopleImpact(tpl, result.removed);
       if (result.removed.length && (impact.assignments || impact.processOwnerships)) {
@@ -142,13 +171,14 @@ export function TeamEditor({
       }
       onChange(result.people);
       const kept = tpl.people.length - result.removed.length;
+      const recognised = result.titles.filter((t) => t.catalogTitle).length;
       toast.success(
         `Imported ${result.people.length} people${kept ? `, ${kept} matched the current team` : ""}${
-          issues.length ? `; ${issues.length} thing(s) need attention` : ""
-        }`,
+          recognised
+            ? `; ${recognised} job ${recognised === 1 ? "title" : "titles"} read from the catalog`
+            : ""
+        }${issues.length ? `; ${issues.length} thing(s) need attention` : ""}`,
       );
-    } catch {
-      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
     }
   }
 
@@ -182,6 +212,9 @@ export function TeamEditor({
             event.target.value = "";
           }}
         />
+        <Button size="sm" variant="secondary" onClick={() => setShowPaste((v) => !v)}>
+          <Upload className="size-3.5" /> Paste roster
+        </Button>
         <Button size="sm" variant="secondary" onClick={downloadTemplate}>
           <Download className="size-3.5" /> Download template
         </Button>
@@ -195,6 +228,28 @@ export function TeamEditor({
           </button>
         )}
       </div>
+      {showPaste && (
+        <div className="space-y-1.5 rounded-md border border-border bg-elevated px-2 py-1.5">
+          <p className="text-[11px] text-muted">
+            Paste a worker export from Workday, SAP SuccessFactors, Oracle HCM, or your payroll
+            provider (header row included), or one person per line as{" "}
+            <span className="font-mono">Name, Title</span>. Common titles get their usual duties
+            from the catalog; check each person afterwards.
+          </p>
+          <textarea
+            className={cn(inputCls, "min-h-24 w-full font-mono text-[11px]")}
+            aria-label="Pasted roster"
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            placeholder={
+              "Employee Name,Job Title,Department,Status\nAna Ruiz,Office Manager,Admin,Active"
+            }
+          />
+          <Button size="sm" onClick={importPaste} disabled={!paste.trim()}>
+            Import pasted roster
+          </Button>
+        </div>
+      )}
       {importIssues.length > 0 && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-[11px]">
           <p className="font-medium text-warn">Import issues</p>
@@ -260,10 +315,21 @@ export function TeamEditor({
           onChange={(e) => setName(e.target.value)}
         />
         <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
-          {roleOptions.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+          <optgroup label="Roles in this line of business">
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </optgroup>
+          {(Object.keys(JOB_FAMILY_LABEL) as (keyof typeof JOB_FAMILY_LABEL)[]).map((family) => (
+            <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
+              {JOB_CATALOG.filter((j) => j.family === family).map((j) => (
+                <option key={j.id} value={`catalog:${j.id}`}>
+                  {j.title}
+                </option>
+              ))}
+            </optgroup>
           ))}
           <option value="__custom">Other role…</option>
         </select>
@@ -279,6 +345,11 @@ export function TeamEditor({
           title="Tenure in years — leave blank if unknown"
         />
       </div>
+      {catalogChoice && (
+        <p className="text-[11px] text-muted">
+          {catalogChoice.note} Duties can be changed after adding.
+        </p>
+      )}
       {useCustom && (
         <>
           <input

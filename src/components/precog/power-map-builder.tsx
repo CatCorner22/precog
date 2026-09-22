@@ -114,8 +114,43 @@ export function PowerMapBuilder() {
   const [absentPersonId, setAbsentPersonId] = useState("");
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
-  const [baseline, setBaseline] = useState<RoleAssignment[]>(assignments);
+  // The accepted baseline is kept per business in this browser, so leaving
+  // the tab with changes pending does not quietly approve them: reopening
+  // the map still shows them against the last baseline the owner accepted.
+  const baselineKey = `precog.power-map-baseline.v1:${profile.businessId ?? "biz_default"}`;
+  const [baseline, setBaseline] = useState<RoleAssignment[]>(() => {
+    try {
+      const stored = window.localStorage.getItem(baselineKey);
+      const restored = stored ? normalizeRoleAssignments(JSON.parse(stored)) : undefined;
+      if (restored) return restored;
+    } catch {
+      /* storage unavailable or corrupt: start from today's assignments */
+    }
+    return assignments;
+  });
   const [processId, setProcessId] = useState("all");
+
+  useEffect(() => {
+    // The first time a business opens the map, today's assignments become the
+    // baseline and are stored, so edits made now still show as pending after
+    // the owner leaves the tab and comes back.
+    try {
+      if (window.localStorage.getItem(baselineKey) === null) {
+        window.localStorage.setItem(baselineKey, JSON.stringify(baseline));
+      }
+    } catch {
+      /* storage unavailable */
+    }
+  }, [baselineKey, baseline]);
+
+  function acceptBaseline(next: RoleAssignment[]) {
+    setBaseline(next);
+    try {
+      window.localStorage.setItem(baselineKey, JSON.stringify(next));
+    } catch {
+      /* storage unavailable */
+    }
+  }
 
   useEffect(() => {
     // Earlier builds kept a separate sandbox copy of the map in this browser.
@@ -311,7 +346,7 @@ export function PowerMapBuilder() {
       if (!restored) throw new Error("No valid assignment model found");
       commit(restored);
       setSelectedId(restored[0]?.personId ?? "");
-      setBaseline(restored);
+      acceptBaseline(restored);
       setImportMessage(`Imported ${restored.length} people`);
     } catch (error) {
       setImportMessage(error instanceof Error ? error.message : "Import failed");
@@ -375,7 +410,7 @@ export function PowerMapBuilder() {
             <Button
               size="sm"
               onClick={() => {
-                setBaseline(assignments);
+                acceptBaseline(assignments);
                 setHistory([]);
               }}
               disabled={!pendingChanges.length}

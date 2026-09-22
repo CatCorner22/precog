@@ -56,6 +56,8 @@ export interface Person {
   lastDay?: string;
   /** Explicit duty entitlements when role is custom or needs override. */
   entitlements?: string[];
+  /** Department or cost centre from the roster, kept for grouping; the engines ignore it. */
+  department?: string;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";

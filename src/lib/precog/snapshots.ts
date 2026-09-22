@@ -9,7 +9,7 @@ import { normalizeValueEvidence, type ValueEvidence } from "./value-evidence";
 
 export const ASSESSMENT_MODEL_VERSION = "precog-2026.09";
 export const KNOWLEDGE_CORPUS_VERSION = "controls-2026.09";
-const MAX_SNAPSHOTS_PER_USER = 50;
+import { MAX_SNAPSHOTS_PER_USER, enforceSnapshotRetention } from "./snapshot-retention";
 const MAX_PROFILE_BYTES = 128 * 1024;
 const MAX_POWER_MAP_BYTES = 256 * 1024;
 
@@ -190,6 +190,8 @@ export const createAssessmentSnapshot = createServerFn({ method: "POST" })
         KNOWLEDGE_CORPUS_VERSION,
       ],
     );
+    // Two saves can pass the count check together; the database keeps the limit either way.
+    await enforceSnapshotRetention(sql, context.userId);
     return summary(rows[0]);
   });
 

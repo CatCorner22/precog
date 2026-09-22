@@ -16,6 +16,39 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 | Power map builder    | SoD UI                        | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
 | Assessment snapshots | `snapshots.ts` + UI           | Private, versioned practice records with model/corpus provenance                                            |
 
+## Fast setup from your HR or payroll system
+
+You can set up the whole team in one paste instead of one person at a time.
+In onboarding, open "Paste your team from Workday, SAP, Oracle, or your
+payroll export"; in the team register, use "Paste roster" or "Import CSV".
+
+The importer reads the worker exports these systems produce, header row
+included, and a plain list with one person per line as `Name, Title`:
+
+| System                                              | Columns it reads                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Workday worker report or Excel export               | Worker, Employee ID, Business Title, Job Profile, Manager, Hire Date, Cost Center                      |
+| SAP SuccessFactors Employee Central                 | Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status |
+| Oracle HCM Cloud worker extract                     | Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date    |
+| Payroll providers (ADP, Gusto, Paychex, QuickBooks) | Employee Name, Job Title, Department, Status, Hire Date                                                |
+
+Comma, tab, and semicolon delimiters are detected. A hire date becomes years
+of service; an inactive or terminated status keeps the person off the map.
+
+Job titles are read through a catalog of about forty common small-business
+titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office
+manager, AP specialist, payroll administrator, front desk, cashier, server,
+foreman, IT administrator, and so on, with the seniority and schedule words
+ignored. Each title carries the money duties it typically holds in a business
+of two to fifty people, so every person lands with duties ticked and the
+duty-conflict findings appear at once. Where a title corresponds to one
+occupation in the U.S. Bureau of Labor Statistics Standard Occupational
+Classification (SOC 2018), the entry records the code. Workday, SAP, and
+Oracle publish no job-description list; each customer builds its own, so the
+catalog covers the titles that fill those systems in a small business rather
+than any vendor's list. The duties are a starting point the owner corrects,
+never a fact about the business, and the app says so at the point of use.
+
 ## What you get
 
 | Capability              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |

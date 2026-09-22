@@ -33,7 +33,7 @@ export interface OwnTeamRow {
 }
 
 /** Maximum people the grid accepts; larger teams continue in the register. */
-export const OWN_TEAM_MAX = 12;
+export const OWN_TEAM_MAX = 60;
 
 /**
  * Turns the grid rows into people the engines can read. Empty names are

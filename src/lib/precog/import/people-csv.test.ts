@@ -43,6 +43,7 @@ describe("parsePeopleCsv", () => {
       people: [],
       issues: [{ row: 0, message: "Missing a name column" }],
       unknownEntitlements: [],
+      titles: [],
       removed: [],
     });
   });
@@ -123,7 +124,9 @@ describe("parsePeopleCsv", () => {
       { id: "p-chris", name: "Chris Diaz", role: "Front Desk Lead", active: true },
     ];
     const csv = peopleToCsv(people);
-    expect(csv.split(/\r?\n/)[0]).toBe("name,role,tenure_years,active,last_day,entitlements");
+    expect(csv.split(/\r?\n/)[0]).toBe(
+      "name,role,department,tenure_years,active,last_day,entitlements",
+    );
     const back = parsePeopleCsv(csv, { ...dental, people }).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
     expect("lastDay" in (back.find((p) => p.name === "Chris Diaz") ?? {})).toBe(false);

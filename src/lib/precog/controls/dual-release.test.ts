@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import {
   defaultDualReleasePolicy,
+  dualReleaseCoverage,
   evaluateRelease,
   listEligibleApprovers,
+  mergeDualReleasePolicy,
   mitigatedSodRuleIds,
   type DualReleasePolicy,
 } from "./dual-release";
@@ -143,5 +145,73 @@ describe("policy helpers", () => {
     policy.rules = policy.rules.map((r) => ({ ...r, enabled: false }));
     expect(mitigatedSodRuleIds(policy).size).toBe(0);
     expect(mitigatedSodRuleIds({ ...policyOn(), enabled: false }).size).toBe(0);
+  });
+});
+
+describe("mergeDualReleasePolicy", () => {
+  it("drops exceptions that cannot be evaluated and repairs malformed fields", () => {
+    const merged = mergeDualReleasePolicy(dental, {
+      enabled: true,
+      exceptions: [
+        // channels: null used to crash dualReleaseCoverage on e.channels.length
+        {
+          id: "x1",
+          label: "Null channels",
+          channels: null,
+          action: "waive_dual",
+          enabled: true,
+          reason: "",
+          createdAt: "2026-01-01",
+        },
+        {
+          id: "x2",
+          channels: ["ach", "bogus"],
+          action: "raise_threshold",
+          thresholdUsd: -5,
+          enabled: "yes",
+          amountMaxUsd: Infinity,
+          effectiveFrom: "next week",
+        },
+        { id: "", channels: [], action: "waive_dual", enabled: true },
+        { id: "x4", channels: [], action: "not-an-action", enabled: true },
+        "not an object",
+      ] as unknown as DualReleasePolicy["exceptions"],
+    });
+    expect(merged.exceptions.map((e) => e.id)).toEqual(["x1", "x2"]);
+    expect(merged.exceptions[0].channels).toEqual([]);
+    expect(merged.exceptions[1]).toMatchObject({
+      channels: ["ach"],
+      thresholdUsd: 0,
+      enabled: false,
+      label: "",
+      reason: "",
+    });
+    expect(merged.exceptions[1].amountMaxUsd).toBeUndefined();
+    expect(merged.exceptions[1].effectiveFrom).toBeUndefined();
+    expect(() => dualReleaseCoverage(merged)).not.toThrow();
+  });
+
+  it("applies rule overrides field by field and keeps template-owned fields", () => {
+    const base = defaultDualReleasePolicy(dental);
+    const ach = base.rules.find((r) => r.channel === "ach")!;
+    const merged = mergeDualReleasePolicy(dental, {
+      rules: [
+        {
+          channel: "ach",
+          thresholdUsd: "lots",
+          enabled: "no",
+          mitigatesRuleIds: ["rule-fake"],
+          firstApproverRoles: ["Owner / Dentist", 7],
+        },
+        { channel: "ghost", enabled: true },
+        null,
+      ] as unknown as DualReleasePolicy["rules"],
+    });
+    const mergedAch = merged.rules.find((r) => r.channel === "ach")!;
+    expect(mergedAch.thresholdUsd).toBe(ach.thresholdUsd);
+    expect(mergedAch.enabled).toBe(ach.enabled);
+    expect(mergedAch.mitigatesRuleIds).toEqual(ach.mitigatesRuleIds);
+    expect(mergedAch.firstApproverRoles).toEqual(["Owner / Dentist"]);
+    expect(merged.rules.map((r) => r.channel)).toEqual(base.rules.map((r) => r.channel));
   });
 });
