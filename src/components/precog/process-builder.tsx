@@ -513,6 +513,10 @@ export function ProcessBuilder({
             <CardDescription>
               Build your real value stream. Every change re-scores residual risk, SoD, and scenarios
               live.
+              <span className="mt-1 block text-[10px] text-subtle">
+                Keyboard: arrows move between processes · F frames the selection · Enter edits the
+                name · Shift+A arranges by stage · Ctrl+Z undo
+              </span>
             </CardDescription>
             <HealthPill
               score={currentHealth.score}

@@ -101,7 +101,12 @@ export function ProcessForm({
       <div className="grid gap-2 sm:grid-cols-[1fr_88px]">
         <label>
           <span className={labelCls}>Name</span>
-          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className={inputCls}
+            data-builder-field="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </label>
         <label>
           <span className={labelCls}>Stage</span>

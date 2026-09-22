@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "verify:evidence": "node scripts/verify-evidence.mjs",
     "verify:template": "node scripts/verify-template.mjs",
+    "e2e": "node scripts/e2e-builder.mjs",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write ."
   },
