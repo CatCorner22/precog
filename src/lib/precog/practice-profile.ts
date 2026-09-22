@@ -1,10 +1,6 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { localDateKey } from "./decisions/follow-through";
 import {
-  DEFAULT_RISK_VARIABLES,
-  VARIABLE_CATALOG,
-  type RiskVariableState,
-} from "./scoring/dynamic-variables";
   isCalendarDate,
   type ContinuityStep,
   type CoverageStatus,
@@ -19,7 +15,11 @@ import type {
 } from "./types";
 import { getIndustryTemplate } from "./templates";
 import { resolveTemplate } from "./active-template";
-import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
+import {
+  DEFAULT_RISK_VARIABLES,
+  VARIABLE_CATALOG,
+  type RiskVariableState,
+} from "./scoring/dynamic-variables";
 import {
   defaultDualReleasePolicy,
   mergeDualReleasePolicy,
@@ -290,62 +290,6 @@ export interface MapHealthPoint {
 
 const STORAGE_KEY = "precog.practiceProfile.v2";
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function boundedNumber(value: unknown, fallback: number, minimum: number, maximum: number) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(maximum, Math.max(minimum, value))
-    : fallback;
-}
-
-function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
-  const input = record(value);
-  return {
-    teamSize: Math.round(boundedNumber(input.teamSize, base.teamSize, 1, 500)),
-    soleOwnerKnowledgeCount: Math.round(
-      boundedNumber(input.soleOwnerKnowledgeCount, base.soleOwnerKnowledgeCount, 0, 10_000),
-    ),
-    avgTenureYears: boundedNumber(input.avgTenureYears, base.avgTenureYears, 0, 100),
-    segregationScore: boundedNumber(input.segregationScore, base.segregationScore, 0, 100),
-    dualControlPayments:
-      typeof input.dualControlPayments === "boolean"
-        ? input.dualControlPayments
-        : base.dualControlPayments,
-    independentBankRec:
-      typeof input.independentBankRec === "boolean"
-        ? input.independentBankRec
-        : base.independentBankRec,
-  };
-}
-
-function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
-  const input = record(value);
-  const normalized = { ...base } as Record<keyof RiskVariableState, number | boolean>;
-  for (const definition of VARIABLE_CATALOG) {
-    const key = definition.id as keyof RiskVariableState;
-    const fallback = base[key];
-    const candidate = input[key];
-    if (typeof fallback === "boolean") {
-      normalized[key] = typeof candidate === "boolean" ? candidate : fallback;
-    } else {
-      normalized[key] = boundedNumber(
-        candidate,
-        fallback,
-        definition.min ?? 0,
-        definition.max ?? 1_000_000_000,
-      );
-    }
-  }
-  return normalized as RiskVariableState;
-}
-
-export function defaultProfile(): PracticeProfile {
-  const staff = { ...demoStaff };
-  const dualRelease = defaultDualReleasePolicy(staff);
 export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
   const tpl = getIndustryTemplate(industry);
   const staff = { ...tpl.staffComposition };
@@ -381,10 +325,6 @@ export function loadProfile(): PracticeProfile {
   try {
     // migrate v1
     const raw =
-      localStorage.getItem(STORAGE_KEY) ??
-      localStorage.getItem("precog.practiceProfile.v1");
-    if (!raw) return defaultProfile();
-    return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>);
       localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("precog.practiceProfile.v1");
     if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>, false);
@@ -393,24 +333,68 @@ export function loadProfile(): PracticeProfile {
   }
 }
 
-/** Merge stored/imported profiles with current defaults as the model evolves. */
-export function normalizeProfile(parsed: Partial<PracticeProfile>): PracticeProfile {
-  const base = defaultProfile();
-  const staff = normalizeStaff(parsed.staff, base.staff);
-  const staff = { ...base.staff, ...parsed.staff };
-  const dualRelease = mergeDualReleasePolicy(
-    parsed.dualRelease as DualReleasePolicy | undefined,
-    staff,
-  );
-  if (!parsed.dualRelease) dualRelease.enabled = staff.dualControlPayments;
-  else staff.dualControlPayments = dualRelease.enabled;
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function boundedNumber(value: unknown, fallback: number, minimum: number, maximum: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(maximum, Math.max(minimum, value))
+    : fallback;
+}
+
+/** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
+function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
+  const input = record(value);
+  return {
+    teamSize: Math.round(boundedNumber(input.teamSize, base.teamSize, 1, 500)),
+    soleOwnerKnowledgeCount: Math.round(
+      boundedNumber(input.soleOwnerKnowledgeCount, base.soleOwnerKnowledgeCount, 0, 10_000),
+    ),
+    avgTenureYears: boundedNumber(input.avgTenureYears, base.avgTenureYears, 0, 100),
+    segregationScore: boundedNumber(input.segregationScore, base.segregationScore, 0, 100),
+    dualControlPayments:
+      typeof input.dualControlPayments === "boolean"
+        ? input.dualControlPayments
+        : base.dualControlPayments,
+    independentBankRec:
+      typeof input.independentBankRec === "boolean"
+        ? input.independentBankRec
+        : base.independentBankRec,
+  };
+}
+
+/** Each risk variable is bounded by its catalog definition, or falls back to the default. */
+function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
+  const input = record(value);
+  const normalized = { ...base } as Record<keyof RiskVariableState, number | boolean>;
+  for (const definition of VARIABLE_CATALOG) {
+    const key = definition.id as keyof RiskVariableState;
+    const fallback = base[key];
+    const candidate = input[key];
+    if (typeof fallback === "boolean") {
+      normalized[key] = typeof candidate === "boolean" ? candidate : fallback;
+    } else {
+      normalized[key] = boundedNumber(
+        candidate,
+        fallback,
+        definition.min ?? 0,
+        definition.max ?? 1_000_000_000,
+      );
+    }
+  }
+  return normalized as RiskVariableState;
+}
+
 export function normalizeProfile(
   parsed: Partial<PracticeProfile>,
   onboardingCompleteFallback = true,
 ): PracticeProfile {
   const industry = isIndustryId(parsed.industry) ? parsed.industry : "dental";
   const base = defaultProfile(industry);
-  const staff = { ...base.staff, ...parsed.staff };
+  const staff = normalizeStaff(parsed.staff, base.staff);
   const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
   const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
   const customKnowledge = normalizeCustomKnowledge(
@@ -438,27 +422,6 @@ export function normalizeProfile(
   const decisions = Array.isArray(parsed.decisions)
     ? parsed.decisions.slice(0, 100).flatMap((entry) => {
         if (!entry || typeof entry !== "object" || !validKinds.has(entry.kind)) return [];
-        return [{
-          id: String(entry.id ?? "").slice(0, 80),
-          createdAt: String(entry.createdAt ?? "").slice(0, 40),
-          subject: String(entry.subject ?? "").slice(0, 200),
-          kind: entry.kind,
-          note: String(entry.note ?? "").slice(0, 2_000),
-          reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
-          residualAtDecision: Number.isFinite(entry.residualAtDecision) ? entry.residualAtDecision : undefined,
-          linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
-          linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
-        }];
-      })
-    : [];
-  return {
-    practiceName:
-      typeof parsed.practiceName === "string"
-        ? parsed.practiceName.trim().slice(0, 80) || base.practiceName
-        : base.practiceName,
-    staff,
-    riskVariables: {
-      ...normalizeRiskVariables(parsed.riskVariables, base.riskVariables),
         return [
           {
             ...entry,
@@ -481,22 +444,18 @@ export function normalizeProfile(
     : [];
   return {
     industry,
-    practiceName: String(parsed.practiceName ?? base.practiceName).slice(0, 80),
+    practiceName:
+      typeof parsed.practiceName === "string"
+        ? parsed.practiceName.trim().slice(0, 80) || base.practiceName
+        : base.practiceName,
     staff,
     riskVariables: {
-      ...base.riskVariables,
-      ...parsed.riskVariables,
+      ...normalizeRiskVariables(parsed.riskVariables, base.riskVariables),
       hasDualControl: dualRelease.enabled,
       hasIndependentBankRec: staff.independentBankRec,
     },
     dualRelease,
     decisions,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-export function saveProfile(profile: PracticeProfile): void {
-  if (typeof window === "undefined") return;
     onboardingComplete: parsed.onboardingComplete ?? onboardingCompleteFallback,
     customProcesses,
     customPeople,

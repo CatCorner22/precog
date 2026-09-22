@@ -27,7 +27,9 @@ type NavFn = (tab: string, id?: string) => void;
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
   const { profile } = usePractice();
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">("dual");
+  const [view, setView] = useState<
+    "conflicts" | "matrix" | "roles" | "dual" | "power"
+  >("dual");
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
@@ -182,10 +184,6 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       </div>
 
       {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
-
-      {view === "power" && <PowerMapBuilder />}
-
-      {view === "power" && <PowerMapBuilder />}
 
       {view === "power" && <PowerMapBuilder />}
 

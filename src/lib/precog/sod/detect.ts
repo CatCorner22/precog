@@ -143,7 +143,6 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
     "view_reports_only",
   ],
   "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
-  "Practice Administrator": ["approve_vendor", "approve_payroll", "approve_writeoffs", "view_reports_only", "review_audit_logs"],
   "Practice Administrator": [
     "approve_vendor",
     "approve_payroll",
@@ -153,37 +152,13 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   ],
   Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
   "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
-  "Insurance Coordinator": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "view_reports_only",
-  ],
-  Bookkeeper: [
-    "enter_invoices",
-    "post_payments",
-    "bank_reconcile",
-    "enter_payroll",
-    "view_reports_only",
-  ],
+  "Insurance Coordinator": ["submit_claims", "post_adjustments", "post_payments", "view_reports_only"],
+  Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile", "enter_payroll", "view_reports_only"],
   "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
   "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
-  "Procurement Coordinator": [
-    "order_supplies",
-    "receive_goods",
-    "enter_invoices",
-    "view_reports_only",
-  ],
-  "IT Administrator": [
-    "pms_admin_roles",
-    "manage_user_access",
-    "manage_backups",
-    "view_reports_only",
-  ],
+  "Procurement Coordinator": ["order_supplies", "receive_goods", "enter_invoices", "view_reports_only"],
+  "IT Administrator": ["pms_admin_roles", "manage_user_access", "manage_backups", "view_reports_only"],
   "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
-  "External Billing Service": ["submit_claims", "post_adjustments", "post_payments", "export_bulk_data", "view_reports_only"],
-  "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
-  "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
   "External Billing Service": [
     "submit_claims",
     "post_adjustments",
@@ -195,10 +170,9 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
 };
 
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
-  role,
-  entitlements,
-}));
+export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
+  ([role, entitlements]) => ({ role, entitlements }),
+);
 
 /**
  * Plain wording for the duty families.
@@ -260,11 +234,6 @@ const FAMILY_WHY: Record<string, string> = {
   "authorization-recording":
     "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
 };
-
-/** Common jobs available to the visual assignment sandbox. */
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(
-  ([role, entitlements]) => ({ role, entitlements }),
-);
 
 function entLabel(id: EntitlementId) {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
@@ -421,17 +390,11 @@ export function detectSodConflicts(
 ): SodDetectionReport {
   const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
   const staff = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? undefined
-      : staffOrOptions
+    ? (isSodDetectionOptions(staffOrOptions) ? undefined : staffOrOptions)
     : tplOrStaff;
   const options = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions
-    : isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions;
+    ? (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions)
+    : (isSodDetectionOptions(staffOrOptions) ? staffOrOptions : maybeOptions);
 
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
@@ -450,15 +413,10 @@ export function detectSodConflicts(
         const fa = entFamily(a);
         const fb = entFamily(b);
 
-        // Family heuristics are a backstop, not a reason to flag unrelated
-        // workflows. Explicit rulebook conflicts remain global; generic family
-        // conflicts require the powers to participate in the same process.
         if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
 
         if (rule) {
-          const canonicalA = rule.a;
-          const canonicalB = rule.b;
           const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);
           const dualMitigated = dualMitigatedRules.has(rule.id);
           const comps = [
@@ -516,9 +474,6 @@ export function detectSodConflicts(
             labelA: entLabel(canonicalA),
             labelB: entLabel(canonicalB),
             severity: "family",
-            title: `${canonicalFamilyA} + ${canonicalFamilyB} combination`,
-            why: "These duty families are incompatible within the same operating process.",
-            fraudPath: "Opportunity from combined incompatible duty families",
             title:
               canonicalFamilyA === canonicalFamilyB
                 ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
@@ -572,7 +527,7 @@ export function detectSodConflicts(
           row,
           col,
           status: "conflict",
-          ruleIds: [familyRuleId(entFamily(row), entFamily(col))],
+          ruleIds: [`family-${entFamily(row)}-${entFamily(col)}`],
           severity: "family",
         });
       } else {

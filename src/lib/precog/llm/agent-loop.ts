@@ -477,7 +477,6 @@ function localSynthesize(
     recommendedSequence?: string[];
     synthesis?: string[];
   } | null;
-  const endFc = forecast?.points[forecast.points.length - 1];
 
   const highestRisks = top.slice(0, 4).map((t) => {
     const drivers = t.drivers

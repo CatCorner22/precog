@@ -139,11 +139,6 @@ export function updateBayesianWithLever(
     label: string;
   },
 ): BayesianState {
-  const { alpha: initialAlpha, beta } = {
-    alpha: state.failureProbability.alpha,
-    beta: state.failureProbability.beta,
-  };
-  let alpha = initialAlpha;
   let alpha = state.failureProbability.alpha;
   const beta = state.failureProbability.beta;
   // Map likelihood drop into hold pseudo-counts

@@ -747,10 +747,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const replaceProfile = useCallback((next: PracticeProfile) => {
-    setProfile(normalizeProfile(next));
-  }, []);
-
   const replaceProfile = useCallback(
     (next: PracticeProfile) => {
       clearHistory();
@@ -835,9 +831,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const replaceProfile = useCallback((next: PracticeProfile) => {
-    setProfile(normalizeProfile(next));
-  }, []);
   const restoreMapVersion = useCallback(
     (id: string) => {
       const v = profileRef.current.mapVersions?.find((x) => x.id === id);
@@ -1082,8 +1075,6 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   return <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>;
 }
 
-// Context modules intentionally export their provider and matching consumer hook.
-// eslint-disable-next-line react-refresh/only-export-components
 const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 export function usePractice() {
