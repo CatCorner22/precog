@@ -33,7 +33,9 @@ function startOfDay(d: Date) {
 
 export function nextDueDate(item: EvidenceItem): Date | null {
   if (!item.lastDoneAt) return null;
-  return new Date(new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * 86_400_000);
+  return new Date(
+    new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * 86_400_000,
+  );
 }
 
 function classify(daysLeft: number | null): DueItem["status"] {

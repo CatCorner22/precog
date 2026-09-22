@@ -22,12 +22,16 @@ export function evaluateAssignmentChange(
   const person = assignments.find((item) => item.personId === personId);
   if (!person) return undefined;
   const active = person.entitlements.includes(entitlement);
-  const nextAssignments = assignments.map((item) => item.personId !== personId ? item : ({
-    ...item,
-    entitlements: active
-      ? item.entitlements.filter((id) => id !== entitlement)
-      : [...item.entitlements, entitlement],
-  }));
+  const nextAssignments = assignments.map((item) =>
+    item.personId !== personId
+      ? item
+      : {
+          ...item,
+          entitlements: active
+            ? item.entitlements.filter((id) => id !== entitlement)
+            : [...item.entitlements, entitlement],
+        },
+  );
   const before = detectSodConflicts(staff, { assignments });
   const after = detectSodConflicts(staff, { assignments: nextAssignments });
   const beforeIds = new Set(before.conflicts.map((item) => item.id));

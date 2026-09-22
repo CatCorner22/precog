@@ -63,9 +63,9 @@ function reviewDelta(
     return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
   }
   if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
-    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
   }
-  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open SoD conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
+  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
 }
 
 /**
@@ -322,8 +322,9 @@ export function DecisionJournal({
           Write it down or it did not happen
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          COSO monitoring needs a paper trail. Record remediate, accept residual, monitor, or insure
-          decisions with a review date. Syncs to your account when signed in.
+          Checking that controls still work (what the COSO framework calls monitoring) needs a paper
+          trail. Record remediate, accept residual, monitor, or insure decisions with a review date.
+          Syncs to your account when signed in.
         </p>
       </section>
 

@@ -9,6 +9,8 @@ import {
   useRef,
   useState,
   type ReactNode,
+  useReducer,
+  type SetStateAction,
 } from "react";
 import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -201,11 +203,24 @@ const PracticeContext = createContext<PracticeContextValue | null>(null);
 
 const SAVE_DEBOUNCE_MS = 1200;
 
+type ProfileAction = SetStateAction<PracticeProfile> | { load: PracticeProfile };
+
+/**
+ * Every edit stamps `updatedAt` in state, not only in localStorage, so the
+ * sign-in merge compares the real time of the last local edit against the
+ * server row. A `{ load }` action swaps the profile in without a stamp.
+ */
+function profileReducer(state: PracticeProfile, action: ProfileAction): PracticeProfile {
+  if (typeof action === "object" && action !== null && "load" in action) return action.load;
+  const next = typeof action === "function" ? action(state) : action;
+  return next === state ? state : { ...next, updatedAt: new Date().toISOString() };
+}
+
 export function PracticeProvider({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   const userId = user?.id;
   const userIsDevFallback = user?.isDevFallback;
-  const [profile, setProfile] = useState<PracticeProfile>(defaultProfile);
+  const [profile, setProfile] = useReducer(profileReducer, undefined, defaultProfile);
   const [ready, setReady] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,7 +293,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     undoStack.current = [];
     redoStack.current = [];
     setHistoryVersion((v) => v + 1);
-    setProfile(next);
+    setProfile({ load: next });
   }, []);
 
   const saveCloud = useCallback(async (current: PracticeProfile) => {
@@ -298,7 +313,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     }
     const nextConflict: SaveConflictState = {
       reason: "remote-edit",
-      remote: result.profile,
+      remote: normalizeProfile(result.profile),
       revision: result.revision,
       updatedAt: result.updatedAt,
     };
@@ -339,7 +354,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         const local = profileRef.current;
         const localId = local.businessId ?? "biz_default";
         if (res.found && res.profile) {
-          const id = res.profile.businessId ?? "biz_default";
+          // Cloud rows skip the client normaliser on the way in unless we run it here.
+          const remoteProfile = normalizeProfile(res.profile);
+          const id = remoteProfile.businessId ?? "biz_default";
           if (res.revision === null) cloudRevision.current.delete(id);
           else cloudRevision.current.set(id, res.revision);
 
@@ -361,7 +378,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
               // choose instead of silently replacing their work.
               const conflict: SaveConflictState = {
                 reason: "sign-in",
-                remote: res.profile,
+                remote: remoteProfile,
                 revision: res.revision,
                 updatedAt: res.updatedAt,
               };
@@ -373,9 +390,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          activateProfile(res.profile);
-          saveProfile(res.profile);
-          savePortfolioEntry(res.profile);
+          activateProfile(remoteProfile);
+          saveProfile(remoteProfile);
+          savePortfolioEntry(remoteProfile);
         } else {
           cloudRevision.current.delete(localId);
         }
@@ -404,7 +421,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
     const skipOnce = skipNextCloudSave.current;
     skipNextCloudSave.current = false;
-    const skipCloud = !cloud || Boolean(saveConflictRef.current) || skipOnce;
+    // Never push before the account's copy has been read: a save with no
+    // base revision would create a second, template-only business or trip a
+    // spurious conflict against the row still in flight.
+    const loaded = cloudLoadedFor.current === userId;
+    const skipCloud = !cloud || !loaded || Boolean(saveConflictRef.current) || skipOnce;
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -431,7 +452,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       const cur = profileRef.current;
       savePortfolioEntry(cur);
       const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
-      if (cloud && !saveConflictRef.current) {
+      if (cloud && cloudLoadedFor.current === userId && !saveConflictRef.current) {
         void saveCloud(cur).catch(() => setSyncStatus("error"));
       }
     };
@@ -877,12 +898,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     const cur = profileRef.current;
     saveProfile(cur);
     savePortfolioEntry(cur);
-    if (cloudUser && !saveConflictRef.current) {
+    if (cloudUser && cloudLoadedFor.current === userId && !saveConflictRef.current) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       await saveCloud(cur).catch(() => false);
     }
     return !saveConflictRef.current;
-  }, [cloudUser, saveCloud]);
+  }, [cloudUser, saveCloud, userId]);
 
   const switchBusiness = useCallback(
     async (id: string) => {
@@ -902,7 +923,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
             const seen = cloudRevision.current.get(id);
             const localCurrent = next !== null && seen !== undefined && seen === remote.revision;
             cloudRevision.current.set(id, remote.revision);
-            if (!localCurrent) next = remote.profile;
+            if (!localCurrent) next = normalizeProfile(remote.profile);
           } else if (remote?.found === false) {
             cloudRevision.current.delete(id);
           }

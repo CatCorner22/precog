@@ -18,7 +18,10 @@ export const FREQUENCY_LABEL: Record<EvidenceFrequency, string> = {
 
 export type EvidenceStatus = "never" | "current" | "due_soon" | "overdue";
 
-export function evidenceStatus(item: EvidenceItem, now = Date.now()): { status: EvidenceStatus; daysLeft: number | null } {
+export function evidenceStatus(
+  item: EvidenceItem,
+  now = Date.now(),
+): { status: EvidenceStatus; daysLeft: number | null } {
   if (!item.lastDoneAt) return { status: "never", daysLeft: null };
   const period = FREQUENCY_DAYS[item.frequency];
   const elapsedDays = (now - new Date(item.lastDoneAt).getTime()) / 86_400_000;
@@ -41,7 +44,15 @@ export interface EvidenceSummary {
 }
 
 export function summarizeEvidence(processes: ProcessNode[], now = Date.now()): EvidenceSummary {
-  const s: EvidenceSummary = { total: 0, current: 0, dueSoon: 0, overdue: 0, never: 0, coverage: 100, overdueItems: [] };
+  const s: EvidenceSummary = {
+    total: 0,
+    current: 0,
+    dueSoon: 0,
+    overdue: 0,
+    never: 0,
+    coverage: 100,
+    overdueItems: [],
+  };
   for (const p of processes) {
     for (const item of p.evidence ?? []) {
       s.total += 1;
@@ -81,6 +92,7 @@ export function suggestEvidence(process: ProcessNode): Omit<EvidenceItem, "id">[
     out.push({ label: "Cycle count variance investigated", frequency: "monthly" });
   if (process.controlIds.length && !out.length)
     out.push({ label: "Control operating-effectiveness walkthrough", frequency: "quarterly" });
-  if (!out.length) out.push({ label: "Process owner attests procedure is followed", frequency: "quarterly" });
+  if (!out.length)
+    out.push({ label: "Process owner attests procedure is followed", frequency: "quarterly" });
   return out.slice(0, 3);
 }

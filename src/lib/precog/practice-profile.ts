@@ -473,6 +473,8 @@ export function normalizeProfile(
               : undefined,
             linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
             linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
+            reviews: Array.isArray(entry.reviews) ? entry.reviews.slice(0, 100) : undefined,
+            status: entry.status === "open" || entry.status === "closed" ? entry.status : undefined,
           },
         ];
       })
