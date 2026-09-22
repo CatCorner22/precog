@@ -1,5 +1,8 @@
-import { LAYER_META, processes, controls, knowledge } from "@/lib/precog/demo-data";
 import type { MatrixLayerId } from "@/lib/precog/types";
+import { LAYER_META } from "@/lib/precog/templates/layer-meta";
+import { usePractice } from "@/lib/precog/practice-context";
+import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
+import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +22,7 @@ export function LayersPanel({
   active: MatrixLayerId;
   onSelect: (id: MatrixLayerId) => void;
 }) {
+  const { processes, controls, knowledge } = useTemplate();
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {ORDER.map((id, index) => {
@@ -66,6 +70,9 @@ export function LayersPanel({
 }
 
 export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
+  const { profile } = usePractice();
+  const { processes, controls, knowledge } = useTemplate();
+  const layerCopy = getIndustryCopy(profile.industry).layerCopy;
   const meta = LAYER_META[layer];
 
   if (layer === "process") {
@@ -133,29 +140,10 @@ export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
     );
   }
 
-  const copy: Record<string, string[]> = {
-    surface: [
-      "Chair utilization and same-day openings",
-      "Front desk call volume and no-shows",
-      "Daily collections and patient experience noise",
-    ],
-    source: [
-      "Practice management system (roles & templates)",
-      "Clearinghouse / payer portals",
-      "Bank ACH dual-release configuration",
-      "Lab and supply vendor accounts",
-    ],
-    continuity: [
-      "If front desk lead exits → denial backlog within weeks",
-      "If office manager unavailable → payroll + AP stall",
-      "If dual control never added → detection lag stays high",
-    ],
-  };
-
   return (
     <LayerShell title={meta.name} subtitle={meta.blurb}>
       <ul className="space-y-2">
-        {(copy[layer] ?? []).map((line) => (
+        {(layerCopy[layer] ?? []).map((line) => (
           <li
             key={line}
             className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-muted"

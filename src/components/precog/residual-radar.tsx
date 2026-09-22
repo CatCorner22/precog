@@ -1,9 +1,14 @@
+import { bandForScore } from "@/lib/precog/scoring/weights";
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { IndexBasis } from "@/components/precog/index-basis";
+import { ScoringBasis } from "@/components/precog/scoring-basis";
 import { useMemo, useState } from "react";
 import {
   portfolioSummary,
   tornadoSensitivity,
   type ResidualRiskScore,
 } from "@/lib/precog/scoring/residual-engine";
+import { weightSensitivity } from "@/lib/precog/scoring/sensitivity";
 import { usePractice } from "@/lib/precog/practice-context";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
@@ -19,19 +24,19 @@ function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
   return "ok";
 }
 
-export function ResidualRadar({
-  onNavigate,
-}: {
-  onNavigate: (target: DeepLinkTarget) => void;
-}) {
-  const { profile } = usePractice();
+export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
+  const { profile, template } = usePractice();
   const summary = useMemo(
-    () => portfolioSummary(profile.staff),
-    [profile.staff],
+    () => portfolioSummary(template, profile.staff),
+    [template, profile.staff],
   );
   const tornado = useMemo(
-    () => tornadoSensitivity(profile.staff),
-    [profile.staff],
+    () => tornadoSensitivity(template, profile.staff),
+    [template, profile.staff],
+  );
+  const sensitivity = useMemo(
+    () => weightSensitivity(template, profile.staff),
+    [template, profile.staff],
   );
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
   const active = selected ?? summary.top[0] ?? null;
@@ -59,18 +64,37 @@ export function ResidualRadar({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Scoring engine" value={summary.scoringVersion.replace("precog-", "")} hint="Transparent weights" />
-        <Stat label="Avg residual" value={String(summary.averageResidual)} hint="From practice profile" />
-        <Stat label="Critical path" value={String(summary.criticalPath)} hint="Band ≥ 80" />
-        <Stat label="Act now" value={String(summary.actNow)} hint="Band 60–79" />
+        <Stat
+          label="Scoring engine"
+          value={summary.scoringVersion.replace("precog-", "")}
+          hint="Transparent weights"
+        />
+        <Stat
+          label="Avg residual"
+          value={bandForScore(summary.averageResidual).label}
+          subvalue={`${summary.averageResidual} (range ${sensitivity.averageLow}–${sensitivity.averageHigh} across ±20% weight trials)`}
+          hint="This app's index, from your profile"
+        />
+        <Stat
+          label="Critical path"
+          value={String(summary.criticalPath)}
+          hint={`Index ≥ ${RISK_SCALE.critical}`}
+        />
+        <Stat
+          label="Act now"
+          value={String(summary.actNow)}
+          hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
+        />
       </div>
+      <IndexBasis />
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
             <CardTitle>Residual risk register</CardTitle>
             <CardDescription>
-              Inherent × (1 − control effectiveness) × staff modifiers — sorted by residual
+              Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app chose
+              — sorted by the resulting index
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -97,6 +121,7 @@ export function ResidualRadar({
                   <div className="text-right">
                     <p className="text-xl font-semibold tabular">{item.residual}</p>
                     <p className="text-[10px] text-subtle">residual</p>
+                    <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
                   </div>
                   <div className="hidden w-24 sm:block">
                     <div className="h-1.5 overflow-hidden rounded-full bg-bg">
@@ -156,17 +181,15 @@ export function ResidualRadar({
                       </li>
                     ))}
                   </ul>
-                  {(active.expectedLoss ||
-                    active.linkedScenarioId ||
-                    active.linkedKnowledgeId) && (
+                  {(active.expectedLoss || active.linkedScenarioId || active.linkedKnowledgeId) && (
                     <Button size="sm" variant="secondary" onClick={() => openLinked(active)}>
                       Open linked evidence
                     </Button>
                   )}
                   {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
-                      Scenario expected loss {formatUsd(active.expectedLoss)}
-                      {active.p50Days != null ? ` · p50 ${active.p50Days}d` : ""}
+                      Scenario assumes a loss of {formatUsd(active.expectedLoss)}
+                      {active.p50Days != null ? ` about ${active.p50Days} days out` : ""}
                     </p>
                   )}
                 </div>
@@ -218,16 +241,28 @@ export function ResidualRadar({
           </Card>
         </div>
       </div>
+      <ScoringBasis template={template} staff={profile.staff} sensitivity={sensitivity} />
     </div>
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Stat({
+  label,
+  value,
+  subvalue,
+  hint,
+}: {
+  label: string;
+  value: string;
+  subvalue?: string;
+  hint: string;
+}) {
   return (
     <Card>
       <CardContent className="p-4">
         <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
         <p className="mt-1 truncate text-lg font-semibold tabular tracking-tight">{value}</p>
+        {subvalue && <p className="mt-1 text-xs text-muted">{subvalue}</p>}
         <p className="mt-1 text-xs text-muted">{hint}</p>
       </CardContent>
     </Card>
@@ -240,5 +275,29 @@ function Mini({ n, l }: { n: number; l: string }) {
       <p className="text-lg font-semibold tabular">{n}</p>
       <p className="text-[10px] text-subtle">{l}</p>
     </div>
+  );
+}
+
+function ItemSensitivityMeta({
+  sensitivity,
+  id,
+}: {
+  sensitivity: ReturnType<typeof weightSensitivity>;
+  id: string;
+}) {
+  const item = sensitivity.items.find((candidate) => candidate.id === id);
+  if (!item) return null;
+
+  return (
+    <>
+      <p className="text-[10px] tabular text-muted">
+        range {item.low}–{item.high}
+      </p>
+      {!item.bandStable && (
+        <Badge variant="warn" className="mt-1">
+          band sensitive
+        </Badge>
+      )}
+    </>
   );
 }

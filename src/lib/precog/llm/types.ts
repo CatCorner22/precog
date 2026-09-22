@@ -7,7 +7,10 @@ export type ToolName =
   | "get_coso_assessment"
   | "get_residual_portfolio"
   | "get_knowledge_spofs"
+  | "get_register_checkins"
+  | "get_planned_absences"
   | "get_knowledge_graph"
+  | "get_process_records"
   | "run_precog_scenario"
   | "compare_scenario_futures"
   | "get_tornado_levers"
@@ -15,9 +18,8 @@ export type ToolName =
   | "get_sod_conflicts"
   | "simulate_variable_cascades"
   | "retrieve_guidance"
-  | "score_anomalies"
   | "get_leading_indicators"
-  | "forecast_residual"
+  | "get_case_evidence"
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
@@ -36,14 +38,7 @@ export interface ToolResult {
 }
 
 export type ReasoningPhase =
-  | "plan"
-  | "retrieve"
-  | "analyze"
-  | "reason"
-  | "critique"
-  | "specialize"
-  | "synthesize"
-  | "meta";
+  "plan" | "retrieve" | "analyze" | "reason" | "critique" | "specialize" | "synthesize" | "meta";
 
 export interface ReasoningStep {
   phase: ReasoningPhase;
@@ -65,7 +60,6 @@ export interface EvidenceRef {
     | "cascade"
     | "rag"
     | "ml"
-    | "forecast"
     | "reasoning"
     | "epistemic";
   label: string;

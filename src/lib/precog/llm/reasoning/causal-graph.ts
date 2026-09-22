@@ -51,12 +51,32 @@ export const CAUSAL_EDGES: CausalEdge[] = [
   { from: "likelihood", to: "retained_loss", weight: 0.6, label: "more events → more retained" },
   { from: "severity", to: "retained_loss", weight: 0.85, label: "gross severity feeds retained" },
   { from: "detection_lag", to: "severity", weight: 0.55, label: "longer lag → larger schemes" },
-  { from: "detection_lag", to: "timeline_p50", weight: -0.5, label: "faster detection stretches p50" },
-  { from: "deductible", to: "retained_loss", weight: 0.7, label: "higher deductible floors retained" },
+  {
+    from: "detection_lag",
+    to: "timeline_p50",
+    weight: -0.5,
+    label: "faster detection stretches p50",
+  },
+  {
+    from: "deductible",
+    to: "retained_loss",
+    weight: 0.7,
+    label: "higher deductible floors retained",
+  },
   { from: "premium", to: "annual_cor", weight: 0.65, label: "premium is CoR component" },
   { from: "retained_loss", to: "annual_cor", weight: 0.8, label: "annualized retained in CoR" },
-  { from: "retained_loss", to: "residual_portfolio", weight: 0.4, label: "loss expectation elevates residual" },
-  { from: "residual_portfolio", to: "owner_decision", weight: 0.9, label: "residual drives act/accept" },
+  {
+    from: "retained_loss",
+    to: "residual_portfolio",
+    weight: 0.4,
+    label: "loss expectation elevates residual",
+  },
+  {
+    from: "residual_portfolio",
+    to: "owner_decision",
+    weight: 0.9,
+    label: "residual drives act/accept",
+  },
   { from: "annual_cor", to: "owner_decision", weight: 0.85, label: "CoR prices the decision" },
   { from: "timeline_p50", to: "owner_decision", weight: 0.35, label: "urgency signal" },
 ];
@@ -74,12 +94,7 @@ export function findCausalPaths(
 ): CausalPath[] {
   const paths: CausalPath[] = [];
 
-  function dfs(
-    node: CausalNodeId,
-    trail: CausalNodeId[],
-    edges: CausalEdge[],
-    score: number,
-  ) {
+  function dfs(node: CausalNodeId, trail: CausalNodeId[], edges: CausalEdge[], score: number) {
     if (paths.length >= maxPaths) return;
     if (trail.length > maxDepth) return;
     if (node === goal && trail.length > 1) {
