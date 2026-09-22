@@ -1,0 +1,7 @@
+# Generated or platform-owned files stay as their tools write them.
+src/routeTree.gen.ts
+AGENTS.md
+.vercel
+.output
+dist
+node_modules

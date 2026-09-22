@@ -45,7 +45,12 @@ try {
 
   const title = await page.title();
   const hasCanvas = (await page.locator("canvas").count()) > 0;
-  const bodyTextLen = (await page.locator("body").innerText().catch(() => "")).trim().length;
+  const bodyTextLen = (
+    await page
+      .locator("body")
+      .innerText()
+      .catch(() => "")
+  ).trim().length;
 
   await page.screenshot({ path: outPng, fullPage: false });
 

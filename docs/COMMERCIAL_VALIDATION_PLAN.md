@@ -41,16 +41,16 @@ business. If the answer is yes, Precog has a credible vertical wedge.
 Every hypothesis must have an owner, evidence source, deadline, and explicit
 pass/fail threshold.
 
-| ID | Hypothesis | Test | Pass threshold | Failure implication |
-|---|---|---|---|---|
-| H1 | Dental advisors experience repeatable responsibility/access review pain | 12 advisor interviews + workflow observation | 8 describe the same recurring job; 5 provide artifacts | Reframe the buyer or stop advisor-first development |
-| H2 | 3–50-location groups will fund the workflow | 10 buyer interviews + 5 priced proposals | 3 paid design partners | Treat as consulting aid, not standalone SaaS |
-| H3 | A credible first model can be created quickly | Timed onboarding with real staff/access exports | Median under 4 hours advisor-led; under 1 day total | Reduce ontology and automate ingestion before adding analysis |
-| H4 | Findings are accurate enough to act on | Blind finding review by customer + independent expert | At least 70% valid; at least 50% actionable | Tune rules and suppress heuristics before scaling sales |
-| H5 | Customers will maintain the model | 90-day pilot with two review cycles | 60% complete cycle two; 85% assigned certifications complete | Product lacks recurring ownership; do not claim continuous controls |
-| H6 | Value can be demonstrated without speculative fraud savings | Baseline/time study + exception outcomes | Each paid pilot shows labor savings, recovery, or approved risk closure worth annual price | Narrow use case or lower implementation burden |
-| H7 | Advisor distribution lowers acquisition cost | Multi-client advisor pilot | One advisor activates 3+ paying clients | Sell direct or find a different channel |
-| H8 | CSV reconciliation is sufficient for the first sale | Import real exports from PMS/accounting/payroll/bank | 80% of permissions map; review can resolve the remainder | Build one connector only after identifying the blocking source |
+| ID  | Hypothesis                                                              | Test                                                  | Pass threshold                                                                             | Failure implication                                                 |
+| --- | ----------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| H1  | Dental advisors experience repeatable responsibility/access review pain | 12 advisor interviews + workflow observation          | 8 describe the same recurring job; 5 provide artifacts                                     | Reframe the buyer or stop advisor-first development                 |
+| H2  | 3–50-location groups will fund the workflow                             | 10 buyer interviews + 5 priced proposals              | 3 paid design partners                                                                     | Treat as consulting aid, not standalone SaaS                        |
+| H3  | A credible first model can be created quickly                           | Timed onboarding with real staff/access exports       | Median under 4 hours advisor-led; under 1 day total                                        | Reduce ontology and automate ingestion before adding analysis       |
+| H4  | Findings are accurate enough to act on                                  | Blind finding review by customer + independent expert | At least 70% valid; at least 50% actionable                                                | Tune rules and suppress heuristics before scaling sales             |
+| H5  | Customers will maintain the model                                       | 90-day pilot with two review cycles                   | 60% complete cycle two; 85% assigned certifications complete                               | Product lacks recurring ownership; do not claim continuous controls |
+| H6  | Value can be demonstrated without speculative fraud savings             | Baseline/time study + exception outcomes              | Each paid pilot shows labor savings, recovery, or approved risk closure worth annual price | Narrow use case or lower implementation burden                      |
+| H7  | Advisor distribution lowers acquisition cost                            | Multi-client advisor pilot                            | One advisor activates 3+ paying clients                                                    | Sell direct or find a different channel                             |
+| H8  | CSV reconciliation is sufficient for the first sale                     | Import real exports from PMS/accounting/payroll/bank  | 80% of permissions map; review can resolve the remainder                                   | Build one connector only after identifying the blocking source      |
 
 ## 3. Target segments and buyer map
 
@@ -397,19 +397,19 @@ outcomes as well as positive findings to avoid survivorship bias.
 
 ## 11. Commercial scorecard
 
-| Area | Metric | 12-week gate |
-|---|---|---:|
-| Demand | Paid design partners | 5 |
-| Retention signal | Commit to second cycle | 3 of 5 |
-| Channel | Advisor multi-client intent | At least 1 advisor / 3 clients |
-| Activation | Credible initial model | Median under 4 advisor hours |
-| Accuracy | Critical findings judged valid | At least 70% |
-| Actionability | Critical findings accepted for action | At least 50% |
-| Data | Permissions automatically mapped | At least 80% |
-| Workflow | Certification completed on time | At least 85% |
-| Risk | Unresolved critical conflicts at day 90 | Down at least 50% |
-| Value | Demonstrable observed value or approved risk closure | At least annual price |
-| Economics | Implementation after templates mature | Below 25% of first-year value |
+| Area             | Metric                                               |                   12-week gate |
+| ---------------- | ---------------------------------------------------- | -----------------------------: |
+| Demand           | Paid design partners                                 |                              5 |
+| Retention signal | Commit to second cycle                               |                         3 of 5 |
+| Channel          | Advisor multi-client intent                          | At least 1 advisor / 3 clients |
+| Activation       | Credible initial model                               |   Median under 4 advisor hours |
+| Accuracy         | Critical findings judged valid                       |                   At least 70% |
+| Actionability    | Critical findings accepted for action                |                   At least 50% |
+| Data             | Permissions automatically mapped                     |                   At least 80% |
+| Workflow         | Certification completed on time                      |                   At least 85% |
+| Risk             | Unresolved critical conflicts at day 90              |              Down at least 50% |
+| Value            | Demonstrable observed value or approved risk closure |          At least annual price |
+| Economics        | Implementation after templates mature                |  Below 25% of first-year value |
 
 ## 12. Go, narrow, or stop
 

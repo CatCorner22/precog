@@ -104,7 +104,11 @@ export function CaseCard({
             <p className="leading-relaxed text-muted">{study.controlGap}</p>
           </Section>
 
-          <Section title="What would plausibly have caught it">
+          <Section title="What we think would have caught it">
+            <p className="mb-1.5 text-xs text-subtle">
+              Our reading of the public record, not a finding from the case. Where the source says
+              how the theft was found, that route is shown below.
+            </p>
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step, i) => (
                 // A case may phrase one control more than one way, so the

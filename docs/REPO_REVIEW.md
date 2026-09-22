@@ -115,7 +115,7 @@ that controls operated continuously.
   additions, removals, unresolved exceptions, and overdue remediation.
 - The core signed-in journey passes automated keyboard, accessibility, restore,
   and authorization-isolation tests.
-Reviewed: 2026-09-18
+  Reviewed: 2026-09-18
 
 ## Executive assessment
 
