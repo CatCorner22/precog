@@ -9,3 +9,6 @@ artifacts
 .env
 .env.*
 .DS_Store
+
+# TanStack Start build scratch
+.tanstack

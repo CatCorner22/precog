@@ -35,7 +35,8 @@ export function buildResolutionPlans(
     const plans: ResolutionPlan[] = [];
 
     for (const candidate of assignments) {
-      if (candidate.personId === source.personId || candidate.entitlements.includes(entitlement)) continue;
+      if (candidate.personId === source.personId || candidate.entitlements.includes(entitlement))
+        continue;
       const transferred = addEntitlement(without, candidate.personId, entitlement);
       const next = detectSodConflicts(undefined, { assignments: transferred }).conflicts;
       const created = next.filter((item) => !baselineIds.has(item.id)).length;
@@ -50,7 +51,11 @@ export function buildResolutionPlans(
 
   return options
     .filter((plan) => plan.conflictsResolved > 0)
-    .sort((a, b) => Number(Boolean(b.toPersonId)) - Number(Boolean(a.toPersonId)) || b.conflictsResolved - a.conflictsResolved)
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.toPersonId)) - Number(Boolean(a.toPersonId)) ||
+        b.conflictsResolved - a.conflictsResolved,
+    )
     .slice(0, 6);
 }
 
@@ -90,14 +95,26 @@ function makePlan(
   };
 }
 
-function removeEntitlement(assignments: RoleAssignment[], personId: string, entitlement: EntitlementId) {
-  return assignments.map((person) => person.personId === personId
-    ? { ...person, entitlements: person.entitlements.filter((item) => item !== entitlement) }
-    : person);
+function removeEntitlement(
+  assignments: RoleAssignment[],
+  personId: string,
+  entitlement: EntitlementId,
+) {
+  return assignments.map((person) =>
+    person.personId === personId
+      ? { ...person, entitlements: person.entitlements.filter((item) => item !== entitlement) }
+      : person,
+  );
 }
 
-function addEntitlement(assignments: RoleAssignment[], personId: string, entitlement: EntitlementId) {
-  return assignments.map((person) => person.personId === personId
-    ? { ...person, entitlements: [...person.entitlements, entitlement] }
-    : person);
+function addEntitlement(
+  assignments: RoleAssignment[],
+  personId: string,
+  entitlement: EntitlementId,
+) {
+  return assignments.map((person) =>
+    person.personId === personId
+      ? { ...person, entitlements: [...person.entitlements, entitlement] }
+      : person,
+  );
 }

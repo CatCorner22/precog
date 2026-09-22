@@ -9,7 +9,7 @@ export const Route = createFileRoute("/threat")({
       {
         name: "description",
         content:
-          "Special-operations style educational threat assessment for dental practice residual risk, SoD gaps, knowledge SPOFs, and control priorities.",
+          "Special-operations style educational threat assessment for small business residual risk, SoD gaps, knowledge SPOFs, and control priorities.",
       },
     ],
   }),

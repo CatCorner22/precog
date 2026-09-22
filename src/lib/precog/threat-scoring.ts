@@ -5,8 +5,10 @@
  * Educational decision-support for dental practice owners.
  * "Threat" = control failure / residual risk / continuity exposure — never people.
  */
-import { controls } from "./demo-data";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import type { IndustryTemplate } from "./templates";
+import { getIndustryTemplate } from "./templates";
+import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { scoreLeadingIndicators } from "./ml/leading-indicators";
@@ -18,20 +20,11 @@ import {
   type PriorityTarget,
 } from "./map-vision";
 import type { StaffComposition } from "./types";
-import {
-  DEFAULT_RISK_VARIABLES,
-  type RiskVariableState,
-} from "./scoring/dynamic-variables";
+import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
 import { mitigatedSodRuleIds } from "./controls/dual-release";
 import type { DualReleasePolicy } from "./controls/dual-release";
 
-export type ThreatDomain =
-  | "control"
-  | "sod"
-  | "knowledge"
-  | "scenario"
-  | "leading"
-  | "portfolio";
+export type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
 
 export interface ThreatTarget extends PriorityTarget {
   domain: ThreatDomain;
@@ -62,35 +55,29 @@ function bandToClassification(band: PriorityBand): ThreatTarget["classification"
 }
 
 export function buildThreatAssessment(input: {
+  tpl?: IndustryTemplate;
   practiceName: string;
   staff: StaffComposition;
   riskVariables?: RiskVariableState;
   dualRelease?: DualReleasePolicy;
 }): ThreatAssessmentReport {
+  const tpl = input.tpl ?? getIndustryTemplate("dental");
   const { practiceName, staff, riskVariables, dualRelease } = input;
-  const portfolio = portfolioSummary(staff);
-  const sod = detectSodConflicts(staff, {
-    dualReleaseMitigatedRuleIds: dualRelease
-      ? mitigatedSodRuleIds(dualRelease)
-      : undefined,
+  const portfolio = portfolioSummary(tpl, staff);
+  const sod = detectSodConflicts(tpl, staff, {
+    dualReleaseMitigatedRuleIds: dualRelease ? mitigatedSodRuleIds(dualRelease) : undefined,
   });
-  const knowledgeRisks = findKnowledgeRisks().filter(
-    (r) => r.soleOwner || r.ownerCount === 0,
-  );
-  const ranked = rankDangerousScenarios({
+  const knowledgeRisks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
+  const ranked = rankDangerousScenarios(tpl, {
     staff,
     riskVariables,
   });
-  const leading = scoreLeadingIndicators(
-    staff,
-    riskVariables ?? {
-      ...DEFAULT_RISK_VARIABLES,
-      basePremiumAnnual: 2400,
-      deductible: 2500,
-      hasDualControl: staff.dualControlPayments,
-      hasIndependentBankRec: staff.independentBankRec,
-    },
-  );
+  const leading = scoreLeadingIndicators(tpl, staff, {
+    ...DEFAULT_RISK_VARIABLES,
+    ...(riskVariables ?? {}),
+    hasDualControl: riskVariables?.hasDualControl ?? staff.dualControlPayments,
+    hasIndependentBankRec: riskVariables?.hasIndependentBankRec ?? staff.independentBankRec,
+  });
 
   const targets: ThreatTarget[] = [];
 
@@ -198,9 +185,7 @@ export function buildThreatAssessment(input: {
     const residualProxy = Math.min(
       95,
       Math.round(
-        (row.result.retainedImpact?.expected ??
-          row.result.financialImpact.expected) /
-          2000 +
+        (row.result.retainedImpact?.expected ?? row.result.financialImpact.expected) / 2000 +
           (240 - row.result.timelineDays.p50) / 4,
       ),
     );
@@ -221,19 +206,14 @@ export function buildThreatAssessment(input: {
       impactHint: scored.impactHint,
       reasons: [
         `p50 ${row.result.timelineDays.p50}d`,
-        `Retained ~$${
-          Math.round(
-            row.result.retainedImpact?.expected ??
-              row.result.financialImpact.expected,
-          ).toLocaleString()
-        }`,
+        `Retained ~$${Math.round(
+          row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
+        ).toLocaleString()}`,
       ],
       immediate: scored.immediate,
       domain: "scenario",
       residual: residualProxy,
-      expectedLoss:
-        row.result.retainedImpact?.expected ??
-        row.result.financialImpact.expected,
+      expectedLoss: row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
       p50Days: row.result.timelineDays.p50,
       classification: bandToClassification(band),
       roe: [
@@ -256,8 +236,7 @@ export function buildThreatAssessment(input: {
     .slice(0, 10);
 
   const overallThreatIndex = Math.round(
-    deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) /
-      Math.max(1, Math.min(5, deck.length)),
+    deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) / Math.max(1, Math.min(5, deck.length)),
   );
   const overallBand = priorityBand(overallThreatIndex);
 
@@ -266,19 +245,12 @@ export function buildThreatAssessment(input: {
     label: t.label,
     impact: Math.min(
       100,
-      Math.round(
-        t.expectedLoss
-          ? Math.min(100, t.expectedLoss / 1500)
-          : t.heat * 0.9,
-      ),
+      Math.round(t.expectedLoss ? Math.min(100, t.expectedLoss / 1500) : t.heat * 0.9),
     ),
-    likelihood: Math.min(
-      100,
-      Math.round(t.heat * 0.85 + (t.immediate ? 10 : 0)),
-    ),
+    likelihood: Math.min(100, Math.round(t.heat * 0.85 + (t.immediate ? 10 : 0))),
   }));
 
-  const openSod = controls.filter((c) => !c.segregated).length;
+  const openSod = tpl.controls.filter((c) => !c.segregated).length;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -291,11 +263,11 @@ export function buildThreatAssessment(input: {
     targetDeck: deck,
     matrix,
     missionBrief: [
-      `AO: ${practiceName} — small dental practice residual & control assessment.`,
+      `AO: ${practiceName} — small ${industryMeta(tpl.id).teamLabel} residual & control assessment.`,
       `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
       `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
       `Knowledge SPOFs: ${knowledgeRisks.length} sole-owner / unowned critical item(s).`,
-      `Leading pressure ${leading.pressureIndex}/100 (${leading.band}).`,
+      `Leading indicators: ${leading.indicators.filter((i) => i.status === "breach").length} breached, ${leading.indicators.filter((i) => i.status === "watch").length} at watch.`,
       "This is an educational internal-control screen — not an accusation against any person.",
     ],
     roeSummary: [
@@ -314,33 +286,21 @@ export function buildThreatAssessment(input: {
 
 function deriveRoe(category: string, name: string, residual: number): string[] {
   const lower = name.toLowerCase();
-  if (
-    lower.includes("cash") ||
-    lower.includes("deposit") ||
-    lower.includes("payment")
-  ) {
+  if (lower.includes("cash") || lower.includes("deposit") || lower.includes("payment")) {
     return [
       "Owner independent bank reconciliation this week",
       "Dual control on deposit bag / day-sheet match",
       "Camera coverage of cash drawer if not already present",
     ];
   }
-  if (
-    lower.includes("write") ||
-    lower.includes("adjust") ||
-    lower.includes("ar")
-  ) {
+  if (lower.includes("write") || lower.includes("adjust") || lower.includes("ar")) {
     return [
       "Require reason codes + owner threshold on write-offs",
       "Monthly aging of adjustments report",
       "Separate adjuster from payment poster when staffing allows",
     ];
   }
-  if (
-    lower.includes("vendor") ||
-    lower.includes("ap") ||
-    lower.includes("payable")
-  ) {
+  if (lower.includes("vendor") || lower.includes("ap") || lower.includes("payable")) {
     return [
       "Dual approval for new vendor setup",
       "Monthly new-vendor review by owner",
