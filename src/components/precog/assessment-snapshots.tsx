@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Archive, Clock3, RefreshCw, Save, Scale, Trash2, X } from "lucide-react";
+import { Archive, Clock3, Download, RefreshCw, Save, Scale, Trash2, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   createAssessmentSnapshot,
   deleteAssessmentSnapshot,
@@ -26,11 +25,13 @@ import {
   normalizeValueCase,
 } from "@/lib/precog/value-case";
 import { VALUE_EVIDENCE_STORAGE_KEY, normalizeValueEvidence } from "@/lib/precog/value-evidence";
-import { compareAssessmentStates } from "@/lib/precog/snapshot-comparison";
+import {
+  compareAssessmentStates,
+  createSnapshotComparisonReport,
+} from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
 
 export function AssessmentSnapshots() {
-  const tpl = useTemplate();
   const { profile, replaceProfile } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
@@ -122,7 +123,7 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       replaceProfile(snapshot.profile);
-      const restoredPowerMap = snapshot.powerMap ?? buildAssignments(tpl);
+      const restoredPowerMap = snapshot.powerMap ?? buildAssignments();
       window.localStorage.setItem(
         POWER_MAP_STORAGE_KEY,
         JSON.stringify(createPowerMapFile(restoredPowerMap)),
@@ -168,15 +169,17 @@ export function AssessmentSnapshots() {
         result: compareAssessmentStates(
           {
             profile,
-            powerMap: currentMap ?? buildAssignments(tpl),
+            powerMap: currentMap ?? buildAssignments(),
             valueCase: currentValue,
             evidence: currentEvidence,
+            asOf: new Date(),
           },
           {
             profile: snapshot.profile,
-            powerMap: snapshot.powerMap ?? buildAssignments(tpl),
+            powerMap: snapshot.powerMap ?? buildAssignments(),
             valueCase: snapshot.valueCase ?? DEFAULT_VALUE_CASE,
             evidence: snapshot.valueEvidence ?? [],
+            asOf: new Date(snapshot.createdAt),
           },
         ),
       });
@@ -199,6 +202,21 @@ export function AssessmentSnapshots() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function exportComparison() {
+    if (!comparison) return;
+    const report = createSnapshotComparisonReport(
+      comparison.title,
+      comparison.createdAt,
+      comparison.result,
+    );
+    const url = URL.createObjectURL(new Blob([report], { type: "text/markdown;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `precog-assessment-comparison-${new Date().toISOString().slice(0, 10)}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -295,14 +313,24 @@ export function AssessmentSnapshots() {
                       <Scale className="size-4 text-primary" />
                       Change since “{comparison.title}”
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setComparison(null)}
-                      aria-label="Close comparison"
-                      className="rounded p-1 text-muted hover:text-fg"
-                    >
-                      <X className="size-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={exportComparison}
+                        aria-label="Export comparison"
+                        className="rounded p-1 text-muted hover:text-fg"
+                      >
+                        <Download className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setComparison(null)}
+                        aria-label="Close comparison"
+                        className="rounded p-1 text-muted hover:text-fg"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-1 text-[11px] text-subtle">
                     Comparing the current workspace with the assessment saved{" "}
@@ -372,6 +400,31 @@ export function AssessmentSnapshots() {
                       {comparison.result.assignmentChanges.length > 6 && (
                         <p className="mt-2 text-[11px] text-subtle">
                           +{comparison.result.assignmentChanges.length - 6} additional changes
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {comparison.result.riskVariableChanges.length > 0 && (
+                    <div className="mt-3 border-t border-primary/20 pt-3">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-subtle">
+                        Risk-input changes
+                      </p>
+                      <div className="mt-2 space-y-1.5">
+                        {comparison.result.riskVariableChanges.slice(0, 6).map((change) => (
+                          <div
+                            key={change.key}
+                            className="flex items-center justify-between gap-3 text-xs"
+                          >
+                            <span className="text-muted">{humanize(change.key)}</span>
+                            <span className="tabular text-fg">
+                              {displayValue(change.before)} → {displayValue(change.after)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {comparison.result.riskVariableChanges.length > 6 && (
+                        <p className="mt-2 text-[11px] text-subtle">
+                          +{comparison.result.riskVariableChanges.length - 6} additional changes
                         </p>
                       )}
                     </div>
@@ -453,4 +506,19 @@ function CompareMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-semibold tabular text-fg">{value}</p>
     </div>
   );
+}
+function humanize(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+function displayValue(value: unknown) {
+  return typeof value === "boolean"
+    ? value
+      ? "Yes"
+      : "No"
+    : typeof value === "number"
+      ? value.toLocaleString()
+      : String(value);
 }

@@ -120,11 +120,12 @@ try {
     const archivedValue = { ...valueCase.DEFAULT_VALUE_CASE, directRecoveries: 0 };
     const currentValue = { ...archivedValue, directRecoveries: 5_000 };
     const comparison = snapshotComparison.compareAssessmentStates(
-      { profile: currentProfile, powerMap: currentMap, valueCase: currentValue, evidence: [{ id: "recovery", kind: "recovery", description: "Recovered", source: "AP-1", amount: 500, observedAt: new Date().toISOString().slice(0, 10), verified: true }] },
-      { profile: archivedProfile, powerMap: archivedMap, valueCase: archivedValue, evidence: [] },
+      { profile: currentProfile, powerMap: currentMap, valueCase: currentValue, evidence: [{ id: "recovery", kind: "recovery", description: "Recovered", source: "AP-1", amount: 500, observedAt: "2026-09-22", verified: true }], asOf: new Date("2026-09-22T00:00:00.000Z") },
+      { profile: archivedProfile, powerMap: archivedMap, valueCase: archivedValue, evidence: [], asOf: new Date("2026-01-01T00:00:00.000Z") },
     );
     assert.equal(comparison.teamSizeDelta, 2);
     assert.equal(comparison.riskChanges, 1);
+    assert.equal(comparison.riskVariableChanges[0].key, "deductible");
     assert.equal(comparison.netObservedValueDelta, 5_000);
     assert.equal(comparison.grants, 1);
     assert.equal(comparison.assignmentChanges.length, 1);
@@ -132,6 +133,17 @@ try {
     assert.equal(comparison.verifiedEvidenceDelta, 1);
     assert.equal(comparison.verifiedRecoveryDelta, 500);
     assert.equal(comparison.evidenceReadinessDelta, 100);
+    const agingEvidence = [{ id: "old", kind: "control", description: "Control tested", source: "test-1", amount: 1, observedAt: "2025-06-01", verified: true }];
+    const agingComparison = snapshotComparison.compareAssessmentStates(
+      { profile: currentProfile, powerMap: currentMap, valueCase: currentValue, evidence: agingEvidence, asOf: new Date("2026-09-22T00:00:00.000Z") },
+      { profile: archivedProfile, powerMap: archivedMap, valueCase: archivedValue, evidence: agingEvidence, asOf: new Date("2025-06-01T00:00:00.000Z") },
+    );
+    assert.equal(agingComparison.evidenceReadinessDelta, -100);
+    const comparisonReport = snapshotComparison.createSnapshotComparisonReport("Quarterly\nreview", "2026-01-01T00:00:00.000Z", comparison, new Date("2026-09-22T00:00:00.000Z"));
+    assert.match(comparisonReport, /# Assessment comparison — Quarterly review/);
+    assert.match(comparisonReport, /duty granted:/);
+    assert.match(comparisonReport, /Report generated: 2026-09-22T00:00:00.000Z/);
+    assert.match(comparisonReport, /deductible:/);
   });
 
   await test("priority bands preserve their documented boundaries", () => {
