@@ -110,6 +110,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
         specialistNotes: result.brief.specialistNotes,
       };
     } catch (e) {
+      console.error("[pioneer] runPioneerCoach failed", e);
       return {
         ok: false,
         error: e instanceof Error ? e.message : "Pioneer agent failed",

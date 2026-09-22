@@ -1099,7 +1099,8 @@ export async function runGrokAgentLoop(
       contextFingerprint: local.contextFingerprint,
       latencyMs: Date.now() - started,
     };
-  } catch {
+  } catch (error) {
+    console.error("[pioneer] model call failed; returning the local brief", error);
     return { ...local, latencyMs: Date.now() - started };
   }
 }
