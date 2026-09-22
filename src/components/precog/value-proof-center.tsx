@@ -176,8 +176,9 @@ export function ValueProofCenter() {
           <div>
             <p className="font-medium">Recovery evidence does not match the value case</p>
             <p className="mt-0.5 text-xs text-muted">
-              Verified evidence totals {formatUsd(evidenceSummary.recoveries)}; the value assumption
-              is {formatUsd(inputs.directRecoveries)}.
+              Verified evidence observed in the last twelve months totals{" "}
+              {formatUsd(evidenceSummary.recoveries)}; the value assumption is{" "}
+              {formatUsd(inputs.directRecoveries)}.
             </p>
           </div>
           <button
@@ -195,8 +196,9 @@ export function ValueProofCenter() {
           <div>
             <p className="font-medium">Time evidence does not match the value case</p>
             <p className="mt-0.5 text-xs text-muted">
-              Verified evidence totals {evidenceSummary.hours.toLocaleString()} annual hours; the
-              value case calculates {value.observed.hoursSaved.toLocaleString()}.
+              Verified evidence observed in the last twelve months totals{" "}
+              {evidenceSummary.hours.toLocaleString()} annual hours; the value case calculates{" "}
+              {value.observed.hoursSaved.toLocaleString()}.
             </p>
           </div>
           <button

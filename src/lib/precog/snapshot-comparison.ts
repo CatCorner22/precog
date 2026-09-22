@@ -35,13 +35,12 @@ export function compareAssessmentStates(
   const assignmentChanges = diffAssignments(archived.powerMap, current.powerMap);
   const archivedValue = calculateValueCase(archived.valueCase).observed.net;
   const currentValue = calculateValueCase(current.valueCase).observed.net;
-  const currentEvidence = summarizeValueEvidence(current.evidence);
-  const archivedEvidence = summarizeValueEvidence(archived.evidence);
-  const currentQuality = assessEvidenceQuality(current.evidence, current.asOf ?? new Date());
-  const archivedQuality = assessEvidenceQuality(
-    archived.evidence,
-    archived.asOf ?? current.asOf ?? new Date(),
-  );
+  const currentAsOf = current.asOf ?? new Date();
+  const archivedAsOf = archived.asOf ?? currentAsOf;
+  const currentEvidence = summarizeValueEvidence(current.evidence, currentAsOf);
+  const archivedEvidence = summarizeValueEvidence(archived.evidence, archivedAsOf);
+  const currentQuality = assessEvidenceQuality(current.evidence, currentAsOf);
+  const archivedQuality = assessEvidenceQuality(archived.evidence, archivedAsOf);
   return {
     teamSizeDelta: current.profile.staff.teamSize - archived.profile.staff.teamSize,
     riskChanges: riskVariableChanges.length,
