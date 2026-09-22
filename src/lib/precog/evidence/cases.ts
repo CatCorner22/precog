@@ -1865,4 +1865,168 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Nikishna Polequaptewa, 37, of Avondale, Arizona was found guilty by a federal jury in November 2018 of one count of unauthorized impairment of the integrity and availability of data and was sentenced in July 2019 to 27 months in prison and $53,305 in restitution. The loss recorded here is the restitution figure and is a floor: the release describes eight years of website and marketing work destroyed but puts no price on it. He was hired in April 2014, so tenure is recorded as under one year. The deletions ran over days in November 2014, recorded as one month. The release does not say how the firm discovered the deletions, so the detection route is unknown.",
   },
+  {
+    id: "case-centro-san-antonio-fake-audit",
+    title:
+      "Nonprofit bookkeeper wrote herself 118 checks over three years, then staged a fake audit to cover it",
+    sector: "nonprofit",
+    schemes: ["check-tampering", "financial-statement"],
+    howItWorked:
+      "The office manager and bookkeeper of Centro San Antonio, a nonprofit that ran services for the city's downtown public improvement district, forged or wrote to herself 118 checks on the nonprofit's bank account between July 2014 and November 2017 and deposited them in her own account, $291,385.23 in all. To keep the board satisfied she arranged an elaborate fake audit: fabricated emails and websites, and at least one other person who posed as the auditor.",
+    controlGap:
+      "One person kept the books, wrote the checks, and was the board's only window onto the finances, so she could also stage the review that was supposed to check her. An audit the bookkeeper arranges, introduces, and reports back on is not oversight. The board needed to engage the auditor itself and read the cleared checks itself.",
+    lossUsd: 291385.23,
+    lossIsFloor: false,
+    durationMonths: 40,
+    detection: "unknown",
+    resolvedYear: 2022,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "verify-oversight-is-real",
+        asApplied:
+          "The board engages and pays the auditor directly and receives the report from the auditor, never through the bookkeeper",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "The board treasurer receives the bank statement unopened each month and reads every cleared-check image",
+      },
+      {
+        control: "positive-pay",
+        asApplied: "The bank pays only checks on a list a board officer approves",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Texas",
+      url: "https://www.justice.gov/usao-wdtx/pr/san-antonio-bookkeeper-sentenced-fraud",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Alicia Henderson pleaded guilty in 2020 and was sentenced on 5 August 2022 to 33 months in prison and $356,104.23 in restitution, which covers the $291,385.23 taken plus $64,719 in unpaid federal tax on it; the loss recorded here is the amount taken. The nonprofit's name and the fake-audit detail come from San Antonio Report and KSAT coverage of the case; the release identifies the victim as a nonprofit serving the Downtown Public Improvement District. The release does not say how the theft was discovered or how long she had worked there.",
+  },
+  {
+    id: "case-dc-advocacy-finance-director-transfers",
+    title:
+      "Finance director with online-banking access moved $318,000 to himself in 32 transfers labelled as a digital-services vendor",
+    sector: "nonprofit",
+    schemes: ["billing-shell-vendor", "expense-reimbursement"],
+    howItWorked:
+      "A nonprofit advocacy organization in Washington, D.C. hired a director of finance in June 2021 and gave him, as one of three people with access to the bank account, the job of paying the bills. On 32 occasions between then and October 2022 he sent the organization's money to accounts he controlled, recording the payments as going to a vendor for digital services and creating other false documents to match. He also put personal travel for himself, family, and friends on the organization's credit card. He was gone by October 2022.",
+    controlGap:
+      "Three people could log in to the bank, but no second person had to approve a transfer before it left, so the person who entered the payment also released it. A payee record that reads 'digital services' is the whole check when nobody matches the bank's destination account to the vendor's real one. The card had the same gap: he approved his own statement.",
+    lossUsd: 318000,
+    lossIsFloor: false,
+    durationMonths: 16,
+    tenureYearsStated: 1,
+    detection: "unknown",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-ach-release", "rule-vendor-create-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "dual-release-above-threshold",
+        asApplied:
+          "Bank-enforced second approval on every outgoing transfer, by a board officer who did not enter it",
+      },
+      {
+        control: "new-payee-second-approval",
+        asApplied:
+          "Any new vendor bank account confirmed by phone with the vendor before the first payment, by someone other than the person who set it up",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "The executive director reads every line of the finance director's card statement each month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Columbia",
+      url: "https://www.justice.gov/usao-dc/pr/former-finance-director-district-non-profit-sentenced-embezzlement",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Jarrett Robert Lewis, 44, pleaded guilty on 13 February 2025 to one count of wire fraud and was sentenced on 17 June 2025 to 27 months in prison, three years of supervised release, $318,000 in restitution, and $53,335 for the organization's legal fees. The loss recorded here is the restitution figure; the release describes the total as nearly $320,000. He was hired in June 2021 and the scheme ran to October 2022, so tenure is recorded as one year. The release does not name the organization or say how the transfers were found.",
+  },
+  {
+    id: "case-seattle-nonprofits-finance-director-casinos",
+    title:
+      "Finance director drained two nonprofits in turn, $3.1 million, much of it withdrawn on their cards at casinos",
+    sector: "nonprofit",
+    schemes: ["expense-reimbursement", "cash-larceny"],
+    howItWorked:
+      "As finance director of Country Doctor Community Health Centers in Seattle she took about $2.3 million between December 2016 and June 2020, then moved to Community Passageways and took about $890,000 more between June 2020 and May 2022. She used the organizations' credit and debit cards, withdrawing about $1.6 million at casinos, and spent the rest on clothing, travel, and her mortgage. When one of the organizations' banks asked about the casino withdrawals, she said the nonprofit ran youth programs at casinos and the cash was for prizes, and the answer was accepted.",
+    controlGap:
+      "The person who held the cards also reconciled the accounts and answered the bank's questions, so the one outside party that noticed something wrong was routed back to her. Nobody who did not hold a card read the card and bank statements line by line. A reference check between the two nonprofits, or a review of the first one's books when she left, would have stopped the second loss.",
+    lossUsd: 3121572,
+    lossIsFloor: false,
+    durationMonths: 66,
+    detection: "unknown",
+    resolvedYear: 2023,
+    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "A board officer who holds no card reads every card and bank statement line each month; a casino ATM line is the finding",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the finance director reconciles every bank and card account, and the bank's questions go to that person",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "An outside accountant reviews the books at every finance-director departure before the person's next employer relies on a reference",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Washington",
+      url: "https://www.justice.gov/usao-wdwa/pr/former-finance-director-two-non-profits-sentenced-41-months-prison-embezzling-over-3",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Susana Tantico, 63, of Renton, Washington pleaded guilty in May 2023 to two counts of wire fraud and was sentenced in September 2023 to 41 months in prison, three years of supervised release, and $3,121,572 in restitution, the figure recorded here. The release describes the thefts as running over an eleven-year period, but the dated spans it gives (December 2016 to May 2022) cover 66 months, which is what is recorded. One nonprofit spent $132,000 on a forensic audit and repairs to its records afterward. The release does not say how the thefts came to light; the bank inquiry it describes was deflected, not acted on. These employers are larger than most businesses this app serves.",
+  },
+  {
+    id: "case-brooklyn-nonprofit-fiscal-officer-fake-invoices",
+    title:
+      "Senior fiscal officer paid a company she owned on more than 500 invented invoices for nearly 17 years, $2.34 million",
+    sector: "nonprofit",
+    schemes: ["billing-shell-vendor"],
+    howItWorked:
+      "The senior fiscal officer of a Brooklyn nonprofit that provides employment and education services set up a sham company and, over nearly 17 years, generated and submitted more than 500 fictitious invoices from it for services supposedly delivered under a New York City Department of Education program for students in shelters and, later, job training for adults in shelters. She approved the invoices, paid them, and edited the accounting system so the payments did not stand out, $2,339,700 in all, spent on her mortgage, credit cards, car payments, and shopping.",
+    controlGap:
+      "The person who set up the vendor, approved its invoices, released the payments, and kept the ledger was one person for 17 years. A program-funded vendor whose invoices nobody outside finance matched to program records could bill forever. The length of the run shows the annual audit never sampled this vendor against evidence of delivery.",
+    lossUsd: 2339700,
+    lossIsFloor: false,
+    durationMonths: 200,
+    detection: "unknown",
+    resolvedYear: 2025,
+    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay", "rule-vendor-approve-pay"],
+    wouldHaveCaughtIt: [
+      {
+        control: "new-payee-review",
+        asApplied:
+          "Every new vendor approved by the executive director with its registration and owner checked against staff names and addresses",
+      },
+      {
+        control: "billing-matches-the-schedule",
+        asApplied:
+          "Every invoice for program services matched to the program's own attendance or delivery records by the program lead, not by finance",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "The outside auditor samples the largest vendors each year and asks the program staff, not the fiscal officer, what was delivered",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Eastern District of New York",
+      url: "https://www.justice.gov/usao-edny/pr/former-fiscal-officer-brooklyn-charity-sentenced-21-months-imprisonment-embezzlement",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Marcia Joseph pleaded guilty to wire fraud in January 2024 and was sentenced in September 2025 by U.S. District Judge Eric N. Vitaliano to 21 months in prison, with restitution and forfeiture of about $2.3 million; the loss recorded here is the $2,339,700 the release states she took. The release describes the span as nearly 17 years, recorded as 200 months. It does not name the nonprofit, state her hire date, or say how the invoices were discovered.",
+  },
 ];
