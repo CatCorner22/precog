@@ -34,6 +34,14 @@ describe("case library integrity", () => {
     }
   });
 
+  it("cites each source release once, so no case is counted twice", () => {
+    const byUrl = new Map<string, string>();
+    for (const c of CASE_LIBRARY) {
+      expect(byUrl.get(c.source.url), `${c.id} repeats ${byUrl.get(c.source.url)}`).toBeUndefined();
+      byUrl.set(c.source.url, c.id);
+    }
+  });
+
   it("backs every conflict rule with at least one prosecuted case", () => {
     for (const rule of CONFLICT_RULES) {
       expect(casesForSodRules([rule.id]).length, rule.id).toBeGreaterThan(0);

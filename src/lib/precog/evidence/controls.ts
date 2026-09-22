@@ -43,7 +43,8 @@ export type ControlId =
   | "mandatory-time-away"
   | "count-inventory-independently"
   | "controlled-substance-count"
-  | "no-shared-logins";
+  | "no-shared-logins"
+  | "recovery-copy-out-of-reach";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -246,6 +247,13 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     label:
       "Every person has their own login, and every shared password changes the day anyone leaves",
     why: "A departing employee who knows a colleague's password still has your customer list. Named logins make access removable, and make the audit log mean something when you need it.",
+    effort: "an hour",
+  },
+  "recovery-copy-out-of-reach": {
+    id: "recovery-copy-out-of-reach",
+    label:
+      "Keep one backup copy that no employee login can delete — under the owner's own account, or offline",
+    why: "A backup the administrator can reach is a backup the administrator can erase, and an angry administrator erases it first. A copy only the owner controls turns a wipe into an afternoon's restore.",
     effort: "an hour",
   },
 };
