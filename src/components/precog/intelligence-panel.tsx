@@ -1,54 +1,49 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { scoreAnomalies } from "@/lib/precog/ml/anomaly";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
-import { forecastResidualTrajectory } from "@/lib/precog/ml/forecast";
 import { retrieveKnowledge } from "@/lib/precog/rag/retrieve";
+import { defaultRagQuery } from "@/lib/precog/rag/industry-queries";
 import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-panel";
 import { MetaAnalysisPanel } from "@/components/precog/meta-analysis-panel";
 import { JohariPanel } from "@/components/precog/johari-panel";
+import { ForensicPanel } from "@/components/precog/forensic-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, Brain, Grid2x2, LineChart, Radar, Search, Sparkles } from "lucide-react";
 import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart as RLineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  Activity,
+  Brain,
+  ExternalLink,
+  Grid2x2,
+  Radar,
+  Search,
+  Sigma,
+  Sparkles,
+} from "lucide-react";
 
-export function IntelligencePanel({
-  onNavigate,
-}: {
-  onNavigate?: (tab: string) => void;
-}) {
-  const { profile } = usePractice();
-  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari">(
+function rank(status: "ok" | "watch" | "breach"): number {
+  return status === "breach" ? 2 : status === "watch" ? 1 : 0;
+}
+
+export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  const { profile, template } = usePractice();
+  const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari" | "forensic">(
     "johari",
   );
-  const [ragQuery, setRagQuery] = useState(
-    "segregation of duties bank reconciliation residual risk",
-  );
+  const [ragQuery, setRagQuery] = useState(() => defaultRagQuery(profile.industry));
+  useEffect(() => {
+    setRagQuery(defaultRagQuery(profile.industry));
+  }, [profile.industry]);
 
-  const anomaly = useMemo(
-    () => scoreAnomalies(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
-  );
   const leading = useMemo(
-    () => scoreLeadingIndicators(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
+    () => scoreLeadingIndicators(template, profile.staff, profile.riskVariables),
+    [template, profile.staff, profile.riskVariables],
   );
-  const forecast = useMemo(
-    () => forecastResidualTrajectory(profile.staff, profile.riskVariables),
-    [profile.staff, profile.riskVariables],
+  const rag = useMemo(
+    () => retrieveKnowledge(ragQuery, { topK: 4, industry: template.id }),
+    [ragQuery, template.id],
   );
-  const rag = useMemo(() => retrieveKnowledge(ragQuery, { topK: 4 }), [ragQuery]);
 
   return (
     <div className="space-y-4">
@@ -75,7 +70,7 @@ export function IntelligencePanel({
           onClick={() => setView("reasoning")}
         >
           <Sparkles className="size-3.5" />
-          Advanced reasoning
+          Lever ordering
         </Button>
         <Button
           size="sm"
@@ -83,112 +78,87 @@ export function IntelligencePanel({
           onClick={() => setView("signals")}
         >
           <Brain className="size-3.5" />
-          ML + RAG signals
+          Signals + guidance
+        </Button>
+        <Button
+          size="sm"
+          variant={view === "forensic" ? "default" : "secondary"}
+          onClick={() => setView("forensic")}
+        >
+          <Sigma className="size-3.5" />
+          Forensic screen
         </Button>
       </div>
 
-      {view === "johari" && (
-        <JohariPanel onNavigate={(t) => onNavigate?.(t)} />
-      )}
+      {view === "johari" && <JohariPanel onNavigate={(t) => onNavigate?.(t)} />}
 
-      {view === "meta" && (
-        <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />
-      )}
+      {view === "meta" && <MetaAnalysisPanel onNavigate={(t) => onNavigate?.(t)} />}
 
       {view === "reasoning" && <AdvancedReasoningPanel />}
+
+      {view === "forensic" && <ForensicPanel />}
 
       {view === "signals" && (
         <>
           <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="accent">ML + RAG</Badge>
-              <Badge variant="primary">Classical models · offline</Badge>
+              <Badge variant="accent">Signals</Badge>
+              <Badge variant="primary">Rule-based · runs locally</Badge>
             </div>
             <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
               <Brain className="size-5 text-primary" />
-              Intelligence signals
+              Conditions this app watches
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-muted">
-              Anomaly scoring, leading indicators, residual forecast, and TF-IDF retrieval.
+              Each condition below is either a setting in your profile that the prosecuted cases on
+              Start here turned on, or one of this app&rsquo;s own indices crossing a line this app
+              chose. The thresholds are set in this app; they are not benchmarks, and none of this
+              is a prediction.
             </p>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Card>
-              <CardContent className="p-4">
-                <Badge variant={anomaly.overallScore >= 60 ? "danger" : "ok"}>
-                  Anomaly
-                </Badge>
-                <p className="mt-2 text-2xl font-semibold tabular">
-                  {anomaly.overallScore}
-                </p>
-                <p className="text-xs text-muted">{anomaly.band}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <Badge variant={leading.pressureIndex >= 60 ? "warn" : "primary"}>
-                  Leading pressure
-                </Badge>
-                <p className="mt-2 text-2xl font-semibold tabular">
-                  {leading.pressureIndex}
-                </p>
-                <p className="text-xs text-muted">{leading.band}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <Badge variant="default">Forecast w12</Badge>
-                <p className="mt-2 text-2xl font-semibold tabular">
-                  {forecast.points.at(-1)?.residualDoNothing ?? "—"}
-                </p>
-                <p className="text-xs text-muted">
-                  neglect vs plan {forecast.points.at(-1)?.residualWithPlan ?? "—"}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <LineChart className="size-4" />
-                Residual trajectory
-              </CardTitle>
-              <CardDescription>Do-nothing vs recommended plan</CardDescription>
+              <CardTitle className="text-base">Watched conditions</CardTitle>
+              <CardDescription>
+                {leading.indicators.filter((i) => i.status === "breach").length} breached ·{" "}
+                {leading.indicators.filter((i) => i.status === "watch").length} at watch ·{" "}
+                {leading.indicators.filter((i) => i.status === "ok").length} clear
+              </CardDescription>
             </CardHeader>
-            <CardContent className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <RLineChart data={forecast.points}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="week" stroke="var(--color-muted)" fontSize={11} />
-                  <YAxis stroke="var(--color-muted)" fontSize={11} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--color-surface)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="residualDoNothing"
-                    name="Neglect"
-                    stroke="var(--color-danger)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="residualWithPlan"
-                    name="With plan"
-                    stroke="var(--color-ok)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </RLineChart>
-              </ResponsiveContainer>
+            <CardContent className="space-y-2">
+              {[...leading.indicators]
+                .sort((a, b) => rank(b.status) - rank(a.status))
+                .map((i) => (
+                  <div
+                    key={i.id}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm",
+                      i.status === "breach"
+                        ? "border-danger/30 bg-danger/5"
+                        : i.status === "watch"
+                          ? "border-warn/30 bg-warn/5"
+                          : "border-border bg-elevated",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant={
+                          i.status === "breach" ? "danger" : i.status === "watch" ? "warn" : "ok"
+                        }
+                      >
+                        {i.status === "ok" ? "clear" : i.status}
+                      </Badge>
+                      <span className="font-medium">{i.label}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">{i.why}</p>
+                  </div>
+                ))}
+              {leading.topActions.length > 0 && (
+                <p className="pt-1 text-xs text-subtle">
+                  First move if any are breached: {leading.topActions[0]}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -215,24 +185,32 @@ export function IntelligencePanel({
                 {rag.map((h) => (
                   <li
                     key={h.chunk.id}
-                    className={cn(
-                      "rounded-lg border border-border bg-elevated px-3 py-2 text-sm",
-                    )}
+                    className={cn("rounded-lg border border-border bg-elevated px-3 py-2 text-sm")}
                   >
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium">{h.chunk.title}</span>
-                      {h.chunk.sourceUrl ? (
+                      {h.chunk.basis.kind === "cited" ? (
                         <a
-                          href={h.chunk.sourceUrl}
+                          href={h.chunk.basis.url}
                           target="_blank"
-                          rel="noreferrer"
-                          className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          rel="noreferrer noopener"
+                          title={h.chunk.basis.document}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                         >
-                          <Badge variant="default">{h.chunk.source} ↗</Badge>
+                          {h.chunk.basis.publisher}
+                          <ExternalLink className="size-3" aria-hidden />
                         </a>
                       ) : (
-                        <Badge variant="default">{h.chunk.source}</Badge>
+                        <span className="text-xs text-subtle" title={h.chunk.basis.note}>
+                          Practitioner guidance, no single source
+                        </span>
                       )}
+                      {h.chunk.caseIds?.length ? (
+                        <span className="text-xs text-subtle">
+                          · shown in {h.chunk.caseIds.length} prosecuted{" "}
+                          {h.chunk.caseIds.length === 1 ? "case" : "cases"} on Start here
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-xs text-muted line-clamp-3">{h.chunk.text}</p>
                   </li>

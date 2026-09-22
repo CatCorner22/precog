@@ -1,54 +1,17 @@
+import type { EntitlementId } from "../sod/conflict-rules";
 import type {
   ControlItem,
-  CrimeFraudStats,
   KnowledgeItem,
   KnowledgeRelation,
-  MatrixLayerId,
   Person,
   ProcessNode,
   ScenarioTemplate,
   StaffComposition,
-} from "./types";
+} from "../types";
+import type { IndustryTemplate } from "./types";
+import { DEFAULT_FRAUD_STATS } from "./shared-controls";
 
-export const PRACTICE_NAME = "Ridgeview Family Dental";
-
-export const LAYER_META: Record<
-  MatrixLayerId,
-  { name: string; matrixName: string; blurb: string }
-> = {
-  surface: {
-    name: "Surface Reality",
-    matrixName: "The Construct",
-    blurb: "Patients, chairs, schedule pressure, cash in drawer.",
-  },
-  process: {
-    name: "Process Layer",
-    matrixName: "Workflow Code",
-    blurb: "Documented workflows, value streams, SOPs, Lean maps.",
-  },
-  knowledge: {
-    name: "Knowledge / Tribal",
-    matrixName: "Hidden Matrix",
-    blurb: "Who actually knows how things work — SPOFs and succession risk.",
-  },
-  control: {
-    name: "Control & Governance",
-    matrixName: "Ruleset",
-    blurb: "Internal controls, segregation of duties, residual risk.",
-  },
-  source: {
-    name: "Source / Architecture",
-    matrixName: "Infrastructure",
-    blurb: "PMS, claims systems, vendors, data flows.",
-  },
-  continuity: {
-    name: "Continuity / Exit",
-    matrixName: "Red Pill",
-    blurb: "What breaks when key people or systems disappear.",
-  },
-};
-
-export const people: Person[] = [
+const people: Person[] = [
   { id: "p1", name: "Dr. Elena Vargas", role: "Owner / Dentist", active: true, tenureYears: 12 },
   { id: "p2", name: "Maya Chen", role: "Office Manager", active: true, tenureYears: 7 },
   { id: "p3", name: "Jordan Blake", role: "Front Desk Lead", active: true, tenureYears: 5 },
@@ -57,7 +20,7 @@ export const people: Person[] = [
   { id: "p6", name: "Chris Patel", role: "Billing Specialist", active: true, tenureYears: 3 },
 ];
 
-export const knowledge: KnowledgeItem[] = [
+const knowledge: KnowledgeItem[] = [
   {
     id: "k1",
     name: "Insurance denial appeals",
@@ -116,7 +79,7 @@ export const knowledge: KnowledgeItem[] = [
   },
 ];
 
-export const relations: KnowledgeRelation[] = [
+const relations: KnowledgeRelation[] = [
   { personId: "p3", knowledgeId: "k1", level: "expert" },
   { personId: "p3", knowledgeId: "k2", level: "expert" },
   { personId: "p6", knowledgeId: "k1", level: "basic" },
@@ -132,7 +95,7 @@ export const relations: KnowledgeRelation[] = [
   { personId: "p2", knowledgeId: "k7", level: "proficient" },
 ];
 
-export const processes: ProcessNode[] = [
+const processes: ProcessNode[] = [
   {
     id: "proc-schedule",
     name: "Scheduling & chair utilization",
@@ -340,7 +303,7 @@ export const processes: ProcessNode[] = [
         category: "control",
         effort: "low",
         impact: "high",
-        note: "Highest ROI detection control for small practices.",
+        note: "Owner sees bank activity without going through the person who posts payments, so a diverted payment cannot be hidden by adjusting the books. About twenty minutes a week.",
         status: "planned",
       },
       {
@@ -440,7 +403,7 @@ export const processes: ProcessNode[] = [
     ideas: [
       {
         id: "i-ap-1",
-        title: "Dual ACH release > $500",
+        title: "Lower the dual ACH release threshold from $1,000 to $500",
         category: "control",
         effort: "medium",
         impact: "high",
@@ -510,7 +473,7 @@ export const processes: ProcessNode[] = [
   },
 ];
 
-export const controls: ControlItem[] = [
+const controls: ControlItem[] = [
   {
     id: "c-cash",
     name: "Cash handling control",
@@ -612,7 +575,7 @@ export const controls: ControlItem[] = [
   },
 ];
 
-export const staffComposition: StaffComposition = {
+const staffComposition: StaffComposition = {
   teamSize: 6,
   soleOwnerKnowledgeCount: 2,
   avgTenureYears: 5.5,
@@ -622,17 +585,8 @@ export const staffComposition: StaffComposition = {
 };
 
 /** Industry-oriented illustrative base rates for demo (educational, not actuarial advice). */
-export const crimeFraudStats: CrimeFraudStats = {
-  industryEmbezzlementRate: 0.18,
-  typicalLossMid: 35000,
-  typicalLossHigh: 125000,
-  medianDetectionDays: 90,
-  detectionDaysP95: 210,
-  source:
-    "Illustrative synthesis of small professional practice fraud / embezzlement studies (e.g. ACFE Report to the Nations patterns for small orgs; dental practice management fraud case literature). Educational demo rates — not firm-specific actuarial pricing.",
-};
 
-export const scenarios: ScenarioTemplate[] = [
+const scenarios: ScenarioTemplate[] = [
   {
     id: "sc-front-desk-leaves",
     title: "Front desk lead leaves with sole denial knowledge",
@@ -642,10 +596,6 @@ export const scenarios: ScenarioTemplate[] = [
     controlId: "c-claims",
     baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
     baseFinancialImpact: { expected: 18500, low: 8000, high: 42000 },
-    statSources: [
-      "Denial aging / revenue cycle lag patterns in dental practice management literature",
-      "Key-person risk: revenue leakage when sole expert exits mid-cycle",
-    ],
     cascadeLayers: ["knowledge", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -679,10 +629,6 @@ export const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-cash",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    statSources: [
-      crimeFraudStats.source,
-      "ACFE-style small organization fraud: longer detection when custody + recording combined",
-    ],
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -717,10 +663,6 @@ export const scenarios: ScenarioTemplate[] = [
     knowledgeId: "k7",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    statSources: [
-      crimeFraudStats.source,
-      "Revenue leakage studies: undocumented adjustments and weak dual control",
-    ],
     cascadeLayers: ["control", "knowledge", "process", "continuity"],
     mitigations: [
       {
@@ -747,10 +689,6 @@ export const scenarios: ScenarioTemplate[] = [
     controlId: "c-sod-ap",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-    statSources: [
-      crimeFraudStats.source,
-      "Billing schemes / fictitious vendor patterns in small entity fraud literature",
-    ],
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {
@@ -770,3 +708,56 @@ export const scenarios: ScenarioTemplate[] = [
     ],
   },
 ];
+
+const roleTemplates: Record<string, EntitlementId[]> = {
+  "Owner / Dentist": [
+    "approve_writeoffs",
+    "approve_vendor",
+    "approve_payroll",
+    "bank_reconcile",
+    "view_reports_only",
+    "pms_admin_roles",
+  ],
+  "Office Manager": [
+    "post_payments",
+    "prepare_deposit",
+    "post_adjustments",
+    "create_vendor",
+    "release_payment",
+    "enter_payroll",
+    "approve_writeoffs",
+    "pms_admin_roles",
+    "submit_claims",
+    "view_reports_only",
+  ],
+  "Front Desk Lead": [
+    "collect_cash",
+    "post_payments",
+    "prepare_deposit",
+    "submit_claims",
+    "post_adjustments",
+  ],
+  Hygienist: ["view_reports_only"],
+  "Dental Assistant": ["view_reports_only"],
+  "Billing Specialist": [
+    "submit_claims",
+    "post_adjustments",
+    "post_payments",
+    "approve_writeoffs",
+    "view_reports_only",
+  ],
+};
+
+export const dentalTemplate: IndustryTemplate = {
+  id: "dental",
+  businessName: "Ridgeview Family Dental",
+  people,
+  knowledge,
+  relations,
+  processes,
+  controls,
+  staffComposition,
+  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  scenarios,
+  roleTemplates,
+};

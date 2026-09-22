@@ -1,5 +1,6 @@
-import { controls, staffComposition } from "./demo-data";
+import { healthLevel, RISK_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import type { IndustryTemplate } from "./templates";
 
 export type CosoComponentId =
   | "control_environment"
@@ -45,21 +46,19 @@ export interface CosoComponentAssessment {
 }
 
 function statusFromScore(score: number): HealthStatus {
-  if (score >= 80) return "strong";
-  if (score >= 60) return "adequate";
-  if (score >= 40) return "weak";
-  return "critical";
+  return healthLevel(score);
 }
 
-export function assessCoso(): {
+export function assessCoso(tpl: IndustryTemplate): {
   overall: number;
   overallStatus: HealthStatus;
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
-  const risks = findKnowledgeRisks();
-  const ranked = rankDangerousScenarios();
-  const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= 65);
+  const { controls, staffComposition } = tpl;
+  const risks = findKnowledgeRisks(tpl);
+  const ranked = rankDangerousScenarios(tpl);
+  const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
   const sodGaps = controls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);
   const unaddressedGaps = sodGaps.filter((c) => !c.residualRiskAccepted);
@@ -68,16 +67,12 @@ export function assessCoso(): {
   // --- Component scores derived from live demo state ---
   const controlEnvScore = Math.max(
     25,
-    72 -
-      (staffComposition.segregationScore < 50 ? 12 : 0) -
-      (unaddressedGaps.length > 2 ? 10 : 0),
+    72 - (staffComposition.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
   );
 
   const riskAssessmentScore = Math.max(
     20,
-    78 -
-      (spofs.length * 8) -
-      (topScenario && topScenario.result.timelineDays.p50 < 60 ? 8 : 0),
+    78 - spofs.length * 8 - (topScenario && topScenario.result.timelineDays.p50 < 60 ? 8 : 0),
   );
 
   const controlActivitiesScore = Math.max(
@@ -90,9 +85,7 @@ export function assessCoso(): {
 
   const infoCommScore = Math.max(
     25,
-    70 -
-      (spofs.length * 10) -
-      (risks.filter((r) => r.ownerCount === 0).length * 15),
+    70 - spofs.length * 10 - risks.filter((r) => r.ownerCount === 0).length * 15,
   );
 
   const monitoringScore = Math.max(
@@ -100,7 +93,7 @@ export function assessCoso(): {
     55 +
       (staffComposition.independentBankRec ? 15 : 0) +
       (residualAccepted.length > 0 && unaddressedGaps.length === 0 ? 10 : 0) -
-      (unaddressedGaps.length * 6),
+      unaddressedGaps.length * 6,
   );
 
   const components: CosoComponentAssessment[] = [
@@ -108,8 +101,7 @@ export function assessCoso(): {
       id: "control_environment",
       name: "Control Environment",
       shortName: "Environment",
-      description:
-        "Tone at the top, integrity, structure, competence, and accountability.",
+      description: "Tone at the top, integrity, structure, competence, and accountability.",
       score: controlEnvScore,
       status: statusFromScore(controlEnvScore),
       principles: [
@@ -170,8 +162,7 @@ export function assessCoso(): {
       id: "risk_assessment",
       name: "Risk Assessment",
       shortName: "Risk",
-      description:
-        "Objectives, risk analysis, fraud risk, and response to change.",
+      description: "Objectives, risk analysis, fraud risk, and response to change.",
       score: riskAssessmentScore,
       status: statusFromScore(riskAssessmentScore),
       principles: [
@@ -210,8 +201,8 @@ export function assessCoso(): {
             ? `Top residual future: ${topScenario.scenario.title}`
             : "No scenarios ranked",
           detail: topScenario
-            ? `Expected ${Math.round(topScenario.result.financialImpact.expected).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} · p50 ${topScenario.result.timelineDays.p50} days · 95% CI ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High}d`
-            : "Run Precog scenarios to quantify risk.",
+            ? `Scenario assumes a loss of ${Math.round(topScenario.result.financialImpact.expected).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} about ${topScenario.result.timelineDays.p50} days out (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`
+            : "Open a scenario to see what it assumes.",
           severity: "critical",
           link: {
             type: "precog",
@@ -238,8 +229,7 @@ export function assessCoso(): {
       id: "control_activities",
       name: "Control Activities",
       shortName: "Activities",
-      description:
-        "Authorizations, SoD, reconciliations, access, and technology controls.",
+      description: "Authorizations, SoD, reconciliations, access, and technology controls.",
       score: controlActivitiesScore,
       status: statusFromScore(controlActivitiesScore),
       principles: [
@@ -286,8 +276,7 @@ export function assessCoso(): {
       id: "information_communication",
       name: "Information & Communication",
       shortName: "Info & Comm",
-      description:
-        "Quality information and clear communication of control responsibilities.",
+      description: "Quality information and clear communication of control responsibilities.",
       score: infoCommScore,
       status: statusFromScore(infoCommScore),
       principles: [
@@ -335,8 +324,7 @@ export function assessCoso(): {
       id: "monitoring",
       name: "Monitoring Activities",
       shortName: "Monitoring",
-      description:
-        "Ongoing evaluations and timely remediation of deficiencies.",
+      description: "Ongoing evaluations and timely remediation of deficiencies.",
       score: monitoringScore,
       status: statusFromScore(monitoringScore),
       principles: [
@@ -371,7 +359,8 @@ export function assessCoso(): {
         {
           id: "mon-residual",
           label: `${unaddressedGaps.length} gap(s) without residual decision`,
-          detail: "COSO expects deficiencies to be evaluated and either fixed or accepted with compensating design.",
+          detail:
+            "COSO expects deficiencies to be evaluated and either fixed or accepted with compensating design.",
           severity: unaddressedGaps.length > 0 ? "weak" : "strong",
           link: { type: "sod" },
         },
@@ -386,9 +375,7 @@ export function assessCoso(): {
     },
   ];
 
-  const overall = Math.round(
-    components.reduce((s, c) => s + c.score, 0) / components.length,
-  );
+  const overall = Math.round(components.reduce((s, c) => s + c.score, 0) / components.length);
 
   const priorityFindings = components
     .flatMap((c) => c.findings)

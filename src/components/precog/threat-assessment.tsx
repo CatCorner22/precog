@@ -24,19 +24,20 @@ function bandClass(band: string) {
 }
 
 export function ThreatAssessmentPanel() {
-  const { profile } = usePractice();
+  const { profile, template } = usePractice();
   const [now, setNow] = useState(clockString);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(
     () =>
       buildThreatAssessment({
+        tpl: template,
         practiceName: profile.practiceName,
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
       }),
-    [profile.practiceName, profile.staff, profile.riskVariables, profile.dualRelease],
+    [template, profile.practiceName, profile.staff, profile.riskVariables, profile.dualRelease],
   );
 
   useEffect(() => {
@@ -52,11 +53,7 @@ export function ThreatAssessmentPanel() {
     report.targetDeck.find((t) => t.id === selectedId) ?? report.targetDeck[0] ?? null;
 
   const force =
-    report.overallThreatIndex >= 75
-      ? "RED"
-      : report.overallThreatIndex >= 50
-        ? "AMBER"
-        : "GREEN";
+    report.overallThreatIndex >= 75 ? "RED" : report.overallThreatIndex >= 50 ? "AMBER" : "GREEN";
 
   return (
     <div className="threat-ops min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-[#050806] text-[#c8e6c8]">
@@ -99,6 +96,8 @@ export function ThreatAssessmentPanel() {
         <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 pb-2 font-mono text-[10px] tracking-[0.15em] text-[#5a9a68] sm:px-6">
           <span>CLASS · PRACTICE INTERNAL · EDUCATIONAL</span>
           <span>·</span>
+          <span>ALL INDICES ARE THIS APP&rsquo;S WEIGHTING, NOT MEASUREMENTS</span>
+          <span>·</span>
           <span>NO PHI</span>
           <span>·</span>
           <span>
@@ -110,16 +109,29 @@ export function ThreatAssessmentPanel() {
 
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
         <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Sitrep label="THREAT INDEX" value={String(report.overallThreatIndex)} hint={report.classificationLabel} />
-          <Sitrep label="LEADING PRESSURE" value={String(report.leadingPressure)} hint={report.leadingBand} />
+          <Sitrep
+            label="THREAT INDEX"
+            value={String(report.overallThreatIndex)}
+            hint={report.classificationLabel}
+          />
+          <Sitrep
+            label="LEADING PRESSURE"
+            value={String(report.leadingPressure)}
+            hint={report.leadingBand}
+          />
           <Sitrep
             label="WHITE HOT / CRIT"
             value={String(
-              report.targetDeck.filter((t) => t.band === "white_hot" || t.band === "critical").length,
+              report.targetDeck.filter((t) => t.band === "white_hot" || t.band === "critical")
+                .length,
             )}
             hint="Immediate priority"
           />
-          <Sitrep label="TARGETS TRACKED" value={String(report.targetDeck.length)} hint="Control gaps · residual · SPOFs" />
+          <Sitrep
+            label="TARGETS TRACKED"
+            value={String(report.targetDeck.length)}
+            hint="Control gaps · residual · SPOFs"
+          />
         </section>
 
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -155,12 +167,21 @@ export function ThreatAssessmentPanel() {
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className={cn("rounded border px-1.5 py-0.5 font-mono text-[10px]", bandClass(t.band))}>
+                        <span
+                          className={cn(
+                            "rounded border px-1.5 py-0.5 font-mono text-[10px]",
+                            bandClass(t.band),
+                          )}
+                        >
                           {PRIORITY_BAND_LABEL[t.band]}
                         </span>
-                        <span className="font-mono text-[10px] text-[#5a9a68]">{t.domain.toUpperCase()}</span>
+                        <span className="font-mono text-[10px] text-[#5a9a68]">
+                          {t.domain.toUpperCase()}
+                        </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-sm font-medium text-[#e8f5e8]">{t.label}</span>
+                      <span className="mt-0.5 block truncate text-sm font-medium text-[#e8f5e8]">
+                        {t.label}
+                      </span>
                       <span className="mt-0.5 block font-mono text-[10px] text-[#5a9a68]">
                         P{t.priority} · {t.impactHint}
                       </span>
@@ -205,7 +226,9 @@ export function ThreatAssessmentPanel() {
                   </ul>
                 </div>
                 <div className="mt-3 rounded border border-[#2a5a35] bg-[#0c1f12] px-3 py-2">
-                  <p className="font-mono text-[10px] tracking-widest text-[#4ade80]">RULES OF ENGAGEMENT</p>
+                  <p className="font-mono text-[10px] tracking-widest text-[#4ade80]">
+                    RULES OF ENGAGEMENT
+                  </p>
                   <ul className="mt-1 space-y-1 font-mono text-[11px] text-[#c8e6c8]">
                     {selected.roe.map((r) => (
                       <li key={r}>· {r}</li>
@@ -214,8 +237,8 @@ export function ThreatAssessmentPanel() {
                 </div>
                 {selected.expectedLoss != null && (
                   <p className="mt-2 font-mono text-[11px] text-[#5a9a68]">
-                    Expected retained {formatUsd(selected.expectedLoss)}
-                    {selected.p50Days != null ? ` · p50 ${selected.p50Days}d` : ""}
+                    Assumed retained loss {formatUsd(selected.expectedLoss)}
+                    {selected.p50Days != null ? ` · about ${selected.p50Days} days out` : ""}
                   </p>
                 )}
               </section>

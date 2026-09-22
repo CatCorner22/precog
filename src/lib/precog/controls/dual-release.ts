@@ -8,16 +8,11 @@
  *
  * Educational control design — not bank/PMS integration.
  */
-import { people } from "../demo-data";
-import type { StaffComposition } from "../types";
+import type { Person, StaffComposition } from "../types";
+import type { IndustryTemplate } from "../templates";
+import { getIndustryCopy } from "../templates/industry-copy";
 
-export type ReleaseChannel =
-  | "ach"
-  | "check"
-  | "writeoff"
-  | "vendor_new"
-  | "deposit"
-  | "payroll";
+export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
 export type ExceptionAction =
   /** Raise the dual-required threshold (single release allowed up to higher amount) */
@@ -29,12 +24,7 @@ export type ExceptionAction =
   /** Cap / lower threshold (stricter than base) */
   | "lower_threshold";
 
-export type ExceptionScope =
-  | "payee"
-  | "person"
-  | "role"
-  | "channel"
-  | "amount_band";
+export type ExceptionScope = "payee" | "person" | "role" | "channel" | "amount_band";
 
 export interface ThresholdException {
   id: string;
@@ -130,9 +120,24 @@ export interface ReleaseEvaluation {
   ok: boolean;
   channel: ReleaseChannel;
   amountUsd: number;
+  /**
+   * The dollar threshold in force for this evaluation, always finite.
+   *
+   * A waived rule used to pass Number.POSITIVE_INFINITY through here, and a
+   * forced rule -1. Consumers then had to reverse-engineer the exception state
+   * from a sentinel, and the panel got it wrong: it rendered a waiver — the
+   * weakest possible state, no second signer at any amount — as "$0", which
+   * everywhere else in the product means "always dual", the strictest state.
+   * The two flags below carry that state explicitly so no display ever has to
+   * infer it from a number.
+   */
   thresholdUsd: number;
   baseThresholdUsd: number;
   dualRequired: boolean;
+  /** True when an exception waived dual release: one person may act alone at any amount. */
+  dualWaived: boolean;
+  /** True when an exception forces dual release at every amount. */
+  dualForced: boolean;
   reasons: string[];
   nextSteps: string[];
   eligibleSeconds: EligibleApprover[];
@@ -142,7 +147,12 @@ export interface ReleaseEvaluation {
   appliedException?: AppliedException;
   controlCredit: {
     dualControlPayments: boolean;
-    insuranceDiscountEligible: boolean;
+    /**
+     * The configured control as a carrier would see it: dual release on with no
+     * waiver in force. Not an eligibility determination — whether any credit
+     * exists depends on the carrier and the policy's control warranties.
+     */
+    evidenceReady: boolean;
     note: string;
   };
 }
@@ -232,24 +242,64 @@ export const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
   },
 ];
 
-/** Demo seed exceptions (owner-approved recurring lab payee + temporary raise). */
-export function defaultExceptions(): ThresholdException[] {
+const DENTAL_ROLE_SLOTS: Record<string, RegExp[]> = {
+  "Owner / Dentist": [/owner|dentist|managing partner|principal/i],
+  "Office Manager": [/manager|general manager/i],
+  "Front Desk Lead": [/front desk|cashier|lead cashier|host|shift lead/i],
+  "Billing Specialist": [/billing|bookkeeper|accounting|controller|specialist/i],
+};
+
+function rolesForSlot(people: Person[], patterns: RegExp[]): string[] {
+  return people.filter((p) => patterns.some((re) => re.test(p.role))).map((p) => p.role);
+}
+
+function localizeDualReleaseRules(
+  tpl: IndustryTemplate,
+  rules: DualReleaseRule[],
+): DualReleaseRule[] {
+  const processIds = new Set(tpl.processes.map((p) => p.id));
+  const slotMap = new Map<string, string[]>();
+  for (const [slot, patterns] of Object.entries(DENTAL_ROLE_SLOTS)) {
+    slotMap.set(slot, rolesForSlot(tpl.people, patterns));
+  }
+
+  const mapRoles = (roles: string[]) => {
+    const out: string[] = [];
+    for (const role of roles) {
+      const resolved = slotMap.get(role);
+      if (resolved?.length) out.push(...resolved);
+      else if (tpl.people.some((p) => p.role === role)) out.push(role);
+    }
+    return [...new Set(out.length ? out : tpl.people.slice(0, 1).map((p) => p.role))];
+  };
+
+  return rules.map((rule) => ({
+    ...rule,
+    firstApproverRoles: mapRoles(rule.firstApproverRoles),
+    secondApproverRoles: mapRoles(rule.secondApproverRoles),
+    processIds: rule.processIds.filter((id) => processIds.has(id)),
+  }));
+}
+
+/** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
+export function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
+  const copy = getIndustryCopy(tpl.id);
   const today = new Date();
   const in90 = new Date(today.getTime() + 90 * 86400000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return [
     {
-      id: "ex-lab-recurring",
-      label: "Trusted lab ACH raise",
+      id: "ex-vendor-recurring",
+      label: copy.dualReleaseSeed.exceptionLabel,
       channels: ["ach"],
       action: "raise_threshold",
       thresholdUsd: 3500,
-      payeeContains: "apex dental lab",
+      payeeContains: copy.dualReleaseSeed.exceptionPayeeContains,
       enabled: true,
-      reason: "Recurring lab with monthly invoice; owner reviewed 12 months clean history.",
+      reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
       approvedByPersonId: "p1",
       createdAt: iso(today),
-      residualNote: "Single release up to $3,500 for Apex only — sample monthly statements.",
+      residualNote: `Single release up to $3,500 for ${copy.dualReleaseSeed.defaultPayee} only — sample monthly statements.`,
     },
     {
       id: "ex-force-new-vendor-pay",
@@ -259,7 +309,7 @@ export function defaultExceptions(): ThresholdException[] {
       amountMinUsd: 1,
       amountMaxUsd: 499,
       enabled: false,
-      reason: "Optional strict mode: dual even under $500 for small first payments.",
+      reason: "Optional strict mode: dual even under the threshold for small first payments.",
       createdAt: iso(today),
     },
     {
@@ -281,6 +331,7 @@ export function defaultExceptions(): ThresholdException[] {
 }
 
 export function defaultDualReleasePolicy(
+  tpl: IndustryTemplate,
   staff?: StaffComposition,
 ): DualReleasePolicy {
   const enabled = staff?.dualControlPayments ?? false;
@@ -288,8 +339,11 @@ export function defaultDualReleasePolicy(
     enabled,
     ownerCanSecondAny: true,
     hardBlockWithoutSecond: true,
-    rules: DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
-    exceptions: defaultExceptions(),
+    rules: localizeDualReleaseRules(
+      tpl,
+      DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
+    ),
+    exceptions: defaultExceptions(tpl),
   };
 }
 
@@ -298,33 +352,29 @@ export function makeExceptionId(): string {
 }
 
 export function mergeDualReleasePolicy(
+  tpl: IndustryTemplate,
   partial?: Partial<DualReleasePolicy> | null,
   staff?: StaffComposition,
 ): DualReleasePolicy {
-  const base = defaultDualReleasePolicy(staff);
+  const base = defaultDualReleasePolicy(tpl, staff);
   if (!partial) return base;
-  const rulesByChannel = new Map(
-    (partial.rules ?? []).map((r) => [r.channel, r] as const),
-  );
+  const rulesByChannel = new Map((partial.rules ?? []).map((r) => [r.channel, r] as const));
   return {
     enabled: partial.enabled ?? base.enabled,
     ownerCanSecondAny: partial.ownerCanSecondAny ?? base.ownerCanSecondAny,
-    hardBlockWithoutSecond:
-      partial.hardBlockWithoutSecond ?? base.hardBlockWithoutSecond,
+    hardBlockWithoutSecond: partial.hardBlockWithoutSecond ?? base.hardBlockWithoutSecond,
     rules: base.rules.map((r) => ({
       ...r,
       ...rulesByChannel.get(r.channel),
       channel: r.channel,
     })),
-    exceptions: Array.isArray(partial.exceptions)
-      ? partial.exceptions
-      : base.exceptions,
+    exceptions: Array.isArray(partial.exceptions) ? partial.exceptions : base.exceptions,
     updatedAt: partial.updatedAt,
   };
 }
 
-function personById(id: string) {
-  return people.find((p) => p.id === id);
+function personById(tpl: IndustryTemplate, id: string) {
+  return tpl.people.find((p) => p.id === id);
 }
 
 function todayIso(asOf?: string) {
@@ -350,6 +400,7 @@ function exceptionSpecificity(ex: ThresholdException): number {
 }
 
 export function matchExceptions(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   request: Pick<
     ReleaseRequest,
@@ -357,7 +408,7 @@ export function matchExceptions(
   >,
 ): ThresholdException[] {
   const asOf = todayIso(request.asOfDate);
-  const initiator = personById(request.initiatorPersonId);
+  const initiator = personById(tpl, request.initiatorPersonId);
   const payee = (request.payee ?? "").toLowerCase();
 
   const matched = (policy.exceptions ?? []).filter((ex) => {
@@ -380,9 +431,7 @@ export function matchExceptions(
     return true;
   });
 
-  return matched.sort(
-    (a, b) => exceptionSpecificity(b) - exceptionSpecificity(a),
-  );
+  return matched.sort((a, b) => exceptionSpecificity(b) - exceptionSpecificity(a));
 }
 
 export function resolveEffectiveThreshold(
@@ -430,10 +479,7 @@ export function resolveEffectiveThreshold(
     };
   }
 
-  const override =
-    exception.thresholdUsd != null
-      ? exception.thresholdUsd
-      : baseThresholdUsd;
+  const override = exception.thresholdUsd != null ? exception.thresholdUsd : baseThresholdUsd;
 
   const thresholdUsd =
     exception.action === "raise_threshold"
@@ -456,20 +502,21 @@ export function resolveEffectiveThreshold(
 }
 
 export function listEligibleApprovers(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   channel: ReleaseChannel,
 ): EligibleApprover[] {
   const rule = policy.rules.find((r) => r.channel === channel);
   if (!rule) return [];
 
+  const { people } = tpl;
   return people
     .filter((p) => p.active)
     .map((p) => {
-      const isOwner = p.role === "Owner / Dentist";
+      const isOwner = /owner|managing partner/i.test(p.role);
       const canInitiate = rule.firstApproverRoles.includes(p.role);
       const canSecond =
-        rule.secondApproverRoles.includes(p.role) ||
-        (policy.ownerCanSecondAny && isOwner);
+        rule.secondApproverRoles.includes(p.role) || (policy.ownerCanSecondAny && isOwner);
       return {
         id: p.id,
         name: p.name,
@@ -481,27 +528,33 @@ export function listEligibleApprovers(
     .filter((p) => p.canInitiate || p.canSecond);
 }
 
+/**
+ * The threshold a consumer should display: a real dollar figure, never a
+ * sentinel. Waived (+Infinity) reports the base so the reader sees what was
+ * waived; forced (-1) reports 0, which is the true effective threshold.
+ */
+function displayThreshold(effective: number, base: number): number {
+  if (!Number.isFinite(effective)) return base;
+  return Math.max(0, effective);
+}
+
 export function evaluateRelease(
+  tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   request: ReleaseRequest,
 ): ReleaseEvaluation {
   const rule = policy.rules.find((r) => r.channel === request.channel);
-  const initiator = personById(request.initiatorPersonId);
-  const second = request.secondPersonId
-    ? personById(request.secondPersonId)
-    : undefined;
+  const initiator = personById(tpl, request.initiatorPersonId);
+  const second = request.secondPersonId ? personById(tpl, request.secondPersonId) : undefined;
 
   const baseCredit = {
     dualControlPayments: policy.enabled,
-    insuranceDiscountEligible:
+    evidenceReady:
       policy.enabled &&
-      policy.rules.filter((r) => r.enabled).length >= 3 &&
-      !(policy.exceptions ?? []).some(
-        (e) => e.enabled && e.action === "waive_dual",
-      ),
+      !(policy.exceptions ?? []).some((e) => e.enabled && e.action === "waive_dual"),
     note: policy.enabled
-      ? "Dual-release policy active — eligible for dual-control insurance credit when carriers require dual signature/ACH."
-      : "Policy off — no dual-control insurance credit.",
+      ? "Dual-release policy active. Whether a carrier gives a credit for it depends on your policy's control warranties; this tool does not determine eligibility."
+      : "Policy off — there is no dual-control configuration to show a carrier.",
   };
 
   if (!policy.enabled) {
@@ -512,18 +565,16 @@ export function evaluateRelease(
       amountUsd: request.amountUsd,
       thresholdUsd: rule?.thresholdUsd ?? 0,
       baseThresholdUsd: rule?.thresholdUsd ?? 0,
+      dualWaived: false,
+      dualForced: false,
       dualRequired: false,
       reasons: ["Dual-release policy is turned off for the practice."],
-      nextSteps: [
-        "Enable dual release in Controls, then configure channel thresholds.",
-      ],
+      nextSteps: ["Enable dual release in Controls, then configure channel thresholds."],
       eligibleSeconds: [],
       initiator: initiator
         ? { id: initiator.id, name: initiator.name, role: initiator.role }
         : undefined,
-      second: second
-        ? { id: second.id, name: second.name, role: second.role }
-        : undefined,
+      second: second ? { id: second.id, name: second.name, role: second.role } : undefined,
       mitigatesRules: [],
       controlCredit: baseCredit,
     };
@@ -537,10 +588,12 @@ export function evaluateRelease(
       amountUsd: request.amountUsd,
       thresholdUsd: 0,
       baseThresholdUsd: 0,
+      dualWaived: false,
+      dualForced: false,
       dualRequired: false,
       reasons: [`No active dual-release rule for channel "${request.channel}".`],
       nextSteps: ["Enable this channel in the dual-release policy."],
-      eligibleSeconds: listEligibleApprovers(policy, request.channel).filter(
+      eligibleSeconds: listEligibleApprovers(tpl, policy, request.channel).filter(
         (p) => p.canSecond,
       ),
       initiator: initiator
@@ -551,7 +604,7 @@ export function evaluateRelease(
     };
   }
 
-  const matches = matchExceptions(policy, request);
+  const matches = matchExceptions(tpl, policy, request);
   const topEx = matches[0];
   const resolved = resolveEffectiveThreshold(rule.thresholdUsd, topEx);
   const effectiveThreshold = resolved.thresholdUsd;
@@ -561,15 +614,13 @@ export function evaluateRelease(
       ? false
       : request.amountUsd > effectiveThreshold;
 
-  const eligible = listEligibleApprovers(policy, request.channel);
+  const eligible = listEligibleApprovers(tpl, policy, request.channel);
   const eligibleSeconds = eligible.filter((p) => p.canSecond);
 
   const initiatorMeta = initiator
     ? { id: initiator.id, name: initiator.name, role: initiator.role }
     : undefined;
-  const secondMeta = second
-    ? { id: second.id, name: second.name, role: second.role }
-    : undefined;
+  const secondMeta = second ? { id: second.id, name: second.name, role: second.role } : undefined;
 
   if (!initiator) {
     return {
@@ -577,8 +628,10 @@ export function evaluateRelease(
       ok: false,
       channel: request.channel,
       amountUsd: request.amountUsd,
-      thresholdUsd: effectiveThreshold,
+      thresholdUsd: displayThreshold(effectiveThreshold, rule.thresholdUsd),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired,
       reasons: ["Initiator not found."],
       nextSteps: ["Pick a valid staff member as first signer."],
@@ -596,15 +649,13 @@ export function evaluateRelease(
       ok: false,
       channel: request.channel,
       amountUsd: request.amountUsd,
-      thresholdUsd: effectiveThreshold,
+      thresholdUsd: displayThreshold(effectiveThreshold, rule.thresholdUsd),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired,
-      reasons: [
-        `${initiator.name} (${initiator.role}) is not allowed to initiate ${rule.label}.`,
-      ],
-      nextSteps: [
-        `Initiators must be: ${rule.firstApproverRoles.join(", ")}.`,
-      ],
+      reasons: [`${initiator.name} (${initiator.role}) is not allowed to initiate ${rule.label}.`],
+      nextSteps: [`Initiators must be: ${rule.firstApproverRoles.join(", ")}.`],
       eligibleSeconds,
       initiator: initiatorMeta,
       mitigatesRules: rule.mitigatesRuleIds,
@@ -620,8 +671,10 @@ export function evaluateRelease(
       ok: true,
       channel: request.channel,
       amountUsd: request.amountUsd,
-      thresholdUsd: effectiveThreshold,
+      thresholdUsd: displayThreshold(effectiveThreshold, rule.thresholdUsd),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired: false,
       reasons: [
         `Exception "${topEx!.label}" waives dual release for this request.`,
@@ -638,34 +691,34 @@ export function evaluateRelease(
       appliedException: resolved.applied,
       controlCredit: {
         ...baseCredit,
-        insuranceDiscountEligible: false,
-        note: "Active dual-waive exception may reduce dual-control insurance credit — disclose to carrier if asked.",
+        evidenceReady: false,
+        note: "An active dual-waive exception weakens the control a carrier would look at — disclose it if asked.",
       },
     };
   }
 
   if (!dualRequired) {
-    const viaRaise =
-      resolved.applied && resolved.applied.action === "raise_threshold";
+    const viaRaise = resolved.applied && resolved.applied.action === "raise_threshold";
     return {
       status: viaRaise ? "approved_exception" : "below_threshold",
       ok: true,
       channel: request.channel,
       amountUsd: request.amountUsd,
-      thresholdUsd: effectiveThreshold === Number.POSITIVE_INFINITY
-        ? rule.thresholdUsd
-        : effectiveThreshold < 0
-          ? 0
-          : effectiveThreshold,
+      thresholdUsd:
+        effectiveThreshold === Number.POSITIVE_INFINITY
+          ? rule.thresholdUsd
+          : effectiveThreshold < 0
+            ? 0
+            : effectiveThreshold,
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired: false,
       reasons: [
         viaRaise
           ? `Exception "${resolved.applied!.label}" raised threshold from $${rule.thresholdUsd.toLocaleString()} to $${resolved.applied!.effectiveThresholdUsd.toLocaleString()}.`
           : `Amount $${request.amountUsd.toLocaleString()} is at or under threshold $${effectiveThreshold.toLocaleString()} — single release allowed.`,
-        ...(resolved.applied?.residualNote
-          ? [resolved.applied.residualNote]
-          : []),
+        ...(resolved.applied?.residualNote ? [resolved.applied.residualNote] : []),
       ],
       nextSteps: [
         "Still log the release; spot-check samples monthly.",
@@ -682,15 +735,14 @@ export function evaluateRelease(
   // Dual required path
   if (!second) {
     return {
-      status: policy.hardBlockWithoutSecond
-        ? "blocked_missing_second"
-        : "needs_second",
+      status: policy.hardBlockWithoutSecond ? "blocked_missing_second" : "needs_second",
       ok: !policy.hardBlockWithoutSecond,
       channel: request.channel,
       amountUsd: request.amountUsd,
-      thresholdUsd:
-        effectiveThreshold < 0 ? 0 : Math.max(0, effectiveThreshold),
+      thresholdUsd: effectiveThreshold < 0 ? 0 : Math.max(0, effectiveThreshold),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired: true,
       reasons: [
         resolved.forceDual
@@ -725,6 +777,8 @@ export function evaluateRelease(
       amountUsd: request.amountUsd,
       thresholdUsd: Math.max(0, effectiveThreshold),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired: true,
       reasons: [
         "Same person cannot be first and second signer — dual release requires two distinct people.",
@@ -748,13 +802,13 @@ export function evaluateRelease(
       amountUsd: request.amountUsd,
       thresholdUsd: Math.max(0, effectiveThreshold),
       baseThresholdUsd: rule.thresholdUsd,
+      dualWaived: resolved.waiveDual,
+      dualForced: resolved.forceDual,
       dualRequired: true,
       reasons: [
         `${second.name} (${second.role}) is not an allowed second signer for ${rule.label}.`,
       ],
-      nextSteps: [
-        `Allowed seconds: ${rule.secondApproverRoles.join(", ")}.`,
-      ],
+      nextSteps: [`Allowed seconds: ${rule.secondApproverRoles.join(", ")}.`],
       eligibleSeconds: eligibleSeconds.filter((p) => p.id !== initiator.id),
       initiator: initiatorMeta,
       second: secondMeta,
@@ -771,6 +825,8 @@ export function evaluateRelease(
     amountUsd: request.amountUsd,
     thresholdUsd: Math.max(0, effectiveThreshold),
     baseThresholdUsd: rule.thresholdUsd,
+    dualWaived: resolved.waiveDual,
+    dualForced: resolved.forceDual,
     dualRequired: true,
     reasons: [
       `Dual release complete: ${initiator.name} → ${second.name}.`,
@@ -802,9 +858,7 @@ export function mitigatedSodRuleIds(policy: DualReleasePolicy): Set<string> {
   return ids;
 }
 
-export function dualReleaseCoverage(
-  policy: DualReleasePolicy,
-): DualReleaseCoverage[] {
+export function dualReleaseCoverage(policy: DualReleasePolicy): DualReleaseCoverage[] {
   return policy.rules.map((r) => ({
     channel: r.channel,
     label: r.label,
@@ -813,9 +867,7 @@ export function dualReleaseCoverage(
     mitigatesRuleIds: r.mitigatesRuleIds,
     covered: policy.enabled && r.enabled,
     activeExceptions: (policy.exceptions ?? []).filter(
-      (e) =>
-        e.enabled &&
-        (e.channels.length === 0 || e.channels.includes(r.channel)),
+      (e) => e.enabled && (e.channels.length === 0 || e.channels.includes(r.channel)),
     ).length,
   }));
 }
@@ -825,9 +877,7 @@ export function staffFlagsFromDualRelease(policy: DualReleasePolicy): {
 } {
   const ach = policy.rules.find((r) => r.channel === "ach");
   const deposit = policy.rules.find((r) => r.channel === "deposit");
-  const dualControlPayments = Boolean(
-    policy.enabled && (ach?.enabled || deposit?.enabled),
-  );
+  const dualControlPayments = Boolean(policy.enabled && (ach?.enabled || deposit?.enabled));
   return { dualControlPayments };
 }
 
@@ -840,16 +890,12 @@ export function activeExceptionSummary(policy: DualReleasePolicy): {
 } {
   const today = todayIso();
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-  const active = (policy.exceptions ?? []).filter(
-    (e) => e.enabled && isDateActive(e, today),
-  );
+  const active = (policy.exceptions ?? []).filter((e) => e.enabled && isDateActive(e, today));
   return {
     total: active.length,
     raises: active.filter((e) => e.action === "raise_threshold").length,
     forceDual: active.filter((e) => e.action === "force_dual").length,
     waives: active.filter((e) => e.action === "waive_dual").length,
-    expiringSoon: active.filter(
-      (e) => e.effectiveTo && e.effectiveTo <= in30,
-    ).length,
+    expiringSoon: active.filter((e) => e.effectiveTo && e.effectiveTo <= in30).length,
   };
 }
