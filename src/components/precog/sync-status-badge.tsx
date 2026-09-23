@@ -7,7 +7,7 @@ const LABEL: Record<SyncStatus, string> = {
   loading: "Syncing…",
   synced: "Saved to account",
   local: "Saved on this device",
-  "local-error": "Not saved — this device's storage is full",
+  "local-error": "Not saved — this browser is not keeping data",
   error: "Sync failed — saved locally",
   conflict: "Edited elsewhere — not saved",
 };

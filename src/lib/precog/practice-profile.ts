@@ -28,6 +28,7 @@ import {
 } from "./controls/dual-release";
 import { INDUSTRIES, type IndustryId } from "./industry";
 import { isBusinessId } from "./profile-input";
+import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 
 function isIndustryId(value: unknown): value is IndustryId {
   return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
@@ -198,7 +199,11 @@ export function normalizeCustomKnowledge(value: unknown, today: string): Knowled
   });
 }
 
-const PORTFOLIO_KEY = "precog.portfolio.v1";
+/** Every business this device knows about, in full, keyed by id. */
+export const PORTFOLIO_KEY = "precog.portfolio.v1";
+/** The business open in this browser: what a reload comes back to. */
+export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
+const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
 
 export function makeBusinessId(): string {
   return `biz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -218,39 +223,37 @@ export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
 }
 
 /** Local portfolio: every business this device knows about, keyed by id (includes the active one). */
-export function loadPortfolio(): Record<string, PracticeProfile> {
-  if (typeof window === "undefined") return {};
+export function loadPortfolio(storage = browserStorage()): Record<string, PracticeProfile> {
+  const raw = readLocal(PORTFOLIO_KEY, storage);
+  if (!raw) return {};
   try {
-    const raw = localStorage.getItem(PORTFOLIO_KEY);
-    if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, PracticeProfile>;
-    return parsed && typeof parsed === "object" ? parsed : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 
-export function savePortfolioEntry(profile: PracticeProfile): void {
-  if (typeof window === "undefined") return;
+/**
+ * Keeps one business in the portfolio. A business whose setup is not
+ * finished is not a business yet (it is the sample behind the setup dialog),
+ * so it is never listed. Returns false when the browser refuses the write.
+ */
+export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {
+  if (profile.onboardingComplete === false) return true;
   const id = profile.businessId ?? "biz_default";
-  const all = loadPortfolio();
+  const all = loadPortfolio(storage);
   all[id] = { ...profile, businessId: id };
-  try {
-    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
-  } catch {
-    // quota — portfolio is a convenience cache; active profile is saved separately
-  }
+  // Quota: the portfolio is a convenience cache; the active business is saved separately.
+  return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
 }
 
-export function removePortfolioEntry(id: string): void {
-  if (typeof window === "undefined") return;
-  const all = loadPortfolio();
+export function removePortfolioEntry(id: string, storage = browserStorage()): void {
+  const all = loadPortfolio(storage);
+  if (!(id in all)) return;
   delete all[id];
-  try {
-    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(all));
-  } catch {
-    // quota — a stale portfolio entry is harmless; it is re-derived on next save
-  }
+  // Quota: a stale portfolio entry is harmless; it is re-derived on the next save.
+  writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
 }
 
 /**
@@ -289,8 +292,6 @@ export interface MapHealthPoint {
   score: number;
 }
 
-const STORAGE_KEY = "precog.practiceProfile.v2";
-
 export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
   const tpl = getIndustryTemplate(industry);
   // The sole-owner count is read from the sample's own register, as it is for
@@ -323,17 +324,31 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
   };
 }
 
-export function loadProfile(): PracticeProfile {
-  if (typeof window === "undefined") return defaultProfile();
+/**
+ * The stored text of the business open in this browser (the v1 key is read
+ * when there is no v2 copy yet); null when there is none or storage is blocked.
+ */
+export function readStoredActiveProfile(
+  storage: StorageLike | null = browserStorage(),
+): string | null {
+  return readLocal(ACTIVE_PROFILE_KEY, storage) ?? readLocal(LEGACY_PROFILE_KEY, storage);
+}
+
+/**
+ * A stored profile, normalised. Nothing stored means a first visit: the
+ * sample behind the setup dialog. Unreadable text falls back to the sample.
+ */
+export function parseStoredProfile(raw: string | null): PracticeProfile {
+  if (!raw) return { ...defaultProfile(), onboardingComplete: false };
   try {
-    // migrate v1
-    const raw =
-      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("precog.practiceProfile.v1");
-    if (!raw) return { ...defaultProfile(), onboardingComplete: false };
     return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>, false);
   } catch {
     return defaultProfile();
   }
+}
+
+export function loadProfile(storage: StorageLike | null = browserStorage()): PracticeProfile {
+  return parseStoredProfile(readStoredActiveProfile(storage));
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -480,22 +495,6 @@ export function normalizeProfile(
     businessId: isBusinessId(parsed.businessId) ? parsed.businessId : base.businessId,
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
   };
-}
-
-/**
- * Write the active profile to this device. Returns false when the browser
- * refused the write (private mode, storage quota); callers surface that instead
- * of letting the exception unwind through React and blank the page.
- */
-export function saveProfile(profile: PracticeProfile): boolean {
-  if (typeof window === "undefined") return false;
-  const next = { ...profile, updatedAt: new Date().toISOString() };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function makeDecisionId(): string {
