@@ -1,9 +1,10 @@
 import { EvidenceList } from "@/components/precog/builder/evidence-list";
 import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useTemplate } from "@/lib/precog/use-template";
+import { textPatch } from "@/lib/precog/builder/process-text";
 import type {
   LeanWasteKind,
   ProcessIdea,
@@ -21,7 +22,6 @@ import {
   CADENCE_LABEL,
   PROCESS_CADENCES,
   PROCESS_DOCUMENTATION_LABEL,
-  normalizeSystems,
   parseCadence,
   processDocumentationState,
 } from "@/lib/precog/process-record";
@@ -63,28 +63,36 @@ export function ProcessForm({
   // Debounce text field commits so typing doesn't thrash the graph.
   useEffect(() => {
     const t = setTimeout(() => {
-      const parse = (s: string) =>
-        s
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
-      const patch: Partial<ProcessNode> = {};
-      if (name !== process.name) patch.name = name.slice(0, 60);
-      if (desc !== process.description) patch.description = desc.slice(0, 240);
-      const pi = parse(inputs);
-      const po = parse(outputs);
-      if (pi.join("|") !== (process.inputs ?? []).join("|")) patch.inputs = pi;
-      if (po.join("|") !== (process.outputs ?? []).join("|")) patch.outputs = po;
-      const ps = normalizeSystems(parse(systems));
-      if (ps.join("|") !== (process.systems ?? []).join("|"))
-        patch.systems = ps.length ? ps : undefined;
-      const loc = location.trim().slice(0, 200);
-      if (loc !== (process.procedureLocation ?? "")) patch.procedureLocation = loc || undefined;
+      const patch = textPatch({ name, desc, inputs, outputs, systems, location }, process);
       if (Object.keys(patch).length) onChange(patch);
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, desc, inputs, outputs, systems, location]);
+
+  // The form remounts for each process, so an edit still inside the debounce
+  // window when the owner selects another process, or closes the panel, is
+  // committed as the form unmounts instead of being dropped.
+  const latest = useRef({
+    fields: { name, desc, inputs, outputs, systems, location },
+    process,
+    onChange,
+  });
+  useEffect(() => {
+    latest.current = {
+      fields: { name, desc, inputs, outputs, systems, location },
+      process,
+      onChange,
+    };
+  });
+  useEffect(
+    () => () => {
+      const { fields, process: current, onChange: commit } = latest.current;
+      const patch = textPatch(fields, current);
+      if (Object.keys(patch).length) commit(patch);
+    },
+    [],
+  );
 
   const docState = processDocumentationState(process);
 
