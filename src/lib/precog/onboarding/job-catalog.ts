@@ -778,8 +778,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "sales lead",
       "comfort advisor",
     ],
-    ["edit_patient_master", "view_reports_only"],
-    "Sales maintains customer accounts; granting credits or writing off balances belongs to a manager or the owner unless you tick it, and so does taking payment unless reps collect on delivery.",
+    ["collect_cash", "edit_patient_master", "view_reports_only"],
+    "Sales maintains customer accounts and often takes payment from the accounts it serves; granting credits or writing off balances belongs to a manager or the owner unless you tick it.",
   ),
   entry(
     "cashier",

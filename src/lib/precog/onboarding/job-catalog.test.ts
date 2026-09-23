@@ -429,8 +429,11 @@ describe("job catalog", () => {
       "issue_refunds",
     );
     expect(entitlementsForTitle("IT Administrator", "general")).not.toContain("review_audit_logs");
+    // A brewery's territory reps collect from the accounts they serve; they
+    // do not grant credits.
     for (const title of ["Territory Sales Rep", "Sales Representative", "Comfort Advisor"]) {
       expect(entitlementsForTitle(title, "restaurant"), title).not.toContain("approve_writeoffs");
+      expect(entitlementsForTitle(title, "restaurant"), title).toContain("collect_cash");
     }
   });
 
