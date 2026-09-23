@@ -993,3 +993,16 @@ describe("parseRoster", () => {
     expect(parseRoster("   ", general).people).toEqual([]);
   });
 });
+
+describe("a pathological pasted line", () => {
+  // These took 48 seconds each before the bracket and title scans were made
+  // linear; the limit is wide so a loaded machine cannot make it flaky.
+  it.each([
+    ["an open bracket then 200,000 spaces", "Ana Ruiz, Clerk (" + " ".repeat(200_000) + "x"],
+    ["a possessive then 200,000 spaces", "Ana Ruiz, Owner's" + " ".repeat(200_000) + "x"],
+  ])("reads %s in well under five seconds", (_label, line) => {
+    const started = performance.now();
+    parseRoster(line, getBaseTemplate("general"));
+    expect(performance.now() - started).toBeLessThan(5_000);
+  });
+});

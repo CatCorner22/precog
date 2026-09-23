@@ -2634,14 +2634,32 @@ function seatMatch(
  * serves. Returns the rest of the title, or undefined when there is none.
  */
 function withoutPatron(title: string): string | undefined {
-  const rest = title
-    .replace(PATRON_CLAUSE, " ")
-    .replace(PATRON_POSSESSIVE, " ")
-    .replace(/\(\s*\)/g, " ")
-    .replace(/[\s/,;|\-–—(]+$/u, "")
-    .trim();
+  const rest = trimTrailingJoiners(
+    title
+      .replace(PATRON_CLAUSE, " ")
+      .replace(PATRON_POSSESSIVE, " ")
+      .replace(/\(\s*\)/g, " "),
+  ).trim();
   return rest === title.trim() ? undefined : rest;
 }
+
+/** A character left dangling at the end of a title once a clause is taken out. */
+const TRAILING_JOINER = /[\s/,;|\-–—(]/u;
+
+/**
+ * Drops trailing spaces, slashes, commas, dashes and open brackets. A loop,
+ * not a regular expression ending in "+$": that pattern backtracks from every
+ * position in a long run of spaces, and a pasted line with "(" followed by
+ * thousands of spaces froze the page for minutes.
+ */
+function trimTrailingJoiners(value: string): string {
+  let end = value.length;
+  while (end > 0 && TRAILING_JOINER.test(value[end - 1])) end--;
+  return value.slice(0, end);
+}
+
+/** Longer than any real job title; a pasted line past this is not one title. */
+const MAX_TITLE_LENGTH = 160;
 
 /**
  * Finds the catalog entry for a roster title. Seniority and schedule words
@@ -2654,7 +2672,8 @@ function withoutPatron(title: string): string | undefined {
  * matches, so the caller can leave the duties for the owner to tick rather
  * than guess.
  */
-export function matchJobTitle(title: string, industry?: string): JobMatch | undefined {
+export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | undefined {
+  const title = rawTitle.slice(0, MAX_TITLE_LENGTH);
   const words = tokens(title);
   if (words.length === 0) return undefined;
   const bare = undecorated(words);

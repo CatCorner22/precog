@@ -1338,6 +1338,25 @@ function leadsWithLastFirst(head: string, next: string): boolean {
 }
 
 /**
+ * "Ana Ruiz (Front Desk)" as ["Ana Ruiz", "Front Desk"]: the text before the
+ * last bracket and the text inside it, when the line ends with that bracket
+ * and nothing inside it is a bracket. A scan, not a regular expression: the
+ * pattern it replaces retried from every character of a long run of spaces
+ * and froze the page on a pasted line such as "Ana, Clerk (" followed by
+ * thousands of spaces.
+ */
+function trailingBracket(source: string): [string, string, string] | null {
+  if (!source.endsWith(")")) return null;
+  const open = source.lastIndexOf("(", source.length - 2);
+  if (open <= 0) return null;
+  const inner = source.slice(open + 1, -1);
+  if (inner.length === 0 || inner.includes(")")) return null;
+  const before = source.slice(0, open).trimEnd();
+  if (before.length === 0) return null;
+  return [source, before, inner];
+}
+
+/**
  * Splits one line of a headerless list into name, title and department: on
  * tabs first, then " | ", then ": ", then commas or spaced dashes, whichever
  * separates the name ("Ana Ruiz, Front Desk - Evenings" keeps its title whole;
@@ -1352,7 +1371,7 @@ export function splitListLine(line: string): string[] {
   else {
     const dash = source.search(SPACED_DASH);
     const comma = source.indexOf(",");
-    const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
+    const parenthetical = trailingBracket(source);
     if (dash >= 0 && (comma < 0 || comma > dash)) parts = source.split(SPACED_DASH);
     else if (
       dash >= 0 &&
