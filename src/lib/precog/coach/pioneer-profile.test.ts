@@ -35,6 +35,29 @@ describe("pioneerProfileFrom", () => {
     expect(p.staff.teamSize).toBe(getBaseTemplate("restaurant").staffComposition.teamSize);
   });
 
+  it("keeps the journal links that confirm a starter control and a scenario", () => {
+    const people = retail.people.slice(0, 2);
+    const entry = (id: string, linkedTab: string, linkedId: string) => ({
+      id,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      subject: "Runs here",
+      kind: "monitor" as const,
+      note: "",
+      linkedTab,
+      linkedId,
+      linkedIndustry: "retail" as const,
+    });
+    const p = pioneerProfileFrom({
+      industry: "retail",
+      customPeople: people,
+      decisions: [entry("d1", "control", "c-ap"), entry("d2", "precog", "t-skim")],
+    });
+    const tpl = resolveTemplate(p);
+    expect(tpl.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
+    expect(tpl.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    expect(p.decisions.map((d) => d.linkedTab)).toEqual(["control", "precog"]);
+  });
+
   it("caps custom lists and trims the practice name", () => {
     const people = Array.from({ length: 300 }, (_, i) => ({
       id: `p${i}`,
