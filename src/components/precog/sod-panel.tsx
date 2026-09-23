@@ -1,7 +1,7 @@
 import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { CONFLICT_RULES, ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { RuleCaseCard } from "./case-card";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -26,7 +26,10 @@ type NavFn = (tab: string, id?: string) => void;
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
   const { profile } = usePractice();
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">("dual");
+  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">(
+    // People and their duty pairs first; the dual-release policy is one step away.
+    "conflicts",
+  );
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
@@ -63,19 +66,20 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">SoD + dual release</Badge>
+          <Badge variant="accent">Duty conflicts</Badge>
           <Badge variant={profile.dualRelease.enabled ? "ok" : "warn"}>
             Dual release {profile.dualRelease.enabled ? "ON" : "OFF"}
           </Badge>
         </div>
         <h2 className="mt-3 text-xl font-semibold tracking-tight">
-          Who holds incompatible powers — and what dual release fixes
+          Who can move money, or hide it, on their own
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Automated entitlement scan plus dual-release mitigation. When dual ACH, write-off,
-          deposit, or vendor gates are on, matching conflicts drop in score and show mitigated.
+          Each person&apos;s duties are checked in pairs against {CONFLICT_RULES.length} named
+          rules, plus a catch-all for related duties in the same process. Turning on dual release
+          puts a second person on the payment channels you choose; the conflicts it covers drop in
+          score and say so.
         </p>
-        <p className="mt-2 text-xs text-subtle">{report.method}</p>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -104,7 +108,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="warn"
         />
         <Stat
-          label="Dual-mitigated"
+          label="Narrowed by dual release"
           value={String(report.summary.dualReleaseMitigated)}
           hint="By dual release"
           tone="ok"
@@ -116,9 +120,9 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="primary"
         />
         <Stat
-          label="Open (no accept)"
+          label="Open, no decision"
           value={String(report.summary.openWithoutAcceptance)}
-          hint="Need decision"
+          hint="Not accepted or narrowed"
           tone="warn"
         />
       </div>

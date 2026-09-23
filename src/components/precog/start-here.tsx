@@ -49,6 +49,8 @@ import {
   type GapBadge,
 } from "@/lib/precog/coach/first-steps";
 import { CaseCard } from "./case-card";
+import { concentrationHeadline, midSentence, separatedPairs } from "@/lib/precog/sod/verdict";
+import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
@@ -150,6 +152,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [sod.conflicts],
   );
   const ownerHeld = useMemo(() => ownerHeldPairs(sod.conflicts), [sod.conflicts]);
+  // One person holding most of the gaps is the headline a CPA leads with, and
+  // the pairs the team already keeps apart are worth saying out loud.
+  const headline = useMemo(() => concentrationHeadline(sod.conflicts), [sod.conflicts]);
+  const keptApart = useMemo(
+    () => separatedPairs(sod.conflicts, sod.assignments),
+    [sod.conflicts, sod.assignments],
+  );
+  const unheld = sod.summary.unheldDuties.map(
+    (d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d,
+  );
 
   /**
    * Which segregation-of-duties rules the dual-release policy only narrows.
@@ -604,6 +616,27 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           }
         />
 
+        {unheld.length > 0 && (
+          <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+            Nobody active is marked for: {unheld.join(", ")}. Somebody does each of these in every
+            business that handles money, so mark who on Who controls what; until then the findings
+            here cannot see that seat.
+          </p>
+        )}
+
+        {headline && (
+          <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm leading-relaxed">
+            <span className="font-medium">
+              {headline.personName} ({headline.role}) holds {headline.gaps} of the{" "}
+              {headline.totalGaps} open gaps.
+            </span>{" "}
+            <span className="text-muted">
+              Moving one duty, {midSentence(headline.dutyLabel)}, to someone who holds none of the
+              others closes {headline.closes} of them.
+            </span>
+          </p>
+        )}
+
         {gaps.length === 0 ? (
           <Card>
             <CardContent className="pt-5 text-sm leading-relaxed text-muted">
@@ -759,6 +792,21 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 <ArrowRight className="size-3.5" aria-hidden />
               </button>
             )}
+          </div>
+        )}
+
+        {keptApart.length > 0 && (
+          <div className="rounded-lg border border-ok/30 bg-ok/5 p-4">
+            <p className="text-sm font-medium">Kept apart on your team</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              Both duties in each of these pairs are held, by different people, so the pair needs no
+              fix:{" "}
+              {keptApart
+                .slice(0, 6)
+                .map((p) => midSentence(p.title))
+                .join("; ")}
+              {keptApart.length > 6 ? `; and ${keptApart.length - 6} more` : ""}.
+            </p>
           </div>
         )}
 
