@@ -7,7 +7,7 @@ import {
   type JohariQuadrant,
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
-import { examplesHeading } from "@/components/precog/johari-pane";
+import { examplesHeading, paneItems } from "@/components/precog/johari-pane";
 import { usePractice } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,11 +48,16 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
     return counts;
   }, [meta.items]);
 
-  const liveItems = useMemo(() => {
-    return meta.items
-      .filter((i) => johariQuadrantFromEpistemic(i.classification) === activeQ)
-      .slice(0, 8);
-  }, [meta.items, activeQ]);
+  const [showAll, setShowAll] = useState(false);
+  const pane = useMemo(
+    () =>
+      paneItems(
+        meta.items.filter((i) => johariQuadrantFromEpistemic(i.classification) === activeQ),
+        showAll,
+      ),
+    [meta.items, activeQ, showAll],
+  );
+  const liveItems = pane.shown;
 
   const moves = useMemo(() => recommendJohariMoves(loads), [loads]);
   const guide = JOHARI_PLAYBOOK.quadrants.find((q) => q.id === activeQ)!;
@@ -118,6 +123,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               type="button"
               onClick={() => {
                 setActiveQ(q);
+                setShowAll(false);
                 setView("matrix");
               }}
               className={cn(
@@ -211,7 +217,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Live items in {Q_META[activeQ].label} ({liveItems.length})
+                Live items in {Q_META[activeQ].label} ({pane.count})
               </CardTitle>
               <CardDescription>Mapped from meta-analysis epistemic inventory</CardDescription>
             </CardHeader>
@@ -245,6 +251,16 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 </div>
               ))}
 
+              {pane.total > liveItems.length && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setShowAll(true)}
+                >
+                  Show all {pane.total}
+                </Button>
+              )}
               <div className="rounded-lg border border-border bg-panel p-3">
                 <p className="flex items-center gap-1 text-xs font-medium text-subtle uppercase">
                   <Lightbulb className="size-3" />
