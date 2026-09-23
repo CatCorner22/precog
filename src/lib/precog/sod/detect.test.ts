@@ -6,6 +6,7 @@ import { CONFLICT_RULES, type EntitlementId } from "./conflict-rules";
 import {
   buildAssignments,
   detectSodConflicts,
+  type SodDetectionOptions,
   dropInactiveAssignments,
   ROLE_TEMPLATES,
   segregationHealthIndex,
@@ -261,5 +262,96 @@ describe("release, payroll and reconciliation pairs", () => {
     }).conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
     expect(mitigated.controlsInPlace).toHaveLength(1);
     expect(mitigated.score).toBeLessThan(hit.score);
+  });
+});
+
+describe("owner-aware and mitigation-aware detection", () => {
+  const general = getBaseTemplate("general");
+  const one = (role: string, entitlements: EntitlementId[], extra: SodDetectionOptions = {}) =>
+    detectSodConflicts(general, undefined, {
+      assignments: [{ personId: "p1", personName: "Pat", role, entitlements }],
+      ...extra,
+    });
+
+  it("does not flag the owner for signing checks and reading the bank statement", () => {
+    const owner = one("Owner", [
+      "sign_checks",
+      "bank_reconcile",
+      "approve_payroll",
+      "view_reports_only",
+    ]);
+    expect(owner.conflicts).toEqual([]);
+    const treasurer = one("Board Treasurer", [
+      "sign_checks",
+      "bank_reconcile",
+      "view_reports_only",
+    ]);
+    expect(treasurer.conflicts.map((c) => c.ruleId)).toContain("rule-sign-rec");
+  });
+
+  it("keeps an owner's money-handling pair but marks it, ranks it last, and asks for an outside reader", () => {
+    const owner = one("Owner / Principal", ["collect_cash", "bank_reconcile", "view_reports_only"]);
+    expect(owner.conflicts).toHaveLength(1);
+    const hit = owner.conflicts[0];
+    expect(hit.ruleId).toBe("rule-custody-rec");
+    expect(hit.ownerHeld).toBe(true);
+    expect(hit.why).toMatch(/cannot steal from themselves/);
+    expect(hit.compensatingControls[0]).toMatch(/outside bookkeeper or accountant/);
+    const employee = one("Bookkeeper", ["collect_cash", "bank_reconcile", "view_reports_only"]);
+    expect(hit.score).toBeLessThan(employee.conflicts[0].score);
+    expect(owner.summary.critical).toBe(0);
+    expect(owner.summary.ownerHeld).toBe(1);
+    expect(owner.summary.segregationHealth).toBeGreaterThan(employee.summary.segregationHealth);
+  });
+
+  it("does not raise a family flag for approving and administering access", () => {
+    const gm = one("General Manager", [
+      "approve_writeoffs",
+      "approve_vendor",
+      "manage_user_access",
+      "view_reports_only",
+    ]);
+    expect(gm.conflicts.filter((c) => c.severity === "family")).toEqual([]);
+  });
+
+  it("reads initiating an ACH through the payment-release rules", () => {
+    const ids = one("AP Specialist", [
+      "create_vendor",
+      "initiate_ach",
+      "view_reports_only",
+    ]).conflicts.map((c) => c.ruleId);
+    expect(ids).toContain("rule-vendor-create-pay");
+    expect(
+      one("Bookkeeper", ["initiate_ach", "bank_reconcile", "view_reports_only"]).conflicts.map(
+        (c) => c.ruleId,
+      ),
+    ).toContain("rule-release-rec");
+  });
+
+  it("lists every named finding above every family finding", () => {
+    const report = one("Office Manager", [
+      "order_supplies",
+      "receive_goods",
+      "create_vendor",
+      "change_fee_schedule",
+      "view_reports_only",
+    ]);
+    const severities = report.conflicts.map((c) => c.severity);
+    const firstFamily = severities.indexOf("family");
+    const lastNamed = severities.map((s) => s !== "family").lastIndexOf(true);
+    expect(firstFamily === -1 || lastNamed < firstFamily).toBe(true);
+  });
+
+  it("never lets a mitigated conflict raise the health index", () => {
+    const base = one("Bookkeeper", ["post_payments", "bank_reconcile", "view_reports_only"]);
+    const more = one(
+      "Bookkeeper",
+      ["post_payments", "bank_reconcile", "create_vendor", "release_payment", "view_reports_only"],
+      {
+        dualReleaseMitigatedRuleIds: new Set(["rule-vendor-create-pay"]),
+      },
+    );
+    expect(more.conflicts.some((c) => c.dualReleaseMitigated)).toBe(true);
+    expect(more.summary.segregationHealth).toBeLessThan(base.summary.segregationHealth);
   });
 });

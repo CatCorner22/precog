@@ -159,7 +159,7 @@ export function buildWeeklyActions(input: {
   const committed = continuityCommitments(input.decisions ?? [], tpl, today);
   const portfolio = portfolioSummary(tpl, input.staff);
   const sod = detectSodConflicts(tpl, input.staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
+    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease, tpl),
   });
   const continuity = coverageReport(tpl);
   // A register nobody has filled in cannot say what stops when someone is out:

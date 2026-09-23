@@ -141,3 +141,27 @@ describe("grid rows from a roster", () => {
     expect(coreDutiesForTitle("Chief Happiness Wrangler")).toEqual([]);
   });
 });
+
+describe("an own business's policy and staff flags", () => {
+  it("reads dual-release approver roles off the owner's team and derives independent reconciliation", () => {
+    const people = buildOwnTeam([
+      { name: "Ana Ruiz", role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
+      { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments", "release_payment"] },
+    ]);
+    const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz", people });
+    const roles = new Set(
+      profile.dualRelease.rules.flatMap((r) => [...r.firstApproverRoles, ...r.secondApproverRoles]),
+    );
+    expect([...roles].every((r) => r === "Owner" || r === "Office Manager")).toBe(true);
+    expect(profile.dualRelease.exceptions).toEqual([]);
+    expect(profile.staff.independentBankRec).toBe(true);
+    const tangled = ownBusinessProfile(defaultProfile(), {
+      practiceName: "Ruiz",
+      people: buildOwnTeam([
+        { name: "Ana Ruiz", role: "Owner", duties: ["approve_payroll"] },
+        { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments", "bank_reconcile"] },
+      ]),
+    });
+    expect(tangled.staff.independentBankRec).toBe(false);
+  });
+});

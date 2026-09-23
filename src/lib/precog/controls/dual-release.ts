@@ -971,14 +971,35 @@ export function evaluateRelease(
   };
 }
 
-export function mitigatedSodRuleIds(policy: DualReleasePolicy): Set<string> {
+/**
+ * The conflict rules an active dual-release policy narrows. With the team
+ * given, a channel counts only when someone on it may initiate and a
+ * different person may second: a policy nobody can operate, or one where the
+ * only second signer is the initiator, narrows nothing.
+ */
+export function mitigatedSodRuleIds(
+  policy: DualReleasePolicy,
+  tpl?: Pick<IndustryTemplate, "people">,
+): Set<string> {
   const ids = new Set<string>();
   if (!policy.enabled) return ids;
   for (const r of policy.rules) {
     if (!r.enabled) continue;
+    if (tpl && !hasDistinctSecond(tpl, policy, r.channel)) continue;
     for (const mid of r.mitigatesRuleIds) ids.add(mid);
   }
   return ids;
+}
+
+function hasDistinctSecond(
+  tpl: Pick<IndustryTemplate, "people">,
+  policy: DualReleasePolicy,
+  channel: ReleaseChannel,
+): boolean {
+  const eligible = listEligibleApprovers(tpl as IndustryTemplate, policy, channel);
+  const initiators = eligible.filter((p) => p.canInitiate);
+  const seconds = eligible.filter((p) => p.canSecond);
+  return initiators.some((a) => seconds.some((b) => b.id !== a.id));
 }
 
 export function dualReleaseCoverage(policy: DualReleasePolicy): DualReleaseCoverage[] {

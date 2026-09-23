@@ -1,9 +1,9 @@
 import type { EntitlementId } from "../sod/conflict-rules";
 import { entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
-import { mitigatedSodRuleIds } from "../controls/dual-release";
+import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
-import { deriveStaffFromTeam } from "../sod/derive-staff";
+import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
 import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
 
@@ -116,16 +116,25 @@ export function ownBusinessProfile(
   input: { practiceName: string; people: Person[] },
 ): PracticeProfile {
   const practiceName = input.practiceName.trim().slice(0, 80) || base.practiceName;
+  const ownTemplate = resolveTemplate({ ...base, customPeople: input.people, customRelations: [] });
+  // The dual-release approver roles are read off this team, not the sample's,
+  // and no sample exception comes along.
+  const dualRelease = { ...defaultDualReleasePolicy(ownTemplate, base.staff), exceptions: [] };
   const withTeam: PracticeProfile = {
     ...base,
     practiceName,
     customPeople: input.people,
     customRelations: [],
-    dualRelease: { ...base.dualRelease, exceptions: [] },
+    dualRelease,
     onboardingComplete: true,
   };
-  const staff = deriveStaffFromTeam(resolveTemplate(withTeam), base.staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(withTeam.dualRelease),
+  const staff = deriveStaffFromTeam(ownTemplate, base.staff, {
+    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease, ownTemplate),
   });
-  return { ...withTeam, staff };
+  // Whether someone independent reconciles is read off the duties the owner
+  // ticked; the toggle in Business profile can still overrule it later.
+  return {
+    ...withTeam,
+    staff: { ...staff, independentBankRec: independentReconciliationFromTeam(input.people) },
+  };
 }

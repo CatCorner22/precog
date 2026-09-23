@@ -160,19 +160,25 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
       (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
   );
 
-  return candidates
-    .map((c) => ({
-      study: c,
-      schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
-      ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
-    }))
-    .sort(
-      (a, b) =>
-        b.schemeHits - a.schemeHits ||
-        b.ruleHits - a.ruleHits ||
-        byLossDescending(a.study, b.study),
-    )
-    .map((r) => r.study);
+  return (
+    candidates
+      .map((c) => ({
+        study: c,
+        schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
+        ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
+      }))
+      // A case that cites the rule leads; among those, scheme overlap orders.
+      // A case that merely shares a scheme never sits above one that shows the
+      // very pair of duties the finding names.
+      .sort(
+        (a, b) =>
+          Number(b.ruleHits > 0) - Number(a.ruleHits > 0) ||
+          b.schemeHits - a.schemeHits ||
+          b.ruleHits - a.ruleHits ||
+          byLossDescending(a.study, b.study),
+      )
+      .map((r) => r.study)
+  );
 }
 
 /**
@@ -214,7 +220,8 @@ export function sectorsForIndustry(industryId: string): IndustrySector[] {
 
 /** Whether a case is from the owner's own line of business. */
 export function isOwnSector(study: CaseStudy, industryId: string): boolean {
-  return sectorsForIndustry(industryId).includes(study.sector);
+  // A cross-sector case is real anywhere, but it is not "in your line of business".
+  return study.sector !== "any" && sectorsForIndustry(industryId).includes(study.sector);
 }
 
 /**

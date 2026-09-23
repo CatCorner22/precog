@@ -1,3 +1,4 @@
+import { getIndustryTemplate } from "../templates";
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import {
@@ -213,5 +214,16 @@ describe("mergeDualReleasePolicy", () => {
     expect(mergedAch.mitigatesRuleIds).toEqual(ach.mitigatesRuleIds);
     expect(mergedAch.firstApproverRoles).toEqual(["Owner / Dentist"]);
     expect(merged.rules.map((r) => r.channel)).toEqual(base.rules.map((r) => r.channel));
+  });
+});
+
+describe("mitigatedSodRuleIds with a team", () => {
+  it("narrows nothing when nobody on the team can second a distinct initiator", () => {
+    const dental = getIndustryTemplate("dental");
+    const policy = { ...defaultDualReleasePolicy(dental), enabled: true };
+    expect(mitigatedSodRuleIds(policy).size).toBeGreaterThan(0);
+    const solo = { ...dental, people: [{ ...dental.people[0], role: "Owner", active: true }] };
+    expect(mitigatedSodRuleIds(policy, solo).size).toBe(0);
+    expect(mitigatedSodRuleIds(policy, dental).size).toBeGreaterThan(0);
   });
 });

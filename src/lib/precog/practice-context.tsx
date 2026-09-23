@@ -185,7 +185,7 @@ function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
   const tpl = resolveTemplate(p);
   if (p.customPeople) {
     return deriveStaffFromTeam(tpl, p.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl),
     });
   }
   if (!p.customKnowledge && !p.customRelations) {
@@ -691,9 +691,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
-        const staff = next
-          ? deriveStaffFromTeam(resolveTemplate({ ...p, customPeople: next }), p.staff, {
-              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+        const nextTemplate = next ? resolveTemplate({ ...p, customPeople: next }) : null;
+        const staff = nextTemplate
+          ? deriveStaffFromTeam(nextTemplate, p.staff, {
+              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, nextTemplate),
             })
           : p.staff;
         return { ...p, customPeople: next, staff };
@@ -708,9 +709,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setProfile((p) => {
         const current = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
         const next = typeof v === "function" ? v(current) : v;
-        const staff = p.customPeople
-          ? deriveStaffFromTeam(resolveTemplate({ ...p, customProcesses: next }), p.staff, {
-              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease),
+        const nextTemplate = p.customPeople
+          ? resolveTemplate({ ...p, customProcesses: next })
+          : null;
+        const staff = nextTemplate
+          ? deriveStaffFromTeam(nextTemplate, p.staff, {
+              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, nextTemplate),
             })
           : p.staff;
         return { ...p, customProcesses: next, staff };
@@ -762,7 +766,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       staff: deriveStaffFromTeam(
         resolveTemplate(p),
         { ...p.staff, segregationSource: "derived" },
-        { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease) },
+        { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, resolveTemplate(p)) },
       ),
     }));
   }, []);

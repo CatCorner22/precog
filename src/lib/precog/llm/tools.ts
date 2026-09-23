@@ -839,7 +839,7 @@ export function executeTool(
 
       case "get_case_evidence": {
         const sod = detectSodConflicts(tpl, profile.staff, {
-          dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+          dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease, tpl),
         });
         const openRuleIds = [
           ...new Set(

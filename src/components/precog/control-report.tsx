@@ -109,7 +109,7 @@ export function ControlReport() {
     });
     const portfolio = portfolioSummary(tpl, profile.staff);
     const sod = detectSodConflicts(tpl, profile.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease, tpl),
     });
     const continuity = coverageReport(tpl);
     const staleness = staleItems(tpl, today);

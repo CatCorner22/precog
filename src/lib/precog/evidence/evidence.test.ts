@@ -178,3 +178,14 @@ describe("recommendedStepsForRules", () => {
     expect(recommendedStepsForRules(["rule-does-not-exist"])).toEqual([]);
   });
 });
+
+describe("case ranking", () => {
+  it("leads every rule with a case that cites it, and never calls a cross-sector case the owner's line", () => {
+    for (const rule of CONFLICT_RULES) {
+      const [lead] = casesForSodRules([rule.id]);
+      expect(lead?.sodRuleIds, rule.id).toContain(rule.id);
+    }
+    const anyCase = CASE_LIBRARY.find((c) => c.sector === "any")!;
+    expect(isOwnSector(anyCase, "general")).toBe(false);
+  });
+});

@@ -1,7 +1,38 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
 import { detectSodConflicts } from "./detect";
+import type { EntitlementId } from "./conflict-rules";
+import type { Person } from "../types";
 import { soleOwnerCriticalCount } from "../continuity/coverage";
+
+const MONEY_HANDS = new Set<EntitlementId>([
+  "collect_cash",
+  "post_payments",
+  "prepare_deposit",
+  "release_payment",
+  "initiate_ach",
+  "sign_checks",
+  "enter_invoices",
+  "enter_payroll",
+  "edit_payroll_master",
+  "post_journal_entries",
+  "post_adjustments",
+  "issue_refunds",
+  "create_vendor",
+]);
+
+/**
+ * Whether someone reconciles the bank account who neither handles nor records
+ * the money: the one check the ledger-keeper cannot make agree by hand.
+ */
+export function independentReconciliationFromTeam(people: readonly Person[]): boolean {
+  return people.some(
+    (p) =>
+      p.active &&
+      (p.entitlements ?? []).includes("bank_reconcile") &&
+      !(p.entitlements ?? []).some((e) => MONEY_HANDS.has(e as EntitlementId)),
+  );
+}
 
 export function deriveStaffFromTeam(
   tpl: IndustryTemplate,
