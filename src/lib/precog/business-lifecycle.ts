@@ -143,3 +143,27 @@ export function needsOwnName(
     profile.onboardingComplete !== false && profile.practiceName === OWN_BUSINESS_FALLBACK_NAME
   );
 }
+
+/**
+ * True when what a page prints describes a sample business rather than the
+ * owner's: the sample's people are in use, or no business is set up yet
+ * (the sample behind the setup dialog).
+ */
+export function isSampleBusiness(
+  profile: Pick<PracticeProfile, "customPeople" | "onboardingComplete">,
+): boolean {
+  return !profile.customPeople || profile.onboardingComplete === false;
+}
+
+/**
+ * The business name a report prints. Until setup is finished the figures are
+ * the sample's, so they go out under the sample's name, never under a name
+ * the owner typed for a business not set up yet.
+ */
+export function printedBusinessName(
+  profile: Pick<PracticeProfile, "practiceName" | "industry" | "onboardingComplete">,
+): string {
+  return profile.onboardingComplete === false
+    ? getIndustryTemplate(profile.industry).businessName
+    : profile.practiceName;
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { usePractice } from "@/lib/precog/practice-context";
+import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import {
   PRIORITY_BAND_LABEL,
   predatorThermalColor,
@@ -27,6 +28,10 @@ function bandClass(band: string) {
 
 export function ThreatAssessmentPanel() {
   const { profile, template } = usePractice();
+  // The sample's figures are labelled as the sample's, under its own name
+  // until a business is set up.
+  const sample = isSampleBusiness(profile);
+  const businessName = printedBusinessName(profile);
   // Starts empty so the server and the first client render agree; the clock
   // fills in from the interval below (a live timestamp can never hydrate).
   const [now, setNow] = useState("");
@@ -36,7 +41,7 @@ export function ThreatAssessmentPanel() {
     () =>
       buildThreatAssessment({
         tpl: template,
-        practiceName: profile.practiceName,
+        practiceName: businessName,
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
@@ -44,7 +49,7 @@ export function ThreatAssessmentPanel() {
       }),
     [
       template,
-      profile.practiceName,
+      businessName,
       profile.staff,
       profile.riskVariables,
       profile.dualRelease,
@@ -107,6 +112,17 @@ export function ThreatAssessmentPanel() {
             </span>
           </div>
         </div>
+        {sample && (
+          <p
+            className="mx-auto max-w-7xl px-4 pb-2 font-mono text-[11px] font-semibold tracking-[0.12em] text-amber-300 sm:px-6"
+            role="note"
+          >
+            SAMPLE BUSINESS · FICTIONAL PEOPLE AND FIGURES · NOT YOUR BUSINESS ·{" "}
+            <Link to="/" className="underline underline-offset-2 hover:text-amber-200">
+              SET UP YOUR OWN
+            </Link>
+          </p>
+        )}
         <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 pb-2 font-mono text-[10px] tracking-[0.15em] text-[#5a9a68] sm:px-6">
           <span>CLASS · PRACTICE INTERNAL · EDUCATIONAL</span>
           <span>·</span>

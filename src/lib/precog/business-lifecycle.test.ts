@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   adoptOwnTeam,
   atBusinessLimit,
+  isSampleBusiness,
+  printedBusinessName,
   needsOwnName,
   newBusinessProfile,
   ownBusinessName,
@@ -240,5 +242,28 @@ describe("the owner's roster pasted into the sample business", () => {
       "ex-force-new-vendor-pay",
       "ex_owner",
     ]);
+  });
+});
+
+describe("printing /report or /threat", () => {
+  it("labels a visit with no business set up as the sample, under the sample's name", () => {
+    const firstVisit = { ...defaultProfile(), onboardingComplete: false };
+    expect(isSampleBusiness(firstVisit)).toBe(true);
+    expect(printedBusinessName(firstVisit)).toBe("Ridgeview Family Dental");
+    const added = newBusinessProfile("general", "Own Plumbing LLC");
+    expect(isSampleBusiness(added)).toBe(true);
+    expect(printedBusinessName(added)).toBe(getIndustryTemplate("general").businessName);
+  });
+
+  it("labels the loaded sample, even renamed, as the sample", () => {
+    const renamed = { ...defaultProfile("retail"), practiceName: "Harbor Lane (mine?)" };
+    expect(isSampleBusiness(renamed)).toBe(true);
+    expect(printedBusinessName(renamed)).toBe("Harbor Lane (mine?)");
+  });
+
+  it("prints the owner's business under its own name with no sample label", () => {
+    const own = ownSetupProfile({ industry: "general", practiceName: "Own Co", people: ownTeam });
+    expect(isSampleBusiness(own)).toBe(false);
+    expect(printedBusinessName(own)).toBe("Own Co");
   });
 });
