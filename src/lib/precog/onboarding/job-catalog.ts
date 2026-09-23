@@ -138,11 +138,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "approve_payroll",
       "approve_writeoffs",
       "sign_checks",
-      "bank_reconcile",
       "manage_user_access",
       "view_reports_only",
     ],
-    "The owner is the approver of last resort and, in a small business, usually the one who signs and should be the one who reads the bank statement.",
+    "The owner is the approver of last resort and usually the one who signs. Reconciling the bank is left for you to tick: tick it if you check the statement against the books yourself.",
   ),
   entry(
     "general-manager",
@@ -210,7 +209,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "pms_admin_roles",
       "view_reports_only",
     ],
-    "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and administers the system: the arrangement behind most cases in the library. Untick what someone else does.",
+    "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and administers the system: the arrangement behind most cases in the library. In a dental or medical office they usually reconcile the bank as well. Untick what someone else does.",
     "43-1011",
   ),
   entry(
@@ -321,16 +320,14 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "accounting supervisor",
     ],
     [
-      "approve_vendor",
       "release_payment",
       "bank_reconcile",
       "post_journal_entries",
-      "approve_payroll",
       "sign_checks",
       "review_audit_logs",
       "view_reports_only",
     ],
-    "A controller approves suppliers, releases payments, posts journal entries, and reconciles the bank: a wide seat that the case library shows needs an owner reading the statement.",
+    "A controller releases payments, signs, posts journal entries, and reconciles the bank: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; add them if your controller does it.",
     "11-3031",
   ),
   entry(
@@ -564,6 +561,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "stock associate",
       "warehouse",
       "stockroom associate",
+      "parts runner",
     ],
     ["receive_goods", "view_reports_only"],
     "Receiving confirms what arrived, which is the check on purchasing; a supervisor here also often approves hours.",
@@ -618,6 +616,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "office support",
       "data entry",
       "data entry clerk",
+      "business assistant",
     ],
     ["order_supplies", "view_reports_only"],
     "An administrative assistant orders supplies and handles paperwork; tick more if they also take payments or pay bills.",
@@ -793,8 +792,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "occupational therapist",
       "speech therapist",
     ],
-    ["approve_writeoffs", "view_reports_only"],
-    "A provider approves courtesy write-offs on their own patients and otherwise stays out of the money.",
+    ["view_reports_only"],
+    "An employed provider treats patients and stays out of the money: billing, adjustments, and write-off approval belong to the office and the owner. Tick write-off approval if this provider owns the practice or grants courtesy discounts.",
   ),
   entry(
     "dental-hygienist",
@@ -981,8 +980,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "Estimator",
     "trades",
     ["estimator", "cost estimator", "project estimator", "sales estimator", "estimating"],
-    ["approve_writeoffs", "view_reports_only"],
-    "An estimator sets the price and the discount, which is an approval in everything but name.",
+    ["change_fee_schedule", "view_reports_only"],
+    "An estimator sets the price and the discount on each bid; writing off what a customer owes belongs to someone else.",
   ),
   entry(
     "dispatcher",
@@ -995,9 +994,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "service dispatcher",
       "scheduling dispatcher",
       "fleet coordinator",
+      "dispatcher csr",
+      "csr dispatcher",
     ],
     ["edit_patient_master", "collect_cash", "view_reports_only"],
-    "A dispatcher maintains customer records and takes phone payments; the field cases where a tech and dispatcher split a cash job start here.",
+    "A dispatcher, or the CSR who books and dispatches the calls, maintains customer records and takes phone payments; refunds and credits go to the office. The field cases where a tech and dispatcher split a cash job start here.",
   ),
   entry(
     "field-technician",
@@ -1052,9 +1053,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "production manager",
       "crew chief",
       "crew foreman",
+      "install manager",
+      "installation manager",
     ],
-    ["receive_goods", "order_supplies", "enter_payroll", "view_reports_only"],
-    "A foreman orders and receives material and approves the crew's hours: the ghost-timesheet cases run through this seat.",
+    ["receive_goods", "order_supplies", "view_reports_only"],
+    "A foreman orders and receives material and signs off the crew's timesheets, which the office then enters into payroll: the ghost-timesheet cases run through this seat.",
   ),
 
   // IT and systems
@@ -1190,8 +1193,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "delivery manager",
       "engagement manager",
     ],
-    ["approve_vendor", "enter_invoices", "view_reports_only"],
-    "A project manager approves subcontractors and their invoices against the budget they own.",
+    ["view_reports_only"],
+    "A project manager approves subcontractor invoices and change orders against the job budget, which no duty here names; entering the bills, paying them, and approving new suppliers belong to the office and the owner. Add ordering supplies and services if they place the orders.",
   ),
   entry(
     "consultant",
@@ -1556,8 +1559,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "online community manager",
       "community engagement manager",
     ],
-    ["enter_invoices", "release_payment", "view_reports_only"],
-    "Marketing runs agency, print, and ad-platform spend, often on a card the owner never itemises.",
+    ["order_supplies", "view_reports_only"],
+    "Marketing buys agency, print, and ad-platform services, often on a card the owner never itemises; entering and paying the bills belong to the office.",
     "11-2021",
   ),
 
@@ -2156,7 +2159,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "Sells the business's products or services, manages customer accounts, and grants discounts and credits to close and keep business.",
   cashier: "Receives and disburses money at a register, records the sale, and makes change.",
   provider:
-    "Delivers the clinical or professional service the business sells and approves courtesy adjustments on their own work.",
+    "Delivers the clinical or professional service the business sells; billing, adjustments, and payments belong to the office.",
   "dental-hygienist":
     "Provides preventive dental care, cleans teeth, examines patients for oral disease, and educates patients on oral hygiene.",
   "dental-assistant":
@@ -2584,23 +2587,45 @@ export interface JobMatch {
 }
 
 /**
- * A bare level word means one seat in one line of business: "Associate" is
+ * A bare title that means one seat in one line of business: "Associate" is
  * an attorney in a law firm and a sales associate in a store; "Assistant" is
- * a dental assistant in a dental office. Anywhere else it stays unknown.
+ * a dental assistant in a dental office; a "Crew Lead" runs a field crew in a
+ * general or trades business and a shift in a store or restaurant; a
+ * "Business Assistant" is the front desk of a dental office. Anywhere else
+ * the catalog's own reading stands (or, for a level word, nothing).
  */
 const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   associate: { professional_services: "attorney", retail: "cashier", restaurant: "server" },
   assistant: { dental: "dental-assistant" },
   technician: { dental: "dental-assistant" },
   partner: { professional_services: "owner" },
+  "crew lead": { general: "foreman" },
+  "crew leader": { general: "foreman" },
+  "business assistant": { dental: "receptionist" },
 };
+
+/**
+ * Duties a seat carries in one line of business on top of its usual ones.
+ * In a dental or medical office the office manager usually keeps the
+ * practice's books, bank reconciliation included.
+ */
+const INDUSTRY_DUTIES: Record<string, Record<string, readonly EntitlementId[]>> = {
+  dental: { "office-manager": ["bank_reconcile"] },
+};
+
+/** A seat's usual duties in this line of business. */
+export function seatDuties(entry: JobCatalogEntry, industry?: string): EntitlementId[] {
+  const extra = (industry && INDUSTRY_DUTIES[industry]?.[entry.id]) || [];
+  return Array.from(new Set([...entry.entitlements, ...extra]));
+}
 
 function seatMatch(
   entries: readonly JobCatalogEntry[],
   confidence: JobMatch["confidence"],
+  industry?: string,
 ): JobMatch {
   const entry = entries.find((e) => e.id === "owner") ?? entries[0];
-  const entitlements = Array.from(new Set(entries.flatMap((e) => e.entitlements)));
+  const entitlements = Array.from(new Set(entries.flatMap((e) => seatDuties(e, industry))));
   return { entry, confidence, entitlements };
 }
 
@@ -2635,17 +2660,17 @@ export function matchJobTitle(title: string, industry?: string): JobMatch | unde
   const bare = undecorated(words);
   if (industry) {
     const hinted = INDUSTRY_HINTS[bare.join(" ")]?.[industry];
-    if (hinted) return seatMatch([catalogEntry(hinted)], "partial");
+    if (hinted) return seatMatch([catalogEntry(hinted)], "partial", industry);
   }
   const literal = EXACT_ALIAS.get(words.join(" "));
-  if (literal) return seatMatch([literal], "exact");
+  if (literal) return seatMatch([literal], "exact", industry);
 
   const rest = withoutPatron(title);
   if (rest !== undefined) {
     const restWords = undecorated(tokens(rest));
     if (restWords.length === 0) return undefined;
     if (restWords.every((w) => ASSISTANT_WORDS.has(w))) {
-      return seatMatch([catalogEntry("executive-assistant")], "partial");
+      return seatMatch([catalogEntry("executive-assistant")], "partial", industry);
     }
     const served = matchJobTitle(rest, industry);
     return served && { ...served, confidence: "partial" };
@@ -2661,14 +2686,14 @@ export function matchJobTitle(title: string, industry?: string): JobMatch | unde
   // A learner's last word counts in a one-part title ("Accounting Student");
   // "Bookkeeper (Volunteer)" is a bookkeeper who is not paid.
   const learner = parts.length === 1 ? learnerSeat(words) : undefined;
-  if (learner) return seatMatch([learner], "partial");
+  if (learner) return seatMatch([learner], "partial", industry);
   const whole = exactMatch(words);
-  if (whole) return seatMatch([whole], "exact");
+  if (whole) return seatMatch([whole], "exact", industry);
   const matched: JobCatalogEntry[] = [];
   if (parts.length === 2) {
     // "Clerk, Accounts Receivable" is an accounts receivable clerk.
     const reversed = exactMatch([...parts[1], ...parts[0]]);
-    if (reversed) return seatMatch([reversed], "partial");
+    if (reversed) return seatMatch([reversed], "partial", industry);
   }
   // Two parts joined by "and" or a slash share words: "Office & HR Manager"
   // borrows the last word of the other part, "Accounts Payable and
@@ -2692,7 +2717,7 @@ export function matchJobTitle(title: string, industry?: string): JobMatch | unde
     if (hit) matched.push(hit);
   }
   if (matched.length === 0) return undefined;
-  return seatMatch(matched, "partial");
+  return seatMatch(matched, "partial", industry);
 }
 
 /** Duties the catalog suggests for a title, or an empty list when the title is unknown. */

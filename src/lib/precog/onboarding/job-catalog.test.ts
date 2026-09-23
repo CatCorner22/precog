@@ -248,6 +248,53 @@ describe("job catalog", () => {
     expect(matchJobTitle("Apprentice Electrician")?.entry.id).toBe("field-technician");
   });
 
+  it("seats trade and clinic titles with the duties they hold at a small contractor or clinic", () => {
+    for (const title of ["Dispatcher/CSR", "CSR/Dispatcher"]) {
+      const match = matchJobTitle(title, "general");
+      expect(match?.entry.id, title).toBe("dispatcher");
+      expect(match?.entitlements, title).toContain("collect_cash");
+      expect(match?.entitlements, title).not.toContain("issue_refunds");
+      expect(match?.entitlements, title).not.toContain("post_adjustments");
+    }
+    for (const title of ["Project Manager", "Project Mgr - Plumbing"]) {
+      expect(entitlementsForTitle(title, "general"), title).toEqual(["view_reports_only"]);
+    }
+    const estimator = entitlementsForTitle("Estimator - Sr.", "general");
+    expect(estimator).toContain("change_fee_schedule");
+    expect(estimator).not.toContain("approve_writeoffs");
+    expect(entitlementsForTitle("Foreman - Install Crew", "general")).not.toContain(
+      "enter_payroll",
+    );
+    const controller = entitlementsForTitle("Controller - Part Time", "general");
+    expect(controller).toEqual(
+      expect.arrayContaining(["release_payment", "bank_reconcile", "post_journal_entries"]),
+    );
+    expect(controller).not.toContain("approve_payroll");
+    expect(controller).not.toContain("approve_vendor");
+    for (const title of ["Owner/President", "Physician/Owner"]) {
+      expect(entitlementsForTitle(title, "general"), title).not.toContain("bank_reconcile");
+    }
+    for (const title of ["Nurse Practitioner (FNP-C)", "Associate Dentist (DMD) - PT"]) {
+      expect(entitlementsForTitle(title, "dental"), title).toEqual(["view_reports_only"]);
+    }
+    // A dental or medical office manager usually reconciles the bank as well.
+    expect(entitlementsForTitle("Office Manager", "dental")).toContain("bank_reconcile");
+    expect(entitlementsForTitle("Practice Manager", "dental")).toContain("bank_reconcile");
+    expect(entitlementsForTitle("Office Manager", "general")).not.toContain("bank_reconcile");
+  });
+
+  it("gives a marketing coordinator no bill entry or payment release and reads four more titles", () => {
+    const marketing = entitlementsForTitle("Marketing Coordinator", "dental");
+    expect(marketing).not.toContain("enter_invoices");
+    expect(marketing).not.toContain("release_payment");
+    expect(matchJobTitle("Business Assistant", "dental")?.entry.id).toBe("receptionist");
+    expect(matchJobTitle("Parts Runner", "general")?.entry.id).toBe("receiving");
+    expect(matchJobTitle("Install Manager", "general")?.entry.id).toBe("foreman");
+    expect(matchJobTitle("Crew Lead", "general")?.entry.id).toBe("foreman");
+    expect(matchJobTitle("Crew Leader", "general")?.entry.id).toBe("foreman");
+    expect(matchJobTitle("Crew Lead", "restaurant")?.entry.id).toBe("shift-lead");
+  });
+
   it("gives the office manager the wide seat the case library describes", () => {
     const duties = entitlementsForTitle("Practice Manager");
     expect(duties).toEqual(

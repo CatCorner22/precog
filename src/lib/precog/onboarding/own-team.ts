@@ -1,5 +1,5 @@
 import type { EntitlementId } from "../sod/conflict-rules";
-import { entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
+import { entitlementsForTitle, seatDuties, type JobCatalogEntry } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
@@ -82,12 +82,17 @@ export function ownerRow(): OwnTeamRow {
 
 /**
  * Grid rows for `count` people with the same job, when the owner has no
- * roster to paste: "Server 1", "Server 2", … with the title's core duties
- * ticked. Names are placeholders the owner replaces.
+ * roster to paste: "Server 1", "Server 2", … with the title's core duties in
+ * this line of business ticked. Names are placeholders the owner replaces.
  */
-export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing = 0): OwnTeamRow[] {
+export function rowsForJobTitle(
+  entry: JobCatalogEntry,
+  count: number,
+  existing = 0,
+  industry?: string,
+): OwnTeamRow[] {
   const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
-  const duties = entry.entitlements.filter((d) => d !== "view_reports_only");
+  const duties = seatDuties(entry, industry).filter((d) => d !== "view_reports_only");
   return Array.from({ length: n }, (_, i) => ({
     name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
     role: entry.title,

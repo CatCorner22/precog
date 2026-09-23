@@ -132,7 +132,7 @@ export function IndustryOnboarding() {
     setRows((current) => {
       const kept = current.filter((r) => r.name.trim().length > 0);
       const sameTitle = kept.filter((r) => r.role === quickEntry.title).length;
-      return [...kept, ...rowsForJobTitle(quickEntry, quickCount, sameTitle)].slice(
+      return [...kept, ...rowsForJobTitle(quickEntry, quickCount, sameTitle, selected)].slice(
         0,
         OWN_TEAM_MAX,
       );

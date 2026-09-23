@@ -110,9 +110,15 @@ describe("rowsForJobTitle", () => {
     expect(rowsForJobTitle(controller, 0)).toEqual([]);
     const [row] = rowsForJobTitle(controller, 1);
     expect(row.duties).toEqual(
-      expect.arrayContaining(["release_payment", "bank_reconcile", "approve_payroll"]),
+      expect.arrayContaining(["release_payment", "bank_reconcile", "sign_checks"]),
     );
     expect(row.duties).toContain("post_journal_entries");
+  });
+
+  it("adds an office manager's reconciliation in a dental office, as the title match does", () => {
+    const office = jobCatalogEntry("office-manager")!;
+    expect(rowsForJobTitle(office, 1, 0, "dental")[0].duties).toContain("bank_reconcile");
+    expect(rowsForJobTitle(office, 1, 0, "general")[0].duties).not.toContain("bank_reconcile");
   });
 });
 
@@ -136,7 +142,9 @@ describe("grid rows from a roster", () => {
   it("starts the grid with an owner whose usual duties are ticked", () => {
     const row = ownerRow();
     expect(row.role).toBe("Owner");
-    expect(row.duties).toEqual(expect.arrayContaining(["bank_reconcile", "approve_payroll"]));
+    expect(row.duties).toEqual(expect.arrayContaining(["approve_payroll", "approve_writeoffs"]));
+    // Reconciling the bank is left for the owner to tick: a bookkeeper usually does it.
+    expect(row.duties).not.toContain("bank_reconcile");
     expect(row.suggestedFor).toBe("Owner");
     expect(coreDutiesForTitle("Chief Happiness Wrangler")).toEqual([]);
   });
