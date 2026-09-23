@@ -2,10 +2,14 @@ import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   CASCADE_LEVERS,
+  leverAffects,
+  leverUnavailableReason,
   simulateAllCascades,
   simulateCascadeLever,
   type CascadeLeverId,
 } from "@/lib/precog/scoring/variable-cascade";
+import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
+import { isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
@@ -25,6 +29,8 @@ export function CascadePanel() {
       simulateCascadeLever(template, leverId, profile.riskVariables, profile.staff, all.scenarioId),
     [template, leverId, profile.riskVariables, profile.staff, all.scenarioId],
   );
+  const waiting = CASCADE_LEVERS.filter((l) => leverUnavailableReason(l.id, profile.riskVariables));
+  const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(template));
 
   return (
     <div className="space-y-4">
@@ -35,9 +41,15 @@ export function CascadePanel() {
           Change one thing — see what else moves
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Dual control is not only a SoD fix. It also unlocks premium credits, cuts likelihood,
-          shrinks scheme size, and changes annual cost-of-risk. The coach uses this same engine.
+          Dual control is not only a SoD fix. It also cuts likelihood, shrinks scheme size and
+          changes the annual cost of risk, and on a policy you entered it can earn the credit your
+          carrier quotes. The coach uses this same engine.
         </p>
+        {policyNote && (
+          <p className="mt-2 max-w-2xl text-xs text-subtle">
+            Insurance figures here: {policyNote}.
+          </p>
+        )}
       </section>
 
       <Card>
@@ -48,6 +60,12 @@ export function CascadePanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
+          {waiting.length > 0 && (
+            <p className="rounded-lg border border-dashed border-border bg-panel/60 px-3 py-2 text-xs text-muted">
+              {waiting.map((l) => l.label).join(", ")}: not modelled until you enter your policy on
+              Dynamic variables, so they are not ranked.
+            </p>
+          )}
           {all.rankedByCor.slice(0, 8).map((s) => {
             const dCor = s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk;
             const active = s.lever.id === leverId;
@@ -66,7 +84,7 @@ export function CascadePanel() {
                 <span>
                   <span className="font-medium">{s.lever.label}</span>
                   <span className="mt-0.5 block text-xs text-muted">
-                    {s.lever.affects.slice(0, 3).join(" · ")}
+                    {leverAffects(s.lever, profile.riskVariables).slice(0, 3).join(" · ")}
                   </span>
                 </span>
                 <span
@@ -75,7 +93,7 @@ export function CascadePanel() {
                     dCor < 0 ? "text-ok" : dCor > 0 ? "text-danger" : "text-muted",
                   )}
                 >
-                  CoR {dCor > 0 ? "+" : dCor < 0 ? "−" : ""}
+                  Cost of risk {dCor > 0 ? "+" : dCor < 0 ? "−" : ""}
                   {formatUsd(Math.abs(dCor))}
                 </span>
               </button>
@@ -125,11 +143,13 @@ export function CascadePanel() {
                     className="mt-1"
                   >
                     {d.direction}{" "}
-                    {d.key.includes("Multiplier") || d.key === "residualAverage"
-                      ? d.delta.toFixed(2)
-                      : d.key.includes("timeline") || d.key.includes("discount")
-                        ? d.delta.toFixed(0)
-                        : formatUsd(Math.abs(d.delta))}
+                    {d.key === "timelineP50"
+                      ? `${Math.abs(Math.round(d.delta))} ${d.delta < 0 ? "fewer" : "more"} days`
+                      : d.key.includes("Multiplier") || d.key === "residualAverage"
+                        ? d.delta.toFixed(2)
+                        : d.key.includes("discount")
+                          ? d.delta.toFixed(0)
+                          : formatUsd(Math.abs(d.delta))}
                   </Badge>
                 </div>
               ))}
@@ -172,7 +192,10 @@ export function CascadePanel() {
                     className="text-left text-muted hover:text-fg"
                     onClick={() => setLeverId(l.id)}
                   >
-                    {l.label} — {l.affects.slice(0, 2).join("; ")}
+                    {l.label} — {leverAffects(l, profile.riskVariables).slice(0, 2).join("; ")}
+                    {leverUnavailableReason(l.id, profile.riskVariables)
+                      ? " (enter your policy first)"
+                      : ""}
                   </button>
                 </li>
               ))}

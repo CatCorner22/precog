@@ -1,5 +1,7 @@
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
 import { documentationState } from "../continuity/coverage";
+import { registerAssessed } from "../continuity/register-state";
+import { scenariosInScope, starterScenariosLeftOut } from "./scope";
 import type { IndustryTemplate } from "../templates";
 import type { ControlItem, KnowledgeItem, StaffComposition } from "../types";
 import {
@@ -25,6 +27,13 @@ export interface ResidualRiskScore {
   category: "control" | "knowledge" | "scenario" | "portfolio";
   inherent: number;
   controlEffectiveness: number;
+  /**
+   * Scenario rows only: the share of control effectiveness the formula
+   * credits (weights.scenario.effectivenessCredit) and the effectiveness it
+   * therefore counts, so the shown figures reproduce the residual.
+   */
+  effectivenessCredit?: number;
+  creditedEffectiveness?: number;
   residualRaw: number;
   residual: number; // 0-100 after staff modifiers
   band: ActionBand;
@@ -37,6 +46,11 @@ export interface ResidualRiskScore {
   expectedLoss?: number;
   p50Days?: number;
   scoringVersion: string;
+}
+
+/** Which of the template's scenarios the owner has confirmed as their own (see scoring/scope). */
+export interface ResidualScope {
+  confirmedScenarioIds?: ReadonlySet<string>;
 }
 
 function clamp01(n: number) {
@@ -340,10 +354,17 @@ function scoreKnowledge(
   };
 }
 
+/**
+ * Every residual row the business's own records support: its controls, the
+ * register items someone has marked (none while the register is not assessed)
+ * and the scenarios in scope (all of the sample's; for an owner's own people
+ * only the starter scenarios they confirmed).
+ */
 export function scoreAllResidualRisks(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
   weights: ScoringWeights = DEFAULT_WEIGHTS,
+  scope: ResidualScope = {},
 ): ResidualRiskScore[] {
   const staffResolved = staff ?? tpl.staffComposition;
   const risks = findKnowledgeRisks(tpl);
@@ -368,7 +389,7 @@ export function scoreAllResidualRisks(
     );
   });
 
-  const scenarioScores = tpl.scenarios.map((s) => {
+  const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) => {
     const result = runPrecogScenario(tpl, s.id, { staff: staffResolved })!;
     const lossNorm = clamp01(result.financialImpact.expected / weights.scenario.lossSaturationUsd);
     const timeNorm = clamp01(1 - result.timelineDays.p50 / weights.scenario.daysSaturation);
@@ -392,6 +413,8 @@ export function scoreAllResidualRisks(
       category: "scenario" as const,
       inherent: clamp100(inherent * 100),
       controlEffectiveness: clamp100(effectiveness * 100),
+      effectivenessCredit: weights.scenario.effectivenessCredit,
+      creditedEffectiveness: clamp100(effectiveness * weights.scenario.effectivenessCredit * 100),
       residualRaw: clamp100(residualRaw * 100),
       residual,
       band: band.band,
@@ -407,10 +430,10 @@ export function scoreAllResidualRisks(
         },
         {
           id: `${s.id}-time`,
-          label: "Assumed time before it hurts",
+          label: "Assumed days until found",
           direction: "increases" as const,
           weight: timeNorm,
-          detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High} — the app's scenario assumption`,
+          detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}, the app's scenario assumption; this index weighs a scenario that comes to light sooner as nearer at hand`,
         },
         ...uplift.drivers,
       ].slice(0, 6),
@@ -430,8 +453,9 @@ export function portfolioSummary(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
   weights: ScoringWeights = DEFAULT_WEIGHTS,
+  scope: ResidualScope = {},
 ) {
-  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights);
+  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights, scope);
   const top = scores.slice(0, 8);
   const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
   const criticalPath = scores.filter((s) => s.band === "critical_path").length;
@@ -445,14 +469,34 @@ export function portfolioSummary(
     actNow,
     top,
     all: scores,
+    /** False while the register is not assessed: no knowledge rows are scored. */
+    knowledgeAssessed: registerAssessed(tpl),
+    /** Starter scenarios left out until the owner confirms them. */
+    starterScenariosLeftOut: starterScenariosLeftOut(tpl, scope.confirmedScenarioIds).map(
+      (s) => s.id,
+    ),
   };
 }
 
-/** Tornado sensitivity: which staff/control lever moves average residual most */
-export function tornadoSensitivity(tpl: IndustryTemplate, baseStaff?: StaffComposition) {
+/** The segregation score and team size the tornado's two "raise to" levers aim for. */
+export const TORNADO_TARGETS = { segregationScore: 75, teamSize: 10 } as const;
+
+/**
+ * Tornado sensitivity: which staff or control lever lowers the average
+ * residual most. A lever is offered only when pulling it lowers the average:
+ * one already in place (dual control on, segregation at or above the target,
+ * a team at or above the target size) never moves a score toward the target
+ * from above, and a lever that would not help is left out.
+ */
+export function tornadoSensitivity(
+  tpl: IndustryTemplate,
+  baseStaff?: StaffComposition,
+  scope: ResidualScope = {},
+) {
   const baseStaffResolved = baseStaff ?? tpl.staffComposition;
-  const base = portfolioSummary(tpl, baseStaffResolved).averageResidual;
+  const base = portfolioSummary(tpl, baseStaffResolved, DEFAULT_WEIGHTS, scope).averageResidual;
   const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
+  const { segregationScore, teamSize } = TORNADO_TARGETS;
 
   const trials: { id: string; label: string; staff: StaffComposition }[] = [
     {
@@ -467,8 +511,11 @@ export function tornadoSensitivity(tpl: IndustryTemplate, baseStaff?: StaffCompo
     },
     {
       id: "seg",
-      label: "Raise segregation score to 75",
-      staff: { ...baseStaffResolved, segregationScore: 75 },
+      label: `Raise segregation score to ${segregationScore}`,
+      staff: {
+        ...baseStaffResolved,
+        segregationScore: Math.max(baseStaffResolved.segregationScore, segregationScore),
+      },
     },
     {
       id: "spof",
@@ -477,19 +524,16 @@ export function tornadoSensitivity(tpl: IndustryTemplate, baseStaff?: StaffCompo
     },
     {
       id: "team",
-      label: "Grow team to 10 (more SoD room)",
-      staff: { ...baseStaffResolved, teamSize: 10 },
+      label: `Grow team to ${teamSize} (more SoD room)`,
+      staff: { ...baseStaffResolved, teamSize: Math.max(baseStaffResolved.teamSize, teamSize) },
     },
   ];
 
   for (const t of trials) {
-    const improved = portfolioSummary(tpl, t.staff).averageResidual;
-    levers.push({
-      id: t.id,
-      label: t.label,
-      delta: base - improved,
-      improvedAvg: improved,
-    });
+    const improved = portfolioSummary(tpl, t.staff, DEFAULT_WEIGHTS, scope).averageResidual;
+    const delta = base - improved;
+    if (delta <= 0) continue;
+    levers.push({ id: t.id, label: t.label, delta, improvedAvg: improved });
   }
 
   return {

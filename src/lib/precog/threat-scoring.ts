@@ -2,8 +2,13 @@
  * Threat Assessment scoring — unifies residual, SoD, SPOF, and scenario
  * signals into a special-ops style priority target deck.
  *
- * Educational decision-support for dental practice owners.
+ * Educational decision-support for small business owners.
  * "Threat" = control failure / residual risk / continuity exposure — never people.
+ *
+ * Only what describes this business counts: register items once someone is
+ * marked on them, and scenarios in scope (every scenario of the sample
+ * business; for an owner's own people only the starter scenarios they
+ * confirmed, see scoring/scope).
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
@@ -11,6 +16,15 @@ import { getIndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
 import { detectSodConflicts } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "./scoring/weights";
+import { registerAssessed } from "./continuity/register-state";
+import {
+  MAKE_SCENARIO_YOURS,
+  REGISTER_NOT_ASSESSED,
+  isOwnBusiness,
+  starterScenarioLabel,
+  starterScenariosLeftOut,
+} from "./scoring/scope";
 import { scoreLeadingIndicators } from "./ml/leading-indicators";
 import {
   PRIORITY_BAND_LABEL,
@@ -20,7 +34,11 @@ import {
   type PriorityTarget,
 } from "./map-vision";
 import type { StaffComposition } from "./types";
-import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
+import {
+  DEFAULT_RISK_VARIABLES,
+  insuranceFigureNote,
+  type RiskVariableState,
+} from "./scoring/dynamic-variables";
 import { mitigatedSodRuleIds } from "./controls/dual-release";
 import type { DualReleasePolicy } from "./controls/dual-release";
 
@@ -60,10 +78,12 @@ export function buildThreatAssessment(input: {
   staff: StaffComposition;
   riskVariables?: RiskVariableState;
   dualRelease?: DualReleasePolicy;
+  /** Starter scenarios the owner confirmed as their own (see scoring/scope). */
+  confirmedScenarioIds?: ReadonlySet<string>;
 }): ThreatAssessmentReport {
   const tpl = input.tpl ?? getIndustryTemplate("dental");
-  const { practiceName, staff, riskVariables, dualRelease } = input;
-  const portfolio = portfolioSummary(tpl, staff);
+  const { practiceName, staff, riskVariables, dualRelease, confirmedScenarioIds } = input;
+  const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, { confirmedScenarioIds });
   const sod = detectSodConflicts(tpl, staff, {
     dualReleaseMitigatedRuleIds: dualRelease ? mitigatedSodRuleIds(dualRelease) : undefined,
   });
@@ -71,7 +91,13 @@ export function buildThreatAssessment(input: {
   const ranked = rankDangerousScenarios(tpl, {
     staff,
     riskVariables,
+    confirmedScenarioIds,
   });
+  const scenariosLeftOut = starterScenariosLeftOut(tpl, confirmedScenarioIds).length;
+  const policyNote = insuranceFigureNote(
+    { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
+    isOwnBusiness(tpl),
+  );
   const leading = scoreLeadingIndicators(tpl, staff, {
     ...DEFAULT_RISK_VARIABLES,
     ...(riskVariables ?? {}),
@@ -205,10 +231,10 @@ export function buildThreatAssessment(input: {
       heat: residualProxy,
       impactHint: scored.impactHint,
       reasons: [
-        `p50 ${row.result.timelineDays.p50}d`,
+        `about ${row.result.timelineDays.p50} assumed days until found`,
         `Retained ~$${Math.round(
           row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
-        ).toLocaleString()}`,
+        ).toLocaleString()}${policyNote ? ` (${policyNote})` : ""}`,
       ],
       immediate: scored.immediate,
       domain: "scenario",
@@ -266,7 +292,14 @@ export function buildThreatAssessment(input: {
       `AO: ${practiceName} — small ${industryMeta(tpl.id).teamLabel} residual & control assessment.`,
       `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
       `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
-      `Knowledge SPOFs: ${knowledgeRisks.length} sole-owner / unowned critical item(s).`,
+      registerAssessed(tpl)
+        ? `Knowledge: ${knowledgeRisks.filter((r) => r.soleOwner).length} item(s) one person holds, ${knowledgeRisks.filter((r) => r.ownerCount === 0).length} nobody holds.`
+        : `Knowledge: ${REGISTER_NOT_ASSESSED}`,
+      ...(scenariosLeftOut > 0
+        ? [
+            `Scenarios: ${starterScenarioLabel(tpl.id)} (${scenariosLeftOut}) are left out. ${MAKE_SCENARIO_YOURS}`,
+          ]
+        : []),
       `Leading indicators: ${leading.indicators.filter((i) => i.status === "breach").length} breached, ${leading.indicators.filter((i) => i.status === "watch").length} at watch.`,
       "This is an educational internal-control screen — not an accusation against any person.",
     ],

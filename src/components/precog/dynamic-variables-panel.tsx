@@ -1,6 +1,12 @@
 import {
+  APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
   VARIABLE_CATALOG,
+  assumedAnnualFrequency,
+  insuranceBasis,
+  insuranceFigureNote,
+  policyFieldIsDefault,
+  type PolicyField,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
 import type { PrecogResult } from "@/lib/precog/types";
@@ -14,10 +20,13 @@ export function DynamicVariablesPanel({
   value,
   onChange,
   result,
+  ownBusiness = false,
 }: {
   value: RiskVariableState;
   onChange: (next: RiskVariableState) => void;
   result?: PrecogResult | null;
+  /** The owner's own business: with no policy entered it is treated as having none. */
+  ownBusiness?: boolean;
 }) {
   function setNum<K extends keyof RiskVariableState>(key: K, n: number) {
     onChange({ ...value, [key]: n });
@@ -27,6 +36,13 @@ export function DynamicVariablesPanel({
   }
 
   const d = result?.dynamic;
+  const basis = insuranceBasis(value, ownBusiness);
+  const note = insuranceFigureNote(value, ownBusiness);
+  const hint = (text: string) => (note ? `${text} · ${note}` : text);
+  const isDefault = (key: PolicyField) => policyFieldIsDefault(value, key);
+  const frequency = d
+    ? `${(assumedAnnualFrequency(d.likelihoodMultiplier) * 100).toFixed(1)}%`
+    : "";
 
   return (
     <div className="space-y-4">
@@ -46,7 +62,7 @@ export function DynamicVariablesPanel({
               onClick={() => onChange({ ...DEFAULT_RISK_VARIABLES })}
             >
               <RefreshCw className="size-3.5" />
-              Reset defaults
+              Reset to app defaults
             </Button>
           </div>
         </CardHeader>
@@ -71,7 +87,7 @@ export function DynamicVariablesPanel({
               <Mini
                 label="Net premium / yr"
                 value={formatUsd(d.premiumAnnualNet)}
-                hint={`−${d.discountPctApplied}% credits`}
+                hint={hint(basis === "none" ? "no premium" : `−${d.discountPctApplied}% credits`)}
               />
               <Mini
                 label="Assumed loss if it happens"
@@ -81,21 +97,38 @@ export function DynamicVariablesPanel({
               <Mini
                 label="Assumed retained loss"
                 value={formatUsd(d.retainedExpected)}
-                hint={`transferred ${formatUsd(d.transferredExpected)}`}
+                hint={hint(
+                  basis === "none"
+                    ? "all of it"
+                    : `transferred ${formatUsd(d.transferredExpected)}`,
+                )}
               />
               <Mini
                 label="Annual cost of risk"
                 value={formatUsd(d.expectedAnnualCostOfRisk)}
-                hint="premium + annualized retained"
+                hint={hint(
+                  basis === "none"
+                    ? `retained loss × assumed ${frequency} chance a year`
+                    : `premium + retained loss × assumed ${frequency} chance a year`,
+                )}
               />
               <Mini
                 label="Event + 1yr premium"
                 value={formatUsd(d.eventPlusPremiumExpected)}
-                hint="decision snapshot"
+                hint={hint("retained loss of one event plus a year of premium")}
               />
             </div>
           )}
 
+          <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
+            {basis === "none"
+              ? `No crime policy entered, so the app assumes none: the business keeps the whole assumed loss, pays no premium and earns no credit. The premium, deductible and limit below are app defaults; enter your own policy's figures to price it.`
+              : basis === "app_default"
+                ? `The sample business is priced on the app's default policy (${APP_DEFAULT_POLICY}).`
+                : note
+                  ? `Priced on the policy you entered; ${note}.`
+                  : "Priced on the policy you entered."}
+          </p>
           <Section title="Insurance transfer">
             <CurrencyField
               label="Base annual premium"
@@ -104,6 +137,7 @@ export function DynamicVariablesPanel({
               min={0}
               max={50000}
               step={100}
+              appDefault={isDefault("basePremiumAnnual")}
             />
             <CurrencyField
               label="Deductible"
@@ -112,6 +146,7 @@ export function DynamicVariablesPanel({
               min={0}
               max={100000}
               step={500}
+              appDefault={isDefault("deductible")}
             />
             <CurrencyField
               label="Policy limit"
@@ -120,6 +155,7 @@ export function DynamicVariablesPanel({
               min={10000}
               max={1000000}
               step={5000}
+              appDefault={isDefault("policyLimit")}
             />
             <PercentField
               label="Unreimbursed share above deductible"
@@ -325,6 +361,7 @@ function CurrencyField({
   min,
   max,
   step,
+  appDefault = false,
 }: {
   label: string;
   value: number;
@@ -332,10 +369,18 @@ function CurrencyField({
   min: number;
   max: number;
   step: number;
+  appDefault?: boolean;
 }) {
   return (
     <label className="block text-sm">
-      <span className="text-muted">{label}</span>
+      <span className="flex items-center justify-between gap-2 text-muted">
+        {label}
+        {appDefault && (
+          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-subtle">
+            app default
+          </span>
+        )}
+      </span>
       <div className="mt-1 flex items-center gap-2">
         <input
           type="range"

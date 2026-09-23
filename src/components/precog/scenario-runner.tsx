@@ -5,8 +5,17 @@ import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
 import {
   DEFAULT_RISK_VARIABLES,
+  assumedAnnualFrequency,
+  insuranceBasis,
+  insuranceFigureNote,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
+import {
+  confirmedScenarioIds,
+  isOwnBusiness,
+  starterScenarioLabel,
+  withOwnScenarioWording,
+} from "@/lib/precog/scoring/scope";
 import { industryMeta } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { CascadePanel } from "@/components/precog/cascade-panel";
@@ -19,11 +28,31 @@ import { formatUsd } from "@/lib/utils";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { CaseCard } from "@/components/precog/case-card";
-import { GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
+import { CheckCircle2, GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
+
+/** Review date for a scenario the owner confirms: ninety days out, as a calendar date. */
+function reviewDateIn(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
-  const tpl = useTemplate();
-  const { profile, setStaff: setProfileStaff, setRiskVariables: setProfileRisk } = usePractice();
+  const baseTpl = useTemplate();
+  // The owner's own business reads the starter scenarios in role words, not
+  // the sample team's names; ids and figures are unchanged.
+  const tpl = withOwnScenarioWording(baseTpl);
+  const ownBusiness = isOwnBusiness(baseTpl);
+  const {
+    profile,
+    setStaff: setProfileStaff,
+    setRiskVariables: setProfileRisk,
+    addDecision,
+  } = usePractice();
+  const confirmed = useMemo(
+    () => confirmedScenarioIds(profile.decisions, profile.industry),
+    [profile.decisions, profile.industry],
+  );
   const teamLabel = industryMeta(profile.industry).teamLabel;
   const [view, setView] = useState<"single" | "compare" | "variables" | "cascades">("single");
   const [scenarioId, setScenarioId] = useState(
@@ -78,6 +107,21 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
   }
 
   const scenario = tpl.scenarios.find((s) => s.id === scenarioId) ?? tpl.scenarios[0];
+  const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
+  const basis = insuranceBasis(riskVars, ownBusiness);
+  const policyNote = insuranceFigureNote(riskVars, ownBusiness);
+  const withPolicyNote = (text: string) => (policyNote ? `${text} · ${policyNote}` : text);
+
+  function confirmScenario() {
+    addDecision({
+      subject: `Scenario: ${scenario.title}`,
+      kind: "monitor",
+      note: "Confirmed this starter scenario could happen here. Its losses and timelines are still the example's assumptions; review them against your own figures.",
+      reviewBy: reviewDateIn(90),
+      linkedTab: "precog",
+      linkedId: scenario.id,
+    });
+  }
 
   /**
    * The prosecuted cases behind this scenario.
@@ -173,7 +217,12 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
               </button>
             ))}
           </div>
-          <DynamicVariablesPanel value={riskVars} onChange={updateRiskVars} result={result} />
+          <DynamicVariablesPanel
+            value={riskVars}
+            onChange={updateRiskVars}
+            result={result}
+            ownBusiness={ownBusiness}
+          />
           {result && (
             <Card>
               <CardHeader>
@@ -182,7 +231,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <Outcome
-                  label="Assumed time to impact"
+                  label="Assumed days until found"
                   value={`~${result.timelineDays.p50}d`}
                   sub={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}d`}
                 />
@@ -194,12 +243,18 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                 <Outcome
                   label="Assumed retained loss"
                   value={formatUsd(result.retainedImpact.expected)}
-                  sub="after deductible / limit"
+                  sub={
+                    basis === "none"
+                      ? withPolicyNote("all of it")
+                      : withPolicyNote("after deductible / limit")
+                  }
                 />
                 <Outcome
                   label="Annual cost of risk"
                   value={formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}
-                  sub="premium + annualized retained"
+                  sub={withPolicyNote(
+                    costOfRiskHint(result.dynamic?.likelihoodMultiplier ?? 1, basis === "none"),
+                  )}
                 />
               </CardContent>
             </Card>
@@ -211,6 +266,19 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
         </div>
       ) : !result ? null : (
         <>
+          {ownBusiness && (
+            <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
+              <p className="text-sm font-medium text-warn">
+                {starterScenarioLabel(profile.industry)}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">
+                These scenarios come with the example business. Their losses and timelines are the
+                example&rsquo;s assumptions, not facts about your business, so they stay out of the
+                threat index and your totals until you pick one and choose &ldquo;This could happen
+                here&rdquo;.
+              </p>
+            </div>
+          )}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {tpl.scenarios.map((s) => (
               <button
@@ -226,11 +294,30 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                     : "rounded-xl border border-border bg-surface p-4 text-left hover:border-border-strong"
                 }
               >
+                {ownBusiness && (
+                  <Badge variant={confirmed.has(s.id) ? "ok" : "default"} className="mb-2">
+                    {confirmed.has(s.id) ? "Yours" : "Starter"}
+                  </Badge>
+                )}
                 <p className="text-sm font-semibold leading-snug">{s.title}</p>
                 <p className="mt-2 line-clamp-2 text-xs text-muted">{s.description}</p>
               </button>
             ))}
           </div>
+
+          {scenarioIsStarter && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel p-3 text-sm">
+              <p className="max-w-2xl text-muted">
+                &ldquo;{scenario.title}&rdquo; is a starter scenario from the example. If it could
+                happen in your business, make it yours: it is logged in your Decisions log with a
+                review date and starts counting in the threat index and your totals.
+              </p>
+              <Button size="sm" onClick={confirmScenario}>
+                <CheckCircle2 className="size-3.5" />
+                This could happen here
+              </Button>
+            </div>
+          )}
 
           {realCases.cases.length > 0 && (
             <Card>
@@ -278,7 +365,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <Stat
-                    label="Assumed time to impact"
+                    label="Assumed days until found"
                     value={`about ${result.timelineDays.p50} days`}
                     hint={`assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High} days`}
                   />
@@ -295,17 +382,27 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                   <Stat
                     label={`Assumed loss retained by ${teamLabel}`}
                     value={formatUsd(result.retainedImpact.expected)}
-                    hint={`assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`}
+                    hint={withPolicyNote(
+                      basis === "none"
+                        ? "all of the assumed loss"
+                        : `assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`,
+                    )}
                   />
                   <Stat
                     label="Net premium / year"
                     value={formatUsd(result.dynamic?.premiumAnnualNet ?? 0)}
-                    hint={`−${result.dynamic?.discountPctApplied ?? 0}% control credits`}
+                    hint={withPolicyNote(
+                      basis === "none"
+                        ? "no premium"
+                        : `−${result.dynamic?.discountPctApplied ?? 0}% control credits`,
+                    )}
                   />
                   <Stat
                     label="Annual cost of risk"
                     value={formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}
-                    hint="Premium + annualized retained EL"
+                    hint={withPolicyNote(
+                      costOfRiskHint(result.dynamic?.likelihoodMultiplier ?? 1, basis === "none"),
+                    )}
                   />
                 </div>
 
@@ -503,6 +600,14 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
       )}
     </div>
   );
+}
+
+/** How the annual cost-of-risk figure is built, with the assumed yearly chance named. */
+function costOfRiskHint(likelihoodMultiplier: number, noPolicy: boolean): string {
+  const pct = `${(assumedAnnualFrequency(likelihoodMultiplier) * 100).toFixed(1)}%`;
+  return noPolicy
+    ? `retained loss × assumed ${pct} chance a year`
+    : `premium + retained loss × assumed ${pct} chance a year`;
 }
 
 /**
