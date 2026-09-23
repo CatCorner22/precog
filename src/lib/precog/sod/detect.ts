@@ -84,6 +84,8 @@ export interface SodDetectionReport {
     dualReleaseMitigated: number;
     /** Pairs held by the owner: listed, ranked last, counted at half weight. */
     ownerHeld: number;
+    /** Money duties no active person holds: a CPA asks who banks the deposits before asking who does two things. */
+    unheldDuties: EntitlementId[];
     segregationHealth: number;
   };
   recommendations: string[];
@@ -432,6 +434,14 @@ const PRESSURE_WEIGHT: Record<DetectedConflict["severity"], number> = {
   family: 2,
 };
 
+/** The duties every business with money has to give someone; an empty seat is its own finding. */
+const UNHELD_WATCH: readonly EntitlementId[] = [
+  "prepare_deposit",
+  "bank_reconcile",
+  "release_payment",
+  "approve_payroll",
+];
+
 const OWNER_HELD_WHY =
   "Both duties sit with the owner, who cannot steal from themselves; the exposure is error, tax and lender reliance rather than theft, and it closes when someone outside the pair reads the records.";
 const OWNER_HELD_PATH = "An error or a tax problem that nobody but the owner would see";
@@ -735,6 +745,8 @@ export function detectSodConflicts(
   ).length;
   const dualReleaseMitigated = conflicts.filter((c) => c.dualReleaseMitigated).length;
   const ownerHeld = conflicts.filter((c) => c.ownerHeld).length;
+  const held = new Set(assignments.flatMap((a) => a.entitlements));
+  const unheldDuties = UNHELD_WATCH.filter((d) => !held.has(d));
 
   // Every conflict adds pressure. A dual-release rule narrows a pair rather
   // than closing it, and an owner-held pair is error rather than theft, so
@@ -814,6 +826,7 @@ export function detectSodConflicts(
       openWithoutAcceptance,
       dualReleaseMitigated,
       ownerHeld,
+      unheldDuties,
       segregationHealth,
     },
     recommendations,

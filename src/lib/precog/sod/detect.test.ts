@@ -385,3 +385,25 @@ describe("recommendations", () => {
     ]);
   });
 });
+
+describe("unheld duties", () => {
+  it("names the money duties nobody active holds", () => {
+    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Bookkeeper",
+          entitlements: ["post_payments", "bank_reconcile"],
+        },
+        {
+          personId: "p2",
+          personName: "Ana",
+          role: "Owner",
+          entitlements: ["approve_payroll", "view_reports_only"],
+        },
+      ],
+    });
+    expect(report.summary.unheldDuties).toEqual(["prepare_deposit", "release_payment"]);
+  });
+});

@@ -60,7 +60,11 @@ development director, and so on, with the seniority and schedule words ignored.
 Each entry carries a one-sentence standard description of the job and a
 reason for its starting duties, and the whole sheet can be read from the
 onboarding step. With no roster to paste, "Add people by job title" creates
-numbered placeholder rows for any title and count. Each title carries the money duties it typically holds in a business
+numbered placeholder rows for any title and count. The grid shows eleven money
+duties as columns (taking payments, recording them, preparing deposits, reconciling the
+bank, entering bills, setting up suppliers, releasing payments, entering and approving
+payroll, issuing refunds, and approving write-offs); any other duty a title carries appears
+as a tag on the row that the owner can remove, so nothing a title carries is hidden. Each title carries the money duties it typically holds in a business
 of two to fifty people, so every person lands with duties ticked and the
 duty-conflict findings appear at once. Where a title corresponds to one
 occupation in the U.S. Bureau of Labor Statistics Standard Occupational
