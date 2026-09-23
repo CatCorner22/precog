@@ -11,6 +11,7 @@ import {
 } from "./practice-profile";
 import {
   deleteBusinessRow,
+  listBusinessSummaries,
   loadActiveBusiness,
   saveBusinessRevision,
   setActiveBusiness,
@@ -150,31 +151,17 @@ function mergeProfile(
   };
 }
 
-/** Every business in the signed-in user's portfolio (summaries only). */
+/**
+ * Every business in the signed-in user's portfolio (summaries only). No row
+ * limit: saves refuse a new business past MAX_BUSINESSES_PER_USER instead, so
+ * the list and the limit agree and no business is unreachable.
+ */
 export const listBusinesses = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql<BusinessRow>`
-      select id, name, industry, profile, updated_at, revision
-      from businesses
-      where user_id = ${context.userId}
-      order by updated_at desc
-      limit 50
-    `;
-    return rows.map((r) => {
-      const history = Array.isArray(r.profile.mapHealthHistory) ? r.profile.mapHealthHistory : [];
-      return {
-        id: r.id,
-        name: r.name,
-        industry: (r.industry as IndustryId) || "general",
-        updatedAt: r.updated_at,
-        processCount: Array.isArray(r.profile.customProcesses)
-          ? r.profile.customProcesses.length
-          : 0,
-        healthScore: history.length ? history[history.length - 1].score : null,
-      };
-    });
+    const rows = await listBusinessSummaries(sql, context.userId);
+    return rows.map((r) => ({ ...r, industry: (r.industry as IndustryId) || "general" }));
   });
 
 export const loadBusiness = createServerFn({ method: "GET" })
