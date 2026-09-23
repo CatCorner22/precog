@@ -16,7 +16,6 @@ import {
   normalizeValueCase,
   createValueCaseMemo,
   applyVerifiedAnnualHours,
-  VALUE_CASE_STORAGE_KEY,
   type ValueCaseInputs,
   type ValueInputKey,
   type ObservedFigure,
@@ -29,34 +28,38 @@ import { ValueEvidenceRegister } from "./value-evidence-register";
 import {
   normalizeValueEvidence,
   summarizeValueEvidence,
-  VALUE_EVIDENCE_STORAGE_KEY,
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
-import { readLocalJson, writeLocal } from "@/lib/precog/local-data";
+import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
+import { usePractice } from "@/lib/precog/practice-context";
 
 export function ValueProofCenter() {
+  const { profile } = usePractice();
+  const businessId = profile.businessId ?? "biz_default";
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
   // Inputs the owner typed into, so a figure they enter that happens to equal
   // the app default still counts as theirs.
   const [typed, setTyped] = useState<ValueInputKey[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  // The business whose figures are on screen; nothing is saved until they
+  // are, so one business's figures never land under another's.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<ValueEvidence[]>([]);
   // False once the browser refuses a write (blocked site data, full quota):
   // the figures still work here, but only until this tab closes.
   const [kept, setKept] = useState(true);
   useEffect(() => {
-    // A stored value that is unreadable or malformed is ignored; the next
-    // save replaces it.
-    const storedCase = readLocalJson(VALUE_CASE_STORAGE_KEY);
-    if (storedCase && typeof storedCase === "object") {
-      const parsed = storedCase as Partial<ValueCaseInputs> & { entered?: unknown };
-      setInputs(normalizeValueCase(parsed));
-      setTyped(normalizeEnteredInputs(parsed.entered));
-    }
-    const storedEvidence = readLocalJson(VALUE_EVIDENCE_STORAGE_KEY);
-    if (storedEvidence !== undefined) setEvidence(normalizeValueEvidence(storedEvidence));
-    setLoaded(true);
-  }, []);
+    // Each business has its own figures; a business with none starts from the
+    // defaults. A stored value that is unreadable or malformed is ignored.
+    const stored = readValueProof(businessId);
+    const storedCase =
+      stored.valueCase && typeof stored.valueCase === "object"
+        ? (stored.valueCase as Partial<ValueCaseInputs> & { entered?: unknown })
+        : null;
+    setInputs(storedCase ? normalizeValueCase(storedCase) : DEFAULT_VALUE_CASE);
+    setTyped(normalizeEnteredInputs(storedCase?.entered));
+    setEvidence(normalizeValueEvidence(stored.evidence));
+    setLoadedFor(businessId);
+  }, [businessId]);
   useEffect(() => {
     const restore = (event: Event) => {
       const detail = (event as CustomEvent<{ valueCase?: unknown; evidence?: unknown }>).detail;
@@ -72,14 +75,9 @@ export function ValueProofCenter() {
     return () => window.removeEventListener("precog:value-proof-restored", restore);
   }, []);
   useEffect(() => {
-    if (!loaded) return;
-    const caseKept = writeLocal(
-      VALUE_CASE_STORAGE_KEY,
-      JSON.stringify({ ...inputs, entered: typed }),
-    );
-    const evidenceKept = writeLocal(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(evidence));
-    setKept(caseKept && evidenceKept);
-  }, [inputs, typed, evidence, loaded]);
+    if (loadedFor !== businessId) return;
+    setKept(writeValueProof(businessId, { valueCase: { ...inputs, entered: typed }, evidence }));
+  }, [inputs, typed, evidence, loadedFor, businessId]);
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
   const isDefault = (key: ValueInputKey) => !status.entered.has(key);

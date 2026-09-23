@@ -17,21 +17,18 @@ import { buildAssignments } from "@/lib/precog/sod/detect";
 import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { useTemplate } from "@/lib/precog/use-template";
-import {
-  DEFAULT_VALUE_CASE,
-  VALUE_CASE_STORAGE_KEY,
-  normalizeValueCase,
-} from "@/lib/precog/value-case";
-import { VALUE_EVIDENCE_STORAGE_KEY, normalizeValueEvidence } from "@/lib/precog/value-evidence";
+import { DEFAULT_VALUE_CASE, normalizeValueCase } from "@/lib/precog/value-case";
+import { normalizeValueEvidence } from "@/lib/precog/value-evidence";
 import {
   compareAssessmentStates,
   createSnapshotComparisonReport,
 } from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
-import { readLocalJson, removeLocal, writeLocal } from "@/lib/precog/local-data";
+import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
+  const businessId = profile.businessId ?? "biz_default";
   const tpl = useTemplate();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
@@ -70,14 +67,13 @@ export function AssessmentSnapshots() {
       let valueEvidence;
       // The map lives on the profile's people; capture it as the engines read it.
       const powerMap = buildAssignments(tpl);
-      // Unreadable or blocked storage leaves the value proof out rather than
-      // failing the whole snapshot.
-      const storedValueCase = readStoredJson(VALUE_CASE_STORAGE_KEY);
-      if (storedValueCase && typeof storedValueCase === "object") {
-        valueCase = normalizeValueCase(storedValueCase as Partial<typeof DEFAULT_VALUE_CASE>);
+      // This business's value proof. Unreadable or blocked storage leaves it
+      // out rather than failing the whole snapshot.
+      const stored = readValueProof(businessId);
+      if (stored.valueCase && typeof stored.valueCase === "object") {
+        valueCase = normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>);
       }
-      const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
-      if (storedEvidence !== undefined) valueEvidence = normalizeValueEvidence(storedEvidence);
+      if (stored.evidence !== undefined) valueEvidence = normalizeValueEvidence(stored.evidence);
       await createAssessmentSnapshot({
         data: {
           title: title.trim() || `${profile.practiceName} assessment`,
@@ -124,8 +120,7 @@ export function AssessmentSnapshots() {
       const restoredEvidence = snapshot.valueEvidence ?? [];
       // The Value proof tab takes the restored figures from this event even
       // when the browser refuses to store them.
-      writeLocal(VALUE_CASE_STORAGE_KEY, JSON.stringify(restoredValueCase));
-      writeLocal(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(restoredEvidence));
+      writeValueProof(businessId, { valueCase: restoredValueCase, evidence: restoredEvidence });
       window.dispatchEvent(
         new CustomEvent("precog:value-proof-restored", {
           detail: { valueCase: restoredValueCase, evidence: restoredEvidence },
@@ -145,12 +140,12 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       const currentMap = buildAssignments(tpl);
-      const storedValue = readStoredJson(VALUE_CASE_STORAGE_KEY);
-      const currentValue = storedValue
-        ? normalizeValueCase(storedValue as Partial<typeof DEFAULT_VALUE_CASE>)
-        : DEFAULT_VALUE_CASE;
-      const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
-      const currentEvidence = storedEvidence ? normalizeValueEvidence(storedEvidence) : [];
+      const stored = readValueProof(businessId);
+      const currentValue =
+        stored.valueCase && typeof stored.valueCase === "object"
+          ? normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>)
+          : DEFAULT_VALUE_CASE;
+      const currentEvidence = normalizeValueEvidence(stored.evidence);
       setComparison({
         title: snapshot.title,
         createdAt: snapshot.createdAt,
@@ -483,13 +478,6 @@ export function AssessmentSnapshots() {
       )}
     </div>
   );
-}
-
-/** Parses one stored entry, dropping it when it is not valid JSON; undefined when storage is blocked. */
-function readStoredJson(key: string): unknown {
-  const parsed = readLocalJson(key);
-  if (parsed === undefined) removeLocal(key);
-  return parsed;
 }
 
 function signed(value: number) {

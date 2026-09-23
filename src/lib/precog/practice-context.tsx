@@ -68,6 +68,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import { removeValueProof } from "./value-proof-store";
 
 export type SyncStatus =
   "idle" | "loading" | "synced" | "local" | "local-error" | "error" | "conflict";
@@ -1019,6 +1020,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       const activeId = profileRef.current.businessId ?? "biz_default";
       if (id === activeId) return;
       removePortfolioEntry(id);
+      removeValueProof(id);
       setRemoteBusinesses((cur) => cur.filter((b) => b.id !== id));
       setPortfolioVersion((v) => v + 1);
       if (cloudUser) await deleteBusinessRemote({ data: { id } }).catch(() => undefined);
