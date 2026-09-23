@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { POWER_GUIDANCE } from "@/lib/precog/sod/power-guidance";
+import { powerGuidance } from "@/lib/precog/sod/power-guidance";
 import {
   applyResolutionPlan,
   buildResolutionPlans,
@@ -106,6 +106,7 @@ export function PowerMapBuilder() {
   // or import writes through to the profile, so the conflict list, the
   // matrix, and the dashboard summary all read the same assignments.
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
+  const guidanceByDuty = powerGuidance(profile.industry);
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
@@ -992,7 +993,7 @@ export function PowerMapBuilder() {
                 {visibleEntitlements.map((entitlement) => {
                   const active = selected?.entitlements.includes(entitlement.id);
                   const conflict = conflictEntitlements.has(entitlement.id);
-                  const guidance = POWER_GUIDANCE[entitlement.id];
+                  const guidance = guidanceByDuty[entitlement.id];
                   const effect = toggleEffects.get(entitlement.id);
                   const creates = effect?.created ?? 0;
                   const resolves = effect?.resolved ?? 0;
@@ -1097,7 +1098,7 @@ export function PowerMapBuilder() {
               .filter((id) => id !== "view_reports_only")
               .map((id) => {
                 const entitlement = ENTITLEMENTS.find((item) => item.id === id);
-                const guidance = POWER_GUIDANCE[id];
+                const guidance = guidanceByDuty[id];
                 return (
                   <div key={id} className="rounded-xl border border-border bg-elevated p-3">
                     <div className="flex items-start justify-between gap-2">
