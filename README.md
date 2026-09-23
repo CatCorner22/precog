@@ -63,7 +63,15 @@ anyone off the map; only a full word such as "Terminated" there does. A row
 that repeats an earlier name and title is skipped and reported; when the rows
 carry employee IDs the ID decides instead, so two employees with one name
 stay two people, and one ID on two positions is one person holding the duties
-of both.
+of both. Someone listed with one title at two locations is one person at both.
+
+In the team register, a pasted roster adds and updates people and removes
+nobody; an imported CSV that leaves people out asks before removing them. A
+row naming someone already on the team keeps that person, matched by
+employee ID before the name, along with whatever the file has no column for
+and the duties set for them when the title is unchanged. "Export CSV" writes
+each person's employee ID and the duties the conflict checks read, so the
+team's own export re-imports to the same people with the same duties.
 
 A plain list also works, one person per line: "Name, Title", "Name - Title",
 "Name<tab>Title", "Name | Title", "Name: Title" or "Name (Title)", with or
