@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildAssignments } from "@/lib/precog/sod/detect";
-import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { useTemplate } from "@/lib/precog/use-template";
 import { DEFAULT_VALUE_CASE, normalizeValueCase } from "@/lib/precog/value-case";
@@ -25,6 +24,7 @@ import {
 } from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
+import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
@@ -83,7 +83,8 @@ export function AssessmentSnapshots() {
       await createAssessmentSnapshot({
         data: {
           title: title.trim() || `${profile.practiceName} assessment`,
-          profile,
+          // What a snapshot keeps; map versions and history stay behind.
+          profile: snapshotSlice(profile),
           powerMap,
           valueCase,
           valueEvidence,
@@ -101,7 +102,7 @@ export function AssessmentSnapshots() {
   async function restore(id: string) {
     if (
       !window.confirm(
-        "Restore this assessment? Your current unsaved profile, responsibility map, and value proof will be replaced.",
+        `Restore this snapshot into ${profile.practiceName}? Its team, process map, register, controls, decisions and value proof replace what is there now. Save a snapshot first if you want to keep the current version.`,
       )
     )
       return;
@@ -110,19 +111,15 @@ export function AssessmentSnapshots() {
     try {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
-      // Older snapshots carried the map beside the profile; write it onto the
-      // restored people so the register and every conflict view agree.
-      replaceProfile(
-        snapshot.powerMap
-          ? {
-              ...snapshot.profile,
-              customPeople: applyAssignmentsToPeople(
-                resolveTemplate(snapshot.profile).people,
-                snapshot.powerMap,
-              ),
-            }
-          : snapshot.profile,
-      );
+      // The snapshot's business goes into this business: same id, its own
+      // map versions kept, and the saved power map written onto its people.
+      const restored = restoredProfile(snapshot, profile);
+      if (!restored) {
+        throw new Error(
+          "This snapshot was saved before snapshots kept the team and process map, so restoring it would replace your business with the sample. Compare still works.",
+        );
+      }
+      replaceProfile(restored);
       const restoredValueCase = snapshot.valueCase ?? DEFAULT_VALUE_CASE;
       const restoredEvidence = snapshot.valueEvidence ?? [];
       // The Value proof tab takes the restored figures from this event even

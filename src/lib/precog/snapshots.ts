@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { normalizeProfile, type PracticeProfile } from "./practice-profile";
+import type { PracticeProfile } from "./practice-profile";
+import { parseSnapshotCreate, parseSnapshotId, sanitizeSnapshotProfile } from "./snapshot-profile";
 import { normalizeRoleAssignments } from "./sod/model-io";
 import type { RoleAssignment } from "./sod/detect";
 import { normalizeValueCase, type ValueCaseInputs } from "./value-case";
@@ -10,7 +11,6 @@ import { normalizeValueEvidence, type ValueEvidence } from "./value-evidence";
 export const ASSESSMENT_MODEL_VERSION = "precog-2026.09";
 export const KNOWLEDGE_CORPUS_VERSION = "controls-2026.09";
 import { MAX_SNAPSHOTS_PER_USER, enforceSnapshotRetention } from "./snapshot-retention";
-const MAX_PROFILE_BYTES = 128 * 1024;
 const MAX_POWER_MAP_BYTES = 256 * 1024;
 
 export interface AssessmentSnapshotSummary {
@@ -26,6 +26,8 @@ export interface AssessmentSnapshotSummary {
 
 export interface AssessmentSnapshot extends AssessmentSnapshotSummary {
   profile: PracticeProfile;
+  /** False for a snapshot saved before snapshots kept the business's industry, team and map. */
+  profileComplete: boolean;
   powerMap?: RoleAssignment[];
   valueCase?: ValueCaseInputs;
   valueEvidence?: ValueEvidence[];
@@ -85,43 +87,6 @@ function sanitizePowerMap(value: unknown): { assignments?: RoleAssignment[]; jso
   return { assignments, json: JSON.stringify(assignments) };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-/** Treat every client-supplied profile as untrusted structured input. */
-function sanitizeProfile(value: unknown): { profile: PracticeProfile; json: string } {
-  if (!isRecord(value)) throw new Error("Invalid practice profile");
-  const rawJson = JSON.stringify(value);
-  if (new TextEncoder().encode(rawJson).byteLength > MAX_PROFILE_BYTES) {
-    throw new Error("Practice profile is too large");
-  }
-
-  // Allow-list top-level fields before normalization so unknown input is never
-  // persisted and malformed nested containers cannot reach merge functions.
-  const candidate: Partial<PracticeProfile> = {
-    practiceName: typeof value.practiceName === "string" ? value.practiceName : undefined,
-    staff: isRecord(value.staff) ? (value.staff as unknown as PracticeProfile["staff"]) : undefined,
-    riskVariables: isRecord(value.riskVariables)
-      ? (value.riskVariables as unknown as PracticeProfile["riskVariables"])
-      : undefined,
-    dualRelease:
-      isRecord(value.dualRelease) &&
-      Array.isArray(value.dualRelease.rules) &&
-      Array.isArray(value.dualRelease.exceptions)
-        ? (value.dualRelease as unknown as PracticeProfile["dualRelease"])
-        : undefined,
-    decisions: Array.isArray(value.decisions) ? value.decisions : undefined,
-    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
-  };
-  const profile = normalizeProfile(candidate);
-  const json = JSON.stringify(profile);
-  if (new TextEncoder().encode(json).byteLength > MAX_PROFILE_BYTES) {
-    throw new Error("Practice profile is too large");
-  }
-  return { profile, json };
-}
-
 export const listAssessmentSnapshots = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<AssessmentSnapshotSummary[]> => {
@@ -144,19 +109,11 @@ export const createAssessmentSnapshot = createServerFn({ method: "POST" })
       powerMap?: unknown;
       valueCase?: unknown;
       valueEvidence?: unknown;
-    }) => ({
-      title: String(input.title ?? "")
-        .trim()
-        .slice(0, 120),
-      profile: input.profile,
-      powerMap: input.powerMap,
-      valueCase: input.valueCase,
-      valueEvidence: input.valueEvidence,
-    }),
+    }) => parseSnapshotCreate(input),
   )
   .handler(async ({ data, context }): Promise<AssessmentSnapshotSummary> => {
     if (!data.title) throw new Error("Snapshot title is required");
-    const { profile, json } = sanitizeProfile(data.profile);
+    const { profile, json } = sanitizeSnapshotProfile(data.profile);
     const powerMap = sanitizePowerMap(data.powerMap);
     const valueProof = sanitizeValueProof(data.valueCase, data.valueEvidence);
     if (!profile.practiceName) throw new Error("Practice profile is required");
@@ -197,7 +154,7 @@ export const createAssessmentSnapshot = createServerFn({ method: "POST" })
 
 export const getAssessmentSnapshot = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => ({ id: String(input.id ?? "").slice(0, 80) }))
+  .validator((input: { id: string }) => parseSnapshotId(input))
   .handler(async ({ data, context }): Promise<AssessmentSnapshot | null> => {
     const sql = await getSql();
     const rows = await sql.query<SnapshotRow>(
@@ -209,12 +166,13 @@ export const getAssessmentSnapshot = createServerFn({ method: "GET" })
     if (!row) return null;
     const stored =
       typeof row.profile_json === "string" ? JSON.parse(row.profile_json) : row.profile_json;
-    const { profile } = sanitizeProfile(stored);
+    const { profile, complete } = sanitizeSnapshotProfile(stored);
     const powerMap = sanitizePowerMap(row.power_map_json).assignments;
     const valueProof = sanitizeValueProof(row.value_case_json, row.value_evidence_json);
     return {
       ...summary(row),
       profile,
+      profileComplete: complete,
       powerMap,
       valueCase: valueProof.valueCase,
       valueEvidence: valueProof.valueEvidence,
@@ -223,7 +181,7 @@ export const getAssessmentSnapshot = createServerFn({ method: "GET" })
 
 export const deleteAssessmentSnapshot = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => ({ id: String(input.id ?? "").slice(0, 80) }))
+  .validator((input: { id: string }) => parseSnapshotId(input))
   .handler(async ({ data, context }): Promise<{ deleted: boolean }> => {
     const sql = await getSql();
     const rows = await sql.query<{ id: string }>(
