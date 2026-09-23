@@ -123,6 +123,13 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="warn"
         />
       </div>
+      {report.summary.unheldDuties.length > 0 && (
+        <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
+          Nobody active is marked for:{" "}
+          {report.summary.unheldDuties.map((d) => entLabel(d)).join(", ")}. Somebody does each of
+          these in every business that handles money; mark who, or the map cannot see that seat.
+        </p>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         {FRAMEWORK_DUTIES.map((f, i) => (
