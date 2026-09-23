@@ -79,8 +79,6 @@ describe("job catalog", () => {
       "Manager",
       "Director",
       "Supervisor",
-      "Nursing Supervisor",
-      "Product Manager",
       "Case Manager",
       "Lab Manager",
       "Tax Manager",
@@ -90,11 +88,28 @@ describe("job catalog", () => {
     }
     // A single word that names a seat still counts wherever it sits.
     expect(matchJobTitle("Billing Supervisor")?.entry.id).toBe("billing");
+    expect(entitlementsForTitle("Nursing Supervisor")).not.toContain("prepare_deposit");
+    expect(matchJobTitle("Clerk, Accounts Receivable")?.entry.id).toBe("accounts-receivable");
+    expect(matchJobTitle("Specialist, Accounts Payable")?.entry.id).toBe("accounts-payable");
+    expect(matchJobTitle("Marketing Intern")?.entry.id).toBe("intern");
+    expect(matchJobTitle("Sr. Acct")?.entry.id).toBe("accountant");
+    expect(matchJobTitle("A/P Clerk")?.entry.id).toBe("accounts-payable");
+    expect(matchJobTitle("Payroll & HR Administrator")?.entitlements).toEqual(
+      expect.arrayContaining(["enter_payroll", "edit_payroll_master"]),
+    );
+    expect(matchJobTitle("Line Cook")?.entry.id).toBe("kitchen-staff");
+    expect(matchJobTitle("Room Attendant")?.entry.id).toBe("housekeeping-staff");
+    expect(matchJobTitle("Social Media Community Manager")?.entry.id).toBe("marketing");
     expect(matchJobTitle("Senior Buyer")?.entry.id).toBe("purchasing");
     expect(matchJobTitle("Payroll and Benefits Supervisor")?.entry.id).toBe("payroll");
     // A level word on a seat with no money duties is harmless and keeps the label.
     expect(matchJobTitle("Security Supervisor")?.entry.id).toBe("security");
     expect(matchJobTitle("Sales Engineer")?.entry.id).toBe("consultant");
+    expect(matchJobTitle("Product Manager")?.entry.id).toBe("consultant");
+    expect(matchJobTitle("Payroll Analyst")?.entry.id).toBe("payroll");
+    expect(matchJobTitle("Office & HR Manager")?.entitlements).toEqual(
+      expect.arrayContaining(["post_payments", "edit_payroll_master"]),
+    );
   });
 
   it("keeps contract titles whole instead of reading 'contract' as a decoration", () => {

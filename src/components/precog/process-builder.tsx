@@ -402,13 +402,21 @@ export function ProcessBuilder({
     toast("Process deleted");
   }
 
+  /**
+   * The sample business goes back to its template, people included. A
+   * business with its own people goes back to the starter map only: the team,
+   * register and journal are the owner's and stay.
+   */
   function resetToTemplate() {
-    if (!window.confirm("Discard your custom map and team, and restore the industry template?"))
-      return;
+    const ownTeam = Boolean(profile.customPeople);
+    const question = ownTeam
+      ? "Go back to the starter map? This discards your process map edits. Your team, register and journal stay."
+      : "Discard your custom map and team, and restore the industry template?";
+    if (!window.confirm(question)) return;
     setCustomProcesses(null);
-    setCustomPeople(null);
+    if (!ownTeam) setCustomPeople(null);
     setMapLayout({});
-    toast.success("Template restored");
+    toast.success(ownTeam ? "Back to the starter map" : "Template restored");
   }
 
   function exportMap() {
@@ -729,7 +737,7 @@ export function ProcessBuilder({
           )}
           {mapCustomized && (
             <Button size="sm" variant="ghost" onClick={resetToTemplate}>
-              <RotateCcw className="size-3.5" /> Template
+              <RotateCcw className="size-3.5" /> {profile.customPeople ? "Starter map" : "Template"}
             </Button>
           )}
         </div>
