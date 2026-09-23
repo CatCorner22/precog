@@ -10,6 +10,9 @@ import {
 } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { mapSource } from "@/lib/precog/builder/map-state";
+import { useTemplate } from "@/lib/precog/use-template";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +67,16 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
       description: `${kept} is saved in your businesses — switch back from the header any time.`,
     });
   }
+  const template = useTemplate();
+  // Figures that are not facts about this business yet say so.
+  const soleOwnerNote = registerAssessed(template)
+    ? undefined
+    : "Not assessed yet: this figure comes from Who knows what once someone is marked there.";
+  const tenureNote =
+    profile.customPeople &&
+    !template.people.some((p) => p.active && typeof p.tenureYears === "number")
+      ? "No hire dates were entered for your team, so this is the example business's figure."
+      : undefined;
   const segregationNote = profile.customPeople ? (
     profile.staff.segregationSource === "manual" ? (
       <>
@@ -183,8 +196,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <Slider
             label="Team size"
             value={s.teamSize}
-            min={2}
-            max={20}
+            min={1}
+            max={OWN_TEAM_MAX}
             onChange={(v) => setStaff({ ...s, teamSize: v })}
           />
           <Slider
@@ -199,8 +212,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             label="Sole-owner knowledge items"
             value={s.soleOwnerKnowledgeCount}
             min={0}
-            max={8}
+            max={30}
             onChange={(v) => setStaff({ ...s, soleOwnerKnowledgeCount: v })}
+            note={soleOwnerNote}
           />
           <Slider
             label="Avg tenure (years)"
@@ -209,6 +223,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             max={15}
             step={0.5}
             onChange={(v) => setStaff({ ...s, avgTenureYears: v })}
+            note={tenureNote}
           />
         </div>
         <label className="flex items-center gap-2 text-sm">
