@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { grokChat } from "../llm/grok-client.server";
 import { llmMiddleware } from "../llm/middleware";
+import { parseSuggestionInput } from "../public-inputs";
 import {
   suggestLocally,
   type SuggestedIdea,
@@ -138,17 +139,7 @@ Rules: 3-4 risks, 2-3 ideas, 0-3 controlIds. Plain English an owner understands.
 /** Suggest risks, improvement ideas, and controls for a process the user is building. */
 export const suggestForProcess = createServerFn({ method: "POST" })
   .middleware([llmMiddleware])
-  .validator((input: Partial<SuggestionInput>): SuggestionInput => ({
-    processName: String(input.processName ?? "").slice(0, 80),
-    description: String(input.description ?? "").slice(0, 400),
-    industryLabel: String(input.industryLabel ?? "small business").slice(0, 60),
-    existingRiskTitles: (input.existingRiskTitles ?? []).map(String).slice(0, 20),
-    existingIdeaTitles: (input.existingIdeaTitles ?? []).map(String).slice(0, 20),
-    availableControls: (input.availableControls ?? [])
-      .map((c) => ({ id: String(c.id), name: String(c.name).slice(0, 80) }))
-      .slice(0, 30),
-    ownerRoles: (input.ownerRoles ?? []).map(String).slice(0, 10),
-  }))
+  .validator((input: Partial<SuggestionInput>): SuggestionInput => parseSuggestionInput(input))
   .handler(async ({ data, context }): Promise<SuggestionResult> => {
     const local = suggestLocally(data);
     const apiKey = process.env.XAI_API_KEY;

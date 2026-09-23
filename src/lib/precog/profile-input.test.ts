@@ -35,6 +35,22 @@ describe("validateProfileInput", () => {
     const huge = { ...defaultProfile("dental"), notes: "x".repeat(MAX_PROFILE_BYTES) };
     expect(() => validateProfileInput(huge)).toThrow(/too large/);
   });
+
+  it("answers bad input with a 4xx status, not a server error", () => {
+    const statusOf = (input: unknown) => {
+      try {
+        validateProfileInput(input);
+      } catch (error) {
+        return (error as { status?: number }).status;
+      }
+      return undefined;
+    };
+    expect(statusOf(null)).toBe(400);
+    expect(statusOf({ industry: "dental" })).toBe(400);
+    expect(statusOf({ ...defaultProfile("dental"), notes: "x".repeat(MAX_PROFILE_BYTES) })).toBe(
+      413,
+    );
+  });
 });
 
 describe("isBusinessId", () => {

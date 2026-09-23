@@ -13,6 +13,7 @@ import {
   setActiveBusiness,
 } from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
+import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -46,15 +47,17 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision?: number | null;
       today?: string;
     }) => {
-      const checked = validateProfileInput(input.profile);
-      const industry = input.industry ?? checked.profile.industry;
-      if (!isIndustryId(industry)) throw new Error("Unknown industry");
-      const baseRevision = input.baseRevision == null ? null : Number(input.baseRevision);
+      const raw = requireObject(input);
+      const checked = validateProfileInput(raw.profile);
+      const industry = raw.industry ?? checked.profile.industry;
+      if (!isIndustryId(industry)) throw new RequestError(400, "Unknown industry");
+      if (raw.baseRevision != null && typeof raw.baseRevision !== "number") throw invalidRequest();
+      const baseRevision = raw.baseRevision ?? null;
       return {
         ...checked,
         industry,
-        baseRevision: Number.isFinite(baseRevision) ? baseRevision : null,
-        today: resolveClientDate(input.today),
+        baseRevision: baseRevision !== null && Number.isFinite(baseRevision) ? baseRevision : null,
+        today: resolveClientDate(raw.today),
       };
     },
   )
@@ -126,8 +129,9 @@ export const listBusinesses = createServerFn({ method: "GET" })
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input: { id: string; today?: string }) => {
-    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
-    return { id: input.id, today: resolveClientDate(input.today) };
+    const raw = requireObject(input);
+    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
+    return { id: raw.id, today: resolveClientDate(raw.today) };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -148,8 +152,9 @@ export const loadBusiness = createServerFn({ method: "GET" })
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { id: string }) => {
-    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
-    return { id: input.id };
+    const raw = requireObject(input);
+    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
+    return { id: raw.id };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();

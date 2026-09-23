@@ -5,6 +5,8 @@ import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
 import { validateSharePayload } from "./share-schema";
+import { parseLoadShareInput } from "../public-inputs";
+import { invalidRequest, requireObject } from "@/lib/request-errors";
 import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
 import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
@@ -70,11 +72,14 @@ export const createMapShare = createServerFn({ method: "POST" })
       redacted?: boolean;
       passcode?: string;
     }) => {
-      const passcode = input.passcode?.trim();
+      const raw = requireObject(input);
+      if (raw.passcode != null && typeof raw.passcode !== "string") throw invalidRequest();
+      const passcode = raw.passcode?.trim();
+      const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
       return {
-        payload: validateSharePayload(input.payload),
-        expiresInDays: Math.min(365, Math.max(1, Number(input.expiresInDays) || 30)),
-        redacted: Boolean(input.redacted),
+        payload: validateSharePayload(raw.payload),
+        expiresInDays: Math.min(365, Math.max(1, days || 30)),
+        redacted: raw.redacted === true,
         // Eight characters or more: a four-digit PIN falls to a few thousand guesses.
         passcode: passcode && passcode.length >= 8 && passcode.length <= 64 ? passcode : undefined,
       };
@@ -125,7 +130,11 @@ export const listMapShares = createServerFn({ method: "GET" })
 
 export const revokeMapShare = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string }) => ({ token: String(input.token).slice(0, 64) }))
+  .validator((input: { token: string }) => {
+    const raw = requireObject(input);
+    if (typeof raw.token !== "string") throw invalidRequest();
+    return { token: raw.token.slice(0, 64) };
+  })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await sql`
@@ -141,10 +150,7 @@ export const revokeMapShare = createServerFn({ method: "POST" })
  * logs and browser history.
  */
 export const loadMapShare = createServerFn({ method: "POST" })
-  .validator((input: { token: string; passcode?: string }) => ({
-    token: String(input.token).slice(0, 64),
-    passcode: input.passcode?.trim(),
-  }))
+  .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
     if (!/^[a-f0-9]{24,64}$/.test(data.token))
       return { found: false as const, reason: "invalid" as const };

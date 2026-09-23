@@ -25,6 +25,20 @@ describe("validateSharePayload", () => {
     expect(() => validateSharePayload(null)).toThrow(/not valid/);
   });
 
+  it("answers a bad or oversized payload with a 4xx status", () => {
+    const statusOf = (input: unknown) => {
+      try {
+        validateSharePayload(input);
+      } catch (error) {
+        return (error as { status?: number }).status;
+      }
+      return undefined;
+    };
+    const payload = buildSharePayload(defaultProfile("dental"), []);
+    expect(statusOf(null)).toBe(400);
+    expect(statusOf({ ...payload, note: "x".repeat(MAX_SHARE_BYTES + 1) })).toBe(413);
+  });
+
   it("rejects an unknown industry and says where", () => {
     const payload = buildSharePayload(defaultProfile("dental"), []);
     expect(() => validateSharePayload({ ...payload, industry: "crypto" })).toThrow(/at industry/);

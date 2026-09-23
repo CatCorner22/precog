@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RequestError } from "@/lib/request-errors";
 import { INDUSTRIES, type IndustryId } from "../industry";
 
 /**
@@ -71,13 +72,16 @@ export type ParsedSharedMapPayload = z.infer<typeof sharedMapPayloadSchema>;
 export function validateSharePayload(input: unknown): ParsedSharedMapPayload {
   const bytes = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
   if (bytes > MAX_SHARE_BYTES) {
-    throw new Error(`Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
+    throw new RequestError(413, `Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
   }
   const parsed = sharedMapPayloadSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const where = first?.path.length ? ` at ${first.path.join(".")}` : "";
-    throw new Error(`Share payload is not valid${where}: ${first?.message ?? "unknown"}`);
+    throw new RequestError(
+      400,
+      `Share payload is not valid${where}: ${first?.message ?? "unknown"}`,
+    );
   }
   return parsed.data;
 }
