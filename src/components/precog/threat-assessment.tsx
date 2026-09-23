@@ -81,7 +81,7 @@ export function ThreatAssessmentPanel() {
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 rounded border border-[#2a5a35] bg-[#0c1510] px-2.5 py-1 text-[11px] tracking-widest text-[#7dff9a] hover:border-[#4ade80]/50"
+              className="inline-flex items-center gap-1.5 rounded border border-[#2a5a35] bg-[#0c1510] px-2.5 py-1 text-xs tracking-widest text-[#7dff9a] hover:border-[#4ade80]/50"
             >
               <ArrowLeft className="size-3" />
               RTB
@@ -89,12 +89,14 @@ export function ThreatAssessmentPanel() {
             <div className="flex items-center gap-2">
               <Crosshair className="size-4 text-[#4ade80]" />
               <div>
-                <p className="text-[10px] tracking-[0.2em] text-[#5a9a68]">OP · PRECOG-PIONEER</p>
-                <p className="font-mono text-sm font-semibold tracking-widest">THREAT ASSESSMENT</p>
+                <p className="text-xs tracking-[0.2em] text-[#5a9a68]">OP · PRECOG-PIONEER</p>
+                <h1 className="font-mono text-sm font-semibold tracking-widest">
+                  THREAT ASSESSMENT
+                </h1>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] tracking-wider">
+          <div className="flex flex-wrap items-center gap-3 font-mono text-xs tracking-wider">
             <span className="text-[#5a9a68]">
               AO · <span className="text-[#c8e6c8]">{report.ao}</span>
             </span>
@@ -114,7 +116,7 @@ export function ThreatAssessmentPanel() {
         </div>
         {sample && (
           <p
-            className="mx-auto max-w-7xl px-4 pb-2 font-mono text-[11px] font-semibold tracking-[0.12em] text-amber-300 sm:px-6"
+            className="mx-auto max-w-7xl px-4 pb-2 font-mono text-xs font-semibold tracking-[0.12em] text-amber-300 sm:px-6"
             role="note"
           >
             SAMPLE BUSINESS · FICTIONAL PEOPLE AND FIGURES · NOT YOUR BUSINESS ·{" "}
@@ -123,7 +125,7 @@ export function ThreatAssessmentPanel() {
             </Link>
           </p>
         )}
-        <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 pb-2 font-mono text-[10px] tracking-[0.15em] text-[#5a9a68] sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap gap-x-4 gap-y-1 px-4 pb-2 font-mono text-xs tracking-[0.15em] text-[#5a9a68] sm:px-6">
           <span>CLASS · PRACTICE INTERNAL · EDUCATIONAL</span>
           <span>·</span>
           <span>ALL INDICES ARE THIS APP&rsquo;S WEIGHTING, NOT MEASUREMENTS</span>
@@ -164,8 +166,8 @@ export function ThreatAssessmentPanel() {
           />
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <section className="threat-panel">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <section className="threat-panel min-w-0">
             <div className="mb-3 flex items-center gap-2 border-b border-[#1f3d28] pb-2">
               <Target className="size-4 text-[#4ade80]" />
               <h2 className="font-mono text-sm tracking-[0.18em]">PRIORITY QUEUE</h2>
@@ -183,7 +185,7 @@ export function ThreatAssessmentPanel() {
                         : "border-[#1a3320] bg-[#080c09] hover:border-[#2a5a35]",
                     )}
                   >
-                    <span className="w-5 shrink-0 font-mono text-[11px] text-[#5a9a68]">
+                    <span className="w-5 shrink-0 font-mono text-xs text-[#5a9a68]">
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <span
@@ -199,20 +201,20 @@ export function ThreatAssessmentPanel() {
                       <span className="flex flex-wrap items-center gap-2">
                         <span
                           className={cn(
-                            "rounded border px-1.5 py-0.5 font-mono text-[10px]",
+                            "rounded border px-1.5 py-0.5 font-mono text-xs",
                             bandClass(t.band),
                           )}
                         >
                           {PRIORITY_BAND_LABEL[t.band]}
                         </span>
-                        <span className="font-mono text-[10px] text-[#5a9a68]">
+                        <span className="font-mono text-xs text-[#5a9a68]">
                           {t.domain.toUpperCase()}
                         </span>
                       </span>
                       <span className="mt-0.5 block truncate text-sm font-medium text-[#e8f5e8]">
                         {t.label}
                       </span>
-                      <span className="mt-0.5 block font-mono text-[10px] text-[#5a9a68]">
+                      <span className="mt-0.5 block font-mono text-xs text-[#5a9a68]">
                         P{t.priority} · {t.impactHint}
                       </span>
                     </span>
@@ -223,7 +225,7 @@ export function ThreatAssessmentPanel() {
             </ul>
           </section>
 
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {selected && (
               <section className="threat-panel">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -241,32 +243,32 @@ export function ThreatAssessmentPanel() {
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-[#e8f5e8]">{selected.label}</h3>
-                <p className="mt-1 font-mono text-[11px] text-[#5a9a68]">{selected.impactHint}</p>
+                <p className="mt-1 font-mono text-xs text-[#5a9a68]">{selected.impactHint}</p>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center font-mono">
                   <Mini label="PRIORITY" value={String(selected.priority)} />
                   <Mini label="HEAT" value={String(selected.heat)} />
                   <Mini label="DOMAIN" value={selected.domain.toUpperCase()} />
                 </div>
                 <div className="mt-3">
-                  <p className="font-mono text-[10px] tracking-widest text-[#5a9a68]">INTEL</p>
-                  <ul className="mt-1 space-y-1 font-mono text-[11px] text-[#a8d4a8]">
+                  <p className="font-mono text-xs tracking-widest text-[#5a9a68]">INTEL</p>
+                  <ul className="mt-1 space-y-1 font-mono text-xs text-[#a8d4a8]">
                     {selected.reasons.map((r) => (
                       <li key={r}>▸ {r}</li>
                     ))}
                   </ul>
                 </div>
                 <div className="mt-3 rounded border border-[#2a5a35] bg-[#0c1f12] px-3 py-2">
-                  <p className="font-mono text-[10px] tracking-widest text-[#4ade80]">
+                  <p className="font-mono text-xs tracking-widest text-[#4ade80]">
                     RULES OF ENGAGEMENT
                   </p>
-                  <ul className="mt-1 space-y-1 font-mono text-[11px] text-[#c8e6c8]">
+                  <ul className="mt-1 space-y-1 font-mono text-xs text-[#c8e6c8]">
                     {selected.roe.map((r) => (
                       <li key={r}>· {r}</li>
                     ))}
                   </ul>
                 </div>
                 {selected.expectedLoss != null && (
-                  <p className="mt-2 font-mono text-[11px] text-[#5a9a68]">
+                  <p className="mt-2 font-mono text-xs text-[#5a9a68]">
                     {selected.domain === "scenario" ? "Assumed retained loss" : "Assumed loss"}{" "}
                     {formatUsd(selected.expectedLoss)}
                     {selected.p50Days != null
@@ -291,7 +293,7 @@ export function ThreatAssessmentPanel() {
                 <Zap className="size-4 text-amber-300" />
                 <h2 className="font-mono text-sm tracking-[0.18em]">STANDING ROE</h2>
               </div>
-              <ul className="space-y-1.5 font-mono text-[11px] text-[#a8d4a8]">
+              <ul className="space-y-1.5 font-mono text-xs text-[#a8d4a8]">
                 {report.roeSummary.map((r, i) => (
                   <li key={r}>
                     <span className="text-[#4ade80]">{String(i + 1).padStart(2, "0")}</span> {r}
@@ -305,7 +307,7 @@ export function ThreatAssessmentPanel() {
                 <Radio className="size-4 text-[#4ade80]" />
                 <h2 className="font-mono text-sm tracking-[0.18em]">MISSION BRIEF</h2>
               </div>
-              <ul className="space-y-1.5 font-mono text-[11px] text-[#a8d4a8]">
+              <ul className="space-y-1.5 font-mono text-xs text-[#a8d4a8]">
                 {report.missionBrief.map((line) => (
                   <li key={line}>▸ {line}</li>
                 ))}
@@ -320,7 +322,7 @@ export function ThreatAssessmentPanel() {
                   <span className="size-1.5 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
                 </div>
               </div>
-              <div className="min-w-0 font-mono text-[11px] text-red-300/90">
+              <div className="min-w-0 font-mono text-xs text-red-300/90">
                 <p className="tracking-widest text-red-200">FRIENDLY UNIT · T-1000 RISK</p>
                 <p className="mt-1 normal-case tracking-normal text-red-300/80">
                   Mission: residual reduction to a reasonable level — not zero, not panic. White-hot
@@ -331,7 +333,7 @@ export function ThreatAssessmentPanel() {
           </div>
         </div>
 
-        <p className="pb-6 text-center font-mono text-[10px] tracking-widest text-[#2a5a35]">
+        <p className="pb-6 text-center font-mono text-xs tracking-widest text-[#5a9a68]">
           EDUCATIONAL DECISION SUPPORT · NOT A FORENSIC OPINION · NOT LEGAL ADVICE
         </p>
       </main>
@@ -342,9 +344,9 @@ export function ThreatAssessmentPanel() {
 function Sitrep({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="threat-panel">
-      <p className="font-mono text-[9px] tracking-[0.15em] text-[#5a9a68]">{label}</p>
+      <p className="font-mono text-xs tracking-[0.15em] text-[#5a9a68]">{label}</p>
       <p className="mt-1 font-mono text-2xl font-semibold tabular text-[#4ade80]">{value}</p>
-      <p className="mt-0.5 truncate font-mono text-[10px] text-[#5a9a68]">{hint}</p>
+      <p className="mt-0.5 truncate font-mono text-xs text-[#5a9a68]">{hint}</p>
     </div>
   );
 }
@@ -352,7 +354,7 @@ function Sitrep({ label, value, hint }: { label: string; value: string; hint: st
 function Mini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-[#1f3d28] bg-[#080c09] px-2 py-2">
-      <p className="text-[9px] tracking-widest text-[#5a9a68]">{label}</p>
+      <p className="text-xs tracking-widest text-[#5a9a68]">{label}</p>
       <p className="mt-0.5 text-sm font-semibold text-[#c8e6c8]">{value}</p>
     </div>
   );

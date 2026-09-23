@@ -61,11 +61,11 @@ export function LayersPanel({
           >
             <div className="flex items-start justify-between gap-2">
               <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
-              <span className="text-[10px] tracking-wider text-subtle uppercase">
+              <span className="text-xs tracking-wider text-subtle uppercase">
                 {meta.matrixName}
               </span>
             </div>
-            <h3 className="mt-3 font-semibold">{meta.name}</h3>
+            <h2 className="mt-3 font-semibold">{meta.name}</h2>
             <p className="mt-1 text-sm text-muted">{meta.blurb}</p>
             <p className="mt-3 text-xs text-subtle">{counts}</p>
           </button>
@@ -238,7 +238,7 @@ function LayerShell({
     <div className="rounded-xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="font-semibold">{title}</h3>
+          <h2 className="font-semibold">{title}</h2>
           <p className="mt-1 text-sm text-muted">{subtitle}</p>
         </div>
         {action && (
@@ -293,7 +293,7 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
           autoFocus
         />
       </label>
-      <p className="text-[11px] text-subtle">
+      <p className="text-xs text-subtle">
         It goes in your decisions log with a review date in 90 days. It lowers these findings&apos;
         scores a little but does not close them: one person still holds both duties.
       </p>

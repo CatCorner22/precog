@@ -66,6 +66,12 @@ export interface Person {
   department?: string;
   /** The employee id the HR or payroll roster gave this person; re-imports match on it. */
   employeeId?: string;
+  /**
+   * Set at setup when this person's duties are still exactly the usual ones
+   * for their job title: guessed from the title, not confirmed by the owner.
+   * Cleared as soon as the owner edits their duties anywhere.
+   */
+  dutiesFromTitle?: true;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";

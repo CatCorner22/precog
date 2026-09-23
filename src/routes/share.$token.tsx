@@ -188,7 +188,7 @@ function SharePage() {
 
         <section className="mt-6 grid gap-4 sm:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center justify-center rounded-lg border border-neutral-300 px-6 py-4">
-            <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">
+            <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
               Map health
             </p>
             <p className="text-5xl font-bold tabular">{payload.health.score}</p>
@@ -209,7 +209,7 @@ function SharePage() {
                       style={{ width: `${d.score}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
+                  <p className="mt-1 text-xs text-neutral-600">{d.hint}</p>
                 </div>
               ))}
             </div>
@@ -231,7 +231,7 @@ function SharePage() {
                   <div>
                     <p className="font-medium">
                       {a.title}{" "}
-                      <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-600">
+                      <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-xs uppercase tracking-wide text-neutral-600">
                         {a.effort} effort
                       </span>
                     </p>
@@ -246,7 +246,7 @@ function SharePage() {
         <Section title="Processes">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-neutral-300 text-left text-[11px] tracking-wide text-neutral-500 uppercase">
+              <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
                 <th className="py-1.5 pr-2">Process</th>
                 <th className="py-1.5 pr-2">Owner(s)</th>
                 <th className="py-1.5 pr-2">Controls</th>
@@ -344,7 +344,7 @@ function SharePage() {
           </ul>
         </Section>
 
-        <footer className="mt-8 border-t border-neutral-300 pt-3 text-[11px] leading-relaxed text-neutral-500">
+        <footer className="mt-8 border-t border-neutral-300 pt-3 text-xs leading-relaxed text-neutral-500">
           Shared from Precog Pioneer. Educational internal-control decision support — not actuarial,
           legal, or forensic advice, and never an accusation against any person. This is a frozen
           snapshot; the owner's live map may have changed since.

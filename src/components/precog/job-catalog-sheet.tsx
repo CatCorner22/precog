@@ -25,7 +25,7 @@ export function JobCatalogSheet() {
           if (!entries.length) return null;
           return (
             <section key={family} className="mb-3">
-              <h4 className="mb-1 font-medium text-muted">{JOB_FAMILY_LABEL[family]}</h4>
+              <h3 className="mb-1 font-medium text-muted">{JOB_FAMILY_LABEL[family]}</h3>
               <ul className="space-y-1">
                 {entries.map((j) => (
                   <li key={j.id} className="rounded-md border border-border/60 px-2 py-1">

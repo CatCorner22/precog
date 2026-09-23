@@ -622,7 +622,7 @@ function reductionPhrase(r: number): string {
 function Outcome({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
-      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="text-xs text-subtle">{label}</p>
       <p className="text-lg font-semibold tabular">{value}</p>
       <p className="text-xs text-muted">{sub}</p>
     </div>
@@ -632,7 +632,7 @@ function Outcome({ label, value, sub }: { label: string; value: string; sub: str
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
-      <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
+      <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted">{hint}</p>
     </div>

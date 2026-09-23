@@ -159,7 +159,7 @@ export function ProcessForm({
           <p className="flex items-center gap-1.5 text-xs font-semibold text-fg">
             <BookOpen className="size-3.5 text-primary" /> Continuity record
           </p>
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             What a stand-in needs on day one: how often this runs, where it runs, and where the
             written steps live.
           </p>
@@ -223,7 +223,7 @@ export function ProcessForm({
         </div>
         <p
           className={cn(
-            "text-[11px]",
+            "text-xs",
             docState === "located"
               ? "text-ok"
               : docState === "unlocated"
@@ -352,7 +352,7 @@ export function RiskList({
       {risks.map((r) => (
         <div
           key={r.id}
-          className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
@@ -554,7 +554,7 @@ export function IdeaList({
       {ideas.map((i) => (
         <div
           key={i.id}
-          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{i.title}</p>
@@ -563,7 +563,7 @@ export function IdeaList({
             </p>
           </div>
           <select
-            className="rounded border border-border bg-surface px-1 text-[10px] text-muted"
+            className="rounded border border-border bg-surface px-1 text-xs text-muted"
             value={i.status}
             onChange={(e) =>
               onChange(
@@ -694,7 +694,7 @@ export function WasteList({
       {wastes.map((w) => (
         <div
           key={w.id}
-          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{w.label}</p>

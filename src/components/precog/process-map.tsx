@@ -152,7 +152,8 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
         vision === "predator" ? "bg-black/70 text-white" : "bg-elevated",
         vision === "terminator" && "bg-black/80",
         selected && "ring-2 ring-primary/40",
-        !interactive && "opacity-40 grayscale",
+        // Greyed and dashed while its layer is not interactive; the text stays readable.
+        !interactive && "border-dashed grayscale",
         hot && "predator-node-hot",
         locked && "terminator-target",
       )}
@@ -171,7 +172,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       {!compact && (
         <div
           className={cn(
-            "flex items-center gap-1.5 text-[10px] tracking-wide uppercase",
+            "flex items-center gap-1.5 text-xs tracking-wide uppercase",
             vision === "terminator" ? "terminator-hud" : "text-subtle",
             vision === "predator" && "predator-hud text-orange-200/90",
           )}
@@ -200,7 +201,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       {!compact && (
         <p
           className={cn(
-            "mt-1 line-clamp-2 text-[11px]",
+            "mt-1 line-clamp-2 text-xs",
             vision === "terminator" ? "text-red-400/80" : "text-muted",
             vision === "predator" && "text-white/70",
           )}
@@ -214,7 +215,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
             <span
               key={b}
               className={cn(
-                "rounded px-1.5 py-0.5 text-[10px]",
+                "rounded px-1.5 py-0.5 text-xs",
                 vision === "predator"
                   ? "bg-white/10 text-white/80"
                   : vision === "terminator"
@@ -258,7 +259,8 @@ function SatelliteNode({
         vision === "predator" ? "bg-black/65" : "bg-surface",
         vision === "terminator" && "bg-black/75",
         selected && "ring-2 ring-primary/40",
-        !interactive && "opacity-35 grayscale",
+        // Greyed and dashed while its layer is not interactive; the text stays readable.
+        !interactive && "border-dashed grayscale",
         !d.unscored && priority >= 72 && vision === "predator" && "predator-node-hot",
         locked && "terminator-target",
       )}
@@ -271,7 +273,7 @@ function SatelliteNode({
       <Handle type="target" position={Position.Left} className="!bg-muted" />
       <div
         className={cn(
-          "flex items-center gap-1 text-[10px]",
+          "flex items-center gap-1 text-xs",
           vision === "terminator" ? "terminator-hud" : "text-subtle",
           vision === "predator" && "predator-hud text-orange-100/80",
         )}
@@ -294,7 +296,7 @@ function SatelliteNode({
       {d.subtitle && !compact && (
         <p
           className={cn(
-            "mt-0.5 line-clamp-2 text-[10px]",
+            "mt-0.5 line-clamp-2 text-xs",
             vision === "terminator" ? "text-red-400/70" : "text-muted",
             vision === "predator" && "text-white/65",
           )}
@@ -419,7 +421,7 @@ function LaneHeaders({ lanes }: { lanes: { stage: number; x: number; count: numb
         return (
           <div
             key={lane.stage}
-            className="absolute top-1.5 rounded-md border border-border/60 bg-surface/85 px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted uppercase"
+            className="absolute top-1.5 rounded-md border border-border/60 bg-surface/85 px-2 py-0.5 text-xs font-medium tracking-wide text-muted uppercase"
             style={{ left }}
           >
             Stage {lane.stage} · {lane.count}
@@ -798,7 +800,6 @@ export function ProcessMap({
           unscored: !isScored(n.kind === "process" ? n.id : n.processId),
         },
         selected: n.id === selectedId,
-        style: layer?.interactive === false ? { opacity: 0.4 } : undefined,
       };
     });
   }, [visibleNodes, positions, selectedId, vision, layerMap, priorityById, build, isScored]);
@@ -932,7 +933,7 @@ export function ProcessMap({
             width: 16,
             height: 16,
           },
-          labelStyle: { fill: "var(--color-muted)", fontSize: 10 },
+          labelStyle: { fill: "var(--color-muted)", fontSize: 12 },
           interactionWidth: passiveDep ? 1 : 12,
         };
       });
@@ -989,9 +990,9 @@ export function ProcessMap({
             mapCustomized && <Badge variant="ok">Your custom map</Badge>
           )}
         </div>
-        <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+        <h1 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
           Map your business · see risk light up · fix what matters
-        </h2>
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Start from the industry template, then hit <strong className="text-fg">Build</strong> to
           add your own processes, owners, risks, and controls — every edit re-scores residual risk
@@ -1067,7 +1068,7 @@ export function ProcessMap({
               )}
             </div>
             <div className="predator-thermal-bar mt-2 h-2.5 w-full rounded-full" />
-            <div className="mt-1 flex justify-between text-[10px] text-white/55">
+            <div className="mt-1 flex justify-between text-xs text-white/55">
               <span>BLUE · cold</span>
               <span>THERMAL PRIORITY</span>
               <span>WHITE-HOT · act</span>
@@ -1087,7 +1088,7 @@ export function ProcessMap({
                   ? `Locking ${immediate} immediate threat${immediate === 1 ? "" : "s"}.`
                   : "Nothing to lock on until the map is assessed."}
               </p>
-              <p className="mt-2 text-[10px] text-red-400/70">
+              <p className="mt-2 text-xs text-red-400/70">
                 I'll be back… after dual release and bank rec are locked in.
               </p>
             </div>
@@ -1104,8 +1105,9 @@ export function ProcessMap({
         {notAssessedNote && <p className="mt-1 max-w-2xl text-xs text-muted">{notAssessedNote}</p>}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-3">
+      {/* Columns may shrink below their content, so nothing pushes the page sideways on a phone. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-3">
           {showLayerPanel && (
             <Card>
               <CardHeader className="pb-2">
@@ -1118,7 +1120,7 @@ export function ProcessMap({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="grid gap-2 sm:grid-cols-2">
+                <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {layers.map((l) => (
                     <li
                       key={l.id}
@@ -1126,10 +1128,10 @@ export function ProcessMap({
                     >
                       <div className="min-w-0">
                         <p className="font-medium text-fg">{l.label}</p>
-                        <p className="truncate text-[10px] text-subtle">{l.description}</p>
+                        <p className="truncate text-xs text-subtle">{l.description}</p>
                       </div>
                       <div className="flex shrink-0 gap-2">
-                        <label className="flex items-center gap-1 text-[10px] text-muted">
+                        <label className="flex items-center gap-1 text-xs text-muted">
                           <input
                             type="checkbox"
                             checked={l.visible}
@@ -1138,7 +1140,7 @@ export function ProcessMap({
                           />
                           show
                         </label>
-                        <label className="flex items-center gap-1 text-[10px] text-muted">
+                        <label className="flex items-center gap-1 text-xs text-muted">
                           <input
                             type="checkbox"
                             checked={l.interactive}
@@ -1179,6 +1181,8 @@ export function ProcessMap({
                 isValidConnection={isValidConnection}
                 nodesDraggable={build}
                 nodesConnectable={build}
+                // Links are keyboard stops only while building, where Delete removes one.
+                edgesFocusable={build}
                 deleteKeyCode={build ? "Delete" : null}
                 onInit={(inst) => {
                   rf.current = inst;
@@ -1266,7 +1270,7 @@ export function ProcessMap({
           </Card>
         </div>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {build && (
             <ProcessBuilder
               selectedProcessId={processId ?? null}
@@ -1337,7 +1341,7 @@ export function ProcessMap({
                       </Badge>
                       {t.immediate && <Badge variant="danger">NOW</Badge>}
                     </span>
-                    <span className="mt-0.5 block text-[10px] text-muted">
+                    <span className="mt-0.5 block text-xs text-muted">
                       {t.kind} · P{t.priority} · {t.impactHint}
                     </span>
                   </span>
@@ -1418,14 +1422,14 @@ function T1000Buddy() {
         </div>
         <div className="absolute bottom-4 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-red-400/50" />
       </div>
-      <span className="text-[9px] tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
+      <span className="text-xs tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
     </div>
   );
 }
 
 function StandardLegend() {
   return (
-    <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-[10px] shadow-lg backdrop-blur">
+    <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
       <p className="font-semibold text-fg">Map legend</p>
       <p className="mt-1 text-muted">Border heat: cool → hot (danger)</p>
       <div
@@ -1441,7 +1445,7 @@ function StandardLegend() {
 
 function PredatorLegend() {
   return (
-    <div className="max-w-[240px] rounded-xl border border-orange-500/30 bg-black/80 px-3 py-2 text-[10px] text-orange-100/90 shadow-lg predator-hud">
+    <div className="max-w-[240px] rounded-xl border border-orange-500/30 bg-black/80 px-3 py-2 text-xs text-orange-100/90 shadow-lg predator-hud">
       <p className="font-semibold tracking-widest">THERMAL KEY</p>
       <div className="predator-thermal-bar mt-1.5 h-2 rounded-full" />
       <p className="mt-1 text-white/50">White-hot = high heat × high impact. Hunt those first.</p>
@@ -1452,7 +1456,7 @@ function PredatorLegend() {
 /** `immediate` is null while the map is not assessed: there is nothing to count yet. */
 function TerminatorLegend({ immediate }: { immediate: number | null }) {
   return (
-    <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-[10px] terminator-hud shadow-lg">
+    <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-xs terminator-hud shadow-lg">
       <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
       <p className="mt-1 normal-case tracking-normal text-red-300/90">
         {immediate === null
@@ -1532,7 +1536,7 @@ function ProcessDetail({
         )}
         {selectedNode && selectedNode.kind !== "process" && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-            <p className="text-[10px] tracking-wide text-subtle uppercase">
+            <p className="text-xs tracking-wide text-subtle uppercase">
               Selected · {selectedNode.kind}
             </p>
             <p className="font-medium">{selectedNode.label}</p>
@@ -1581,7 +1585,7 @@ function ProcessDetail({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="mt-1 h-7 px-2 text-[11px]"
+                    className="mt-1 h-7 px-2 text-xs"
                     onClick={() => onNavigate?.("precog", r.linkedScenarioId)}
                   >
                     Precog

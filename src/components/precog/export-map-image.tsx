@@ -70,7 +70,7 @@ export function ExportMapImageButton({
       disabled={busy}
       title="Export map as PNG"
       className={cn(
-        "no-export inline-flex items-center gap-1.5 rounded-md border border-border bg-elevated/90 px-2 py-1 text-[11px] text-fg shadow backdrop-blur hover:border-border-strong disabled:opacity-60",
+        "no-export inline-flex items-center gap-1.5 rounded-md border border-border bg-elevated/90 px-2 py-1 text-xs text-fg shadow backdrop-blur hover:border-border-strong disabled:opacity-60",
         className,
       )}
     >

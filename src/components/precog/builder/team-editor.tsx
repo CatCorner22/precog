@@ -53,7 +53,7 @@ export function EntitlementPicker({
             type="button"
             onClick={() => toggle(e.id)}
             className={cn(
-              "rounded-md border px-1.5 py-0.5 text-[10px]",
+              "rounded-md border px-1.5 py-0.5 text-xs",
               on
                 ? "border-primary/50 bg-primary/15 text-fg"
                 : "border-border bg-elevated text-muted",
@@ -299,7 +299,7 @@ export function TeamEditor({
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         Roles drive SoD detection — pick the closest match so conflicts are scored correctly.
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -327,7 +327,7 @@ export function TeamEditor({
           <button
             type="button"
             onClick={() => setImportIssues([])}
-            className="text-[11px] text-subtle underline hover:text-fg"
+            className="text-xs text-subtle underline hover:text-fg"
           >
             Dismiss issues
           </button>
@@ -335,14 +335,14 @@ export function TeamEditor({
       </div>
       {showPaste && (
         <div className="space-y-1.5 rounded-md border border-border bg-elevated px-2 py-1.5">
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             Paste a worker export from Workday, SAP SuccessFactors, Oracle HCM, or your payroll
             provider (header row included), or one person per line as{" "}
             <span className="font-mono">Name, Title</span>. Common titles get their usual duties
             from the catalog; check each person afterwards.
           </p>
           <textarea
-            className={cn(inputCls, "min-h-24 w-full font-mono text-[11px]")}
+            className={cn(inputCls, "min-h-24 w-full font-mono text-xs")}
             aria-label="Pasted roster"
             value={paste}
             onChange={(e) => setPaste(e.target.value)}
@@ -356,7 +356,7 @@ export function TeamEditor({
         </div>
       )}
       {importIssues.length > 0 && (
-        <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-[11px]">
+        <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-xs">
           <p className="font-medium text-warn">Import issues</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
             {importIssues.slice(0, 8).map((issue, index) => (
@@ -374,7 +374,7 @@ export function TeamEditor({
           return (
             <li
               key={p.id}
-              className="rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+              className="rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
             >
               <div className="flex items-center gap-2">
                 <span
@@ -398,7 +398,7 @@ export function TeamEditor({
                 </span>
                 {!p.active && (
                   <span
-                    className="shrink-0 rounded border border-border px-1 text-[10px] text-subtle"
+                    className="shrink-0 rounded border border-border px-1 text-xs text-subtle"
                     title="Marked as left: kept for history, holds no live duties"
                   >
                     left
@@ -430,6 +430,8 @@ export function TeamEditor({
                       // Clearing every duty keeps "no duties" rather than
                       // falling back to the role's.
                       entitlements: next.length ? next : ["view_reports_only"],
+                      // Ticked by the owner: no longer the job title's guess.
+                      dutiesFromTitle: undefined,
                     })
                   }
                 />
@@ -478,7 +480,7 @@ export function TeamEditor({
       </div>
       {catalogChoice && (
         <div className="space-y-1.5">
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             {catalogChoice.description} {catalogChoice.note} Duties can be changed after adding.
           </p>
           <div className="flex flex-wrap items-center gap-1.5">

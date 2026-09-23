@@ -8,6 +8,11 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
+import {
+  confirmTitleDuties,
+  peopleWithTitleDuties,
+  titleDutiesSentence,
+} from "@/lib/precog/onboarding/own-team";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +30,10 @@ type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
-  const { profile } = usePractice();
+  const { profile, setCustomPeople } = usePractice();
+  // Duties still guessed from job titles: the findings below rest on them.
+  const titleDuties = profile.customPeople ? titleDutiesSentence(tpl.people) : "";
+  const titleDutyNames = peopleWithTitleDuties(tpl.people).map((person) => person.name);
   const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">(
     // People and their duty pairs first; the dual-release policy is one step away.
     "conflicts",
@@ -71,9 +79,9 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
             Dual release {profile.dualRelease.enabled ? "ON" : "OFF"}
           </Badge>
         </div>
-        <h2 className="mt-3 text-xl font-semibold tracking-tight">
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">
           Who can move money, or hide it, on their own
-        </h2>
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Each person&apos;s duties are checked in pairs against {CONFLICT_RULES.length} named
           rules, plus a catch-all for related duties in the same process. Turning on dual release
@@ -132,6 +140,28 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           {report.summary.unheldDuties.map((d) => entLabel(d)).join(", ")}. Somebody does each of
           these in every business that handles money; mark who, or the map cannot see that seat.
         </p>
+      )}
+
+      {titleDuties && (
+        <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+          <p>
+            {titleDuties} Check them in the power map: {titleDutyNames.slice(0, 6).join(", ")}
+            {titleDutyNames.length > 6 ? ` and ${titleDutyNames.length - 6} more` : ""}.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setView("power")}>
+              <Network className="size-3.5" aria-hidden />
+              Open the power map
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCustomPeople((people) => confirmTitleDuties(people))}
+            >
+              I checked them: they are right
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -212,7 +242,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   type="button"
                   onClick={() => setFilterSeverity(s)}
                   className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11px] capitalize",
+                    "rounded-full border px-2.5 py-0.5 text-xs capitalize",
                     filterSeverity === s
                       ? "border-primary/40 bg-primary/10"
                       : "border-border bg-elevated text-muted",
@@ -274,7 +304,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   <span className="text-fg">{c.labelB}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted">{c.why}</p>
-                <p className="mt-1 text-[11px] text-subtle">Fraud path: {c.fraudPath}</p>
+                <p className="mt-1 text-xs text-subtle">Fraud path: {c.fraudPath}</p>
                 {c.controlsInPlace.length > 0 && (
                   <p className="mt-2 text-xs text-ok">
                     Already in place: {c.controlsInPlace.join("; ")}
@@ -300,7 +330,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => onNavigate?.("precog", c.linkedScenarioId)}
                     >
                       Precog scenario
@@ -310,7 +340,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => onNavigate?.("map", c.processIds[0])}
                     >
                       Process map
@@ -320,7 +350,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => setView("dual")}
                     >
                       Configure dual release
@@ -353,7 +383,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <table className="border-collapse text-[10px]">
+            <table className="border-collapse text-xs">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-surface p-1 text-left text-muted">

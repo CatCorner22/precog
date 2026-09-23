@@ -180,7 +180,7 @@ export function RuleCaseCard({
   if (!pick) return null;
   return (
     <div className={className}>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">
         {pick.citesRule ? "This arrangement, somewhere real" : "A related scheme, somewhere real"}
       </p>
       <CaseCard study={pick.study} />

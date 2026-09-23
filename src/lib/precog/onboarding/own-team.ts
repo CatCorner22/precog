@@ -13,6 +13,7 @@ import { resolveTemplate } from "../active-template";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
 import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
+import type { PeopleImportResult } from "../import/people-csv";
 import { stripInvisibleControls } from "../import/csv";
 
 /**
@@ -48,7 +49,7 @@ export const GRID_DUTY_HEADING: Record<string, string> = {
   enter_payroll: "Enter payroll",
   approve_payroll: "Approve payroll",
   issue_refunds: "Issue refunds",
-  approve_writeoffs: "Approve write-offs, voids",
+  approve_writeoffs: "Approve write-offs",
 };
 
 export function coreDutyLabel(id: EntitlementId): string {
@@ -100,6 +101,14 @@ export interface OwnTeamRow {
   employeeId?: string;
   /** Last working day the roster gave, for someone who has given notice. */
   lastDay?: string;
+  /**
+   * How the pasted roster read this row's title: the catalog seat and
+   * whether that was a partial match. Kept with the role it was read for,
+   * so a title typed later is read again (see rowSeat).
+   */
+  readAs?: { role: string; title?: string; partial?: boolean };
+  /** A key for this row that survives edits and removals above it; never saved on the person. */
+  rowId?: string;
 }
 
 /** Whether a grid row owns the business: its mark when set, otherwise its title. */
@@ -122,6 +131,89 @@ export function suggestedDuties(role: string, owns: boolean, industry?: string):
   if (!owns) return title;
   const owner = coreDutiesForTitle("Owner", industry);
   return [...owner, ...title.filter((d) => !owner.includes(d))];
+}
+
+/**
+ * Whether a row's ticks are still exactly the usual duties for its title:
+ * the title that ticked them is the row's title now, and nobody has added or
+ * removed a duty since. A row with no duties at all has nothing guessed.
+ */
+export function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
+  const role = row.role.trim();
+  if (!role || row.duties.length === 0) return false;
+  if ((row.suggestedFor ?? "").trim() !== role) return false;
+  const usual = suggestedDuties(role, rowOwnsBusiness(row), industry);
+  return row.duties.length === usual.length && row.duties.every((d) => usual.includes(d));
+}
+
+/** Which catalog seat a row's title was read as, and whether only part of the title matched. */
+export interface SeatReading {
+  /** The catalog title, or undefined when the title is not in the catalog. */
+  title?: string;
+  partial: boolean;
+}
+
+/**
+ * The catalog seat behind a row's ticks: what the pasted roster read the
+ * title as, while the title is unchanged, and otherwise the catalog's own
+ * reading of the title as typed. Undefined for a row with no title.
+ */
+export function rowSeat(
+  row: Pick<OwnTeamRow, "role" | "readAs">,
+  industry?: string,
+): SeatReading | undefined {
+  const role = row.role.trim();
+  if (!role) return undefined;
+  if (row.readAs && row.readAs.role.trim() === role) {
+    return { title: row.readAs.title, partial: row.readAs.partial === true };
+  }
+  const match = matchJobTitle(role, industry);
+  return match
+    ? { title: match.entry.title, partial: match.confidence === "partial" }
+    : { partial: false };
+}
+
+/**
+ * Unticks one duty for everyone whose title is `role` (compared without case
+ * or spacing), so "untick write-off approval for all 13 physical therapists"
+ * is one step. Returns the new rows and how many rows changed.
+ */
+export function untickDutyForTitle(
+  rows: readonly OwnTeamRow[],
+  role: string,
+  duty: EntitlementId,
+): { rows: OwnTeamRow[]; changed: number } {
+  const key = titleKey(role);
+  let changed = 0;
+  const next = rows.map((row) => {
+    if (titleKey(row.role) !== key || !row.duties.includes(duty)) return row;
+    changed += 1;
+    return { ...row, duties: row.duties.filter((d) => d !== duty) };
+  });
+  return { rows: next, changed };
+}
+
+/**
+ * Titles held by two or more rows, with how many hold each, most first: the
+ * titles a bulk untick is worth offering for.
+ */
+export function sharedTitles(rows: readonly OwnTeamRow[]): { role: string; count: number }[] {
+  const counts = new Map<string, { role: string; count: number }>();
+  for (const row of rows) {
+    const role = row.role.trim();
+    if (!role) continue;
+    const key = titleKey(role);
+    const entry = counts.get(key);
+    if (entry) entry.count += 1;
+    else counts.set(key, { role, count: 1 });
+  }
+  return [...counts.values()]
+    .filter((entry) => entry.count > 1)
+    .sort((a, b) => b.count - a.count || a.role.localeCompare(b.role));
+}
+
+function titleKey(role: string): string {
+  return role.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 /** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */
@@ -306,8 +398,177 @@ export function mergeTeamRows(
   return { rows: [...rows, ...added], added, updated };
 }
 
-/** Maximum people the grid accepts; larger teams continue in the register. */
+/** Maximum people the grid accepts; larger teams continue in the team editor. */
 export const OWN_TEAM_MAX = 60;
+
+/** Where an owner adds people once the setup table is full. */
+export const MORE_PEOPLE_PLACE = "How work flows > Build > Team";
+
+/**
+ * Grid rows for the active people in a pasted roster, each with the catalog
+ * seat the importer read its title as and its on-leave mark, plus the names
+ * of the people left out as inactive.
+ */
+export function pastedRows(
+  result: Pick<PeopleImportResult, "people" | "titles" | "onLeave">,
+  industry?: string,
+): { rows: OwnTeamRow[]; inactiveNames: string[] } {
+  const onLeave = new Set(result.onLeave ?? []);
+  const rows = result.people
+    .filter((person) => person.active)
+    .map((person) => {
+      const mapping = result.titles.find((t) => t.name === person.name);
+      return {
+        ...rowFromImportedPerson(person, industry, onLeave.has(person.id)),
+        readAs: {
+          role: person.role,
+          ...(mapping?.catalogTitle ? { title: mapping.catalogTitle } : {}),
+          ...(mapping?.confidence === "partial" ? { partial: true } : {}),
+        },
+      };
+    });
+  const inactiveNames = result.people.filter((p) => !p.active).map((p) => p.name);
+  return { rows, inactiveNames };
+}
+
+/**
+ * Adds pasted rows to the rows already in the grid. Someone already there
+ * (same employee id, or same name) is updated in place and never counts
+ * against the limit; only new people do, up to `max` rows in all.
+ */
+export function addPastedRows(
+  kept: readonly OwnTeamRow[],
+  incoming: readonly OwnTeamRow[],
+  max = OWN_TEAM_MAX,
+): { rows: OwnTeamRow[]; added: OwnTeamRow[]; matched: number; notAdded: number } {
+  const merged = mergeTeamRows(kept, incoming);
+  const room = Math.max(0, max - kept.length);
+  const added = merged.added.slice(0, room);
+  return {
+    rows: [...merged.rows.slice(0, kept.length), ...added],
+    added,
+    matched: incoming.length - merged.added.length,
+    notAdded: merged.added.length - added.length,
+  };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "Ana, Ben and Cal", or the first five and how many more. */
+function nameList(names: readonly string[]): string {
+  const shown = names.slice(0, 5);
+  const more = names.length - shown.length;
+  if (more > 0) return `${shown.join(", ")} and ${more} more`;
+  if (shown.length < 2) return shown.join("");
+  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+}
+
+/**
+ * The note under "Fill the table", and whether the paste stays in the box.
+ * The headline counts every person pasted, including rows past the
+ * importer's read limit; anyone left out keeps the paste in the box and is
+ * pointed to where more people can be added.
+ */
+export function pasteSummary(input: {
+  added: number;
+  matched: number;
+  notAdded: number;
+  /** Rows past the importer's read limit that were not read at all. */
+  dropped: number;
+  /** The importer's row limit, named when rows were dropped. */
+  readLimit?: number;
+  recognised: number;
+  partial: number;
+  unmatched: number;
+  inactiveNames: readonly string[];
+  ownerRow: "kept" | "replaced" | "none";
+  onLeaveNames: readonly string[];
+  max?: number;
+}): { note: string; keepPaste: boolean } {
+  const max = input.max ?? OWN_TEAM_MAX;
+  const { added, matched, notAdded, dropped } = input;
+  const pasted = added + matched + notAdded + dropped;
+  const leftOut = notAdded + dropped;
+  const keepPaste = leftOut > 0 || added + matched === 0;
+  const already =
+    matched > 0
+      ? `${plural(matched, "person", "people")} already in the table ${matched === 1 ? "was" : "were"} updated, not added again`
+      : "";
+  const sentences: string[] = [];
+  if (leftOut > 0) {
+    const limits = [
+      dropped > 0 ? `one paste reads the first ${input.readLimit ?? 250} rows` : "",
+      notAdded > 0 ? `this table holds ${max} people` : "",
+    ].filter(Boolean);
+    sentences.push(
+      `Added ${added === 0 && matched === 0 ? "none" : added} of the ${pasted.toLocaleString("en-US")} people${already ? `; ${already}` : ""}.`,
+      `${leftOut.toLocaleString("en-US")} not added because ${limits.join(" and ")}. The paste stays in the box: add ${added + matched === 0 ? "them" : "the rest"} in ${MORE_PEOPLE_PLACE} after setup.`,
+    );
+  } else if (added === 0 && matched > 0) {
+    sentences.push(
+      matched === 1
+        ? "The person in the paste is already in the table; their row was updated, not added again."
+        : `All ${matched} people in the paste are already in the table; their rows were updated, not added again.`,
+    );
+  } else {
+    sentences.push(`Added ${plural(added, "person", "people")}${already ? `; ${already}` : ""}.`);
+  }
+  if (added + matched > 0) {
+    const partial =
+      input.partial > 0 ? `, ${input.partial} of them only partly (marked in the Role column)` : "";
+    const unmatched = input.unmatched
+      ? `; ${input.unmatched} not recognised, tick their duties below`
+      : "";
+    sentences.push(
+      `${plural(input.recognised, "title", "titles")} recognised and duties ticked from the catalog${partial}${unmatched}.`,
+    );
+  }
+  if (input.inactiveNames.length > 0) {
+    sentences.push(
+      `${plural(input.inactiveNames.length, "person", "people")} marked inactive ${input.inactiveNames.length === 1 ? "was" : "were"} left out: ${nameList(input.inactiveNames)}.`,
+    );
+  }
+  if (added + matched === 0) {
+    // Nothing changed in the table: the rest of the note would describe rows that are not there.
+  } else if (input.ownerRow === "kept") {
+    sentences.push("The Owner row stays at the top with its duties ticked: type your name in it.");
+  } else if (input.ownerRow === "replaced") {
+    sentences.push("The owner in your paste takes the place of the empty Owner row.");
+  }
+  if (input.onLeaveNames.length > 0) {
+    sentences.push(
+      `${nameList(input.onLeaveNames)} ${input.onLeaveNames.length === 1 ? "is" : "are"} on leave: kept on the team and recorded as out today in Who knows what when you finish; extend the absence there until they return.`,
+    );
+  }
+  if (added + matched > 0) {
+    sentences.push("Check every row: a title is a starting point, not a fact about your business.");
+  }
+  return { note: sentences.join(" "), keepPaste };
+}
+
+/**
+ * The grid after adding `count` people with one catalog job and placeholder
+ * names. Placeholder numbers continue after every name already in the grid,
+ * and no more rows are added than the grid holds.
+ */
+export function addRowsByTitle(
+  rows: readonly OwnTeamRow[],
+  entry: JobCatalogEntry,
+  count: number,
+  industry?: string,
+  max = OWN_TEAM_MAX,
+): { rows: OwnTeamRow[]; added: number; notAdded: number } {
+  const { kept } = rowsKeptForAdding(rows, entry.id === "owner");
+  const wanted = Math.max(0, Math.floor(count));
+  const room = Math.max(0, max - kept.length);
+  const added = rowsForJobTitle(
+    entry,
+    Math.min(wanted, room),
+    kept.map((r) => r.name),
+    industry,
+  );
+  return { rows: [...kept, ...added], added: added.length, notAdded: wanted - added.length };
+}
 
 /**
  * The rows that become people, in order: named, and no more than the grid
@@ -340,10 +601,11 @@ export function onLeavePersonIds(rows: readonly OwnTeamRow[]): string[] {
  * the duties ticked for them so duty-conflict detection reads them directly
  * instead of guessing from a job title.
  */
-export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
+export function buildOwnTeam(rows: readonly OwnTeamRow[], industry?: string): Person[] {
   const allowed = new Set<string>(ENTITLEMENTS.map((e) => e.id));
   return teamRows(rows)
     .map((row) => ({
+      fromTitle: dutiesStillFromTitle(row, industry),
       name: row.name.trim().slice(0, 60),
       role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
       duties: row.duties.filter((d) => allowed.has(d)),
@@ -369,7 +631,46 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
       ...(row.employeeId ? { employeeId: row.employeeId } : {}),
       ...(row.lastDay ? { lastDay: row.lastDay } : {}),
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
+      // The owner never changed these ticks from the title's usual duties.
+      ...(row.fromTitle ? { dutiesFromTitle: true as const } : {}),
     }));
+}
+
+/**
+ * People whose duties are still the usual ones for their job title, not
+ * ones the owner confirmed, among the active team.
+ */
+export function peopleWithTitleDuties(people: readonly Person[]): Person[] {
+  return people.filter((person) => person.active && person.dutiesFromTitle === true);
+}
+
+/**
+ * One plain sentence saying how many of the active people carry duties
+ * guessed from their job title, or an empty string when none do.
+ */
+export function titleDutiesSentence(people: readonly Person[]): string {
+  const total = people.filter((person) => person.active).length;
+  const guessed = peopleWithTitleDuties(people).length;
+  if (guessed === 0 || total === 0) return "";
+  if (total === 1) {
+    return "Duties for your one person are the usual ones for their job title, not ones you confirmed.";
+  }
+  if (guessed === total) {
+    return `Duties for all ${total} of your people are the usual ones for their job titles, not ones you confirmed.`;
+  }
+  return `Duties for ${guessed} of your ${total} people are the usual ones for their job ${
+    guessed === 1 ? "title" : "titles"
+  }, not ones you confirmed.`;
+}
+
+/** The team with every "duties from the job title" mark cleared: the owner has checked them. */
+export function confirmTitleDuties(people: readonly Person[]): Person[] {
+  return people.map((person) => {
+    if (!person.dutiesFromTitle) return person;
+    const rest: Person = { ...person };
+    delete rest.dutiesFromTitle;
+    return rest;
+  });
 }
 
 /** The name an own business gets when the owner leaves the name blank. */

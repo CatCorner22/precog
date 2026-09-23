@@ -210,10 +210,10 @@ export function AssessmentSnapshots() {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Versioned assessments</Badge>
-        <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Archive className="size-5 text-primary" />
           Preserve the decision record
-        </h2>
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Save an immutable point-in-time copy of the practice profile, controls, variables,
           decision journal, responsibility map, and value evidence. Snapshots are private to your
@@ -319,7 +319,7 @@ export function AssessmentSnapshots() {
                       </button>
                     </div>
                   </div>
-                  <p className="mt-1 text-[11px] text-subtle">
+                  <p className="mt-1 text-xs text-subtle">
                     Comparing the current workspace with the assessment saved{" "}
                     {new Date(comparison.createdAt).toLocaleString()}.
                   </p>
@@ -364,7 +364,7 @@ export function AssessmentSnapshots() {
                   </div>
                   {comparison.result.assignmentChanges.length > 0 && (
                     <div className="mt-3 border-t border-primary/20 pt-3">
-                      <p className="text-[11px] font-medium uppercase tracking-wider text-subtle">
+                      <p className="text-xs font-medium uppercase tracking-wider text-subtle">
                         Responsibility changes
                       </p>
                       <div className="mt-2 space-y-1.5">
@@ -389,7 +389,7 @@ export function AssessmentSnapshots() {
                         ))}
                       </div>
                       {comparison.result.assignmentChanges.length > 6 && (
-                        <p className="mt-2 text-[11px] text-subtle">
+                        <p className="mt-2 text-xs text-subtle">
                           +{comparison.result.assignmentChanges.length - 6} additional changes
                         </p>
                       )}
@@ -397,7 +397,7 @@ export function AssessmentSnapshots() {
                   )}
                   {comparison.result.riskVariableChanges.length > 0 && (
                     <div className="mt-3 border-t border-primary/20 pt-3">
-                      <p className="text-[11px] font-medium uppercase tracking-wider text-subtle">
+                      <p className="text-xs font-medium uppercase tracking-wider text-subtle">
                         Risk-input changes
                       </p>
                       <div className="mt-2 space-y-1.5">
@@ -414,7 +414,7 @@ export function AssessmentSnapshots() {
                         ))}
                       </div>
                       {comparison.result.riskVariableChanges.length > 6 && (
-                        <p className="mt-2 text-[11px] text-subtle">
+                        <p className="mt-2 text-xs text-subtle">
                           +{comparison.result.riskVariableChanges.length - 6} additional changes
                         </p>
                       )}
@@ -438,7 +438,7 @@ export function AssessmentSnapshots() {
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted">
                         <Clock3 className="size-3" /> {new Date(item.createdAt).toLocaleString()}
                       </p>
-                      <p className="mt-1 text-[11px] text-subtle">
+                      <p className="mt-1 text-xs text-subtle">
                         Model {item.modelVersion} · corpus {item.corpusVersion}
                       </p>
                       {item.includesPowerMap && <Badge className="mt-2">Power map included</Badge>}

@@ -24,7 +24,7 @@ export function WorkloadView({
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         Who carries the risk. {overloaded ? `${overloaded} overburdened · ` : ""}
         {idle ? `${idle} with no processes · ` : ""}
         {processCount} processes across {rows.length} people.
@@ -43,7 +43,7 @@ export function WorkloadView({
               <button
                 type="button"
                 onClick={() => setOpen(expanded ? null : r.person.id)}
-                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs"
               >
                 <ChevronRight
                   className={cn(
@@ -56,7 +56,7 @@ export function WorkloadView({
                     <span className="font-medium text-fg">{r.person.name}</span>
                     <span className="text-subtle"> · {r.person.role}</span>
                   </span>
-                  <span className="block text-[10px] text-subtle">
+                  <span className="block text-xs text-subtle">
                     {r.ownedProcesses.length} proc · {r.entitlementCount} duties
                     {r.criticalConflicts ? ` · ${r.criticalConflicts} critical SoD` : ""}
                   </span>
@@ -72,13 +72,13 @@ export function WorkloadView({
                 </span>
               </button>
               {expanded && (
-                <div className="space-y-1.5 border-t border-border px-2 py-1.5 text-[11px]">
+                <div className="space-y-1.5 border-t border-border px-2 py-1.5 text-xs">
                   {r.flags.length > 0 && (
                     <ul className="flex flex-wrap gap-1">
                       {r.flags.map((f) => (
                         <li
                           key={f}
-                          className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-[10px] text-fg"
+                          className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-xs text-fg"
                         >
                           {f}
                         </li>
@@ -100,7 +100,7 @@ export function WorkloadView({
                             <button
                               type="button"
                               onClick={() => onReassign(r.person.id, p.id)}
-                              className="shrink-0 text-[10px] text-primary hover:underline"
+                              className="shrink-0 text-xs text-primary hover:underline"
                               title="Move to the next best owner"
                             >
                               Reassign

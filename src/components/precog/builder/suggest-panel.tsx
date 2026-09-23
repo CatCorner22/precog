@@ -73,15 +73,15 @@ export function SuggestPanel({
         </Button>
       </div>
       {!result && !loading && (
-        <p className="text-[11px] text-muted">
+        <p className="text-xs text-muted">
           Get starter risks, improvement ideas, and matching controls for this process based on its
           name and description.
         </p>
       )}
-      {error && <p className="text-[11px] text-danger">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
       {result && (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-subtle">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-subtle">
             <Badge variant={result.source === "grok" ? "accent" : "default"}>
               {result.source === "grok" ? `Grok · ${result.model ?? ""}` : "Rule-based"}
             </Badge>
@@ -94,7 +94,7 @@ export function SuggestPanel({
                 return (
                   <li
                     key={r.title}
-                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
                   >
                     <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
                     <div className="min-w-0 flex-1">
@@ -110,7 +110,7 @@ export function SuggestPanel({
                       onClick={() =>
                         onChange({ risks: [...(process.risks ?? []), { ...r, id: uid("r") }] })
                       }
-                      className="text-[10px] font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
+                      className="text-xs font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
                     >
                       {added ? "Added" : "Add"}
                     </button>
@@ -126,7 +126,7 @@ export function SuggestPanel({
                 return (
                   <li
                     key={i.title}
-                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+                    className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
                   >
                     <Lightbulb className="mt-0.5 size-3 shrink-0 text-warn" />
                     <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ export function SuggestPanel({
                       onClick={() =>
                         onChange({ ideas: [...(process.ideas ?? []), { ...i, id: uid("i") }] })
                       }
-                      className="text-[10px] font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
+                      className="text-xs font-medium text-primary hover:underline disabled:text-subtle disabled:no-underline"
                     >
                       {added ? "Added" : "Add"}
                     </button>
@@ -152,7 +152,7 @@ export function SuggestPanel({
             </ul>
           )}
           {result.controlIds.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1 text-xs">
               <span className="text-subtle">Link controls:</span>
               {result.controlIds.map((cid) => {
                 const c = tpl.controls.find((x) => x.id === cid);

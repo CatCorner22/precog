@@ -189,7 +189,7 @@ export function ControlCalendarCard({
                 />
               ))}
               {actionable.length > 8 && (
-                <li className="text-[11px] text-subtle">
+                <li className="text-xs text-subtle">
                   +{actionable.length - 8} more in the calendar
                 </li>
               )}
@@ -228,7 +228,7 @@ export function ControlCalendarCard({
                 <ChevronRight className="size-4" />
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-[10px] text-subtle">
+            <div className="grid grid-cols-7 gap-1 text-xs text-subtle">
               {WEEKDAYS.map((d) => (
                 <div key={d} className="text-center">
                   {d}
@@ -254,7 +254,7 @@ export function ControlCalendarCard({
                     type="button"
                     onClick={() => setSelectedDay(selectedDay === k ? null : k)}
                     className={cn(
-                      "flex h-12 flex-col items-center justify-between rounded-md border p-1 text-[10px] transition-colors",
+                      "flex h-12 flex-col items-center justify-between rounded-md border p-1 text-xs transition-colors",
                       selectedDay === k
                         ? "border-primary/60 bg-primary/10"
                         : "border-border bg-elevated hover:border-border-strong",
@@ -274,7 +274,7 @@ export function ControlCalendarCard({
                     {dayItems.length > 0 && (
                       <span
                         className={cn(
-                          "rounded-full px-1.5 text-[9px] font-semibold tabular",
+                          "rounded-full px-1.5 text-xs font-semibold tabular",
                           worst === "danger" && "bg-danger/20 text-danger",
                           worst === "warn" && "bg-warn/20 text-warn",
                           worst === "primary" && "bg-primary/20 text-primary",
@@ -290,7 +290,7 @@ export function ControlCalendarCard({
             {selectedDay && (
               <ul className="space-y-1.5 border-t border-border pt-2">
                 {(byDay.get(selectedDay) ?? []).length === 0 ? (
-                  <li className="text-[11px] text-subtle">Nothing due on this day.</li>
+                  <li className="text-xs text-subtle">Nothing due on this day.</li>
                 ) : (
                   (byDay.get(selectedDay) ?? []).map((i) => (
                     <DueRow
@@ -307,7 +307,7 @@ export function ControlCalendarCard({
               </ul>
             )}
             {summary.unscheduled > 0 && (
-              <p className="text-[11px] text-subtle">
+              <p className="text-xs text-subtle">
                 {summary.unscheduled} item(s) have never been recorded and so have no date — open
                 them from &ldquo;This week&rdquo; and mark the first review done to start the
                 cadence.
@@ -353,7 +353,7 @@ function DueRow({
         <button
           type="button"
           onClick={onDone}
-          className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-fg hover:border-ok/50 hover:text-ok"
+          className="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-fg hover:border-ok/50 hover:text-ok"
           title="Record this review as completed today"
         >
           Done

@@ -51,6 +51,7 @@ import {
 import { CaseCard } from "./case-card";
 import { concentrationHeadline, midSentence, separatedPairs } from "@/lib/precog/sod/verdict";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
@@ -160,6 +161,8 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     () => separatedPairs(sod.conflicts, sod.assignments),
     [sod.conflicts, sod.assignments],
   );
+  // Findings that rest on duties guessed from job titles say so.
+  const titleDuties = isSampleTeam ? "" : titleDutiesSentence(template.people);
   const unheld = sod.summary.unheldDuties.map(
     (d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d,
   );
@@ -626,6 +629,23 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           }
         />
 
+        {titleDuties && (
+          <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+            {titleDuties}{" "}
+            {onOpenDetail ? (
+              <button
+                type="button"
+                onClick={() => onOpenDetail("sod")}
+                className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+              >
+                Check them in Who controls what.
+              </button>
+            ) : (
+              "Check them in Who controls what."
+            )}
+          </p>
+        )}
+
         {unheld.length > 0 && (
           <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
             Nobody active is marked for: {unheld.join(", ")}. Somebody does each of these in every
@@ -681,7 +701,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                           : `${people.length} people: ${people.join(", ")}`}
                       </span>
                     </div>
-                    <CardTitle className="leading-snug">
+                    <CardTitle as="h3" className="leading-snug">
                       {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
                       {lower(conflict.labelA)} and {lower(conflict.labelB)}
                     </CardTitle>
@@ -981,7 +1001,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               <ol className="space-y-3">
                 {steps.slice(0, 6).map((s, i) => (
                   <li key={s.control.id} className="flex gap-3">
-                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-[11px] text-muted">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
                       {i + 1}
                     </span>
                     <div className="min-w-0">

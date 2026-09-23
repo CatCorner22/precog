@@ -317,10 +317,10 @@ export function DecisionJournal({
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Decision journal</Badge>
-        <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen
-        </h2>
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Checking that controls still work (what the COSO framework calls monitoring) needs a paper
           trail. Record remediate, accept residual, monitor, or insure decisions with a review date.
@@ -425,7 +425,7 @@ export function DecisionJournal({
                       </Badge>
                       <span className="font-medium">{d.subject}</span>
                       {d.reviewBy && (
-                        <span className="text-[11px] text-subtle">review by {d.reviewBy}</span>
+                        <span className="text-xs text-subtle">review by {d.reviewBy}</span>
                       )}
                     </div>
                     <p className="mt-1 text-xs tabular text-muted">
@@ -608,7 +608,7 @@ export function DecisionJournal({
                       </div>
                       <p className="mt-1 font-medium">{d.subject}</p>
                       <p className="mt-0.5 text-sm text-muted">{d.note}</p>
-                      <p className="mt-1 text-[11px] text-subtle">
+                      <p className="mt-1 text-xs text-subtle">
                         {new Date(d.createdAt).toLocaleDateString()}
                         {d.reviewBy ? ` · review by ${d.reviewBy}` : ""}
                         {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}

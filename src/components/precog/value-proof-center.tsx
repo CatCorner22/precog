@@ -103,9 +103,9 @@ export function ValueProofCenter() {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Executive value proof</Badge>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-          <h2 className="text-xl font-semibold">
+          <h1 className="text-xl font-semibold">
             Show what changed—without claiming every quiet year as savings
-          </h2>
+          </h1>
           <button
             type="button"
             onClick={exportMemo}
@@ -415,7 +415,7 @@ function Field({
       <span className="mb-1.5 flex items-center justify-between gap-2 text-xs font-medium text-muted">
         {label}
         {appDefault && (
-          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-subtle">
+          <span className="rounded border border-border px-1.5 py-0.5 text-xs font-normal text-subtle">
             app default
           </span>
         )}
@@ -423,7 +423,7 @@ function Field({
       <span className="flex items-center rounded-lg border border-border bg-elevated px-3 focus-within:border-primary/60">
         {prefix && <span className="text-sm text-subtle">{prefix}</span>}
         <input
-          className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm tabular outline-none"
+          className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm tabular"
           type="number"
           min="0"
           step={step}
@@ -457,7 +457,7 @@ function Metric({
           <Icon className={`size-4 ${warning ? "text-warn" : "text-primary"}`} />
         </div>
         <p className="mt-2 text-2xl font-semibold tabular">{value}</p>
-        <p className="mt-1 text-[11px] text-subtle">{note}</p>
+        <p className="mt-1 text-xs text-subtle">{note}</p>
       </CardContent>
     </Card>
   );
@@ -488,12 +488,12 @@ function ObservedInline({
         {figure.observed && figure.value !== null ? show(figure.value) : NOT_YET}
       </p>
       {figure.observed && figure.defaultsUsed.length > 0 && (
-        <p className="mt-0.5 text-[11px] text-subtle">
+        <p className="mt-0.5 text-xs text-subtle">
           Uses the app default for {inputList(figure.defaultsUsed)}
         </p>
       )}
       {!figure.observed && figure.missing.length > 0 && (
-        <p className="mt-0.5 text-[11px] text-subtle">Enter {inputList(figure.missing)}</p>
+        <p className="mt-0.5 text-xs text-subtle">Enter {inputList(figure.missing)}</p>
       )}
     </div>
   );

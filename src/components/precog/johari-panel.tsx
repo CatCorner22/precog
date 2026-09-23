@@ -142,7 +142,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </div>
               <p className="mt-2 text-sm font-medium">{g.classicName}</p>
               <p className="mt-1 text-xs text-muted line-clamp-2">{g.precogMeaning}</p>
-              <p className="mt-2 text-[10px] text-subtle">
+              <p className="mt-2 text-xs text-subtle">
                 Self: {g.axes.self ? "known" : "unknown"} · Others:{" "}
                 {g.axes.others ? "known" : "unknown"}
               </p>
@@ -200,7 +200,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[11px]"
+                          className="h-7 text-xs"
                           onClick={() => onNavigate?.(m.precogTab!)}
                         >
                           Open {m.precogTab}
@@ -235,14 +235,12 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <span className="font-medium">{item.title}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted line-clamp-2">{item.description}</p>
-                  {item.probe && (
-                    <p className="mt-1 text-[11px] text-ok">Probe: {item.probe.action}</p>
-                  )}
+                  {item.probe && <p className="mt-1 text-xs text-ok">Probe: {item.probe.action}</p>}
                   {item.link && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="mt-1 h-7 px-2 text-[11px]"
+                      className="mt-1 h-7 px-2 text-xs"
                       onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
                     >
                       Open {item.link.tab}
@@ -255,7 +253,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-[11px]"
+                  className="h-7 px-2 text-xs"
                   onClick={() => setShowAll(true)}
                 >
                   Show all {pane.total}
@@ -288,7 +286,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 type="button"
                 onClick={() => setDomain(d.domain)}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px]",
+                  "rounded-full border px-2.5 py-1 text-xs",
                   domain === d.domain
                     ? "border-primary/40 bg-primary/10 text-fg"
                     : "border-border bg-elevated text-muted",

@@ -261,7 +261,7 @@ export function DynamicVariablesPanel({
           {d && (
             <>
               <div>
-                <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
+                <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
                   Assumptions in play
                 </p>
                 <p className="mb-2 text-xs leading-relaxed text-subtle">
@@ -287,7 +287,7 @@ export function DynamicVariablesPanel({
                 </ul>
               </div>
               <div>
-                <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
+                <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
                   Premium credit stack
                 </p>
                 <ul className="space-y-1.5">
@@ -338,7 +338,7 @@ export function DynamicVariablesPanel({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">{title}</p>
+      <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">{title}</p>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
     </div>
   );
@@ -347,9 +347,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Mini({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-3">
-      <p className="text-[10px] tracking-wide text-subtle uppercase">{label}</p>
+      <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
       <p className="mt-1 text-lg font-semibold tabular tracking-tight">{value}</p>
-      <p className="text-[11px] text-muted">{hint}</p>
+      <p className="text-xs text-muted">{hint}</p>
     </div>
   );
 }
@@ -376,7 +376,7 @@ function CurrencyField({
       <span className="flex items-center justify-between gap-2 text-muted">
         {label}
         {appDefault && (
-          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-subtle">
+          <span className="rounded border border-border px-1.5 py-0.5 text-xs text-subtle">
             app default
           </span>
         )}

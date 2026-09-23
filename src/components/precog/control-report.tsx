@@ -348,7 +348,7 @@ export function ControlReport() {
           />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
-        <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
+        <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
         <Section title="Process map health">
           {mapNote ? (
@@ -374,7 +374,7 @@ export function ControlReport() {
                         style={{ width: `${d.score}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
+                    <p className="mt-1 text-xs text-neutral-600">{d.hint}</p>
                   </div>
                 ))}
               </div>
@@ -410,7 +410,7 @@ export function ControlReport() {
                 <div>
                   <p className="font-medium">
                     {a.title}{" "}
-                    <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-600">
+                    <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-xs uppercase tracking-wide text-neutral-600">
                       {a.effort} effort
                     </span>
                   </p>
@@ -422,47 +422,49 @@ export function ControlReport() {
         </Section>
 
         <Section title="Priority stack">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-neutral-300 text-left text-[11px] tracking-wide text-neutral-500 uppercase">
-                <th className="py-1.5 pr-2">#</th>
-                <th className="py-1.5 pr-2">Target</th>
-                <th className="py-1.5 pr-2">Type</th>
-                <th className="py-1.5 pr-2">Band</th>
-                <th className="py-1.5 pr-2 text-right">Priority</th>
-                <th className="py-1.5 text-right">Assumed loss</th>
-              </tr>
-            </thead>
-            <tbody>
-              {top.map((t, i) => (
-                <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
-                  <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
-                  <td className="py-1.5 pr-2">
-                    <p className="font-medium">{t.label}</p>
-                    <p className="text-xs text-neutral-600">{t.impactHint}</p>
-                  </td>
-                  <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
-                  <td className="py-1.5 pr-2">
-                    <span
-                      className={
-                        t.band === "white_hot" || t.band === "critical"
-                          ? "font-semibold text-red-700"
-                          : t.band === "elevated"
-                            ? "font-medium text-amber-700"
-                            : "text-neutral-600"
-                      }
-                    >
-                      {PRIORITY_BAND_LABEL[t.band]}
-                    </span>
-                  </td>
-                  <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
-                  <td className="py-1.5 text-right tabular text-neutral-700">
-                    {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
+                  <th className="py-1.5 pr-2">#</th>
+                  <th className="py-1.5 pr-2">Target</th>
+                  <th className="py-1.5 pr-2">Type</th>
+                  <th className="py-1.5 pr-2">Band</th>
+                  <th className="py-1.5 pr-2 text-right">Priority</th>
+                  <th className="py-1.5 text-right">Assumed loss</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {top.map((t, i) => (
+                  <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
+                    <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
+                    <td className="py-1.5 pr-2">
+                      <p className="font-medium">{t.label}</p>
+                      <p className="text-xs text-neutral-600">{t.impactHint}</p>
+                    </td>
+                    <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
+                    <td className="py-1.5 pr-2">
+                      <span
+                        className={
+                          t.band === "white_hot" || t.band === "critical"
+                            ? "font-semibold text-red-700"
+                            : t.band === "elevated"
+                              ? "font-medium text-amber-700"
+                              : "text-neutral-600"
+                        }
+                      >
+                        {PRIORITY_BAND_LABEL[t.band]}
+                      </span>
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
+                    <td className="py-1.5 text-right tabular text-neutral-700">
+                      {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="mt-2 text-xs text-neutral-600">
             Assumed loss is the scenario&apos;s assumption in this app, not a measured figure.
             {policyNote ? ` Insurance: ${policyNote}.` : ""}
@@ -1163,7 +1165,7 @@ export function ControlReport() {
           </Section>
         )}
 
-        <footer className="mt-8 border-t border-neutral-300 pt-3 text-[11px] leading-relaxed text-neutral-500">
+        <footer className="mt-8 border-t border-neutral-300 pt-3 text-xs leading-relaxed text-neutral-500">
           {threat.caveats.join(" ")} Educational internal-control decision support — not actuarial,
           legal, or forensic advice, and never an accusation against any person. Generated by Precog
           Pioneer.
@@ -1176,7 +1178,7 @@ export function ControlReport() {
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-neutral-300 p-3">
-      <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">{label}</p>
+      <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular">{value}</p>
       <p className="text-xs text-neutral-600 capitalize">{hint}</p>
     </div>

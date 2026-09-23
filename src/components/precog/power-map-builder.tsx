@@ -469,7 +469,7 @@ export function PowerMapBuilder() {
                     <p className="text-xs font-medium">{change.personName}</p>
                     <p
                       className={cn(
-                        "mt-0.5 text-[10px]",
+                        "mt-0.5 text-xs",
                         change.kind === "duty_granted" || change.kind === "person_added"
                           ? "text-primary"
                           : "text-warn",
@@ -520,7 +520,7 @@ export function PowerMapBuilder() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">{person.personName}</p>
-                  <p className="text-[10px] text-subtle">{person.role}</p>
+                  <p className="text-xs text-subtle">{person.role}</p>
                 </div>
                 <span
                   className={cn(
@@ -548,7 +548,7 @@ export function PowerMapBuilder() {
                   style={{ width: `${person.authorityIndex}%` }}
                 />
               </div>
-              <p className="mt-2 text-[10px] text-subtle">
+              <p className="mt-2 text-xs text-subtle">
                 {person.familyCount} duty families · {person.exclusiveDutyCount} exclusive powers ·{" "}
                 {person.conflictCount} conflicts
               </p>
@@ -866,7 +866,7 @@ export function PowerMapBuilder() {
                 <RotateCcw className="size-3.5" />
                 Reset model
               </Button>
-              <span aria-live="polite" className="ml-auto text-[11px] text-subtle">
+              <span aria-live="polite" className="ml-auto text-xs text-subtle">
                 {importMessage || "Saved with your business"}
               </span>
             </div>
@@ -874,14 +874,14 @@ export function PowerMapBuilder() {
               {Object.entries(FAMILY_META).map(([id, meta]) => (
                 <span
                   key={id}
-                  className="flex items-center gap-1.5 text-[10px] text-muted"
+                  className="flex items-center gap-1.5 text-xs text-muted"
                   title={meta.description}
                 >
                   <span className="size-2 rounded-full" style={{ background: meta.color }} />
                   {meta.label}
                 </span>
               ))}
-              <label className="ml-auto flex items-center gap-2 text-[10px] text-muted">
+              <label className="ml-auto flex items-center gap-2 text-xs text-muted">
                 <span>Process lens</span>
                 <select
                   value={processId}
@@ -906,6 +906,7 @@ export function PowerMapBuilder() {
                   edges={edges}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
+                  edgesFocusable={false}
                   fitView
                   minZoom={0.18}
                   maxZoom={1.8}
@@ -995,7 +996,7 @@ export function PowerMapBuilder() {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg border border-border bg-elevated p-2">
-                  <p className="text-[10px] text-subtle">POWERS</p>
+                  <p className="text-xs text-subtle">POWERS</p>
                   <p className="text-lg font-semibold">{selected?.entitlements.length ?? 0}</p>
                 </div>
                 <div
@@ -1006,7 +1007,7 @@ export function PowerMapBuilder() {
                       : "border-ok/30 bg-ok/10",
                   )}
                 >
-                  <p className="text-[10px] text-subtle">CONFLICTS</p>
+                  <p className="text-xs text-subtle">CONFLICTS</p>
                   <p className="text-lg font-semibold">{selectedConflicts.length}</p>
                 </div>
               </div>
@@ -1037,7 +1038,7 @@ export function PowerMapBuilder() {
                     type="button"
                     onClick={() => setFamily(item)}
                     className={cn(
-                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] capitalize",
+                      "shrink-0 rounded-full border px-2 py-0.5 text-xs capitalize",
                       family === item
                         ? "border-primary/50 bg-primary/10"
                         : "border-border text-muted",
@@ -1074,7 +1075,7 @@ export function PowerMapBuilder() {
                     >
                       <span
                         className={cn(
-                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-[10px]",
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-xs",
                           active && "border-primary bg-primary text-primary-fg",
                         )}
                       >
@@ -1082,19 +1083,19 @@ export function PowerMapBuilder() {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-xs font-medium">{entitlement.label}</span>
-                        <span className="text-[10px] capitalize text-subtle">
+                        <span className="text-xs capitalize text-subtle">
                           {FAMILY_META[entitlement.family].label} · risk {entitlement.riskWeight}/5
                         </span>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-subtle">
+                        <span className="mt-1 block text-xs leading-relaxed text-subtle">
                           {guidance.purpose}
                         </span>
                         {creates > 0 && (
-                          <span className="mt-1 block text-[10px] font-medium text-danger">
+                          <span className="mt-1 block text-xs font-medium text-danger">
                             Assigning creates {creates} conflict{creates === 1 ? "" : "s"}
                           </span>
                         )}
                         {resolves > 0 && (
-                          <span className="mt-1 block text-[10px] font-medium text-ok">
+                          <span className="mt-1 block text-xs font-medium text-ok">
                             Removing resolves {resolves} conflict{resolves === 1 ? "" : "s"}
                           </span>
                         )}
@@ -1164,10 +1165,10 @@ export function PowerMapBuilder() {
                       <Badge>{entitlement ? FAMILY_META[entitlement.family].label : "Duty"}</Badge>
                     </div>
                     <p className="mt-2 text-xs text-muted">{guidance.purpose}</p>
-                    <p className="mt-2 text-[11px] text-subtle">
+                    <p className="mt-2 text-xs text-subtle">
                       <strong className="text-muted">Evidence:</strong> {guidance.evidence}
                     </p>
-                    <p className="mt-1 text-[11px] text-subtle">
+                    <p className="mt-1 text-xs text-subtle">
                       <strong className="text-muted">Boundary:</strong> {guidance.boundary}
                     </p>
                   </div>
@@ -1250,7 +1251,7 @@ const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
                         className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"
                       >
                         <span className="block font-medium text-fg">{duty.label}</span>
-                        <span className="mt-1 block text-[10px] font-normal text-subtle">
+                        <span className="mt-1 block text-xs font-normal text-subtle">
                           {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
                         </span>
                       </th>
@@ -1351,7 +1352,7 @@ function ResponsibilityMatrix({
                 className="sticky left-0 z-10 border-b border-r border-border bg-surface p-2 text-left"
               >
                 <span className="block font-medium">{duty.label}</span>
-                <span className="text-[10px] font-normal text-subtle">
+                <span className="text-xs font-normal text-subtle">
                   {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
                 </span>
               </th>
@@ -1419,7 +1420,7 @@ function CoverageList({
           {items.map((item) => (
             <div key={item.id} className="rounded-lg border border-border bg-bg p-2">
               <p className="text-xs font-medium">{item.label}</p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-subtle">{item.detail}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-subtle">{item.detail}</p>
             </div>
           ))}
         </div>
@@ -1438,10 +1439,10 @@ function CoveragePlanOption({ plan, onApply }: { plan: CoveragePlan; onApply: ()
       className="rounded-lg border border-border bg-bg p-2.5 text-left hover:border-primary/50"
     >
       <span className="block text-xs font-medium">{plan.toPersonName}</span>
-      <span className="block text-[10px] text-subtle">
+      <span className="block text-xs text-subtle">
         {plan.toRole} · {plan.currentWorkload} current duties
       </span>
-      <span className="mt-1 block text-[10px] font-medium text-ok">
+      <span className="mt-1 block text-xs font-medium text-ok">
         +{plan.continuityGain} continuity · no new conflicts
       </span>
     </button>
@@ -1466,9 +1467,9 @@ function ImpactMetric({
         danger ? "border-danger/40" : "border-ok/30",
       )}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular">{value}</p>
-      <p className={cn("text-[11px]", danger ? "text-danger" : "text-ok")}>{detail}</p>
+      <p className={cn("text-xs", danger ? "text-danger" : "text-ok")}>{detail}</p>
     </div>
   );
 }
@@ -1498,7 +1499,7 @@ function Metric({
         {label}
       </div>
       <p className="mt-1 text-2xl font-semibold tabular">{value}</p>
-      <p className="text-[11px] text-subtle">{detail}</p>
+      <p className="text-xs text-subtle">{detail}</p>
     </div>
   );
 }
@@ -1553,7 +1554,7 @@ function ResolutionOptions({
   const plans = buildResolutionPlans(assignments, conflict);
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-subtle">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle">
         Clean resolution paths
       </p>
       {plans.length ? (
@@ -1567,7 +1568,7 @@ function ResolutionOptions({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium">{plan.summary}</p>
-              <p className="mt-0.5 text-[10px] text-subtle">
+              <p className="mt-0.5 text-xs text-subtle">
                 Resolves {plan.conflictsResolved} conflict{plan.conflictsResolved === 1 ? "" : "s"}{" "}
                 · creates no new conflicts
                 {plan.toPersonName
@@ -1650,7 +1651,7 @@ function buildGraph(
           background: "#1a1d26",
           color: "#e8eaef",
           whiteSpace: "pre-line",
-          fontSize: 11,
+          fontSize: 12,
           borderRadius: 9,
         },
       });

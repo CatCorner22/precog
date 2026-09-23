@@ -524,7 +524,7 @@ export function ProcessBuilder({
             <CardDescription>
               Build your real value stream. Every change re-scores residual risk, SoD, and scenarios
               live.
-              <span className="mt-1 block text-[10px] text-subtle">
+              <span className="mt-1 block text-xs text-subtle">
                 Keyboard: arrows move between processes · F frames the selection · Enter edits the
                 name · Shift+A arranges by stage · Ctrl+Z undo
               </span>
@@ -538,7 +538,7 @@ export function ProcessBuilder({
                 }
               />
             ) : (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]">
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs">
                 <span className="inline-flex items-center gap-1 rounded-full border border-border bg-elevated px-1.5 py-0.5 font-semibold text-muted">
                   <Gauge className="size-3" />
                   {"—"}
@@ -712,7 +712,7 @@ export function ProcessBuilder({
             <ShieldCheck className="size-3.5" />
             Validate
             {validationIssues.filter((i) => i.severity === "error").length > 0 && (
-              <Badge variant="warn" className="ml-1 px-1 py-0 text-[9px]">
+              <Badge variant="warn" className="ml-1 px-1 py-0 text-xs">
                 {validationIssues.filter((i) => i.severity === "error").length}
               </Badge>
             )}
@@ -787,7 +787,7 @@ export function ProcessBuilder({
                 const first = evidenceSummary.overdueItems[0];
                 if (first) onSelectProcess(first.process.id);
               }}
-              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-[11px] text-fg hover:border-warn/60"
+              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
             >
               <Clock className="size-3.5 shrink-0 text-warn" />
               <span className="min-w-0 flex-1">
@@ -870,7 +870,7 @@ export function ProcessBuilder({
         )}
 
         {showValidation && notAssessed && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-[11px] leading-relaxed text-fg">
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs leading-relaxed text-fg">
             <p className="font-medium">Not assessed yet</p>
             <p className="mt-0.5 text-muted">
               {notAssessed}
@@ -922,7 +922,7 @@ export function ProcessBuilder({
                   type="button"
                   onClick={() => onSelectProcess(p.id)}
                   className={cn(
-                    "rounded-md border px-2 py-0.5 text-[11px] transition-colors",
+                    "rounded-md border px-2 py-0.5 text-xs transition-colors",
                     p.id === selectedProcessId
                       ? "border-primary/50 bg-primary/15 text-fg"
                       : "border-border bg-elevated text-muted hover:text-fg",

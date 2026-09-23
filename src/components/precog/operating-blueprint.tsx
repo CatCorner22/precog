@@ -75,7 +75,9 @@ export function OperatingBlueprint({ onNavigate }: { onNavigate?: (tab: string) 
           <Badge variant="default" className="w-fit">
             Not written yet
           </Badge>
-          <CardTitle className="mt-2">No operating blueprint for {industryLabel} yet</CardTitle>
+          <CardTitle as="h1" className="mt-2">
+            No operating blueprint for {industryLabel} yet
+          </CardTitle>
           <CardDescription>
             This tab holds a step-by-step process and control blueprint, and so far one exists only
             for dental and medical offices. Rather than show that one to a{" "}
@@ -117,7 +119,7 @@ export function OperatingBlueprint({ onNavigate }: { onNavigate?: (tab: string) 
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Target operating model</Badge>
-        <h2 className="mt-3 text-xl font-semibold">Standard process and control blueprint</h2>
+        <h1 className="mt-3 text-xl font-semibold">Standard process and control blueprint</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted">
           A practical baseline for a small dental practice: minimum good practice, leading practice,
           optimal structure, and an acceptable compensating fallback when staffing prevents full
@@ -199,7 +201,7 @@ export function OperatingBlueprint({ onNavigate }: { onNavigate?: (tab: string) 
                     />
                   </div>
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-subtle">
+                    <p className="text-xs font-medium uppercase tracking-wider text-subtle">
                       Evidence to retain
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">

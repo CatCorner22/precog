@@ -51,6 +51,7 @@ export function peopleFromBackup(raw: unknown): Person[] {
       ...(duties?.length ? { entitlements: duties } : {}),
       ...(department ? { department } : {}),
       ...(employeeId ? { employeeId } : {}),
+      ...(p.dutiesFromTitle === true ? { dutiesFromTitle: true as const } : {}),
     });
   }
   return people;

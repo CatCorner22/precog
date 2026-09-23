@@ -127,7 +127,7 @@ export function CascadePanel() {
                   key={d.key}
                   className="rounded-lg border border-border bg-elevated p-3 text-sm"
                 >
-                  <p className="text-[10px] tracking-wide text-subtle uppercase">{d.label}</p>
+                  <p className="text-xs tracking-wide text-subtle uppercase">{d.label}</p>
                   <p className="mt-1 tabular">
                     {formatMetric(d.key, d.before)} →{" "}
                     <span className="font-semibold">{formatMetric(d.key, d.after)}</span>
@@ -156,7 +156,7 @@ export function CascadePanel() {
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
+            <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
               Second-order notes
             </p>
             <ul className="space-y-1.5 text-sm text-muted">
@@ -167,14 +167,14 @@ export function CascadePanel() {
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
+            <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
               Dependency spine
             </p>
             <div className="flex flex-wrap gap-2">
               {all.dependencyMap.slice(0, 10).map((d) => (
                 <span
                   key={`${d.from}-${d.to}-${d.effect}`}
-                  className="rounded-full border border-border bg-elevated px-2.5 py-1 text-[11px] text-muted"
+                  className="rounded-full border border-border bg-elevated px-2.5 py-1 text-xs text-muted"
                 >
                   {d.from} → {d.to}: {d.effect}
                 </span>
