@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -80,20 +81,22 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
   const u = users[0];
   return {
     exportedAt: new Date().toISOString(),
-    user: u ? { id: u.id, name: u.name, email: u.email, createdAt: String(u.createdAt) } : null,
+    user: u
+      ? { id: u.id, name: u.name, email: u.email, createdAt: toIsoTimestamp(u.createdAt) }
+      : null,
     businesses: businesses.map((b) => ({
       id: b.id,
       name: b.name,
       industry: b.industry,
       revision: Number(b.revision),
-      updatedAt: String(b.updated_at),
+      updatedAt: toIsoTimestamp(b.updated_at),
       profile: b.profile,
     })),
     snapshots: snapshots.map((s) => ({
       id: s.id,
       title: s.title,
       practiceName: s.practice_name,
-      createdAt: String(s.created_at),
+      createdAt: toIsoTimestamp(s.created_at),
       profile: s.profile_json,
       powerMap: s.power_map_json,
       valueCase: s.value_case_json,
@@ -102,9 +105,9 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
     shares: shares.map((s) => ({
       token: s.token,
       businessName: s.business_name,
-      createdAt: String(s.created_at),
-      expiresAt: s.expires_at ? String(s.expires_at) : null,
-      revokedAt: s.revoked_at ? String(s.revoked_at) : null,
+      createdAt: toIsoTimestamp(s.created_at),
+      expiresAt: toIsoTimestampOrNull(s.expires_at),
+      revokedAt: toIsoTimestampOrNull(s.revoked_at),
       redacted: Boolean(s.redacted),
       payload: s.payload,
     })),

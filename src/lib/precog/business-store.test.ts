@@ -269,3 +269,45 @@ describe("loadActiveBusiness", () => {
     expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
   });
 });
+
+describe("timestamps", () => {
+  const ISO_MS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  async function storedMs(userId: string, businessId: string): Promise<number> {
+    const rows = await sql<{ ms: number | string | bigint }>`
+      select floor(extract(epoch from updated_at) * 1000)::bigint as ms
+      from businesses where user_id = ${userId} and id = ${businessId}
+    `;
+    return Number(rows[0].ms);
+  }
+
+  it("returns updatedAt from a save as ISO 8601 with milliseconds", async () => {
+    const saved = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.updatedAt).toMatch(ISO_MS);
+    expect(new Date(saved.updatedAt).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  });
+
+  it("returns the conflicting row's updated_at as ISO 8601", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    expect(stale.ok).toBe(false);
+    if (stale.ok) return;
+    expect(stale.existing.updated_at).toMatch(ISO_MS);
+    expect(new Date(stale.existing.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  });
+
+  it("loads updated_at as ISO 8601 from the business row and the legacy pointer", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null) });
+    const active = await loadActiveBusiness(sql, "user-a");
+    expect(active?.updated_at).toMatch(ISO_MS);
+    expect(new Date(active!.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+
+    await setActiveBusiness(sql, { ...input("user-b", "biz_default", null, "legacy") });
+    const legacy = await loadActiveBusiness(sql, "user-b");
+    expect(legacy?.revision).toBeNull();
+    expect(legacy?.updated_at).toMatch(ISO_MS);
+  });
+});

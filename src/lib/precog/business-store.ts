@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { toIsoTimestamp } from "./iso-time";
 
 /**
  * Revision-checked write of one business row.
@@ -67,7 +68,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
   `;
   const row = written[0];
   if (row) {
-    return { ok: true, revision: Number(row.revision), updatedAt: String(row.updated_at) };
+    return { ok: true, revision: Number(row.revision), updatedAt: toIsoTimestamp(row.updated_at) };
   }
 
   // Nothing written: the row exists at some other revision. Read it so the
@@ -96,7 +97,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
       profile: existing.profile,
       industry: existing.industry,
       name: existing.name,
-      updated_at: String(existing.updated_at),
+      updated_at: toIsoTimestamp(existing.updated_at),
     },
   };
 }
@@ -182,7 +183,7 @@ export async function loadActiveBusiness<
       name: authoritative.name,
       industry: authoritative.industry,
       profile: authoritative.profile,
-      updated_at: String(authoritative.updated_at),
+      updated_at: toIsoTimestamp(authoritative.updated_at),
       revision: Number(authoritative.revision),
     };
   }
@@ -191,7 +192,7 @@ export async function loadActiveBusiness<
     name: active.name,
     industry: active.industry,
     profile: active.profile,
-    updated_at: String(active.updated_at),
+    updated_at: toIsoTimestamp(active.updated_at),
     revision: null,
   };
 }

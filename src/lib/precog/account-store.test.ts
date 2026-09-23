@@ -94,6 +94,18 @@ describe("account export", () => {
     expect(JSON.stringify(out)).not.toContain("hash");
     expect(JSON.stringify(out)).not.toContain("salt");
   });
+
+  it("writes every timestamp as ISO 8601 with milliseconds", async () => {
+    await pg.query("update map_shares set revoked_at = now() where user_id = 'ua'");
+    const out = await exportAccountRows(sql, "ua");
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+    expect(out.user?.createdAt).toMatch(iso);
+    expect(out.businesses[0].updatedAt).toMatch(iso);
+    expect(out.snapshots[0].createdAt).toMatch(iso);
+    expect(out.shares[0].createdAt).toMatch(iso);
+    expect(out.shares[0].expiresAt).toMatch(iso);
+    expect(out.shares[0].revokedAt).toMatch(iso);
+  });
 });
 
 describe("account deletion", () => {
