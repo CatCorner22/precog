@@ -107,6 +107,16 @@ describe("job catalog", () => {
     expect(matchJobTitle("Sales Engineer")?.entry.id).toBe("consultant");
     expect(matchJobTitle("Product Manager")?.entry.id).toBe("consultant");
     expect(matchJobTitle("Payroll Analyst")?.entry.id).toBe("payroll");
+    expect(matchJobTitle("Dealer Principal")?.entry.id).toBe("owner");
+    expect(matchJobTitle("Parts Counterperson")?.entry.id).toBe("parts");
+    expect(matchJobTitle("Firm Administrator")?.entry.id).toBe("office-manager");
+    expect(entitlementsForTitle("Diesel Technician")).toEqual(["view_reports_only"]);
+    expect(matchJobTitle("HVAC Service Tech")?.entry.id).toBe("field-technician");
+    // A bare level word resolves by line of business, and stays unknown elsewhere.
+    expect(matchJobTitle("Associate", "professional_services")?.entry.id).toBe("attorney");
+    expect(matchJobTitle("Associate", "retail")?.entry.id).toBe("cashier");
+    expect(matchJobTitle("Assistant", "dental")?.entry.id).toBe("dental-assistant");
+    expect(matchJobTitle("Associate", "general")).toBeUndefined();
     expect(matchJobTitle("Office & HR Manager")?.entitlements).toEqual(
       expect.arrayContaining(["post_payments", "edit_payroll_master"]),
     );

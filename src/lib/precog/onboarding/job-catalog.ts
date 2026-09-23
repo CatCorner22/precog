@@ -126,6 +126,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "sole proprietor",
       "franchise owner",
       "franchisee",
+      "dealer principal",
+      "dealer",
+      "franchise dealer",
+      "physician owner",
+      "owner physician",
+      "owner veterinarian",
     ],
     [
       "approve_vendor",
@@ -188,6 +194,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "business office manager",
       "clinic manager",
       "office lead",
+      "firm administrator",
+      "law firm administrator",
+      "legal administrator",
+      "practice administrator (law)",
     ],
     [
       "post_payments",
@@ -1004,18 +1014,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "electrician",
       "hvac technician",
       "hvac tech",
-      "mechanic",
-      "auto technician",
       "operator",
       "equipment operator",
       "carpenter",
       "painter",
       "roofer",
-      "automotive technician",
-      "diesel technician",
-      "tire technician",
-      "lube technician",
-      "auto tech",
       "install technician",
       "installation technician",
       "hvac install technician",
@@ -1322,6 +1325,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "parts advisor",
       "parts clerk",
       "parts associate",
+      "parts counterperson",
+      "counterperson",
+      "parts counter person",
+      "parts sales",
     ],
     ["order_supplies", "receive_goods", "collect_cash", "view_reports_only"],
     "Parts orders stock, receives it, and sells it over the counter, which is ordering, receiving, and cash in one seat.",
@@ -1846,6 +1853,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "plant engineer",
       "building engineer",
       "facilities coordinator",
+      "maintenance coordinator",
+      "maintenance scheduler",
     ],
     ["order_supplies", "receive_goods", "approve_vendor", "enter_invoices", "view_reports_only"],
     "Facilities chooses the contractors, orders the parts, confirms the work, and enters the invoice.",
@@ -2062,6 +2071,32 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ["view_reports_only"],
     "Housekeeping staff hold no money duty by default; tick anything they actually do.",
   ),
+  entry(
+    "shop-technician",
+    "Shop / Automotive Technician",
+    "automotive",
+    [
+      "shop technician",
+      "automotive technician",
+      "auto technician",
+      "auto tech",
+      "mechanic",
+      "diesel technician",
+      "lube technician",
+      "tire technician",
+      "master technician",
+      "ase technician",
+      "technician a",
+      "technician b",
+      "technician c",
+      "line technician",
+      "flat rate technician",
+      "body technician",
+      "collision technician",
+    ],
+    ["view_reports_only"],
+    "A shop technician works the repair order; the advisor or cashier takes the money, so the technician holds no money duty by default.",
+  ),
 ];
 
 /**
@@ -2236,6 +2271,8 @@ const DESCRIPTIONS: Record<string, string> = {
     "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no financial duty.",
   "housekeeping-staff":
     "Cleans and services guest rooms and public areas of a hotel or property; holds no financial duty.",
+  "shop-technician":
+    "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no financial duty.",
 };
 
 export const JOB_CATALOG: readonly JobCatalogEntry[] = RAW_CATALOG.map((e) => ({
@@ -2472,9 +2509,27 @@ export interface JobMatch {
  * matches, so the caller can leave the duties for the owner to tick rather
  * than guess.
  */
-export function matchJobTitle(title: string): JobMatch | undefined {
+/**
+ * A bare level word means one seat in one line of business: "Associate" is
+ * an attorney in a law firm and a sales associate in a store; "Assistant" is
+ * a dental assistant in a dental office. Anywhere else it stays unknown.
+ */
+const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
+  associate: { professional_services: "attorney", retail: "cashier", restaurant: "server" },
+  assistant: { dental: "dental-assistant" },
+  technician: { dental: "dental-assistant" },
+  partner: { professional_services: "owner" },
+};
+
+export function matchJobTitle(title: string, industry?: string): JobMatch | undefined {
   const words = tokens(title);
   if (words.length === 0) return undefined;
+  const bare = undecorated(words);
+  if (industry && bare.length === 1) {
+    const hinted = INDUSTRY_HINTS[bare[0]]?.[industry];
+    const entry = hinted ? JOB_CATALOG.find((e) => e.id === hinted) : undefined;
+    if (entry) return { entry, confidence: "partial", entitlements: [...entry.entitlements] };
+  }
   const whole = exactMatch(words);
   if (whole) return { entry: whole, confidence: "exact", entitlements: [...whole.entitlements] };
 
@@ -2518,8 +2573,8 @@ export function matchJobTitle(title: string): JobMatch | undefined {
 }
 
 /** Duties the catalog suggests for a title, or an empty list when the title is unknown. */
-export function entitlementsForTitle(title: string): EntitlementId[] {
-  return matchJobTitle(title)?.entitlements ?? [];
+export function entitlementsForTitle(title: string, industry?: string): EntitlementId[] {
+  return matchJobTitle(title, industry)?.entitlements ?? [];
 }
 
 export function jobCatalogEntry(id: string): JobCatalogEntry | undefined {

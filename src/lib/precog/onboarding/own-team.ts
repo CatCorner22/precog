@@ -71,8 +71,8 @@ export interface OwnTeamRow {
 }
 
 /** The catalog's usual duties for a title, every one of them: columns and chips alike. */
-export function coreDutiesForTitle(title: string): EntitlementId[] {
-  return entitlementsForTitle(title).filter((d) => d !== "view_reports_only");
+export function coreDutiesForTitle(title: string, industry?: string): EntitlementId[] {
+  return entitlementsForTitle(title, industry).filter((d) => d !== "view_reports_only");
 }
 
 /** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */

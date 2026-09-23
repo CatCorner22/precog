@@ -847,9 +847,9 @@ function readListedDuties(
 }
 
 /** The first title column with a catalog match, so a Job Profile can stand in for an unknown Business Title. */
-function catalogHit(titleValues: readonly string[]) {
+function catalogHit(titleValues: readonly string[], industry: string) {
   for (const value of titleValues) {
-    const match = matchJobTitle(value);
+    const match = matchJobTitle(value, industry);
     if (match) return { value, match };
   }
   return undefined;
@@ -906,9 +906,9 @@ function readPerson(
   // Duties listed in the file win; else the catalog of common titles; else a
   // template role keeps its duties by leaving entitlements unset.
   const listed = readListedDuties(context, cells, row);
-  const hit = catalogHit(titleValues);
+  const hit = catalogHit(titleValues, tpl.id);
   const templateRole = Object.hasOwn(tpl.roleTemplates, role);
-  const duties = listed.length ? listed : hit ? entitlementsForTitle(hit.value) : [];
+  const duties = listed.length ? listed : hit ? entitlementsForTitle(hit.value, tpl.id) : [];
   const mapping: TitleMapping = {
     row,
     name,

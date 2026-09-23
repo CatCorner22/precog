@@ -152,9 +152,11 @@ export function IndustryOnboarding() {
         if (i !== index) return row;
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
-        const previous = row.suggestedFor ? coreDutiesForTitle(row.suggestedFor) : [];
+        const previous = row.suggestedFor ? coreDutiesForTitle(row.suggestedFor, selected) : [];
         const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
-        return untouched ? { ...row, duties: coreDutiesForTitle(role), suggestedFor: role } : row;
+        return untouched
+          ? { ...row, duties: coreDutiesForTitle(role, selected), suggestedFor: role }
+          : row;
       }),
     );
   }
@@ -169,7 +171,7 @@ export function IndustryOnboarding() {
       role: p.role,
       // The importer reads each title through the catalog of common jobs. A
       // title it could not read leaves the duties for the owner to tick.
-      duties: (p.entitlements ?? entitlementsForTitle(p.role)).filter(
+      duties: (p.entitlements ?? entitlementsForTitle(p.role, selected)).filter(
         (d): d is EntitlementId => d !== "view_reports_only",
       ),
       ...(p.tenureYears !== undefined ? { tenureYears: p.tenureYears } : {}),
