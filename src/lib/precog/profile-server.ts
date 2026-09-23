@@ -3,12 +3,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
 import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
-import {
-  defaultProfile,
-  normalizeCustomKnowledge,
-  normalizePlannedAbsences,
-  type PracticeProfile,
-} from "./practice-profile";
+import type { PracticeProfile } from "./practice-profile";
+import { mergeProfile } from "./profile-merge";
 import {
   deleteBusinessRow,
   listBusinessSummaries,
@@ -113,43 +109,6 @@ type BusinessRow = {
   updated_at: string;
   revision: number | string;
 };
-
-function mergeProfile(
-  row: {
-    name: string;
-    industry: string;
-    profile: PracticeProfile;
-  },
-  today: string,
-): PracticeProfile {
-  const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
-  return {
-    ...base,
-    ...row.profile,
-    practiceName: row.name || row.profile.practiceName || base.practiceName,
-    staff: { ...base.staff, ...row.profile.staff },
-    riskVariables: { ...base.riskVariables, ...row.profile.riskVariables },
-    dualRelease: { ...base.dualRelease, ...row.profile.dualRelease },
-    decisions: Array.isArray(row.profile.decisions) ? row.profile.decisions : [],
-    customProcesses: Array.isArray(row.profile.customProcesses)
-      ? row.profile.customProcesses
-      : null,
-    customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-    customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge, today),
-    customRelations: Array.isArray(row.profile.customRelations)
-      ? row.profile.customRelations
-      : null,
-    plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
-    mapLayout: row.profile.mapLayout ?? {},
-    savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
-      ? row.profile.savedProcessBlocks
-      : [],
-    mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
-      ? row.profile.mapHealthHistory
-      : [],
-    mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
-  };
-}
 
 /**
  * Every business in the signed-in user's portfolio (summaries only). No row
