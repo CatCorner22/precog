@@ -970,11 +970,38 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
   };
 }
 
-/** Critical items with exactly one person who can run them alone — the figure the residual index uses. */
+export interface CriticalSinglePoints {
+  /** Critical items one absence would stop: nobody, or one person, can run them alone. */
+  count: number;
+  /** Of those, items nobody can run alone. */
+  nobody: number;
+  /** Of those, items exactly one person can run alone (with or without a learner). */
+  onePerson: number;
+}
+
+/**
+ * The business's critical single points: items the business stops without
+ * that nobody, or only one person, can run alone. A learner does not count as
+ * cover (they cannot run it alone yet), and an item nobody can run is at
+ * least as exposed as one that rests on one person, so marking the first
+ * person on it never raises the count. Who knows what, the Dashboard and the
+ * sole-owner figure in the business profile all read this one count.
+ */
+export function criticalSinglePoints(tpl: IndustryTemplate): CriticalSinglePoints {
+  const critical = coverageReport(tpl).items.filter(
+    (i) => i.item.criticality === "critical" && i.primaries.length <= 1,
+  );
+  const nobody = critical.filter((i) => i.primaries.length === 0).length;
+  return { count: critical.length, nobody, onePerson: critical.length - nobody };
+}
+
+/**
+ * The sole-owner figure the residual index uses: the critical single points
+ * of a register someone has assessed, and 0 for the starter list with nobody
+ * marked, which is not a fact about the business.
+ */
 export function soleOwnerCriticalCount(tpl: IndustryTemplate): number {
-  return coverageReport(tpl).items.filter(
-    (i) => i.item.criticality === "critical" && i.primaries.length === 1,
-  ).length;
+  return registerAssessed(tpl) ? criticalSinglePoints(tpl).count : 0;
 }
 
 export function makeKnowledgeId(): string {

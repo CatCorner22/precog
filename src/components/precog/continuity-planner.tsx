@@ -34,6 +34,7 @@ import {
   checkInPlan,
   coverageDrops,
   coverageReport,
+  criticalSinglePoints,
   DOCUMENTATION_LABEL,
   documentationDebt,
   isCalendarDate,
@@ -570,6 +571,11 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
   };
 
   const mostDepended = report.people.find((l) => l.person.active);
+  // The same count the Dashboard and the business profile's sole-owner figure use.
+  const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
+  const importantSinglePoints = report.items.filter(
+    (i) => i.item.criticality === "important" && i.primaries.length <= 1,
+  ).length;
   const effectiveAbsentIds = useMemo(() => {
     const valid = absentIds.filter((id) => people.some((p) => p.id === id));
     if (valid.length > 0) return valid;
@@ -604,19 +610,17 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
         />
         <Stat
           label="Single points"
-          value={registerReady ? String(report.counts.single + report.counts.uncovered) : "—"}
+          value={registerReady ? String(singlePoints.count) : "—"}
           hint={
             registerReady
-              ? `${report.counts.uncovered} with nobody, ${report.counts.single} with one person.`
+              ? `Items the business stops without: ${singlePoints.nobody} with nobody and ${singlePoints.onePerson} with one person who can run them alone.${
+                  importantSinglePoints > 0
+                    ? ` ${importantSinglePoints} more ${importantSinglePoints === 1 ? "hurts" : "hurt"} within a week.`
+                    : ""
+                }`
               : NOT_ASSESSED_HINT
           }
-          tone={
-            !registerReady
-              ? "default"
-              : report.counts.single + report.counts.uncovered === 0
-                ? "ok"
-                : "danger"
-          }
+          tone={!registerReady ? "default" : singlePoints.count === 0 ? "ok" : "danger"}
         />
         <Stat
           label="Learners in place"

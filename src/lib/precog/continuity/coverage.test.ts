@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
+import { deriveStaffFromTeam } from "../sod/derive-staff";
 import {
   absenceImpact,
   checkInPlan,
@@ -9,6 +10,7 @@ import {
   coverageDrops,
   coverageReport,
   coverageStatus,
+  criticalSinglePoints,
   documentationDebt,
   firstName,
   documentationState,
@@ -735,6 +737,62 @@ describe("starter register nobody has marked", () => {
     const move = r.plan.find((m) => m.item.id === writeOff.id)!;
     expect(move.trainee?.id).toBe("own-2");
     expect(move.action).toContain("Pick Kevin Osei to own it");
+  });
+
+  it("feeds no sole-owner count into the residual index until someone is marked", () => {
+    expect(soleOwnerCriticalCount(ownClinic())).toBe(0);
+  });
+});
+
+describe("criticalSinglePoints", () => {
+  it("never rises when the owner marks the first person who can run an item nobody could", () => {
+    const [first, second] = ownClinic().knowledge.filter((k) => k.criticality === "critical");
+    const marked = ownClinic([{ personId: "own-2", knowledgeId: first.id, level: "proficient" }]);
+    const before = criticalSinglePoints(marked);
+    const critical = marked.knowledge.filter((k) => k.criticality === "critical").length;
+    expect(before).toEqual({ count: critical, nobody: critical - 1, onePerson: 1 });
+    expect(soleOwnerCriticalCount(marked)).toBe(critical);
+
+    const secondMarked = ownClinic([
+      ...marked.relations,
+      { personId: "own-1", knowledgeId: second.id, level: "proficient" },
+    ]);
+    expect(criticalSinglePoints(secondMarked)).toEqual({
+      count: critical,
+      nobody: critical - 2,
+      onePerson: 2,
+    });
+
+    const backedUp = ownClinic([
+      ...secondMarked.relations,
+      { personId: "own-3", knowledgeId: first.id, level: "expert" },
+    ]);
+    expect(criticalSinglePoints(backedUp).count).toBe(critical - 1);
+    expect(soleOwnerCriticalCount(backedUp)).toBe(critical - 1);
+  });
+
+  it("gives the business profile the count Who knows what shows once someone is marked", () => {
+    const [first] = ownClinic().knowledge.filter((k) => k.criticality === "critical");
+    const marked = ownClinic([{ personId: "own-2", knowledgeId: first.id, level: "proficient" }]);
+    expect(deriveStaffFromTeam(marked, marked.staffComposition).soleOwnerKnowledgeCount).toBe(
+      criticalSinglePoints(marked).count,
+    );
+    expect(
+      deriveStaffFromTeam(ownClinic(), ownClinic().staffComposition).soleOwnerKnowledgeCount,
+    ).toBe(0);
+  });
+
+  it("counts a learner as no cover: one person plus a learner is still a single point", () => {
+    const t = tpl(
+      [item("thin"), item("covered"), item("imp", { criticality: "important" })],
+      [
+        { personId: "a", knowledgeId: "thin", level: "expert" },
+        { personId: "b", knowledgeId: "thin", level: "basic" },
+        { personId: "a", knowledgeId: "covered", level: "expert" },
+        { personId: "b", knowledgeId: "covered", level: "proficient" },
+      ],
+    );
+    expect(criticalSinglePoints(t)).toEqual({ count: 1, nobody: 0, onePerson: 1 });
   });
 });
 
