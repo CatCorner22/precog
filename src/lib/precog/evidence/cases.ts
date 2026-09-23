@@ -154,7 +154,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 132,
     detection: "bank-or-insurer",
     resolvedYear: 2017,
-    sodRuleIds: ["rule-claims-writeoff", "rule-admin-writeoff"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "billing-matches-the-schedule",
@@ -317,7 +317,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 63,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-payroll"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "receipt-and-second-approval",
@@ -445,7 +445,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: true,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-admin-pay"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "verify-oversight-is-real",
@@ -524,7 +524,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 108,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-admin-pay"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -682,7 +682,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 13,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-deposit-post"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "expected-receipts-vs-deposits",
@@ -1403,7 +1403,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "tip",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-order-receive"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "controlled-substance-count",
@@ -1438,12 +1438,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 15,
     detection: "law-enforcement",
     resolvedYear: 2021,
-    sodRuleIds: [
-      "rule-collect-post",
-      "rule-collect-adjust",
-      "rule-payments-adjust",
-      "rule-writeoff",
-    ],
+    sodRuleIds: ["rule-collect-post", "rule-collect-adjust", "rule-payments-adjust"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -1705,7 +1700,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 12,
     detection: "unknown",
     resolvedYear: 2022,
-    sodRuleIds: ["rule-access-export"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "no-shared-logins",
@@ -1876,7 +1871,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 0,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-backup-access", "rule-access-log"],
+    sodRuleIds: ["rule-backup-access"],
     wouldHaveCaughtIt: [
       {
         control: "recovery-copy-out-of-reach",

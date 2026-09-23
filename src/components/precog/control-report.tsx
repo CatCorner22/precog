@@ -52,6 +52,7 @@ import { assessCoso } from "@/lib/precog/coso";
 import {
   METHOD_CAVEATS,
   casesForSodRules,
+  citingCaseStats,
   detectionBreakdown,
   observedLossRange,
   recommendedStepsForRules,
@@ -167,8 +168,13 @@ export function ControlReport() {
       ...matched.filter((c) => !isOwnSector(c, profile.industry)),
     ];
     const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
-    const lossRange = observedLossRange(evidence);
-    const found = detectionBreakdown(evidence);
+    // Count, median and detection routes describe the cases whose records
+    // show these gaps; cases that only share a scheme are listed but not
+    // counted as matches.
+    const citing = citingCaseStats(openRuleIds);
+    const statsFrom = citing.count > 0 ? citing.cases : evidence;
+    const lossRange = observedLossRange(statsFrom);
+    const found = detectionBreakdown(statsFrom);
     const docs = documentationDebt(tpl);
     return {
       threat,
@@ -189,6 +195,7 @@ export function ControlReport() {
       mapHealth,
       issues,
       evidence,
+      citing,
       steps,
       lossRange,
       found,
@@ -214,6 +221,7 @@ export function ControlReport() {
     mapHealth,
     issues,
     evidence,
+    citing,
     steps,
     lossRange,
     found,
@@ -431,8 +439,13 @@ export function ControlReport() {
         {evidence.length > 0 && (
           <Section title="What these gaps have cost other businesses">
             <p className="text-sm text-neutral-700">
-              {evidence.length} prosecuted {evidence.length === 1 ? "case" : "cases"} match the open
-              duty conflicts above.
+              {citing.count > 0
+                ? `${citing.count} prosecuted ${citing.count === 1 ? "case shows" : "cases show"} the open duty conflicts above${
+                    evidence.length > citing.count
+                      ? `; ${evidence.length - citing.count} more share their schemes`
+                      : ""
+                  }.`
+                : `No prosecuted case in the library shows these exact conflicts; the ${evidence.length} below share their schemes.`}
               {lossRange
                 ? ` Median loss ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)} across ${lossRange.n} cases with a stated figure.`
                 : ""}

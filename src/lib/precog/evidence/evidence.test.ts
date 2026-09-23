@@ -28,13 +28,13 @@ import {
 describe("case library integrity", () => {
   const ruleIds = new Set(CONFLICT_RULES.map((r) => r.id));
 
-  it("has unique ids, a source URL, and at least one real SoD rule per case", () => {
+  it("has unique ids, a source URL, and a rule or a scheme on every case", () => {
     const seen = new Set<string>();
     for (const c of CASE_LIBRARY) {
       expect(seen.has(c.id), `duplicate ${c.id}`).toBe(false);
       seen.add(c.id);
       expect(c.source.url, c.id).toMatch(/^https:\/\//);
-      expect(c.sodRuleIds.length, `${c.id} cites no rule`).toBeGreaterThan(0);
+      expect(c.sodRuleIds.length + c.schemes.length, `${c.id} cites nothing`).toBeGreaterThan(0);
       for (const r of c.sodRuleIds) expect(ruleIds.has(r), `${c.id} cites ${r}`).toBe(true);
       for (const w of c.wouldHaveCaughtIt) {
         expect(CONTROL_CATALOG[w.control], `${c.id}: ${w.control}`).toBeDefined();
@@ -191,6 +191,7 @@ describe("recommendedStepsForRules", () => {
 describe("case ranking", () => {
   it("leads every rule with a case that cites it, and never calls a cross-sector case the owner's line", () => {
     for (const rule of CONFLICT_RULES) {
+      if (casesCitingSodRules([rule.id]).length === 0) continue;
       const [lead] = casesForSodRules([rule.id]);
       expect(lead?.sodRuleIds, rule.id).toContain(rule.id);
     }
@@ -199,14 +200,38 @@ describe("case ranking", () => {
   });
 });
 
+/**
+ * Rules no record in the library shows the pair of duties for. Each is shown
+ * with a related scheme until someone sources a case that does.
+ */
+const UNCITED_RULES = [
+  "rule-access-export",
+  "rule-access-log",
+  "rule-admin-pay",
+  "rule-admin-writeoff",
+  "rule-claims-writeoff",
+  "rule-writeoff",
+];
+
 describe("casesCitingSodRules", () => {
   it("keeps only the cases that cite the rules, in the order casesForSodRules gives", () => {
     for (const rule of CONFLICT_RULES) {
       const citing = casesCitingSodRules([rule.id]);
-      expect(citing.length, rule.id).toBeGreaterThan(0);
       for (const c of citing) expect(c.sodRuleIds, `${rule.id} ${c.id}`).toContain(rule.id);
       const ranked = casesForSodRules([rule.id]).filter((c) => c.sodRuleIds.includes(rule.id));
       expect(citing.map((c) => c.id)).toEqual(ranked.map((c) => c.id));
+    }
+  });
+
+  it("names exactly the rules that no record in the library shows, so they can be sourced", () => {
+    const uncited = CONFLICT_RULES.filter((r) => casesCitingSodRules([r.id]).length === 0)
+      .map((r) => r.id)
+      .sort();
+    expect(uncited).toEqual(UNCITED_RULES);
+    // Each still has a related scheme to show, under the related-scheme heading.
+    for (const id of uncited) {
+      const pick = caseForRule(id, "dental");
+      expect(pick?.citesRule, id).toBe(false);
     }
   });
 
@@ -299,13 +324,23 @@ describe("rule attachments", () => {
     for (const [caseId, ruleId] of removed) {
       expect(caseById(caseId)?.sodRuleIds, `${caseId} ${ruleId}`).not.toContain(ruleId);
     }
-    // System administration: only the record that mentions system access
-    // (Bellingham) and the founder who invented his own board keep it.
-    expect(
-      casesCitingSodRules(["rule-admin-pay"])
-        .map((c) => c.id)
-        .sort(),
-    ).toEqual(["case-bellingham-assistant-manager", "case-modest-needs-fake-board"]);
+    // No record shows system administration held with payment posting, so
+    // the rule cites no case and shows a related scheme instead.
+    for (const [caseId, ruleId] of [
+      ["case-bellingham-assistant-manager", "rule-admin-pay"],
+      ["case-modest-needs-fake-board", "rule-admin-pay"],
+      ["case-stamford-dental-billing", "rule-claims-writeoff"],
+      ["case-stamford-dental-billing", "rule-admin-writeoff"],
+      ["case-st-albans-dental-billing", "rule-writeoff"],
+      ["case-irvine-consultancy-it-wipe", "rule-access-log"],
+      ["case-dothan-printing-credentials", "rule-access-export"],
+      ["case-attleboro-expense-padding", "rule-payroll"],
+      ["case-msp-airport-restaurant-cash", "rule-deposit-post"],
+      ["case-littleton-oral-surgery-fentanyl", "rule-order-receive"],
+    ]) {
+      expect(caseById(caseId)?.sodRuleIds, `${caseId} ${ruleId}`).not.toContain(ruleId);
+    }
+    expect(casesCitingSodRules(["rule-admin-pay"])).toEqual([]);
   });
 
   it("puts check signing and reconciliation on the records that state both", () => {

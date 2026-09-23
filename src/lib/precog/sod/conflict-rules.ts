@@ -434,7 +434,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Manual journal entries + bank reconciliation",
-    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; a Caseyville, Illinois office manager covered five schemes the same way. Both cases are in the library below.",
+    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments. Both cases are in the library below.",
     fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
     compensatingDefaults: [
       "Owner or outside accountant reviews every manual journal entry each month with its support",
@@ -570,7 +570,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     a: "approve_vendor",
     b: "release_payment",
     // Approving a supplier and paying it is the fictitious-vendor path in the
-    // case library (Human First, Dartmouth, Brooklyn), so it ranks high.
+    // case library (a Denny's franchise, a Jersey City condominium, a Brooklyn
+    // nonprofit), so it ranks high.
     severity: "high",
     title: "Approve vendor + release payment",
     why: "The approval meant to confirm a supplier is real is given by the person releasing the money, which removes the only check on where it goes.",

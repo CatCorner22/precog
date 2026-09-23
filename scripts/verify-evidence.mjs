@@ -69,6 +69,8 @@ const caseBlocks = casesSrc
 const seenCaseIds = new Set();
 const seenSourceUrls = new Map();
 const citedRules = new Set();
+/** Every case's declared schemes, for the rule coverage check. */
+const caseSchemeLists = [];
 /** Each case's own account and the rules it cites, for check 11. */
 const caseAccounts = [];
 
@@ -98,9 +100,16 @@ for (const block of caseBlocks) {
   } else {
     seenSourceUrls.set(sourceUrl, id);
   }
+  const caseSchemes = [
+    ...(block.match(/schemes:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g),
+  ].map((m) => m[1]);
   if (!/sodRuleIds:\s*\[\s*"/.test(block)) {
-    fail(`Case ${id} is not tied to any segregation-of-duties rule.`);
+    // A record that shows no named pair of duties cites no rule rather than
+    // the nearest one; it is found by its schemes instead.
+    if (caseSchemes.length === 0) fail(`Case ${id} cites no rule and declares no scheme.`);
+    else warn(`Case ${id} shows no named pair of duties; it is found by its schemes only.`);
   }
+  caseSchemeLists.push(caseSchemes);
   caseAccounts.push({
     id,
     text: ["howItWorked", "controlGap"].map((field) => stringField(block, field)).join(" "),
@@ -123,12 +132,6 @@ for (const block of caseBlocks) {
     ) {
       fail(`Case ${id} states tenure but its text does not say where that figure comes from.`);
     }
-  }
-}
-
-for (const rule of definedRules) {
-  if (!citedRules.has(rule)) {
-    fail(`Rule ${rule} has no real case behind it.`);
   }
 }
 
@@ -161,6 +164,24 @@ if (!mapBody) {
   );
   for (const rule of definedRules) {
     if (!mapped.has(rule)) fail(`Rule ${rule} has no fraud scheme mapped to it.`);
+  }
+  // 2. Every rule has a real case behind it: one whose record shows the pair,
+  //    or, when no record in the library does, one that shows a scheme the
+  //    pair enables. The second kind is shown only as "a related scheme",
+  //    never as "this exact gap", and is listed here for a person to source.
+  const schemesByRule = new Map(
+    [...mapBody.matchAll(/"(rule-[a-z0-9-]+)":\s*\[([^\]]*)\]/g)].map((m) => [
+      m[1],
+      [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]),
+    ]),
+  );
+  for (const rule of definedRules) {
+    if (citedRules.has(rule)) continue;
+    const wanted = new Set(schemesByRule.get(rule) ?? []);
+    const related = caseSchemeLists.some((list) => list.some((s) => wanted.has(s)));
+    if (related)
+      warn(`Rule ${rule} has no case whose record shows its pair; related schemes only.`);
+    else fail(`Rule ${rule} has no real case behind it, not even a related scheme.`);
   }
   for (const m of mapBody.matchAll(/"(rule-[a-z0-9-]+)":/g)) {
     if (!definedRules.has(m[1])) {
@@ -462,6 +483,6 @@ if (failures.length > 0) {
 
 console.log(
   `Evidence library OK: ${seenCaseIds.size} cases, ${benchIds.length} benchmarks, ` +
-    `all ${definedRules.size} segregation-of-duties rules backed by at least one real case ` +
+    `all ${definedRules.size} segregation-of-duties rules backed by a real case (showing the pair, or a related scheme) ` +
     "and mapped to a fraud scheme.",
 );
