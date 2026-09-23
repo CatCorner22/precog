@@ -688,8 +688,12 @@ try {
       },
     ];
     const csv = modelIo.createResponsibilityMatrixCsv(assignments);
-    assert.match(csv, /"'=Injected · Reviewer"/);
-    assert.match(csv, /"Reconcile the bank account","reconciliation","5","Assigned"/);
+    // The cell starts with an apostrophe, so a spreadsheet shows it as text;
+    // no cell anywhere starts a formula.
+    assert.match(csv, /(^|,)'=Injected · Reviewer(\r|,|$)/m);
+    const cells = csv.split("\r\n").flatMap((line) => line.split(","));
+    assert.ok(cells.every((cell) => !/^"?[=+@]/.test(cell)));
+    assert.match(csv, /Reconcile the bank account,reconciliation,5,Assigned/);
     assert.equal(csv.split("\r\n").length, sodRules.ENTITLEMENTS.length);
   });
 
