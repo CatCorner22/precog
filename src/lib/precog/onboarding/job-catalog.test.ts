@@ -503,6 +503,15 @@ describe("job catalog", () => {
     expect(reports?.entitlements).not.toContain("post_journal_entries");
   });
 
+  it("reads an Oracle vet position 'CSR - Front Desk' as one front-desk seat, not a refunds desk", () => {
+    for (const title of ["CSR - Front Desk", "CSR - Front Desk (Part-Time)"]) {
+      const match = matchJobTitle(title, "dental");
+      expect(match?.entry.id, title).toBe("receptionist");
+      expect(match?.entitlements, title).not.toContain("issue_refunds");
+    }
+    expect(matchJobTitle("CSR - Front Desk", "retail")?.entitlements).toContain("issue_refunds");
+  });
+
   it("gives the office manager the wide seat the case library describes", () => {
     const duties = entitlementsForTitle("Practice Manager");
     expect(duties).toEqual(

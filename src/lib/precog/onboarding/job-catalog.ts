@@ -2955,7 +2955,10 @@ export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | u
   const sharedTail = parts.length === 2 && /\s(?:and|&)\s/i.test(joined);
   if (parts.length > 1) {
     for (const [i, part] of parts.entries()) {
-      const own = partMatch(part);
+      // A part can carry this line of business's own reading: a dental "CSR"
+      // works the front desk, so "CSR - Front Desk" is one receptionist.
+      const hinted = industry ? INDUSTRY_HINTS[undecorated(part).join(" ")]?.[industry] : undefined;
+      const own = hinted ? catalogEntry(hinted) : partMatch(part);
       const other = parts[1 - i];
       const borrowed = shared
         ? (exactMatch([...part, other[other.length - 1]]) ?? exactMatch([other[0], ...part]))
