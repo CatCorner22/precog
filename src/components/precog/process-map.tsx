@@ -1222,7 +1222,7 @@ export function ProcessMap({
                   ) : vision === "predator" ? (
                     <PredatorLegend />
                   ) : (
-                    <TerminatorLegend immediate={immediate} />
+                    <TerminatorLegend immediate={mapReady ? immediate : null} />
                   )}
                 </Panel>
                 <Panel position="top-right" className="m-2! flex items-center gap-1">
@@ -1449,13 +1449,15 @@ function PredatorLegend() {
   );
 }
 
-function TerminatorLegend({ immediate }: { immediate: number }) {
+/** `immediate` is null while the map is not assessed: there is nothing to count yet. */
+function TerminatorLegend({ immediate }: { immediate: number | null }) {
   return (
     <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-[10px] terminator-hud shadow-lg">
       <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
       <p className="mt-1 normal-case tracking-normal text-red-300/90">
-        {immediate} target{immediate === 1 ? "" : "s"} require immediate attention. Pulsing lock =
-        act this week.
+        {immediate === null
+          ? "Not assessed yet: nothing to lock on until the map is assessed."
+          : `${immediate} target${immediate === 1 ? " requires" : "s require"} immediate attention. Pulsing lock = act this week.`}
       </p>
     </div>
   );
