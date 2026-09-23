@@ -450,6 +450,10 @@ export function ProcessMap({
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
   /** Live positions while dragging; committed to the profile on drag stop. */
   const [liveLayout, setLiveLayout] = useState<Record<string, { x: number; y: number }>>({});
+  // Measured node sizes. The nodes are controlled, so React Flow's size
+  // reports must be written back onto them; without sizes the minimap draws
+  // no nodes at all.
+  const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});
   const [layers, setLayers] = useState<LayerConfig[]>(() => DEFAULT_LAYERS.map((l) => ({ ...l })));
   const [selectedId, setSelectedId] = useState<string | null>(
     initialProcessId ?? processes[0]?.id ?? null,
@@ -800,16 +804,37 @@ export function ProcessMap({
           unscored: !isScored(n.kind === "process" ? n.id : n.processId),
         },
         selected: n.id === selectedId,
+        ...(measured[n.id] ? { measured: measured[n.id] } : {}),
       };
     });
-  }, [visibleNodes, positions, selectedId, vision, layerMap, priorityById, build, isScored]);
+  }, [
+    visibleNodes,
+    positions,
+    selectedId,
+    vision,
+    layerMap,
+    priorityById,
+    build,
+    isScored,
+    measured,
+  ]);
 
   const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
     const moves: Record<string, { x: number; y: number }> = {};
+    const sizes: Record<string, { width: number; height: number }> = {};
     for (const c of changes) {
       if (c.type === "position" && c.position) moves[c.id] = c.position;
+      if (c.type === "dimensions" && c.dimensions) sizes[c.id] = c.dimensions;
     }
     if (Object.keys(moves).length) setLiveLayout((l) => ({ ...l, ...moves }));
+    if (Object.keys(sizes).length) {
+      setMeasured((m) => {
+        const changed = Object.entries(sizes).some(
+          ([id, d]) => m[id]?.width !== d.width || m[id]?.height !== d.height,
+        );
+        return changed ? { ...m, ...sizes } : m;
+      });
+    }
   }, []);
 
   const onNodeDragStop = useCallback(
@@ -1220,7 +1245,8 @@ export function ProcessMap({
                   maskColor={vision === "terminator" ? "rgba(40,0,0,0.65)" : "rgba(0,0,0,0.55)"}
                   nodeColor={minimapColor}
                 />
-                <Panel position="top-left" className="m-2!">
+                {/* Bottom centre: at the top left the legend covered the first stage label. */}
+                <Panel position="bottom-center" className="m-2!">
                   {vision === "standard" ? (
                     <StandardLegend />
                   ) : vision === "predator" ? (
