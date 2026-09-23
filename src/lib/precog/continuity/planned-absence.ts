@@ -7,6 +7,7 @@ import {
   daysBetween,
   firstName,
   isCalendarDate,
+  listOr,
   type AbsenceImpact,
   type AbsenceStop,
 } from "./coverage";
@@ -325,8 +326,16 @@ export function describeWindow(w: AbsenceWindow): string {
   const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
   const overlap = describeOverlaps(w);
   const stops = w.impact.stops;
+  if (!w.impact.assessed && w.impact.orphanedProcesses.length === 0) {
+    return `${first} ${out} ${when}${overlap}: nobody is marked on the register yet, so the app cannot tell what stops.`;
+  }
   if (stops.length === 0 && w.impact.orphanedProcesses.length === 0) {
-    return `${first} ${out} ${when}${overlap}: nothing stops.`;
+    const waiting = w.impact.alreadyStopped.filter((k) => k.criticality !== "nice-to-have");
+    return waiting.length
+      ? `${first} ${out} ${when}${overlap}: nothing more stops, but nobody can run ${listOr(
+          waiting.map((k) => k.name),
+        )} alone even with ${first} in.`
+      : `${first} ${out} ${when}${overlap}: nothing stops.`;
   }
   const critical = stops.filter((s) => s.item.criticality === "critical");
   const lead = (critical.length ? critical : stops).slice(0, 2);

@@ -100,6 +100,12 @@ export interface SodDetectionOptions {
   compensatingByControlId?: Record<string, string[]>;
   /** SoD rule IDs mitigated by dual-release policy */
   dualReleaseMitigatedRuleIds?: Set<string>;
+  /**
+   * The person who owns the business alone, when the caller scans part of a
+   * team (one person at a time) and already knows it from the whole team.
+   * Omitted, it is read from `assignments`; null means nobody is the sole owner.
+   */
+  soleOwnerId?: string | null;
 }
 
 /**
@@ -502,7 +508,8 @@ function isSodDetectionOptions(
     ("assignments" in value ||
       "residualAcceptedControlIds" in value ||
       "compensatingByControlId" in value ||
-      "dualReleaseMitigatedRuleIds" in value),
+      "dualReleaseMitigatedRuleIds" in value ||
+      "soleOwnerId" in value),
   );
 }
 
@@ -650,7 +657,10 @@ export function detectSodConflicts(
   const rawScores = new Map<string, number>();
   // Only a business with one owner has a seat that cannot steal from itself;
   // partners and co-owners can each take from the others.
-  const ownerId = soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
+  const ownerId =
+    options?.soleOwnerId !== undefined
+      ? options.soleOwnerId
+      : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
 
   for (const person of assignments) {
     const ents = person.entitlements;

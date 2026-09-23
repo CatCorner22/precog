@@ -8,6 +8,7 @@
  * described in `suggestBackups`.
  */
 import type { IndustryTemplate } from "../templates/types";
+import { registerAssessed } from "./register-state";
 import type {
   Criticality,
   KnowledgeItem,
@@ -473,14 +474,20 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
   const plan: CrossTrainingMove[] = items
     .filter((i) => i.status !== "covered")
     .map((i) => {
-      const trainee = i.suggestedBackups[0]?.person ?? null;
+      // With nobody marked on an item at any level, every candidate ties on
+      // generic reasons and the pick would come down to the alphabet, so the
+      // plan names nobody until the owner marks someone on it.
+      const marked = i.primaries.length + i.learners.length + i.aware.length > 0;
+      const trainee = marked ? (i.suggestedBackups[0]?.person ?? null) : null;
       const trainer = i.primaries[0] ?? null;
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
       const doc = i.item.documented
         ? ""
         : " Write the steps down first so the backup has something to follow.";
       let action: string;
-      if (i.status === "uncovered") {
+      if (i.status === "uncovered" && !marked) {
+        action = `Nobody is marked on "${i.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`;
+      } else if (i.status === "uncovered") {
         action = trainee
           ? `Nobody can run "${i.item.name}" alone. Pick ${trainee.name} to own it and get it documented.`
           : `Nobody can run "${i.item.name}" alone and there is no one free to learn it. Consider an outside provider or a written procedure.`;
@@ -547,10 +554,22 @@ export interface AbsenceStop {
 
 export interface AbsenceImpact {
   people: Person[];
+  /**
+   * False while nobody is marked on the register (see registerAssessed): the
+   * impact then claims nothing about the register, lists no stops, and its
+   * one action says the app cannot tell yet.
+   */
+  assessed: boolean;
   /** Active people still in, whoever the work falls to. */
   remaining: Person[];
   /** Items only this person can run alone — work that stops on day one. */
   stops: AbsenceStop[];
+  /**
+   * Items nobody on the team can run alone, whoever is out: work that is
+   * already stopped, most critical first. Not counted in `dependence`, which
+   * measures what the absence itself stops.
+   */
+  alreadyStopped: KnowledgeItem[];
   /** Items this person can run alone that another person can also run. */
   continues: KnowledgeItem[];
   /** Processes where this person is the only listed owner. */
@@ -598,6 +617,13 @@ export function ownerlessProcesses(tpl: IndustryTemplate): OwnerlessProcess[] {
     }
   }
   return out;
+}
+
+/** `"A"`, `"A" or "B"`, `"A", "B" or 3 more`: the first two of a list, then a count. */
+export function listOr(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} or ${names[1]}`;
+  return `${names[0]}, ${names[1]} or ${names.length - 2} more`;
 }
 
 /**
@@ -688,6 +714,16 @@ export function absenceImpact(
     )
     .map((i) => i.item);
 
+  const assessed = registerAssessed(tpl);
+  const alreadyStopped = report.items
+    .filter((i) => assessed && i.primaries.length === 0)
+    .map((i) => i.item)
+    .sort(
+      (a, b) =>
+        CRITICALITY_WEIGHT[b.criticality] - CRITICALITY_WEIGHT[a.criticality] ||
+        a.name.localeCompare(b.name),
+    );
+
   const orphanedProcesses = tpl.processes
     .filter((p) => {
       const owners = (p.ownerPersonIds ?? []).filter((id) =>
@@ -699,6 +735,12 @@ export function absenceImpact(
 
   const actions: AbsenceAction[] = [];
   const ids = (list: AbsenceStop[]) => list.map((s) => s.item.id);
+  if (remaining.length === 0)
+    actions.push({
+      text: `Nobody is left in the business while ${names} ${single ? "is" : "are"} out. Line up outside cover or close for those days.`,
+      step: "cover",
+      knowledgeIds: [],
+    });
   const critical = stops.filter((s) => s.item.criticality === "critical");
   if (critical.length) {
     const named = critical.filter((s) => s.standIn);
@@ -762,17 +804,43 @@ export function absenceImpact(
       step: "cover",
       knowledgeIds: [],
     });
+  if (!assessed)
+    actions.push({
+      text: `Nobody is marked on the register yet, so the app cannot tell what stops if ${names} ${single ? "is" : "are"} out. Mark who can do each item first.`,
+      step: "cover",
+      knowledgeIds: [],
+    });
+  const waiting = alreadyStopped.filter((item) => item.criticality !== "nice-to-have");
+  if (waiting.length)
+    actions.push({
+      text: `Already stopped, whoever is in: nobody can run ${listOr(
+        waiting.map((item) => `"${item.name}"`),
+      )} alone. Mark who can, or line up an outside provider.`,
+      step: "cover",
+      knowledgeIds: waiting.map((item) => item.id),
+    });
+  // "Nothing stops" is said only when it is true: no item waits on the absent
+  // people, none waits on nobody, and someone is left to do the work.
   if (!actions.length)
     actions.push({
-      text: `Nothing stops if ${names} ${single ? "is" : "are"} out. Keep it that way as duties change.`,
+      text: alreadyStopped.length
+        ? `Nothing more stops if ${names} ${single ? "is" : "are"} out; ${alreadyStopped
+            .slice(0, 2)
+            .map((item) => `"${item.name}"`)
+            .join(
+              " and ",
+            )}${alreadyStopped.length > 2 ? ` and ${alreadyStopped.length - 2} more` : ""} already ${alreadyStopped.length === 1 ? "waits" : "wait"} because nobody can run ${alreadyStopped.length === 1 ? "it" : "them"} alone.`
+        : `Nothing stops if ${names} ${single ? "is" : "are"} out. Keep it that way as duties change.`,
       step: "cover",
       knowledgeIds: [],
     });
 
   return {
     people: absentPeople,
+    assessed,
     remaining,
     stops,
+    alreadyStopped,
     continues,
     orphanedProcesses,
     dependence: dependenceFor(
@@ -902,11 +970,38 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
   };
 }
 
-/** Critical items with exactly one person who can run them alone — the figure the residual index uses. */
+export interface CriticalSinglePoints {
+  /** Critical items one absence would stop: nobody, or one person, can run them alone. */
+  count: number;
+  /** Of those, items nobody can run alone. */
+  nobody: number;
+  /** Of those, items exactly one person can run alone (with or without a learner). */
+  onePerson: number;
+}
+
+/**
+ * The business's critical single points: items the business stops without
+ * that nobody, or only one person, can run alone. A learner does not count as
+ * cover (they cannot run it alone yet), and an item nobody can run is at
+ * least as exposed as one that rests on one person, so marking the first
+ * person on it never raises the count. Who knows what, the Dashboard and the
+ * sole-owner figure in the business profile all read this one count.
+ */
+export function criticalSinglePoints(tpl: IndustryTemplate): CriticalSinglePoints {
+  const critical = coverageReport(tpl).items.filter(
+    (i) => i.item.criticality === "critical" && i.primaries.length <= 1,
+  );
+  const nobody = critical.filter((i) => i.primaries.length === 0).length;
+  return { count: critical.length, nobody, onePerson: critical.length - nobody };
+}
+
+/**
+ * The sole-owner figure the residual index uses: the critical single points
+ * of a register someone has assessed, and 0 for the starter list with nobody
+ * marked, which is not a fact about the business.
+ */
 export function soleOwnerCriticalCount(tpl: IndustryTemplate): number {
-  return coverageReport(tpl).items.filter(
-    (i) => i.item.criticality === "critical" && i.primaries.length === 1,
-  ).length;
+  return registerAssessed(tpl) ? criticalSinglePoints(tpl).count : 0;
 }
 
 export function makeKnowledgeId(): string {

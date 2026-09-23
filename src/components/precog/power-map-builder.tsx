@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { POWER_GUIDANCE } from "@/lib/precog/sod/power-guidance";
+import { powerGuidance } from "@/lib/precog/sod/power-guidance";
 import {
   applyResolutionPlan,
   buildResolutionPlans,
@@ -62,7 +62,9 @@ import { evaluateAssignmentChange } from "@/lib/precog/sod/change-impact";
 import {
   buildCoveragePlans,
   buildCoverageProgram,
+  dutyToggleEffects,
   type CoveragePlan,
+  type DutyToggleEffect,
 } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
@@ -104,6 +106,7 @@ export function PowerMapBuilder() {
   // or import writes through to the profile, so the conflict list, the
   // matrix, and the dashboard summary all read the same assignments.
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
+  const guidanceByDuty = powerGuidance(profile.industry);
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
@@ -226,22 +229,26 @@ export function PowerMapBuilder() {
           `${item.label} ${item.family} ${item.processIds.join(" ")}`.toLowerCase().includes(query),
       );
   }, [family, processId, search]);
-  const assignmentImpacts = useMemo(() => {
-    const impacts = new Map<EntitlementId, ReturnType<typeof evaluateAssignmentChange>>();
-    if (!selected) return impacts;
-    for (const entitlement of ENTITLEMENTS) {
-      if (entitlement.id !== "view_reports_only") {
-        impacts.set(
-          entitlement.id,
-          evaluateAssignmentChange(assignments, selected.personId, entitlement.id, profile.staff),
-        );
-      }
-    }
-    return impacts;
-  }, [assignments, profile.staff, selected]);
+  const toggleEffects = useMemo(
+    () =>
+      selected
+        ? dutyToggleEffects(
+            selected,
+            ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map((item) => item.id),
+            assignments,
+          )
+        : new Map<EntitlementId, DutyToggleEffect>(),
+    [selected, assignments],
+  );
 
   function toggle(entitlement: EntitlementId) {
-    const impact = assignmentImpacts.get(entitlement);
+    if (!selected) return;
+    const impact = evaluateAssignmentChange(
+      assignments,
+      selected.personId,
+      entitlement,
+      profile.staff,
+    );
     if (impact) commit(impact.nextAssignments);
   }
 
@@ -987,10 +994,10 @@ export function PowerMapBuilder() {
                 {visibleEntitlements.map((entitlement) => {
                   const active = selected?.entitlements.includes(entitlement.id);
                   const conflict = conflictEntitlements.has(entitlement.id);
-                  const guidance = POWER_GUIDANCE[entitlement.id];
-                  const impact = assignmentImpacts.get(entitlement.id);
-                  const creates = impact?.conflictsCreated.length ?? 0;
-                  const resolves = impact?.conflictsResolved.length ?? 0;
+                  const guidance = guidanceByDuty[entitlement.id];
+                  const effect = toggleEffects.get(entitlement.id);
+                  const creates = effect?.created ?? 0;
+                  const resolves = effect?.resolved ?? 0;
                   return (
                     <button
                       key={entitlement.id}
@@ -1092,7 +1099,7 @@ export function PowerMapBuilder() {
               .filter((id) => id !== "view_reports_only")
               .map((id) => {
                 const entitlement = ENTITLEMENTS.find((item) => item.id === id);
-                const guidance = POWER_GUIDANCE[id];
+                const guidance = guidanceByDuty[id];
                 return (
                   <div key={id} className="rounded-xl border border-border bg-elevated p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -1116,82 +1123,105 @@ export function PowerMapBuilder() {
   );
 }
 
-function ControlMeasuresMatrix({ duties }: { duties: typeof ENTITLEMENTS }) {
+/**
+ * The catalog is fixed advice for every visible duty, several hundred rows of
+ * it. It opens on request, so the Power map does not lay out a 1,280-pixel
+ * table nobody asked for, and it re-renders only when the duty filter
+ * changes, not on every grant or selection.
+ */
+const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
+  duties,
+}: {
+  duties: typeof ENTITLEMENTS;
+}) {
+  const [open, setOpen] = useState(false);
   const categories = ["directive", "preventive", "detective", "corrective"] as const;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Internal control action catalog</CardTitle>
-        <CardDescription>
-          A menu of directive, preventive, detective, and corrective measures for every visible
-          duty. Pick proportionate primary controls and documented alternatives; no single action
-          replaces accountable review.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
-          <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
-            <caption className="sr-only">
-              Internal control measures for each duty, organized by directive, preventive,
-              detective, and corrective category.
-            </caption>
-            <thead className="sticky top-0 z-20 bg-surface">
-              <tr>
-                <th
-                  scope="col"
-                  className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
-                >
-                  Power / duty
-                </th>
-                {categories.map((category) => (
-                  <th
-                    key={category}
-                    scope="col"
-                    className="w-64 border-b border-r border-border p-3 text-left capitalize"
-                  >
-                    {category}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {duties.map((duty) => {
-                const controls = DUTY_CONTROL_MEASURES[duty.id];
-                return (
-                  <tr key={duty.id} className="align-top">
-                    <th
-                      scope="row"
-                      className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"
-                    >
-                      <span className="block font-medium text-fg">{duty.label}</span>
-                      <span className="mt-1 block text-[10px] font-normal text-subtle">
-                        {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
-                      </span>
-                    </th>
-                    {categories.map((category) => (
-                      <td key={category} className="border-b border-r border-border bg-bg p-3">
-                        <ul className="space-y-2 text-muted">
-                          {controls[category].map((action) => (
-                            <li key={action} className="flex gap-2">
-                              <span aria-hidden="true" className="text-primary">
-                                •
-                              </span>
-                              <span>{action}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <CardHeader className="flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="text-base">Internal control action catalog</CardTitle>
+          <CardDescription>
+            A menu of directive, preventive, detective, and corrective measures for every visible
+            duty. Pick proportionate primary controls and documented alternatives; no single action
+            replaces accountable review.
+          </CardDescription>
         </div>
-      </CardContent>
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? "Hide the catalog" : `Show the catalog (${duties.length} duties)`}
+        </Button>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
+            <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
+              <caption className="sr-only">
+                Internal control measures for each duty, organized by directive, preventive,
+                detective, and corrective category.
+              </caption>
+              <thead className="sticky top-0 z-20 bg-surface">
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
+                  >
+                    Power / duty
+                  </th>
+                  {categories.map((category) => (
+                    <th
+                      key={category}
+                      scope="col"
+                      className="w-64 border-b border-r border-border p-3 text-left capitalize"
+                    >
+                      {category}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {duties.map((duty) => {
+                  const controls = DUTY_CONTROL_MEASURES[duty.id];
+                  return (
+                    <tr key={duty.id} className="align-top">
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"
+                      >
+                        <span className="block font-medium text-fg">{duty.label}</span>
+                        <span className="mt-1 block text-[10px] font-normal text-subtle">
+                          {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
+                        </span>
+                      </th>
+                      {categories.map((category) => (
+                        <td key={category} className="border-b border-r border-border bg-bg p-3">
+                          <ul className="space-y-2 text-muted">
+                            {controls[category].map((action) => (
+                              <li key={action} className="flex gap-2">
+                                <span aria-hidden="true" className="text-primary">
+                                  •
+                                </span>
+                                <span>{action}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
-}
+});
 
 function ResponsibilityMatrix({
   assignments,

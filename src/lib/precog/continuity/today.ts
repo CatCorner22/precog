@@ -5,6 +5,7 @@ import type { KnowledgeItem, Person } from "../types";
 import { continuityCommitments, handoffCommitment } from "../decisions/follow-through";
 import { firstName } from "./coverage";
 import { leaveDebriefs } from "./leave-debrief";
+import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
 import {
   formatDateRange,
@@ -61,6 +62,8 @@ export interface TodayBrief {
   leaving: Leaver[];
   /** People whose last day has passed but who are still counted as cover. */
   gone: Leaver[];
+  /** False while nobody is marked on the register: the brief cannot say what stops. */
+  assessed: boolean;
   /** One plain sentence for the top of the dashboard; null when there is nothing to say. */
   headline: string | null;
 }
@@ -120,6 +123,7 @@ export function todayBrief(
     debriefs,
     leaving: departing.filter((l) => l.status === "notice" && l.daysLeft <= LEAVING_SOON_DAYS),
     gone: departing.filter((l) => l.status === "gone"),
+    assessed: registerAssessed(tpl),
     headline: null,
   };
   brief.headline = headline(brief);
@@ -145,10 +149,17 @@ function headline(b: TodayBrief): string | null {
             ? `out (${unexpected} unexpectedly)`
             : "out";
     const count = b.out.flatMap((o) => o.stops).length;
-    const stops =
-      count === 0
-        ? "nothing on the register stops"
-        : `${count} register ${count === 1 ? "entry stops" : "entries stop"}`;
+    const first = b.out[0].window;
+    const waiting = (first.todayImpact ?? first.impact).alreadyStopped.filter(
+      (k) => k.criticality !== "nice-to-have",
+    ).length;
+    const stops = !b.assessed
+      ? "nobody is marked on the register yet, so the app cannot tell what stops"
+      : count === 0 && waiting > 0
+        ? `nothing more on the register stops, but ${waiting} ${waiting === 1 ? "entry" : "entries"} nobody can run alone already ${waiting === 1 ? "waits" : "wait"}`
+        : count === 0
+          ? "nothing on the register stops"
+          : `${count} register ${count === 1 ? "entry stops" : "entries stop"}`;
     const tail = [
       b.cold > 0 ? `${b.cold} that nobody left has done before` : "",
       b.unwritten > 0 ? `${b.unwritten} with nothing written down` : "",
@@ -168,8 +179,9 @@ function headline(b: TodayBrief): string | null {
   if (b.leaving.length > 0) {
     const l = b.leaving[0];
     const first = firstName(l.person.name);
-    const work =
-      l.handover.length === 0
+    const work = !b.assessed
+      ? "the app cannot tell yet what depends on them alone"
+      : l.handover.length === 0
         ? "nothing on the register depends on them alone"
         : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`;
     return `${first} ${leaverLead(l.daysLeft)} — ${work}.`;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
+import { deriveStaffFromTeam } from "../sod/derive-staff";
 import {
   absenceImpact,
   checkInPlan,
@@ -9,6 +10,7 @@ import {
   coverageDrops,
   coverageReport,
   coverageStatus,
+  criticalSinglePoints,
   documentationDebt,
   firstName,
   documentationState,
@@ -417,17 +419,22 @@ describe("absenceImpact", () => {
     ).toEqual(a.stops.filter((s) => !s.item.documented).map((s) => s.item.id));
   });
 
-  it("reports nothing stopping for a fully backed-up person and flags sole-owned processes", () => {
+  it("reports nothing more stopping for a fully backed-up person and flags sole-owned processes", () => {
     const b = absenceImpact(t, "b")!;
     expect(b.stops).toEqual([]);
     expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
+    expect(b.alreadyStopped.map((k) => k.id)).toEqual(["filing"]);
     expect(b.actions).toEqual([
       {
-        text: "Nothing stops if Ben is out. Keep it that way as duties change.",
+        text: 'Nothing more stops if Ben is out; "filing" already waits because nobody can run it alone.',
         step: "cover",
         knowledgeIds: [],
       },
     ]);
+    const covered = tpl(t.knowledge.slice(0, 3), t.relations);
+    expect(absenceImpact(covered, "b")!.actions[0].text).toBe(
+      "Nothing stops if Ben is out. Keep it that way as duties change.",
+    );
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
     expect(absenceImpact(solo, "b")!.orphanedProcesses).toEqual(["Payroll run"]);
@@ -693,5 +700,138 @@ describe("firstName", () => {
     expect(firstName("Prof Amir Khan")).toBe("Amir");
     expect(firstName("  Chris ")).toBe("Chris");
     expect(firstName("Dr.")).toBe("Dr.");
+  });
+});
+
+/** An owner's own clinic over the dental starter register: nobody marked on anything yet. */
+function ownClinic(relations: KnowledgeRelation[] | null = null): IndustryTemplate {
+  return resolveTemplate({
+    industry: "dental",
+    customPeople: [
+      { id: "own-1", name: "Anjali Patel", role: "Medical Assistant", active: true },
+      { id: "own-2", name: "Kevin Osei", role: "Billing Specialist", active: true },
+      { id: "own-3", name: "Zoe Ward", role: "Practice Manager", active: true },
+    ],
+    customRelations: relations,
+  });
+}
+
+describe("starter register nobody has marked", () => {
+  it("names nobody to own a starter item, instead of the alphabetically first employee", () => {
+    const r = coverageReport(ownClinic());
+    expect(r.plan.length).toBe(r.items.length);
+    for (const move of r.plan) {
+      expect(move.trainee).toBeNull();
+      expect(move.action).toBe(
+        `Nobody is marked on "${move.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`,
+      );
+      expect(move.action).not.toMatch(/Anjali|Kevin|Zoe/);
+    }
+  });
+
+  it("still names a trainee on an item once someone is marked on it", () => {
+    const writeOff = ownClinic().knowledge.find((k) => k.name.startsWith("Write-off"))!;
+    const r = coverageReport(
+      ownClinic([{ personId: "own-2", knowledgeId: writeOff.id, level: "basic" }]),
+    );
+    const move = r.plan.find((m) => m.item.id === writeOff.id)!;
+    expect(move.trainee?.id).toBe("own-2");
+    expect(move.action).toContain("Pick Kevin Osei to own it");
+  });
+
+  it("feeds no sole-owner count into the residual index until someone is marked", () => {
+    expect(soleOwnerCriticalCount(ownClinic())).toBe(0);
+  });
+});
+
+describe("criticalSinglePoints", () => {
+  it("never rises when the owner marks the first person who can run an item nobody could", () => {
+    const [first, second] = ownClinic().knowledge.filter((k) => k.criticality === "critical");
+    const marked = ownClinic([{ personId: "own-2", knowledgeId: first.id, level: "proficient" }]);
+    const before = criticalSinglePoints(marked);
+    const critical = marked.knowledge.filter((k) => k.criticality === "critical").length;
+    expect(before).toEqual({ count: critical, nobody: critical - 1, onePerson: 1 });
+    expect(soleOwnerCriticalCount(marked)).toBe(critical);
+
+    const secondMarked = ownClinic([
+      ...marked.relations,
+      { personId: "own-1", knowledgeId: second.id, level: "proficient" },
+    ]);
+    expect(criticalSinglePoints(secondMarked)).toEqual({
+      count: critical,
+      nobody: critical - 2,
+      onePerson: 2,
+    });
+
+    const backedUp = ownClinic([
+      ...secondMarked.relations,
+      { personId: "own-3", knowledgeId: first.id, level: "expert" },
+    ]);
+    expect(criticalSinglePoints(backedUp).count).toBe(critical - 1);
+    expect(soleOwnerCriticalCount(backedUp)).toBe(critical - 1);
+  });
+
+  it("gives the business profile the count Who knows what shows once someone is marked", () => {
+    const [first] = ownClinic().knowledge.filter((k) => k.criticality === "critical");
+    const marked = ownClinic([{ personId: "own-2", knowledgeId: first.id, level: "proficient" }]);
+    expect(deriveStaffFromTeam(marked, marked.staffComposition).soleOwnerKnowledgeCount).toBe(
+      criticalSinglePoints(marked).count,
+    );
+    expect(
+      deriveStaffFromTeam(ownClinic(), ownClinic().staffComposition).soleOwnerKnowledgeCount,
+    ).toBe(0);
+  });
+
+  it("counts a learner as no cover: one person plus a learner is still a single point", () => {
+    const t = tpl(
+      [item("thin"), item("covered"), item("imp", { criticality: "important" })],
+      [
+        { personId: "a", knowledgeId: "thin", level: "expert" },
+        { personId: "b", knowledgeId: "thin", level: "basic" },
+        { personId: "a", knowledgeId: "covered", level: "expert" },
+        { personId: "b", knowledgeId: "covered", level: "proficient" },
+      ],
+    );
+    expect(criticalSinglePoints(t)).toEqual({ count: 1, nobody: 0, onePerson: 1 });
+  });
+});
+
+describe("absence simulator on a register with gaps", () => {
+  const t = tpl(
+    [item("payroll"), item("deposit"), item("orders", { criticality: "important" })],
+    [{ personId: "a", knowledgeId: "payroll", level: "expert" }],
+  );
+
+  it("lists items nobody can run as already stopped and never says nothing stops", () => {
+    const c = absenceImpact(t, "c")!;
+    expect(c.stops).toEqual([]);
+    expect(c.alreadyStopped.map((k) => k.id)).toEqual(["deposit", "orders"]);
+    expect(c.actions.map((a) => a.text)).toEqual([
+      'Already stopped, whoever is in: nobody can run "deposit" or "orders" alone. Mark who can, or line up an outside provider.',
+    ]);
+    expect(c.actions[0].knowledgeIds).toEqual(["deposit", "orders"]);
+  });
+
+  it("with the whole team out, says nobody is left and that the work stops", () => {
+    const all = absenceImpact(t, ["a", "b", "c"])!;
+    expect(all.remaining).toEqual([]);
+    expect(all.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+    expect(all.actions[0].text).toBe(
+      "Nobody is left in the business while Ana, Ben and Cy are out. Line up outside cover or close for those days.",
+    );
+    expect(all.actions.some((a) => /Nothing (more )?stops/.test(a.text))).toBe(false);
+  });
+
+  it("with the whole team out and every item backed up, still never says nothing stops", () => {
+    const covered = tpl(
+      [item("payroll")],
+      [
+        { personId: "a", knowledgeId: "payroll", level: "expert" },
+        { personId: "b", knowledgeId: "payroll", level: "expert" },
+      ],
+    );
+    const all = absenceImpact(covered, ["a", "b", "c"])!;
+    expect(all.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+    expect(all.actions.some((a) => /Nothing (more )?stops/.test(a.text))).toBe(false);
   });
 });

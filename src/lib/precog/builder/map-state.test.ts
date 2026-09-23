@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { mapAssessed, mapNotAssessedNote, mapSource, starterMapFacts } from "./map-state";
+import {
+  mapAssessed,
+  mapNotAssessedNote,
+  mapSource,
+  starterMapFacts,
+  starterProcesses,
+  untouchedStarterProcessIds,
+} from "./map-state";
+import { diffMaps } from "./diff";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
@@ -120,5 +128,56 @@ describe("the sample business's map figures do not change", () => {
       "record-proc-ap",
       "record-proc-payroll",
     ]);
+  });
+});
+
+describe("untouchedStarterProcessIds", () => {
+  it("keeps every other starter process a starter when the owner assigns one owner", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes;
+    expect(untouchedStarterProcessIds(profile).size).toBe(processes.length);
+    const owned = {
+      ...profile,
+      customProcesses: processes.map((p, i) =>
+        i === 0 ? { ...p, ownerPersonIds: [people[0].id] } : p,
+      ),
+    };
+    const left = untouchedStarterProcessIds(owned);
+    expect(left.has(processes[0].id)).toBe(false);
+    expect(left.size).toBe(processes.length - 1);
+  });
+
+  it("treats a renamed or re-described starter process as the owner's own", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes;
+    const edited = {
+      ...profile,
+      customProcesses: processes.map((p, i) => (i === 1 ? { ...p, name: `${p.name} (ours)` } : p)),
+    };
+    expect(untouchedStarterProcessIds(edited).has(processes[1].id)).toBe(false);
+    expect(untouchedStarterProcessIds(edited).has(processes[0].id)).toBe(true);
+  });
+
+  it("is empty for the sample business", () => {
+    expect(untouchedStarterProcessIds({ industry: "dental" }).size).toBe(0);
+  });
+});
+
+describe("starterProcesses", () => {
+  it("lists only the owner's one edit when they assign one owner, not the sample team or every process", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes.map((p, i) =>
+      i === 0 ? { ...p, ownerPersonIds: [people[0].id] } : p,
+    );
+    const diff = diffMaps({ processes: starterProcesses(profile), people }, { processes, people });
+    expect(diff.total).toBe(1);
+    expect(diff.modified.map((m) => m.changes)).toEqual([["owners"]]);
+    expect(diff.peopleRemoved).toEqual([]);
+  });
+
+  it("keeps the starter's processes and leaves every owner off", () => {
+    const starter = starterProcesses({ industry: "retail" });
+    expect(starter.map((p) => p.id)).toEqual(getBaseTemplate("retail").processes.map((p) => p.id));
+    expect(starter.every((p) => p.ownerPersonIds?.length === 0)).toBe(true);
   });
 });

@@ -74,7 +74,8 @@ describe("starter scenarios", () => {
     const general = withOwnScenarioWording(
       resolveTemplate({ industry: "general", customPeople: people }),
     );
-    expect(general.scenarios[0].description).toMatch(/^The AR lead \(sole expert/);
+    // The general template names the role itself ("The AR admin"), for the sample too.
+    expect(general.scenarios[0].description).toMatch(/^The AR admin \(sole expert/);
     for (const tpl of [dental, restaurant, general]) {
       const text = JSON.stringify(tpl.scenarios);
       expect(text).not.toMatch(/\b(Jordan|Sam)\b/);

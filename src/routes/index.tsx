@@ -37,7 +37,11 @@ import {
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { AccountMenu } from "@/components/precog/account-menu";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { findKnowledgeRisks, rankDangerousScenarios } from "@/lib/precog/engine";
+import { rankDangerousScenarios } from "@/lib/precog/engine";
+import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
+import { pluralTeamLabel } from "@/lib/precog/templates/industry-copy";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
@@ -344,7 +348,6 @@ function Home() {
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
-  const risks = useMemo(() => findKnowledgeRisks(tpl), [tpl]);
   const ranked = useMemo(
     () =>
       rankDangerousScenarios(tpl, {
@@ -364,7 +367,12 @@ function Home() {
     () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [tpl, profile.staff, profile.dualRelease],
   );
-  const spofCount = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow).length;
+  // One sole-owner figure on the whole Dashboard: the card shows the value the
+  // business profile shows and the residual index uses, which for an owner's
+  // register is the critical single points Who knows what counts.
+  const registerReady = registerAssessed(tpl);
+  const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
+  const soleOwnerFigure = profile.staff.soleOwnerKnowledgeCount;
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = useMemo(
@@ -576,7 +584,7 @@ function Home() {
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
                 {industry.tagline}. Precog Pioneer scores SoD gaps, knowledge single points of
                 failure, and financial scenarios — then tells you what to fix this week. Built for
-                owner-operated {industry.teamLabel}s with 2–20 people.
+                owner-operated {pluralTeamLabel(profile.industry)} of 2 to {OWN_TEAM_MAX} people.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => setTab("sod")}>
@@ -686,9 +694,15 @@ function Home() {
               />
               <MetricCard
                 label="Critical SPOFs"
-                value={String(spofCount)}
-                hint="Sole-owner knowledge"
-                tone="danger"
+                value={registerReady ? String(soleOwnerFigure) : "—"}
+                hint={
+                  !registerReady
+                    ? "Not assessed yet"
+                    : soleOwnerFigure === singlePoints.count
+                      ? `${singlePoints.nobody} with nobody, ${singlePoints.onePerson} with one person`
+                      : `Business profile figure · Who knows what counts ${singlePoints.count}`
+                }
+                tone={!registerReady || soleOwnerFigure === 0 ? "primary" : "danger"}
                 onClick={() => navigateDeepLink({ type: "knowledge" })}
               />
               <MetricCard
@@ -856,7 +870,7 @@ function Home() {
 
         {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
         {tab === "snapshots" && <AssessmentSnapshots />}
-        {tab === "blueprint" && <OperatingBlueprint />}
+        {tab === "blueprint" && <OperatingBlueprint onNavigate={(t) => navigateTab(t)} />}
         {tab === "value" && <ValueProofCenter />}
         </Suspense></TabErrorBoundary>
       </main>

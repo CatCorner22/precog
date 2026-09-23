@@ -793,6 +793,46 @@ function healthBand(score: number) {
 }
 
 /** Composite 0–100 map health score from graph snapshots + validation. Higher is better. */
+function counted(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * What lowered the Integrity score, in the terms the score counts: every
+ * error and every warning costs points, so the hint names each kind that is
+ * present rather than saying there are no broken dependencies.
+ */
+export function integrityHint(issues: readonly MapValidationIssue[]): string {
+  const errors = issues.filter((i) => i.severity === "error").length;
+  const warns = issues.filter((i) => i.severity === "warn");
+  const kind = (test: (id: string) => boolean) => warns.filter((i) => test(i.id)).length;
+  const noOwner = kind((id) => id.startsWith("owner-") && !id.startsWith("owner-left-"));
+  const ownerLeft = kind((id) => id.startsWith("owner-left-"));
+  const unknownControl = kind((id) => id.startsWith("ctrl-"));
+  const riskNoControl = kind((id) => id.startsWith("fraud-nocontrol-"));
+  const other = warns.length - noOwner - ownerLeft - unknownControl - riskNoControl;
+  const parts = [
+    errors ? counted(errors, "broken link or cycle", "broken links or cycles") : "",
+    noOwner ? counted(noOwner, "process without an owner", "processes without an owner") : "",
+    ownerLeft ? counted(ownerLeft, "process whose owner left", "processes whose owners left") : "",
+    riskNoControl
+      ? counted(
+          riskNoControl,
+          "process with fraud risks and no control",
+          "processes with fraud risks and no control",
+        )
+      : "",
+    unknownControl
+      ? counted(unknownControl, "reference to an unknown control", "references to unknown controls")
+      : "",
+    other ? counted(other, "other warning", "other warnings") : "",
+  ].filter(Boolean);
+  if (parts.length === 0) return "No broken dependencies or cycles";
+  const list =
+    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+  return `Lowered by ${list}`;
+}
+
 export function computeMapHealth(
   snapshots: ProcessMapSnapshot[],
   validationIssues: MapValidationIssue[],
@@ -825,7 +865,7 @@ export function computeMapHealth(
       label: "Integrity",
       score: integrity,
       weight: 0.2,
-      hint: errors ? `${errors} structural issue(s)` : "No broken dependencies or cycles",
+      hint: integrityHint(validationIssues),
     },
     {
       id: "ownership",

@@ -44,7 +44,13 @@ import {
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
 import { usePractice } from "@/lib/precog/practice-context";
-import { mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
+import {
+  mapAssessed,
+  mapNotAssessedNote,
+  mapSource,
+  starterMapFacts,
+  untouchedStarterProcessIds,
+} from "@/lib/precog/builder/map-state";
 import { ProcessBuilder } from "@/components/precog/process-builder";
 import { ExportMapImageButton } from "@/components/precog/export-map-image";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +83,8 @@ type ProcessFlowNode = Node<
     interactive: boolean;
     priority?: number;
     immediate?: boolean;
+    /** A starter process nobody has assessed: drawn without heat or priority. */
+    unscored?: boolean;
   } & Record<string, unknown>
 >;
 
@@ -85,14 +93,19 @@ function asMapNode(data: unknown): MapGraphNode & {
   interactive?: boolean;
   priority?: number;
   immediate?: boolean;
+  unscored?: boolean;
 } {
   return data as MapGraphNode & {
     vision?: MapVisionMode;
     interactive?: boolean;
     priority?: number;
     immediate?: boolean;
+    unscored?: boolean;
   };
 }
+
+/** Border for a starter process or item nobody has assessed: no heat colour. */
+const UNSCORED_ACCENT = "var(--color-border-strong)";
 
 function heatColorStandard(sev?: number) {
   const s = sev ?? 0;
@@ -125,10 +138,10 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
   const vision = d.vision ?? "standard";
   const heat = d.severity ?? 0;
   const priority = d.priority ?? heat;
-  const accent = nodeAccent(vision, heat, priority);
+  const accent = d.unscored ? UNSCORED_ACCENT : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
-  const hot = vision === "predator" && priority >= 72;
-  const locked = vision === "terminator" && (d.immediate || priority >= 78);
+  const hot = !d.unscored && vision === "predator" && priority >= 72;
+  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
   const zoom = useCanvasZoom();
   const compact = zoom < COMPACT_ZOOM;
 
@@ -146,7 +159,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       style={{
         borderColor: accent,
         boxShadow:
-          vision === "predator"
+          vision === "predator" && !d.unscored
             ? predatorGlow(priority)
             : vision === "terminator" && locked
               ? undefined
@@ -164,11 +177,13 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
           )}
         >
           <Workflow className="size-3" />
-          {vision === "predator"
-            ? `THERMAL ${priority}`
-            : vision === "terminator"
-              ? `THREAT ${priority}`
-              : `process · ${heat}`}
+          {d.unscored
+            ? "starter · not assessed"
+            : vision === "predator"
+              ? `THERMAL ${priority}`
+              : vision === "terminator"
+                ? `THREAT ${priority}`
+                : `process · ${heat}`}
         </div>
       )}
       <p
@@ -227,9 +242,13 @@ function SatelliteNode({
   const vision = d.vision ?? "standard";
   const heat = d.severity ?? 40;
   const priority = d.priority ?? heat;
-  const accent = vision === "standard" ? accentDefault : nodeAccent(vision, heat, priority);
+  const accent = d.unscored
+    ? UNSCORED_ACCENT
+    : vision === "standard"
+      ? accentDefault
+      : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
-  const locked = vision === "terminator" && (d.immediate || priority >= 78);
+  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
   const compact = useCanvasZoom() < COMPACT_ZOOM;
 
   return (
@@ -240,12 +259,12 @@ function SatelliteNode({
         vision === "terminator" && "bg-black/75",
         selected && "ring-2 ring-primary/40",
         !interactive && "opacity-35 grayscale",
-        priority >= 72 && vision === "predator" && "predator-node-hot",
+        !d.unscored && priority >= 72 && vision === "predator" && "predator-node-hot",
         locked && "terminator-target",
       )}
       style={{
         borderColor: accent,
-        boxShadow: vision === "predator" ? predatorGlow(priority * 0.85) : undefined,
+        boxShadow: vision === "predator" && !d.unscored ? predatorGlow(priority * 0.85) : undefined,
         pointerEvents: interactive ? "auto" : "none",
       }}
     >
@@ -259,7 +278,9 @@ function SatelliteNode({
       >
         {icon}
         {d.kind}
-        {vision !== "standard" && <span className="ml-auto tabular">{priority}</span>}
+        {vision !== "standard" && !d.unscored && (
+          <span className="ml-auto tabular">{priority}</span>
+        )}
       </div>
       <p
         className={cn(
@@ -462,6 +483,24 @@ export function ProcessMap({
     () => buildProcessMapGraph(tpl, profile.staff, graphOpts),
     [tpl, profile.staff, graphOpts],
   );
+  // Heat, hot counts and ranks describe only processes the owner has worked
+  // on: nothing while the map is not assessed, and never a starter process
+  // the owner has not touched yet.
+  const mapReady = mapAssessed(profile);
+  const notAssessedNote = mapNotAssessedNote(profile);
+  const starterIds = useMemo(
+    () =>
+      untouchedStarterProcessIds({
+        industry: profile.industry,
+        customPeople: profile.customPeople,
+        customProcesses: profile.customProcesses,
+      }),
+    [profile.industry, profile.customPeople, profile.customProcesses],
+  );
+  const isScored = useCallback(
+    (processId: string | undefined) => mapReady && !(processId && starterIds.has(processId)),
+    [mapReady, starterIds],
+  );
 
   // Keep the selection valid when the template or custom map changes.
   useEffect(() => {
@@ -637,7 +676,7 @@ export function ProcessMap({
   /** Priority targets for Predator / Terminator + priority list */
   const priorities: PriorityTarget[] = useMemo(() => {
     const targets: PriorityTarget[] = [];
-    for (const snap of graph.snapshots) {
+    for (const snap of graph.snapshots.filter((s) => isScored(s.process.id))) {
       const depCount = snap.process.dependencies?.length ?? 0;
       const scored = scorePriority({
         heat: snap.heat,
@@ -719,7 +758,7 @@ export function ProcessMap({
       }
     }
     return targets.sort((a, b) => b.priority - a.priority);
-  }, [graph.snapshots]);
+  }, [graph.snapshots, isScored]);
 
   const priorityById = useMemo(() => {
     const m = new Map<string, PriorityTarget>();
@@ -756,12 +795,13 @@ export function ProcessMap({
           interactive: layer?.interactive !== false,
           priority,
           immediate: pri?.immediate,
+          unscored: !isScored(n.kind === "process" ? n.id : n.processId),
         },
         selected: n.id === selectedId,
         style: layer?.interactive === false ? { opacity: 0.4 } : undefined,
       };
     });
-  }, [visibleNodes, positions, selectedId, vision, layerMap, priorityById, build]);
+  }, [visibleNodes, positions, selectedId, vision, layerMap, priorityById, build, isScored]);
 
   const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
     const moves: Record<string, { x: number; y: number }> = {};
@@ -916,7 +956,10 @@ export function ProcessMap({
 
   const whiteHot = priorities.filter((p) => p.band === "white_hot").length;
   const immediate = priorities.filter((p) => p.immediate).length;
-  const hotCount = graph.snapshots.filter((s) => s.heat >= HEAT_BANDS.hot).length;
+  const hotCount = graph.snapshots.filter(
+    (s) => isScored(s.process.id) && s.heat >= HEAT_BANDS.hot,
+  ).length;
+  const starterLeft = mapSource(profile) === "own" ? starterIds.size : 0;
 
   function toggleLayer(id: MapLayerId, field: "visible" | "interactive") {
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: !l[field] } : l)));
@@ -938,6 +981,10 @@ export function ProcessMap({
           <Badge variant="primary">Vision systems online</Badge>
           {mapSource(profile) === "starter" ? (
             <Badge variant="default">Starter map from the {starterMapFacts(profile).example}</Badge>
+          ) : starterLeft > 0 ? (
+            <Badge variant="default">
+              Your map · {starterLeft} of {graph.snapshots.length} processes still from the starter
+            </Badge>
           ) : (
             mapCustomized && <Badge variant="ok">Your custom map</Badge>
           )}
@@ -1009,9 +1056,15 @@ export function ProcessMap({
               <Scan className="size-4 text-orange-200" />
               <span className="font-semibold tracking-widest">PREDATOR VISION</span>
               <span className="text-white/50">·</span>
-              <span>{whiteHot} WHITE-HOT</span>
-              <span className="text-white/50">·</span>
-              <span>{priorities.filter((p) => p.band === "critical").length} CRITICAL</span>
+              {mapReady ? (
+                <>
+                  <span>{whiteHot} WHITE-HOT</span>
+                  <span className="text-white/50">·</span>
+                  <span>{priorities.filter((p) => p.band === "critical").length} CRITICAL</span>
+                </>
+              ) : (
+                <span>NOT ASSESSED YET</span>
+              )}
             </div>
             <div className="predator-thermal-bar mt-2 h-2.5 w-full rounded-full" />
             <div className="mt-1 flex justify-between text-[10px] text-white/55">
@@ -1029,8 +1082,10 @@ export function ProcessMap({
               <p className="font-semibold tracking-widest">RISK TERMINATOR · SCAN MODE</p>
               <p className="mt-1 text-red-300/90 normal-case tracking-normal">
                 Friendly unit online. Mission: cut residual to a reasonable degree — not zero, not
-                panic. Locking {immediate} immediate threat
-                {immediate === 1 ? "" : "s"}.
+                panic.{" "}
+                {mapReady
+                  ? `Locking ${immediate} immediate threat${immediate === 1 ? "" : "s"}.`
+                  : "Nothing to lock on until the map is assessed."}
               </p>
               <p className="mt-2 text-[10px] text-red-400/70">
                 I'll be back… after dual release and bank rec are locked in.
@@ -1040,9 +1095,13 @@ export function ProcessMap({
         )}
 
         <p className="mt-3 text-xs text-subtle">
-          {graph.snapshots.length} processes · {hotCount} hot · {priorities.length} ranked targets ·
-          pan/zoom
+          {mapReady
+            ? `${graph.snapshots.length} processes · ${hotCount} hot · ${priorities.length} ranked targets${
+                starterLeft > 0 ? ` · ${starterLeft} starter, not scored` : ""
+              } · pan/zoom`
+            : `${graph.snapshots.length} processes · not assessed yet · pan/zoom`}
         </p>
+        {notAssessedNote && <p className="mt-1 max-w-2xl text-xs text-muted">{notAssessedNote}</p>}
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
@@ -1163,7 +1222,7 @@ export function ProcessMap({
                   ) : vision === "predator" ? (
                     <PredatorLegend />
                   ) : (
-                    <TerminatorLegend immediate={immediate} />
+                    <TerminatorLegend immediate={mapReady ? immediate : null} />
                   )}
                 </Panel>
                 <Panel position="top-right" className="m-2! flex items-center gap-1">
@@ -1228,6 +1287,13 @@ export function ProcessMap({
               <CardDescription>Heat × realistic impact · white-hot needs both high</CardDescription>
             </CardHeader>
             <CardContent className="max-h-[320px] space-y-1.5 overflow-y-auto">
+              {notAssessedNote && <p className="text-xs text-muted">{notAssessedNote}</p>}
+              {!notAssessedNote && priorities.length === 0 && starterLeft > 0 && (
+                <p className="text-xs text-muted">
+                  Every process on the map is still as the starter had it. Assign an owner or edit a
+                  process and it is ranked here.
+                </p>
+              )}
               {priorities.slice(0, 12).map((t, i) => (
                 <button
                   key={`${t.kind}-${t.processId ?? ""}-${t.id}`}
@@ -1284,6 +1350,7 @@ export function ProcessMap({
             <ProcessDetail
               snapshot={snapshot}
               selectedNode={selectedNode}
+              unscored={!isScored(snapshot.process.id)}
               priority={
                 priorityById.get(snapshot.process.id) ??
                 priorities.find((p) => p.processId === snapshot.process.id)
@@ -1382,13 +1449,15 @@ function PredatorLegend() {
   );
 }
 
-function TerminatorLegend({ immediate }: { immediate: number }) {
+/** `immediate` is null while the map is not assessed: there is nothing to count yet. */
+function TerminatorLegend({ immediate }: { immediate: number | null }) {
   return (
     <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-[10px] terminator-hud shadow-lg">
       <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
       <p className="mt-1 normal-case tracking-normal text-red-300/90">
-        {immediate} target{immediate === 1 ? "" : "s"} require immediate attention. Pulsing lock =
-        act this week.
+        {immediate === null
+          ? "Not assessed yet: nothing to lock on until the map is assessed."
+          : `${immediate} target${immediate === 1 ? " requires" : "s require"} immediate attention. Pulsing lock = act this week.`}
       </p>
     </div>
   );
@@ -1397,6 +1466,7 @@ function TerminatorLegend({ immediate }: { immediate: number }) {
 function ProcessDetail({
   snapshot,
   selectedNode,
+  unscored,
   priority,
   vision,
   onNavigate,
@@ -1404,6 +1474,8 @@ function ProcessDetail({
 }: {
   snapshot: ProcessMapSnapshot;
   selectedNode?: MapGraphNode;
+  /** A starter process nobody has assessed: shown without heat or priority. */
+  unscored: boolean;
   priority?: PriorityTarget;
   vision: MapVisionMode;
   onNavigate?: NavFn;
@@ -1418,14 +1490,20 @@ function ProcessDetail({
           <span
             className="size-3 rounded-full"
             style={{
-              background: priority
-                ? predatorThermalColor(priority.priority)
-                : heatColorStandard(snapshot.heat),
+              background: unscored
+                ? UNSCORED_ACCENT
+                : priority
+                  ? predatorThermalColor(priority.priority)
+                  : heatColorStandard(snapshot.heat),
             }}
           />
-          <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
-            heat {snapshot.heat}
-          </Badge>
+          {unscored ? (
+            <Badge variant="default">Starter · not assessed</Badge>
+          ) : (
+            <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
+              heat {snapshot.heat}
+            </Badge>
+          )}
           {priority && (
             <Badge
               variant={priority.immediate || priority.band === "white_hot" ? "danger" : "warn"}
@@ -1439,6 +1517,13 @@ function ProcessDetail({
         <CardDescription>{p.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {unscored && (
+          <p className="text-xs text-muted">
+            A starter process from the industry example, as yet untouched. Its risks and notes are
+            what such a process usually carries, not findings about your business; assign an owner
+            or edit it and it is scored.
+          </p>
+        )}
         {priority && (
           <div className="rounded-lg border border-border bg-panel px-3 py-2 text-xs">
             <p className="font-medium text-fg">{priority.impactHint}</p>
