@@ -4,8 +4,11 @@ import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
 import {
+  BusinessLimitError,
   deleteBusinessRow,
+  listBusinessSummaries,
   loadActiveBusiness,
+  MAX_BUSINESSES_PER_USER,
   saveBusinessRevision,
   setActiveBusiness,
 } from "./business-store";
@@ -267,5 +270,135 @@ describe("loadActiveBusiness", () => {
     await saveBusinessRevision(sql, input("user-b", "biz_1", null, "B"));
     await setActiveBusiness(sql, { ...input("user-b", "biz_1", null, "B") });
     expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+  });
+});
+
+describe("timestamps", () => {
+  const ISO_MS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+  async function storedMs(userId: string, businessId: string): Promise<number> {
+    const rows = await sql<{ ms: number | string | bigint }>`
+      select floor(extract(epoch from updated_at) * 1000)::bigint as ms
+      from businesses where user_id = ${userId} and id = ${businessId}
+    `;
+    return Number(rows[0].ms);
+  }
+
+  it("returns updatedAt from a save as ISO 8601 with milliseconds", async () => {
+    const saved = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.updatedAt).toMatch(ISO_MS);
+    expect(new Date(saved.updatedAt).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  });
+
+  it("returns the conflicting row's updated_at as ISO 8601", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    expect(stale.ok).toBe(false);
+    if (stale.ok) return;
+    expect(stale.existing.updated_at).toMatch(ISO_MS);
+    expect(new Date(stale.existing.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  });
+
+  it("loads updated_at as ISO 8601 from the business row and the legacy pointer", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
+    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null) });
+    const active = await loadActiveBusiness(sql, "user-a");
+    expect(active?.updated_at).toMatch(ISO_MS);
+    expect(new Date(active!.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+
+    await setActiveBusiness(sql, { ...input("user-b", "biz_default", null, "legacy") });
+    const legacy = await loadActiveBusiness(sql, "user-b");
+    expect(legacy?.revision).toBeNull();
+    expect(legacy?.updated_at).toMatch(ISO_MS);
+  });
+});
+
+describe("business limit", () => {
+  it("refuses a new business once the account holds the limit, and stores nothing", async () => {
+    for (let i = 0; i < 3; i += 1) {
+      expect((await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3)).ok).toBe(true);
+    }
+    await expect(saveBusinessRevision(sql, input("user-a", "biz_3", null), 3)).rejects.toThrow(
+      BusinessLimitError,
+    );
+    expect(await revisionOf("user-a", "biz_3")).toBeNull();
+  });
+
+  it("still saves, and still reports conflicts on, businesses the account already has", async () => {
+    for (let i = 0; i < 3; i += 1)
+      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
+    const update = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "renamed"), 3);
+    expect(update.ok).toBe(true);
+    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "stale"), 3);
+    expect(stale.ok).toBe(false);
+  });
+
+  it("counts each account separately", async () => {
+    for (let i = 0; i < 3; i += 1)
+      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
+    expect((await saveBusinessRevision(sql, input("user-b", "biz_0", null), 3)).ok).toBe(true);
+  });
+
+  it("lets a deleted business make room for a new one", async () => {
+    for (let i = 0; i < 3; i += 1)
+      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
+    await deleteBusinessRow(sql, "user-a", "biz_0");
+    expect((await saveBusinessRevision(sql, input("user-a", "biz_3", null), 3)).ok).toBe(true);
+  });
+
+  it("defaults to MAX_BUSINESSES_PER_USER", async () => {
+    for (let i = 0; i < MAX_BUSINESSES_PER_USER; i += 1) {
+      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null));
+    }
+    await expect(saveBusinessRevision(sql, input("user-a", "one_too_many", null))).rejects.toThrow(
+      `${MAX_BUSINESSES_PER_USER} businesses`,
+    );
+  });
+});
+
+describe("listBusinessSummaries", () => {
+  it("lists every business the account holds, beyond the old limit of 50", async () => {
+    // Rows written before the limit existed must stay reachable.
+    for (let i = 0; i < 60; i += 1) {
+      await pg.query(
+        `insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+         values ($1, 'user-a', $1, 'dental', '{}'::jsonb, 1, now() - make_interval(mins => $2))`,
+        [`biz_${i}`, i],
+      );
+    }
+    const list = await listBusinessSummaries(sql, "user-a");
+    expect(list).toHaveLength(60);
+    expect(list[0].id).toBe("biz_0");
+    expect(list[59].id).toBe("biz_59");
+    expect(list[0].updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+  });
+
+  it("reads the process count and the latest health score from the profile", async () => {
+    const profile = {
+      customProcesses: [{ id: "a" }, { id: "b" }],
+      mapHealthHistory: [{ score: 40 }, { score: 72 }],
+    };
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null),
+      profileJson: JSON.stringify(profile),
+    });
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_2", null),
+      profileJson: JSON.stringify({ customProcesses: "x", mapHealthHistory: [null] }),
+    });
+    const byId = new Map((await listBusinessSummaries(sql, "user-a")).map((b) => [b.id, b]));
+    expect(byId.get("biz_1")).toMatchObject({
+      processCount: 2,
+      healthScore: 72,
+      industry: "dental",
+    });
+    expect(byId.get("biz_2")).toMatchObject({ processCount: 0, healthScore: null });
+  });
+
+  it("never lists another user's businesses", async () => {
+    await saveBusinessRevision(sql, input("user-b", "biz_1", null));
+    expect(await listBusinessSummaries(sql, "user-a")).toEqual([]);
   });
 });

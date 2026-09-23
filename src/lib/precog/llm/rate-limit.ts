@@ -53,4 +53,34 @@ export const LLM_LIMITS = {
   perUser: { limit: 10, windowMs: 60_000 },
   perIp: { limit: 30, windowMs: 60_000 },
   global: { limit: 120, windowMs: 60_000 },
+  /**
+   * Signed-out calls to an expensive path (Pioneer runs its whole local
+   * analysis on the server, over half a second of CPU for a large map): per
+   * address, and for every signed-out caller together on this instance.
+   */
+  anonymousHeavyPerIp: { limit: 4, windowMs: 60_000 },
+  anonymousHeavyAll: { limit: 20, windowMs: 60_000 },
 } as const;
+
+export type LimitResult = ReturnType<SlidingWindowLimiter["take"]>;
+
+/**
+ * The allowance for signed-out callers on an expensive path: a few calls a
+ * minute per address, and a ceiling on all of them together so many
+ * addresses cannot add up to a busy instance.
+ */
+export function createAnonymousHeavyGate(
+  rules: { perIp: RateLimitRule; all: RateLimitRule } = {
+    perIp: LLM_LIMITS.anonymousHeavyPerIp,
+    all: LLM_LIMITS.anonymousHeavyAll,
+  },
+  now: () => number = Date.now,
+): (ip: string) => LimitResult {
+  const perIp = new SlidingWindowLimiter(rules.perIp, now);
+  const all = new SlidingWindowLimiter(rules.all, now);
+  return (ip) => {
+    const own = perIp.take(ip);
+    if (!own.allowed) return own;
+    return all.take("anonymous");
+  };
+}

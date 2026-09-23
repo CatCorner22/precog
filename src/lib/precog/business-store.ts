@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { toIsoTimestamp } from "./iso-time";
 
 /**
  * Revision-checked write of one business row.
@@ -36,26 +37,45 @@ export type BusinessSaveResult<TProfile = unknown> =
   | { ok: true; revision: number; updatedAt: string }
   | { ok: false; conflict: true; existing: BusinessRowSnapshot<TProfile> };
 
+/** Businesses one account may keep in the cloud. Saves to existing ones always go through. */
+export const MAX_BUSINESSES_PER_USER = 50;
+
+export class BusinessLimitError extends Error {
+  readonly status = 409;
+  constructor(limit: number) {
+    super(
+      `Your account already holds ${limit} businesses, the most it can keep. Delete one you no longer need, then save again.`,
+    );
+    this.name = "BusinessLimitError";
+  }
+}
+
 export async function saveBusinessRevision<TProfile = unknown>(
   sql: Sql,
   input: BusinessSaveInput,
+  limit = MAX_BUSINESSES_PER_USER,
 ): Promise<BusinessSaveResult<TProfile>> {
   // First save of a business: no row, so no conflict target — plain insert at
-  // revision 1. Existing row: update only when the caller's base revision
-  // matches. `null::bigint` never equals anything, so a client that never
-  // loaded this business cannot overwrite a row that exists (that is the
-  // "stale" case the client resolves through the conflict banner).
+  // revision 1, provided the account is under its business limit. Existing
+  // row: update only when the caller's base revision matches. `null::bigint`
+  // never equals anything, so a client that never loaded this business cannot
+  // overwrite a row that exists (that is the "stale" case the client resolves
+  // through the conflict banner). Two first saves racing at the limit can
+  // both pass; listBusinessSummaries has no limit, so neither is hidden.
   const written = await sql<{ revision: number | string; updated_at: string }>`
     insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
-    values (
-      ${input.businessId},
-      ${input.userId},
-      ${input.name},
-      ${input.industry},
+    select
+      ${input.businessId}::text,
+      ${input.userId}::text,
+      ${input.name}::text,
+      ${input.industry}::text,
       ${input.profileJson}::jsonb,
       1,
       now()
-    )
+    where exists (
+        select 1 from businesses where user_id = ${input.userId} and id = ${input.businessId}
+      )
+      or (select count(*) from businesses where user_id = ${input.userId}) < ${limit}::int
     on conflict (user_id, id) do update set
       name = excluded.name,
       industry = excluded.industry,
@@ -67,7 +87,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
   `;
   const row = written[0];
   if (row) {
-    return { ok: true, revision: Number(row.revision), updatedAt: String(row.updated_at) };
+    return { ok: true, revision: Number(row.revision), updatedAt: toIsoTimestamp(row.updated_at) };
   }
 
   // Nothing written: the row exists at some other revision. Read it so the
@@ -85,7 +105,12 @@ export async function saveBusinessRevision<TProfile = unknown>(
   `;
   const existing = existingRows[0];
   if (!existing) {
-    // Only reachable if the row was deleted between the two statements.
+    // No row and nothing written: the account is at its business limit (or,
+    // rarely, the row was deleted between the two statements).
+    const held = await sql<{ n: number | string }>`
+      select count(*) as n from businesses where user_id = ${input.userId}
+    `;
+    if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
     throw new Error("Unable to save business profile");
   }
   return {
@@ -96,9 +121,57 @@ export async function saveBusinessRevision<TProfile = unknown>(
       profile: existing.profile,
       industry: existing.industry,
       name: existing.name,
-      updated_at: String(existing.updated_at),
+      updated_at: toIsoTimestamp(existing.updated_at),
     },
   };
+}
+
+export interface BusinessSummaryRow {
+  id: string;
+  name: string;
+  industry: string;
+  updatedAt: string;
+  processCount: number;
+  healthScore: number | null;
+}
+
+/**
+ * Every business the account owns, newest first, with no row limit: a limit
+ * below the number a user can hold would leave the rest unreachable from a
+ * new device. The summary figures are read inside Postgres so the list does
+ * not pull every full profile (up to 2 MB each) across the wire.
+ */
+export async function listBusinessSummaries(
+  sql: Sql,
+  userId: string,
+): Promise<BusinessSummaryRow[]> {
+  const rows = await sql<{
+    id: string;
+    name: string;
+    industry: string;
+    updated_at: unknown;
+    process_count: number | string | null;
+    health_score: unknown;
+  }>`
+    select
+      id, name, industry, updated_at,
+      case when jsonb_typeof(profile->'customProcesses') = 'array'
+        then jsonb_array_length(profile->'customProcesses') else 0 end as process_count,
+      case when jsonb_typeof(profile->'mapHealthHistory') = 'array'
+        then profile->'mapHealthHistory'->-1->'score' end as health_score
+    from businesses
+    where user_id = ${userId}
+    order by updated_at desc
+  `;
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    industry: r.industry,
+    updatedAt: toIsoTimestamp(r.updated_at),
+    processCount: Number(r.process_count ?? 0),
+    healthScore:
+      typeof r.health_score === "number" && Number.isFinite(r.health_score) ? r.health_score : null,
+  }));
 }
 
 /**
@@ -182,7 +255,7 @@ export async function loadActiveBusiness<
       name: authoritative.name,
       industry: authoritative.industry,
       profile: authoritative.profile,
-      updated_at: String(authoritative.updated_at),
+      updated_at: toIsoTimestamp(authoritative.updated_at),
       revision: Number(authoritative.revision),
     };
   }
@@ -191,7 +264,7 @@ export async function loadActiveBusiness<
     name: active.name,
     industry: active.industry,
     profile: active.profile,
-    updated_at: String(active.updated_at),
+    updated_at: toIsoTimestamp(active.updated_at),
     revision: null,
   };
 }

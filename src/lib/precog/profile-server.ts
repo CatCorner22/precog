@@ -3,19 +3,17 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
 import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
-import {
-  defaultProfile,
-  normalizeCustomKnowledge,
-  normalizePlannedAbsences,
-  type PracticeProfile,
-} from "./practice-profile";
+import type { PracticeProfile } from "./practice-profile";
+import { mergeProfile } from "./profile-merge";
 import {
   deleteBusinessRow,
+  listBusinessSummaries,
   loadActiveBusiness,
   saveBusinessRevision,
   setActiveBusiness,
 } from "./business-store";
 import { resolveClientDate } from "./continuity/coverage";
+import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -49,15 +47,17 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision?: number | null;
       today?: string;
     }) => {
-      const checked = validateProfileInput(input.profile);
-      const industry = input.industry ?? checked.profile.industry;
-      if (!isIndustryId(industry)) throw new Error("Unknown industry");
-      const baseRevision = input.baseRevision == null ? null : Number(input.baseRevision);
+      const raw = requireObject(input);
+      const checked = validateProfileInput(raw.profile);
+      const industry = raw.industry ?? checked.profile.industry;
+      if (!isIndustryId(industry)) throw new RequestError(400, "Unknown industry");
+      if (raw.baseRevision != null && typeof raw.baseRevision !== "number") throw invalidRequest();
+      const baseRevision = raw.baseRevision ?? null;
       return {
         ...checked,
         industry,
-        baseRevision: Number.isFinite(baseRevision) ? baseRevision : null,
-        today: resolveClientDate(input.today),
+        baseRevision: baseRevision !== null && Number.isFinite(baseRevision) ? baseRevision : null,
+        today: resolveClientDate(raw.today),
       };
     },
   )
@@ -113,75 +113,25 @@ type BusinessRow = {
   revision: number | string;
 };
 
-function mergeProfile(
-  row: {
-    name: string;
-    industry: string;
-    profile: PracticeProfile;
-  },
-  today: string,
-): PracticeProfile {
-  const base = defaultProfile((row.industry as IndustryId) || row.profile.industry || "dental");
-  return {
-    ...base,
-    ...row.profile,
-    practiceName: row.name || row.profile.practiceName || base.practiceName,
-    staff: { ...base.staff, ...row.profile.staff },
-    riskVariables: { ...base.riskVariables, ...row.profile.riskVariables },
-    dualRelease: { ...base.dualRelease, ...row.profile.dualRelease },
-    decisions: Array.isArray(row.profile.decisions) ? row.profile.decisions : [],
-    customProcesses: Array.isArray(row.profile.customProcesses)
-      ? row.profile.customProcesses
-      : null,
-    customPeople: Array.isArray(row.profile.customPeople) ? row.profile.customPeople : null,
-    customKnowledge: normalizeCustomKnowledge(row.profile.customKnowledge, today),
-    customRelations: Array.isArray(row.profile.customRelations)
-      ? row.profile.customRelations
-      : null,
-    plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
-    mapLayout: row.profile.mapLayout ?? {},
-    savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
-      ? row.profile.savedProcessBlocks
-      : [],
-    mapHealthHistory: Array.isArray(row.profile.mapHealthHistory)
-      ? row.profile.mapHealthHistory
-      : [],
-    mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
-  };
-}
-
-/** Every business in the signed-in user's portfolio (summaries only). */
+/**
+ * Every business in the signed-in user's portfolio (summaries only). No row
+ * limit: saves refuse a new business past MAX_BUSINESSES_PER_USER instead, so
+ * the list and the limit agree and no business is unreachable.
+ */
 export const listBusinesses = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql<BusinessRow>`
-      select id, name, industry, profile, updated_at, revision
-      from businesses
-      where user_id = ${context.userId}
-      order by updated_at desc
-      limit 50
-    `;
-    return rows.map((r) => {
-      const history = Array.isArray(r.profile.mapHealthHistory) ? r.profile.mapHealthHistory : [];
-      return {
-        id: r.id,
-        name: r.name,
-        industry: (r.industry as IndustryId) || "general",
-        updatedAt: r.updated_at,
-        processCount: Array.isArray(r.profile.customProcesses)
-          ? r.profile.customProcesses.length
-          : 0,
-        healthScore: history.length ? history[history.length - 1].score : null,
-      };
-    });
+    const rows = await listBusinessSummaries(sql, context.userId);
+    return rows.map((r) => ({ ...r, industry: (r.industry as IndustryId) || "general" }));
   });
 
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input: { id: string; today?: string }) => {
-    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
-    return { id: input.id, today: resolveClientDate(input.today) };
+    const raw = requireObject(input);
+    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
+    return { id: raw.id, today: resolveClientDate(raw.today) };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -202,8 +152,9 @@ export const loadBusiness = createServerFn({ method: "GET" })
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { id: string }) => {
-    if (!isBusinessId(input.id)) throw new Error("Unknown business id");
-    return { id: input.id };
+    const raw = requireObject(input);
+    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
+    return { id: raw.id };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
