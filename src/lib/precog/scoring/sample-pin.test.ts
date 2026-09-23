@@ -16,7 +16,7 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  * (gross, retained, assumed days, annual cost of risk) stay exactly as they
  * were for every industry.
  *
- * Three moves since then come from the duty-conflict engine, not from the
+ * Later moves come from the duty-conflict engine, not from the
  * scoping changes, and are intended:
  * - A deposit preparer who can enter write-offs is flagged ("Collect cash +
  *   enter write-offs", read through deposit preparation), and it takes the
@@ -27,11 +27,15 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  * - The threat assessment reads the sample's own control records, as every
  *   other screen does: the accepted residual and compensating control on
  *   "SoD: payments vs reconciliation" lower the findings linked to it, so
- *   those findings sit lower in the deck (and the professional-services
- *   index stays at 90).
+ *   those findings sit lower in the deck.
  * - A manager who prepares the deposit and approves voids or write-offs is
  *   flagged ("Take payments + approve voids or write-offs"), and it enters
  *   the dental and restaurant decks.
+ * - The deck holds one card per duty gap and none for the owner's own pairs,
+ *   so a gap two people hold no longer takes two of the four duty-conflict
+ *   slots; other gaps (payroll entry + release, release + reconciliation)
+ *   take them, and the lowest single-point items drop off the top ten
+ *   (professional-services threat index 90 to 91).
  */
 const PINNED: Record<
   string,
@@ -80,10 +84,10 @@ const PINNED: Record<
       "ctrl-c-sod-ap:87:84",
       "ctrl-c-cash:85:81",
       "sod-rule-cash-void:83:78",
+      "sod-rule-payroll-release:83:78",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k3:79:91",
-      "spof-k4:65:65",
     ],
     coso: 37,
     cosoComponents: [
@@ -130,11 +134,11 @@ const PINNED: Record<
       "ctrl-c-sod-cash:87:85",
       "ctrl-c-sod-ap:87:85",
       "ctrl-c-cash:86:82",
+      "sod-rule-cash-void:83:78",
+      "sod-rule-payroll-release:83:78",
       "scen-sc-vendor-fraud:80:90",
       "know-k3:79:91",
       "know-k6:79:91",
-      "spof-k4:65:65",
-      "spof-k5:65:65",
     ],
     coso: 37,
     cosoComponents: [
@@ -174,18 +178,18 @@ const PINNED: Record<
       "ctrl-c-payroll:47/38/41",
       "know-k5:65/70/27",
     ],
-    threatIndex: 90,
+    threatIndex: 91,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
+      "sod-rule-release-rec:91:92",
       "ctrl-c-sod-cash:89:88",
       "ctrl-c-sod-ap:89:88",
       "ctrl-c-cash:87:85",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k2:79:91",
-      "spof-k3:65:65",
     ],
     coso: 33,
     cosoComponents: [
@@ -284,10 +288,10 @@ const PINNED: Record<
       "ctrl-c-sod-cash:87:85",
       "ctrl-c-sod-ap:87:85",
       "ctrl-c-cash:86:82",
+      "sod-rule-payroll-release:83:78",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k3:79:91",
-      "spof-k4:65:65",
     ],
     coso: 37,
     cosoComponents: [

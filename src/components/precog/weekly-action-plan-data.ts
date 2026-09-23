@@ -218,7 +218,10 @@ export function buildWeeklyActions(input: {
     );
   }
 
-  if (!input.staff.dualControlPayments) {
+  // Dual control needs a second person; a one-person business is advised to
+  // have an outside reader instead (the bank-reconciliation action above).
+  const activeCount = tpl.people.filter((p) => p.active).length;
+  if (!input.staff.dualControlPayments && activeCount >= 2) {
     actions.push({
       id: "dual-control",
       title: "Enable dual control on payments",
@@ -232,7 +235,12 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  for (const c of sod.conflicts.filter((x) => x.severity === "critical").slice(0, 2)) {
+  // Split only what an employee holds, once per gap: the owner's own pairs
+  // have no one to move to and are handled by the outside-reader step.
+  const splits = sod.conflicts
+    .filter((x) => x.severity === "critical" && !x.ownerHeld)
+    .filter((x, i, all) => all.findIndex((o) => o.ruleId === x.ruleId) === i);
+  for (const c of splits.slice(0, 2)) {
     actions.push({
       id: `sod-${c.ruleId}`,
       title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,

@@ -148,7 +148,12 @@ export function buildThreatAssessment(input: {
     });
   }
 
-  for (const c of sod.conflicts.slice(0, 4)) {
+  // An owner's own pair is error and tax exposure, not a theft target, and
+  // one card per gap: two people holding the same pair are one target.
+  const sodTargets = sod.conflicts
+    .filter((c) => !c.ownerHeld)
+    .filter((c, i, all) => all.findIndex((o) => o.ruleId === c.ruleId) === i);
+  for (const c of sodTargets.slice(0, 4)) {
     const heat = c.severity === "critical" ? 92 : c.severity === "high" ? 78 : 55;
     const scored = scorePriority({
       heat,
