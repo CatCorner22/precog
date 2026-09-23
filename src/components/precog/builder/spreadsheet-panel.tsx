@@ -93,7 +93,7 @@ export function SpreadsheetPanel({
       <p className="flex items-center gap-1.5 text-xs font-semibold text-fg">
         <FileSpreadsheet className="size-3.5 text-primary" /> Spreadsheet
       </p>
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         Work in Excel or Google Sheets, then bring it back. Owners, dependencies, and controls are
         matched by name; rows that match a current process update it in place and keep its risks and
         evidence.
@@ -137,7 +137,7 @@ export function SpreadsheetPanel({
       {preview && (
         <div className="space-y-2 rounded-md border border-border bg-elevated p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] font-medium text-fg">
+            <p className="text-xs font-medium text-fg">
               Preview of {fileName || "import"}
               <span className="text-muted">
                 {" "}
@@ -145,7 +145,7 @@ export function SpreadsheetPanel({
                 {preview.unchanged.length} unchanged · {preview.removed.length} not in file
               </span>
             </p>
-            <label className="flex items-center gap-1.5 text-[11px] text-muted">
+            <label className="flex items-center gap-1.5 text-xs text-muted">
               <input
                 type="checkbox"
                 checked={replace}
@@ -158,10 +158,10 @@ export function SpreadsheetPanel({
             </label>
           </div>
 
-          {blocking && <p className="text-[11px] text-danger">{blocking.message}</p>}
+          {blocking && <p className="text-xs text-danger">{blocking.message}</p>}
 
           {!blocking && (
-            <ul className="max-h-40 space-y-0.5 overflow-y-auto text-[11px]">
+            <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs">
               {preview.added.map((p) => (
                 <li key={p.id} className="text-ok">
                   + {p.name}
@@ -189,7 +189,7 @@ export function SpreadsheetPanel({
           )}
 
           {preview.issues.filter((i) => i.row > 0).length > 0 && (
-            <ul className="max-h-32 space-y-0.5 overflow-y-auto rounded border border-warn/40 bg-warn/10 p-1.5 text-[11px] text-fg">
+            <ul className="max-h-32 space-y-0.5 overflow-y-auto rounded border border-warn/40 bg-warn/10 p-1.5 text-xs text-fg">
               {preview.issues
                 .filter((i) => i.row > 0)
                 .map((i, idx) => (

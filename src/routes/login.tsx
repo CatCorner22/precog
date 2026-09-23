@@ -10,7 +10,7 @@ function Login() {
   return (
     <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <p className="text-[11px] tracking-[0.2em] text-primary uppercase">Precog Pioneer</p>
+        <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog Pioneer</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-muted">
           Sync your business profile, decision journal, and control settings across devices.

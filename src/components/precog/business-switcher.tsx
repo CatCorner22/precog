@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
 
 const inputCls =
-  "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50 focus:outline-none";
+  "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -83,21 +83,24 @@ export function BusinessSwitcher() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="group flex min-w-0 items-center gap-1 rounded-md text-left hover:bg-elevated/60"
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls="business-switcher-panel"
+        aria-label={`Precog Pioneer ${profile.practiceName}${needsName ? " (name it)" : ""}: switch business${
+          businesses.length > 1 ? ` (${businesses.length} businesses)` : ""
+        }`}
         title="Switch business"
       >
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold tracking-tight">
             Precog Pioneer
           </span>
-          <span className="flex items-center gap-1 text-xs text-muted">
+          <span className="flex items-center gap-1 text-xs text-muted" aria-hidden>
             <span className="truncate">{profile.practiceName}</span>
             {needsName && (
-              <span className="rounded-full bg-warn/15 px-1.5 text-[10px] text-warn">Name it</span>
+              <span className="rounded-full bg-warn/15 px-1.5 text-xs text-warn">Name it</span>
             )}
             {businesses.length > 1 && (
-              <span className="rounded-full bg-elevated px-1.5 text-[10px] text-subtle">
+              <span className="rounded-full bg-elevated px-1.5 text-xs text-subtle">
                 {businesses.length}
               </span>
             )}
@@ -112,12 +115,14 @@ export function BusinessSwitcher() {
 
       {open && (
         <div
-          role="menu"
-          className="absolute top-full left-0 z-30 mt-2 w-80 rounded-xl border border-border bg-surface p-2 shadow-2xl"
+          id="business-switcher-panel"
+          role="group"
+          aria-label="Your businesses"
+          className="absolute top-full left-0 z-30 mt-2 w-80 max-w-[calc(100vw-4.5rem)] rounded-xl border border-border bg-surface p-2 shadow-2xl"
         >
           {needsName && (
             <div className="mb-2 space-y-1.5 border-b border-border px-1 pb-2">
-              <label className="block text-[10px] font-medium tracking-wide text-subtle uppercase">
+              <label className="block text-xs font-medium tracking-wide text-subtle uppercase">
                 Name this business
                 <input
                   className={cn(inputCls, "mt-1 normal-case")}
@@ -134,7 +139,7 @@ export function BusinessSwitcher() {
               </Button>
             </div>
           )}
-          <p className="px-2 pb-1 text-[10px] font-medium tracking-wide text-subtle uppercase">
+          <p className="px-2 pb-1 text-xs font-medium tracking-wide text-subtle uppercase">
             Your businesses
           </p>
           <ul className="max-h-64 space-y-0.5 overflow-y-auto">
@@ -144,8 +149,7 @@ export function BusinessSwitcher() {
                 <li key={b.id} className="group/row flex items-center gap-1">
                   <button
                     type="button"
-                    role="menuitemradio"
-                    aria-checked={active}
+                    aria-current={active ? "true" : undefined}
                     disabled={switchingBusiness}
                     onClick={() => {
                       if (!active)
@@ -162,7 +166,7 @@ export function BusinessSwitcher() {
                     <Building2 className="size-3.5 shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{b.name}</span>
-                      <span className="block truncate text-[10px] text-subtle">
+                      <span className="block truncate text-xs text-subtle">
                         {industryMeta(b.industry).label}
                         {b.healthScore !== null ? ` · health ${b.healthScore}` : ""}
                       </span>
@@ -181,7 +185,7 @@ export function BusinessSwitcher() {
                           return;
                         void deleteBusiness(b.id).then(() => toast(`Removed ${b.name}`));
                       }}
-                      className="rounded p-1 text-subtle opacity-0 hover:text-danger group-hover/row:opacity-100 focus:opacity-100"
+                      className="rounded p-1.5 text-subtle opacity-0 hover:text-danger group-hover/row:opacity-100 focus:opacity-100"
                       aria-label={`Remove ${b.name}`}
                     >
                       <Trash2 className="size-3" />
@@ -198,6 +202,7 @@ export function BusinessSwitcher() {
                 <input
                   className={inputCls}
                   placeholder="Business name"
+                  aria-label="New business name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
@@ -205,6 +210,7 @@ export function BusinessSwitcher() {
                 />
                 <select
                   className={inputCls}
+                  aria-label="Line of business"
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value as IndustryId)}
                 >
@@ -222,12 +228,12 @@ export function BusinessSwitcher() {
                     size="sm"
                     variant="ghost"
                     onClick={() => setAdding(false)}
-                    aria-label="Cancel"
+                    aria-label="Cancel adding a business"
                   >
                     <X className="size-3.5" />
                   </Button>
                 </div>
-                <p className="text-[10px] text-subtle">
+                <p className="text-xs text-subtle">
                   Next you enter its team, or load the sample business. Your current business is
                   saved first.
                 </p>

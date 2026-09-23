@@ -39,7 +39,7 @@ export function ValidationPanel({
 
   if (issues.length === 0) {
     return (
-      <div className="rounded-lg border border-ok/30 bg-ok/5 p-2.5 text-[11px] text-ok">
+      <div className="rounded-lg border border-ok/30 bg-ok/5 p-2.5 text-xs text-ok">
         Map looks healthy — no broken dependencies, missing owners, or stale references.
       </div>
     );
@@ -48,7 +48,7 @@ export function ValidationPanel({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-muted">
+        <p className="text-xs text-muted">
           {errors.length} error(s), {warns.length} warning(s), {infos.length} info
         </p>
         {fixable > 1 && (
@@ -62,7 +62,7 @@ export function ValidationPanel({
           <li
             key={i.id}
             className={cn(
-              "flex items-stretch gap-1 rounded-md border text-[11px]",
+              "flex items-stretch gap-1 rounded-md border text-xs",
               i.severity === "error"
                 ? "border-danger/40 bg-danger/10 text-fg"
                 : i.severity === "warn"

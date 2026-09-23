@@ -29,7 +29,7 @@ export function SyncStatusBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]",
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
         syncStatus === "synced" && "border-ok/30 bg-ok/10 text-ok",
         syncStatus === "local" && "border-border bg-elevated text-muted",
         syncStatus === "loading" && "border-border bg-elevated text-muted",

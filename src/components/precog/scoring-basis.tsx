@@ -49,7 +49,7 @@ function WeightTable({ group }: { group: (typeof GROUPS)[number] }) {
 
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-semibold">{group.label}</h4>
+      <h3 className="text-sm font-semibold">{group.label}</h3>
       <div className="space-y-2">
         {entries.map(([key, value]) => (
           <div key={key} className="grid gap-1 sm:grid-cols-[10rem_4rem_1fr] sm:items-center">
@@ -63,7 +63,7 @@ function WeightTable({ group }: { group: (typeof GROUPS)[number] }) {
                 />
               )}
             </div>
-            <p className="text-[11px] leading-relaxed text-subtle sm:col-span-3">
+            <p className="text-xs leading-relaxed text-subtle sm:col-span-3">
               {WEIGHT_DESCRIPTIONS[`${group.key}.${key}`]}
             </p>
           </div>
@@ -103,7 +103,7 @@ export function ScoringBasis({ sensitivity }: ScoringBasisProps) {
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold">Band cutoffs</h4>
+            <h3 className="text-sm font-semibold">Band cutoffs</h3>
             <div className="grid gap-3 text-xs sm:grid-cols-2">
               <div className="rounded-lg border border-border bg-elevated p-3">
                 <p className="font-medium">Risk scale · higher is worse</p>
@@ -123,7 +123,7 @@ export function ScoringBasis({ sensitivity }: ScoringBasisProps) {
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold">Sensitivity</h4>
+            <h3 className="text-sm font-semibold">Sensitivity</h3>
             <p className="text-xs text-muted">
               Base average {sensitivity.baseAverage} · range {sensitivity.averageLow}–
               {sensitivity.averageHigh} across ±{sensitivity.perturbation * 100}% weight trials.

@@ -93,7 +93,7 @@ export function CosoHeatmap({
                 <IndexBasis className="mt-1" />
               </div>
               <div className="text-right">
-                <p className="text-[11px] tracking-wide text-subtle uppercase">Overall</p>
+                <p className="text-xs tracking-wide text-subtle uppercase">Overall</p>
                 <p className="text-2xl font-semibold tabular tracking-tight">
                   {assessment.overall}
                   <span className="text-sm font-normal text-muted">/100</span>
@@ -121,7 +121,7 @@ export function CosoHeatmap({
                       selected && "ring-2 ring-primary/50",
                     )}
                   >
-                    <p className="text-[10px] font-medium tracking-wide text-subtle uppercase">
+                    <p className="text-xs font-medium tracking-wide text-subtle uppercase">
                       {c.shortName}
                     </p>
                     <p className="mt-2 text-2xl font-semibold tabular">{c.score}</p>
@@ -199,20 +199,18 @@ function ComponentDetail({
       </CardHeader>
       <CardContent className="space-y-5">
         <div>
-          <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
-            Principles
-          </p>
+          <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">Principles</p>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {component.principles.map((p) => (
               <li key={p.number} className="rounded-lg border border-border bg-elevated px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-subtle">P{p.number}</span>
                   {p.notAssessed ? (
-                    <Badge variant="default" className="text-[10px]">
+                    <Badge variant="default" className="text-xs">
                       Not assessed
                     </Badge>
                   ) : (
-                    <Badge variant={STATUS_META[p.status].badge} className="text-[10px]">
+                    <Badge variant={STATUS_META[p.status].badge} className="text-xs">
                       {STATUS_META[p.status].label}
                     </Badge>
                   )}
@@ -225,9 +223,7 @@ function ComponentDetail({
         </div>
 
         <div>
-          <p className="mb-2 text-[11px] font-medium tracking-wide text-subtle uppercase">
-            Findings
-          </p>
+          <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">Findings</p>
           <ul className="space-y-2">
             {component.findings.map((f) => (
               <li key={f.id}>

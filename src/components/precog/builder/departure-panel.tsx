@@ -27,7 +27,7 @@ export function DeparturePanel({
         : "var(--color-ok)";
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         If one person left tomorrow, what breaks?{" "}
         <span className="font-medium text-fg">
@@ -56,7 +56,7 @@ export function DeparturePanel({
                     <span className="font-medium text-fg">{d.person.name}</span>
                     <span className="text-subtle"> · {d.person.role}</span>
                   </span>
-                  <span className="block text-[10px] text-subtle">
+                  <span className="block text-xs text-subtle">
                     {d.orphanedProcesses.length} process(es) orphaned · {d.orphanedKnowledge.length}{" "}
                     knowledge · health{" "}
                     {d.healthDelta === 0
@@ -94,7 +94,7 @@ export function DeparturePanel({
                             <button
                               type="button"
                               onClick={() => onAddBackup(p.id, d.person.id)}
-                              className="shrink-0 text-[10px] text-primary hover:underline"
+                              className="shrink-0 text-xs text-primary hover:underline"
                             >
                               Add backup
                             </button>
@@ -111,7 +111,7 @@ export function DeparturePanel({
                           <li
                             key={k.id}
                             className={cn(
-                              "rounded border px-1.5 py-0.5 text-[10px]",
+                              "rounded border px-1.5 py-0.5 text-xs",
                               k.criticality === "critical"
                                 ? "border-danger/40 bg-danger/10 text-fg"
                                 : "border-warn/30 bg-warn/10 text-fg",

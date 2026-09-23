@@ -150,7 +150,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-xl font-semibold tabular">{item.residual}</p>
-                    <p className="text-[10px] text-subtle">residual</p>
+                    <p className="text-xs text-subtle">residual</p>
                     <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
                   </div>
                   <div className="hidden w-24 sm:block">
@@ -169,7 +169,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                         style={{ width: `${item.residual}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-muted">
+                    <p className="mt-1 text-xs text-muted">
                       I {item.inherent} · E {item.controlEffectiveness}
                       {item.creditedEffectiveness != null
                         ? ` (counts ${item.creditedEffectiveness})`
@@ -261,12 +261,12 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={tornadoData} layout="vertical" margin={{ left: 8, right: 12 }}>
                       <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                      <XAxis type="number" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
+                      <XAxis type="number" tick={{ fill: "var(--color-muted)", fontSize: 12 }} />
                       <YAxis
                         type="category"
                         dataKey="name"
                         width={120}
-                        tick={{ fill: "var(--color-muted)", fontSize: 10 }}
+                        tick={{ fill: "var(--color-muted)", fontSize: 12 }}
                       />
                       <Tooltip
                         contentStyle={{
@@ -312,7 +312,7 @@ function Stat({
   return (
     <Card>
       <CardContent className="p-4">
-        <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
+        <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
         <p className="mt-1 truncate text-lg font-semibold tabular tracking-tight">{value}</p>
         {subvalue && <p className="mt-1 text-xs text-muted">{subvalue}</p>}
         <p className="mt-1 text-xs text-muted">{hint}</p>
@@ -338,7 +338,7 @@ function Mini({ n, l }: { n: number; l: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-2">
       <p className="text-lg font-semibold tabular">{n}</p>
-      <p className="text-[10px] text-subtle">{l}</p>
+      <p className="text-xs text-subtle">{l}</p>
     </div>
   );
 }
@@ -355,7 +355,7 @@ function ItemSensitivityMeta({
 
   return (
     <>
-      <p className="text-[10px] tabular text-muted">
+      <p className="text-xs tabular text-muted">
         range {item.low}–{item.high}
       </p>
       {!item.bandStable && (

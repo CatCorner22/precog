@@ -31,7 +31,7 @@ export function ReviewPanel({
 }) {
   if (loading && !review) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-panel p-3 text-[11px] text-muted">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-panel p-3 text-xs text-muted">
         <Loader2 className="size-3.5 animate-spin" /> Reviewing your value stream…
       </div>
     );
@@ -42,7 +42,7 @@ export function ReviewPanel({
     .filter((p): p is ProcessNode => Boolean(p));
 
   return (
-    <div className="space-y-2.5 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+    <div className="space-y-2.5 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <div className="flex items-start gap-2">
         <span
           className={cn(
@@ -54,7 +54,7 @@ export function ReviewPanel({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-fg">{review.headline}</p>
-          <p className="mt-0.5 text-[10px] text-subtle">
+          <p className="mt-0.5 text-xs text-subtle">
             {review.source === "grok"
               ? `Reviewed by ${review.model ?? "Grok"}`
               : "Rule-based review"}
@@ -83,7 +83,7 @@ export function ReviewPanel({
         </div>
       ))}
       <div className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-2">
-        <p className="text-[10px] font-medium tracking-wide text-accent uppercase">Next move</p>
+        <p className="text-xs font-medium tracking-wide text-accent uppercase">Next move</p>
         <p className="mt-0.5 text-fg">{review.nextMove}</p>
       </div>
       {focus.length > 0 && (
@@ -95,7 +95,7 @@ export function ReviewPanel({
                 key={p.id}
                 type="button"
                 onClick={() => onSelectProcess(p.id)}
-                className="rounded-md border border-border bg-elevated px-2 py-0.5 text-[11px] text-fg hover:border-primary/40"
+                className="rounded-md border border-border bg-elevated px-2 py-0.5 text-xs text-fg hover:border-primary/40"
               >
                 {p.name}
               </button>

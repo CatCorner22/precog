@@ -239,7 +239,7 @@ export function ScenarioCompare({
                               type="button"
                               onClick={() => toggleCrossMit(s.id, m.id)}
                               className={cn(
-                                "rounded-full border px-2 py-0.5 text-[10px]",
+                                "rounded-full border px-2 py-0.5 text-xs",
                                 mitOn
                                   ? "border-ok/40 bg-ok/10 text-ok"
                                   : "border-border text-muted",
@@ -491,7 +491,7 @@ export function ScenarioCompare({
 function WinnerChip({ label, value, icon }: { label: string; value: string; icon?: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-surface px-3 py-2">
-      <p className="text-[10px] tracking-wide text-subtle uppercase">{label}</p>
+      <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
       <p className="mt-0.5 max-w-[280px] truncate text-sm font-medium">
         {icon && <Trophy className="mr-1 inline size-3.5 text-ok" />}
         {value}
@@ -503,7 +503,7 @@ function WinnerChip({ label, value, icon }: { label: string; value: string; icon
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div>
-      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="text-xs text-subtle">{label}</p>
       <p className="font-semibold tabular tracking-tight">{value}</p>
       <p className="text-xs text-muted">{sub}</p>
     </div>

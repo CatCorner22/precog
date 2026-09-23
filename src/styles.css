@@ -8,7 +8,8 @@
   --color-panel: #151820;
   --color-fg: #e8eaef;
   --color-muted: #8b92a5;
-  --color-subtle: #5c6478;
+  /* 4.5:1 or better on every panel colour, the selected card included. */
+  --color-subtle: #838ca2;
   --color-border: #2a2f3d;
   --color-border-strong: #3a4155;
   --color-primary: #3d9cfd;
@@ -35,6 +36,29 @@
   }
   html {
     color-scheme: dark;
+    /* Keeps a focused element from sliding under the sticky header. */
+    scroll-padding-top: calc(var(--grok-banner-h, 0px) + 8rem);
+  }
+  /* Every control shows where keyboard focus is, in forced colours too. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  /* Date fields focus a part of the date, not the field: ring the field. */
+  input[type="date"]:focus,
+  input[type="date"]:focus-within,
+  input[type="time"]:focus,
+  input[type="time"]:focus-within {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  /* A heading or panel that receives focus only to be read out needs no ring. */
+  :where(h1, h2, h3, p, main, section, div)[tabindex="-1"]:focus-visible {
+    outline: none;
+  }
+  /* Tabs sit in a scrolling strip; the ring goes inside so it is not cut off. */
+  [role="tab"]:focus-visible {
+    outline-offset: -2px;
   }
   body {
     margin: 0;
@@ -89,6 +113,19 @@
     text-decoration: none;
     color: inherit;
   }
+}
+
+/* ── Keyboard focus on the map canvas (React Flow's own CSS removes it) ── */
+.react-flow .react-flow__node:focus-visible,
+.react-flow .react-flow__node.selectable:focus-visible,
+.react-flow .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.react-flow .react-flow__edge:focus-visible .react-flow__edge-path,
+.react-flow .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--color-primary);
+  stroke-width: 3;
 }
 
 /* ── React Flow chrome (minimap + controls) on the dark canvas ── */
@@ -245,8 +282,19 @@
   .predator-node-hot,
   .terminator-target,
   .terminator-scan-sweep,
-  .t1000-buddy {
+  .t1000-buddy,
+  .react-flow__edge-path,
+  .react-flow__edge.animated path {
     animation: none !important;
+  }
+  /* Nothing loops, slides or glides when the owner asks for less motion. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

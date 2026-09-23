@@ -137,7 +137,7 @@ export function MapHealthCard({
               Open process map
             </Button>
           </div>
-          <p className="mt-3 text-[10px] text-subtle">
+          <p className="mt-3 text-xs text-subtle">
             {starter
               ? `${starter.count} starter processes · starter map from the ${starter.example}`
               : "0 processes · your own map"}
@@ -189,7 +189,7 @@ export function MapHealthCard({
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-semibold tabular tracking-tight">{health.score}</span>
-              <span className="text-[10px] uppercase tracking-wide text-subtle">/ 100</span>
+              <span className="text-xs uppercase tracking-wide text-subtle">/ 100</span>
             </div>
           </div>
 
@@ -203,7 +203,7 @@ export function MapHealthCard({
                   {delta !== null && delta !== 0 && (
                     <span
                       className={cn(
-                        "inline-flex items-center gap-0.5 text-[11px] font-medium tabular",
+                        "inline-flex items-center gap-0.5 text-xs font-medium tabular",
                         delta > 0 ? "text-ok" : "text-danger",
                       )}
                     >
@@ -222,7 +222,7 @@ export function MapHealthCard({
             <div className="grid gap-2 sm:grid-cols-2">
               {health.dimensions.map((d) => (
                 <div key={d.id} className="rounded-lg border border-border bg-elevated px-2.5 py-2">
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-medium text-fg">{d.label}</span>
                     <span className="tabular text-subtle">{d.score}</span>
                   </div>
@@ -235,7 +235,7 @@ export function MapHealthCard({
                       }}
                     />
                   </div>
-                  <p className="mt-1 text-[10px] text-muted">{d.hint}</p>
+                  <p className="mt-1 text-xs text-muted">{d.hint}</p>
                 </div>
               ))}
             </div>
@@ -250,7 +250,7 @@ export function MapHealthCard({
                   type="button"
                   onClick={() => i.processId && onOpenMap(i.processId)}
                   className={cn(
-                    "flex w-full items-start gap-2 rounded-md border px-2.5 py-1.5 text-left text-[11px]",
+                    "flex w-full items-start gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs",
                     i.severity === "error"
                       ? "border-danger/30 bg-danger/5 text-fg"
                       : "border-warn/30 bg-warn/5 text-fg",
@@ -282,7 +282,7 @@ export function MapHealthCard({
           )}
         </div>
 
-        <p className="mt-3 text-[10px] text-subtle">
+        <p className="mt-3 text-xs text-subtle">
           {health.processCount} processes · avg heat {health.avgHeat}
           {health.hotProcesses > 0 ? ` · ${health.hotProcesses} hot` : ""}
           {mapCustomized ? " · custom map" : " · industry template"}

@@ -74,7 +74,7 @@ export function BuilderTour({
           <Icon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-accent uppercase">
+          <p className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-accent uppercase">
             <Sparkles className="size-3" /> Quick tour · {i + 1} / {STEPS.length}
           </p>
           <p className="mt-0.5 text-sm font-semibold text-fg">{step.title}</p>

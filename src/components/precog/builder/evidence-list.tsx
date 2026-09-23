@@ -91,14 +91,14 @@ export function EvidenceList({
           <button
             type="button"
             onClick={addSuggested}
-            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             <Sparkles className="size-3" /> Suggest evidence
           </button>
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {adding ? <X className="size-3" /> : <Plus className="size-3" />}
             {adding ? "Cancel" : "Add"}
@@ -106,7 +106,7 @@ export function EvidenceList({
         </span>
       </div>
       {items.length === 0 && !adding && (
-        <p className="text-[11px] text-subtle">
+        <p className="text-xs text-subtle">
           What proves this control runs? Add the review, its cadence, and who does it.
         </p>
       )}
@@ -119,7 +119,7 @@ export function EvidenceList({
           <div
             key={e.id}
             className={cn(
-              "flex items-start gap-2 rounded-md border px-2 py-1.5 text-[11px]",
+              "flex items-start gap-2 rounded-md border px-2 py-1.5 text-xs",
               status === "overdue"
                 ? "border-danger/40 bg-danger/10"
                 : status === "never"
@@ -147,7 +147,7 @@ export function EvidenceList({
             <button
               type="button"
               onClick={() => markDone(e.id)}
-              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-fg hover:border-ok/50 hover:text-ok"
+              className="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-fg hover:border-ok/50 hover:text-ok"
               title="Record that this review was completed today"
             >
               Done today

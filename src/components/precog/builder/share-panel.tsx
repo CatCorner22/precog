@@ -117,13 +117,13 @@ export function SharePanel({
 
   if (isPending)
     return (
-      <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
+      <div className="rounded-lg border border-border bg-panel p-2.5 text-xs text-muted">
         Checking sign-in…
       </div>
     );
   if (user?.isDevFallback) {
     return (
-      <div className="rounded-lg border border-border bg-panel p-2.5 text-[11px] text-muted">
+      <div className="rounded-lg border border-border bg-panel p-2.5 text-xs text-muted">
         Share links need a real account so they can be revoked later. Sign-in is turned off in this
         build, so sharing is unavailable here — it works once the app is published with sign-in
         enabled.
@@ -132,7 +132,7 @@ export function SharePanel({
   }
   if (!user) {
     return (
-      <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+      <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
         <p className="text-muted">
           Share links are tied to your account so you can revoke them later.{" "}
           <Link to="/login" className="text-primary hover:underline">
@@ -145,7 +145,7 @@ export function SharePanel({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to
         view. Edits you make later are not shown; create a new link when you want to share an
@@ -199,7 +199,7 @@ export function SharePanel({
       </div>
       {latest && (
         <div className="flex items-center gap-1.5 rounded-md border border-ok/40 bg-ok/10 px-2 py-1.5">
-          <code className="min-w-0 flex-1 truncate text-[10px] text-fg">{urlFor(latest)}</code>
+          <code className="min-w-0 flex-1 truncate text-xs text-fg">{urlFor(latest)}</code>
           <button
             type="button"
             onClick={() => void copy(urlFor(latest))}
@@ -230,8 +230,8 @@ export function SharePanel({
                   l.revoked && "opacity-50",
                 )}
               >
-                <code className="min-w-0 flex-1 truncate text-[10px]">…{l.token.slice(-10)}</code>
-                <span className="text-[10px] text-subtle">
+                <code className="min-w-0 flex-1 truncate text-xs">…{l.token.slice(-10)}</code>
+                <span className="text-xs text-subtle">
                   {new Date(l.createdAt).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -241,20 +241,18 @@ export function SharePanel({
                     : ""}
                 </span>
                 {l.revoked ? (
-                  <span className="text-[10px] text-subtle">revoked</span>
+                  <span className="text-xs text-subtle">revoked</span>
                 ) : (
                   <>
                     {l.redacted && (
-                      <span className="rounded bg-elevated px-1 text-[10px] text-subtle">
+                      <span className="rounded bg-elevated px-1 text-xs text-subtle">
                         names hidden
                       </span>
                     )}
                     {l.hasPasscode && (
-                      <span className="rounded bg-elevated px-1 text-[10px] text-subtle">
-                        passcode
-                      </span>
+                      <span className="rounded bg-elevated px-1 text-xs text-subtle">passcode</span>
                     )}
-                    <span className="text-[10px] text-subtle">
+                    <span className="text-xs text-subtle">
                       {l.views
                         ? `viewed ${l.views}× · last ${new Date(l.lastViewedAt ?? l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
                         : "not viewed yet"}
@@ -262,14 +260,14 @@ export function SharePanel({
                     <button
                       type="button"
                       onClick={() => void copy(urlFor(l.token))}
-                      className="text-[10px] text-primary hover:underline"
+                      className="text-xs text-primary hover:underline"
                     >
                       Copy
                     </button>
                     <button
                       type="button"
                       onClick={() => void revoke(l.token)}
-                      className="text-[10px] text-danger hover:underline"
+                      className="text-xs text-danger hover:underline"
                     >
                       Revoke
                     </button>

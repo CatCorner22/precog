@@ -760,7 +760,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                 <button
                   type="button"
                   onClick={() => setImportIssues([])}
-                  className="text-[11px] text-subtle underline hover:text-fg"
+                  className="text-xs text-subtle underline hover:text-fg"
                 >
                   Dismiss
                 </button>
@@ -836,14 +836,17 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="bg-elevated text-xs text-muted">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium">Item</th>
+                    {/* The item stays in view while the people columns scroll past it. */}
+                    <th className="sticky left-0 z-10 bg-elevated px-3 py-2 text-left font-medium">
+                      Item
+                    </th>
                     <th className="px-3 py-2 text-left font-medium">Coverage</th>
                     {people.map((p) => (
                       <th key={p.id} className="px-2 py-2 text-left font-medium">
                         <div className="truncate" title={p.role}>
                           {p.name}
                         </div>
-                        <div className="truncate text-[10px] font-normal opacity-70">{p.role}</div>
+                        <div className="truncate text-xs font-normal">{p.role}</div>
                       </th>
                     ))}
                     <th className="px-2 py-2" />
@@ -861,14 +864,20 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                         )}
                         onClick={() => setSelectedId(row.item.id)}
                       >
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap items-center gap-2">
+                        <th
+                          scope="row"
+                          className={cn(
+                            "sticky left-0 z-10 px-3 py-2 text-left font-normal",
+                            isSelected ? "bg-elevated" : "bg-surface",
+                          )}
+                        >
+                          <div className="flex max-w-[9rem] flex-wrap items-center gap-2 sm:max-w-xs">
                             <span className="font-medium">{row.item.name}</span>
                             {trackFreshness && staleIds.has(row.item.id) && (
                               <Badge variant="warn">Re-confirm</Badge>
                             )}
                           </div>
-                          <div className="mt-0.5 flex flex-wrap gap-1 text-[10px] text-muted">
+                          <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-muted">
                             <span>{KIND_LABEL[row.item.kind ?? "knowledge"]}</span>
                             <span>·</span>
                             <span>{CRITICALITY_LABEL[row.item.criticality]}</span>
@@ -879,7 +888,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                               </>
                             )}
                           </div>
-                        </td>
+                        </th>
                         <td className="px-3 py-2">
                           <Badge variant={STATUS_VARIANT[row.status]}>
                             {STATUS_LABEL[row.status]}
@@ -926,11 +935,11 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                         <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="rounded p-1 text-muted hover:bg-danger/10 hover:text-danger"
+                            className="rounded p-1.5 text-muted hover:bg-danger/10 hover:text-danger"
                             onClick={() => removeItem(row.item.id)}
                             aria-label={`Remove ${row.item.name}`}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="size-4" aria-hidden />
                           </button>
                         </td>
                       </tr>

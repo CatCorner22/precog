@@ -112,7 +112,7 @@ export function MetaAnalysisPanel({
             {live ? "Live on" : "Live off"}
           </Button>
         </div>
-        <p className="mt-2 text-[11px] text-subtle">
+        <p className="mt-2 text-xs text-subtle">
           Last run {new Date(report.generatedAt).toLocaleTimeString()} · {report.practiceName}
         </p>
       </section>
@@ -231,7 +231,7 @@ export function MetaAnalysisPanel({
                   <span className="font-medium">{c.label}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted">{c.description}</p>
-                <p className="mt-0.5 text-[11px] text-subtle">Depends on: {c.dependency}</p>
+                <p className="mt-0.5 text-xs text-subtle">Depends on: {c.dependency}</p>
               </div>
             ))}
           </CardContent>
@@ -322,11 +322,11 @@ function CountChip({
 function JohariCell({ title, icon, items }: { title: string; icon: ReactNode; items: string[] }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-2.5">
-      <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-subtle uppercase">
+      <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-subtle uppercase">
         {icon}
         {title}
       </p>
-      <ul className="space-y-1 text-[11px] text-muted">
+      <ul className="space-y-1 text-xs text-muted">
         {items.slice(0, 4).map((t) => (
           <li key={t} className="truncate" title={t}>
             · {t}
@@ -364,24 +364,24 @@ function ItemCard({
         >
           {item.severity}
         </Badge>
-        {item.metric && <span className="text-[11px] text-muted">{item.metric}</span>}
+        {item.metric && <span className="text-xs text-muted">{item.metric}</span>}
       </div>
       <p className="mt-1.5 font-medium">{item.title}</p>
       <p className="mt-1 text-xs text-muted">{item.description}</p>
-      <p className="mt-1 text-[11px] text-subtle">Affects: {item.affects.join(" · ")}</p>
+      <p className="mt-1 text-xs text-subtle">Affects: {item.affects.join(" · ")}</p>
       {item.probe && (
         <div className="mt-2 rounded-md border border-border bg-panel px-2 py-1.5 text-xs">
           <span className="font-medium text-fg">Probe ({item.probe.effort})</span>
           <span className="text-muted"> · {item.probe.kind.replace("_", " ")}</span>
           <p className="mt-0.5 text-fg">{item.probe.action}</p>
-          <p className="text-[11px] text-ok">{item.probe.expectedLift}</p>
+          <p className="text-xs text-ok">{item.probe.expectedLift}</p>
         </div>
       )}
       {item.link && (
         <Button
           size="sm"
           variant="ghost"
-          className="mt-2 h-7 px-2 text-[11px]"
+          className="mt-2 h-7 px-2 text-xs"
           onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
         >
           Open {item.link.tab}

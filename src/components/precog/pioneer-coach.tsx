@@ -183,10 +183,10 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
           <Badge variant="accent">Coach</Badge>
           <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
         </div>
-        <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" />
           Precog Pioneer
-        </h2>
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Every answer is built from this app&rsquo;s own tools: the residual register, duty
           conflicts, scenarios, the guidance corpus, and the evidence library. Where it orders
@@ -219,10 +219,11 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
             ))}
           </div>
           <textarea
+            aria-label="Your question"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             rows={3}
-            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2"
+            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
           />
           <div className="flex flex-wrap gap-2">
             <Button onClick={run} disabled={loading || !question.trim()}>
@@ -309,7 +310,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
                     onClick={() => onNavigate?.(e.link.tab, e.link.id)}
                     className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm"
                   >
-                    <span className="text-[10px] text-subtle">{e.id}</span>
+                    <span className="text-xs text-subtle">{e.id}</span>
                     <span className="block font-medium">{e.label}</span>
                     {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
                   </button>
@@ -376,7 +377,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
                     onClick={() => onNavigate?.(e.link.tab, e.link.id)}
                     className="rounded-xl border border-border bg-elevated px-3 py-2 text-left text-sm hover:border-border-strong"
                   >
-                    <span className="text-[10px] text-subtle">
+                    <span className="text-xs text-subtle">
                       {e.kind} · {e.id}
                     </span>
                     <span className="block font-medium">{e.label}</span>
@@ -418,7 +419,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <CardTitle>Scout brief</CardTitle>
-                  <CardDescription className="font-mono text-[11px]">
+                  <CardDescription className="font-mono text-xs">
                     {result.contextFingerprint}
                   </CardDescription>
                 </div>
@@ -433,9 +434,9 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
                 {result.markdown.split("\n").map((line, i) => {
                   if (line.startsWith("### ")) {
                     return (
-                      <h4 key={i} className="pt-1 text-sm font-semibold text-fg">
+                      <h3 key={i} className="pt-1 text-sm font-semibold text-fg">
                         {line.replace(/^### /, "")}
-                      </h4>
+                      </h3>
                     );
                   }
                   if (line.startsWith("## ")) {

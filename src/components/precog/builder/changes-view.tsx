@@ -42,7 +42,7 @@ export function ChangesView({
   });
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs{" "}
         {label ??

@@ -175,7 +175,7 @@ export function ForensicPanel() {
                     </div>
                   );
                 })}
-                <div className="flex gap-3 text-[11px] text-subtle">
+                <div className="flex gap-3 text-xs text-subtle">
                   <span>
                     <i className="mr-1 inline-block size-2 rounded-full bg-primary" />
                     Observed

@@ -59,11 +59,11 @@ export function LayersPanel({
           >
             <div className="flex items-start justify-between gap-2">
               <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
-              <span className="text-[10px] tracking-wider text-subtle uppercase">
+              <span className="text-xs tracking-wider text-subtle uppercase">
                 {meta.matrixName}
               </span>
             </div>
-            <h3 className="mt-3 font-semibold">{meta.name}</h3>
+            <h2 className="mt-3 font-semibold">{meta.name}</h2>
             <p className="mt-1 text-sm text-muted">{meta.blurb}</p>
             <p className="mt-3 text-xs text-subtle">{counts}</p>
           </button>
@@ -197,7 +197,7 @@ function LayerShell({
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
-      <h3 className="font-semibold">{title}</h3>
+      <h2 className="font-semibold">{title}</h2>
       <p className="mt-1 text-sm text-muted">{subtitle}</p>
       <div className="mt-4">{children}</div>
     </div>

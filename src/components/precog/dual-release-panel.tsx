@@ -320,7 +320,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       </option>
                     ))}
                   </select>
-                  <span className="mt-0.5 block text-[10px] text-subtle">
+                  <span className="mt-0.5 block text-xs text-subtle">
                     {ACTIONS.find((a) => a.id === exAction)?.hint}
                   </span>
                 </label>
@@ -422,7 +422,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       type="button"
                       onClick={() => toggleExChannel(ch)}
                       className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-[11px]",
+                        "rounded-full border px-2.5 py-0.5 text-xs",
                         exChannels.includes(ch)
                           ? "border-primary/40 bg-primary/10 text-fg"
                           : "border-border bg-elevated text-muted",
@@ -476,7 +476,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                     )}
                   </div>
                   <p className="mt-1 text-xs text-muted">{ex.reason}</p>
-                  <p className="mt-1 text-[11px] text-subtle">
+                  <p className="mt-1 text-xs text-subtle">
                     {ex.channels.length ? ex.channels.join(", ") : "all channels"}
                     {ex.payeeContains ? ` · payee ~"${ex.payeeContains}"` : ""}
                     {ex.personId
@@ -488,14 +488,14 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       : ""}
                   </p>
                   {ex.residualNote && (
-                    <p className="mt-1 text-[11px] text-warn">Residual: {ex.residualNote}</p>
+                    <p className="mt-1 text-xs text-warn">Residual: {ex.residualNote}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={() => toggleException(ex.id, !ex.enabled)}
                   >
                     {ex.enabled ? "Disable" : "Enable"}
@@ -683,7 +683,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               </label>
             </div>
             {activeRule && (
-              <p className="text-[11px] text-subtle">
+              <p className="text-xs text-subtle">
                 Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds: {secondsLine}.
               </p>
             )}
@@ -795,7 +795,7 @@ function EvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-subtle">{result.controlCredit.note}</p>
+      <p className="mt-2 text-xs text-subtle">{result.controlCredit.note}</p>
     </div>
   );
 }
