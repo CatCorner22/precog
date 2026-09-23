@@ -44,6 +44,8 @@ describe("resolveTemplate", () => {
     expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(true);
     const own = resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 2) });
     expect(own.controls.some((c) => c.residualRiskAccepted)).toBe(false);
+    expect(base.controls.some((c) => c.compensatingControls.length > 0)).toBe(true);
+    expect(own.controls.every((c) => c.compensatingControls.length === 0)).toBe(true);
     expect(own.controls.map((c) => c.id)).toEqual(base.controls.map((c) => c.id));
     expect(resolveTemplate({ industry: "dental" }).controls).toBe(base.controls);
   });

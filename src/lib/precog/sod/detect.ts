@@ -43,7 +43,10 @@ export interface DetectedConflict {
   why: string;
   fraudPath: string;
   score: number; // 0–100
+  /** Controls that would close or narrow this gap: the rule's suggestions plus anything recorded as in place. */
   compensatingControls: string[];
+  /** Controls recorded as in place for this gap (the business's own controls and an active dual-release rule). Only these lower the score. */
+  controlsInPlace: string[];
   residualRiskAccepted: boolean;
   dualReleaseMitigated: boolean;
   linkedScenarioId?: string;
@@ -337,8 +340,11 @@ function scoreConflict(
   dualMitigated: boolean,
   staff?: StaffComposition,
 ): number {
+  // Bases leave room above them for the staff modifiers below: a critical
+  // pair in a business with nobody independent on the bank account must read
+  // higher than the same pair where the owner reconciles.
   const base =
-    severity === "critical" ? 88 : severity === "high" ? 72 : severity === "medium" ? 55 : 48;
+    severity === "critical" ? 80 : severity === "high" ? 64 : severity === "medium" ? 47 : 40;
   const weightBoost = (entWeight(a) + entWeight(b) - 6) * 3;
   let s = base + weightBoost;
   if (residualAccepted) s -= 18;
@@ -465,11 +471,13 @@ export function detectSodConflicts(
         if (rule) {
           const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);
           const dualMitigated = dualMitigatedRules.has(rule.id);
-          const comps = [
-            ...rule.compensatingDefaults,
+          // A rule's suggested controls are advice, not controls the business
+          // has; only what is recorded as in place lowers the score.
+          const inPlace = [
             ...(rule.linkedControlId ? (compensatingByControl[rule.linkedControlId] ?? []) : []),
             ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
           ];
+          const comps = [...rule.compensatingDefaults, ...inPlace];
           const accepted = rule.linkedControlId
             ? residualAccepted.has(rule.linkedControlId)
             : false;
@@ -492,11 +500,12 @@ export function detectSodConflicts(
               canonicalA,
               canonicalB,
               accepted,
-              comps.length,
+              inPlace.length,
               dualMitigated,
               staff,
             ),
             compensatingControls: Array.from(new Set(comps)),
+            controlsInPlace: Array.from(new Set(inPlace)),
             residualRiskAccepted: accepted,
             dualReleaseMitigated: dualMitigated,
             linkedScenarioId: rule.linkedScenarioId,
@@ -538,6 +547,7 @@ export function detectSodConflicts(
               `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
               "Have a second person review this sequence on a set cadence",
             ],
+            controlsInPlace: [],
             residualRiskAccepted: false,
             dualReleaseMitigated: false,
             processIds: Array.from(

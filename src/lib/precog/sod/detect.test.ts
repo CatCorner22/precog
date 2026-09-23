@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { CONFLICT_RULES } from "./conflict-rules";
+import { CONFLICT_RULES, type EntitlementId } from "./conflict-rules";
 import {
   buildAssignments,
   detectSodConflicts,
@@ -218,5 +218,48 @@ describe("detectSodConflicts", () => {
     expect(a.conflicts.length).toBeGreaterThan(0);
     expect(a.summary.segregationHealth).toBeGreaterThanOrEqual(0);
     expect(a.summary.segregationHealth).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("release, payroll and reconciliation pairs", () => {
+  const team = (entitlements: EntitlementId[]) =>
+    detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [{ personId: "p1", personName: "Pat", role: "Bookkeeper", entitlements }],
+    });
+
+  it("names the person who releases payments and reconciles the account they leave from", () => {
+    const report = team(["release_payment", "bank_reconcile", "view_reports_only"]);
+    const hit = report.conflicts.find((c) => c.ruleId === "rule-release-rec");
+    expect(hit?.severity).toBe("critical");
+  });
+
+  it("names payroll entry held with payment release or with reconciliation", () => {
+    const ids = (e: EntitlementId[]) => team(e).conflicts.map((c) => c.ruleId);
+    expect(ids(["enter_payroll", "release_payment", "view_reports_only"])).toContain(
+      "rule-payroll-release",
+    );
+    expect(ids(["enter_payroll", "bank_reconcile", "view_reports_only"])).toContain(
+      "rule-payroll-rec",
+    );
+  });
+
+  it("does not lower a score for the controls it merely suggests", () => {
+    const report = team(["sign_checks", "bank_reconcile", "view_reports_only"]);
+    const hit = report.conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
+    expect(hit.compensatingControls.length).toBeGreaterThan(0);
+    expect(hit.controlsInPlace).toEqual([]);
+    const mitigated = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Bookkeeper",
+          entitlements: ["sign_checks", "bank_reconcile", "view_reports_only"],
+        },
+      ],
+      compensatingByControlId: { "c-sod-cash": ["Owner reads every cleared-check image monthly"] },
+    }).conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
+    expect(mitigated.controlsInPlace).toHaveLength(1);
+    expect(mitigated.score).toBeLessThan(hit.score);
   });
 });

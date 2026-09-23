@@ -369,6 +369,51 @@ export const CONFLICT_RULES: ConflictRule[] = [
     linkedControlId: "c-sod-cash",
   },
   {
+    id: "rule-release-rec",
+    a: "release_payment",
+    b: "bank_reconcile",
+    severity: "critical",
+    title: "Payment release + bank reconciliation",
+    why: "The person who sends the money out also produces the record that proves it went where it should. A transfer to their own account, or to a payee they invented, is reconciled by the same hands, and the one check that compares the books with the bank is done by the one person with a reason to make them agree.",
+    fraudPath:
+      "Pay yourself or an invented payee by ACH or card, then reconcile the statement so nobody else sees where it went",
+    compensatingDefaults: [
+      "Owner opens the bank statement first and questions every payee they do not know",
+      "Someone who releases no payments reconciles the account each month",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-payroll-release",
+    a: "enter_payroll",
+    b: "release_payment",
+    severity: "high",
+    title: "Payroll entry + payment release",
+    why: "Whoever enters the hours and pay rates also sends the pay run to the bank or prints the checks, so an extra check to themselves, a raised rate, or a pay line for someone who has left is paid without a second person seeing the register.",
+    fraudPath:
+      "Add a pay line or a paper check for yourself and release it with the rest of the run",
+    compensatingDefaults: [
+      "Owner reads the payroll register each cycle before the run is released",
+      "Owner compares the payroll register with the bank's cleared payments and headcount",
+    ],
+    linkedControlId: "c-payroll",
+  },
+  {
+    id: "rule-payroll-rec",
+    a: "enter_payroll",
+    b: "bank_reconcile",
+    severity: "high",
+    title: "Payroll entry + bank reconciliation",
+    why: "The person who runs payroll also reconciles the account it pays from, so a payroll payment that should not exist is matched off by the same hands and never reaches anyone who would ask who it was for.",
+    fraudPath:
+      "Pay yourself through payroll, then reconcile the account so the extra payment looks like any other pay run",
+    compensatingDefaults: [
+      "Owner reads the payroll register each cycle and compares it with the bank's payroll debits",
+      "Someone who enters no payroll reconciles the account each month",
+    ],
+    linkedControlId: "c-payroll",
+  },
+  {
     id: "rule-cash-rec",
     a: "post_payments",
     b: "bank_reconcile",

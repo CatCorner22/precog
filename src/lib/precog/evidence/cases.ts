@@ -1071,7 +1071,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 96,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-payroll", "rule-cash-rec"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-release", "rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1117,7 +1117,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 5,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-release-rec", "rule-cash-rec", "rule-admin-pay"],
     wouldHaveCaughtIt: [
       {
         control: "independent-bank-reconciliation",
@@ -1200,7 +1200,14 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-payroll", "rule-je-rec", "rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: [
+      "rule-payroll",
+      "rule-payroll-release",
+      "rule-payroll-rec",
+      "rule-je-rec",
+      "rule-admin-pay",
+      "rule-cash-rec",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",

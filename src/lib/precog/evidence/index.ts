@@ -35,6 +35,11 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
   // Sign the check and reconcile the account it clears through.
   "rule-sign-rec": ["check-tampering", "financial-statement"],
+  // Send the payment out and reconcile the account it left from.
+  "rule-release-rec": ["check-tampering", "billing-shell-vendor", "financial-statement"],
+  // Enter the pay run and release it, or reconcile the account that paid it.
+  "rule-payroll-release": ["payroll", "check-tampering"],
+  "rule-payroll-rec": ["payroll", "check-tampering", "financial-statement"],
   // Post the entry that makes a reconciliation tie around the missing money.
   "rule-je-rec": ["check-tampering", "financial-statement", "cash-larceny"],
   // Put a name or a bank account on payroll and run the payroll that pays it.
