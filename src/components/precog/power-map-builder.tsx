@@ -687,6 +687,26 @@ export function PowerMapBuilder() {
         </Card>
       )}
 
+      {coveragePlans.length === 0 && coverage.singlePoints.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Backup suggestions</CardTitle>
+            <CardDescription>
+              No backup to suggest. Everyone who works in these duties&apos; processes already holds
+              a conflict, or would gain one by taking the duty on. Separate a conflict first, or
+              write the procedure down so a stand-in or your outside accountant can follow it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {coverage.singlePoints.map((duty) => (
+              <Badge key={duty.entitlementId} variant="warn">
+                {duty.label} · only {duty.assignees[0]?.personName ?? "one person"}
+              </Badge>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Absence stress test</CardTitle>

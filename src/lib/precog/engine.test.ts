@@ -41,8 +41,14 @@ describe("findKnowledgeRisks", () => {
   });
 
   it("marks knowledge with no strong holder as unowned and highest risk", () => {
-    // A register the owner wrote themselves, with nobody marked yet.
-    const tpl = { ...dental, knowledge: dental.knowledge.map((k) => ({ ...k })), relations: [] };
+    // A register the owner wrote themselves, with nobody marked yet. A plain
+    // copy of the starter list is still the starter list, so each item is
+    // renamed as the owner's own wording.
+    const tpl = {
+      ...dental,
+      knowledge: dental.knowledge.map((k) => ({ ...k, name: `${k.name} (ours)` })),
+      relations: [],
+    };
     const risks = findKnowledgeRisks(tpl);
     expect(risks.length).toBeGreaterThan(0);
     expect(risks.every((r) => r.ownerCount === 0)).toBe(true);

@@ -776,26 +776,60 @@ try {
     }
   });
 
+  // A small retail team whose owner can safely back up the cash duties. The
+  // dental sample gets no suggestion: everyone there who works in a
+  // single-holder duty's process already holds a conflict, or would gain one.
+  const plannerRetail = [
+    {
+      personId: "o",
+      personName: "Owner",
+      role: "Owner",
+      entitlements: ["approve_payroll", "sign_checks"],
+    },
+    {
+      personId: "b",
+      personName: "Bookkeeper",
+      role: "Bookkeeper",
+      entitlements: ["post_payments", "enter_invoices"],
+    },
+    { personId: "c", personName: "Amir Haddad", role: "Cashier", entitlements: ["collect_cash"] },
+    {
+      personId: "s",
+      personName: "Derek Hollins",
+      role: "Stock Associate",
+      entitlements: ["receive_goods", "order_supplies"],
+    },
+  ];
+
   await test("continuity planner recommends only conflict-free coverage improvements", () => {
-    const assignments = sodDetect.buildAssignments();
-    const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
-    const beforeConflicts = sodDetect.detectSodConflicts(undefined, { assignments }).conflicts
-      .length;
-    const plans = coveragePlanner.buildCoveragePlans(assignments);
-    assert.ok(plans.length > 0);
-    for (const plan of plans) {
-      const afterCoverage = coverageAnalysis.analyzeDutyCoverage(plan.nextAssignments);
-      const afterConflicts = sodDetect.detectSodConflicts(undefined, {
-        assignments: plan.nextAssignments,
-      }).conflicts.length;
-      assert.ok(afterCoverage.resilienceScore > beforeCoverage.resilienceScore, plan.id);
-      assert.equal(afterConflicts, beforeConflicts, plan.id);
-      assert.ok(plan.continuityGain > 0);
+    const dental = sodDetect.buildAssignments();
+    const dentalPlans = coveragePlanner.buildCoveragePlans(dental);
+    const conflicted = new Set(
+      sodDetect
+        .detectSodConflicts(undefined, { assignments: dental })
+        .conflicts.filter((c) => !c.ownerHeld)
+        .map((c) => c.personId),
+    );
+    assert.ok(dentalPlans.every((plan) => !conflicted.has(plan.toPersonId)));
+    assert.ok(coveragePlanner.buildCoveragePlans(plannerRetail).length > 0);
+    for (const assignments of [dental, plannerRetail]) {
+      const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
+      const beforeConflicts = sodDetect.detectSodConflicts(undefined, { assignments }).conflicts
+        .length;
+      for (const plan of coveragePlanner.buildCoveragePlans(assignments)) {
+        const afterCoverage = coverageAnalysis.analyzeDutyCoverage(plan.nextAssignments);
+        const afterConflicts = sodDetect.detectSodConflicts(undefined, {
+          assignments: plan.nextAssignments,
+        }).conflicts.length;
+        assert.ok(afterCoverage.resilienceScore > beforeCoverage.resilienceScore, plan.id);
+        assert.equal(afterConflicts, beforeConflicts, plan.id);
+        assert.ok(plan.continuityGain > 0);
+      }
     }
   });
 
   await test("continuity program safely sequences interacting recommendations", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = plannerRetail;
     const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
     const beforeConflicts = sodDetect.detectSodConflicts(undefined, { assignments }).conflicts
       .length;
