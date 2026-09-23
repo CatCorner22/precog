@@ -317,7 +317,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [template],
   );
 
-  const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
+  // A team under 100 people reads the small-organization median, which the
+  // same report gives; a larger one reads the all-sizes median.
+  const smallOrg = Math.max(profile.staff.teamSize, template.people.length) < 100;
+  const medianLoss = BENCHMARK_BY_ID[smallOrg ? "bm-small-org-losses" : "bm-median-loss"];
+  // The small-organization entry's full value also quotes the largest
+  // organizations; the tile shows its own figure.
+  const medianLossValue =
+    smallOrg && typeof medianLoss?.numeric === "number"
+      ? `$${medianLoss.numeric.toLocaleString("en-US")}`
+      : medianLoss?.value;
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];
   const delayCurve = BENCHMARK_BY_ID["bm-duration-cost-curve"];
   const tips = BENCHMARK_BY_ID["bm-tips"];
@@ -862,8 +871,12 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           )}
           {medianLoss && (
             <StatTile
-              label="Median loss, given an investigated fraud"
-              value={medianLoss.value}
+              label={
+                smallOrg
+                  ? "Median loss, organizations under 100 employees"
+                  : "Median loss, given an investigated fraud"
+              }
+              value={medianLossValue ?? medianLoss.value}
               detail={medianLoss.study}
               href={medianLoss.source.url}
             />
@@ -882,11 +895,12 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
             <span className="font-medium text-muted">Read these numbers as conditional. </span>
             Neither figure is a forecast for your business. Both describe what happened{" "}
-            <em>given</em> that a fraud occurred and was found: {medianLoss.value} is the median
-            across investigated cases, and the case range above is higher still because federal
-            prosecutors do not charge small thefts. Nothing here estimates how likely any of it is
-            to happen to you — that depends on the gaps listed at the top of this page, not on a
-            median.
+            <em>given</em> that a fraud occurred and was found:{" "}
+            {medianLossValue ?? medianLoss.value} is the median across investigated cases
+            {smallOrg ? " at organizations under 100 employees" : ""}, and the case range above is
+            higher still because federal prosecutors do not charge small thefts. Nothing here
+            estimates how likely any of it is to happen to you — that depends on the gaps listed at
+            the top of this page, not on a median.
           </p>
         )}
 
