@@ -1,11 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { runGrokAgentLoop, runLocalAgentLoop } from "../llm/agent-loop";
+import { runGrokAgentLoop } from "../llm/agent-loop";
 import { llmMiddleware } from "../llm/middleware";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
 import { resolveClientDate } from "../continuity/coverage";
 import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
+import { localBrief } from "./local-brief";
 
 export type PioneerCoachResult = {
   ok: true;
@@ -69,7 +70,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
     try {
       const result =
         data.preferLocal || context.llm.grok !== "allowed"
-          ? runLocalAgentLoop(question, ctx)
+          ? localBrief(question, ctx, data.profile)
           : await runGrokAgentLoop(question, ctx);
       const warnings = [...result.brief.chickenLittleWarnings];
       if (

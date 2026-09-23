@@ -18,7 +18,11 @@ import {
   applyVerifiedAnnualHours,
   VALUE_CASE_STORAGE_KEY,
   type ValueCaseInputs,
-  hasOwnObservations,
+  type ValueInputKey,
+  type ObservedFigure,
+  normalizeEnteredInputs,
+  observedValueStatus,
+  inputList,
 } from "@/lib/precog/value-case";
 import { formatUsd } from "@/lib/utils";
 import { ValueEvidenceRegister } from "./value-evidence-register";
@@ -31,12 +35,19 @@ import {
 
 export function ValueProofCenter() {
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
+  // Inputs the owner typed into, so a figure they enter that happens to equal
+  // the app default still counts as theirs.
+  const [typed, setTyped] = useState<ValueInputKey[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [evidence, setEvidence] = useState<ValueEvidence[]>([]);
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
-      if (stored) setInputs(normalizeValueCase(JSON.parse(stored)));
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<ValueCaseInputs> & { entered?: unknown };
+        setInputs(normalizeValueCase(parsed));
+        setTyped(normalizeEnteredInputs(parsed.entered));
+      }
       const storedEvidence = window.localStorage.getItem(VALUE_EVIDENCE_STORAGE_KEY);
       if (storedEvidence) setEvidence(normalizeValueEvidence(JSON.parse(storedEvidence)));
     } catch {
@@ -53,6 +64,7 @@ export function ValueProofCenter() {
           ? normalizeValueCase(detail.valueCase as Partial<ValueCaseInputs>)
           : DEFAULT_VALUE_CASE,
       );
+      setTyped(normalizeEnteredInputs((detail.valueCase as { entered?: unknown } | null)?.entered));
       setEvidence(normalizeValueEvidence(detail.evidence));
     };
     window.addEventListener("precog:value-proof-restored", restore);
@@ -60,20 +72,23 @@ export function ValueProofCenter() {
   }, []);
   useEffect(() => {
     if (loaded) {
-      window.localStorage.setItem(VALUE_CASE_STORAGE_KEY, JSON.stringify(inputs));
+      window.localStorage.setItem(
+        VALUE_CASE_STORAGE_KEY,
+        JSON.stringify({ ...inputs, entered: typed }),
+      );
       window.localStorage.setItem(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(evidence));
     }
-  }, [inputs, evidence, loaded]);
+  }, [inputs, typed, evidence, loaded]);
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
-  const ownObservations = useMemo(
-    () => hasOwnObservations(inputs) || evidence.length > 0,
-    [inputs, evidence],
-  );
+  const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
+  const isDefault = (key: ValueInputKey) => !status.entered.has(key);
   const evidenceSummary = useMemo(() => summarizeValueEvidence(evidence), [evidence]);
-  const update = (key: keyof ValueCaseInputs, next: number) =>
+  const update = (key: keyof ValueCaseInputs, next: number) => {
+    setTyped((current) => (current.includes(key) ? current : [...current, key]));
     setInputs((current) => normalizeValueCase({ ...current, [key]: next }));
+  };
   const exportMemo = () => {
-    const blob = new Blob([createValueCaseMemo(inputs, new Date(), evidence)], {
+    const blob = new Blob([createValueCaseMemo(inputs, new Date(), evidence, typed)], {
       type: "text/markdown;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -111,56 +126,72 @@ export function ValueProofCenter() {
         <Metric
           icon={Clock3}
           label="Hours returned"
-          value={`${value.observed.hoursSaved.toLocaleString()} hrs`}
-          note="Observed annual capacity"
+          value={
+            status.hours.observed ? `${value.observed.hoursSaved.toLocaleString()} hrs` : NOT_YET
+          }
+          note={
+            status.hours.observed
+              ? usesDefaults(status.hours, "Your review hours × reviews per year")
+              : `App default assumption: ${value.observed.hoursSaved.toLocaleString()} hrs (${inputs.reviewHoursBefore} → ${inputs.reviewHoursAfter} hrs × ${inputs.annualReviews} reviews). Enter your own review hours.`
+          }
         />
         <Metric
           icon={DollarSign}
           label="Observed value"
-          value={formatUsd(value.observed.total)}
-          note="Labor + direct recoveries"
+          value={status.value.observed ? formatUsd(status.value.value ?? 0) : NOT_YET}
+          note={
+            status.value.observed
+              ? usesDefaults(status.value, "Labor + documented recoveries")
+              : `App default assumption: ${formatUsd(value.observed.total)} of labor. Enter your review hours and hourly cost, or a recovery.`
+          }
         />
         <Metric
           icon={ShieldCheck}
           label="Modeled risk reduction"
           value={formatUsd(value.modeled.base)}
-          note="Scenario—not realized savings"
+          note={
+            isDefault("annualExposure") &&
+            isDefault("eventProbability") &&
+            isDefault("controlEffectiveness")
+              ? "Scenario, not realized savings; every input is an app default"
+              : "Scenario, not realized savings"
+          }
           warning
         />
         <Metric
           icon={Calculator}
           label="Assumed loss baseline"
           value={formatUsd(value.modeled.expectedLossBefore)}
-          note="Your exposure × your probability assumption"
+          note={`${isDefault("annualExposure") ? "App default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "app default probability" : "your probability assumption"}`}
           warning
         />
       </div>
 
       <Card>
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-3">
-          {ownObservations ? (
+          {status.anyObservation || evidence.length > 0 ? (
             <>
-              <MetricInline label="Net observed value" value={formatUsd(value.observed.net)} />
-              <MetricInline
-                label="Observed ROI"
-                value={
-                  value.observed.roi === null ? "—" : `${(value.observed.roi * 100).toFixed(0)}%`
-                }
+              <ObservedInline
+                label="Net observed value"
+                figure={status.net}
+                show={(v) => formatUsd(v)}
               />
-              <MetricInline
+              <ObservedInline
+                label="Observed ROI"
+                figure={status.roi}
+                show={(v) => `${(v * 100).toFixed(0)}%`}
+              />
+              <ObservedInline
                 label="Observed payback"
-                value={
-                  value.observed.paybackMonths === null
-                    ? "—"
-                    : `${value.observed.paybackMonths.toFixed(1)} months`
-                }
+                figure={status.payback}
+                show={(v) => `${v.toFixed(1)} months`}
               />
             </>
           ) : (
             <p className="text-sm text-muted sm:col-span-3">
-              No observed value yet. The figures on this tab start as the app&apos;s own
-              assumptions; enter your own review hours, costs and recoveries below, or add an item
-              to the evidence register, and the net value, return and payback appear here.
+              Not yet observed. Every figure on this tab starts as an app default; enter your own
+              review hours, costs and recoveries below, or add an item to the evidence register, and
+              the net value, return and payback appear here once the figures behind them are yours.
             </p>
           )}
         </CardContent>
@@ -204,7 +235,12 @@ export function ValueProofCenter() {
           <button
             type="button"
             disabled={inputs.annualReviews === 0}
-            onClick={() => setInputs(applyVerifiedAnnualHours(inputs, evidenceSummary.hours))}
+            onClick={() => {
+              setTyped((current) =>
+                current.includes("reviewHoursAfter") ? current : [...current, "reviewHoursAfter"],
+              );
+              setInputs(applyVerifiedAnnualHours(inputs, evidenceSummary.hours));
+            }}
             className="rounded-lg border border-warn/40 bg-bg px-3 py-2 text-xs font-medium text-warn hover:bg-warn/10 disabled:opacity-40"
           >
             Use verified hours
@@ -217,48 +253,55 @@ export function ValueProofCenter() {
           <CardHeader>
             <CardTitle>Value assumptions</CardTitle>
             <CardDescription>
-              The starting figures are the app&apos;s own assumptions, not measured results; replace
-              each one with your own evidence where you have it. Values save in this browser.
+              Figures marked app default are the app&apos;s starting figures, not measured results;
+              replace each one with your own where you have it. Values save in this browser.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Hours per review — before"
               value={inputs.reviewHoursBefore}
+              appDefault={isDefault("reviewHoursBefore")}
               onChange={(v) => update("reviewHoursBefore", v)}
             />
             <Field
               label="Hours per review — with Precog"
               value={inputs.reviewHoursAfter}
+              appDefault={isDefault("reviewHoursAfter")}
               onChange={(v) => update("reviewHoursAfter", v)}
             />
             <Field
               label="Loaded hourly cost"
               value={inputs.hourlyCost}
               prefix="$"
+              appDefault={isDefault("hourlyCost")}
               onChange={(v) => update("hourlyCost", v)}
             />
             <Field
               label="Reviews per year"
               value={inputs.annualReviews}
+              appDefault={isDefault("annualReviews")}
               onChange={(v) => update("annualReviews", v)}
             />
             <Field
               label="Documented recoveries"
               value={inputs.directRecoveries}
               prefix="$"
+              appDefault={isDefault("directRecoveries")}
               onChange={(v) => update("directRecoveries", v)}
             />
             <Field
               label="Annual program cost"
               value={inputs.annualProgramCost}
               prefix="$"
+              appDefault={isDefault("annualProgramCost")}
               onChange={(v) => update("annualProgramCost", v)}
             />
             <Field
               label="Annual loss exposure"
               value={inputs.annualExposure}
               prefix="$"
+              appDefault={isDefault("annualExposure")}
               onChange={(v) => update("annualExposure", v)}
             />
             <Field
@@ -266,6 +309,7 @@ export function ValueProofCenter() {
               value={inputs.eventProbability * 100}
               suffix="%"
               step={0.1}
+              appDefault={isDefault("eventProbability")}
               onChange={(v) => update("eventProbability", v / 100)}
             />
             <Field
@@ -273,6 +317,7 @@ export function ValueProofCenter() {
               value={inputs.controlEffectiveness * 100}
               suffix="%"
               step={1}
+              appDefault={isDefault("controlEffectiveness")}
               onChange={(v) => update("controlEffectiveness", v / 100)}
             />
           </CardContent>
@@ -350,6 +395,7 @@ function Field({
   prefix,
   suffix,
   step = 1,
+  appDefault = false,
 }: {
   label: string;
   value: number;
@@ -357,10 +403,18 @@ function Field({
   prefix?: string;
   suffix?: string;
   step?: number;
+  appDefault?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      <span className="mb-1.5 flex items-center justify-between gap-2 text-xs font-medium text-muted">
+        {label}
+        {appDefault && (
+          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-subtle">
+            app default
+          </span>
+        )}
+      </span>
       <span className="flex items-center rounded-lg border border-border bg-elevated px-3 focus-within:border-primary/60">
         {prefix && <span className="text-sm text-subtle">{prefix}</span>}
         <input
@@ -404,11 +458,38 @@ function Metric({
   );
 }
 
-function MetricInline({ label, value }: { label: string; value: string }) {
+const NOT_YET = "Not yet observed";
+
+/** The note under an observed figure, naming any app default it still uses. */
+function usesDefaults(figure: ObservedFigure, plain: string): string {
+  return figure.defaultsUsed.length
+    ? `${plain}; uses the app default for ${inputList(figure.defaultsUsed)}`
+    : plain;
+}
+
+function ObservedInline({
+  label,
+  figure,
+  show,
+}: {
+  label: string;
+  figure: ObservedFigure;
+  show: (value: number) => string;
+}) {
   return (
     <div>
       <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular">{value}</p>
+      <p className="mt-1 text-lg font-semibold tabular">
+        {figure.observed && figure.value !== null ? show(figure.value) : NOT_YET}
+      </p>
+      {figure.observed && figure.defaultsUsed.length > 0 && (
+        <p className="mt-0.5 text-[11px] text-subtle">
+          Uses the app default for {inputList(figure.defaultsUsed)}
+        </p>
+      )}
+      {!figure.observed && figure.missing.length > 0 && (
+        <p className="mt-0.5 text-[11px] text-subtle">Enter {inputList(figure.missing)}</p>
+      )}
     </div>
   );
 }

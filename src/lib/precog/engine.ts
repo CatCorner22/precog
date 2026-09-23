@@ -9,16 +9,30 @@ import type {
   StaffComposition,
 } from "./types";
 import {
+  APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
+  effectiveRiskVariables,
   evaluateDynamicRisk,
+  insuranceBasis,
   mergeStaffIntoVariables,
   scenarioFlags,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
+import { registerAssessed } from "./continuity/register-state";
+import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 
 const STRONG: KnowledgeLevel[] = ["expert", "proficient"];
 
+/**
+ * Knowledge held by too few people, from the business's register.
+ *
+ * A register nobody has filled in (the industry's starter list with nobody
+ * marked, or an empty list) says nothing about the business, so it yields no
+ * risks: every index that reads this list skips knowledge until the owner
+ * marks who can do each item (registerAssessed in continuity/register-state).
+ */
 export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
+  if (!registerAssessed(tpl)) return [];
   const { knowledge, people, relations } = tpl;
   const byK = new Map<string, typeof relations>();
   for (const r of relations) {
@@ -121,10 +135,16 @@ export function runPrecogScenario(
   if (!scenario) return null;
 
   const staff = options?.staff ?? staffComposition;
-  let vars = options?.riskVariables ? { ...options.riskVariables } : { ...DEFAULT_RISK_VARIABLES };
-
   // Keep staff toggles and variable booleans aligned when staff is provided
-  vars = mergeStaffIntoVariables(vars, staff);
+  const entered = mergeStaffIntoVariables(
+    options?.riskVariables ? { ...options.riskVariables } : { ...DEFAULT_RISK_VARIABLES },
+    staff,
+  );
+  // An owner's own business with no policy entered has no crime policy in the
+  // arithmetic; the sample business keeps the app's default policy.
+  const ownBusiness = isOwnBusiness(tpl);
+  const basis = insuranceBasis(entered, ownBusiness);
+  const vars = effectiveRiskVariables(entered, ownBusiness);
 
   const sMult = staffRiskMultiplier(staff);
   const fMult = fraudMultiplier(tpl, scenario);
@@ -217,8 +237,14 @@ export function runPrecogScenario(
   crimeModifiers.push(
     `Assumed multipliers from your settings: likelihood ×${dynamic.likelihoodSeverity.likelihoodMultiplier.toFixed(2)} · severity ×${dynamic.likelihoodSeverity.grossSeverityMultiplier.toFixed(2)} · detection lag ×${dynamic.likelihoodSeverity.detectionLagMultiplier.toFixed(2)}.`,
   );
+  const usd = (n: number) =>
+    n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   crimeModifiers.push(
-    `Insurance arithmetic on your premium and the assumed loss: premium ${dynamic.transfer.premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} net (−${dynamic.transfer.discountPctApplied}% assumed credits) · assumed retained loss ${dynamic.transfer.retainedExpected.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} · annual cost-of-risk figure ~${dynamic.transfer.expectedAnnualCostOfRisk.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}.`,
+    basis === "none"
+      ? `Insurance: no crime policy entered, so the app assumes none (${APP_DEFAULT_POLICY}). The business keeps the whole assumed loss of ${usd(dynamic.transfer.retainedExpected)} and pays no premium; annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`
+      : basis === "app_default"
+        ? `Insurance arithmetic on the app's default policy (${APP_DEFAULT_POLICY}): premium ${usd(dynamic.transfer.premiumAnnualNet)} net (−${dynamic.transfer.discountPctApplied}% credits) · assumed retained loss ${usd(dynamic.transfer.retainedExpected)} · annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`
+        : `Insurance arithmetic on the policy you entered and the assumed loss: premium ${usd(dynamic.transfer.premiumAnnualNet)} net (−${dynamic.transfer.discountPctApplied}% credits you entered) · assumed retained loss ${usd(dynamic.transfer.retainedExpected)} · annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;
@@ -291,19 +317,28 @@ export function getScenario(tpl: IndustryTemplate, id: string): ScenarioTemplate
   return tpl.scenarios.find((s) => s.id === id);
 }
 
+/**
+ * Scenarios ranked by the app's danger index (an ordering, not a forecast).
+ *
+ * Only scenarios in scope are ranked: every scenario of the sample business,
+ * and for an owner's own people only the starter scenarios they confirmed
+ * (`confirmedScenarioIds`, see scoring/scope). With none confirmed the list is
+ * empty rather than the industry example's.
+ */
 export function rankDangerousScenarios(
   tpl: IndustryTemplate,
   options?: {
     staff?: StaffComposition;
     riskVariables?: RiskVariableState;
+    confirmedScenarioIds?: ReadonlySet<string>;
   },
 ): {
   scenario: ScenarioTemplate;
   score: number;
   result: PrecogResult;
 }[] {
-  const { scenarios, staffComposition } = tpl;
-  return scenarios
+  const { staffComposition } = tpl;
+  return scenariosInScope(tpl, options?.confirmedScenarioIds)
     .map((scenario) => {
       const result = runPrecogScenario(tpl, scenario.id, options)!;
       const retained = result.retainedImpact?.expected ?? result.financialImpact.expected;

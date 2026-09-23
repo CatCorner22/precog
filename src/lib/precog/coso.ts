@@ -1,6 +1,15 @@
 import { healthLevel, RISK_SCALE } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
+import { registerAssessed } from "./continuity/register-state";
+import type { RiskVariableState } from "./scoring/dynamic-variables";
+import {
+  REGISTER_NOT_ASSESSED,
+  starterScenarioLabel,
+  starterScenariosLeftOut,
+  MAKE_SCENARIO_YOURS,
+} from "./scoring/scope";
 import type { IndustryTemplate } from "./templates";
+import type { StaffComposition } from "./types";
 
 export type CosoComponentId =
   | "control_environment"
@@ -31,6 +40,8 @@ export interface CosoPrincipleScore {
   name: string;
   status: HealthStatus;
   note: string;
+  /** The inputs this principle reads are not in yet; show "not assessed" instead of a status. */
+  notAssessed?: boolean;
 }
 
 export interface CosoComponentAssessment {
@@ -49,15 +60,36 @@ function statusFromScore(score: number): HealthStatus {
   return healthLevel(score);
 }
 
-export function assessCoso(tpl: IndustryTemplate): {
+/**
+ * The COSO index for this business.
+ *
+ * `staff` is the profile's staff composition (the owner's team, derived or
+ * edited); it defaults to the template's only for callers without a profile.
+ * Knowledge and scenario inputs count only when they describe the business: a
+ * register nobody has marked contributes nothing (and the principles it feeds
+ * say "not assessed"), and an owner's starter scenarios count only once
+ * confirmed (`confirmedScenarioIds`, see scoring/scope).
+ */
+export function assessCoso(
+  tpl: IndustryTemplate,
+  staff: StaffComposition = tpl.staffComposition,
+  opts: { riskVariables?: RiskVariableState; confirmedScenarioIds?: ReadonlySet<string> } = {},
+): {
   overall: number;
   overallStatus: HealthStatus;
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
-  const { controls, staffComposition } = tpl;
+  const { controls } = tpl;
+  const staffComposition = staff;
+  const knowledgeAssessed = registerAssessed(tpl);
   const risks = findKnowledgeRisks(tpl);
-  const ranked = rankDangerousScenarios(tpl);
+  const ranked = rankDangerousScenarios(tpl, {
+    staff,
+    riskVariables: opts.riskVariables,
+    confirmedScenarioIds: opts.confirmedScenarioIds,
+  });
+  const scenariosLeftOut = starterScenariosLeftOut(tpl, opts.confirmedScenarioIds).length;
   const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
   const sodGaps = controls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);
@@ -129,10 +161,12 @@ export function assessCoso(tpl: IndustryTemplate): {
           number: 4,
           name: "Competence",
           status: spofs.length > 0 ? "weak" : "strong",
-          note:
-            spofs.length > 0
+          note: !knowledgeAssessed
+            ? REGISTER_NOT_ASSESSED
+            : spofs.length > 0
               ? `${spofs.length} critical knowledge item(s) concentrated on one person.`
               : "Critical skills have redundancy.",
+          ...(knowledgeAssessed ? {} : { notAssessed: true }),
         },
         {
           number: 5,
@@ -144,15 +178,18 @@ export function assessCoso(tpl: IndustryTemplate): {
               : "Gaps exist without explicit residual-risk decisions.",
         },
       ],
-      findings: [
-        {
-          id: "ce-spof",
-          label: "Key-person concentration weakens accountability",
-          detail: `${spofs.length} sole-owner critical knowledge area(s) — competence and succession pressure on control environment.`,
-          severity: spofs.length >= 2 ? "critical" : "weak",
-          link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
-        },
-      ],
+      findings:
+        spofs.length > 0
+          ? [
+              {
+                id: "ce-spof",
+                label: "Key-person concentration weakens accountability",
+                detail: `${spofs.length} sole-owner critical knowledge area(s) — competence and succession pressure on control environment.`,
+                severity: spofs.length >= 2 ? "critical" : "weak",
+                link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
+              },
+            ]
+          : [],
       primaryActions: [
         { label: "Review knowledge SPOFs", link: { type: "knowledge" } },
         { label: "Open SoD conflicts", link: { type: "sod" } },
@@ -176,7 +213,13 @@ export function assessCoso(tpl: IndustryTemplate): {
           number: 7,
           name: "Identify & analyze risks",
           status: ranked.length > 0 ? "adequate" : "weak",
-          note: "Precog scenarios surface ranked operational and control risks.",
+          note:
+            ranked.length > 0
+              ? "Precog scenarios surface ranked operational and control risks."
+              : scenariosLeftOut > 0
+                ? `${starterScenarioLabel(tpl.id)} are not counted yet. ${MAKE_SCENARIO_YOURS}`
+                : "No scenario describes this business yet.",
+          ...(ranked.length === 0 && scenariosLeftOut > 0 ? { notAssessed: true } : {}),
         },
         {
           number: 8,
@@ -195,20 +238,20 @@ export function assessCoso(tpl: IndustryTemplate): {
         },
       ],
       findings: [
-        {
-          id: "ra-top",
-          label: topScenario
-            ? `Top residual future: ${topScenario.scenario.title}`
-            : "No scenarios ranked",
-          detail: topScenario
-            ? `Scenario assumes a loss of ${Math.round(topScenario.result.financialImpact.expected).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} about ${topScenario.result.timelineDays.p50} days out (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`
-            : "Open a scenario to see what it assumes.",
-          severity: "critical",
-          link: {
-            type: "precog",
-            scenarioId: topScenario?.scenario.id,
-          },
-        },
+        ...(topScenario
+          ? [
+              {
+                id: "ra-top",
+                label: `Top residual future: ${topScenario.scenario.title}`,
+                detail: `Scenario assumes a loss of ${Math.round(topScenario.result.financialImpact.expected).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
+                severity: "critical" as HealthStatus,
+                link: {
+                  type: "precog" as const,
+                  scenarioId: topScenario.scenario.id,
+                },
+              },
+            ]
+          : []),
         {
           id: "ra-fraud",
           label: "Fraud risk drivers active",
@@ -290,7 +333,10 @@ export function assessCoso(tpl: IndustryTemplate): {
           number: 14,
           name: "Internal communication",
           status: spofs.length > 0 ? "weak" : "adequate",
-          note: "Tribal knowledge without cross-training blocks reliable internal communication of how controls work.",
+          note: knowledgeAssessed
+            ? "Tribal knowledge without cross-training blocks reliable internal communication of how controls work."
+            : REGISTER_NOT_ASSESSED,
+          ...(knowledgeAssessed ? {} : { notAssessed: true }),
         },
         {
           number: 15,
@@ -299,13 +345,24 @@ export function assessCoso(tpl: IndustryTemplate): {
           note: "Payer and vendor channels exist; exception routing is uneven.",
         },
       ],
-      findings: spofs.slice(0, 3).map((s) => ({
-        id: `ic-${s.knowledgeId}`,
-        label: `SPOF: ${s.name}`,
-        detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. Continuity and internal know-how at risk.`,
-        severity: "critical" as HealthStatus,
-        link: { type: "knowledge" as const, knowledgeId: s.knowledgeId },
-      })),
+      findings: knowledgeAssessed
+        ? spofs.slice(0, 3).map((s) => ({
+            id: `ic-${s.knowledgeId}`,
+            label: `SPOF: ${s.name}`,
+            detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. Continuity and internal know-how at risk.`,
+            severity: "critical" as HealthStatus,
+            link: { type: "knowledge" as const, knowledgeId: s.knowledgeId },
+          }))
+        : [
+            {
+              id: "ic-register",
+              label: "Register not assessed yet",
+              detail:
+                "Mark who can do each item on Who knows what. Until then key-person concentration is not scored here.",
+              severity: "weak" as HealthStatus,
+              link: { type: "knowledge" as const },
+            },
+          ],
       primaryActions: [
         {
           label: "Open knowledge map",
@@ -315,8 +372,11 @@ export function assessCoso(tpl: IndustryTemplate): {
           },
         },
         {
-          label: "Denial knowledge exit scenario",
-          link: { type: "precog", scenarioId: "sc-front-desk-leaves" },
+          label: "Key-person exit scenario",
+          link: {
+            type: "precog",
+            scenarioId: tpl.scenarios.find((sc) => sc.knowledgeId)?.id,
+          },
         },
       ],
     },

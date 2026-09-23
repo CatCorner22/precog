@@ -1,7 +1,7 @@
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import { bandForScore, DEFAULT_WEIGHTS, type ActionBand, type ScoringWeights } from "./weights";
-import { scoreAllResidualRisks } from "./residual-engine";
+import { scoreAllResidualRisks, type ResidualScope } from "./residual-engine";
 
 export interface WeightPerturbation {
   group: keyof ScoringWeights;
@@ -83,8 +83,9 @@ export function weightSensitivity(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   perturbation = 0.2,
+  scope: ResidualScope = {},
 ): SensitivityReport {
-  const baseScores = scoreAllResidualRisks(tpl, staff, DEFAULT_WEIGHTS);
+  const baseScores = scoreAllResidualRisks(tpl, staff, DEFAULT_WEIGHTS, scope);
   const baseAverage = averageResidual(baseScores);
   const trials: {
     scores: ReturnType<typeof scoreAllResidualRisks>;
@@ -98,6 +99,7 @@ export function weightSensitivity(
           tpl,
           staff,
           trialWeights(group, key, direction, perturbation),
+          scope,
         );
         const average = averageResidual(scores);
         trials.push({

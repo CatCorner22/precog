@@ -8,6 +8,7 @@ import {
   terminatorThreatColor,
 } from "@/lib/precog/map-vision";
 import { formatUsd, cn } from "@/lib/utils";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Crosshair, Radio, Target, Zap } from "lucide-react";
 
@@ -38,8 +39,17 @@ export function ThreatAssessmentPanel() {
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
+        confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
       }),
-    [template, profile.practiceName, profile.staff, profile.riskVariables, profile.dualRelease],
+    [
+      template,
+      profile.practiceName,
+      profile.staff,
+      profile.riskVariables,
+      profile.dualRelease,
+      profile.decisions,
+      profile.industry,
+    ],
   );
 
   useEffect(() => {
@@ -240,8 +250,11 @@ export function ThreatAssessmentPanel() {
                 </div>
                 {selected.expectedLoss != null && (
                   <p className="mt-2 font-mono text-[11px] text-[#5a9a68]">
-                    Assumed retained loss {formatUsd(selected.expectedLoss)}
-                    {selected.p50Days != null ? ` · about ${selected.p50Days} days out` : ""}
+                    {selected.domain === "scenario" ? "Assumed retained loss" : "Assumed loss"}{" "}
+                    {formatUsd(selected.expectedLoss)}
+                    {selected.p50Days != null
+                      ? ` · about ${selected.p50Days} assumed days until found`
+                      : ""}
                   </p>
                 )}
               </section>

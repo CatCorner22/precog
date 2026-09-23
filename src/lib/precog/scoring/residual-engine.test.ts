@@ -131,8 +131,102 @@ describe("tornadoSensitivity", () => {
     expect(t.levers[0].delta).toBeGreaterThan(0);
   });
 
-  it("has nothing left to gain when every lever is already pulled", () => {
+  it("has nothing left to offer when every lever is already pulled", () => {
     const t = tornadoSensitivity(dental, { ...strong, segregationScore: 75 });
-    for (const l of t.levers) expect(l.delta, l.id).toBe(0);
+    expect(t.levers).toEqual([]);
+  });
+
+  it("never offers a lever that would lower a score the team already beats", () => {
+    // A fully separated team scores 100: "raise to 75" must not pull it down,
+    // and a team of 12 is not asked to "grow to 10".
+    const t = tornadoSensitivity(dental, {
+      ...weak,
+      segregationScore: 100,
+      teamSize: 12,
+    });
+    const ids = t.levers.map((l) => l.id);
+    expect(ids).not.toContain("seg");
+    expect(ids).not.toContain("team");
+    for (const l of t.levers) {
+      expect(l.delta, l.id).toBeGreaterThan(0);
+      expect(l.improvedAvg).toBe(t.baseAverage - l.delta);
+    }
+  });
+});
+
+describe("own business scope", () => {
+  const people = [
+    {
+      id: "own-1",
+      name: "Ana Ruiz",
+      role: "Owner",
+      active: true,
+      entitlements: ["bank_reconcile" as const, "view_reports_only" as const],
+    },
+    {
+      id: "own-2",
+      name: "Ben Ochoa",
+      role: "Office Manager",
+      active: true,
+      entitlements: [
+        "create_vendor" as const,
+        "release_payment" as const,
+        "view_reports_only" as const,
+      ],
+    },
+  ];
+  const own = resolveTemplate({ industry: "dental", customPeople: people, customRelations: [] });
+
+  it("scores no register rows while the register is not assessed, and says so", () => {
+    const summary = portfolioSummary(own, own.staffComposition);
+    expect(summary.all.filter((s) => s.category === "knowledge")).toEqual([]);
+    expect(summary.knowledgeAssessed).toBe(false);
+  });
+
+  it("scores starter scenarios only once the owner confirms one", () => {
+    const none = portfolioSummary(own, own.staffComposition);
+    expect(none.all.filter((s) => s.category === "scenario")).toEqual([]);
+    expect(none.starterScenariosLeftOut).toEqual(own.scenarios.map((s) => s.id));
+    const one = portfolioSummary(own, own.staffComposition, undefined, {
+      confirmedScenarioIds: new Set(["sc-vendor-fraud"]),
+    });
+    expect(one.all.filter((s) => s.category === "scenario").map((s) => s.id)).toEqual([
+      "scen-sc-vendor-fraud",
+    ]);
+    expect(one.starterScenariosLeftOut).not.toContain("sc-vendor-fraud");
+  });
+
+  it("scores the register once someone is marked on it", () => {
+    const marked = resolveTemplate({
+      industry: "dental",
+      customPeople: people,
+      customRelations: [{ personId: "own-2", knowledgeId: "k1", level: "expert" }],
+    });
+    const rows = portfolioSummary(marked, marked.staffComposition).all;
+    expect(rows.some((s) => s.id === "know-k1")).toBe(true);
+  });
+});
+
+describe("scenario row formula", () => {
+  it("shows the credited effectiveness that reproduces the residual", () => {
+    for (const row of scoreAllResidualRisks(dental).filter((s) => s.category === "scenario")) {
+      expect(row.effectivenessCredit).toBe(0.5);
+      // Both figures are rounded from the same unrounded effectiveness.
+      expect(
+        Math.abs(row.creditedEffectiveness! - row.controlEffectiveness * 0.5),
+      ).toBeLessThanOrEqual(1);
+      const uplift = row.residual / Math.max(1, row.residualRaw);
+      const recomputed = (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100;
+      // Within rounding of the displayed integers, I × (1 − credited E) gives the raw residual.
+      expect(Math.abs(recomputed - row.residualRaw), row.id).toBeLessThanOrEqual(1.5);
+      expect(uplift).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("names the day figure as assumed days until found", () => {
+    const row = scoreAllResidualRisks(dental).find((s) => s.category === "scenario")!;
+    const days = row.drivers.find((d) => d.id.endsWith("-time"))!;
+    expect(days.label).toBe("Assumed days until found");
+    expect(days.detail).not.toMatch(/p50/);
   });
 });

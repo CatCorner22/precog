@@ -10,10 +10,14 @@ import type { IndustryTemplate } from "../templates";
 import { portfolioSummary } from "./residual-engine";
 import {
   DEFAULT_RISK_VARIABLES,
+  effectiveRiskVariables,
   evaluateDynamicRisk,
+  policyEntered,
+  policyFieldIsDefault,
   scenarioFlags,
   type RiskVariableState,
 } from "./dynamic-variables";
+import { isOwnBusiness } from "./scope";
 import type { StaffComposition } from "../types";
 
 export type CascadeLeverId =
@@ -62,7 +66,7 @@ export const CASCADE_LEVERS: CascadeLever[] = [
       "detection lag ↓",
       "cumulative severity ↓",
       "premium credit unlocks",
-      "timeline p50 stretches (slower material impact)",
+      "assumed days until found ↓",
       "monitoring residual ↓",
     ],
   },
@@ -170,6 +174,46 @@ export const CASCADE_LEVERS: CascadeLever[] = [
   },
 ];
 
+/** Levers that change the policy itself rather than a control. */
+export const INSURANCE_LEVERS: ReadonlySet<CascadeLeverId> = new Set([
+  "raise_deductible_10k",
+  "lower_deductible_1k",
+  "raise_limit_250k",
+  "clean_claims_history",
+]);
+
+/**
+ * Why a lever cannot be modelled yet, or null when it can. A deductible, limit
+ * or claims-load change is only meaningful against the owner's own policy: run
+ * against the app's default figures it would recommend buying insurance on
+ * numbers nobody entered.
+ */
+export function leverUnavailableReason(
+  leverId: CascadeLeverId,
+  vars: RiskVariableState,
+): string | null {
+  if (!INSURANCE_LEVERS.has(leverId)) return null;
+  const field =
+    leverId === "raise_limit_250k"
+      ? "policyLimit"
+      : leverId === "clean_claims_history"
+        ? "basePremiumAnnual"
+        : "deductible";
+  if (!policyFieldIsDefault(vars, field)) return null;
+  const word =
+    field === "policyLimit" ? "limit" : field === "basePremiumAnnual" ? "premium" : "deductible";
+  return `Not modelled until you enter your policy: the ${word} in use is the app default. Enter your policy on Dynamic variables.`;
+}
+
+/**
+ * What a lever moves, as shown to the owner. With no policy entered there is
+ * no premium to credit, so premium and credit effects are left out.
+ */
+export function leverAffects(lever: CascadeLever, vars: RiskVariableState): string[] {
+  if (policyEntered(vars)) return lever.affects;
+  return lever.affects.filter((a) => !/premium|credit|discount/i.test(a));
+}
+
 export interface MetricSnapshot {
   likelihoodMultiplier: number;
   grossSeverityMultiplier: number;
@@ -198,6 +242,9 @@ export interface MetricDelta {
 
 export interface CascadeSimulation {
   lever: CascadeLever;
+  /** False for an insurance lever while the policy figure it acts on is the app default. */
+  available: boolean;
+  unavailableReason?: string;
   before: MetricSnapshot;
   after: MetricSnapshot;
   deltas: MetricDelta[];
@@ -291,7 +338,11 @@ function snapshot(
   const { scenarios } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0];
   const flags = scenarioFlags(scenario.id);
-  const dyn = evaluateDynamicRisk(vars, scenario.baseFinancialImpact, flags);
+  const dyn = evaluateDynamicRisk(
+    effectiveRiskVariables(vars, isOwnBusiness(tpl)),
+    scenario.baseFinancialImpact,
+    flags,
+  );
   const result = runPrecogScenario(tpl, scenario.id, {
     staff,
     riskVariables: vars,
@@ -315,7 +366,10 @@ function snapshot(
   };
 }
 
-const LOWER_IS_BETTER: Set<keyof MetricSnapshot> = new Set([
+// The day figure is the scenario's assumed days until the problem is found:
+// detection and fewer opportunities shorten it, and a shorter run is a
+// smaller loss, so fewer days is better.
+export const LOWER_IS_BETTER: ReadonlySet<keyof MetricSnapshot> = new Set([
   "likelihoodMultiplier",
   "grossSeverityMultiplier",
   "detectionLagMultiplier",
@@ -324,14 +378,13 @@ const LOWER_IS_BETTER: Set<keyof MetricSnapshot> = new Set([
   "premiumAnnualNet",
   "expectedAnnualCostOfRisk",
   "eventPlusPremiumExpected",
+  "timelineP50",
   "residualAverage",
   "residualCriticalPath",
 ]);
 
-// For timeline p50: longer is better (delay material impact)
 // For transferred: higher can be better (more risk transferred) when gross is fixed
-const HIGHER_IS_BETTER: Set<keyof MetricSnapshot> = new Set([
-  "timelineP50",
+export const HIGHER_IS_BETTER: ReadonlySet<keyof MetricSnapshot> = new Set([
   "transferredExpected",
   "discountPctApplied",
 ]);
@@ -347,7 +400,7 @@ const LABELS: Record<keyof MetricSnapshot, string> = {
   discountPctApplied: "Discount % applied",
   expectedAnnualCostOfRisk: "Annual cost of risk",
   eventPlusPremiumExpected: "Event + 1yr premium",
-  timelineP50: "Timeline p50 (days)",
+  timelineP50: "Assumed days until found",
   residualAverage: "Portfolio avg residual",
   residualCriticalPath: "Critical-path count",
 };
@@ -423,9 +476,13 @@ function secondOrderNotes(
     }
   }
 
-  if (byKey.timelineP50 && byKey.likelihoodMultiplier) {
+  if (byKey.timelineP50?.direction === "improves") {
     notes.push(
-      "Timeline and likelihood are linked: faster detection / lower opportunity stretches p50 and shrinks multi-period severity.",
+      "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss.",
+    );
+  } else if (byKey.timelineP50?.direction === "worsens" && byKey.likelihoodMultiplier) {
+    notes.push(
+      "Fewer opportunities lengthen the assumed days until found in this model (a scheme that starts less often is assumed to surface later); the loss figures already count the lower likelihood.",
     );
   }
 
@@ -522,12 +579,28 @@ export function simulateCascadeLever(
     scenarioId || scenarios.find((s) => s.id.includes("cash"))?.id || scenarios[0].id;
 
   const before = snapshot(tpl, baseVars, staffBase, rankedScenario);
+  const unavailable = leverUnavailableReason(lever.id, baseVars);
+  if (unavailable) {
+    return {
+      lever,
+      available: false,
+      unavailableReason: unavailable,
+      before,
+      after: before,
+      deltas: [],
+      secondOrderNotes: [unavailable],
+      overallVerdict: unavailable,
+      variablesAfter: { ...baseVars },
+      staffAfter: { ...staffBase },
+    };
+  }
   const applied = applyLever(lever.id, baseVars, staffBase);
   const after = snapshot(tpl, applied.vars, applied.staff, rankedScenario);
   const deltas = buildDeltas(before, after);
 
   return {
     lever,
+    available: true,
     before,
     after,
     deltas,
@@ -560,13 +633,15 @@ export function simulateAllCascades(
     simulateCascadeLever(tpl, l.id, baseVars, staffBase, sid),
   );
 
-  const rankedByCor = [...simulations].sort((a, b) => {
+  // Levers that cannot be modelled yet are listed, never ranked.
+  const available = simulations.filter((sim) => sim.available);
+  const rankedByCor = [...available].sort((a, b) => {
     const da = a.after.expectedAnnualCostOfRisk - a.before.expectedAnnualCostOfRisk;
     const db = b.after.expectedAnnualCostOfRisk - b.before.expectedAnnualCostOfRisk;
     return da - db; // most negative first
   });
 
-  const rankedByResidual = [...simulations].sort((a, b) => {
+  const rankedByResidual = [...available].sort((a, b) => {
     const da = a.after.residualAverage - a.before.residualAverage;
     const db = b.after.residualAverage - b.before.residualAverage;
     return da - db;
@@ -578,7 +653,7 @@ export function simulateAllCascades(
     { from: "dual_control", to: "severity", effect: "↓ scheme size" },
     { from: "bank_rec", to: "detection_lag", effect: "↓ multi-period loss" },
     { from: "bank_rec", to: "premium", effect: "unlocks carrier credit" },
-    { from: "bank_rec", to: "timeline_p50", effect: "stretches time-to-impact" },
+    { from: "bank_rec", to: "days_until_found", effect: "↓ assumed days until found" },
     { from: "cameras", to: "likelihood", effect: "↓ opportunity + mild detection" },
     { from: "cameras", to: "premium", effect: "unlocks carrier credit" },
     { from: "discount_stack", to: "max_discount_cap", effect: "credits capped" },

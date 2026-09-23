@@ -6,10 +6,10 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 
 | Module               | Path                          | Role                                                                                                        |
 | -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers, action bands, drivers                                     |
+| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands  |
 | Tornado sensitivity  | `scoring/residual-engine.ts`  | Highest-leverage control levers                                                                             |
 | COSO heat map        | `coso.ts` + UI                | 5 components, 17 principles, deep links                                                                     |
-| Precog scenarios     | `engine.ts`                   | p50 / 95% CI timelines + $ impact                                                                           |
+| Precog scenarios     | `engine.ts`                   | Assumed days until found and $ loss; an own business has no crime policy until you enter one                |
 | Knowledge SPOF map   | knowledge UI                  | Continuity / single points of failure                                                                       |
 | Pioneer LLM coach    | `coach/`                      | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always                                   |
 | Operating blueprint  | `operating-blueprint.ts` + UI | 10 core practice processes with standard, leading, optimal, and fallback designs                            |

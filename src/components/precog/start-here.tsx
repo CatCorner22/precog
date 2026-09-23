@@ -40,6 +40,13 @@ import {
   type CaseStudy,
   type SchemeKind,
 } from "@/lib/precog/evidence";
+import {
+  closingSteps,
+  gapBadge,
+  ownerHeldPairs,
+  rankFirstSteps,
+  type GapBadge,
+} from "@/lib/precog/coach/first-steps";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,13 +139,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const openConflicts = useMemo(
     () =>
       sod.conflicts
-        .filter((c) => !c.residualRiskAccepted)
+        // An owner-held pair is not a theft finding: it gets its own note below
+        // and never a "Fix first" card above an employee's.
+        .filter((c) => !c.residualRiskAccepted && !c.ownerHeld)
         .sort(
           (a, b) =>
             Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
         ),
     [sod.conflicts],
   );
+  const ownerHeld = useMemo(() => ownerHeldPairs(sod.conflicts), [sod.conflicts]);
 
   /**
    * Which segregation-of-duties rules the dual-release policy only narrows.
@@ -163,15 +173,24 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       }
     }
     const partial = new Map<string, number>();
+    // Only a gap the detector counts as mitigated (a distinct second person
+    // exists on the team) is narrowed; otherwise it is still open.
+    const mitigated = new Set(
+      sod.conflicts.filter((c) => c.dualReleaseMitigated).map((c) => c.ruleId),
+    );
     for (const [ruleId, thresholds] of byRuleId) {
       const gapThresholds = thresholds.filter((t) => t > 0);
       // Covered at every amount by at least one rule → nothing left beneath.
-      if (gapThresholds.length === thresholds.length && gapThresholds.length > 0) {
+      if (
+        mitigated.has(ruleId) &&
+        gapThresholds.length === thresholds.length &&
+        gapThresholds.length > 0
+      ) {
         partial.set(ruleId, Math.min(...gapThresholds));
       }
     }
     return partial;
-  }, [profile.dualRelease]);
+  }, [profile.dualRelease, sod.conflicts]);
 
   /**
    * Group by the gap, not by the person.
@@ -202,8 +221,14 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         byRule.set(c.ruleId, { people: [c.personName], conflict: c });
       }
     }
-    return [...byRule.values()].sort((a, b) => b.conflict.score - a.conflict.score);
-  }, [openConflicts]);
+    // Open gaps first, then those the policy narrows, then those it covers at
+    // every amount; worst first within each.
+    const rank = (c: (typeof openConflicts)[number]) =>
+      !c.dualReleaseMitigated ? 0 : partialCoverage.has(c.ruleId) ? 1 : 2;
+    return [...byRule.values()].sort(
+      (a, b) => rank(a.conflict) - rank(b.conflict) || b.conflict.score - a.conflict.score,
+    );
+  }, [openConflicts, partialCoverage]);
 
   const topThree = gaps.slice(0, 3);
   /**
@@ -225,14 +250,25 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [gaps, partialCoverage, topThree],
   );
   const narrowedCount = gaps.filter((g) => partialCoverage.has(g.conflict.ruleId)).length;
+  const coveredCount = gaps.filter(
+    (g) => g.conflict.dualReleaseMitigated && !partialCoverage.has(g.conflict.ruleId),
+  ).length;
   const openRuleIds = useMemo(() => gaps.map((g) => g.conflict.ruleId), [gaps]);
+  /** Findings still open at some amount: not covered by dual release at every amount. */
+  const stillOpen = useMemo(
+    () => openConflicts.filter((c) => !c.dualReleaseMitigated || partialCoverage.has(c.ruleId)),
+    [openConflicts, partialCoverage],
+  );
 
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
   const lossRange = useMemo(() => observedLossRange(evidence), [evidence]);
   const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
   const found = useMemo(() => detectionBreakdown(evidence), [evidence]);
   const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
-  const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
+  const steps = useMemo(
+    () => rankFirstSteps(recommendedStepsForRules(openRuleIds), stillOpen),
+    [openRuleIds, stillOpen],
+  );
 
   /**
    * Years of service for each named person, where the team record states it.
@@ -564,6 +600,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.` +
                 (narrowedCount > 0
                   ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
+                  : "") +
+                (coveredCount > 0
+                  ? ` ${coveredCount} ${coveredCount === 1 ? "is" : "are"} covered by dual release at every amount.`
                   : "")
           }
         />
@@ -588,29 +627,17 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 (c) => isOwnSector(c, industryId) && c.sodRuleIds.includes(conflict.ruleId),
               );
               const worst = ownSector ?? matches[0];
+              const badge = gapBadge(conflict, partialCoverage.get(conflict.ruleId));
+              const closes = closingSteps(
+                conflict.compensatingControls,
+                profile.dualRelease,
+                conflict.ruleId,
+              );
               return (
                 <Card key={conflict.ruleId}>
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant={
-                          partialCoverage.has(conflict.ruleId)
-                            ? "primary"
-                            : conflict.severity === "critical"
-                              ? "danger"
-                              : conflict.severity === "high"
-                                ? "warn"
-                                : "default"
-                        }
-                      >
-                        {partialCoverage.has(conflict.ruleId)
-                          ? "Reduced, not closed"
-                          : conflict.severity === "critical"
-                            ? "Fix first"
-                            : conflict.severity === "high"
-                              ? "Fix soon"
-                              : "Worth doing"}
-                      </Badge>
+                      <Badge variant={BADGE_VARIANT[badge]}>{badge}</Badge>
                       <span className="text-xs text-subtle">
                         {people.length === 1
                           ? people[0]
@@ -667,13 +694,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </p>
                     )}
 
-                    {conflict.compensatingControls.length > 0 && (
+                    {closes.length > 0 && (
                       <div>
                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">
                           What closes it
                         </p>
                         <ul className="space-y-1">
-                          {conflict.compensatingControls.map((c) => (
+                          {closes.map((c) => (
                             <li key={c} className="flex gap-2 leading-relaxed text-muted">
                               <span
                                 aria-hidden
@@ -737,6 +764,24 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 <ArrowRight className="size-3.5" aria-hidden />
               </button>
             )}
+          </div>
+        )}
+
+        {ownerHeld.length > 0 && (
+          <div className="rounded-lg border border-border bg-panel/60 p-4">
+            <p className="text-sm font-medium">Duties you hold yourself</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              These pairs sit with you as the owner. You cannot steal from yourself, so they are not
+              theft findings; the exposure is error, tax and lender reliance.{" "}
+              {ownerHeld[0].suggestion ? `${ownerHeld[0].suggestion}.` : ""}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-muted">
+              {ownerHeld.map((o) => (
+                <li key={o.ruleId}>
+                  {o.personName}: {o.pair}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </section>
@@ -859,7 +904,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         <SectionHeading
           icon={<ArrowRight className="size-4" aria-hidden />}
           title="Do these first"
-          subtitle="Ordered by how many of the real cases above each one would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
+          subtitle="Ordered first by how many of your open findings each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
         />
 
         <Card>
@@ -880,8 +925,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       <p className="text-sm leading-relaxed">{s.control.label}</p>
                       <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        {effortPhrase(s.control.effort)} · would plausibly have caught{" "}
-                        {s.supportingCaseIds.length}{" "}
+                        {effortPhrase(s.control.effort)} ·{" "}
+                        {s.answers > 0
+                          ? `answers ${s.answers} of your open ${s.answers === 1 ? "finding" : "findings"} · `
+                          : ""}
+                        would plausibly have caught {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
                       {s.supportingCaseIds.length > 0 && (
@@ -1048,6 +1096,14 @@ function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId:
     </section>
   );
 }
+
+const BADGE_VARIANT: Record<GapBadge, "danger" | "warn" | "default" | "primary" | "ok"> = {
+  "Fix first": "danger",
+  "Fix soon": "warn",
+  "Worth doing": "default",
+  "Reduced, not closed": "primary",
+  "Covered by dual release": "ok",
+};
 
 /** Plain wording for each scheme shape, in the order the chips appear. */
 const SCHEME_ORDER: SchemeKind[] = [
