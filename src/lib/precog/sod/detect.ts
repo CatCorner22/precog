@@ -789,8 +789,14 @@ export function detectSodConflicts(
       "Require a second approval on write-offs above the amount you set, with the owner or office manager as the second.",
     );
   }
+  const openHigh = conflicts.filter((c) => c.severity === "high" && open(c)).length;
+  if (!recommendations.length && (openHigh > 0 || medium > 0 || family > 0)) {
+    recommendations.push(
+      `Move one duty in each of the ${openHigh + medium + family} open pair(s) to someone else, or record the control that closes it.`,
+    );
+  }
   if (!recommendations.length) {
-    recommendations.push("Dual release + SoD look healthy — re-scan after any role change.");
+    recommendations.push("Duties look separated; scan again after any role change.");
   }
 
   return {

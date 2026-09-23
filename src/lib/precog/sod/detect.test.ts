@@ -355,3 +355,33 @@ describe("owner-aware and mitigation-aware detection", () => {
     expect(more.summary.segregationHealth).toBeLessThan(base.summary.segregationHealth);
   });
 });
+
+describe("recommendations", () => {
+  it("never calls duties healthy while a high pair is open", () => {
+    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Property Manager",
+          entitlements: ["collect_cash", "post_payments", "view_reports_only"],
+        },
+      ],
+    });
+    expect(report.summary.high).toBeGreaterThan(0);
+    expect(report.recommendations.join(" ")).not.toMatch(/look healthy|look separated/);
+    const clean = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Cashier",
+          entitlements: ["collect_cash", "view_reports_only"],
+        },
+      ],
+    });
+    expect(clean.recommendations).toEqual([
+      "Duties look separated; scan again after any role change.",
+    ]);
+  });
+});
