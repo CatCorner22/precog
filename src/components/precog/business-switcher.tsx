@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
+import { needsOwnName } from "@/lib/precog/business-lifecycle";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,9 +12,25 @@ const inputCls =
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
-  const { profile, businesses, switchBusiness, createBusiness, deleteBusiness, switchingBusiness } =
-    usePractice();
+  const {
+    profile,
+    businesses,
+    switchBusiness,
+    createBusiness,
+    deleteBusiness,
+    switchingBusiness,
+    setPracticeName,
+  } = usePractice();
   const [open, setOpen] = useState(false);
+  // The owner's team with the neutral name setup gave it: ask for the real one.
+  const needsName = needsOwnName(profile);
+  const [ownName, setOwnName] = useState("");
+  function saveOwnName() {
+    const next = ownName.trim();
+    if (!next) return;
+    setPracticeName(next);
+    setOwnName("");
+  }
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState<IndustryId>("general");
@@ -76,6 +93,9 @@ export function BusinessSwitcher() {
           </span>
           <span className="flex items-center gap-1 text-xs text-muted">
             <span className="truncate">{profile.practiceName}</span>
+            {needsName && (
+              <span className="rounded-full bg-warn/15 px-1.5 text-[10px] text-warn">Name it</span>
+            )}
             {businesses.length > 1 && (
               <span className="rounded-full bg-elevated px-1.5 text-[10px] text-subtle">
                 {businesses.length}
@@ -95,6 +115,25 @@ export function BusinessSwitcher() {
           role="menu"
           className="absolute top-full left-0 z-30 mt-2 w-80 rounded-xl border border-border bg-surface p-2 shadow-2xl"
         >
+          {needsName && (
+            <div className="mb-2 space-y-1.5 border-b border-border px-1 pb-2">
+              <label className="block text-[10px] font-medium tracking-wide text-subtle uppercase">
+                Name this business
+                <input
+                  className={cn(inputCls, "mt-1 normal-case")}
+                  placeholder="Your business name"
+                  value={ownName}
+                  maxLength={80}
+                  autoFocus
+                  onChange={(e) => setOwnName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveOwnName()}
+                />
+              </label>
+              <Button size="sm" className="w-full" onClick={saveOwnName} disabled={!ownName.trim()}>
+                Save name
+              </Button>
+            </div>
+          )}
           <p className="px-2 pb-1 text-[10px] font-medium tracking-wide text-subtle uppercase">
             Your businesses
           </p>

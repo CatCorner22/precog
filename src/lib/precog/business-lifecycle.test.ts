@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  adoptOwnTeam,
   atBusinessLimit,
+  needsOwnName,
   newBusinessProfile,
   ownBusinessName,
   ownSetupProfile,
   processesToEdit,
+  replacesSampleTeam,
   sampleSetupProfile,
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
@@ -161,5 +164,81 @@ describe("the unfinished business a setup replaces", () => {
     };
     expect(unfinishedBusinessToKeep(legacy)?.onboardingComplete).toBe(true);
     expect(unfinishedBusinessToKeep({ ...legacy, onboardingComplete: true })).toBeNull();
+  });
+});
+
+describe("the owner's roster pasted into the sample business", () => {
+  const roster: Person[] = [
+    {
+      id: "p-ana-ruiz",
+      name: "Ana Ruiz",
+      role: "Office Manager",
+      active: true,
+      entitlements: ["initiate_ach", "approve_vendor"],
+    },
+    {
+      id: "p-ben-ochoa",
+      name: "Ben Ochoa",
+      role: "Bookkeeper",
+      active: true,
+      entitlements: ["release_payment", "bank_reconcile"],
+    },
+    { id: "p-cal-diaz", name: "Cal Diaz", role: "Cashier", active: true },
+  ];
+
+  it("counts as replacing the sample team, while editing the sample's people does not", () => {
+    const sample = defaultProfile("general");
+    expect(replacesSampleTeam(sample, roster)).toBe(true);
+    const edited = getIndustryTemplate("general").people.map((p, i) =>
+      i === 0 ? { ...p, name: "Renamed" } : p,
+    );
+    expect(replacesSampleTeam(sample, edited)).toBe(false);
+    expect(replacesSampleTeam({ ...sample, customPeople: roster }, roster)).toBe(false);
+  });
+
+  it("drops the sample's supplier waiver and name, and seats approvers from the owner's people", () => {
+    const sample = defaultProfile("general");
+    expect(sample.dualRelease.exceptions.some((e) => e.sample && e.enabled)).toBe(true);
+    const own = adoptOwnTeam(sample, roster);
+    expect(own.practiceName).toBe("My business");
+    expect(needsOwnName(own)).toBe(true);
+    expect(own.dualRelease.exceptions.filter((e) => e.sample)).toEqual([]);
+    expect(own.customRelations).toEqual([]);
+    const ach = own.dualRelease.rules.find((r) => r.channel === "ach");
+    const roles = new Set(roster.map((p) => p.role));
+    for (const role of [...(ach?.firstApproverRoles ?? []), ...(ach?.secondApproverRoles ?? [])]) {
+      expect(roles.has(role), role).toBe(true);
+    }
+  });
+
+  it("keeps a name the owner already gave the business, and the owner's own exceptions", () => {
+    const sample = defaultProfile("general");
+    const renamed: PracticeProfile = {
+      ...sample,
+      practiceName: "Main Street Plumbing",
+      dualRelease: {
+        ...sample.dualRelease,
+        exceptions: [
+          ...sample.dualRelease.exceptions,
+          {
+            id: "ex_owner",
+            label: "Owner's own raise",
+            channels: ["ach"],
+            action: "raise_threshold",
+            thresholdUsd: 900,
+            enabled: true,
+            reason: "Entered by the owner",
+            createdAt: "2026-09-01",
+          },
+        ],
+      },
+    };
+    const own = adoptOwnTeam(renamed, roster);
+    expect(own.practiceName).toBe("Main Street Plumbing");
+    expect(needsOwnName(own)).toBe(false);
+    expect(own.dualRelease.exceptions.map((e) => e.id)).toEqual([
+      "ex-force-new-vendor-pay",
+      "ex_owner",
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 import { resolveTemplate, type TemplateSource } from "./active-template";
 import { INDUSTRIES, type IndustryId } from "./industry";
-import { ownBusinessProfile } from "./onboarding/own-team";
+import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-team";
+import { defaultDualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-profile";
 import { getIndustryTemplate } from "./templates";
 import type { Person, ProcessNode } from "./types";
@@ -85,3 +86,60 @@ export function atBusinessLimit(businessCount: number): boolean {
 }
 
 const SAMPLE_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
+
+/**
+ * True when `next` replaces the sample team with the owner's own people (a
+ * roster pasted into the sample), rather than editing the sample's people:
+ * none of the sample's people is left.
+ */
+export function replacesSampleTeam(
+  profile: Pick<PracticeProfile, "customPeople" | "industry">,
+  next: readonly Person[] | null,
+): boolean {
+  if (profile.customPeople || !next || next.length === 0) return false;
+  const sampleIds = new Set(getIndustryTemplate(profile.industry).people.map((p) => p.id));
+  return !next.some((person) => sampleIds.has(person.id));
+}
+
+/**
+ * The owner's own people take over a business that started as the sample:
+ * the same clean slate setup gives. The sample's name gives way to a neutral
+ * one the owner is asked to change, the sample's control decisions (its
+ * supplier waiver) and its who-knows-what marks go, and the dual-release
+ * approver seats are read off the owner's people. The owner's own settings
+ * and exceptions stay.
+ */
+export function adoptOwnTeam(profile: PracticeProfile, people: Person[]): PracticeProfile {
+  const ownTemplate = resolveTemplate({ ...profile, customPeople: people, customRelations: [] });
+  const seats = defaultDualReleasePolicy(ownTemplate, profile.staff).rules;
+  const dualRelease = {
+    ...profile.dualRelease,
+    rules: profile.dualRelease.rules.map((rule) => {
+      const seat = seats.find((r) => r.channel === rule.channel);
+      return seat
+        ? {
+            ...rule,
+            firstApproverRoles: seat.firstApproverRoles,
+            secondApproverRoles: seat.secondApproverRoles,
+          }
+        : rule;
+    }),
+    exceptions: profile.dualRelease.exceptions.filter((e) => !e.sample),
+  };
+  return {
+    ...profile,
+    practiceName: ownBusinessName(profile) || OWN_BUSINESS_FALLBACK_NAME,
+    customPeople: people,
+    customRelations: [],
+    dualRelease,
+  };
+}
+
+/** True when the owner's own business still carries the neutral name setup gave it. */
+export function needsOwnName(
+  profile: Pick<PracticeProfile, "practiceName" | "onboardingComplete">,
+): boolean {
+  return (
+    profile.onboardingComplete !== false && profile.practiceName === OWN_BUSINESS_FALLBACK_NAME
+  );
+}

@@ -69,11 +69,13 @@ import {
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { removeValueProof } from "./value-proof-store";
 import {
+  adoptOwnTeam,
   atBusinessLimit,
   MAX_BUSINESSES_PER_ACCOUNT,
   newBusinessProfile,
   ownSetupProfile,
   processesToEdit,
+  replacesSampleTeam,
   sampleSetupProfile,
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
@@ -873,16 +875,31 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const setCustomPeople = useCallback(
     (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
       pushUndo();
+      // Told once, outside the update: the owner's people replacing the sample's.
+      const before = profileRef.current;
+      const preview =
+        typeof v === "function"
+          ? v(before.customPeople ?? getIndustryTemplate(before.industry).people)
+          : v;
+      if (replacesSampleTeam(before, preview)) {
+        toast("Your team replaced the sample team", {
+          description:
+            "The sample's supplier waiver and its who-knows-what marks are gone. Name your business in the business menu.",
+        });
+      }
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
         const next = typeof v === "function" ? v(current) : v;
-        const nextTemplate = next ? resolveTemplate({ ...p, customPeople: next }) : null;
+        // Replacing the sample's people with the owner's gives the same clean
+        // slate as setup; editing the sample's people keeps the sample.
+        const base = next && replacesSampleTeam(p, next) ? adoptOwnTeam(p, next) : p;
+        const nextTemplate = next ? resolveTemplate({ ...base, customPeople: next }) : null;
         const staff = nextTemplate
-          ? deriveStaffFromTeam(nextTemplate, p.staff, {
-              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, nextTemplate),
+          ? deriveStaffFromTeam(nextTemplate, base.staff, {
+              dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(base.dualRelease, nextTemplate),
             })
-          : p.staff;
-        return { ...p, customPeople: next, staff };
+          : base.staff;
+        return { ...base, customPeople: next, staff };
       });
     },
     [pushUndo],
