@@ -1,5 +1,10 @@
 import type { EntitlementId } from "../sod/conflict-rules";
-import { entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
+import {
+  entitlementsForTitle,
+  matchJobTitle,
+  seatDuties,
+  type JobCatalogEntry,
+} from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
@@ -54,6 +59,18 @@ export function extraDuties(duties: readonly EntitlementId[]): EntitlementId[] {
   return duties.filter((d) => !GRID.has(d) && d !== "view_reports_only");
 }
 
+/**
+ * Duties a row can add beyond the grid's columns, in the rulebook's order:
+ * every duty the rulebook defines that is not a column, not view-only, and
+ * not already held, so a practice manager's user administration or an
+ * estimator's pricing can be entered before the findings.
+ */
+export function addableDuties(duties: readonly EntitlementId[]): EntitlementId[] {
+  return ENTITLEMENTS.map((e) => e.id).filter(
+    (d) => !GRID.has(d) && d !== "view_reports_only" && !duties.includes(d),
+  );
+}
+
 export interface OwnTeamRow {
   name: string;
   role: string;
@@ -68,6 +85,8 @@ export interface OwnTeamRow {
    * the owner set by hand stay.
    */
   suggestedFor?: string;
+  /** The pasted roster says this person is on leave; they stay on the team and are recorded as out. */
+  onLeave?: boolean;
 }
 
 /** The catalog's usual duties for a title, every one of them: columns and chips alike. */
@@ -80,14 +99,54 @@ export function ownerRow(): OwnTeamRow {
   return { name: "", role: "Owner", duties: coreDutiesForTitle("Owner"), suggestedFor: "Owner" };
 }
 
+/** True when a title names the owner's seat ("Owner", "Owner/President", "CEO"). */
+export function isOwnerTitle(role: string): boolean {
+  return matchJobTitle(role)?.entry.id === "owner";
+}
+
+/**
+ * The rows to keep when people are added from a paste or by job title: every
+ * row with a name or with duties ticked, so nothing the owner entered is
+ * dropped. The grid's first row, while it is still the unnamed Owner row,
+ * gives way when the added rows bring their own owner; the result says what
+ * happened to it so the caller can tell the owner.
+ */
+export function rowsKeptForAdding(
+  rows: readonly OwnTeamRow[],
+  addedRowsHaveOwner: boolean,
+): { kept: OwnTeamRow[]; ownerRow: "kept" | "replaced" | "none" } {
+  const first = rows[0];
+  const blankOwner =
+    first !== undefined &&
+    !first.name.trim() &&
+    first.duties.length > 0 &&
+    isOwnerTitle(first.role);
+  const replaced = blankOwner && addedRowsHaveOwner;
+  const kept = rows.filter(
+    (row, index) =>
+      (row.name.trim().length > 0 || row.duties.length > 0) && !(replaced && index === 0),
+  );
+  return { kept, ownerRow: blankOwner ? (replaced ? "replaced" : "kept") : "none" };
+}
+
+/** The index of the first row with duties ticked but no name, which finishing would drop; -1 when none. */
+export function firstUnnamedWithDuties(rows: readonly OwnTeamRow[]): number {
+  return rows.findIndex((row) => !row.name.trim() && row.duties.length > 0);
+}
+
 /**
  * Grid rows for `count` people with the same job, when the owner has no
- * roster to paste: "Server 1", "Server 2", … with the title's core duties
- * ticked. Names are placeholders the owner replaces.
+ * roster to paste: "Server 1", "Server 2", … with the title's core duties in
+ * this line of business ticked. Names are placeholders the owner replaces.
  */
-export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing = 0): OwnTeamRow[] {
+export function rowsForJobTitle(
+  entry: JobCatalogEntry,
+  count: number,
+  existing = 0,
+  industry?: string,
+): OwnTeamRow[] {
   const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
-  const duties = entry.entitlements.filter((d) => d !== "view_reports_only");
+  const duties = seatDuties(entry, industry).filter((d) => d !== "view_reports_only");
   return Array.from({ length: n }, (_, i) => ({
     name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
     role: entry.title,
@@ -99,6 +158,16 @@ export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing 
 /** Maximum people the grid accepts; larger teams continue in the register. */
 export const OWN_TEAM_MAX = 60;
 
+/** The rows that become people, in order: named, and no more than the grid holds. */
+function teamRows(rows: readonly OwnTeamRow[]): OwnTeamRow[] {
+  return rows.filter((row) => row.name.trim().length > 0).slice(0, OWN_TEAM_MAX);
+}
+
+/** The person ids `buildOwnTeam` gives the rows marked as on leave. */
+export function onLeavePersonIds(rows: readonly OwnTeamRow[]): string[] {
+  return teamRows(rows).flatMap((row, index) => (row.onLeave ? [`own-${index + 1}`] : []));
+}
+
 /**
  * Turns the grid rows into people the engines can read. Empty names are
  * dropped, names and roles are trimmed and bounded, and each person carries
@@ -107,7 +176,7 @@ export const OWN_TEAM_MAX = 60;
  */
 export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
   const allowed = new Set<string>(ENTITLEMENTS.map((e) => e.id));
-  return rows
+  return teamRows(rows)
     .map((row) => ({
       name: row.name.trim().slice(0, 60),
       role: row.role.trim().slice(0, 40) || "Team member",
@@ -118,8 +187,6 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
           : undefined,
       department: row.department?.trim().slice(0, 60) || undefined,
     }))
-    .filter((row) => row.name.length > 0)
-    .slice(0, OWN_TEAM_MAX)
     .map((row, index) => ({
       id: `own-${index + 1}`,
       name: row.name,

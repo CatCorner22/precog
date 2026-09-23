@@ -75,6 +75,7 @@ describe("parsePeopleCsv", () => {
       skipped: 0,
       duplicates: 0,
       dropped: 0,
+      onLeave: [],
     });
   });
 
@@ -264,7 +265,11 @@ describe("looksLikeRosterHeader", () => {
   it("rejects a person's row, a report title, and a row with too few column words", () => {
     for (const title of ["Team Member", "Staff", "Employee", "Worker", "Person"]) {
       expect(looksLikeRosterHeader(["Ana Ruiz", ` ${title}`])).toBe(false);
+      expect(looksLikeRosterHeader(["Jose", title])).toBe(false);
+      expect(looksLikeRosterHeader(["maria lopez", title])).toBe(false);
     }
+    // A numbering first cell does not make a name column a person's row.
+    expect(looksLikeRosterHeader(["#", "Employee"])).toBe(true);
     expect(looksLikeRosterHeader(["Ana Ruiz"])).toBe(false);
     expect(looksLikeRosterHeader(["Worker Report - as of 09/01/2026"])).toBe(false);
     expect(looksLikeRosterHeader(["role", "active"])).toBe(false);

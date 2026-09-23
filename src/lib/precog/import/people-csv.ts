@@ -37,6 +37,12 @@ export interface PeopleImportResult {
   duplicates?: number;
   /** Rows past the row limit that were not read. */
   dropped?: number;
+  /**
+   * Ids of people whose status says they are on leave ("Leave", "LOA",
+   * "On Leave", ADP's "L"). They stay on the team; the caller can record
+   * the absence.
+   */
+  onLeave?: string[];
 }
 
 export const PEOPLE_CSV_HEADER = [
@@ -188,10 +194,9 @@ const HEADER_ALIASES = {
     "is active",
     "statut",
     "employment status",
-    "employment type",
-    "employee type",
-    "worker type",
   ],
+  /** Schedule or contract ("Full-Time", "F", "T" for temporary), not whether the person still works here. */
+  worker_type: ["employment type", "employee type", "worker type"],
   inactive_flag: [
     "is hidden",
     "hidden",
@@ -334,6 +339,56 @@ const NAME_SUFFIXES = new Set([
   "ea",
 ]);
 
+/** Generation suffixes stay part of the name ("Ana Ruiz Jr."); credentials follow a comma ("Ben Cole, CPA"). */
+const GENERATION_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
+
+/** Lower-case words that begin a surname: "de la Cruz", "van Dyke". */
+const SURNAME_PARTICLES = new Set([
+  "de",
+  "del",
+  "della",
+  "di",
+  "da",
+  "dos",
+  "du",
+  "la",
+  "le",
+  "van",
+  "von",
+  "der",
+  "den",
+  "ter",
+  "st",
+  "bin",
+  "ibn",
+  "al",
+  "el",
+]);
+
+/** Words that make a cell a company's name, which is never reordered: "Acme Payroll, Inc.". */
+const COMPANY_WORDS = new Set([
+  "inc",
+  "incorporated",
+  "llc",
+  "llp",
+  "lp",
+  "ltd",
+  "limited",
+  "co",
+  "corp",
+  "corporation",
+  "company",
+  "pc",
+  "pllc",
+  "plc",
+  "gmbh",
+  "group",
+  "associates",
+  "partners",
+  "holdings",
+  "services",
+]);
+
 /** First cell of a report footer row: totals, counts, page numbers, run stamps. */
 const FOOTER_PATTERN =
   /^((grand |sub ?)?totals?\b|count[:\s]*\d+\b|page \d+|report (generated|date|run)|generated (on|by|at)|printed (on|by)|end of (report|list)|record count|\d+ (records?|rows?|employees?|people|workers?)\b)/i;
@@ -372,11 +427,6 @@ function hasHeaderWord(cell: string): boolean {
     .toLowerCase()
     .split(/[^a-z]+/);
   return tokens.some((token) => HEADER_WORDS.has(token.replace(/s$/, "")));
-}
-
-/** Two to four capitalised words, as a person's name is written. */
-function looksLikePersonName(value: string): boolean {
-  return /^\p{Lu}[\p{L}'’.-]*(\s+\p{Lu}[\p{L}'’.-]*){1,3}$/u.test(value);
 }
 
 /** Letters and digits only, accents dropped, so "José" and "Jose" are one person. */
@@ -425,10 +475,27 @@ function matchesStatusWord(key: string, words: readonly string[]): boolean {
   return words.some((word) => key === word || (word.length > 3 && key.startsWith(`${word} `)));
 }
 
-function isInactive(value: string): boolean {
+/**
+ * Codes and yes/no words that mean inactive only in a status column. In an
+ * employment type column "T" is temporary, "I" may be intern, and "Term" a
+ * fixed-term contract.
+ */
+const STATUS_ONLY_CODES = new Set(["no", "n", "false", "0", "i", "t", "term"]);
+const TYPE_INACTIVE_WORDS = INACTIVE_WORDS.filter((word) => !STATUS_ONLY_CODES.has(word));
+
+function isInactive(value: string, typeColumn = false): boolean {
   const key = statusKey(value);
   if (!key) return false;
-  return matchesStatusWord(key, INACTIVE_WORDS) || /terminat/.test(key);
+  return (
+    matchesStatusWord(key, typeColumn ? TYPE_INACTIVE_WORDS : INACTIVE_WORDS) ||
+    /terminat/.test(key)
+  );
+}
+
+/** A status that says the person is away but still employed: "Leave", "On Leave", "LOA", "FMLA", ADP's "L". */
+function isOnLeave(value: string): boolean {
+  const key = statusKey(value);
+  return !key.startsWith("active") && (key === "l" || /\b(leave|loa|fmla)\b/.test(key));
 }
 
 function isKnownActive(value: string): boolean {
@@ -440,13 +507,59 @@ function isTrue(value: string): boolean {
   return TRUE_WORDS.includes(value.trim().toLowerCase());
 }
 
-/** "Ruiz, Ana" becomes "Ana Ruiz"; a credential after the comma ("Roe, DDS") stays as written. */
+/** A name part as a lower-case word with its dots dropped: "Jr." is "jr". */
+function wordKey(value: string): string {
+  return value.toLowerCase().replace(/\./g, "").trim();
+}
+
+const NAME_WORD = /^\p{L}[\p{L}'’.-]*$/u;
+
+/** One to three words of letters, as given names are written: "Ana", "Ana Maria", "Ana M.". */
+function looksLikeGivenNames(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= 3 && words.every((w) => NAME_WORD.test(w));
+}
+
+/**
+ * A surname: one to three words of letters ("Ruiz", "Ruiz Lopez", "de la
+ * Cruz"). Strict allows only one word after any particles, for a list line
+ * where "Ana Ruiz, Groomer" must stay a name and a title.
+ */
+function looksLikeSurname(value: string, strict = false): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length < 1 || words.length > 3 || !words.every((w) => NAME_WORD.test(w))) return false;
+  return !strict || words.slice(0, -1).every((w) => SURNAME_PARTICLES.has(wordKey(w)));
+}
+
+function namesCompany(value: string): boolean {
+  return value.includes("&") || value.split(/[\s,]+/).some((w) => COMPANY_WORDS.has(wordKey(w)));
+}
+
+/**
+ * "Ruiz, Ana" becomes "Ana Ruiz", "Diaz, Cal III" becomes "Cal Diaz III",
+ * "Ruiz, Ana, Jr." becomes "Ana Ruiz Jr." and "Cole, Ben, CPA" becomes "Ben
+ * Cole, CPA". A credential alone after the comma ("Jane Roe, DDS"), a
+ * company ("Acme Payroll, Inc.", "Smith, Jones & Co") and anything else that
+ * does not read as a surname and given names stay as written.
+ */
 function reorderLastFirst(name: string): string {
-  const parts = name.split(",");
-  if (parts.length !== 2 || /\d/.test(name)) return name;
-  const [last, first] = parts.map((part) => part.trim());
-  if (!last || !first || NAME_SUFFIXES.has(first.toLowerCase().replace(/\./g, ""))) return name;
-  return `${first} ${last}`;
+  if (/\d/.test(name) || namesCompany(name)) return name;
+  const parts = name.split(",").map((part) => part.trim());
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !part)) return name;
+  const [last, given, credential] = parts;
+  if (NAME_SUFFIXES.has(wordKey(given))) return name;
+  if (credential !== undefined && !NAME_SUFFIXES.has(wordKey(credential))) return name;
+  const givenWords = given.split(/\s+/);
+  const trailing: string[] = [];
+  while (givenWords.length > 1 && GENERATION_SUFFIXES.has(wordKey(givenWords.at(-1)!))) {
+    trailing.unshift(givenWords.pop()!);
+  }
+  if (!looksLikeSurname(last) || !looksLikeGivenNames(givenWords.join(" "))) return name;
+  const reordered = [...givenWords, last, ...trailing].join(" ");
+  if (credential === undefined) return reordered;
+  return GENERATION_SUFFIXES.has(wordKey(credential))
+    ? `${reordered} ${credential}`
+    : `${reordered}, ${credential}`;
 }
 
 const MONTHS = [
@@ -603,6 +716,7 @@ function emptyResult(issues: PeopleImportIssue[], removed: Person[]): PeopleImpo
     skipped: 0,
     duplicates: 0,
     dropped: 0,
+    onLeave: [],
   };
 }
 
@@ -631,17 +745,24 @@ export function parsePeopleCsv(
   return parsePeopleRows(parseRows(text, sniffDelimiter(text)), tpl, opts);
 }
 
+/** A first cell that numbers the rows rather than naming anyone: "#", "No.". */
+function isIndexCell(value: string): boolean {
+  return !/\p{L}/u.test(value) || /^(no|nr|num)\.?$/i.test(value);
+}
+
 /**
  * True when a row is a header the importer understands: it names a name
  * column, first and last name columns, or three or more known column words.
- * A row whose first cell reads as a person's name is data, even when a later
- * cell is a name alias ("Ana Ruiz, Team Member").
+ * A row whose only column words are name aliases is data unless its first
+ * cell is a column word too: "Ana Ruiz, Team Member" and "Jose, Staff" are
+ * people with their titles.
  */
 export function looksLikeRosterHeader(cells: readonly string[]): boolean {
   const fields = cells.map(headerField);
   const first = cells[0]?.trim() ?? "";
   const onlyNameHits = fields.every((field) => field === undefined || field === "name");
-  if (fields[0] === undefined && looksLikePersonName(first) && onlyNameHits) return false;
+  const firstIsData = fields[0] === undefined && !hasHeaderWord(first) && !isIndexCell(first);
+  if (firstIsData && onlyNameHits) return false;
   if (fields.includes("name")) return true;
   if (fields.includes("first_name") && fields.includes("last_name")) return true;
   return cells.filter(hasHeaderWord).length >= 3;
@@ -659,6 +780,8 @@ interface ColumnMap {
   tenure?: number;
   /** Status columns, best alias first; only the first reports unknown words. */
   statuses: number[];
+  /** Employment type columns: only a full inactive word there ("Terminated") counts. */
+  workerTypes: number[];
   inactiveFlags: number[];
   lastDay?: number;
   entitlements?: number;
@@ -699,6 +822,7 @@ function mapColumns(header: readonly string[], rows: readonly string[][]): Colum
     hireDate: first("hire_date"),
     tenure: first("tenure_years"),
     statuses: rankedColumns(header, "active"),
+    workerTypes: rankedColumns(header, "worker_type"),
     inactiveFlags: rankedColumns(header, "inactive_flag"),
     lastDay: first("last_day"),
     entitlements: first("entitlements"),
@@ -726,7 +850,11 @@ interface ImportContext {
   issues: PeopleImportIssue[];
   unknownEntitlements: string[];
   unknownStatuses: Set<string>;
-  seenTitles: Map<string, Set<string>>;
+  /** Titles and employee ids seen so far for each name. */
+  seenNames: Map<string, { titleKeys: Set<string>; idKeys: Set<string> }>;
+  /** People read so far by employee id, with every title seen for that id. */
+  byEmployeeId: Map<string, { person: Person; titleKeys: Set<string> }>;
+  onLeave: string[];
   existingByName: Map<string, Person>;
   usedIds: Set<string>;
 }
@@ -755,18 +883,28 @@ function readName(
   return { name: split ? name : reorderLastFirst(name), idInName: withId?.[2] ?? "" };
 }
 
-function readActive(context: ImportContext, cells: readonly string[], row: number): boolean {
+/** Whether the row's person works here, and the status that says they are on leave, if any. */
+function readActive(
+  context: ImportContext,
+  cells: readonly string[],
+  row: number,
+): { active: boolean; leave?: string } {
   let inactive = false;
+  let leave: string | undefined;
   context.columns.statuses.forEach((column, index) => {
     const value = cellAt(cells, column);
     if (!value) return;
     if (isInactive(value)) inactive = true;
+    else if (isOnLeave(value)) leave ??= value;
     else if (index === 0 && !isKnownActive(value)) reportUnknownStatus(context, value, row);
   });
+  for (const column of context.columns.workerTypes) {
+    if (isInactive(cellAt(cells, column), true)) inactive = true;
+  }
   for (const column of context.columns.inactiveFlags) {
     if (isTrue(cellAt(cells, column))) inactive = true;
   }
-  return !inactive;
+  return inactive ? { active: false } : { active: true, ...(leave ? { leave } : {}) };
 }
 
 function reportUnknownStatus(context: ImportContext, value: string, row: number): void {
@@ -855,32 +993,110 @@ function catalogHit(titleValues: readonly string[], industry: string) {
   return undefined;
 }
 
-/** True when the row repeats an earlier row's name and title; reports both kinds of repeat. */
-function isDuplicate(context: ImportContext, name: string, title: string, row: number): boolean {
+interface EmployeeSeat {
+  person: Person;
+  titleKeys: Set<string>;
+}
+
+/**
+ * How a row relates to the rows before it. When both rows carry an employee
+ * id, the id decides: the same id and title is a repeat, the same id with
+ * another title is a second position of one person, and another id is
+ * another person even with the same name and title. Otherwise the same name
+ * and title is a repeat. Every kind of repeat is reported.
+ */
+function repeatOf(
+  context: ImportContext,
+  name: string,
+  title: string,
+  employeeId: string,
+  row: number,
+): "new" | "duplicate" | EmployeeSeat {
   const key = nameKey(name);
   const titleKey = nameKey(title);
-  const earlier = context.seenTitles.get(key);
-  if (earlier?.has(titleKey)) {
+  const idKey = nameKey(employeeId);
+  const sameId = idKey ? context.byEmployeeId.get(idKey) : undefined;
+  if (sameId && nameKey(sameId.person.name) === key) {
+    if (!sameId.titleKeys.has(titleKey)) return sameId;
     context.issues.push({ row, message: `"${name}" appears twice; second copy skipped` });
-    return true;
+    return "duplicate";
   }
-  if (earlier) {
+  if (sameId) {
+    context.issues.push({
+      row,
+      message: `Employee ID "${employeeId}" is on rows for "${sameId.person.name}" and "${name}"; kept both, check which is right`,
+    });
+  }
+  const earlier = context.seenNames.get(key);
+  if (!earlier) {
+    context.seenNames.set(key, { titleKeys: new Set([titleKey]), idKeys: new Set([idKey]) });
+    return "new";
+  }
+  if (idKey && [...earlier.idKeys].some((other) => other && other !== idKey)) {
+    context.issues.push({
+      row,
+      message: `"${name}" appears twice with different employee IDs; kept as two people`,
+    });
+  } else if (earlier.titleKeys.has(titleKey)) {
+    context.issues.push({ row, message: `"${name}" appears twice; second copy skipped` });
+    return "duplicate";
+  } else {
     context.issues.push({
       row,
       message: `"${name}" appears twice with different titles; check whether this is one person`,
     });
-    earlier.add(titleKey);
-  } else {
-    context.seenTitles.set(key, new Set([titleKey]));
   }
-  return false;
+  earlier.titleKeys.add(titleKey);
+  earlier.idKeys.add(idKey);
+  return "new";
 }
+
+/**
+ * A second position for someone already read under the same employee id:
+ * one person holding both jobs, so the duties of both are checked together.
+ * An inactive second position is left out; an active one replaces an
+ * inactive first one.
+ */
+function addPosition(
+  context: ImportContext,
+  seat: EmployeeSeat,
+  position: { title: string; role: string; duties: readonly string[]; active: boolean },
+  employeeId: string,
+  row: number,
+): void {
+  const { person } = seat;
+  seat.titleKeys.add(nameKey(position.title));
+  const who = `"${person.name}" (employee ID ${employeeId})`;
+  if (!position.active) {
+    context.issues.push({
+      row,
+      message: `${who}: the ${position.role} position is marked inactive, so its duties are left out`,
+    });
+    return;
+  }
+  const earlierDuties = person.entitlements ?? context.tpl.roleTemplates[person.role] ?? [];
+  if (!person.active) {
+    person.active = true;
+    person.role = tidyCut(position.role, 40);
+    person.entitlements = position.duties.length ? [...position.duties] : undefined;
+    return;
+  }
+  const union = Array.from(new Set([...earlierDuties, ...position.duties]));
+  context.issues.push({
+    row,
+    message: `${who} holds two positions, ${person.role} and ${position.role}; read as one person with the duties of both`,
+  });
+  person.role = tidyCut(`${person.role} / ${position.role}`, 40);
+  person.entitlements = union.length ? union : undefined;
+}
+
+type RowRead = { person: Person; mapping: TitleMapping } | { position: TitleMapping };
 
 function readPerson(
   context: ImportContext,
   cells: readonly string[],
   row: number,
-): { person: Person; mapping: TitleMapping } | "skip" | "duplicate" {
+): RowRead | "skip" | "duplicate" {
   const { tpl, columns } = context;
   const { name, idInName } = readName(cells, columns);
   if (!name) {
@@ -889,13 +1105,14 @@ function readPerson(
   }
   const titleValues = columns.titles.map((column) => cellAt(cells, column)).filter(Boolean);
   const roleValue = titleValues[0] ?? "";
-  if (isDuplicate(context, name, roleValue, row)) return "duplicate";
+  const employeeId = cellAt(cells, columns.employeeId) || idInName;
+  const repeat = repeatOf(context, name, roleValue, employeeId, row);
+  if (repeat === "duplicate") return "duplicate";
 
   const role = canonicalRole(roleValue || "Team member", tpl.roleTemplates);
   const department = tidyCut(cellAt(cells, columns.department), 60);
-  const employeeId = cellAt(cells, columns.employeeId) || idInName;
   const tenureYears = readTenure(context, cells, row);
-  const active = readActive(context, cells, row);
+  const status = readActive(context, cells, row);
 
   // Only the first row naming someone already on the team takes over that
   // person's identity; later rows with that name are new people.
@@ -925,6 +1142,18 @@ function readPerson(
     });
   }
 
+  if (repeat !== "new") {
+    const positionDuties = duties.length ? duties : templateRole ? tpl.roleTemplates[role] : [];
+    addPosition(
+      context,
+      repeat,
+      { title: roleValue, role, duties: positionDuties, active: status.active },
+      employeeId,
+      row,
+    );
+    return { position: mapping };
+  }
+
   const baseId = existing
     ? existing.id
     : employeeId
@@ -938,12 +1167,23 @@ function readPerson(
     id,
     name: name.slice(0, 60),
     role: tidyCut(role, 40),
-    active,
+    active: status.active,
     tenureYears,
     ...(lastDay ? { lastDay } : {}),
     entitlements: duties.length ? duties : undefined,
     ...(department ? { department } : {}),
   };
+  const idKey = nameKey(employeeId);
+  if (idKey && !context.byEmployeeId.has(idKey)) {
+    context.byEmployeeId.set(idKey, { person, titleKeys: new Set([nameKey(roleValue)]) });
+  }
+  if (status.leave) {
+    context.onLeave.push(id);
+    context.issues.push({
+      row,
+      message: `"${person.name}" is on leave (status "${status.leave}"); kept on the team`,
+    });
+  }
   return { person, mapping };
 }
 
@@ -1010,7 +1250,9 @@ export function parsePeopleRows(
     issues,
     unknownEntitlements: [],
     unknownStatuses: new Set(),
-    seenTitles: new Map(),
+    seenNames: new Map(),
+    byEmployeeId: new Map(),
+    onLeave: [],
     existingByName,
     usedIds: new Set(),
   };
@@ -1022,6 +1264,10 @@ export function parsePeopleRows(
     const read = readPerson(context, cells, row);
     if (read === "duplicate") duplicates += 1;
     if (typeof read === "string") continue;
+    if ("position" in read) {
+      titles.push(read.position);
+      continue;
+    }
     people.push(read.person);
     titles.push(read.mapping);
   }
@@ -1036,6 +1282,7 @@ export function parsePeopleRows(
     skipped,
     duplicates,
     dropped,
+    onLeave: context.onLeave,
   };
 }
 
@@ -1074,20 +1321,52 @@ export function peopleToCsv(people: readonly Person[]): string {
   return `${rows.join("\r\n")}\r\n`;
 }
 
-/** Splits one line of a headerless list into name, title and department. */
+const SPACED_DASH = /\s[-–—]\s/;
+
+/**
+ * True when the text before a dash or a bracket is a "Last, First" name
+ * rather than a name and a title: "Smith, John", "Roe, Jane, DDS". The part
+ * after the comma must not be a known title, and either the surname is one
+ * word or the part after the dash is a known title ("Ruiz Lopez, Ana - Cook").
+ */
+function leadsWithLastFirst(head: string, next: string): boolean {
+  const pieces = head.split(",").map((piece) => piece.trim());
+  if (pieces.length < 2 || pieces.length > 3) return false;
+  const [last, given, credential] = pieces;
+  if (credential !== undefined && !NAME_SUFFIXES.has(wordKey(credential))) return false;
+  if (!looksLikeGivenNames(given) || matchJobTitle(given)) return false;
+  return looksLikeSurname(last, true) || (looksLikeSurname(last) && Boolean(matchJobTitle(next)));
+}
+
+/**
+ * Splits one line of a headerless list into name, title and department: on
+ * tabs first, then " | ", then ": ", then commas or spaced dashes, whichever
+ * separates the name ("Ana Ruiz, Front Desk - Evenings" keeps its title whole;
+ * "Smith, John - Bookkeeper" is a "Last, First" name), then a bracket.
+ */
 export function splitListLine(line: string): string[] {
   const source = line.trim().replace(LIST_MARKER, "");
-  const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
-  const parts = /\s[-–—]\s/.test(source)
-    ? source.split(/\s[-–—]\s/)
-    : source.includes("\t")
-      ? source.split("\t")
-      : source.includes(" | ")
-        ? source.split(" | ")
-        : source.includes(": ")
-          ? source.split(": ")
-          : parenthetical
-            ? [parenthetical[1], parenthetical[2]]
-            : (parseRows(source, ",")[0] ?? [source]);
+  let parts: string[];
+  if (source.includes("\t")) parts = source.split("\t");
+  else if (source.includes(" | ")) parts = source.split(" | ");
+  else if (source.includes(": ")) parts = source.split(": ");
+  else {
+    const dash = source.search(SPACED_DASH);
+    const comma = source.indexOf(",");
+    const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
+    if (dash >= 0 && (comma < 0 || comma > dash)) parts = source.split(SPACED_DASH);
+    else if (
+      dash >= 0 &&
+      leadsWithLastFirst(source.slice(0, dash), source.slice(dash).split(SPACED_DASH)[1] ?? "")
+    ) {
+      parts = source.split(SPACED_DASH);
+    } else if (
+      parenthetical &&
+      (comma < 0 || leadsWithLastFirst(parenthetical[1], parenthetical[2]))
+    ) {
+      parts = [parenthetical[1], parenthetical[2]];
+    } else if (comma >= 0) parts = parseRows(source, ",")[0] ?? [source];
+    else parts = [source];
+  }
   return parts.map((part) => part.trim());
 }

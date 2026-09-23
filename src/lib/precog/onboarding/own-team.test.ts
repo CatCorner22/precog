@@ -6,11 +6,16 @@ import { resolveTemplate } from "../active-template";
 import {
   CORE_DUTIES,
   OWN_TEAM_MAX,
+  addableDuties,
   buildOwnTeam,
   coreDutiesForTitle,
+  firstUnnamedWithDuties,
+  onLeavePersonIds,
   ownerRow,
   ownBusinessProfile,
   rowsForJobTitle,
+  rowsKeptForAdding,
+  type OwnTeamRow,
 } from "./own-team";
 
 describe("buildOwnTeam", () => {
@@ -110,9 +115,15 @@ describe("rowsForJobTitle", () => {
     expect(rowsForJobTitle(controller, 0)).toEqual([]);
     const [row] = rowsForJobTitle(controller, 1);
     expect(row.duties).toEqual(
-      expect.arrayContaining(["release_payment", "bank_reconcile", "approve_payroll"]),
+      expect.arrayContaining(["release_payment", "bank_reconcile", "sign_checks"]),
     );
     expect(row.duties).toContain("post_journal_entries");
+  });
+
+  it("adds an office manager's reconciliation in a dental office, as the title match does", () => {
+    const office = jobCatalogEntry("office-manager")!;
+    expect(rowsForJobTitle(office, 1, 0, "dental")[0].duties).toContain("bank_reconcile");
+    expect(rowsForJobTitle(office, 1, 0, "general")[0].duties).not.toContain("bank_reconcile");
   });
 });
 
@@ -136,7 +147,9 @@ describe("grid rows from a roster", () => {
   it("starts the grid with an owner whose usual duties are ticked", () => {
     const row = ownerRow();
     expect(row.role).toBe("Owner");
-    expect(row.duties).toEqual(expect.arrayContaining(["bank_reconcile", "approve_payroll"]));
+    expect(row.duties).toEqual(expect.arrayContaining(["approve_payroll", "approve_writeoffs"]));
+    // Reconciling the bank is left for the owner to tick: a bookkeeper usually does it.
+    expect(row.duties).not.toContain("bank_reconcile");
     expect(row.suggestedFor).toBe("Owner");
     expect(coreDutiesForTitle("Chief Happiness Wrangler")).toEqual([]);
   });
@@ -163,5 +176,68 @@ describe("an own business's policy and staff flags", () => {
       ]),
     });
     expect(tangled.staff.independentBankRec).toBe(false);
+  });
+});
+
+describe("the unnamed Owner row when people are added", () => {
+  const fresh = (): OwnTeamRow[] => [
+    ownerRow(),
+    { name: "", role: "", duties: [] },
+    { name: "", role: "", duties: [] },
+  ];
+
+  it("keeps the Owner row with its duties when a pasted roster or Add 3 Server has no owner", () => {
+    const { kept, ownerRow: owner } = rowsKeptForAdding(fresh(), false);
+    expect(owner).toBe("kept");
+    expect(kept).toEqual([ownerRow()]);
+  });
+
+  it("lets an owner in the paste take the place of the empty Owner row", () => {
+    const { kept, ownerRow: owner } = rowsKeptForAdding(fresh(), true);
+    expect(owner).toBe("replaced");
+    expect(kept).toEqual([]);
+  });
+
+  it("keeps named rows and unnamed rows with duties ticked, and drops empty ones", () => {
+    const rows: OwnTeamRow[] = [
+      { ...ownerRow(), name: "Dana" },
+      { name: "", role: "Bookkeeper", duties: ["bank_reconcile"] },
+      { name: "", role: "", duties: [] },
+    ];
+    const { kept, ownerRow: owner } = rowsKeptForAdding(rows, true);
+    expect(owner).toBe("none");
+    expect(kept.map((r) => r.role)).toEqual(["Owner", "Bookkeeper"]);
+  });
+
+  it("points at a row that finishing would drop with its duties", () => {
+    expect(firstUnnamedWithDuties(fresh())).toBe(0);
+    expect(firstUnnamedWithDuties([{ ...ownerRow(), name: "Dana" }, ...fresh().slice(1)])).toBe(-1);
+  });
+});
+
+describe("duties beyond the grid columns", () => {
+  it("offers every rulebook duty that is not a column, view-only, or already held", () => {
+    const offered = addableDuties(["manage_user_access", "collect_cash"]);
+    expect(offered).toContain("change_fee_schedule");
+    expect(offered).toContain("pms_admin_roles");
+    expect(offered).not.toContain("manage_user_access");
+    expect(offered).not.toContain("view_reports_only");
+    for (const column of CORE_DUTIES) expect(offered).not.toContain(column);
+  });
+});
+
+describe("people on leave in a pasted roster", () => {
+  it("gives the rows marked on leave the ids buildOwnTeam gives them", () => {
+    const rows: OwnTeamRow[] = [
+      { name: "", role: "", duties: [] },
+      { name: "Rosa Alvarez", role: "Medical Assistant", duties: [] },
+      { name: "Layla Haddad", role: "Medical Assistant - Float", duties: [], onLeave: true },
+    ];
+    const people = buildOwnTeam(rows);
+    expect(onLeavePersonIds(rows)).toEqual(["own-2"]);
+    expect(people.find((p) => p.id === "own-2")).toMatchObject({
+      name: "Layla Haddad",
+      active: true,
+    });
   });
 });
