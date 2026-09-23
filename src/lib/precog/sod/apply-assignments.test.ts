@@ -66,3 +66,31 @@ describe("applyAssignmentsToPeople", () => {
     expect(next[0]).toMatchObject({ name: "Ana", role: "Owner" });
   });
 });
+
+describe("duties guessed from a job title", () => {
+  const guessed: Person[] = [
+    {
+      id: "own-1",
+      name: "Ben",
+      role: "Bookkeeper",
+      active: true,
+      entitlements: ["bank_reconcile", "post_payments", "view_reports_only"],
+      dutiesFromTitle: true,
+    },
+  ];
+
+  it("stay marked when the power map writes the same duties back", () => {
+    const [ben] = applyAssignmentsToPeople(guessed, [
+      assignment("own-1", ["post_payments", "bank_reconcile"], { personName: "Ben" }),
+    ]);
+    expect(ben.dutiesFromTitle).toBe(true);
+  });
+
+  it("stop being marked once the owner unticks one on the power map", () => {
+    const [ben] = applyAssignmentsToPeople(guessed, [
+      assignment("own-1", ["post_payments"], { personName: "Ben" }),
+    ]);
+    expect(ben).not.toHaveProperty("dutiesFromTitle");
+    expect(ben.entitlements).toEqual(["post_payments"]);
+  });
+});
