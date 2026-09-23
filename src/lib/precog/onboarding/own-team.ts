@@ -155,6 +155,12 @@ export function rowsForJobTitle(
   }));
 }
 
+/**
+ * Longest job title kept, in characters: long enough for real titles such as
+ * "Site Director / Physical Therapist - Riverside" and cut nowhere else.
+ */
+export const MAX_ROLE_LENGTH = 80;
+
 /** Maximum people the grid accepts; larger teams continue in the register. */
 export const OWN_TEAM_MAX = 60;
 
@@ -179,7 +185,7 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
   return teamRows(rows)
     .map((row) => ({
       name: row.name.trim().slice(0, 60),
-      role: row.role.trim().slice(0, 40) || "Team member",
+      role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
       duties: row.duties.filter((d) => allowed.has(d)),
       tenureYears:
         typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)

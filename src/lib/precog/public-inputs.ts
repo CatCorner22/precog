@@ -116,7 +116,7 @@ const reviewSchema = z.object({
   processes: list(reviewProcessSchema, 40).nullish(),
   issues: list(text(160), 10).nullish(),
   overburdened: list(
-    z.object({ name: text(60), role: text(40), flags: list(text(80), 4).nullish() }),
+    z.object({ name: text(60), role: text(80), flags: list(text(80), 4).nullish() }),
     4,
   ).nullish(),
   unownedProcesses: list(text(80), 10).nullish(),

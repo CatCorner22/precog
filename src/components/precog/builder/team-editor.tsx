@@ -20,6 +20,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { parseRoster } from "@/lib/precog/import/roster";
+import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";
 import {
   parsePeopleCsv,
   removedPeopleImpact,
@@ -126,7 +127,7 @@ export function TeamEditor({
       {
         id,
         name: name.trim().slice(0, 60),
-        role: finalRole.slice(0, 40),
+        role: finalRole.slice(0, MAX_ROLE_LENGTH),
         active: true,
         tenureYears: tenure === "" ? undefined : tenure,
         entitlements: useCustom

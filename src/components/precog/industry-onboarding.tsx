@@ -17,6 +17,7 @@ import {
   extraDuties,
   firstUnnamedWithDuties,
   isOwnerTitle,
+  MAX_ROLE_LENGTH,
   onLeavePersonIds,
   ownerRow,
   rowsKeptForAdding,
@@ -634,7 +635,7 @@ export function IndustryOnboarding() {
                             value={row.role}
                             onChange={(e) => updateRow(index, { role: e.target.value })}
                             onBlur={() => suggestDuties(index)}
-                            maxLength={40}
+                            maxLength={MAX_ROLE_LENGTH}
                           />
                           {extraDuties(row.duties).length > 0 && (
                             <ul

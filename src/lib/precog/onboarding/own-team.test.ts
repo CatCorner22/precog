@@ -243,3 +243,15 @@ describe("people on leave in a pasted roster", () => {
     });
   });
 });
+
+describe("long job titles", () => {
+  it("keeps a real 46-character title whole and bounds a runaway one at 80", () => {
+    const title = "Site Director / Physical Therapist - Riverside";
+    const [site, runaway] = buildOwnTeam([
+      { name: "Dana Ruiz", role: title, duties: [] },
+      { name: "Lee Park", role: "x".repeat(200), duties: [] },
+    ]);
+    expect(site.role).toBe(title);
+    expect(runaway.role).toHaveLength(80);
+  });
+});
