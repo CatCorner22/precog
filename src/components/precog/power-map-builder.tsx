@@ -31,9 +31,9 @@ import {
 } from "lucide-react";
 import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
+import { JOB_CATALOG, jobCatalogEntry, seatDuties } from "@/lib/precog/onboarding/job-catalog";
 import {
   buildAssignments,
-  COMMON_JOB_TEMPLATES,
   detectSodConflicts,
   sodDetectionOptions,
   type DetectedConflict,
@@ -111,7 +111,9 @@ export function PowerMapBuilder() {
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
-  const [newRole, setNewRole] = useState("Receptionist");
+  // Simulated hires come from the same job catalog the setup grid uses, seated
+  // for this line of business; the sample's dental role list suits no one else.
+  const [newJobId, setNewJobId] = useState(JOB_CATALOG[0]?.id ?? "");
   const [simulationName, setSimulationName] = useState("");
   const [history, setHistory] = useState<RoleAssignment[][]>([]);
   const [absentPersonId, setAbsentPersonId] = useState("");
@@ -260,16 +262,16 @@ export function PowerMapBuilder() {
   }
 
   function addSimulationRole() {
-    const template = COMMON_JOB_TEMPLATES.find((item) => item.role === newRole);
-    if (!template) return;
+    const job = jobCatalogEntry(newJobId);
+    if (!job) return;
     const id = `sim-${Date.now().toString(36)}`;
     commit([
       ...assignments,
       {
         personId: id,
-        personName: simulationName.trim().slice(0, 40) || `Proposed ${newRole}`,
-        role: newRole,
-        entitlements: [...template.entitlements],
+        personName: simulationName.trim().slice(0, 40) || `Proposed ${job.title}`,
+        role: job.title,
+        entitlements: seatDuties(job, profile.industry),
       },
     ]);
     setSelectedId(id);
@@ -277,7 +279,26 @@ export function PowerMapBuilder() {
   }
 
   function reset() {
-    // Back to what each person's role implies, with simulated hires removed.
+    // An owner's own team goes back to the baseline they last accepted; its
+    // people carry the duties the owner entered, and a job's usual duties
+    // would overwrite them. The sample goes back to its role defaults.
+    const ownTeam = tpl.people.some((person) => (person.entitlements?.length ?? 0) > 0);
+    if (
+      !window.confirm(
+        ownTeam
+          ? "Put every person's duties back to the baseline you last accepted, and remove simulated hires? Changes since then are undone."
+          : "Put every person back to the duties their role implies, and remove simulated hires?",
+      )
+    ) {
+      return;
+    }
+    if (ownTeam) {
+      const accepted = baseline.filter((person) => !person.personId.startsWith("sim-"));
+      commit(accepted);
+      setSelectedId(accepted[0]?.personId ?? "");
+      setConflictsOnly(false);
+      return;
+    }
     const defaults = buildAssignments({
       ...tpl,
       people: tpl.people
@@ -367,13 +388,13 @@ export function PowerMapBuilder() {
           icon={Users}
           label="People / jobs"
           value={assignments.length}
-          detail={`${COMMON_JOB_TEMPLATES.length} templates available`}
+          detail={`${JOB_CATALOG.length} job titles to simulate a hire`}
         />
         <Metric
           icon={UserRoundCheck}
-          label="Continuity"
+          label="Duty backup (this app's index, 0 to 100)"
           value={coverage.resilienceScore}
-          detail={`${coverage.unassigned.length} gaps · ${coverage.singlePoints.length} single points`}
+          detail={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds (some may not apply)`}
           danger={coverage.unassigned.length > 0}
         />
         <Metric
@@ -580,36 +601,48 @@ export function PowerMapBuilder() {
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Continuity planner</CardTitle>
+              <CardTitle className="text-base">Backup suggestions</CardTitle>
               <CardDescription>
-                Conflict-free ownership and backup recommendations, ranked by continuity improvement
-                and current workload. Apply a suggestion, inspect the new scores, and undo if
-                needed.
+                For high-risk duties only one person holds: people who already hold a significant
+                duty in the same process and hold no conflict, where adding the duty creates no
+                conflict the rules detect. Check each person can actually do the work before you
+                assign it; undo is one click.
               </CardDescription>
             </div>
             {coverageProgram.steps.length > 1 && (
-              <Button size="sm" onClick={() => commit(coverageProgram.nextAssignments)}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Assign all ${coverageProgram.steps.length} suggested backups? Check each person can do the work; you can undo.`,
+                    )
+                  ) {
+                    commit(coverageProgram.nextAssignments);
+                  }
+                }}
+              >
                 <ShieldCheck className="size-3.5" />
-                Apply safe program
+                Assign all suggested backups
               </Button>
             )}
           </CardHeader>
           {coverageProgram.steps.length > 1 && (
             <CardContent className="grid gap-2 border-t border-border py-3 sm:grid-cols-3">
               <ImpactMetric
-                label="Safe assignments"
+                label="Suggested backups"
                 value={String(coverageProgram.steps.length)}
-                detail="Recalculated sequentially"
+                detail="Recalculated after each one"
               />
               <ImpactMetric
-                label="Projected continuity"
+                label="Projected duty backup"
                 value={`${coverageProgram.projectedScore}/100`}
                 detail={`+${coverageProgram.projectedScore - coverageProgram.startingScore} points`}
               />
               <ImpactMetric
-                label="Remaining weaknesses"
+                label="Still one holder"
                 value={String(coverageProgram.unresolvedGaps)}
-                detail="Need manual control design"
+                detail="Need someone outside, or a control"
                 danger={coverageProgram.unresolvedGaps > 0}
               />
             </CardContent>
@@ -631,7 +664,8 @@ export function PowerMapBuilder() {
                       </Badge>
                       <p className="mt-2 text-sm font-medium">{first.dutyLabel}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        Choose a candidate below; none creates a new detected SoD conflict.
+                        Each candidate works in this duty&apos;s process already and adds no
+                        conflict the rules detect.
                       </p>
                     </div>
                     <div className="grid gap-2 xl:grid-cols-3">
@@ -897,12 +931,15 @@ export function PowerMapBuilder() {
               />
               <div className="flex gap-2">
                 <select
-                  value={newRole}
-                  onChange={(event) => setNewRole(event.target.value)}
+                  value={newJobId}
+                  onChange={(event) => setNewJobId(event.target.value)}
+                  aria-label="Job title for a simulated hire"
                   className="min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
                 >
-                  {COMMON_JOB_TEMPLATES.map((item) => (
-                    <option key={item.role}>{item.role}</option>
+                  {JOB_CATALOG.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
                   ))}
                 </select>
                 <Button size="sm" onClick={addSimulationRole}>

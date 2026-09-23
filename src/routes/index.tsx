@@ -571,308 +571,323 @@ function Home() {
         className="mx-auto max-w-7xl px-4 py-6 sm:px-6"
       >
         {/* prettier-ignore */}
-        <TabErrorBoundary resetKey={tab} onReset={() => navigateTab("start")}><Suspense fallback={<TabLoading />}>
-        {tab === "start" && <StartHere onOpenDetail={navigateTab} />}
+        {/* Keyed on the business, so switching businesses remounts every tab:
+            no unsaved form input, import note or Power map baseline carries
+            from one business into another. */}
+        <TabErrorBoundary
+          key={profile.businessId ?? "biz_default"}
+          resetKey={tab}
+          onReset={() => navigateTab("start")}
+        >
+          <Suspense fallback={<TabLoading />}>
+            {tab === "start" && <StartHere onOpenDetail={navigateTab} />}
 
-        {tab === "command" && (
-          <div className="space-y-6">
-            <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-              <Badge variant="accent">{industry.label} · internal controls</Badge>
-              <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
-                Know your residual risk before it becomes a loss
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
-                {industry.tagline}. Precog Pioneer scores SoD gaps, knowledge single points of
-                failure, and financial scenarios — then tells you what to fix this week. Built for
-                owner-operated {pluralTeamLabel(profile.industry)} of 2 to {OWN_TEAM_MAX} people.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button onClick={() => setTab("sod")}>
-                  Review SoD ({sodReport.conflicts.length})
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
+            {tab === "command" && (
+              <div className="space-y-6">
+                <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+                  <Badge variant="accent">{industry.label} · internal controls</Badge>
+                  <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Know your residual risk before it becomes a loss
+                  </h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
+                    {industry.tagline}. Precog Pioneer scores SoD gaps, knowledge single points of
+                    failure, and financial scenarios — then tells you what to fix this week. Built
+                    for owner-operated {pluralTeamLabel(profile.industry)} of 2 to {OWN_TEAM_MAX}{" "}
+                    people.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button onClick={() => setTab("sod")}>
+                      Review SoD ({sodReport.conflicts.length})
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setMapBuild(false);
+                        setTab("map");
+                      }}
+                    >
+                      Process map
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setMapBuild(true);
+                        setTab("map");
+                      }}
+                    >
+                      <Hammer className="size-4" />
+                      Build your map
+                    </Button>
+                    <Button variant="outline" onClick={() => setTab("pioneer")}>
+                      Ask advisor
+                    </Button>
+                    <Link
+                      to="/threat"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+                    >
+                      <Crosshair className="size-4" />
+                      Threat view
+                    </Link>
+                    <Link
+                      to="/report"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+                    >
+                      <FileText className="size-4" />
+                      PDF report
+                    </Link>
+                  </div>
+                </section>
+
+                <MapHealthCard
+                  onOpenMap={(id) => {
                     setMapBuild(false);
+                    setProcessId(id ?? null);
                     setTab("map");
                   }}
-                >
-                  Process map
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
+                  onBuildMap={() => {
                     setMapBuild(true);
                     setTab("map");
                   }}
-                >
-                  <Hammer className="size-4" />
-                  Build your map
-                </Button>
-                <Button variant="outline" onClick={() => setTab("pioneer")}>
-                  Ask advisor
-                </Button>
-                <Link
-                  to="/threat"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
-                >
-                  <Crosshair className="size-4" />
-                  Threat view
-                </Link>
-                <Link
-                  to="/report"
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
-                >
-                  <FileText className="size-4" />
-                  PDF report
-                </Link>
+                />
+
+                <IndexBasis />
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <MetricCard
+                    label="Map health"
+                    value={mapReady ? String(mapHealth.score) : "—"}
+                    hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
+                    tone={
+                      !mapReady || mapHealth.score >= HEALTH_SCALE.adequate
+                        ? "primary"
+                        : mapHealth.score >= HEALTH_SCALE.weak
+                          ? "warn"
+                          : "danger"
+                    }
+                    onClick={() => {
+                      setMapBuild(true);
+                      setTab("map");
+                    }}
+                  />
+                  <MetricCard
+                    label="Avg residual"
+                    value={String(portfolio.averageResidual)}
+                    hint={`${portfolio.criticalPath} critical`}
+                    tone={
+                      portfolio.averageResidual >= RISK_SCALE.actNow
+                        ? "danger"
+                        : portfolio.averageResidual >= RISK_SCALE.mitigate
+                          ? "warn"
+                          : "primary"
+                    }
+                    onClick={() => setTab("residual")}
+                  />
+                  <MetricCard
+                    label="SoD health"
+                    value={String(sodReport.summary.segregationHealth)}
+                    hint={`${sodReport.summary.critical} critical conflicts`}
+                    tone={
+                      sodReport.summary.segregationHealth < HEALTH_SCALE.weak
+                        ? "danger"
+                        : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
+                          ? "warn"
+                          : "primary"
+                    }
+                    onClick={() => setTab("sod")}
+                  />
+                  <MetricCard
+                    label="COSO"
+                    value={String(coso.overall)}
+                    hint={coso.overallStatus}
+                    tone="primary"
+                    onClick={() => setTab("coso")}
+                  />
+                  <MetricCard
+                    label="Critical SPOFs"
+                    value={registerReady ? String(soleOwnerFigure) : "—"}
+                    hint={
+                      !registerReady
+                        ? "Not assessed yet"
+                        : soleOwnerFigure === singlePoints.count
+                          ? `${singlePoints.nobody} with nobody, ${singlePoints.onePerson} with one person`
+                          : `Business profile figure · Who knows what counts ${singlePoints.count}`
+                    }
+                    tone={!registerReady || soleOwnerFigure === 0 ? "primary" : "danger"}
+                    onClick={() => navigateDeepLink({ type: "knowledge" })}
+                  />
+                  <MetricCard
+                    label="Largest assumed retained loss"
+                    value={
+                      top
+                        ? formatUsd(
+                            top.result.retainedImpact?.expected ??
+                              top.result.financialImpact.expected,
+                          )
+                        : "—"
+                    }
+                    hint={
+                      top
+                        ? `scenario assumption · about ${top.result.timelineDays.p50} days out`
+                        : ""
+                    }
+                    tone="warn"
+                    onClick={() =>
+                      navigateDeepLink({
+                        type: "precog",
+                        scenarioId: top?.scenario.id,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <WeeklyActionPlan onNavigate={(t, id) => navigateTab(t, id)} />
+                  <ControlCalendarCard
+                    onOpenProcess={(id) => {
+                      setMapBuild(true);
+                      setProcessId(id);
+                      setTab("map");
+                    }}
+                    onOpenJournal={() => setTab("journal")}
+                    onOpenBuilder={() => {
+                      setMapBuild(true);
+                      setTab("map");
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Top residual risks</CardTitle>
+                      <CardDescription>
+                        Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length}{" "}
+                        detected conflicts · pressure {leading.band}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {portfolio.top.slice(0, 5).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setTab("residual")}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{item.name}</span>
+                            <span className="text-xs text-muted">{item.bandLabel}</span>
+                          </span>
+                          <span className="text-lg font-semibold tabular">{item.residual}</span>
+                        </button>
+                      ))}
+                      <Button className="w-full" variant="secondary" onClick={() => setTab("sod")}>
+                        Open SoD detector
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </section>
+            )}
 
-            <MapHealthCard
-              onOpenMap={(id) => {
-                setMapBuild(false);
-                setProcessId(id ?? null);
-                setTab("map");
-              }}
-              onBuildMap={() => {
-                setMapBuild(true);
-                setTab("map");
-              }}
-            />
+            {tab === "map" && (
+              <ProcessMap
+                key={mapBuild ? "build" : "view"}
+                initialProcessId={processId}
+                initialBuild={mapBuild}
+                onNavigate={(t, id) => navigateTab(t, id)}
+              />
+            )}
 
-            <IndexBasis />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <MetricCard
-                label="Map health"
-                value={mapReady ? String(mapHealth.score) : "—"}
-                hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
-                tone={
-                  !mapReady || mapHealth.score >= HEALTH_SCALE.adequate
-                    ? "primary"
-                    : mapHealth.score >= HEALTH_SCALE.weak
-                      ? "warn"
-                      : "danger"
-                }
-                onClick={() => {
-                  setMapBuild(true);
-                  setTab("map");
+            {tab === "pioneer" && (
+              <PioneerCoach
+                onNavigate={(t, id) => {
+                  if (t === "journal") setTab("journal");
+                  else navigateTab(t, id);
                 }}
               />
-              <MetricCard
-                label="Avg residual"
-                value={String(portfolio.averageResidual)}
-                hint={`${portfolio.criticalPath} critical`}
-                tone={
-                  portfolio.averageResidual >= RISK_SCALE.actNow
-                    ? "danger"
-                    : portfolio.averageResidual >= RISK_SCALE.mitigate
-                      ? "warn"
-                      : "primary"
-                }
-                onClick={() => setTab("residual")}
-              />
-              <MetricCard
-                label="SoD health"
-                value={String(sodReport.summary.segregationHealth)}
-                hint={`${sodReport.summary.critical} critical conflicts`}
-                tone={
-                  sodReport.summary.segregationHealth < HEALTH_SCALE.weak
-                    ? "danger"
-                    : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
-                      ? "warn"
-                      : "primary"
-                }
-                onClick={() => setTab("sod")}
-              />
-              <MetricCard
-                label="COSO"
-                value={String(coso.overall)}
-                hint={coso.overallStatus}
-                tone="primary"
-                onClick={() => setTab("coso")}
-              />
-              <MetricCard
-                label="Critical SPOFs"
-                value={registerReady ? String(soleOwnerFigure) : "—"}
-                hint={
-                  !registerReady
-                    ? "Not assessed yet"
-                    : soleOwnerFigure === singlePoints.count
-                      ? `${singlePoints.nobody} with nobody, ${singlePoints.onePerson} with one person`
-                      : `Business profile figure · Who knows what counts ${singlePoints.count}`
-                }
-                tone={!registerReady || soleOwnerFigure === 0 ? "primary" : "danger"}
-                onClick={() => navigateDeepLink({ type: "knowledge" })}
-              />
-              <MetricCard
-                label="Largest assumed retained loss"
-                value={
-                  top
-                    ? formatUsd(
-                        top.result.retainedImpact?.expected ?? top.result.financialImpact.expected,
-                      )
-                    : "—"
-                }
-                hint={
-                  top ? `scenario assumption · about ${top.result.timelineDays.p50} days out` : ""
-                }
-                tone="warn"
-                onClick={() =>
-                  navigateDeepLink({
-                    type: "precog",
-                    scenarioId: top?.scenario.id,
-                  })
-                }
-              />
-            </div>
+            )}
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <WeeklyActionPlan onNavigate={(t, id) => navigateTab(t, id)} />
-              <ControlCalendarCard
-                onOpenProcess={(id) => {
-                  setMapBuild(true);
-                  setProcessId(id);
-                  setTab("map");
-                }}
-                onOpenJournal={() => setTab("journal")}
-                onOpenBuilder={() => {
-                  setMapBuild(true);
-                  setTab("map");
-                }}
-              />
-            </div>
+            {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <PracticeSetup onOpenDualRelease={() => setTab("sod")} />
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top residual risks</CardTitle>
-                  <CardDescription>
-                    Profile-driven · {sodGaps} static gaps · {sodReport.conflicts.length} detected
-                    conflicts · pressure {leading.band}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {portfolio.top.slice(0, 5).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setTab("residual")}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 text-left hover:border-border-strong"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium">{item.name}</span>
-                        <span className="text-xs text-muted">{item.bandLabel}</span>
-                      </span>
-                      <span className="text-lg font-semibold tabular">{item.residual}</span>
-                    </button>
-                  ))}
-                  <Button className="w-full" variant="secondary" onClick={() => setTab("sod")}>
-                    Open SoD detector
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
+            {tab === "residual" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Residual risk radar</h2>
+                  <p className="text-sm text-muted">Transparent scoring from practice profile.</p>
+                </div>
+                <ResidualRadar onNavigate={navigateDeepLink} />
+              </div>
+            )}
 
-        {tab === "map" && (
-          <ProcessMap
-            key={mapBuild ? "build" : "view"}
-            initialProcessId={processId}
-            initialBuild={mapBuild}
-            onNavigate={(t, id) => navigateTab(t, id)}
-          />
-        )}
+            {tab === "coso" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">COSO control system</h2>
+                  <p className="text-sm text-muted">Component health with deep links.</p>
+                </div>
+                <CosoHeatmap onNavigate={navigateDeepLink} />
+              </div>
+            )}
 
-        {tab === "pioneer" && (
-          <PioneerCoach
-            onNavigate={(t, id) => {
-              if (t === "journal") setTab("journal");
-              else navigateTab(t, id);
-            }}
-          />
-        )}
+            {tab === "layers" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Matrix process layers</h2>
+                  <p className="text-sm text-muted">Peel layers independently.</p>
+                </div>
+                <LayersPanel
+                  active={layer}
+                  onSelect={(id) => {
+                    setLayer(id);
+                    if (id === "knowledge") setTab("knowledge");
+                    if (id === "control") setTab("sod");
+                    if (id === "process") setTab("map");
+                  }}
+                />
+                <LayerDetail layer={layer} />
+              </div>
+            )}
 
-        {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
+            {tab === "knowledge" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Continuity of operations</h2>
+                  <p className="text-sm text-muted">
+                    List the duties, tasks and know-how the business runs on, mark who can do each,
+                    and close the gaps where one absence would stop work.
+                  </p>
+                </div>
+                <ContinuityPlanner initialKnowledgeId={knowledgeId} />
+                <div>
+                  <h3 className="text-base font-semibold">Knowledge continuity map</h3>
+                  <p className="text-sm text-muted">
+                    The same register as a people-to-knowledge map.
+                  </p>
+                </div>
+                <KnowledgeMap initialKnowledgeId={knowledgeId} />
+              </div>
+            )}
 
-        {tab === "residual" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Residual risk radar</h2>
-              <p className="text-sm text-muted">Transparent scoring from practice profile.</p>
-            </div>
-            <ResidualRadar onNavigate={navigateDeepLink} />
-          </div>
-        )}
+            {tab === "precog" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Precog scenario engine</h2>
+                  <p className="text-sm text-muted">
+                    Timelines, insurance CoR, multi-scenario compare, cascades.
+                  </p>
+                </div>
+                <ScenarioRunner initialScenarioId={scenarioId} />
+              </div>
+            )}
 
-        {tab === "coso" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">COSO control system</h2>
-              <p className="text-sm text-muted">Component health with deep links.</p>
-            </div>
-            <CosoHeatmap onNavigate={navigateDeepLink} />
-          </div>
-        )}
+            {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
 
-        {tab === "layers" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Matrix process layers</h2>
-              <p className="text-sm text-muted">Peel layers independently.</p>
-            </div>
-            <LayersPanel
-              active={layer}
-              onSelect={(id) => {
-                setLayer(id);
-                if (id === "knowledge") setTab("knowledge");
-                if (id === "control") setTab("sod");
-                if (id === "process") setTab("map");
-              }}
-            />
-            <LayerDetail layer={layer} />
-          </div>
-        )}
-
-        {tab === "knowledge" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Continuity of operations</h2>
-              <p className="text-sm text-muted">
-                List the duties, tasks and know-how the business runs on, mark who can do each,
-                and close the gaps where one absence would stop work.
-              </p>
-            </div>
-            <ContinuityPlanner initialKnowledgeId={knowledgeId} />
-            <div>
-              <h3 className="text-base font-semibold">Knowledge continuity map</h3>
-              <p className="text-sm text-muted">The same register as a people-to-knowledge map.</p>
-            </div>
-            <KnowledgeMap initialKnowledgeId={knowledgeId} />
-          </div>
-        )}
-
-        {tab === "precog" && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">Precog scenario engine</h2>
-              <p className="text-sm text-muted">
-                Timelines, insurance CoR, multi-scenario compare, cascades.
-              </p>
-            </div>
-            <ScenarioRunner initialScenarioId={scenarioId} />
-          </div>
-        )}
-
-        {tab === "sod" && <SodPanel onNavigate={(t, id) => navigateTab(t, id)} />}
-
-        {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
-        {tab === "snapshots" && <AssessmentSnapshots />}
-        {tab === "blueprint" && <OperatingBlueprint onNavigate={(t) => navigateTab(t)} />}
-        {tab === "value" && <ValueProofCenter />}
-        </Suspense></TabErrorBoundary>
+            {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
+            {tab === "snapshots" && <AssessmentSnapshots />}
+            {tab === "blueprint" && <OperatingBlueprint onNavigate={(t) => navigateTab(t)} />}
+            {tab === "value" && <ValueProofCenter />}
+          </Suspense>
+        </TabErrorBoundary>
       </main>
     </div>
   );

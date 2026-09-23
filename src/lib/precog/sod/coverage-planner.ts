@@ -1,5 +1,5 @@
 import { analyzeDutyCoverage, type DutyCoverage } from "./coverage-analysis";
-import type { EntitlementId } from "./conflict-rules";
+import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import { detectSodConflicts, type RoleAssignment } from "./detect";
 import { soleOwnerId } from "./owner-role";
 import type { StaffComposition } from "../types";
@@ -22,8 +22,41 @@ export interface CoverageProgram {
   nextAssignments: RoleAssignment[];
   startingScore: number;
   projectedScore: number;
+  /** High-risk duties still held by one person after the program. */
   unresolvedGaps: number;
 }
+
+/**
+ * Who may be suggested as a backup for a duty: someone who already holds a
+ * financially significant duty in a process the duty belongs to (the AP clerk
+ * for releasing payments, not a cashier or a stock associate), or the
+ * business's sole owner. A suggestion
+ * that only avoids a detected conflict can still hand a front-line cash
+ * handler supplier setup or payment release; staying in the duty's own
+ * process keeps suggestions to people who plausibly do that work already.
+ */
+function inDutyChain(person: RoleAssignment, entitlement: EntitlementId, ownerId: string | null) {
+  if (person.personId === ownerId) return true;
+  const target = new Set(DUTY[entitlement]?.processIds ?? []);
+  return person.entitlements.some((held) => {
+    const duty = DUTY[held];
+    return (
+      duty !== undefined &&
+      duty.riskWeight >= CHAIN_WEIGHT &&
+      duty.processIds.some((processId) => target.has(processId))
+    );
+  });
+}
+
+const DUTY: Partial<Record<EntitlementId, { processIds: readonly string[]; riskWeight: number }>> =
+  Object.fromEntries(ENTITLEMENTS.map((e) => [e.id, e]));
+/**
+ * A duty counts toward the chain only when it is financially significant
+ * (weight 4 or 5): ordering and receiving supplies sit in the payables
+ * process too, but a kitchen lead who orders is not a backup for releasing
+ * payments.
+ */
+const CHAIN_WEIGHT = 4;
 
 /** Plans kept per duty in `buildCoveragePlans`. */
 const PLANS_PER_DUTY = 3;
@@ -191,12 +224,20 @@ function plansForDuty(
   startingScore: number,
   limit: number,
 ): CoveragePlan[] {
+  const ownerId = teamOwnerId(assignments);
   const candidates = assignments
     .filter((person) => !person.entitlements.includes(duty.entitlementId))
+    .filter((person) => inDutyChain(person, duty.entitlementId, ownerId))
+    // Someone who already holds a conflict is the problem, not the backup:
+    // more power there adds concentration even when no new pair appears.
+    .filter(
+      (person) =>
+        person.personId === ownerId ||
+        personConflictIds(person.role, person.entitlements, false).length === 0,
+    )
     .sort((a, b) => workload(a) - workload(b) || a.personName.localeCompare(b.personName));
   const plans: CoveragePlan[] = [];
   let gain: number | undefined;
-  const ownerId = teamOwnerId(assignments);
   for (const person of candidates) {
     if (plans.length >= limit) break;
     if (createsConflict(person, duty.entitlementId, ownerId)) continue;
@@ -219,8 +260,10 @@ function plansForDuty(
 }
 
 /**
- * Recommend conflict-free owners/backups for current continuity weaknesses:
- * up to three per duty nobody holds or only one person holds. `staff` is
+ * Suggest backups for high-risk duties only one person holds: up to three per
+ * duty, from people in that duty's process, none adding a detected conflict.
+ * A duty nobody holds is not handed to anyone: the business may not do it at
+ * all, so it is a question for the owner, not a suggestion. `staff` is
  * accepted for callers' sake; it only ever changed conflict scores, never
  * which conflicts exist, so no plan depends on it.
  */
@@ -229,7 +272,7 @@ export function buildCoveragePlans(
   _staff?: StaffComposition,
 ): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
-  return [...coverage.unassigned, ...coverage.singlePoints].flatMap((duty) =>
+  return coverage.singlePoints.flatMap((duty) =>
     plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY),
   );
 }
@@ -252,7 +295,7 @@ export function buildCoverageProgram(
   for (let index = 0; index < MAX_PROGRAM_STEPS; index++) {
     const coverage = analyzeDutyCoverage(current);
     let next: CoveragePlan | undefined;
-    for (const duty of [...coverage.unassigned, ...coverage.singlePoints]) {
+    for (const duty of coverage.singlePoints) {
       if ((assignmentsPerDuty.get(duty.entitlementId) ?? 0) >= MAX_ASSIGNMENTS_PER_DUTY) continue;
       [next] = plansForDuty(current, duty, coverage.resilienceScore, 1);
       if (next) break;
@@ -269,6 +312,6 @@ export function buildCoverageProgram(
     nextAssignments: current,
     startingScore,
     projectedScore: finalCoverage.resilienceScore,
-    unresolvedGaps: finalCoverage.unassigned.length + finalCoverage.singlePoints.length,
+    unresolvedGaps: finalCoverage.singlePoints.length,
   };
 }

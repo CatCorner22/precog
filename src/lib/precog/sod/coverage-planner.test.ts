@@ -10,7 +10,8 @@ import {
   type CoveragePlan,
   type CoverageProgram,
 } from "./coverage-planner";
-import { buildAssignments, type RoleAssignment } from "./detect";
+import { buildAssignments, detectSodConflicts, type RoleAssignment } from "./detect";
+import { soleOwnerId } from "./owner-role";
 
 /**
  * A 26-person restaurant as the setup grid seats a pasted payroll export: an
@@ -109,9 +110,27 @@ const restaurant26 = (): RoleAssignment[] =>
  */
 function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
-  return [...coverage.unassigned, ...coverage.singlePoints].flatMap((duty) =>
+  const owner = soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
+  const entry = (id: string) => ENTITLEMENTS.find((e) => e.id === id);
+  // Backups come from someone holding a weight-4-or-5 duty in the duty's own
+  // process, or the sole owner.
+  const inChain = (person: RoleAssignment, duty: string) =>
+    person.personId === owner ||
+    person.entitlements.some(
+      (held) =>
+        (entry(held)?.riskWeight ?? 0) >= 4 &&
+        (entry(held)?.processIds ?? []).some((p) => (entry(duty)?.processIds ?? []).includes(p)),
+    );
+  const conflicted = new Set(
+    detectSodConflicts(undefined, { assignments })
+      .conflicts.filter((c) => !c.ownerHeld)
+      .map((c) => c.personId),
+  );
+  return coverage.singlePoints.flatMap((duty) =>
     assignments
       .filter((person) => !person.entitlements.includes(duty.entitlementId))
+      .filter((person) => inChain(person, duty.entitlementId))
+      .filter((person) => person.personId === owner || !conflicted.has(person.personId))
       .map((person) => {
         const impact = evaluateAssignmentChange(assignments, person.personId, duty.entitlementId);
         if (!impact || impact.conflictsCreated.length > 0) return undefined;
@@ -160,7 +179,7 @@ function referenceProgram(assignments: RoleAssignment[]): CoverageProgram {
     nextAssignments: current,
     startingScore,
     projectedScore: finalCoverage.resilienceScore,
-    unresolvedGaps: finalCoverage.unassigned.length + finalCoverage.singlePoints.length,
+    unresolvedGaps: finalCoverage.singlePoints.length,
   };
 }
 
@@ -195,63 +214,39 @@ describe("coverage planner", () => {
     expect(buildCoverageProgram(restaurant26())).toEqual(referenceProgram(restaurant26()));
     const program = buildCoverageProgram(restaurant26());
     expect(program.steps.map((s) => `${s.id}:${s.continuityGain}`)).toEqual([
-      "post_adjustments:own-16:2",
-      "submit_claims:own-11:3",
-      "create_vendor:own-17:2",
-      "edit_payroll_master:own-20:2",
-      "pms_admin_roles:own-21:1",
-      "issue_refunds:own-23:3",
-      "change_fee_schedule:own-26:1",
-      "edit_patient_master:own-12:3",
-      "export_bulk_data:own-13:2",
-      "initiate_ach:own-14:2",
-      "review_audit_logs:own-8:3",
-      "manage_backups:own-15:2",
-      "post_payments:own-11:1",
-      "prepare_deposit:own-17:3",
-      "post_adjustments:own-20:1",
-      "create_vendor:own-16:3",
-      "release_payment:own-10:2",
-      "edit_payroll_master:own-18:2",
-      "post_journal_entries:own-21:1",
-      "pms_admin_roles:own-19:2",
-      "issue_refunds:own-3:2",
-      "change_fee_schedule:own-9:2",
-      "export_bulk_data:own-7:2",
-      "enter_invoices:own-22:2",
-      "initiate_ach:own-23:2",
+      "prepare_deposit:own-13:2",
     ]);
     expect([program.startingScore, program.projectedScore, program.unresolvedGaps]).toEqual([
-      45, 96, 2,
+      45, 47, 5,
     ]);
     expect(program.nextAssignments.map((p) => `${p.personId}=${p.entitlements.join("+")}`)).toEqual(
       [
         "own-1=approve_vendor+approve_payroll+approve_writeoffs+sign_checks+bank_reconcile+manage_user_access+view_reports_only",
         "own-2=approve_vendor+approve_writeoffs+approve_payroll+order_supplies+manage_user_access+view_reports_only",
-        "own-3=order_supplies+receive_goods+view_reports_only+issue_refunds",
+        "own-3=order_supplies+receive_goods+view_reports_only",
         "own-4=order_supplies+receive_goods+view_reports_only",
         "own-5=collect_cash+prepare_deposit+order_supplies+receive_goods+view_reports_only",
         "own-6=post_payments+enter_invoices+release_payment+bank_reconcile+enter_payroll+post_journal_entries+view_reports_only",
-        "own-7=collect_cash+view_reports_only+export_bulk_data",
-        "own-8=collect_cash+view_reports_only+review_audit_logs",
-        "own-9=collect_cash+view_reports_only+change_fee_schedule",
-        "own-10=collect_cash+view_reports_only+release_payment",
-        "own-11=view_reports_only+submit_claims+post_payments",
-        "own-12=view_reports_only+edit_patient_master",
-        "own-13=collect_cash+view_reports_only+export_bulk_data",
-        "own-14=collect_cash+view_reports_only+initiate_ach",
-        "own-15=collect_cash+view_reports_only+manage_backups",
-        "own-16=view_reports_only+post_adjustments+create_vendor",
-        "own-17=view_reports_only+create_vendor+prepare_deposit",
-        "own-18=collect_cash+view_reports_only+edit_payroll_master",
-        "own-19=collect_cash+view_reports_only+pms_admin_roles",
-        "own-20=view_reports_only+edit_payroll_master+post_adjustments",
-        "own-21=view_reports_only+pms_admin_roles+post_journal_entries",
-        "own-22=collect_cash+view_reports_only+enter_invoices",
-        "own-23=view_reports_only+issue_refunds+initiate_ach",
+        "own-7=collect_cash+view_reports_only",
+        "own-8=collect_cash+view_reports_only",
+        "own-9=collect_cash+view_reports_only",
+        "own-10=collect_cash+view_reports_only",
+        "own-11=view_reports_only",
+        "own-12=view_reports_only",
+        "own-13=collect_cash+view_reports_only+prepare_deposit",
+        "own-14=collect_cash+view_reports_only",
+        "own-15=collect_cash+view_reports_only",
+        "own-16=view_reports_only",
+        "own-17=view_reports_only",
+        "own-18=collect_cash+view_reports_only",
+        "own-19=collect_cash+view_reports_only",
+        "own-20=view_reports_only",
+        "own-21=view_reports_only",
+        "own-22=collect_cash+view_reports_only",
+        "own-23=view_reports_only",
         "own-24=collect_cash+view_reports_only",
         "own-25=collect_cash+view_reports_only",
-        "own-26=view_reports_only+change_fee_schedule",
+        "own-26=view_reports_only",
       ],
     );
   }, 120_000);
@@ -260,60 +255,9 @@ describe("coverage planner", () => {
     expect(buildCoveragePlans(restaurant26())).toEqual(referencePlans(restaurant26()));
     const plans = buildCoveragePlans(restaurant26());
     expect(plans.map((p) => `${p.id}:${p.continuityGain}:${p.currentWorkload}`)).toEqual([
-      "post_adjustments:own-16:2:0",
-      "post_adjustments:own-11:2:0",
-      "post_adjustments:own-17:2:0",
-      "submit_claims:own-16:3:0",
-      "submit_claims:own-11:3:0",
-      "submit_claims:own-17:3:0",
-      "create_vendor:own-16:2:0",
-      "create_vendor:own-11:2:0",
-      "create_vendor:own-17:2:0",
-      "edit_payroll_master:own-16:2:0",
-      "edit_payroll_master:own-11:2:0",
-      "edit_payroll_master:own-17:2:0",
-      "pms_admin_roles:own-16:2:0",
-      "pms_admin_roles:own-11:2:0",
-      "pms_admin_roles:own-17:2:0",
-      "issue_refunds:own-16:2:0",
-      "issue_refunds:own-11:2:0",
-      "issue_refunds:own-17:2:0",
-      "change_fee_schedule:own-16:2:0",
-      "change_fee_schedule:own-11:2:0",
-      "change_fee_schedule:own-17:2:0",
-      "edit_patient_master:own-16:3:0",
-      "edit_patient_master:own-11:3:0",
-      "edit_patient_master:own-17:3:0",
-      "export_bulk_data:own-16:2:0",
-      "export_bulk_data:own-11:2:0",
-      "export_bulk_data:own-17:2:0",
-      "initiate_ach:own-16:2:0",
-      "initiate_ach:own-11:2:0",
-      "initiate_ach:own-17:2:0",
-      "review_audit_logs:own-16:3:0",
-      "review_audit_logs:own-11:3:0",
-      "review_audit_logs:own-17:3:0",
-      "manage_backups:own-16:2:0",
-      "manage_backups:own-11:2:0",
-      "manage_backups:own-17:2:0",
-      "post_payments:own-16:2:0",
-      "post_payments:own-11:2:0",
-      "post_payments:own-17:2:0",
-      "prepare_deposit:own-16:2:0",
-      "prepare_deposit:own-11:2:0",
-      "prepare_deposit:own-17:2:0",
-      "release_payment:own-16:2:0",
-      "release_payment:own-11:2:0",
-      "release_payment:own-17:2:0",
-      "post_journal_entries:own-16:2:0",
-      "post_journal_entries:own-11:2:0",
-      "post_journal_entries:own-17:2:0",
-      "enter_invoices:own-16:2:0",
-      "enter_invoices:own-11:2:0",
-      "enter_invoices:own-17:2:0",
-      "sign_checks:own-16:2:0",
-      "sign_checks:own-11:2:0",
-      "sign_checks:own-17:2:0",
+      "prepare_deposit:own-13:2:1",
+      "prepare_deposit:own-14:2:1",
+      "prepare_deposit:own-8:2:1",
     ]);
   }, 120_000);
 
@@ -348,4 +292,72 @@ describe("coverage planner", () => {
       }
     }
   }, 120_000);
+});
+
+describe("backup suggestions a CPA would accept", () => {
+  const retail: RoleAssignment[] = [
+    {
+      personId: "o",
+      personName: "Owner",
+      role: "Owner",
+      entitlements: ["approve_payroll", "sign_checks"],
+    },
+    {
+      personId: "b",
+      personName: "Bookkeeper",
+      role: "Bookkeeper",
+      entitlements: ["post_payments", "enter_invoices"],
+    },
+    { personId: "c", personName: "Amir Haddad", role: "Cashier", entitlements: ["collect_cash"] },
+    {
+      personId: "s",
+      personName: "Derek Hollins",
+      role: "Stock Associate",
+      entitlements: ["receive_goods", "order_supplies"],
+    },
+    {
+      personId: "a",
+      personName: "Omar Siddiqui",
+      role: "Sales Associate",
+      entitlements: ["view_reports_only"],
+    },
+  ];
+
+  it("never hands a cashier, stock associate or sales associate a duty outside their process", () => {
+    const plans = buildCoveragePlans(retail);
+    for (const plan of plans) {
+      if (plan.toPersonId === "c") {
+        expect(["prepare_deposit"]).toContain(plan.entitlement);
+      }
+      expect(["s", "a"]).not.toContain(plan.toPersonId);
+    }
+    const program = buildCoverageProgram(retail);
+    const derek = program.nextAssignments.find((p) => p.personId === "s")!;
+    expect(derek.entitlements.sort()).toEqual(["order_supplies", "receive_goods"]);
+  });
+
+  it("does not hand out a duty nobody in the business holds", () => {
+    const plans = buildCoveragePlans(retail);
+    expect(plans.some((p) => p.reason === "unassigned")).toBe(false);
+    expect(plans.some((p) => p.entitlement === "manage_user_access")).toBe(false);
+  });
+
+  it("does not make someone who already holds a conflict the backup", () => {
+    const team: RoleAssignment[] = [
+      { personId: "o", personName: "Owner", role: "Owner", entitlements: ["approve_payroll"] },
+      {
+        personId: "k",
+        personName: "Keeper",
+        role: "Bookkeeper",
+        entitlements: ["release_payment", "bank_reconcile", "enter_invoices"],
+      },
+      {
+        personId: "p",
+        personName: "Payroll",
+        role: "Payroll Clerk",
+        entitlements: ["sign_checks"],
+      },
+    ];
+    expect(buildCoveragePlans(team).some((p) => p.toPersonId === "k")).toBe(false);
+  });
 });
