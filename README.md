@@ -25,15 +25,32 @@ payroll export"; in the team register, use "Paste roster" or "Import CSV".
 The importer reads the worker exports these systems produce, header row
 included, and a plain list with one person per line as `Name, Title`:
 
-| System                                              | Columns it reads                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Workday worker report or Excel export               | Worker, Employee ID, Business Title, Job Profile, Manager, Hire Date, Cost Center                      |
-| SAP SuccessFactors Employee Central                 | Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status |
-| Oracle HCM Cloud worker extract                     | Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date    |
-| Payroll providers (ADP, Gusto, Paychex, QuickBooks) | Employee Name, Job Title, Department, Status, Hire Date                                                |
+| System                                     | Columns it reads                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Workday worker report or Excel export      | Worker (with or without the id in parentheses), Employee ID, Business Title, Job Profile, Hire Date, Cost Center |
+| SAP SuccessFactors Employee Central        | Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status           |
+| Oracle HCM Cloud worker extract            | Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date              |
+| ADP Workforce Now                          | Payroll Name, Position ID, Position Description, Home Department, Position Status (A, L, T), Hire Date           |
+| Gusto, Paychex, QuickBooks Payroll, Paycom | Employee Name or First Name and Last Name, Job Title or Position, Department, Status, Hire Date or Start Date    |
+| BambooHR, Rippling, Paylocity              | Employee # or Employee Number or Employee Id, Preferred Name (ignored beside First and Last Name), Cost Center 1 |
+| Square, Homebase, 7shifts, Toast           | Given name and Family name, Team member ID, Job title (over Role), Roles, Departments, Locations, Job, Active    |
+| Dentrix, Open Dental                       | Staff ID, Name, Position, Status; EmployeeNum, LName, FName, IsHidden                                            |
+| A French export                            | Nom, Prénom, Poste, Statut, Date d'entrée, with day-first dates                                                  |
 
-Comma, tab, and semicolon delimiters are detected. A hire date becomes years
-of service; an inactive or terminated status keeps the person off the map.
+Comma, tab, semicolon and pipe delimiters are detected, and a Markdown table
+pasted from a chat reads as well. The header may sit under a report title;
+repeated header rows and Total, Count, Page and "Report generated" footer rows
+are skipped and reported. A "Last, First" name becomes "First Last" (a
+credential after the comma, as in "Roe, DDS", stays). A hire date becomes
+years of service, with a warning when it is in the future; an inactive,
+terminated, deactivated, archived, deleted, deceased, suspended, furloughed or
+laid-off status keeps the person off the map, while someone on leave stays on
+it, and a status word the importer does not know is reported and treated as
+active. A row that repeats an earlier name and title is skipped and reported.
+
+A plain list also works, one person per line: "Name, Title", "Name - Title",
+"Name<tab>Title", "Name | Title", "Name: Title" or "Name (Title)", with or
+without list numbers or bullets.
 
 Job titles are read through a catalog of about ninety common small-business
 titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office

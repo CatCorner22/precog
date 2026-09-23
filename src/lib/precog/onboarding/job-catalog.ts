@@ -2545,19 +2545,40 @@ export const ROSTER_COLUMN_GUIDE: { system: string; columns: string }[] = [
   {
     system: "SAP SuccessFactors Employee Central (employee export)",
     columns:
-      "Person ID External, User ID, Job Title, Position, Department, Manager, Employment Status",
+      "Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status",
   },
   {
     system: "Oracle HCM Cloud (worker extract)",
     columns:
-      "Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status",
+      "Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date",
   },
   {
-    system: "Payroll providers (ADP, Gusto, Paychex, QuickBooks)",
-    columns: "Employee Name, Job Title, Department, Status, Hire Date",
+    system: "ADP Workforce Now",
+    columns:
+      "Payroll Name, Position ID, Position Description, Home Department, Position Status, Hire Date",
+  },
+  {
+    system: "Payroll providers (Gusto, Paychex, QuickBooks, Paycom, Paylocity)",
+    columns:
+      "Employee Name or First Name and Last Name, Employee ID, Job Title, Department or Cost Center 1, Status, Hire Date",
+  },
+  {
+    system: "HR tools (BambooHR, Rippling)",
+    columns:
+      "Employee #, First Name, Last Name, Full name, Job Title, Department, Employment Status, Status, Start date",
+  },
+  {
+    system: "Scheduling and point of sale (Square, Homebase, 7shifts, Toast)",
+    columns:
+      "Given name, Family name, Team member ID, Job title, Roles, Departments, Locations, Active, Status",
+  },
+  {
+    system: "Practice management (Dentrix, Open Dental)",
+    columns: "Staff ID, Name, Position, Status; EmployeeNum, LName, FName, IsHidden",
   },
   {
     system: "A plain list",
-    columns: "Name, Title on each line, separated by a comma or a tab",
+    columns:
+      "Name, Title on each line, separated by a comma, a tab, a dash, a pipe, a colon or parentheses",
   },
 ];

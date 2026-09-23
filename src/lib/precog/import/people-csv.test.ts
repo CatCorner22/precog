@@ -1,21 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
-import { parsePeopleCsv, peopleToCsv, removedPeopleImpact } from "./people-csv";
+import {
+  looksLikeRosterHeader,
+  parsePeopleCsv,
+  peopleToCsv,
+  removedPeopleImpact,
+} from "./people-csv";
 
 const dental = getBaseTemplate("dental");
+const BOM = String.fromCharCode(0xfeff);
 
 describe("parsePeopleCsv", () => {
   it("handles aliases, quoted commas, CRLF, BOM, labels, aliases, unknowns, and inactive values", () => {
     const csv =
-      "\uFEFFFULL NAME,JOB TITLE,Years of Service,Employed,Duties\r\n" +
+      `${BOM}FULL NAME,JOB TITLE,Years of Service,Employed,Duties\r\n` +
       '"Doe, Jane",office manager,2.5,no,"Take payment from customers|payroll|mystery"\r\n';
 
     const result = parsePeopleCsv(csv, dental);
 
+    // A "Last, First" name is read as "First Last".
     expect(result.people).toEqual([
       {
-        id: "p-doe-jane",
-        name: "Doe, Jane",
+        id: "p-jane-doe",
+        name: "Jane Doe",
         role: "Office Manager",
         active: false,
         tenureYears: 2.5,
@@ -26,26 +33,64 @@ describe("parsePeopleCsv", () => {
     expect(result.issues).toEqual([{ row: 1, message: "Unknown entitlement(s): mystery" }]);
   });
 
-  it("canonicalizes roles and deduplicates ids", () => {
+  it("canonicalizes roles, deduplicates ids, and flags one name with two titles", () => {
     const result = parsePeopleCsv(
-      "name,role,active\nAlex Smith,office manager,true\nAlex Smith,Office Manager,true",
+      "name,role,active\nAlex Smith,office manager,true\nAlex Smith,Dentist,true",
       dental,
     );
 
     expect(result.people.map((person) => [person.id, person.role])).toEqual([
       ["p-alex-smith", "Office Manager"],
-      ["p-alex-smith-2", "Office Manager"],
+      ["p-alex-smith-2", "Dentist"],
     ]);
+    expect(result.issues).toEqual([
+      {
+        row: 2,
+        message:
+          '"Alex Smith" appears twice with different titles; check whether this is one person',
+      },
+    ]);
+    expect(result.duplicates).toBe(0);
+  });
+
+  it("skips a row that repeats an earlier name and title", () => {
+    const result = parsePeopleCsv(
+      "name,role,active\nAlex Smith,office manager,true\nAlex Smith,Office Manager,true",
+      dental,
+    );
+    expect(result.people.map((person) => person.id)).toEqual(["p-alex-smith"]);
+    expect(result.issues).toEqual([
+      { row: 2, message: '"Alex Smith" appears twice; second copy skipped' },
+    ]);
+    expect(result.duplicates).toBe(1);
   });
 
   it("reports a missing name column without importing rows", () => {
     expect(parsePeopleCsv("role,active\nManager,true", dental)).toEqual({
       people: [],
-      issues: [{ row: 0, message: "Missing a name column" }],
+      issues: [{ row: 0, message: "Missing a name column (header: role, active)" }],
       unknownEntitlements: [],
       titles: [],
       removed: [],
+      skipped: 0,
+      duplicates: 0,
+      dropped: 0,
     });
+  });
+
+  it("finds the header under a report title in a saved CSV file", () => {
+    const result = parsePeopleCsv(
+      'Employee Roster as of 09/01/2026\n\nEmployee Name,Job Title,Department,Status\n"Ruiz, Ana",Owner,Admin,Active\n"Ochoa, Ben",Bookkeeper,Finance,Active',
+      dental,
+    );
+    expect(result.people.map((p) => [p.name, p.role])).toEqual([
+      ["Ana Ruiz", "Owner"],
+      ["Ben Ochoa", "Bookkeeper"],
+    ]);
+    expect(result.issues).toEqual([
+      { row: 0, message: 'Skipped 1 line at the top: "Employee Roster as of 09/01/2026"' },
+    ]);
+    expect(result.skipped).toBe(1);
   });
 
   it("keeps the id of anyone already on the team so their register assignments survive", () => {
@@ -54,7 +99,9 @@ describe("parsePeopleCsv", () => {
       dental,
     );
 
-    expect(result.people.map((p) => p.id)).toEqual(["p2", "p3", "p-jordan-blake", "p-new-hire"]);
+    // The repeated Jordan Blake row is a duplicate and is skipped.
+    expect(result.people.map((p) => p.id)).toEqual(["p2", "p3", "p-new-hire"]);
+    expect(result.duplicates).toBe(1);
     expect(result.people[0].name).toBe("maya   CHEN");
     expect(result.removed.map((p) => p.id)).toEqual(
       dental.people.filter((p) => !["p2", "p3"].includes(p.id)).map((p) => p.id),
@@ -79,7 +126,7 @@ describe("parsePeopleCsv", () => {
     expect(removedPeopleImpact(dental, [])).toEqual({ assignments: 0, processOwnerships: 0 });
   });
 
-  it("truncates rows over maxRows", () => {
+  it("truncates rows over maxRows and counts the dropped rows", () => {
     const result = parsePeopleCsv("name\nOne\nTwo\nThree", dental, { maxRows: 2 });
 
     expect(result.people.map((person) => person.name)).toEqual(["One", "Two"]);
@@ -87,6 +134,7 @@ describe("parsePeopleCsv", () => {
       row: 3,
       message: "Import truncated to 2 rows",
     });
+    expect(result.dropped).toBe(1);
   });
 
   it("round-trips people through CSV", () => {
@@ -180,5 +228,46 @@ describe("parsePeopleCsv", () => {
     expect(people.map((p) => p.id)).toEqual(["p-maya", "p-maya-chen"]);
     expect(people[0].lastDay).toBe("2026-10-14");
     expect("lastDay" in people[1]).toBe(false);
+  });
+});
+
+describe("looksLikeRosterHeader", () => {
+  it("accepts a name column, first and last name columns, or three cells of column words", () => {
+    expect(looksLikeRosterHeader(["Employee Name", "Job Title"])).toBe(true);
+    expect(looksLikeRosterHeader([" Employee Name ", " Job Title "])).toBe(true);
+    expect(looksLikeRosterHeader(["Employee #", "First Name", "Last Name"])).toBe(true);
+    expect(looksLikeRosterHeader(["Given name", "Family name"])).toBe(true);
+    expect(looksLikeRosterHeader(["LName", "FName"])).toBe(true);
+    expect(looksLikeRosterHeader(["Nom", "Prénom", "Poste"])).toBe(true);
+    expect(looksLikeRosterHeader(["Payroll Name", "Position Description", "Home Department"])).toBe(
+      true,
+    );
+    expect(looksLikeRosterHeader(["Roles", "Departments", "Locations"])).toBe(true);
+    expect(
+      looksLikeRosterHeader(["Payroll Nme", "Position ID", "Position Description", "Hire Date"]),
+    ).toBe(true);
+    expect(
+      looksLikeRosterHeader([
+        "EmployeeNum",
+        "LName",
+        "FName",
+        "MiddleI",
+        "IsHidden",
+        "ClockStatus",
+        "PhoneExt",
+        "PayrollID",
+      ]),
+    ).toBe(true);
+    expect(looksLikeRosterHeader(["Name", "Title", "Department"])).toBe(true);
+  });
+
+  it("rejects a person's row, a report title, and a row with too few column words", () => {
+    for (const title of ["Team Member", "Staff", "Employee", "Worker", "Person"]) {
+      expect(looksLikeRosterHeader(["Ana Ruiz", ` ${title}`])).toBe(false);
+    }
+    expect(looksLikeRosterHeader(["Ana Ruiz"])).toBe(false);
+    expect(looksLikeRosterHeader(["Worker Report - as of 09/01/2026"])).toBe(false);
+    expect(looksLikeRosterHeader(["role", "active"])).toBe(false);
+    expect(looksLikeRosterHeader(["David Lee", "Cashier", "Store"])).toBe(false);
   });
 });
