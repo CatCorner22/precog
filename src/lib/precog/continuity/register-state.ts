@@ -1,5 +1,32 @@
 import { getIndustryTemplate, type IndustryTemplate } from "../templates";
 import type { PracticeProfile } from "../practice-profile";
+import type { IndustryId } from "../industry";
+import type { KnowledgeItem } from "../types";
+
+/**
+ * What an item says, without when it was last confirmed: marking and then
+ * unmarking someone stamps a confirmation date, which is not a change to the
+ * list itself.
+ */
+function itemContent(item: KnowledgeItem): string {
+  return JSON.stringify([
+    item.id,
+    item.name,
+    item.criticality,
+    item.category,
+    item.kind ?? "",
+    Boolean(item.documented),
+    item.procedureLocation ?? "",
+  ]);
+}
+
+/** True when a list says exactly what the industry's starter list says. */
+export function isStarterList(knowledge: readonly KnowledgeItem[], industry: IndustryId): boolean {
+  const starter = getIndustryTemplate(industry).knowledge;
+  if (knowledge === starter) return true;
+  if (knowledge.length !== starter.length) return false;
+  return knowledge.every((item, i) => itemContent(item) === itemContent(starter[i]));
+}
 
 /**
  * Where the duty, task and know-how register came from.
@@ -13,9 +40,17 @@ import type { PracticeProfile } from "../practice-profile";
 export type RegisterSource = "sample" | "starter" | "own";
 
 export function registerSource(
-  profile: Pick<PracticeProfile, "customPeople" | "customKnowledge" | "customRelations">,
+  profile: Pick<
+    PracticeProfile,
+    "industry" | "customPeople" | "customKnowledge" | "customRelations"
+  >,
 ): RegisterSource {
-  if (profile.customKnowledge || (profile.customRelations?.length ?? 0) > 0) return "own";
+  if ((profile.customRelations?.length ?? 0) > 0) return "own";
+  // A copy of the starter list (after marking and unmarking someone, or a
+  // re-import of the unmarked starter export) is still the starter list.
+  if (profile.customKnowledge && !isStarterList(profile.customKnowledge, profile.industry)) {
+    return "own";
+  }
   return profile.customPeople ? "starter" : "sample";
 }
 
@@ -35,7 +70,7 @@ export function registerAssessed(
 ): boolean {
   if (tpl.knowledge.length === 0) return false;
   if (tpl.relations.length > 0) return true;
-  return tpl.knowledge !== getIndustryTemplate(tpl.id).knowledge;
+  return !isStarterList(tpl.knowledge, tpl.id);
 }
 
 /**
@@ -44,7 +79,10 @@ export function registerAssessed(
  * dates, and an unassessed one has nothing to confirm.
  */
 export function trackRegisterFreshness(
-  profile: Pick<PracticeProfile, "customPeople" | "customKnowledge" | "customRelations">,
+  profile: Pick<
+    PracticeProfile,
+    "industry" | "customPeople" | "customKnowledge" | "customRelations"
+  >,
   tpl: Pick<IndustryTemplate, "id" | "knowledge" | "relations">,
 ): boolean {
   return registerSource(profile) !== "sample" && registerAssessed(tpl);
