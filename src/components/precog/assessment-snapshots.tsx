@@ -28,6 +28,7 @@ import {
   createSnapshotComparisonReport,
 } from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
+import { readLocalJson, removeLocal, writeLocal } from "@/lib/precog/local-data";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
@@ -69,22 +70,14 @@ export function AssessmentSnapshots() {
       let valueEvidence;
       // The map lives on the profile's people; capture it as the engines read it.
       const powerMap = buildAssignments(tpl);
-      const storedValueCase = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
-      if (storedValueCase) {
-        try {
-          valueCase = normalizeValueCase(JSON.parse(storedValueCase));
-        } catch {
-          /* ignore invalid local state */
-        }
+      // Unreadable or blocked storage leaves the value proof out rather than
+      // failing the whole snapshot.
+      const storedValueCase = readStoredJson(VALUE_CASE_STORAGE_KEY);
+      if (storedValueCase && typeof storedValueCase === "object") {
+        valueCase = normalizeValueCase(storedValueCase as Partial<typeof DEFAULT_VALUE_CASE>);
       }
-      const storedEvidence = window.localStorage.getItem(VALUE_EVIDENCE_STORAGE_KEY);
-      if (storedEvidence) {
-        try {
-          valueEvidence = normalizeValueEvidence(JSON.parse(storedEvidence));
-        } catch {
-          /* ignore invalid local state */
-        }
-      }
+      const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
+      if (storedEvidence !== undefined) valueEvidence = normalizeValueEvidence(storedEvidence);
       await createAssessmentSnapshot({
         data: {
           title: title.trim() || `${profile.practiceName} assessment`,
@@ -129,8 +122,10 @@ export function AssessmentSnapshots() {
       );
       const restoredValueCase = snapshot.valueCase ?? DEFAULT_VALUE_CASE;
       const restoredEvidence = snapshot.valueEvidence ?? [];
-      window.localStorage.setItem(VALUE_CASE_STORAGE_KEY, JSON.stringify(restoredValueCase));
-      window.localStorage.setItem(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(restoredEvidence));
+      // The Value proof tab takes the restored figures from this event even
+      // when the browser refuses to store them.
+      writeLocal(VALUE_CASE_STORAGE_KEY, JSON.stringify(restoredValueCase));
+      writeLocal(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(restoredEvidence));
       window.dispatchEvent(
         new CustomEvent("precog:value-proof-restored", {
           detail: { valueCase: restoredValueCase, evidence: restoredEvidence },
@@ -490,16 +485,11 @@ export function AssessmentSnapshots() {
   );
 }
 
-/** Parses one localStorage entry, dropping it when it is not valid JSON. */
+/** Parses one stored entry, dropping it when it is not valid JSON; undefined when storage is blocked. */
 function readStoredJson(key: string): unknown {
-  const stored = window.localStorage.getItem(key);
-  if (!stored) return undefined;
-  try {
-    return JSON.parse(stored);
-  } catch {
-    window.localStorage.removeItem(key);
-    return undefined;
-  }
+  const parsed = readLocalJson(key);
+  if (parsed === undefined) removeLocal(key);
+  return parsed;
 }
 
 function signed(value: number) {

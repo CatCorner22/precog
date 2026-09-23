@@ -32,6 +32,7 @@ import {
   VALUE_EVIDENCE_STORAGE_KEY,
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
+import { readLocalJson, writeLocal } from "@/lib/precog/local-data";
 
 export function ValueProofCenter() {
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
@@ -40,20 +41,20 @@ export function ValueProofCenter() {
   const [typed, setTyped] = useState<ValueInputKey[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [evidence, setEvidence] = useState<ValueEvidence[]>([]);
+  // False once the browser refuses a write (blocked site data, full quota):
+  // the figures still work here, but only until this tab closes.
+  const [kept, setKept] = useState(true);
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Partial<ValueCaseInputs> & { entered?: unknown };
-        setInputs(normalizeValueCase(parsed));
-        setTyped(normalizeEnteredInputs(parsed.entered));
-      }
-      const storedEvidence = window.localStorage.getItem(VALUE_EVIDENCE_STORAGE_KEY);
-      if (storedEvidence) setEvidence(normalizeValueEvidence(JSON.parse(storedEvidence)));
-    } catch {
-      window.localStorage.removeItem(VALUE_CASE_STORAGE_KEY);
-      window.localStorage.removeItem(VALUE_EVIDENCE_STORAGE_KEY);
+    // A stored value that is unreadable or malformed is ignored; the next
+    // save replaces it.
+    const storedCase = readLocalJson(VALUE_CASE_STORAGE_KEY);
+    if (storedCase && typeof storedCase === "object") {
+      const parsed = storedCase as Partial<ValueCaseInputs> & { entered?: unknown };
+      setInputs(normalizeValueCase(parsed));
+      setTyped(normalizeEnteredInputs(parsed.entered));
     }
+    const storedEvidence = readLocalJson(VALUE_EVIDENCE_STORAGE_KEY);
+    if (storedEvidence !== undefined) setEvidence(normalizeValueEvidence(storedEvidence));
     setLoaded(true);
   }, []);
   useEffect(() => {
@@ -71,13 +72,13 @@ export function ValueProofCenter() {
     return () => window.removeEventListener("precog:value-proof-restored", restore);
   }, []);
   useEffect(() => {
-    if (loaded) {
-      window.localStorage.setItem(
-        VALUE_CASE_STORAGE_KEY,
-        JSON.stringify({ ...inputs, entered: typed }),
-      );
-      window.localStorage.setItem(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(evidence));
-    }
+    if (!loaded) return;
+    const caseKept = writeLocal(
+      VALUE_CASE_STORAGE_KEY,
+      JSON.stringify({ ...inputs, entered: typed }),
+    );
+    const evidenceKept = writeLocal(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(evidence));
+    setKept(caseKept && evidenceKept);
   }, [inputs, typed, evidence, loaded]);
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
@@ -120,6 +121,12 @@ export function ValueProofCenter() {
           Separate auditable labor savings and recoveries from modeled risk reduction. The first is
           observed value; the second is a transparent scenario, never booked savings.
         </p>
+        {!kept && (
+          <p className="mt-3 max-w-3xl text-sm text-warn" role="status">
+            This browser is not keeping data for this site, so the figures and evidence below last
+            only until this tab closes. Export the executive memo to keep a copy.
+          </p>
+        )}
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
