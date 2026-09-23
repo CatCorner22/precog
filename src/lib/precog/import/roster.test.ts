@@ -1227,6 +1227,44 @@ describe("parseRoster", () => {
     ]);
   });
 
+  it("keeps both stores for a keyholder listed at two stores of a three-store retailer", () => {
+    const result = parseRoster(
+      [
+        "Name,Role,Location,Status,Hire Date",
+        "Diane Okafor,Owner,All Locations,Active,04/12/2013",
+        "Chloe Bennett,Keyholder,Larkspur - Oakridge Mall,Active,05/17/2023",
+        "Marcus Oyelaran,Keyholder,Larkspur - Riverside,Active,10/03/2022",
+        "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
+        "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
+      ].join("\n"),
+      getBaseTemplate("retail"),
+      { today },
+    );
+    expect(result.people.map((p) => [p.name, p.department])).toEqual([
+      ["Diane Okafor", "All Locations"],
+      ["Chloe Bennett", "Larkspur - Oakridge Mall; Larkspur - Riverside"],
+      ["Marcus Oyelaran", "Larkspur - Riverside"],
+    ]);
+    expect(result.issues.map((i) => [i.row, i.message])).toEqual([
+      [
+        4,
+        '"Chloe Bennett" is listed at Larkspur - Oakridge Mall and Larkspur - Riverside with the same title; kept as one person at both',
+      ],
+      [5, '"Chloe Bennett" appears twice; second copy skipped'],
+    ]);
+  });
+
+  it("keeps a 46-character title from a pasted roster whole", () => {
+    const title = "Site Director / Physical Therapist - Riverbend";
+    expect(title).toHaveLength(46);
+    const result = parseRoster(`Employee Name,Job Title\nLuis Reyes-Montoya,${title}`, general, {
+      today,
+    });
+    expect(result.people[0].role).toBe(title);
+    const listed = parseRoster(`Luis Reyes-Montoya\t${title}`, general, { today });
+    expect(listed.people[0].role).toBe(title);
+  });
+
   it("returns nothing for empty text", () => {
     expect(parseRoster("   ", general).people).toEqual([]);
   });
