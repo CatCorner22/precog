@@ -13,6 +13,7 @@ import type {
   ToolResult,
 } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
+import { readSpofData } from "./spof-data";
 
 function usd(n: number) {
   return new Intl.NumberFormat("en-US", {
@@ -63,19 +64,26 @@ function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     }
 
     if (t.tool === "get_knowledge_spofs") {
-      const rows = t.data as {
-        knowledgeId: string;
-        name: string;
-        riskScore: number;
-        owners: { name: string }[];
-      }[];
-      for (const row of rows.slice(0, 3)) {
+      const spof = readSpofData(t.data);
+      if (spof && !spof.assessed) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "spof",
+          label: "Who knows what",
+          metric:
+            spof.itemCount === 0
+              ? "not assessed yet · the register is empty"
+              : `not assessed yet · nobody marked on ${spof.itemCount} starter item(s)`,
+          link: { tab: "knowledge" },
+        });
+      }
+      for (const row of spof?.assessed ? spof.rows.slice(0, 3) : []) {
         evidence.push({
           id: `ev-${++i}`,
           kind: "spof",
           label: row.name,
-          metric: `SPOF · ${row.riskScore} · ${row.owners[0]?.name ?? "unowned"}`,
-          link: { tab: "knowledge", id: row.knowledgeId },
+          metric: `SPOF · ${row.riskScore ?? "?"} · ${row.owners[0]?.name ?? "unowned"}`,
+          link: row.knowledgeId ? { tab: "knowledge", id: row.knowledgeId } : { tab: "knowledge" },
         });
       }
     }
@@ -380,23 +388,10 @@ function localSynthesize(
     hits: { title: string; text: string }[];
   } | null;
 
-  const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
-    | {
-        name: string;
-        knowledgeId?: string;
-        owners: { name: string }[];
-        suggestedTrainee?: { name: string } | null;
-        documented?: boolean;
-        stale?: boolean;
-        nextStep?: string | null;
-        committed?: {
-          subject: string;
-          trainee: { name: string } | null;
-          reviewBy: string | null;
-          overdue: boolean;
-        } | null;
-      }[]
-    | null;
+  const spofState = readSpofData(tools.find((t) => t.tool === "get_knowledge_spofs")?.data);
+  // Rows only once the register is assessed; before that nothing on it says
+  // who can run what, so no cross-training or re-confirming advice applies.
+  const spofs = spofState?.assessed ? spofState.rows : null;
 
   const checkIns = tools.find((t) => t.tool === "get_register_checkins")?.data as {
     checkIns: {
@@ -705,6 +700,23 @@ function localSynthesize(
       },
     ];
   };
+  const registerStartDecision = (itemCount: number): PioneerDecision => ({
+    action:
+      itemCount === 0
+        ? "List the duties, tasks and know-how the business runs on"
+        : `Mark who can do each of the ${itemCount} things the business runs on`,
+    rationale:
+      itemCount === 0
+        ? "The register on Who knows what is empty, so nothing yet shows who alone can run what. Until it lists the work, no continuity figure describes this business."
+        : "Nobody is marked on the starter register yet, so it cannot show who alone can run what. Mark each item on Who knows what; until then, no continuity figure describes this business.",
+    evidenceIds: evidence
+      .filter((e) => e.kind === "spof")
+      .map((e) => e.id)
+      .slice(0, 1),
+    effort: "low",
+    horizonDays: REVIEW_HORIZON_DAYS.journal,
+    cascadeEffects: ["register accuracy ↑"],
+  });
   const beamAction = adv?.recommendedSequence?.join(" → ");
   // Entries a leaver must hand over are advised as their hand-over, not as
   // ordinary cross-training on top.
@@ -758,27 +770,29 @@ function localSynthesize(
           },
         ]
       : []),
-    ...(spofs && spofs.length > 0 && !uncommittedSpof
-      ? []
-      : [
-          {
-            action: uncommittedSpof
-              ? uncommittedSpof.suggestedTrainee
-                ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
-                : `Cross-train backup for ${uncommittedSpof.name}`
-              : "Cross-train top knowledge SPOF",
-            rationale:
-              uncommittedSpof?.nextStep ??
-              "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
-            evidenceIds: evidence
-              .filter((e) => e.kind === "spof")
-              .map((e) => e.id)
-              .slice(0, 2),
-            effort: uncommittedSpof?.documented ? ("low" as const) : ("medium" as const),
-            horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
-            cascadeEffects: ["continuity residual index ↓"],
-          },
-        ]),
+    ...(spofState && !spofState.assessed
+      ? [registerStartDecision(spofState.itemCount)]
+      : spofs && spofs.length > 0 && !uncommittedSpof
+        ? []
+        : [
+            {
+              action: uncommittedSpof
+                ? uncommittedSpof.suggestedTrainee
+                  ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
+                  : `Cross-train backup for ${uncommittedSpof.name}`
+                : "Cross-train top knowledge SPOF",
+              rationale:
+                uncommittedSpof?.nextStep ??
+                "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
+              evidenceIds: evidence
+                .filter((e) => e.kind === "spof")
+                .map((e) => e.id)
+                .slice(0, 2),
+              effort: uncommittedSpof?.documented ? ("low" as const) : ("medium" as const),
+              horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
+              cascadeEffects: ["continuity residual index ↓"],
+            },
+          ]),
     ...(checkIns
       ? [
           ...(checkIns.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),

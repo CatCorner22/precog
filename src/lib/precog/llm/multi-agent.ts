@@ -4,6 +4,7 @@
  * Critic (Chicken Little) — each produces structured notes from tools.
  */
 import type { ToolResult } from "./types";
+import { readSpofData } from "./spof-data";
 
 export type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
@@ -49,8 +50,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     { breached: number; watch: number; topActions: string[] } | undefined;
   const rag = tools.find((t) => t.tool === "retrieve_guidance")?.data as
     { hits: { title: string; domain: string; text: string }[] } | undefined;
-  const spofs = tools.find((t) => t.tool === "get_knowledge_spofs")?.data as
-    { name: string }[] | undefined;
+  const spofState = readSpofData(tools.find((t) => t.tool === "get_knowledge_spofs")?.data);
 
   // Operator — Lean / bottlenecks
   notes.push({
@@ -60,9 +60,11 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
       residual
         ? `Portfolio residual ${residual.averageResidual}; top bottleneck: ${residual.top[0]?.name ?? "n/a"} (${residual.top[0]?.residual ?? "?"}).`
         : "No residual portfolio in tools.",
-      spofs && spofs.length
-        ? `Knowledge muda/mura: ${spofs.length} SPOF(s) — cross-train is capacity, not paperwork.`
-        : "No critical SPOFs flagged.",
+      spofState && !spofState.assessed
+        ? "Knowledge: not assessed yet. Nobody is marked on the register, so no single-point-of-failure count applies."
+        : spofState && spofState.rows.length
+          ? `Knowledge muda/mura: ${spofState.rows.length} SPOF(s) — cross-train is capacity, not paperwork.`
+          : "No critical SPOFs flagged.",
       leading
         ? `Leading indicators: ${leading.breached} breached, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
         : "Check the leading indicators for conditions that precede a loss.",
