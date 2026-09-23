@@ -136,15 +136,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "name partner",
       "founding partner",
     ],
-    [
-      "approve_vendor",
-      "approve_payroll",
-      "approve_writeoffs",
-      "sign_checks",
-      "manage_user_access",
-      "view_reports_only",
-    ],
-    "The owner is the approver of last resort and usually the one who signs. Reconciling the bank is left for you to tick: tick it if you check the statement against the books yourself.",
+    ["approve_vendor", "approve_payroll", "approve_writeoffs", "sign_checks", "view_reports_only"],
+    "The owner is the approver of last resort and usually the one who signs. Reconciling the bank is left for you to tick: tick it if you check the statement against the books yourself. So is giving people logins to the bank and the books: in the tested businesses most owners, partners and co-founders did not.",
   ),
   entry(
     "general-manager",
