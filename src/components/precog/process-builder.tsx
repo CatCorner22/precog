@@ -60,6 +60,7 @@ import {
   type SavedProcessBlock,
 } from "@/lib/precog/builder/process-blocks";
 import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
+import { peopleFromBackup } from "@/lib/precog/import/people-backup";
 
 export function ProcessBuilder({
   selectedProcessId,
@@ -481,23 +482,13 @@ export function ProcessBuilder({
               ? p.procedureLocation.trim().slice(0, 200) || undefined
               : undefined,
         }));
-      if (Array.isArray(parsed.people) && parsed.people.length) {
-        setCustomPeople(
-          parsed.people
-            .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
-            .map((p) => ({
-              id: p.id,
-              name: p.name,
-              role: p.role ?? "Team member",
-              active: p.active ?? true,
-              tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : undefined,
-              entitlements: Array.isArray(p.entitlements) ? p.entitlements : undefined,
-            })),
-        );
-      }
+      // Every person field the backup carries comes back: department, last
+      // day and employee id too, each checked.
+      const restoredPeople = peopleFromBackup(parsed.people);
+      if (restoredPeople.length) setCustomPeople(restoredPeople);
       const importIssues = validateProcessMap(
         cleaned,
-        Array.isArray(parsed.people) ? parsed.people : tpl.people,
+        restoredPeople.length ? restoredPeople : tpl.people,
         new Set(tpl.controls.map((c) => c.id)),
         parsed.layout ?? {},
       );
