@@ -36,7 +36,7 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
-import { resolveTemplate } from "./active-template";
+import { confirmedControlIds, resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { ownBusinessProfile } from "./onboarding/own-team";
@@ -882,6 +882,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const { industry, customProcesses, customPeople, customKnowledge, customRelations } = profile;
+  // Keyed on the confirmed ids, not the whole journal, so an unrelated entry
+  // does not rebuild the template every engine reads.
+  const confirmedControlsKey = confirmedControlIds(profile.decisions, industry).join("|");
   const template = useMemo(
     () =>
       resolveTemplate({
@@ -890,8 +893,16 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         customPeople,
         customKnowledge,
         customRelations,
+        confirmedControlIds: confirmedControlsKey ? confirmedControlsKey.split("|") : [],
       }),
-    [industry, customProcesses, customPeople, customKnowledge, customRelations],
+    [
+      industry,
+      customProcesses,
+      customPeople,
+      customKnowledge,
+      customRelations,
+      confirmedControlsKey,
+    ],
   );
 
   const canUndoMap = undoStack.current.length > 0;

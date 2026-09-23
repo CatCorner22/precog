@@ -449,6 +449,12 @@ function Home() {
       setTab("intel");
       return;
     }
+    // A confirmed starter control opens the control list on Where risk sits.
+    if (tabName === "control") {
+      setLayer("control");
+      setTab("layers");
+      return;
+    }
     if (isTabId(tabName)) setTab(tabName);
   }
 

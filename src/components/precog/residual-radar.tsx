@@ -123,6 +123,11 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             {scenarioNote && (
               <NotCounted onClick={() => onNavigate({ type: "precog" })}>{scenarioNote}</NotCounted>
             )}
+            {summary.starterControlsLeftOut.length > 0 && (
+              <NotCounted onClick={() => onNavigate({ type: "layers", layer: "control" })}>
+                {`Starter controls from the example (${summary.starterControlsLeftOut.length}) are left out: nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
+              </NotCounted>
+            )}
             {summary.top.map((item) => (
               <button
                 key={item.id}

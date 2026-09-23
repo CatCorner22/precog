@@ -4,6 +4,10 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CONTROL_CONFIRM_TAB } from "@/lib/precog/active-template";
+import { dateAfter } from "@/lib/precog/decisions/follow-through";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ORDER: MatrixLayerId[] = [
@@ -70,7 +74,7 @@ export function LayersPanel({
 }
 
 export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
-  const { profile } = usePractice();
+  const { profile, addDecision } = usePractice();
   const { processes, controls, knowledge } = useTemplate();
   const layerCopy = getIndustryCopy(profile.industry).layerCopy;
   const meta = LAYER_META[layer];
@@ -110,10 +114,29 @@ export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
               </div>
               <p className="mt-1 text-muted">{c.description}</p>
               {c.starter && (
-                <p className="mt-1 text-xs text-subtle">
-                  From the industry example. Nobody has confirmed this control runs in your
-                  business, so the app credits nothing for it yet.
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-subtle">
+                    From the industry example. Nobody has confirmed this control runs in your
+                    business, so the app does not score it yet.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      addDecision({
+                        subject: `Control: ${c.name}`,
+                        kind: "monitor",
+                        note: `Confirmed this control runs here: ${c.description} Review whether it still runs, and who does it.`,
+                        reviewBy: dateAfter(new Date(), 90),
+                        linkedTab: CONTROL_CONFIRM_TAB,
+                        linkedId: c.id,
+                      })
+                    }
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    This runs here
+                  </Button>
+                </div>
               )}
               {c.compensatingControls.length > 0 && (
                 <p className="mt-1 text-xs text-subtle">

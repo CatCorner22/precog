@@ -230,3 +230,33 @@ describe("scenario row formula", () => {
     expect(days.detail).not.toMatch(/p50/);
   });
 });
+
+describe("starter controls on an owner's own business", () => {
+  const base = getBaseTemplate("retail");
+  const people = base.people.slice(0, 2);
+
+  it("leaves out controls nobody has confirmed run here, and says which", () => {
+    const tpl = resolveTemplate({ industry: "retail", customPeople: people });
+    const summary = portfolioSummary(tpl, tpl.staffComposition);
+    const scored = new Set(summary.all.map((r) => r.id));
+    for (const id of ["c-ap", "c-ar", "c-sod-ar"]) expect(scored.has(`ctrl-${id}`)).toBe(false);
+    expect(summary.starterControlsLeftOut.sort()).toEqual(["c-ap", "c-ar", "c-sod-ar"]);
+  });
+
+  it("scores a starter control once the owner confirms it", () => {
+    const tpl = resolveTemplate({
+      industry: "retail",
+      customPeople: people,
+      confirmedControlIds: ["c-ap"],
+    });
+    const summary = portfolioSummary(tpl, tpl.staffComposition);
+    expect(summary.all.some((r) => r.id === "ctrl-c-ap")).toBe(true);
+    expect(summary.starterControlsLeftOut).not.toContain("c-ap");
+  });
+
+  it("scores every sample control", () => {
+    const summary = portfolioSummary(base, base.staffComposition);
+    expect(summary.starterControlsLeftOut).toEqual([]);
+    expect(summary.all.filter((r) => r.category === "control")).toHaveLength(base.controls.length);
+  });
+});

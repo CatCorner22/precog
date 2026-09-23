@@ -133,6 +133,25 @@ describe("resolveTemplate", () => {
     expect(base.controls.some((c) => c.starter)).toBe(false);
   });
 
+  it("stops marking a starter control once the owner logs that it runs here", () => {
+    const base = getBaseTemplate("retail");
+    const people = base.people.slice(0, 2);
+    const confirmed = resolveTemplate({
+      industry: "retail",
+      customPeople: people,
+      decisions: [{ linkedTab: "control", linkedId: "c-ap", linkedIndustry: "retail" }],
+    });
+    expect(confirmed.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
+    expect(confirmed.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    // An entry logged under another industry does not confirm this one's control.
+    const elsewhere = resolveTemplate({
+      industry: "retail",
+      customPeople: people,
+      decisions: [{ linkedTab: "control", linkedId: "c-ap", linkedIndustry: "dental" }],
+    });
+    expect(elsewhere.controls.find((c) => c.id === "c-ap")?.starter).toBe(true);
+  });
+
   it("does not leak overrides into later calls", () => {
     const base = getBaseTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });

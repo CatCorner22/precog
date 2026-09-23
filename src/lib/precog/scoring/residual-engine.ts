@@ -371,9 +371,11 @@ export function scoreAllResidualRisks(
   const knowledgeRedundancy =
     risks.filter((r) => r.ownerCount >= 2).length / Math.max(1, risks.length);
 
-  const controlScores = tpl.controls.map((c) =>
-    scoreControl(c, staffResolved, knowledgeRedundancy, weights),
-  );
+  // A starter control nobody has confirmed runs here says nothing about this
+  // business; it is scored once the owner confirms it (Where risk sits).
+  const controlScores = tpl.controls
+    .filter((c) => !c.starter)
+    .map((c) => scoreControl(c, staffResolved, knowledgeRedundancy, weights));
 
   const knowledgeScores = risks.map((r) => {
     const k = tpl.knowledge.find((x) => x.id === r.knowledgeId);
@@ -475,6 +477,8 @@ export function portfolioSummary(
     starterScenariosLeftOut: starterScenariosLeftOut(tpl, scope.confirmedScenarioIds).map(
       (s) => s.id,
     ),
+    /** Starter controls left out until the owner confirms they run here. */
+    starterControlsLeftOut: tpl.controls.filter((c) => c.starter).map((c) => c.id),
   };
 }
 

@@ -4,6 +4,13 @@ import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode
 import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { detectSodConflicts, type DetectedConflict } from "./sod/detect";
 
+/** A journal entry's link to what it is about (see DecisionEntry in practice-profile). */
+export interface DecisionLink {
+  linkedTab?: string;
+  linkedId?: string;
+  linkedIndustry?: IndustryId;
+}
+
 /** The slice of a practice profile that determines which template the engines see. */
 export interface TemplateSource {
   industry: IndustryId;
@@ -11,6 +18,31 @@ export interface TemplateSource {
   customPeople?: Person[] | null;
   customKnowledge?: KnowledgeItem[] | null;
   customRelations?: KnowledgeRelation[] | null;
+  /** The journal: an entry linked to a starter control confirms that it runs here. */
+  decisions?: readonly DecisionLink[] | null;
+  /** Starter controls the owner has confirmed; read from `decisions` when absent. */
+  confirmedControlIds?: readonly string[] | null;
+}
+
+/** The linkedTab of a journal entry that confirms a starter control runs in this business. */
+export const CONTROL_CONFIRM_TAB = "control";
+
+/**
+ * Starter controls the owner has confirmed by logging a journal entry on them
+ * ("This runs here" on Where risk sits). Template ids repeat across
+ * industries, so an entry counts only under the industry it was logged for.
+ */
+export function confirmedControlIds(
+  decisions: readonly DecisionLink[] | null | undefined,
+  industry: IndustryId,
+): string[] {
+  const ids = new Set<string>();
+  for (const d of decisions ?? []) {
+    if (d.linkedTab !== CONTROL_CONFIRM_TAB || !d.linkedId) continue;
+    if (d.linkedIndustry && d.linkedIndustry !== industry) continue;
+    ids.add(d.linkedId);
+  }
+  return [...ids].sort();
 }
 
 /**
@@ -43,9 +75,12 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
     ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
   }));
   const resolved = { ...base, people, knowledge, relations, processes };
+  const confirmed = new Set(
+    source.confirmedControlIds ?? confirmedControlIds(source.decisions, source.industry),
+  );
   return {
     ...resolved,
-    controls: peopleOverrides ? ownControls(base.controls, resolved) : base.controls,
+    controls: peopleOverrides ? ownControls(base.controls, resolved, confirmed) : base.controls,
   };
 }
 
@@ -61,11 +96,16 @@ const RULE_LINKED_CONTROLS = new Set(
  * people:
  * - a control a conflict rule links to is segregated exactly when no employee
  *   holds one of its pairs, and its description names the pairs that are open;
- * - every other control is marked as a starter the owner has not confirmed;
+ * - every other control is marked as a starter until the owner confirms it
+ *   runs here (a journal entry linked to it);
  * - nothing is accepted, and nothing is credited as in place until the owner
  *   records it.
  */
-function ownControls(controls: readonly ControlItem[], tpl: IndustryTemplate): ControlItem[] {
+function ownControls(
+  controls: readonly ControlItem[],
+  tpl: IndustryTemplate,
+  confirmed: ReadonlySet<string>,
+): ControlItem[] {
   const openByControl = new Map<string, DetectedConflict[]>();
   const ownerHolds = new Set<string>();
   for (const conflict of detectSodConflicts(tpl).conflicts) {
@@ -79,7 +119,10 @@ function ownControls(controls: readonly ControlItem[], tpl: IndustryTemplate): C
   }
   return controls.map((c) => {
     const own = { ...c, residualRiskAccepted: false, compensatingControls: [] };
-    if (!RULE_LINKED_CONTROLS.has(c.id)) return { ...own, starter: true };
+    // A control no conflict rule covers is the example's until the owner says
+    // it runs here; once confirmed it counts as the example describes it.
+    if (!RULE_LINKED_CONTROLS.has(c.id))
+      return confirmed.has(c.id) ? own : { ...own, starter: true };
     const open = openByControl.get(c.id) ?? [];
     return {
       ...own,
