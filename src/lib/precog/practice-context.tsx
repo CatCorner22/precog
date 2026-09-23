@@ -181,7 +181,8 @@ const MAX_VERSIONS = 12;
 /**
  * Re-derive the staff figures that depend on the register. With a real team
  * everything derivable is derived; with template people only the sole-owner
- * count moves, because the user's register is now the truth for it.
+ * count moves, read from the register in use (the sample's own register
+ * included), so every screen shows the same figure.
  */
 function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
   const tpl = resolveTemplate(p);
@@ -189,13 +190,6 @@ function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
     return deriveStaffFromTeam(tpl, p.staff, {
       dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl),
     });
-  }
-  if (!p.customKnowledge && !p.customRelations) {
-    return {
-      ...p.staff,
-      soleOwnerKnowledgeCount: getIndustryTemplate(p.industry).staffComposition
-        .soleOwnerKnowledgeCount,
-    };
   }
   return { ...p.staff, soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl) };
 }

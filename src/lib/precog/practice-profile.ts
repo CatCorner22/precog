@@ -2,6 +2,7 @@ import type { SavedProcessBlock } from "./builder/process-blocks";
 import { localDateKey } from "./decisions/follow-through";
 import {
   isCalendarDate,
+  soleOwnerCriticalCount,
   type ContinuityStep,
   type CoverageStatus,
   type DocumentationState,
@@ -292,7 +293,9 @@ const STORAGE_KEY = "precog.practiceProfile.v2";
 
 export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile {
   const tpl = getIndustryTemplate(industry);
-  const staff = { ...tpl.staffComposition };
+  // The sole-owner count is read from the sample's own register, as it is for
+  // an owner's register, not from a preset that can disagree with it.
+  const staff = { ...tpl.staffComposition, soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl) };
   const dualRelease = defaultDualReleasePolicy(tpl, staff);
   return {
     practiceName: tpl.businessName,

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
+import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { soleOwnerCriticalCount } from "./continuity/coverage";
+import { INDUSTRIES } from "./industry";
 import { defaultProfile, normalizeCustomKnowledge, normalizeProfile } from "./practice-profile";
 
 const [first, second] = getBaseTemplate("dental").knowledge;
@@ -48,5 +50,18 @@ describe("normalizeProfile keeps what the owner set by hand", () => {
       staff: { ...base.staff, bankRecSource: "hacked" as unknown as "manual" },
     });
     expect(loaded.staff.bankRecSource).toBeUndefined();
+  });
+});
+
+describe("a sample business shows one sole-owner figure", () => {
+  it("reads the count from the sample's own register, for every line of business", () => {
+    for (const industry of INDUSTRIES.map((i) => i.id)) {
+      const profile = defaultProfile(industry);
+      expect(profile.staff.soleOwnerKnowledgeCount, industry).toBe(
+        soleOwnerCriticalCount(resolveTemplate(profile)),
+      );
+    }
+    // The restaurant preset said 2 while its register has 1 critical item with one holder.
+    expect(defaultProfile("restaurant").staff.soleOwnerKnowledgeCount).toBe(1);
   });
 });
