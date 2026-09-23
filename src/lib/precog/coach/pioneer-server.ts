@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { runGrokAgentLoop } from "../llm/agent-loop";
-import { llmMiddleware } from "../llm/middleware";
+import { heavyLlmMiddleware } from "../llm/middleware";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
@@ -52,7 +52,7 @@ const PIONEER_FAILED_MESSAGE =
   "Pioneer could not build a brief for this map. Try again in a moment.";
 
 export const runPioneerCoach = createServerFn({ method: "POST" })
-  .middleware([llmMiddleware])
+  .middleware([heavyLlmMiddleware])
   .validator(
     (input: {
       question?: string;

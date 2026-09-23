@@ -1,12 +1,19 @@
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequest, getRequestIP } from "@tanstack/react-start/server";
+import { clientIpFrom, trustedClientIpHeaders } from "./client-ip";
 
+/**
+ * The calling client's address. Forwarding headers count only where the
+ * deployment sets them (see client-ip.ts); otherwise this is the socket
+ * address, which a client cannot choose.
+ */
 export function requestIp(): string {
   const request = getRequest();
   if (!request) return "unknown";
-  // x-real-ip is set by the platform; x-forwarded-for's first entry can be
-  // supplied by the client, so it is the fallback, not the first choice.
-  const real = request.headers.get("x-real-ip")?.trim();
-  if (real) return real;
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || "unknown";
+  let socketAddress: string | undefined;
+  try {
+    socketAddress = getRequestIP();
+  } catch {
+    socketAddress = undefined;
+  }
+  return clientIpFrom(request.headers, trustedClientIpHeaders(), socketAddress);
 }

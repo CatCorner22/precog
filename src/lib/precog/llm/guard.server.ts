@@ -3,7 +3,7 @@ import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.s
 import { requestIp } from "@/lib/request-ip.server";
 import { getSql } from "@/lib/db";
 import { withinDailyBudget } from "./daily-usage";
-import { LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
+import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 
 export type LlmAccess = {
   userId: string | null;
@@ -14,8 +14,8 @@ export class TooManyRequestsError extends Error {
   readonly status = 429;
   readonly retryAfterMs: number;
 
-  constructor(retryAfterMs: number) {
-    super("Too many requests — try again in a minute.");
+  constructor(retryAfterMs: number, message = "Too many requests — try again in a minute.") {
+    super(message);
     this.name = "TooManyRequestsError";
     this.retryAfterMs = retryAfterMs;
   }
@@ -24,8 +24,21 @@ export class TooManyRequestsError extends Error {
 const perUserLimiter = new SlidingWindowLimiter(LLM_LIMITS.perUser);
 const perIpLimiter = new SlidingWindowLimiter(LLM_LIMITS.perIp);
 const globalLimiter = new SlidingWindowLimiter(LLM_LIMITS.global);
+const anonymousHeavyGate = createAnonymousHeavyGate();
 
-export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess> {
+export interface LlmAccessOptions {
+  /**
+   * The function does costly work on the server even without a model call
+   * (Pioneer's local analysis), so signed-out callers get a much smaller
+   * allowance there than the per-address limit every model path shares.
+   */
+  heavy?: boolean;
+}
+
+export async function resolveLlmAccess(
+  bearerToken?: string,
+  options: LlmAccessOptions = {},
+): Promise<LlmAccess> {
   assertSameSiteRequest();
   const ipKey = `ip:${requestIp()}`;
   const ipResult = perIpLimiter.take(ipKey);
@@ -36,6 +49,17 @@ export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess>
     userId = DEV_USER_ID;
   } else {
     userId = (await getSessionUser(bearerToken))?.id ?? null;
+  }
+
+  // Checked before the input is parsed or any analysis runs.
+  if (options.heavy && !userId) {
+    const anonymous = anonymousHeavyGate(ipKey);
+    if (!anonymous.allowed) {
+      throw new TooManyRequestsError(
+        anonymous.retryAfterMs,
+        "Too many requests — sign in, or try again in a minute.",
+      );
+    }
   }
 
   if (!process.env.XAI_API_KEY?.trim()) return { userId, grok: "no_api_key" };
