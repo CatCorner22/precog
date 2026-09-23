@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locateTable, parseRows, sniffDelimiter } from "./csv";
+import { csvCell, locateTable, parseRows, sniffDelimiter } from "./csv";
 
 const isHeader = (cells: readonly string[]) => cells.some((cell) => cell.trim() === "Name");
 
@@ -66,5 +66,30 @@ describe("locateTable", () => {
     const late = ["a", "b", "c", "d", "e", "Name,Title", "Ana Ruiz,Owner"].join("\n");
     expect(locateTable(late, isHeader)).toBeUndefined();
     expect(locateTable(late, isHeader, 6)?.skipped).toEqual(["a", "b", "c", "d", "e"]);
+  });
+});
+
+describe("csvCell", () => {
+  it.each([
+    ['=HYPERLINK("http://x","click")', '"\'=HYPERLINK(""http://x"",""click"")"'],
+    ["+1 555 0100", "'+1 555 0100"],
+    ["-Office Manager", "'-Office Manager"],
+    ["@SUM(A1:A2)", "'@SUM(A1:A2)"],
+    ["\tTabbed", "'\tTabbed"],
+  ])("keeps %s from running as a spreadsheet formula", (value, cell) => {
+    expect(csvCell(value)).toBe(cell);
+  });
+
+  it("leaves plain numbers and ordinary text alone", () => {
+    expect(csvCell("-5")).toBe("-5");
+    expect(csvCell("+2.5")).toBe("+2.5");
+    expect(csvCell("Ana Ruiz")).toBe("Ana Ruiz");
+    expect(csvCell("Ruiz, Ana")).toBe('"Ruiz, Ana"');
+  });
+
+  it("reads a guarded cell back as it was written", () => {
+    const values = ["=cmd|' /C calc'!A0", "+1 555 0100", "@home", "Ana Ruiz", "-5"];
+    const line = values.map(csvCell).join(",");
+    expect(parseRows(line)[0]).toEqual(values);
   });
 });

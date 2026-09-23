@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import { isCalendarDate } from "../continuity/coverage";
 import { localDateKey } from "../decisions/follow-through";
-import { parseRows } from "./csv";
+import { csvCell, parseRows } from "./csv";
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -134,9 +134,8 @@ function slug(value: string): string {
     .slice(0, 40);
 }
 
-function escapeCsv(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
+/** A CSV cell guarded against formula injection (see `csvCell`). */
+const escapeCsv = csvCell;
 
 export function parseRegisterCsv(
   text: string,

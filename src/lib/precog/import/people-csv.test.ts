@@ -276,3 +276,23 @@ describe("looksLikeRosterHeader", () => {
     expect(looksLikeRosterHeader(["David Lee", "Cashier", "Store"])).toBe(false);
   });
 });
+
+describe("team export opened in a spreadsheet", () => {
+  it("writes a name that starts a formula as text and reads it back unchanged", () => {
+    const tpl = getBaseTemplate("general");
+    const people = [
+      {
+        id: "x1",
+        name: '=HYPERLINK("http://evil")',
+        role: "@Clerk",
+        active: true,
+        entitlements: ["collect_cash"],
+      },
+    ];
+    const csv = peopleToCsv(people);
+    const line = csv.split(/\r?\n/)[1];
+    expect(line.startsWith("\"'=HYPERLINK")).toBe(true);
+    const back = parsePeopleCsv(csv, { ...tpl, people: [] });
+    expect(back.people[0]?.name).toBe('=HYPERLINK("http://evil")');
+  });
+});

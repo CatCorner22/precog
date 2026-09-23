@@ -2,7 +2,7 @@ import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { isCalendarDate } from "../continuity/coverage";
-import { locateTable, parseRows, sniffDelimiter } from "./csv";
+import { csvCell, locateTable, parseRows, sniffDelimiter } from "./csv";
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 
 export interface PeopleImportIssue {
@@ -450,9 +450,8 @@ function slug(value: string): string {
     .slice(0, 40);
 }
 
-function escapeCsv(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
+/** A CSV cell guarded against formula injection (see `csvCell`). */
+const escapeCsv = csvCell;
 
 function canonicalRole(value: string, roleTemplates: Record<string, unknown>): string {
   const trimmed = value.trim();

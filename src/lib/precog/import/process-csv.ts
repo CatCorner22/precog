@@ -14,7 +14,7 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
-import { parseRows } from "./csv";
+import { csvCell, parseRows } from "./csv";
 
 export interface ProcessImportIssue {
   /** 1-based data row (0 = whole file). */
@@ -89,9 +89,8 @@ function slug(value: string): string {
     .slice(0, 40);
 }
 
-function escapeCsv(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
+/** A CSV cell guarded against formula injection (see `csvCell`). */
+const escapeCsv = csvCell;
 
 function splitList(value: string): string[] {
   return value

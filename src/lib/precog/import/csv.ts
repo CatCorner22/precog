@@ -46,7 +46,30 @@ export function parseRows(text: string, delimiter: Delimiter = ","): string[][] 
     row.push(field);
     rows.push(row);
   }
-  return rows.filter((cells) => cells.some((cell) => cell.trim()));
+  return rows
+    .filter((cells) => cells.some((cell) => cell.trim()))
+    .map((cells) => cells.map(unguardCsvCell));
+}
+
+/** A cell a spreadsheet would run as a formula: it starts with =, +, -, @, a tab or a carriage return. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^[+-]?\d+(\.\d+)?$/;
+
+/**
+ * One CSV cell, safe to open in a spreadsheet. A name such as "=HYPERLINK(…)"
+ * would otherwise run as a formula when the owner opens the export (CSV
+ * injection); it gets a leading apostrophe, which spreadsheets show as text.
+ * Plain numbers such as -5 are left alone. Cells with a comma, a quote or a
+ * line break are quoted.
+ */
+export function csvCell(value: string): string {
+  const safe = FORMULA_START.test(value) && !PLAIN_NUMBER.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+/** Removes the apostrophe `csvCell` adds, so the app's own export reads back as written. */
+function unguardCsvCell(value: string): string {
+  return /^'[=+\-@\t\r]/.test(value) ? value.slice(1) : value;
 }
 
 /**
