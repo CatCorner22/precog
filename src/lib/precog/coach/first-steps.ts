@@ -162,14 +162,19 @@ function channelWords(rules: readonly DualReleasePolicy["rules"][number][]): str
 /**
  * What closes a gap, with any threshold taken from the live policy: suggestions
  * that quote their own dual-release figure, and the detector's generic "policy
- * active" note, give way to one sentence quoting the policy.
+ * active" note, give way to one sentence quoting the policy. Controls already
+ * in place (the finding's controlsInPlace) are left out: they are done, not
+ * steps to take.
  */
 export function closingSteps(
   compensatingControls: readonly string[],
   policy: DualReleasePolicy,
   ruleId: string,
+  inPlace: readonly string[] = [],
 ): string[] {
-  const kept = compensatingControls.filter((c) => !STALE_DUAL_RELEASE.some((re) => re.test(c)));
+  const kept = compensatingControls.filter(
+    (c) => !inPlace.includes(c) && !STALE_DUAL_RELEASE.some((re) => re.test(c)),
+  );
   const line = dualReleaseLine(policy, ruleId);
   return line ? [...kept, line] : kept;
 }

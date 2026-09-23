@@ -121,7 +121,12 @@ export function conflictDecision(
         .map((c) => pairWords(c))
         .join("; ")}`
     : "";
-  const meanwhile = closingSteps(first.compensatingControls, profile.dualRelease, first.ruleId)[0];
+  const meanwhile = closingSteps(
+    first.compensatingControls,
+    profile.dualRelease,
+    first.ruleId,
+    first.controlsInPlace,
+  )[0];
   return {
     action: `Give one of ${person.personName}'s duties to someone else: ${lower(first.labelA)} or ${lower(first.labelB)}`,
     rationale: `${personLabel(person.personName, person.role)} can both ${pairWords(first)}, a ${first.severity === "family" ? "duty" : first.severity} conflict${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${lower(meanwhile).replace(/\.$/, "")}.` : ""}`,

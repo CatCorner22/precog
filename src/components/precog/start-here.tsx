@@ -668,6 +668,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                 conflict.compensatingControls,
                 profile.dualRelease,
                 conflict.ruleId,
+                conflict.controlsInPlace,
               );
               return (
                 <Card key={conflict.ruleId}>

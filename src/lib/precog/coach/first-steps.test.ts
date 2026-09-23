@@ -93,6 +93,14 @@ describe("dual-release wording", () => {
     expect(closes.join(" ")).not.toContain("$1,000");
     expect(closes).toContain("Owner signs new vendor form");
     expect(closes[closes.length - 1]).toMatch(/above \$500/);
+    // A control the owner already has is done, not a step to take.
+    const withReview = closingSteps(
+      ["Owner opens the bank statement first", "The CFO reviews each reconciliation"],
+      off,
+      "rule-release-rec",
+      ["The CFO reviews each reconciliation"],
+    );
+    expect(withReview).toEqual(["Owner opens the bank statement first"]);
   });
 
   it("drops the severity badge once dual release covers the gap", () => {
