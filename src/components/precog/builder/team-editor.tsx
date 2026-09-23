@@ -30,6 +30,7 @@ import {
   type PeopleImportIssue,
 } from "@/lib/precog/import/people-csv";
 import { placeholderNames } from "@/lib/precog/onboarding/own-team";
+import { stripInvisibleControls } from "@/lib/precog/import/csv";
 import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
 export function EntitlementPicker({
   selected,
@@ -125,7 +126,9 @@ export function TeamEditor({
   }
 
   function add() {
-    const finalRole = (useCustom ? customRole : catalogChoice ? catalogChoice.title : role).trim();
+    const finalRole = stripInvisibleControls(
+      useCustom ? customRole : catalogChoice ? catalogChoice.title : role,
+    ).trim();
     if (!name.trim() || !finalRole) return;
     let id = `p-${slug(name)}`;
     let n = 2;
@@ -134,7 +137,8 @@ export function TeamEditor({
       ...people,
       {
         id,
-        name: name.trim().slice(0, 60),
+        // A right-to-left override in a name would reverse every sentence naming them.
+        name: stripInvisibleControls(name).trim().slice(0, 60),
         role: finalRole.slice(0, 40),
         active: true,
         tenureYears:
