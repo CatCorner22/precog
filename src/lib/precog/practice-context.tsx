@@ -37,7 +37,7 @@ import {
   loadBusinessProfile,
   saveBusinessProfile,
 } from "./profile-server";
-import { confirmedControlIds, resolveTemplate } from "./active-template";
+import { confirmedControlIds, controlsInPlace, resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
@@ -1080,6 +1080,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   // Keyed on the confirmed ids, not the whole journal, so an unrelated entry
   // does not rebuild the template every engine reads.
   const confirmedControlsKey = confirmedControlIds(profile.decisions, industry).join("|");
+  const controlsInPlaceKey = JSON.stringify(controlsInPlace(profile.decisions, industry));
   const template = useMemo(
     () =>
       resolveTemplate({
@@ -1089,6 +1090,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         customKnowledge,
         customRelations,
         confirmedControlIds: confirmedControlsKey ? confirmedControlsKey.split("|") : [],
+        controlsInPlace: JSON.parse(controlsInPlaceKey) as Record<string, string[]>,
       }),
     [
       industry,
@@ -1097,6 +1099,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       customKnowledge,
       customRelations,
       confirmedControlsKey,
+      controlsInPlaceKey,
     ],
   );
 

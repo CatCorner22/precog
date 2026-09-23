@@ -835,16 +835,9 @@ function Home() {
                   <h2 className="text-lg font-semibold">Matrix process layers</h2>
                   <p className="text-sm text-muted">Peel layers independently.</p>
                 </div>
-                <LayersPanel
-                  active={layer}
-                  onSelect={(id) => {
-                    setLayer(id);
-                    if (id === "knowledge") setTab("knowledge");
-                    if (id === "control") setTab("sod");
-                    if (id === "process") setTab("map");
-                  }}
-                />
-                <LayerDetail layer={layer} />
+                {/* A layer card shows its list below; the list links to its full tab. */}
+                <LayersPanel active={layer} onSelect={setLayer} />
+                <LayerDetail layer={layer} onOpenTab={(id) => navigateTab(id)} />
               </div>
             )}
 

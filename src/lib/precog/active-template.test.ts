@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
-import { INDUSTRIES } from "./industry";
+import {
+  CONTROL_IN_PLACE_TAB,
+  controlsInPlace,
+  getBaseTemplate,
+  resolveTemplate,
+} from "./active-template";
+import { INDUSTRIES, type IndustryId } from "./industry";
+import { controlOptions, detectSodConflicts } from "./sod/detect";
 
 describe("resolveTemplate", () => {
   it("returns each industry's own template, unchanged", () => {
@@ -165,5 +171,64 @@ describe("resolveTemplate", () => {
     const custom = [{ ...base.processes[0], id: "proc-custom", name: "Custom step" }];
     const tpl = resolveTemplate({ industry: "retail", customProcesses: custom });
     expect(tpl.processes.map((p) => p.id)).toEqual(["proc-custom"]);
+  });
+});
+
+describe("controls the owner already has", () => {
+  const people = [
+    {
+      id: "own-1",
+      name: "Erik Lindqvist",
+      role: "Controller",
+      active: true,
+      entitlements: ["release_payment", "bank_reconcile"],
+    },
+    {
+      id: "own-2",
+      name: "Ana Ruiz",
+      role: "Owner",
+      active: true,
+      entitlements: ["approve_payroll"],
+    },
+  ];
+  const inPlace = (note: string, linkedIndustry: IndustryId = "general") => ({
+    linkedTab: CONTROL_IN_PLACE_TAB,
+    linkedId: "c-sod-cash",
+    linkedIndustry,
+    note,
+  });
+  const releaseRec = (tpl: ReturnType<typeof resolveTemplate>) =>
+    detectSodConflicts(tpl, undefined, controlOptions(tpl)).conflicts.find(
+      (c) => c.personId === "own-1" && c.ruleId === "rule-release-rec",
+    )!;
+
+  it("credits the CFO's review of each reconciliation on the controller's release + reconcile", () => {
+    const without = resolveTemplate({ industry: "general", customPeople: people });
+    const withReview = resolveTemplate({
+      industry: "general",
+      customPeople: people,
+      decisions: [inPlace("The CFO reviews each bank reconciliation and its statement")],
+    });
+    expect(withReview.controls.find((c) => c.id === "c-sod-cash")?.compensatingControls).toEqual([
+      "The CFO reviews each bank reconciliation and its statement",
+    ]);
+    const before = releaseRec(without);
+    const after = releaseRec(withReview);
+    expect(after.controlsInPlace).toContain(
+      "The CFO reviews each bank reconciliation and its statement",
+    );
+    expect(after.score).toBeLessThan(before.score);
+    // The gap stays open: the same person still holds both duties.
+    expect(after.severity).toBe(before.severity);
+  });
+
+  it("ignores an empty note and an entry logged under another industry", () => {
+    expect(controlsInPlace([inPlace("  ")], "general")).toEqual({});
+    expect(controlsInPlace([inPlace("Review", "dental")], "general")).toEqual({});
+  });
+
+  it("leaves the sample business's own records alone", () => {
+    const sample = resolveTemplate({ industry: "general", decisions: [inPlace("Anything")] });
+    expect(sample.controls).toBe(getBaseTemplate("general").controls);
   });
 });

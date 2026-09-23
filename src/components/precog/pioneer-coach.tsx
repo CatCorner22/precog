@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
-import { CONTROL_CONFIRM_TAB } from "@/lib/precog/active-template";
+import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
 import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
@@ -70,7 +70,12 @@ type CoachResult = {
   specialistNotes?: { agent: string; title: string; bullets: string[] }[];
 };
 
-const PIONEER_JOURNAL_TABS = new Set(["knowledge", "precog", CONTROL_CONFIRM_TAB]);
+const PIONEER_JOURNAL_TABS = new Set([
+  "knowledge",
+  "precog",
+  CONTROL_CONFIRM_TAB,
+  CONTROL_IN_PLACE_TAB,
+]);
 
 export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: string) => void }) {
   const { profile, addDecision } = usePractice();
@@ -110,9 +115,10 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: s
             customKnowledge: profile.customKnowledge ?? null,
             customRelations: profile.customRelations ?? null,
             // The journal entries the server reads: continuity commitments,
-            // the scenarios the owner confirmed apply, and the starter
-            // controls they confirmed run here, so Pioneer scores the same
-            // scope and controls as every other screen.
+            // the scenarios the owner confirmed apply, the starter controls
+            // they confirmed run here, and the controls they already have,
+            // so Pioneer scores the same scope and controls as every other
+            // screen.
             decisions: profile.decisions.filter((d) => PIONEER_JOURNAL_TABS.has(d.linkedTab ?? "")),
             plannedAbsences: profile.plannedAbsences ?? [],
           },

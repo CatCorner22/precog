@@ -9,6 +9,8 @@ export interface DecisionLink {
   linkedTab?: string;
   linkedId?: string;
   linkedIndustry?: IndustryId;
+  /** The entry's note: for a control in place, what the owner does. */
+  note?: string;
 }
 
 /** The slice of a practice profile that determines which template the engines see. */
@@ -22,6 +24,8 @@ export interface TemplateSource {
   decisions?: readonly DecisionLink[] | null;
   /** Starter controls the owner has confirmed; read from `decisions` when absent. */
   confirmedControlIds?: readonly string[] | null;
+  /** Controls the owner already has, by control id; read from `decisions` when absent. */
+  controlsInPlace?: Readonly<Record<string, readonly string[]>> | null;
 }
 
 /** The linkedTab of a journal entry that confirms a starter control runs in this business. */
@@ -43,6 +47,35 @@ export function confirmedControlIds(
     ids.add(d.linkedId);
   }
   return [...ids].sort();
+}
+
+/** The linkedTab of a journal entry that records a control the owner already has against a duty gap. */
+export const CONTROL_IN_PLACE_TAB = "control-in-place";
+
+/** Longest description of a control in place that the engines carry. */
+const MAX_IN_PLACE_TEXT = 200;
+
+/**
+ * Controls the owner already has, recorded on Where risk sits ("We already
+ * do this"), by the control they narrow: for example "The CFO reviews each
+ * bank reconciliation" against the cash duty-separation control. Each is a
+ * journal entry, so it carries a date and a review date, and removing the
+ * entry removes the credit. Only entries logged under this industry count.
+ */
+export function controlsInPlace(
+  decisions: readonly DecisionLink[] | null | undefined,
+  industry: IndustryId,
+): Record<string, string[]> {
+  const byControl: Record<string, string[]> = {};
+  for (const d of decisions ?? []) {
+    if (d.linkedTab !== CONTROL_IN_PLACE_TAB || !d.linkedId) continue;
+    if (d.linkedIndustry && d.linkedIndustry !== industry) continue;
+    const text = (d.note ?? "").trim().slice(0, MAX_IN_PLACE_TEXT);
+    if (!text) continue;
+    const list = (byControl[d.linkedId] ??= []);
+    if (!list.includes(text)) list.push(text);
+  }
+  return byControl;
 }
 
 /**
@@ -78,9 +111,12 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   const confirmed = new Set(
     source.confirmedControlIds ?? confirmedControlIds(source.decisions, source.industry),
   );
+  const inPlace = source.controlsInPlace ?? controlsInPlace(source.decisions, source.industry);
   return {
     ...resolved,
-    controls: peopleOverrides ? ownControls(base.controls, resolved, confirmed) : base.controls,
+    controls: peopleOverrides
+      ? ownControls(base.controls, resolved, confirmed, inPlace)
+      : base.controls,
   };
 }
 
@@ -99,12 +135,13 @@ const RULE_LINKED_CONTROLS = new Set(
  * - every other control is marked as a starter until the owner confirms it
  *   runs here (a journal entry linked to it);
  * - nothing is accepted, and nothing is credited as in place until the owner
- *   records it.
+ *   records it (see controlsInPlace).
  */
 function ownControls(
   controls: readonly ControlItem[],
   tpl: IndustryTemplate,
   confirmed: ReadonlySet<string>,
+  inPlace: Readonly<Record<string, readonly string[]>>,
 ): ControlItem[] {
   const openByControl = new Map<string, DetectedConflict[]>();
   const ownerHolds = new Set<string>();
@@ -118,7 +155,11 @@ function ownControls(
     openByControl.set(controlId, [...(openByControl.get(controlId) ?? []), conflict]);
   }
   return controls.map((c) => {
-    const own = { ...c, residualRiskAccepted: false, compensatingControls: [] };
+    const own = {
+      ...c,
+      residualRiskAccepted: false,
+      compensatingControls: [...(inPlace[c.id] ?? [])],
+    };
     // A control no conflict rule covers is the example's until the owner says
     // it runs here; once confirmed it counts as the example describes it.
     if (!RULE_LINKED_CONTROLS.has(c.id))

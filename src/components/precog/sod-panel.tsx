@@ -275,9 +275,17 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 </p>
                 <p className="mt-1 text-xs text-muted">{c.why}</p>
                 <p className="mt-1 text-[11px] text-subtle">Fraud path: {c.fraudPath}</p>
-                {c.compensatingControls.length > 0 && (
+                {c.controlsInPlace.length > 0 && (
                   <p className="mt-2 text-xs text-ok">
-                    Compensate: {c.compensatingControls.join("; ")}
+                    Already in place: {c.controlsInPlace.join("; ")}
+                  </p>
+                )}
+                {c.compensatingControls.some((x) => !c.controlsInPlace.includes(x)) && (
+                  <p className="mt-2 text-xs text-muted">
+                    Until the duties are split:{" "}
+                    {c.compensatingControls
+                      .filter((x) => !c.controlsInPlace.includes(x))
+                      .join("; ")}
                   </p>
                 )}
                 {/*
