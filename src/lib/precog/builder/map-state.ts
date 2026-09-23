@@ -11,8 +11,9 @@ import type { ProcessNode } from "../types";
  * - "starter": the owner's own people over the industry's starter map, with
  *   no process owned by anyone yet. The map is a starting point, not a fact
  *   about the business.
- * - "own": the owner edited the map (customProcesses set), or a process on the
- *   starter map points at one of their people.
+ * - "own": a process points at one of the owner's people, or the owner added
+ *   or removed processes. Renaming a starter process alone leaves it a
+ *   starter map.
  */
 export type MapSource = "sample" | "starter" | "own";
 
@@ -20,14 +21,22 @@ export type MapProfile = Pick<PracticeProfile, "industry" | "customPeople" | "cu
 
 export function mapSource(profile: MapProfile): MapSource {
   if (!profile.customPeople) return "sample";
-  if (profile.customProcesses) return "own";
   // resolveTemplate keeps only owner references that point at the owner's own
   // people, so the starter map stays unowned until one of them is assigned.
   const ids = new Set(profile.customPeople.map((p) => p.id));
-  const owned = getIndustryTemplate(profile.industry).processes.some((p) =>
-    (p.ownerPersonIds ?? []).some((id) => ids.has(id)),
-  );
-  return owned ? "own" : "starter";
+  const starter = getIndustryTemplate(profile.industry).processes;
+  const current = profile.customProcesses ?? starter;
+  const owned = current.some((p) => (p.ownerPersonIds ?? []).some((id) => ids.has(id)));
+  if (owned) return "own";
+  // Renaming, re-describing or reordering starter processes, with nobody
+  // assigned, still leaves the starter map; adding or removing a process
+  // makes it the owner's.
+  const idsOf = (list: readonly ProcessNode[]) =>
+    list
+      .map((p) => p.id)
+      .sort()
+      .join("|");
+  return idsOf(current) === idsOf(starter) ? "starter" : "own";
 }
 
 /**

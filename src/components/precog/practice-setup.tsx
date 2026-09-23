@@ -9,7 +9,6 @@ import {
   listEnteredWork,
 } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { mapSource } from "@/lib/precog/builder/map-state";
 import { useTemplate } from "@/lib/precog/use-template";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
@@ -256,9 +255,10 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         )}
         {profile.customPeople ? (
           // An own business never goes back to the sample business from here.
-          // Once the owner has edited the map, this returns it to the starter
-          // map; their team, register and journal stay.
-          mapSource(profile) === "own" && (
+          // Once the owner has edited the map, even by renaming a starter
+          // process, this returns it to the starter map; their team, register
+          // and journal stay.
+          profile.customProcesses && (
             <Button
               size="sm"
               variant="secondary"

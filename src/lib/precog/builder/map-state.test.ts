@@ -181,3 +181,41 @@ describe("starterProcesses", () => {
     expect(starter.every((p) => p.ownerPersonIds?.length === 0)).toBe(true);
   });
 });
+
+describe("a starter map the owner only renamed", () => {
+  const people = [{ id: "own-1", name: "Ana", role: "Owner", active: true }];
+  const starter = getBaseTemplate("retail").processes.map((p) => ({ ...p, ownerPersonIds: [] }));
+
+  it("stays a starter map, not assessed, when a process is renamed with nobody assigned", () => {
+    const renamed = starter.map((p, i) => (i === 0 ? { ...p, name: "Our sales desk" } : p));
+    const profile = { industry: "retail" as const, customPeople: people, customProcesses: renamed };
+    expect(mapSource(profile)).toBe("starter");
+    expect(mapAssessed(profile)).toBe(false);
+  });
+
+  it("stays a starter map when the processes are only reordered", () => {
+    const profile = {
+      industry: "retail" as const,
+      customPeople: people,
+      customProcesses: [...starter].reverse(),
+    };
+    expect(mapSource(profile)).toBe("starter");
+  });
+
+  it("becomes the owner's map once a process is added or removed", () => {
+    const profile = {
+      industry: "retail" as const,
+      customPeople: people,
+      customProcesses: starter.slice(1),
+    };
+    expect(mapSource(profile)).toBe("own");
+    expect(mapAssessed(profile)).toBe(true);
+  });
+
+  it("becomes the owner's map once one of their people owns a process", () => {
+    const owned = starter.map((p, i) => (i === 0 ? { ...p, ownerPersonIds: ["own-1"] } : p));
+    expect(mapSource({ industry: "retail", customPeople: people, customProcesses: owned })).toBe(
+      "own",
+    );
+  });
+});
