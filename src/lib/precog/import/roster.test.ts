@@ -251,7 +251,11 @@ describe("parseRoster", () => {
       ["Cal Diaz", "Bookkeeper", "200 - Finance", true, "emp-abc000003"],
       ["Fay Roe", "Cashier", "300 - Store", false, "emp-abc000004"],
     ]);
-    expect(adp.issues).toEqual([]);
+    // ADP's L is leave: the person stays on the team and the note says so.
+    expect(adp.onLeave).toEqual(["emp-abc000003"]);
+    expect(adp.issues).toEqual([
+      { row: 3, message: '"Cal Diaz" is on leave (status "L"); kept on the team' },
+    ]);
 
     const openDental = parseRoster(
       "EmployeeNum,LName,FName,MiddleI,IsHidden,ClockStatus,PhoneExt,PayrollID\n1,Ruiz,Ana,M,0,Home,101,P1\n2,Ochoa,Ben,,0,Working,102,P2\n3,Diaz,Cal,,1,Home,103,P3",
@@ -300,7 +304,9 @@ describe("parseRoster", () => {
       ["emp-103", "Cal Diaz", "Finance", true],
       ["emp-104", "Fay Roe", "Store", false],
     ]);
-    expect(paylocity.issues).toEqual([]);
+    expect(paylocity.issues).toEqual([
+      { row: 3, message: '"Cal Diaz" is on leave (status "L"); kept on the team' },
+    ]);
   });
 
   it("reads Employee # as the employee id, never as the name", () => {
@@ -468,7 +474,15 @@ describe("parseRoster", () => {
     expect(result.people.slice(inactive.length).map((p) => p.active)).toEqual(
       [...active, "Onboarding", "Onboarding", "Pre-hire"].map(() => true),
     );
+    // Leave statuses keep the person on the team and are noted; unknown words are reported once.
+    const onLeave = ["L", "Leave of Absence", "On Leave", "Unpaid Leave", "Paid Leave"];
+    const leaveRows = onLeave.map((status) => inactive.length + active.indexOf(status) + 1);
+    expect(result.onLeave).toEqual(leaveRows.map((row) => `p-person-${row}`));
     expect(result.issues).toEqual([
+      ...onLeave.map((status, i) => ({
+        row: leaveRows[i],
+        message: `"Person ${leaveRows[i]}" is on leave (status "${status}"); kept on the team`,
+      })),
       {
         row: inactive.length + active.length + 1,
         message: 'Status "Onboarding" not recognised; treated as active',
@@ -490,7 +504,106 @@ describe("parseRoster", () => {
       ["Eve Lam", true, "Main"],
       ["Gus Tan", false, "Main"],
     ]);
-    expect(quickbooks.issues).toEqual([]);
+    expect(quickbooks.issues).toEqual([
+      { row: 3, message: '"Eve Lam" is on leave (status "Paid leave"); kept on the team' },
+    ]);
+  });
+
+  it("keeps an ADP clinic worker on Leave on the team and lists them as on leave", () => {
+    const clinic = parseRoster(
+      'Payroll Name,Position Description,Home Department Description,Status,Hire Date\n"Alvarez, Rosa",Medical Assistant,Clinical - Nursing,Active,06/02/2014\n"Haddad, Layla",Medical Assistant - Float,Clinical - Nursing,Leave,05/15/2020\n"Kim, Grace",Bookkeeper (Contract),Administration,LOA,01/10/2018\n"Torres, Miguel",Front Desk Receptionist,Front Office,Terminated,02/03/2020',
+      general,
+      { today },
+    );
+    expect(clinic.people.map((p) => [p.name, p.active])).toEqual([
+      ["Rosa Alvarez", true],
+      ["Layla Haddad", true],
+      ["Grace Kim", true],
+      ["Miguel Torres", false],
+    ]);
+    expect(clinic.onLeave).toEqual(["p-layla-haddad", "p-grace-kim"]);
+    expect(clinic.issues).toEqual([
+      { row: 2, message: '"Layla Haddad" is on leave (status "Leave"); kept on the team' },
+      { row: 3, message: '"Grace Kim" is on leave (status "LOA"); kept on the team' },
+    ]);
+  });
+
+  it("reads an Employment Type column as schedule, so T for temporary keeps the person", () => {
+    const result = parseRoster(
+      "Employee Name,Job Title,Employment Type\nAna Ruiz,Bookkeeper,F\nBen Cole,Cashier,T\nCal Diaz,Cashier,P\nDee Park,Server,Terminated",
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => [p.name, p.active])).toEqual([
+      ["Ana Ruiz", true],
+      ["Ben Cole", true],
+      ["Cal Diaz", true],
+      ["Dee Park", false],
+    ]);
+    expect(result.issues).toEqual([]);
+    // A true status column beside it still decides.
+    const both = parseRoster(
+      "Employee Name,Job Title,Status,Worker Type\nAna Ruiz,Bookkeeper,T,Regular\nBen Cole,Cashier,A,T",
+      general,
+      { today },
+    );
+    expect(both.people.map((p) => p.active)).toEqual([false, true]);
+  });
+
+  it("reads two employees with one name and title by their different employee IDs", () => {
+    const result = parseRoster(
+      "Employee ID,Employee Name,Job Title\n1001,Maria Garcia,Server\n1002,Maria Garcia,Server",
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => [p.id, p.name, p.role])).toEqual([
+      ["emp-1001", "Maria Garcia", "Server"],
+      ["emp-1002", "Maria Garcia", "Server"],
+    ]);
+    expect(result.duplicates).toBe(0);
+    expect(result.issues).toEqual([
+      {
+        row: 2,
+        message: '"Maria Garcia" appears twice with different employee IDs; kept as two people',
+      },
+    ]);
+  });
+
+  it("reads one employee ID on two positions as one person holding both jobs' duties", () => {
+    const result = parseRoster(
+      "Employee ID,Employee Name,Job Title\n1001,Ana Ruiz,Bookkeeper\n1001,Ana Ruiz,Cashier\n1001,Ana Ruiz,Cashier\n1002,Ben Cole,Server",
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => [p.id, p.name, p.role])).toEqual([
+      ["emp-1001", "Ana Ruiz", "Bookkeeper / Cashier"],
+      ["emp-1002", "Ben Cole", "Server"],
+    ]);
+    expect(result.people[0].entitlements).toEqual(
+      expect.arrayContaining(["collect_cash", "bank_reconcile", "post_payments"]),
+    );
+    expect(result.duplicates).toBe(1);
+    expect(result.issues).toEqual([
+      {
+        row: 2,
+        message:
+          '"Ana Ruiz" (employee ID 1001) holds two positions, Bookkeeper and Cashier; read as one person with the duties of both',
+      },
+      { row: 3, message: '"Ana Ruiz" appears twice; second copy skipped' },
+    ]);
+    // An inactive second position adds nothing; an active one replaces an ended first one.
+    const ended = parseRoster(
+      "Employee ID,Employee Name,Job Title,Status\n7,Cal Diaz,Cashier,Active\n7,Cal Diaz,Bookkeeper,Terminated\n8,Dee Park,Cashier,Terminated\n8,Dee Park,Server,Active",
+      general,
+      { today },
+    );
+    expect(ended.people.map((p) => [p.name, p.role, p.active, p.entitlements])).toEqual([
+      ["Cal Diaz", "Cashier", true, ["collect_cash", "view_reports_only"]],
+      ["Dee Park", "Server", true, ["collect_cash", "view_reports_only"]],
+    ]);
+    expect(ended.issues[0].message).toBe(
+      '"Cal Diaz" (employee ID 7): the Bookkeeper position is marked inactive, so its duties are left out',
+    );
   });
 
   it("ranks title columns by specificity, skips numeric position codes, and tries a second title column for the catalog", () => {

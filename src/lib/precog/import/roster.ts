@@ -81,6 +81,7 @@ export function parseRoster(
       skipped: 0,
       duplicates: 0,
       dropped: 0,
+      onLeave: [],
     };
   }
   const source = unwrapMarkdownTable(trimmed);

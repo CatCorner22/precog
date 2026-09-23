@@ -75,6 +75,7 @@ describe("parsePeopleCsv", () => {
       skipped: 0,
       duplicates: 0,
       dropped: 0,
+      onLeave: [],
     });
   });
 
