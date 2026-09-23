@@ -528,6 +528,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       storedProfile.current = profile;
       lastLocalWrite.current = "saved";
       if (!cloud) setSyncStatus("local");
+      toast("Updated with changes saved in another tab.");
       return;
     }
     // Waiting for the owner to choose between this tab's version and another
@@ -598,8 +599,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         undoStack.current = [];
         redoStack.current = [];
         setHistoryVersion((v) => v + 1);
+        // Applies only if no edit landed here meanwhile; the toast comes
+        // with the save effect once it has.
         setProfile({ adopt: change.profile, ifState: current });
-        toast("Updated with changes saved in another tab.");
         return;
       }
       if (change.kind !== "conflict") return;
