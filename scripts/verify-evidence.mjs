@@ -375,6 +375,7 @@ const DUTY_WORDS = {
     "fictitious compan",
   ],
   approve_vendor: ["approv", "choosing the contractor", "steered"],
+  approve_invoices: ["approv"],
   release_payment: [
     "check",
     "paid",

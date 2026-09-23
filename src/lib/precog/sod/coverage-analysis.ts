@@ -1,4 +1,8 @@
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
+
+const OPTIONAL_DUTIES: ReadonlySet<EntitlementId> = new Set(
+  ENTITLEMENTS.filter((item) => item.optional).map((item) => item.id),
+);
 import type { RoleAssignment } from "./detect";
 
 export interface DutyCoverage {
@@ -36,7 +40,14 @@ export interface AbsenceImpact {
  * model can still fail when nobody, or only one person, can perform a critical
  * duty. Read-only reporting is excluded because it is not an operating duty.
  */
-export function analyzeDutyCoverage(assignments: RoleAssignment[]): CoverageAnalysis {
+export function analyzeDutyCoverage(
+  assignments: RoleAssignment[],
+  /**
+   * Optional duties to score even when nobody holds them: the ones someone
+   * held before an absence, whose work then stops.
+   */
+  scoreOptional: ReadonlySet<EntitlementId> = new Set(),
+): CoverageAnalysis {
   const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map(
     (entitlement) => {
       const assignees = assignments
@@ -72,11 +83,19 @@ export function analyzeDutyCoverage(assignments: RoleAssignment[]): CoverageAnal
     .filter((item) => item.count >= 4)
     .sort((a, b) => b.count - a.count || a.personName.localeCompare(b.personName));
 
-  const unassigned = duties.filter((item) => item.status === "unassigned");
-  const singlePoints = duties.filter(
+  // An optional control step nobody holds (approving bills, say) is a choice
+  // the business made, not a gap: it is left out of the index entirely.
+  const scored = duties.filter(
+    (item) =>
+      item.status !== "unassigned" ||
+      !OPTIONAL_DUTIES.has(item.entitlementId) ||
+      scoreOptional.has(item.entitlementId),
+  );
+  const unassigned = scored.filter((item) => item.status === "unassigned");
+  const singlePoints = scored.filter(
     (item) => item.status === "single_point" && item.riskWeight >= 4,
   );
-  const maximumPenalty = duties.reduce((sum, item) => sum + item.riskWeight * 2, 0);
+  const maximumPenalty = scored.reduce((sum, item) => sum + item.riskWeight * 2, 0);
   const penalty =
     unassigned.reduce((sum, item) => sum + item.riskWeight * 2, 0) +
     singlePoints.reduce((sum, item) => sum + item.riskWeight, 0);
@@ -99,7 +118,16 @@ export function analyzeAbsenceImpact(
   if (!person) return undefined;
 
   const before = analyzeDutyCoverage(assignments);
-  const after = analyzeDutyCoverage(assignments.filter((item) => item.personId !== personId));
+  // An optional duty held before the absence still has work that stops.
+  const heldOptional = new Set(
+    before.duties
+      .filter((item) => item.status !== "unassigned" && OPTIONAL_DUTIES.has(item.entitlementId))
+      .map((item) => item.entitlementId),
+  );
+  const after = analyzeDutyCoverage(
+    assignments.filter((item) => item.personId !== personId),
+    heldOptional,
+  );
   const beforeById = new Map(before.duties.map((item) => [item.entitlementId, item]));
   const newlyUnassigned = after.duties.filter(
     (item) =>

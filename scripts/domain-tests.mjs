@@ -623,7 +623,9 @@ try {
     assert.ok(baseline.resilienceScore >= 0 && baseline.resilienceScore <= 100);
     assert.equal(baseline.duties.length, sodRules.ENTITLEMENTS.length - 1);
     const empty = coverageAnalysis.analyzeDutyCoverage([]);
-    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1);
+    // Optional control steps nobody holds are a choice, not a gap.
+    const optional = sodRules.ENTITLEMENTS.filter((item) => item.optional).length;
+    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1 - optional);
     assert.equal(empty.resilienceScore, 0);
     assert.ok(
       baseline.duties.every((duty) =>

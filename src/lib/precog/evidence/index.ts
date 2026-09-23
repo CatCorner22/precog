@@ -76,6 +76,8 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   // Enter an invoice and pay it: a shell vendor needs nothing else, and a
   // real vendor paying kickbacks needs only the approval.
   "rule-invoice-pay": ["billing-shell-vendor", "corruption"],
+  // Enter a bill and approve it: the payment run then pays it as approved.
+  "rule-invoice-approve": ["billing-shell-vendor", "corruption"],
   // Order goods and confirm they arrived: the classic path for stock that
   // never reached the shelf.
   "rule-order-receive": ["inventory-theft", "billing-shell-vendor"],

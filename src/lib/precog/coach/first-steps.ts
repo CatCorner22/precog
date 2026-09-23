@@ -63,6 +63,7 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
   "independent-financial-review": ["post_journal_entries", "bank_reconcile"],
   "verify-oversight-is-real": [
     "approve_vendor",
+    "approve_invoices",
     "approve_payroll",
     "approve_writeoffs",
     "bank_reconcile",

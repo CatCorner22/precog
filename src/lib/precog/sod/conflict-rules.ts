@@ -19,6 +19,7 @@ export type EntitlementId =
   | "submit_claims"
   | "create_vendor"
   | "approve_vendor"
+  | "approve_invoices"
   | "release_payment"
   | "approve_payroll"
   | "enter_payroll"
@@ -45,6 +46,11 @@ export interface Entitlement {
   family: DutyFamily;
   processIds: string[];
   riskWeight: number; // 1–5
+  /**
+   * A control step many small businesses do not have. Nobody holding it is
+   * a choice, not a gap: coverage leaves it out until someone holds it.
+   */
+  optional?: boolean;
 }
 
 export interface ConflictRule {
@@ -123,6 +129,16 @@ export const ENTITLEMENTS: Entitlement[] = [
     family: "authorization",
     processIds: ["proc-ap"],
     riskWeight: 4,
+  },
+  {
+    // The second person on a bill: they check the bill against what was
+    // ordered and received before anyone pays it.
+    id: "approve_invoices",
+    label: "Approve bills for payment",
+    family: "authorization",
+    processIds: ["proc-ap"],
+    riskWeight: 4,
+    optional: true,
   },
   {
     id: "release_payment",
@@ -283,7 +299,25 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Invoice entry + payment release",
     why: "The same person can enter an unsupported invoice and pay it.",
     fraudPath: "Enter fictitious invoice and release payment",
-    compensatingDefaults: ["Owner reviews invoice support", "Dual release above threshold"],
+    compensatingDefaults: [
+      "Someone who enters no bills approves each one before it is paid (record them as approving bills for payment)",
+      "Dual release above threshold",
+    ],
+    linkedControlId: "c-sod-ap",
+  },
+  {
+    id: "rule-invoice-approve",
+    a: "enter_invoices",
+    b: "approve_invoices",
+    severity: "high",
+    title: "Bill entry + bill approval",
+    why: "The person who enters a bill also approves it for payment, so a false or inflated bill needs nobody else's sign-off.",
+    fraudPath:
+      "Enter a bill from a shell or friendly supplier, approve it, and let the payment run pay it",
+    compensatingDefaults: [
+      "Someone who enters no bills approves each one before payment",
+      "Owner compares the paid-bills list with supplier statements monthly",
+    ],
     linkedControlId: "c-sod-ap",
   },
   {

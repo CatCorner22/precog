@@ -213,6 +213,7 @@ const UNCITED_RULES = [
   "rule-cash-admin",
   "rule-cash-refund",
   "rule-claims-writeoff",
+  "rule-invoice-approve",
   "rule-payroll-master-release",
   "rule-refund-post",
   "rule-writeoff",

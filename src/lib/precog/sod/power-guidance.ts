@@ -141,6 +141,11 @@ function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
       evidence: "Approval record and validated vendor support",
       boundary: "Approval should be independent of vendor setup and payment release.",
     },
+    approve_invoices: {
+      purpose: "Approve each supplier bill for payment against the order and the receipt.",
+      evidence: "Approval on each bill, with the order and proof of receipt",
+      boundary: "Approval should be independent of bill entry and payment release.",
+    },
     release_payment: {
       purpose: "Execute the final release of an approved vendor payment.",
       evidence: "Bank or payment-platform release log",

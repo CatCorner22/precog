@@ -386,6 +386,7 @@ const SUBSUMED_BY: Record<string, string> = {
 export const OVERSIGHT_DUTIES: ReadonlySet<EntitlementId> = new Set<EntitlementId>([
   "sign_checks",
   "approve_vendor",
+  "approve_invoices",
   "approve_payroll",
   "approve_writeoffs",
   "bank_reconcile",
@@ -398,6 +399,7 @@ export const OVERSIGHT_DUTIES: ReadonlySet<EntitlementId> = new Set<EntitlementI
 
 const APPROVAL_DUTIES = new Set<EntitlementId>([
   "approve_vendor",
+  "approve_invoices",
   "approve_payroll",
   "approve_writeoffs",
   "sign_checks",
@@ -442,6 +444,15 @@ function moneyCycleHeld(duties: readonly EntitlementId[]): EntitlementId[] {
   const held = new Set(duties);
   if (held.has("initiate_ach") || held.has("sign_checks")) held.add("release_payment");
   return MONEY_CYCLE.filter((d) => held.has(d));
+}
+
+/** The rule another person's bill approval narrows: entering a bill and paying it. */
+const BILL_APPROVAL_RULE = "rule-invoice-pay";
+
+/** "Ana", "Ana or Ben", "Ana, Ben or Cy": the people any one of whom can approve. */
+function listNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
 }
 
 const OWNER_HELD_SUGGESTIONS = [
@@ -662,6 +673,10 @@ export function detectSodConflicts(
       ? options.soleOwnerId
       : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
 
+  // Who approves bills for payment. Another person's approval of each bill is
+  // a control in place on that person's bill entry plus payment release.
+  const billApprovers = assignments.filter((a) => a.entitlements.includes("approve_invoices"));
+
   for (const person of assignments) {
     const ents = person.entitlements;
     const owner = person.personId === ownerId;
@@ -702,9 +717,18 @@ export function detectSodConflicts(
       const dualMitigated = dualMitigatedRules.has(rule.id);
       // A rule's suggested controls are advice, not controls the business
       // has; only what is recorded as in place lowers the score.
+      const otherApprovers =
+        rule.id === BILL_APPROVAL_RULE
+          ? billApprovers.filter((a) => a.personId !== person.personId)
+          : [];
       const inPlace = [
         ...(rule.linkedControlId ? (compensatingByControl[rule.linkedControlId] ?? []) : []),
         ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
+        ...(otherApprovers.length > 0
+          ? [
+              `${listNames(otherApprovers.map((a) => a.personName))} approves each bill before it is paid`,
+            ]
+          : []),
       ];
       const comps = [
         ...(owner
