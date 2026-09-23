@@ -171,6 +171,83 @@ describe("job catalog", () => {
     expect(matchJobTitle("")).toBeUndefined();
   });
 
+  it("never gives the owner's seat to a title that only names the owner as the person served", () => {
+    for (const title of [
+      "Owner's Assistant",
+      "CEO's Assistant",
+      "Owner Assistant",
+      "Assistant to Owner/CEO",
+      "Executive Assistant to the President",
+    ]) {
+      expect(matchJobTitle(title)?.entry.id, title).toBe("executive-assistant");
+    }
+    for (const title of [
+      "Owner Relations Manager",
+      "Owner's Rep",
+      "Owner Services Coordinator",
+      "Card Dealer",
+    ]) {
+      expect(matchJobTitle(title), title).toBeUndefined();
+    }
+    const son = matchJobTitle("Bookkeeper (Owner's son)");
+    expect(son?.entry.id).toBe("bookkeeper");
+    expect(son?.entitlements).not.toContain("sign_checks");
+    const reports = matchJobTitle("Office Manager - reports to Owner");
+    expect(reports?.entry.id).toBe("office-manager");
+    expect(reports?.entitlements).not.toContain("approve_payroll");
+    expect(matchJobTitle("Office Manager (Owner's wife)")?.entry.id).toBe("office-manager");
+    // The owner's own titles still take the seat.
+    for (const title of ["Owner", "Salon Owner", "Chef/Owner", "Owner/President", "Dealer"]) {
+      expect(matchJobTitle(title)?.entry.id, title).toBe("owner");
+    }
+  });
+
+  it("reads Acct by the word after it: Acct Exec is sales, Acct Clerk is accounting", () => {
+    for (const title of ["Acct Exec", "Acct Manager", "Acct Mgr", "Acct Rep", "Key Acct Manager"]) {
+      const match = matchJobTitle(title);
+      expect(match?.entry.id, title).toBe("sales");
+      expect(match?.entitlements, title).not.toContain("bank_reconcile");
+    }
+    expect(matchJobTitle("Acct Clerk")?.entry.id).toBe("bookkeeper");
+    expect(matchJobTitle("Staff Acct")?.entry.id).toBe("accountant");
+    expect(matchJobTitle("Acct")?.entry.id).toBe("accountant");
+  });
+
+  it("gives a combined A/P & A/R clerk both sides' duties however the title is spelt", () => {
+    for (const title of [
+      "A/P & A/R Clerk",
+      "Accounts Payable and Receivable Clerk",
+      "Accounts Payable & Receivable Specialist",
+      "Accounts Payable/Receivable Clerk",
+      "AP/AR Clerk",
+    ]) {
+      const match = matchJobTitle(title);
+      expect(match?.entry.id, title).toBe("accounts-payable");
+      expect(match?.entitlements, title).toEqual(
+        expect.arrayContaining(["enter_invoices", "create_vendor", "release_payment"]),
+      );
+      expect(match?.entitlements, title).toEqual(
+        expect.arrayContaining(["post_payments", "post_adjustments", "issue_refunds"]),
+      );
+    }
+  });
+
+  it("seats Accounting Apprentice, Student and Volunteer as learners with no money duty", () => {
+    for (const title of [
+      "Accounting Apprentice",
+      "Accounting Student",
+      "Accounting Volunteer",
+      "Accounting Intern (Summer)",
+    ]) {
+      expect(matchJobTitle(title)?.entry.id, title).toBe("intern");
+      expect(entitlementsForTitle(title), title).toEqual(["view_reports_only"]);
+    }
+    // A volunteer bookkeeper keeps the books; an apprentice electrician works the job.
+    expect(matchJobTitle("Volunteer Bookkeeper")?.entry.id).toBe("bookkeeper");
+    expect(matchJobTitle("Bookkeeper (Volunteer)")?.entry.id).toBe("bookkeeper");
+    expect(matchJobTitle("Apprentice Electrician")?.entry.id).toBe("field-technician");
+  });
+
   it("gives the office manager the wide seat the case library describes", () => {
     const duties = entitlementsForTitle("Practice Manager");
     expect(duties).toEqual(

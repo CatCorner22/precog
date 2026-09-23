@@ -630,6 +630,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "executive assistant",
       "assistant to the ceo",
       "assistant to the owner",
+      "owner assistant",
+      "ceo assistant",
       "chief of staff",
       "personal assistant",
       "executive administrative assistant",
@@ -708,6 +710,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "director of sales",
       "account executive",
       "account manager",
+      "account representative",
       "sales representative",
       "sales rep",
       "sales",
@@ -2377,7 +2380,6 @@ const ABBREVIATIONS: Record<string, string> = {
   mgmt: "management",
   asst: "assistant",
   assoc: "associate",
-  acct: "accountant",
   acctg: "accounting",
   accts: "accounts",
   dir: "director",
@@ -2400,19 +2402,58 @@ const ABBREVIATIONS: Record<string, string> = {
   cust: "customer",
 };
 
+/**
+ * "Acct" read by the word after it. Before a sales word it is an account
+ * ("Acct Exec", "Key Acct Manager"); before a clerical word it is accounting
+ * ("Acct Clerk"); before payable or receivable it is accounts; on its own or
+ * last ("Sr. Acct", "Staff Acct") it is an accountant.
+ */
+const ACCT_BEFORE: Record<string, string> = {
+  exec: "account",
+  executive: "account",
+  manager: "account",
+  mgr: "account",
+  rep: "account",
+  representative: "account",
+  director: "account",
+  dir: "account",
+  coordinator: "account",
+  coord: "account",
+  payable: "accounts",
+  receivable: "accounts",
+  clerk: "accounting",
+  assistant: "accounting",
+  asst: "accounting",
+  specialist: "accounting",
+  spec: "accounting",
+  analyst: "accounting",
+  associate: "accounting",
+  assoc: "accounting",
+  supervisor: "accounting",
+  supv: "accounting",
+  technician: "accounting",
+  tech: "accounting",
+};
+
+/** "A/P Clerk", "A/R Specialist", "I.T. Manager": the letters are one word. */
+function joinLetterPairs(value: string): string {
+  return value
+    .replace(/\ba\s*\/\s*p\b/gi, "AP")
+    .replace(/\ba\s*\/\s*r\b/gi, "AR")
+    .replace(/\bi\.?\s*t\.?(?=\s|$)/gi, "IT");
+}
+
 function tokens(value: string): string[] {
-  const raw = value
+  const raw = joinLetterPairs(value)
     .toLowerCase()
     .replace(/&/g, " and ")
-    // "A/P Clerk", "A/R Specialist": the letters are one word.
-    .replace(/\ba\s*\/\s*p\b/g, "ap")
-    .replace(/\ba\s*\/\s*r\b/g, "ar")
-    .replace(/\bi\.?\s*t\.?(?=\s|$)/g, "it")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .split(/\s+/)
     .filter((t) => t.length > 0 && !STOP_WORDS.has(t));
-  return raw.map((t) => ABBREVIATIONS[t] ?? t);
+  return raw.map((t, i) =>
+    t === "acct" ? (ACCT_BEFORE[raw[i + 1]] ?? "accountant") : (ABBREVIATIONS[t] ?? t),
+  );
 }
 
 /** The same title with seniority, schedule and contract words removed. */
@@ -2435,8 +2476,48 @@ const ALIAS_INDEX: { alias: string; entry: JobCatalogEntry }[] = JOB_CATALOG.fla
 const EXACT_ALIAS = new Map<string, JobCatalogEntry>();
 for (const a of ALIAS_INDEX) if (!EXACT_ALIAS.has(a.alias)) EXACT_ALIAS.set(a.alias, a.entry);
 
-/** A learner's seat: the last word of "Marketing Intern" says what the person is. */
-const JUNIOR_WORDS = new Set(["intern", "volunteer", "apprentice", "aide", "student", "trainee"]);
+const catalogEntry = (id: string): JobCatalogEntry => JOB_CATALOG.find((e) => e.id === id)!;
+
+/**
+ * Last words that name a learner's or helper's seat: "Accounting Student" is
+ * a student and "Marketing Intern" an intern, not an accountant or a
+ * marketer. "Trainee" is not here: a payroll trainee or a manager trainee
+ * does the job while learning it.
+ */
+const LEARNER_WORDS = new Set(["intern", "volunteer", "apprentice", "aide", "student"]);
+
+/** The intern's seat when the last word of a longer title names a learner. */
+function learnerSeat(words: readonly string[]): JobCatalogEntry | undefined {
+  return words.length > 1 && LEARNER_WORDS.has(words[words.length - 1])
+    ? catalogEntry("intern")
+    : undefined;
+}
+
+/**
+ * Words that name the owner's seat. After "to", "for", "of" or "reports to",
+ * or as a possessive, they name the person a job serves ("Assistant to the
+ * Owner", "Owner's Rep", "Bookkeeper (Owner's son)"), never the job itself.
+ */
+const OWNER_WORDS =
+  "owners?|ceo|president|founder|co-founder|proprietor|principal|managing partner|partner|chief executive officer|chief executive|boss";
+const PATRON_CLAUSE = new RegExp(
+  `\\b(?:(?:reports?|reporting)\\s+to|to|for|of)\\s+(?:the\\s+)?(?:${OWNER_WORDS})(?:\\s*(?:/|&|,|\\band\\b)\\s*(?:the\\s+)?(?:${OWNER_WORDS}))*\\b`,
+  "gi",
+);
+const PATRON_POSSESSIVE = new RegExp(`\\b(?:${OWNER_WORDS})['’]s?(?=\\s)`, "gi");
+
+/** Words that, left alone once the owner is taken out, describe an assistant to the owner. */
+const ASSISTANT_WORDS = new Set([
+  "assistant",
+  "executive",
+  "personal",
+  "administrative",
+  "admin",
+  "secretary",
+]);
+
+/** A single-word owner name that counts only as the whole title: a card dealer owns nothing. */
+const WHOLE_TITLE_ONLY = new Set(["dealer"]);
 
 const carriesMoneyDuty = (e: JobCatalogEntry) =>
   e.entitlements.some((d) => d !== "view_reports_only");
@@ -2457,7 +2538,12 @@ function partMatch(words: readonly string[]): JobCatalogEntry | undefined {
     const e = EXACT_ALIAS.get(bare[0]);
     return e && !carriesMoneyDuty(e) ? e : undefined;
   }
-  return exactMatch(words) ?? containedMatch(words);
+  return (
+    EXACT_ALIAS.get(words.join(" ")) ??
+    learnerSeat(words) ??
+    exactMatch(words) ??
+    containedMatch(words)
+  );
 }
 
 /**
@@ -2466,7 +2552,8 @@ function partMatch(words: readonly string[]): JobCatalogEntry | undefined {
  * wherever it sits too ("Senior Buyer", "Billing Supervisor"), unless it is a
  * level word on a job that carries money duties: "Nursing Supervisor" is not
  * a shift lead who prepares deposits, and stays unknown for the owner to
- * tick by hand.
+ * tick by hand. A single word naming the owner counts only as the last word
+ * ("Salon Owner", not "Owner Relations Manager").
  */
 function containedMatch(words: readonly string[]): JobCatalogEntry | undefined {
   const forms = [words, undecorated(words)].map((w) => ` ${w.join(" ")} `);
@@ -2474,18 +2561,14 @@ function containedMatch(words: readonly string[]): JobCatalogEntry | undefined {
     if (!a.alias.includes(" ")) continue;
     if (forms.some((f) => f.includes(` ${a.alias} `))) return a.entry;
   }
+  const learner = learnerSeat(words);
+  if (learner) return learner;
   const bare = undecorated(words);
-  // "Marketing Intern", "Accounting Apprentice": the last word says what the
-  // person is when it names a learner's seat.
-  const lastWord = bare[bare.length - 1];
-  if (bare.length > 1 && JUNIOR_WORDS.has(lastWord)) {
-    const last = EXACT_ALIAS.get(lastWord);
-    if (last && !carriesMoneyDuty(last)) return last;
-  }
-  for (const w of bare) {
+  for (const [i, w] of bare.entries()) {
     const e = EXACT_ALIAS.get(w);
-    if (!e) continue;
+    if (!e || WHOLE_TITLE_ONLY.has(w)) continue;
     if (GENERIC_ROLE_WORDS.has(w) && carriesMoneyDuty(e)) continue;
+    if (e.id === "owner" && i !== bare.length - 1) continue;
     return e;
   }
   return undefined;
@@ -2501,15 +2584,6 @@ export interface JobMatch {
 }
 
 /**
- * Finds the catalog entry for a roster title. Seniority and schedule words
- * are ignored ("Senior AP Clerk (part-time)" is an AP clerk). A title with
- * several parts ("Office Manager / Bookkeeper", "Chef/Owner") names every
- * seat it lists and carries all of their duties, because that is exactly the
- * concentration the map exists to show. Returns undefined when nothing
- * matches, so the caller can leave the duties for the owner to tick rather
- * than guess.
- */
-/**
  * A bare level word means one seat in one line of business: "Associate" is
  * an attorney in a law firm and a sales associate in a store; "Assistant" is
  * a dental assistant in a dental office. Anywhere else it stays unknown.
@@ -2521,45 +2595,96 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   partner: { professional_services: "owner" },
 };
 
+function seatMatch(
+  entries: readonly JobCatalogEntry[],
+  confidence: JobMatch["confidence"],
+): JobMatch {
+  const entry = entries.find((e) => e.id === "owner") ?? entries[0];
+  const entitlements = Array.from(new Set(entries.flatMap((e) => e.entitlements)));
+  return { entry, confidence, entitlements };
+}
+
+/**
+ * Takes out a clause or possessive naming the owner as the person a job
+ * serves. Returns the rest of the title, or undefined when there is none.
+ */
+function withoutPatron(title: string): string | undefined {
+  const rest = title
+    .replace(PATRON_CLAUSE, " ")
+    .replace(PATRON_POSSESSIVE, " ")
+    .replace(/\(\s*\)/g, " ")
+    .replace(/[\s/,;|\-–—(]+$/u, "")
+    .trim();
+  return rest === title.trim() ? undefined : rest;
+}
+
+/**
+ * Finds the catalog entry for a roster title. Seniority and schedule words
+ * are ignored ("Senior AP Clerk (part-time)" is an AP clerk). A title with
+ * several parts ("Office Manager / Bookkeeper", "Chef/Owner") names every
+ * seat it lists and carries all of their duties, because that is exactly the
+ * concentration the map exists to show. A title that names the owner only as
+ * the person served ("Owner's Assistant", "Office Manager - reports to
+ * Owner") never takes the owner's seat. Returns undefined when nothing
+ * matches, so the caller can leave the duties for the owner to tick rather
+ * than guess.
+ */
 export function matchJobTitle(title: string, industry?: string): JobMatch | undefined {
   const words = tokens(title);
   if (words.length === 0) return undefined;
   const bare = undecorated(words);
-  if (industry && bare.length === 1) {
-    const hinted = INDUSTRY_HINTS[bare[0]]?.[industry];
-    const entry = hinted ? JOB_CATALOG.find((e) => e.id === hinted) : undefined;
-    if (entry) return { entry, confidence: "partial", entitlements: [...entry.entitlements] };
+  if (industry) {
+    const hinted = INDUSTRY_HINTS[bare.join(" ")]?.[industry];
+    if (hinted) return seatMatch([catalogEntry(hinted)], "partial");
   }
-  const whole = exactMatch(words);
-  if (whole) return { entry: whole, confidence: "exact", entitlements: [...whole.entitlements] };
+  const literal = EXACT_ALIAS.get(words.join(" "));
+  if (literal) return seatMatch([literal], "exact");
+
+  const rest = withoutPatron(title);
+  if (rest !== undefined) {
+    const restWords = undecorated(tokens(rest));
+    if (restWords.length === 0) return undefined;
+    if (restWords.every((w) => ASSISTANT_WORDS.has(w))) {
+      return seatMatch([catalogEntry("executive-assistant")], "partial");
+    }
+    const served = matchJobTitle(rest, industry);
+    return served && { ...served, confidence: "partial" };
+  }
 
   // Slashes, commas, brackets, dashes and "and" join seats: "Chef/Owner",
   // "Owner-Operator", "Payroll & HR Administrator".
-  const parts = title
+  const joined = joinLetterPairs(title);
+  const parts = joined
     .split(/[/,;()|\-–—]|\s(?:and|&)\s/i)
     .map(tokens)
     .filter((p) => p.length > 0);
+  // A learner's last word counts in a one-part title ("Accounting Student");
+  // "Bookkeeper (Volunteer)" is a bookkeeper who is not paid.
+  const learner = parts.length === 1 ? learnerSeat(words) : undefined;
+  if (learner) return seatMatch([learner], "partial");
+  const whole = exactMatch(words);
+  if (whole) return seatMatch([whole], "exact");
   const matched: JobCatalogEntry[] = [];
   if (parts.length === 2) {
     // "Clerk, Accounts Receivable" is an accounts receivable clerk.
     const reversed = exactMatch([...parts[1], ...parts[0]]);
-    if (reversed)
-      return { entry: reversed, confidence: "partial", entitlements: [...reversed.entitlements] };
+    if (reversed) return seatMatch([reversed], "partial");
   }
+  // Two parts joined by "and" or a slash share words: "Office & HR Manager"
+  // borrows the last word of the other part, "Accounts Payable and
+  // Receivable Clerk" its first. Not for "(Property)" after a title, which
+  // qualifies it. A borrowed seat replaces a part that reads alone only as a
+  // level word with no money duty ("Receivable Specialist").
+  const shared = parts.length === 2 && /\s(?:and|&)\s|\//i.test(joined);
   if (parts.length > 1) {
-    for (const part of parts) {
-      const hit = partMatch(part);
+    for (const [i, part] of parts.entries()) {
+      const own = partMatch(part);
+      const other = parts[1 - i];
+      const borrowed = shared
+        ? (exactMatch([...part, other[other.length - 1]]) ?? exactMatch([other[0], ...part]))
+        : undefined;
+      const hit = borrowed && (!own || !carriesMoneyDuty(own)) ? borrowed : own;
       if (hit && !matched.includes(hit)) matched.push(hit);
-    }
-    // "Office & HR Manager": the first part borrows the last word of the second.
-    // Only for parts joined by "and": "(Property)" after a title qualifies it.
-    if (parts.length === 2 && /\s(?:and|&)\s/i.test(title)) {
-      for (const [i, part] of parts.entries()) {
-        if (partMatch(part)) continue;
-        const other = parts[1 - i];
-        const borrowed = exactMatch([...part, other[other.length - 1]]);
-        if (borrowed && !matched.includes(borrowed)) matched.unshift(borrowed);
-      }
     }
   }
   if (matched.length === 0) {
@@ -2567,9 +2692,7 @@ export function matchJobTitle(title: string, industry?: string): JobMatch | unde
     if (hit) matched.push(hit);
   }
   if (matched.length === 0) return undefined;
-  const entry = matched.find((e) => e.id === "owner") ?? matched[0];
-  const entitlements = Array.from(new Set(matched.flatMap((e) => e.entitlements)));
-  return { entry, confidence: "partial", entitlements };
+  return seatMatch(matched, "partial");
 }
 
 /** Duties the catalog suggests for a title, or an empty list when the title is unknown. */
