@@ -4,7 +4,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50 focus:outline-none";
@@ -37,14 +37,28 @@ export function BusinessSwitcher() {
   }, [open]);
 
   function submitNew() {
-    createBusiness(industry, name);
-    toast.success(`Added ${name.trim() || industryMeta(industry).demoName}`, {
-      description: "You're now working in the new business. Switch back any time.",
-    });
+    // Setup opens for the new business: the owner enters its team or loads
+    // the sample. The current business is saved first.
+    const result = createBusiness(industry, name);
+    if (!result.ok) {
+      toast.error("Could not add a business", { description: result.reason });
+      return;
+    }
     setName("");
     setAdding(false);
     setOpen(false);
   }
+
+  /** From the sample: set up the owner's own business, starting in the sample's line of business. */
+  function setUpOwn() {
+    const result = createBusiness(profile.industry);
+    if (!result.ok) {
+      toast.error("Could not start setup", { description: result.reason });
+      return;
+    }
+    setOpen(false);
+  }
+  const onSample = !profile.customPeople;
 
   return (
     <div ref={ref} className="relative min-w-0">
@@ -163,7 +177,7 @@ export function BusinessSwitcher() {
                 </select>
                 <div className="flex gap-1.5">
                   <Button size="sm" className="flex-1" onClick={submitNew}>
-                    <Plus className="size-3.5" /> Create
+                    <Plus className="size-3.5" /> Next: your team
                   </Button>
                   <Button
                     size="sm"
@@ -175,17 +189,29 @@ export function BusinessSwitcher() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-subtle">
-                  Starts from the industry template. Your current business is saved first.
+                  Next you enter its team, or load the sample business. Your current business is
+                  saved first.
                 </p>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setAdding(true)}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-primary hover:bg-elevated"
-              >
-                <Plus className="size-3.5" /> Add a business
-              </button>
+              <>
+                {onSample && (
+                  <button
+                    type="button"
+                    onClick={setUpOwn}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-primary hover:bg-elevated"
+                  >
+                    <Users className="size-3.5" /> Set up my own business
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-primary hover:bg-elevated"
+                >
+                  <Plus className="size-3.5" /> Add a business
+                </button>
+              </>
             )}
           </div>
         </div>

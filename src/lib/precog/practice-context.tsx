@@ -40,7 +40,6 @@ import {
 import { confirmedControlIds, resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
-import { ownBusinessProfile } from "./onboarding/own-team";
 import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
 import {
   applyDecisionReview,
@@ -69,7 +68,15 @@ import {
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { removeValueProof } from "./value-proof-store";
-import { processesToEdit } from "./business-lifecycle";
+import {
+  atBusinessLimit,
+  MAX_BUSINESSES_PER_ACCOUNT,
+  newBusinessProfile,
+  ownSetupProfile,
+  processesToEdit,
+  sampleSetupProfile,
+  unfinishedBusinessToKeep,
+} from "./business-lifecycle";
 import { LocalProfileStore } from "./save-conflict";
 import { canKeepLocalData } from "./local-data";
 
@@ -125,14 +132,18 @@ interface PracticeContextValue {
     extendDays?: number,
   ) => void;
   resetProfile: () => void;
-  /** First-visit picker: load the template and mark onboarding done. */
+  /** Setup dialog: load the sample as a business of its own. */
   completeOnboarding: (industry: IndustryId) => void;
-  /** Onboarding for the owner's own business: their name and their people replace the sample. */
+  /** Setup dialog: the owner's name and people become a business of its own. */
   startOwnBusiness: (input: {
     industry: IndustryId;
     practiceName: string;
     people: Person[];
   }) => void;
+  /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
+  cancelSetup: () => Promise<void>;
+  /** The business to go back to from setup; null on a first visit. */
+  setupReturnsTo: BusinessSummary | null;
   /** Map builder: replace the process map (null = back to industry template). */
   setCustomProcesses: (
     v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null),
@@ -178,7 +189,15 @@ interface PracticeContextValue {
   /** Multi-business portfolio (advisors, multi-location owners). */
   businesses: BusinessSummary[];
   switchBusiness: (id: string) => Promise<void>;
-  createBusiness: (industry: IndustryId, name?: string) => void;
+  /**
+   * Opens setup for a new business (its name and line of business filled
+   * in). Refused, with the reason to show, while a save conflict waits for
+   * the owner or when a signed-in account already holds its limit.
+   */
+  createBusiness: (
+    industry: IndustryId,
+    name?: string,
+  ) => { ok: true } | { ok: false; reason: string };
   deleteBusiness: (id: string) => Promise<void>;
   switchingBusiness: boolean;
 }
@@ -273,6 +292,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const loadedFromStorage = useRef<PracticeProfile | null>(null);
   // Another tab's save this tab took; stored already, so not written again.
   const adopted = useRef<{ profile: PracticeProfile; rev: string | null } | null>(null);
+  // The last account-save failure shown to the owner, so a retry does not repeat it.
+  const lastCloudError = useRef<string | null>(null);
+  // The business open before "Add a business", which cancelling setup returns to.
+  const openBeforeSetup = useRef<string | null>(null);
 
   const pushUndo = useCallback(() => {
     const p = profileRef.current;
@@ -343,6 +366,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     });
     if (result.ok) {
       cloudRevision.current.set(id, result.revision);
+      lastCloudError.current = null;
       setSyncStatus("synced");
       return true;
     }
@@ -356,6 +380,23 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setSaveConflict(nextConflict);
     setSyncStatus("conflict");
     return false;
+  }, []);
+
+  /**
+   * A save to the account failed. The badge says so; the reason (the
+   * account's business limit, a lost connection) is shown once, not on
+   * every retry.
+   */
+  const reportCloudError = useCallback((error: unknown) => {
+    setSyncStatus("error");
+    const raw = error instanceof Error ? error.message.trim() : "";
+    const message =
+      !raw || /fetch|network|load failed/i.test(raw)
+        ? "Could not reach the server. Your work is saved in this browser and syncs on your next change."
+        : raw;
+    if (message === lastCloudError.current) return;
+    lastCloudError.current = message;
+    toast.error("Not saved to your account", { description: message });
   }, []);
 
   /** Stop writing and ask the owner: another tab saved this business since this tab did. */
@@ -521,13 +562,22 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       savePortfolioEntry(profile);
       setPortfolioVersion((v) => v + 1);
       if (skipCloud || saveConflictRef.current) return;
-      void saveCloud(profile).catch(() => setSyncStatus("error"));
+      void saveCloud(profile).catch(reportCloudError);
     }, SAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [profile, ready, userId, userIsDevFallback, saveCloud, localStore, raiseTabConflict]);
+  }, [
+    profile,
+    ready,
+    userId,
+    userIsDevFallback,
+    saveCloud,
+    localStore,
+    raiseTabConflict,
+    reportCloudError,
+  ]);
 
   // Another tab saved the open business. When it built on this tab's copy
   // and nothing here is unsaved, take it (a toast says so); otherwise stop
@@ -571,10 +621,11 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       saveTimer.current = null;
       if (saveConflictRef.current?.reason === "other-tab") return;
       const cur = profileRef.current;
+      if (cur.onboardingComplete === false) return;
       savePortfolioEntry(cur);
       const cloud = Boolean(authEnabled && userId && !userIsDevFallback);
       if (cloud && cloudLoadedFor.current === userId && !saveConflictRef.current) {
-        void saveCloud(cur).catch(() => setSyncStatus("error"));
+        void saveCloud(cur).catch(reportCloudError);
       }
     };
     const onVisibility = () => {
@@ -586,7 +637,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [ready, userId, userIsDevFallback, saveCloud]);
+  }, [ready, userId, userIsDevFallback, saveCloud, reportCloudError]);
 
   const setPracticeName = useCallback((name: string) => {
     setProfile((p) => ({ ...p, practiceName: name.slice(0, 80) }));
@@ -782,30 +833,41 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => ({ ...defaultProfile(p.industry), businessId: p.businessId }));
   }, [clearHistory]);
 
+  /**
+   * The unfinished business a setup replaces goes away (it is only the
+   * sample behind the dialog), unless an older version of the app saved real
+   * work under it; then it stays as a business of its own.
+   */
+  const retireUnfinished = useCallback((previous: PracticeProfile) => {
+    const keep = unfinishedBusinessToKeep(previous);
+    const id = previous.businessId ?? "biz_default";
+    if (keep) savePortfolioEntry(keep);
+    // Older versions listed the unfinished sample in the portfolio; a finished
+    // business under the same id (another tab's) is left alone.
+    else if (loadPortfolio()[id]?.onboardingComplete === false) removePortfolioEntry(id);
+    setPortfolioVersion((v) => v + 1);
+  }, []);
+
   const completeOnboarding = useCallback(
     (industry: IndustryId) => {
       clearHistory();
-      setProfile((p) => ({
-        ...defaultProfile(industry),
-        decisions: p.decisions,
-        businessId: p.businessId,
-        onboardingComplete: true,
-      }));
+      const previous = profileRef.current;
+      if (previous.onboardingComplete === false) retireUnfinished(previous);
+      openBeforeSetup.current = null;
+      setProfile((p) => sampleSetupProfile(industry, p));
     },
-    [clearHistory],
+    [clearHistory, retireUnfinished],
   );
 
   const startOwnBusiness = useCallback(
     (input: { industry: IndustryId; practiceName: string; people: Person[] }) => {
       clearHistory();
-      setProfile((p) =>
-        ownBusinessProfile(
-          { ...defaultProfile(input.industry), decisions: [], businessId: p.businessId },
-          { practiceName: input.practiceName, people: input.people },
-        ),
-      );
+      const previous = profileRef.current;
+      if (previous.onboardingComplete === false) retireUnfinished(previous);
+      openBeforeSetup.current = null;
+      setProfile(() => ownSetupProfile(input));
     },
-    [clearHistory],
+    [clearHistory, retireUnfinished],
   );
 
   const setCustomPeople = useCallback(
@@ -1029,6 +1091,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     const byId = new Map<string, BusinessSummary>();
     for (const b of remoteBusinesses) byId.set(b.id, b);
     for (const p of Object.values(loadPortfolio())) {
+      // An unfinished setup saved by an older version is the sample, not a business.
+      if (p.onboardingComplete === false) continue;
       const s = summarizeBusiness(p);
       const existing = byId.get(s.id);
       if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt)) byId.set(s.id, s);
@@ -1059,12 +1123,17 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       if (result.kind === "saved") storedProfile.current = cur;
     }
     savePortfolioEntry(cur);
-    if (cloudUser && cloudLoadedFor.current === userId && !saveConflictRef.current) {
+    if (
+      cloudUser &&
+      cur.onboardingComplete !== false &&
+      cloudLoadedFor.current === userId &&
+      !saveConflictRef.current
+    ) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      await saveCloud(cur).catch(() => false);
+      await saveCloud(cur).catch(reportCloudError);
     }
     return !saveConflictRef.current;
-  }, [cloudUser, saveCloud, userId, localStore, raiseTabConflict]);
+  }, [cloudUser, saveCloud, userId, localStore, raiseTabConflict, reportCloudError]);
 
   const switchBusiness = useCallback(
     async (id: string) => {
@@ -1104,23 +1173,54 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const createBusiness = useCallback(
-    (industry: IndustryId, name?: string) => {
+    (industry: IndustryId, name?: string): { ok: true } | { ok: false; reason: string } => {
       // A conflict on the outgoing business must not be lost behind the new
       // one: the banner stays up and the switch waits for the user's choice.
-      if (saveConflictRef.current) return;
+      if (saveConflictRef.current) {
+        return {
+          ok: false,
+          reason: "Choose a version in the banner at the top first, so no work is lost.",
+        };
+      }
+      if (cloudUser && atBusinessLimit(businesses.length)) {
+        return {
+          ok: false,
+          reason: `Your account already holds ${MAX_BUSINESSES_PER_ACCOUNT} businesses, the most it can keep. Remove one you no longer need first.`,
+        };
+      }
+      const current = profileRef.current;
+      if (current.onboardingComplete !== false) {
+        openBeforeSetup.current = current.businessId ?? "biz_default";
+      }
       void flushActive();
-      const fresh = defaultProfile(industry);
-      const next: PracticeProfile = {
-        ...fresh,
-        businessId: makeBusinessId(),
-        practiceName: name?.trim().slice(0, 80) || fresh.practiceName,
-        onboardingComplete: true,
-      };
+      // Setup opens for it: the owner's own team, or the sample under the
+      // sample's name. It never shows the sample's people under this name.
+      const next = newBusinessProfile(industry, name);
       cloudRevision.current.delete(next.businessId as string);
       activateProfile(next);
+      return { ok: true };
     },
-    [activateProfile, flushActive],
+    [activateProfile, flushActive, cloudUser, businesses.length],
   );
+
+  // Where "Cancel" in the setup dialog goes: the business open before it,
+  // else the most recently changed one; none on a first visit.
+  const setupReturnsTo = useMemo<BusinessSummary | null>(() => {
+    if (profile.onboardingComplete !== false) return null;
+    const activeId = profile.businessId ?? "biz_default";
+    const others = businesses.filter((b) => b.id !== activeId);
+    return (
+      others.find((b) => b.id === openBeforeSetup.current) ??
+      [...others].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ??
+      null
+    );
+  }, [businesses, profile.onboardingComplete, profile.businessId]);
+
+  const cancelSetup = useCallback(async () => {
+    if (!setupReturnsTo) return;
+    openBeforeSetup.current = null;
+    await switchBusiness(setupReturnsTo.id);
+  }, [setupReturnsTo, switchBusiness]);
 
   /** Keeps a version the owner did not choose as its own business, so no work is lost. */
   const keepAsCopy = useCallback((version: PracticeProfile, from: string) => {
@@ -1186,9 +1286,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       }
 
       setSyncStatus("loading");
-      await saveCloud(profileRef.current).catch(() => setSyncStatus("error"));
+      await saveCloud(profileRef.current).catch(reportCloudError);
     },
-    [activateProfile, saveCloud, localStore, keepAsCopy],
+    [activateProfile, saveCloud, localStore, keepAsCopy, reportCloudError],
   );
 
   const deleteBusinessLocal = useCallback(
@@ -1226,6 +1326,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      cancelSetup,
+      setupReturnsTo,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,
@@ -1269,6 +1371,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      cancelSetup,
+      setupReturnsTo,
       setCustomProcesses,
       setCustomPeople,
       setCustomKnowledge,

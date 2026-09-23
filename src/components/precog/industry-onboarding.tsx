@@ -4,6 +4,7 @@ import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
+import { ownBusinessName } from "@/lib/precog/business-lifecycle";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import {
   CORE_DUTIES,
@@ -153,10 +154,20 @@ function writeDraft(draft: OnboardingDraft | null) {
  * stays as the second path.
  */
 export function IndustryOnboarding() {
-  const { completeOnboarding, startOwnBusiness, setPlannedAbsences } = usePractice();
-  const [selected, setSelected] = useState<IndustryId>("dental");
-  const [step, setStep] = useState<"industry" | "team">("industry");
-  const [businessName, setBusinessName] = useState("");
+  const {
+    profile,
+    completeOnboarding,
+    startOwnBusiness,
+    setPlannedAbsences,
+    cancelSetup,
+    setupReturnsTo,
+  } = usePractice();
+  // A business added from the business menu arrives with its name and line
+  // of business; setup starts on its team.
+  const typedName = ownBusinessName(profile);
+  const [selected, setSelected] = useState<IndustryId>(profile.industry);
+  const [step, setStep] = useState<"industry" | "team">(typedName ? "team" : "industry");
+  const [businessName, setBusinessName] = useState(typedName);
   const [rows, setRows] = useState<OwnTeamRow[]>([ownerRow(), EMPTY_ROW(""), EMPTY_ROW("")]);
 
   const [paste, setPaste] = useState("");
@@ -348,6 +359,19 @@ export function IndustryOnboarding() {
     }
   }
 
+  // Setting up an added business: the owner can go back without finishing.
+  const cancelLink = setupReturnsTo ? (
+    <p className="text-center text-xs">
+      <button
+        type="button"
+        className="text-muted underline underline-offset-2 hover:text-fg"
+        onClick={() => void cancelSetup()}
+      >
+        Cancel and go back to {setupReturnsTo.name}
+      </button>
+    </p>
+  ) : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm"
@@ -437,6 +461,7 @@ export function IndustryOnboarding() {
               <p className="text-center text-[11px] text-subtle">
                 The demo is a fictional team. Every finding on it says so until you enter your own.
               </p>
+              {cancelLink}
             </CardContent>
           </>
         ) : (
@@ -720,6 +745,7 @@ export function IndustryOnboarding() {
               <p className="text-center text-[11px] text-subtle">
                 Nothing leaves this browser until you sign in and choose to sync.
               </p>
+              {cancelLink}
             </CardContent>
           </>
         )}
