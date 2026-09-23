@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
-import { validateSharePayload } from "./share-schema";
+import { parseCreateShareInput } from "./share-schema";
 import { parseLoadShareInput } from "../public-inputs";
 import { invalidRequest, requireObject } from "@/lib/request-errors";
 import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
@@ -71,19 +71,7 @@ export const createMapShare = createServerFn({ method: "POST" })
       expiresInDays?: number;
       redacted?: boolean;
       passcode?: string;
-    }) => {
-      const raw = requireObject(input);
-      if (raw.passcode != null && typeof raw.passcode !== "string") throw invalidRequest();
-      const passcode = raw.passcode?.trim();
-      const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
-      return {
-        payload: validateSharePayload(raw.payload),
-        expiresInDays: Math.min(365, Math.max(1, days || 30)),
-        redacted: raw.redacted === true,
-        // Eight characters or more: a four-digit PIN falls to a few thousand guesses.
-        passcode: passcode && passcode.length >= 8 && passcode.length <= 64 ? passcode : undefined,
-      };
-    },
+    }) => parseCreateShareInput(input),
   )
   .handler(async ({ context, data }) => {
     const { randomBytes, scryptSync } = await import("node:crypto");
