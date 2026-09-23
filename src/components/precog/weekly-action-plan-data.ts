@@ -11,6 +11,7 @@ import {
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { industryMeta } from "@/lib/precog/industry";
 import {
   continuityCommitments,
   continuityStepKey,
@@ -149,6 +150,12 @@ export function buildWeeklyActions(input: {
   mapSnapshots?: ProcessMapSnapshot[];
   today?: string;
   trackFreshness?: boolean;
+  /**
+   * Whether the process map's figures describe a map the owner has worked on
+   * (see mapAssessed in builder/map-state). Off, the map-derived actions give
+   * way to one action: assign owners to the starter map, or add processes.
+   */
+  mapAssessed?: boolean;
   /** The Journal, so steps already logged are reported as in progress rather than recommended again. */
   decisions?: readonly DecisionEntry[];
   /** Known leave, so hand-offs are advised ahead of time. */
@@ -167,6 +174,10 @@ export function buildWeeklyActions(input: {
   // empty list is not full coverage. Until it is filled in, the one continuity
   // action is to fill it in.
   const registerReady = registerAssessed(tpl);
+  // The starter map with nobody assigned is not a set of unowned hot
+  // processes, and an empty map has nothing to score. Until the owner assigns
+  // an owner or builds their own map, the one map action is to do that.
+  const mapReady = input.mapAssessed ?? true;
   const tornado = tornadoSensitivity(tpl, input.staff);
   const actions: WeeklyAction[] = [];
 
@@ -387,7 +398,7 @@ export function buildWeeklyActions(input: {
 
   // A process whose every listed owner has been marked as left still looks
   // owned on the map; the owner slot is the leaver's last unfinished hand-over.
-  for (const o of ownerlessProcesses(tpl).slice(0, 2)) {
+  for (const o of (mapReady ? ownerlessProcesses(tpl) : []).slice(0, 2)) {
     const former = o.formerOwners.map((p) => firstName(p.name));
     actions.push({
       id: `map-owner-left-${o.id}`,
@@ -547,7 +558,30 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  if (input.mapSnapshots?.length) {
+  if (!mapReady) {
+    const count = tpl.processes.length;
+    actions.push(
+      count === 0
+        ? {
+            id: "map-start",
+            title: "Add the processes your business runs to the map",
+            why: "The map is empty. Until it lists the processes your business runs and who owns each, the app cannot score ownership, controls, documentation or heat.",
+            effort: "low",
+            tab: "map",
+            priority: 84,
+          }
+        : {
+            id: "map-start",
+            title: `Assign an owner to each of the ${count} starter processes`,
+            why: `Your map holds ${count} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
+            effort: "low",
+            tab: "map",
+            priority: 84,
+          },
+    );
+  }
+
+  if (mapReady && input.mapSnapshots?.length) {
     for (const snap of input.mapSnapshots.filter((s) => s.heat >= HEAT_BANDS.hot).slice(0, 2)) {
       const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
       actions.push({

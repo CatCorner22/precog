@@ -4,6 +4,9 @@ import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
 import { buildPioneerContextPack } from "./context-pack";
 import { pioneerProfileFrom } from "./pioneer-profile";
+import { mapAssessed } from "../builder/map-state";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
+import { defaultProfile } from "../practice-profile";
 
 const dental = getBaseTemplate("dental");
 const retail = getBaseTemplate("retail");
@@ -169,5 +172,35 @@ describe("Pioneer tools on a Retail profile", () => {
     }
     expect(pack.continuity.documentation.writtenAndFindablePct).toBeGreaterThanOrEqual(0);
     expect(pack.continuity.documentation.writtenAndFindablePct).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("context pack process map", () => {
+  it("marks the sample business's map as assessed", () => {
+    const pack = buildPioneerContextPack(dental);
+    expect(pack.processMap.assessed).toBe(true);
+    expect(pack.processMap.note).toMatch(/^Map health/);
+  });
+
+  it("carries assessed: false and a do-not-quote note for a starter map", () => {
+    const profile = ownBusinessProfile(defaultProfile(), {
+      practiceName: "Ruiz Dental",
+      people: buildOwnTeam([
+        { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+        { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
+      ]),
+    });
+    const tpl = resolveTemplate(profile);
+    const pack = buildPioneerContextPack(tpl, profile.staff, { mapAssessed: mapAssessed(profile) });
+    expect(pack.processMap.assessed).toBe(false);
+    expect(pack.processMap.note).toBe(
+      "Not assessed: the map holds 7 starter processes from the dental / medical office example with no owner assigned, so the figures above are not facts about the business. Do not quote them; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+    );
+    const empty = buildPioneerContextPack(
+      resolveTemplate({ ...profile, customProcesses: [] }),
+      profile.staff,
+      { mapAssessed: false },
+    );
+    expect(empty.processMap.note).toMatch(/^Not assessed: the map is empty/);
   });
 });

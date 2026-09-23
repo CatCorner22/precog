@@ -3,6 +3,7 @@ import { IndexBasis } from "@/components/precog/index-basis";
 import { useEffect, useMemo } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
+import { mapNotAssessedNote, mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
 import {
   buildProcessMapGraph,
   computeMapHealth,
@@ -66,6 +67,10 @@ export function MapHealthCard({
 }) {
   const { profile, mapCustomized, recordMapHealth } = usePractice();
   const tpl = useTemplate();
+  // The starter map with nobody assigned, or an empty map, has no health to
+  // report; the card says what to do instead and records no history point.
+  const notAssessed = mapNotAssessedNote(profile);
+  const source = mapSource(profile);
 
   const health = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
@@ -79,8 +84,8 @@ export function MapHealthCard({
   }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
 
   useEffect(() => {
-    recordMapHealth(health.score);
-  }, [health.score, recordMapHealth]);
+    if (!notAssessed) recordMapHealth(health.score);
+  }, [health.score, notAssessed, recordMapHealth]);
 
   const history = profile.mapHealthHistory ?? [];
   const trendPoints = history.map((h) => h.score);
@@ -101,6 +106,46 @@ export function MapHealthCard({
 
   const circumference = 2 * Math.PI * 54;
   const dash = (health.score / 100) * circumference;
+
+  if (notAssessed) {
+    const starter = source === "starter" ? starterMapFacts(profile) : null;
+    return (
+      <Card className="overflow-hidden border-border">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Activity className="size-4 text-primary" />
+                Map health score
+              </CardTitle>
+              <CardDescription>
+                How complete and calm your value stream is — owners, controls, integrity, heat.
+              </CardDescription>
+            </div>
+            <Badge variant="default">Not assessed yet</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-relaxed text-muted">{notAssessed}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" onClick={onBuildMap}>
+              <Hammer className="size-3.5" />
+              {starter ? "Assign owners" : "Build your map"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => onOpenMap()}>
+              <Map className="size-3.5" />
+              Open process map
+            </Button>
+          </div>
+          <p className="mt-3 text-[10px] text-subtle">
+            {starter
+              ? `${starter.count} starter processes · starter map from the ${starter.example}`
+              : "0 processes · your own map"}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden border-border">

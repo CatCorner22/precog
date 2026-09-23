@@ -9,6 +9,7 @@ import {
   listEnteredWork,
 } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
+import { mapSource } from "@/lib/precog/builder/map-state";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     resetSegregationToDerived,
     resetProfile,
     createBusiness,
+    setCustomProcesses,
+    setMapLayout,
   } = usePractice();
   const s = profile.staff;
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
@@ -236,25 +239,50 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             Configure dual-release thresholds
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
-              Boolean,
-            );
-            if (
-              lost.length &&
-              !window.confirm(
-                `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
+        {profile.customPeople ? (
+          // An own business never goes back to the sample business from here.
+          // Once the owner has edited the map, this returns it to the starter
+          // map; their team, register and journal stay.
+          mapSource(profile) === "own" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "Go back to the starter map? This discards your process map edits. Your team, register and journal stay.",
+                  )
+                )
+                  return;
+                setCustomProcesses(null);
+                setMapLayout({});
+                toast.success("Back to the starter map");
+              }}
+            >
+              Back to the starter map
+            </Button>
+          )
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
+                Boolean,
+              );
+              if (
+                lost.length &&
+                !window.confirm(
+                  `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
+                )
               )
-            )
-              return;
-            resetProfile();
-          }}
-        >
-          Reset to demo defaults
-        </Button>
+                return;
+              resetProfile();
+            }}
+          >
+            Reset to demo defaults
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

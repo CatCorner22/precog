@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
+import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePractice } from "@/lib/precog/practice-context";
 import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ export function WeeklyActionPlan({
   const { profile, template } = usePractice();
   const today = useToday();
   const trackFreshness = trackRegisterFreshness(profile, template);
+  const mapReady = mapAssessed(profile);
   const actions = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(template, profile.staff);
     return buildWeeklyActions({
@@ -28,6 +30,7 @@ export function WeeklyActionPlan({
       mapSnapshots: snapshots,
       today: localDateKey(today),
       trackFreshness,
+      mapAssessed: mapReady,
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
     });
@@ -36,6 +39,7 @@ export function WeeklyActionPlan({
     profile.staff,
     profile.dualRelease,
     trackFreshness,
+    mapReady,
     profile.decisions,
     profile.plannedAbsences,
     today,

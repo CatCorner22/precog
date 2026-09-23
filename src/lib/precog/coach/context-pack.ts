@@ -13,6 +13,14 @@ import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../p
 export function buildPioneerContextPack(
   tpl: IndustryTemplate,
   staffComposition: StaffComposition = tpl.staffComposition,
+  opts: {
+    /**
+     * Whether the process map's figures describe a map the owner has worked on
+     * (mapAssessed in builder/map-state). Off, the pack carries the figures but
+     * tells the coach not to quote them.
+     */
+    mapAssessed?: boolean;
+  } = {},
 ) {
   const { businessName, crimeFraudStats } = tpl;
   const portfolio = portfolioSummary(tpl, staffComposition);
@@ -31,12 +39,14 @@ export function buildPioneerContextPack(
     new Set(tpl.controls.map((c) => c.id)),
   );
   const mapHealth = computeMapHealth(snapshots, mapIssues);
+  const mapReady = opts.mapAssessed ?? true;
 
   return {
     practice: businessName,
     scoringVersion: portfolio.scoringVersion,
     staff: staffComposition,
     processMap: {
+      assessed: mapReady,
       healthScore: mapHealth.score,
       band: mapHealth.bandLabel,
       dimensions: mapHealth.dimensions.map((d) => ({ id: d.id, score: d.score, hint: d.hint })),
@@ -58,6 +68,11 @@ export function buildPioneerContextPack(
         .filter((i) => i.severity !== "info")
         .slice(0, 6)
         .map((i) => i.message),
+      note: mapReady
+        ? "Map health, its dimensions, hot and unowned processes and issues are scored from the owner's process map; name specific processes when they drive the advice."
+        : tpl.processes.length === 0
+          ? "Not assessed: the map is empty, so the owner has not yet listed the processes the business runs. Do not quote map figures; advise the owner to add their processes on How work flows."
+          : `Not assessed: the map holds ${tpl.processes.length} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example with no owner assigned, so the figures above are not facts about the business. Do not quote them; advise the owner to assign an owner to each process on How work flows, or to build their own map.`,
     },
     publishedFraudStats: {
       medianLossSmallOrgUsd: crimeFraudStats.medianLossSmallOrgUsd,
