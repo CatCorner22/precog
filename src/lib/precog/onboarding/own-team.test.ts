@@ -7,6 +7,8 @@ import {
   CORE_DUTIES,
   OWN_TEAM_MAX,
   buildOwnTeam,
+  coreDutiesForTitle,
+  ownerRow,
   ownBusinessProfile,
   rowsForJobTitle,
 } from "./own-team";
@@ -111,5 +113,31 @@ describe("rowsForJobTitle", () => {
       expect.arrayContaining(["release_payment", "bank_reconcile", "approve_payroll"]),
     );
     expect(row.duties).not.toContain("post_journal_entries");
+  });
+});
+
+describe("grid rows from a roster", () => {
+  it("carries tenure and department from a pasted roster into the people", () => {
+    const [person] = buildOwnTeam([
+      {
+        name: "Ben Ochoa",
+        role: "Office Manager",
+        duties: ["post_payments"],
+        tenureYears: 11.4,
+        department: "Admin",
+      },
+    ]);
+    expect(person).toMatchObject({ tenureYears: 11.4, department: "Admin" });
+    const [bare] = buildOwnTeam([{ name: "Cal", role: "Front Desk", duties: [] }]);
+    expect(bare).not.toHaveProperty("tenureYears");
+    expect(bare).not.toHaveProperty("department");
+  });
+
+  it("starts the grid with an owner whose usual duties are ticked", () => {
+    const row = ownerRow();
+    expect(row.role).toBe("Owner");
+    expect(row.duties).toEqual(expect.arrayContaining(["bank_reconcile", "approve_payroll"]));
+    expect(row.suggestedFor).toBe("Owner");
+    expect(coreDutiesForTitle("Chief Happiness Wrangler")).toEqual([]);
   });
 });

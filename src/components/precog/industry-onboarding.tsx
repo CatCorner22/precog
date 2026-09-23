@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
@@ -8,19 +8,21 @@ import {
   OWN_TEAM_MAX,
   rowsForJobTitle,
   buildOwnTeam,
+  coreDutiesForTitle,
   coreDutyLabel,
+  ownerRow,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
   JOB_CATALOG,
   JOB_FAMILY_LABEL,
-  matchJobTitle,
+  entitlementsForTitle,
   type JobFamily,
 } from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { parseRoster } from "@/lib/precog/import/roster";
-import { ROLE_TEMPLATES } from "@/lib/precog/sod/detect";
+import type { PeopleImportIssue } from "@/lib/precog/import/people-csv";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +50,42 @@ const inputCls =
 
 const EMPTY_ROW = (role = ""): OwnTeamRow => ({ name: "", role, duties: [] });
 
+const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
+  a.length === b.length && a.every((d) => b.includes(d));
+
+/**
+ * The grid in progress, kept in this tab's session storage so a reload does
+ * not throw away names the owner has typed. Cleared when they finish or load
+ * the sample business.
+ */
+const DRAFT_KEY = "precog.onboarding-draft.v1";
+interface OnboardingDraft {
+  step: "industry" | "team";
+  selected: IndustryId;
+  businessName: string;
+  rows: OwnTeamRow[];
+}
+function readDraft(): OnboardingDraft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as OnboardingDraft;
+    return draft && Array.isArray(draft.rows) && typeof draft.businessName === "string"
+      ? draft
+      : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(draft: OnboardingDraft | null) {
+  try {
+    if (draft) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    else sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Storage refused (private mode, quota): the draft lives only in memory.
+  }
+}
+
 /**
  * First visit. Step one picks the line of business; step two takes the
  * owner's own business name, people, and who does the eight money duties,
@@ -59,14 +97,29 @@ export function IndustryOnboarding() {
   const [selected, setSelected] = useState<IndustryId>("dental");
   const [step, setStep] = useState<"industry" | "team">("industry");
   const [businessName, setBusinessName] = useState("");
-  const [rows, setRows] = useState<OwnTeamRow[]>([
-    EMPTY_ROW("Owner"),
-    EMPTY_ROW(""),
-    EMPTY_ROW(""),
-  ]);
+  const [rows, setRows] = useState<OwnTeamRow[]>([ownerRow(), EMPTY_ROW(""), EMPTY_ROW("")]);
 
   const [paste, setPaste] = useState("");
   const [pasteNote, setPasteNote] = useState("");
+  const [pasteIssues, setPasteIssues] = useState<PeopleImportIssue[]>([]);
+  const [restored, setRestored] = useState(false);
+  // Restore after mount, so the server-rendered dialog and the first client
+  // render agree; then keep the draft in step with every edit.
+  useEffect(() => {
+    const draft = readDraft();
+    if (draft && draft.rows.some((r) => r.name.trim().length > 0)) {
+      setSelected(draft.selected);
+      setBusinessName(draft.businessName);
+      setRows(draft.rows);
+      setStep(draft.step);
+    }
+    setRestored(true);
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    const hasWork = businessName.trim().length > 0 || rows.some((r) => r.name.trim().length > 0);
+    writeDraft(hasWork ? { step, selected, businessName, rows } : null);
+  }, [restored, step, selected, businessName, rows]);
   const [quickTitle, setQuickTitle] = useState(JOB_CATALOG[0]?.id ?? "");
   const [quickCount, setQuickCount] = useState(1);
   const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
@@ -87,20 +140,21 @@ export function IndustryOnboarding() {
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
   const coreSet = new Set<string>(CORE_DUTIES);
 
-  /** The catalog's duties for a title, kept to the eight the grid shows. */
-  function coreDutiesForTitle(title: string): EntitlementId[] {
-    const match = matchJobTitle(title);
-    return match ? match.entitlements.filter((d) => coreSet.has(d)) : [];
-  }
-
-  /** When a role is typed and no duty is ticked yet, tick what that title usually holds. */
+  /**
+   * When a role is typed, tick what that title usually holds. A later role
+   * change re-ticks as long as the ticks are still the earlier suggestion or
+   * empty; ticks the owner set by hand stay.
+   */
   function suggestDuties(index: number) {
     setRows((current) =>
-      current.map((row, i) =>
-        i === index && row.duties.length === 0 && row.role.trim()
-          ? { ...row, duties: coreDutiesForTitle(row.role) }
-          : row,
-      ),
+      current.map((row, i) => {
+        if (i !== index) return row;
+        const role = row.role.trim();
+        if (!role || role === row.suggestedFor) return row;
+        const previous = row.suggestedFor ? coreDutiesForTitle(row.suggestedFor) : [];
+        const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
+        return untouched ? { ...row, duties: coreDutiesForTitle(role), suggestedFor: role } : row;
+      }),
     );
   }
 
@@ -108,36 +162,48 @@ export function IndustryOnboarding() {
   function fillFromPaste() {
     const tpl = getIndustryTemplate(selected);
     const result = parseRoster(paste, tpl);
-    const incoming: OwnTeamRow[] = result.people
-      .filter((p) => p.active)
-      .map((p) => {
-        // A title that matches one of this industry's own roles carries no
-        // explicit duties (the engines read the role template), so the grid
-        // ticks that template's duties instead.
-        const duties = p.entitlements ?? tpl.roleTemplates[p.role] ?? ROLE_TEMPLATES[p.role] ?? [];
-        return {
-          name: p.name,
-          role: p.role,
-          duties: duties.filter((d): d is EntitlementId => coreSet.has(d)),
-        };
-      });
+    const activePeople = result.people.filter((p) => p.active);
+    const incoming: OwnTeamRow[] = activePeople.map((p) => ({
+      name: p.name,
+      role: p.role,
+      // The importer reads each title through the catalog of common jobs. A
+      // title it could not read leaves the duties for the owner to tick.
+      duties: (p.entitlements ?? entitlementsForTitle(p.role)).filter((d): d is EntitlementId =>
+        coreSet.has(d),
+      ),
+      ...(p.tenureYears !== undefined ? { tenureYears: p.tenureYears } : {}),
+      ...(p.department ? { department: p.department } : {}),
+      suggestedFor: p.role,
+    }));
+    const inactive = result.people.length - activePeople.length;
+    setPasteIssues(result.issues);
     if (incoming.length === 0) {
       setPasteNote(
-        result.issues[0]?.message ?? "No names found. One person per line: Name, Title.",
+        result.people.length > 0
+          ? `All ${result.people.length} people in the paste are marked inactive, so none was added.`
+          : (result.issues[0]?.message ?? "No names found. One person per line: Name, Title."),
       );
       return;
     }
-    setRows((current) => {
-      const kept = current.filter((r) => r.name.trim().length > 0);
-      return [...kept, ...incoming].slice(0, OWN_TEAM_MAX);
-    });
-    const recognised = result.titles.filter((t) => t.catalogTitle).length;
-    const unmatched = result.titles.filter((t) => !t.catalogTitle).length;
-    const skipped = result.people.length - incoming.length;
+    const kept = rows.filter((r) => r.name.trim().length > 0);
+    const room = Math.max(0, OWN_TEAM_MAX - kept.length);
+    const added = incoming.slice(0, room);
+    const notAdded = incoming.length - added.length;
+    setRows([...kept, ...added]);
+    const addedNames = new Set(added.map((r) => r.name));
+    const titlesAdded = result.titles.filter((t) => addedNames.has(t.name));
+    const recognised = titlesAdded.filter((t) => t.catalogTitle).length;
+    const unmatched = titlesAdded.length - recognised;
     setPasteNote(
-      `Added ${incoming.length} ${incoming.length === 1 ? "person" : "people"}. ${recognised} ${recognised === 1 ? "title" : "titles"} recognised and duties ticked from the catalog${
-        unmatched ? `; ${unmatched} not recognised, tick their duties below` : ""
-      }${skipped ? `; ${skipped} inactive ${skipped === 1 ? "person" : "people"} left out` : ""}. Check every row: a title is a starting point, not a fact about your business.`,
+      [
+        notAdded > 0
+          ? `Added ${added.length} of ${incoming.length} people; ${notAdded} not added because this grid holds ${OWN_TEAM_MAX}. Add them later in Who controls what.`
+          : `Added ${added.length} ${added.length === 1 ? "person" : "people"}.`,
+        `${recognised} ${recognised === 1 ? "title" : "titles"} recognised and duties ticked from the catalog${
+          unmatched ? `; ${unmatched} not recognised, tick their duties below` : ""
+        }${inactive ? `; ${inactive} inactive ${inactive === 1 ? "person" : "people"} left out` : ""}.`,
+        "Check every row: a title is a starting point, not a fact about your business.",
+      ].join(" "),
     );
     setPaste("");
   }
@@ -160,6 +226,7 @@ export function IndustryOnboarding() {
   function finish() {
     const people = buildOwnTeam(rows);
     if (people.length === 0) return;
+    writeDraft(null);
     startOwnBusiness({ industry: selected, practiceName: businessName, people });
   }
 
@@ -241,7 +308,10 @@ export function IndustryOnboarding() {
                 <Button
                   className="w-full"
                   variant="secondary"
-                  onClick={() => completeOnboarding(selected)}
+                  onClick={() => {
+                    writeDraft(null);
+                    completeOnboarding(selected);
+                  }}
                 >
                   Load {industry?.label} demo
                 </Button>
@@ -305,6 +375,20 @@ export function IndustryOnboarding() {
                     </Button>
                     {pasteNote && <p className="text-xs text-muted">{pasteNote}</p>}
                   </div>
+                  {pasteIssues.length > 0 && (
+                    <ul
+                      className="list-disc space-y-0.5 pl-4 text-xs text-muted"
+                      aria-label="Roster notes"
+                    >
+                      {pasteIssues.slice(0, 8).map((issue, i) => (
+                        <li key={`${issue.row}-${i}`}>
+                          {issue.row > 0 ? `Row ${issue.row}: ` : ""}
+                          {issue.message}
+                        </li>
+                      ))}
+                      {pasteIssues.length > 8 && <li>and {pasteIssues.length - 8} more</li>}
+                    </ul>
+                  )}
                 </div>
               </details>
 

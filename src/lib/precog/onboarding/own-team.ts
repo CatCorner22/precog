@@ -1,5 +1,5 @@
 import type { EntitlementId } from "../sod/conflict-rules";
-import type { JobCatalogEntry } from "./job-catalog";
+import { entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
@@ -31,6 +31,27 @@ export interface OwnTeamRow {
   name: string;
   role: string;
   duties: EntitlementId[];
+  /** Years of service, read from a hire date in a pasted roster. */
+  tenureYears?: number;
+  /** Department or cost center, as the roster names it. */
+  department?: string;
+  /**
+   * The role whose usual duties were ticked automatically. A later role
+   * change re-ticks as long as the ticks are still that suggestion; ticks
+   * the owner set by hand stay.
+   */
+  suggestedFor?: string;
+}
+
+/** The catalog's usual duties for a title, kept to the eight the grid shows. */
+export function coreDutiesForTitle(title: string): EntitlementId[] {
+  const core = new Set<string>(CORE_DUTIES);
+  return entitlementsForTitle(title).filter((d) => core.has(d));
+}
+
+/** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */
+export function ownerRow(): OwnTeamRow {
+  return { name: "", role: "Owner", duties: coreDutiesForTitle("Owner"), suggestedFor: "Owner" };
 }
 
 /**
@@ -46,6 +67,7 @@ export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing 
     name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
     role: entry.title,
     duties: [...duties],
+    suggestedFor: entry.title,
   }));
 }
 
@@ -65,6 +87,11 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
       name: row.name.trim().slice(0, 60),
       role: row.role.trim().slice(0, 40) || "Team member",
       duties: row.duties.filter((d) => allowed.has(d)),
+      tenureYears:
+        typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
+          ? Math.min(60, Math.max(0, row.tenureYears))
+          : undefined,
+      department: row.department?.trim().slice(0, 60) || undefined,
     }))
     .filter((row) => row.name.length > 0)
     .slice(0, OWN_TEAM_MAX)
@@ -73,6 +100,8 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
       name: row.name,
       role: row.role,
       active: true,
+      ...(row.tenureYears !== undefined ? { tenureYears: row.tenureYears } : {}),
+      ...(row.department ? { department: row.department } : {}),
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
     }));
 }
