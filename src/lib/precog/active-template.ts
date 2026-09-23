@@ -36,11 +36,19 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
     peopleOverrides || knowledgeOverrides || relationOverrides
       ? rawRelations.filter((r) => ids.has(r.personId) && knowledgeIds.has(r.knowledgeId))
       : rawRelations;
+  // The sample business marks one control's residual risk as accepted to show
+  // what an accepted risk looks like. That is the sample owner's decision, not
+  // this owner's: a business with its own people starts with nothing accepted,
+  // so no conflict is hidden before the owner has seen it.
+  const controls = peopleOverrides
+    ? base.controls.map((c) => (c.residualRiskAccepted ? { ...c, residualRiskAccepted: false } : c))
+    : base.controls;
   return {
     ...base,
     people,
     knowledge,
     relations,
+    controls,
     processes: (processOverrides ?? base.processes).map((p) => ({
       ...p,
       ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),

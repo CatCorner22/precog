@@ -90,7 +90,7 @@ export function IndustryOnboarding() {
   /** The catalog's duties for a title, kept to the eight the grid shows. */
   function coreDutiesForTitle(title: string): EntitlementId[] {
     const match = matchJobTitle(title);
-    return match ? match.entry.entitlements.filter((d) => coreSet.has(d)) : [];
+    return match ? match.entitlements.filter((d) => coreSet.has(d)) : [];
   }
 
   /** When a role is typed and no duty is ticked yet, tick what that title usually holds. */

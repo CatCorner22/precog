@@ -120,6 +120,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "practice owner",
       "owner dentist",
       "dentist owner",
+      "owner operator",
+      "co owner",
+      "working owner",
+      "sole proprietor",
+      "franchise owner",
+      "franchisee",
     ],
     [
       "approve_vendor",
@@ -151,6 +157,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "district manager",
       "area manager",
       "plant manager",
+      "multi unit manager",
+      "vp operations",
+      "vp of operations",
+      "vice president of operations",
+      "vice president",
+      "vp",
     ],
     [
       "approve_vendor",
@@ -231,7 +243,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "front of house manager",
       "foh manager",
       "front-of-house manager",
-      "service manager",
+      "asst manager",
+      "asst mgr",
+      "assistant mgr",
+      "foh mgr",
     ],
     [
       "collect_cash",
@@ -260,11 +275,15 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "head cashier",
       "team lead",
       "team leader",
-      "supervisor",
       "floor supervisor",
       "crew lead",
       "crew leader",
-      "lead",
+      "night manager",
+      "closing manager",
+      "opening manager",
+      "opening supervisor",
+      "closing supervisor",
+      "store lead",
     ],
     ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
     "A shift lead takes cash, counts and bags the drawer, and can process a refund without a manager present.",
@@ -320,6 +339,14 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "tax accountant",
       "accounting analyst",
       "financial analyst",
+      "acct",
+      "reconciliation specialist",
+      "reconciliation clerk",
+      "bank reconciliation specialist",
+      "reconciliation analyst",
+      "property accountant",
+      "grants accountant",
+      "trust accountant",
     ],
     [
       "post_journal_entries",
@@ -378,6 +405,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "payables clerk",
       "payables specialist",
       "disbursements clerk",
+      "ap",
+      "ap manager",
+      "accounts payable manager",
+      "ap supervisor",
+      "ap lead",
+      "payables manager",
     ],
     ["enter_invoices", "create_vendor", "release_payment", "view_reports_only"],
     "Accounts payable enters invoices, sets up suppliers, and prepares or releases payment; the shell-vendor cases run through this seat.",
@@ -400,6 +433,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "collector",
       "credit and collections",
       "credit analyst",
+      "ar",
+      "ar manager",
+      "accounts receivable manager",
+      "credit manager",
+      "collections manager",
+      "credit and collections manager",
     ],
     ["post_payments", "post_adjustments", "issue_refunds", "view_reports_only"],
     "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen.",
@@ -524,6 +563,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "information clerk",
       "greeter",
       "concierge",
+      "scheduling manager",
+      "hygiene coordinator",
+      "front desk lead",
+      "front desk supervisor",
+      "front office supervisor",
     ],
     ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
     "The front desk takes payments, posts them, and edits customer or patient records: the skimming cases begin at this desk.",
@@ -706,6 +750,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "orthodontist",
       "periodontist",
       "oral surgeon",
+      "pa c",
     ],
     ["approve_writeoffs", "view_reports_only"],
     "A provider approves courtesy write-offs on their own patients and otherwise stays out of the money.",
@@ -833,6 +878,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "boh manager",
       "kitchen lead",
       "kitchen supervisor",
+      "chef de partie",
+      "station chef",
     ],
     ["order_supplies", "receive_goods", "view_reports_only"],
     "The kitchen orders food and receives the delivery, so the check on the supplier is the same person who chose it.",
@@ -866,7 +913,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "bartender",
     "Bartender",
     "food",
-    ["bartender", "barback", "mixologist", "bar staff", "bar lead"],
+    ["bartender", "barback", "mixologist", "bar staff", "bar lead", "bar back"],
     ["collect_cash", "view_reports_only"],
     "A bartender takes cash all night; the control is the pour count and the drawer count.",
     "35-3011",
@@ -929,12 +976,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "carpenter",
       "painter",
       "roofer",
-      "landscaper",
-      "groundskeeper",
-      "cleaner",
-      "janitor",
-      "maintenance technician",
-      "maintenance",
     ],
     ["collect_cash", "view_reports_only"],
     "A technician who collects at the job holds cash the office never sees until it is deposited.",
@@ -956,6 +997,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "operations supervisor",
       "production supervisor",
       "production manager",
+      "crew chief",
+      "crew foreman",
     ],
     ["receive_goods", "order_supplies", "enter_payroll", "view_reports_only"],
     "A foreman orders and receives material and approves the crew's hours: the ghost-timesheet cases run through this seat.",
@@ -1026,6 +1069,9 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "talent acquisition",
       "benefits administrator",
       "office and hr manager",
+      "benefits manager",
+      "payroll and hr",
+      "hr and payroll",
     ],
     ["edit_payroll_master", "view_reports_only"],
     "HR adds employees and changes pay rates and bank details; the check is that someone else runs the payroll that reads them.",
@@ -1044,7 +1090,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "litigation assistant",
       "litigation paralegal",
       "legal administrative assistant",
-      "case manager",
       "intake specialist",
       "intake coordinator",
     ],
@@ -1059,7 +1104,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "attorney",
       "lawyer",
       "associate attorney",
-      "associate",
       "counsel",
       "of counsel",
       "senior associate",
@@ -1235,7 +1279,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "title-clerk",
     "Title / Deal Clerk",
     "automotive",
-    ["title clerk", "deal clerk", "dmv clerk", "tag and title clerk", "deal processor"],
+    [
+      "title clerk",
+      "deal clerk",
+      "dmv clerk",
+      "tag and title clerk",
+      "deal processor",
+      "title and registration clerk",
+      "title registration clerk",
+      "registration clerk",
+      "tag and title",
+    ],
     ["post_payments", "post_adjustments", "view_reports_only"],
     "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the record is written.",
   ),
@@ -1308,6 +1362,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "escrow officer",
       "closing agent",
       "settlement agent",
+      "escrow manager",
     ],
     ["post_payments", "edit_patient_master", "view_reports_only"],
     "A closing coordinator records the funds that move through a transaction and maintains the parties' records.",
@@ -1374,14 +1429,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "board-treasurer",
     "Board Treasurer",
     "nonprofit",
-    [
-      "board treasurer",
-      "volunteer treasurer",
-      "finance committee chair",
-      "board member",
-      "trustee",
-      "director (board)",
-    ],
+    ["board treasurer", "volunteer treasurer", "finance committee chair"],
     ["sign_checks", "bank_reconcile", "approve_payroll", "view_reports_only"],
     "A volunteer treasurer signs and reads the statement; when the treasurer also keeps the books there is no second reader.",
   ),
@@ -1547,8 +1595,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "billing manager",
       "revenue cycle manager",
       "patient accounts manager",
-      "ar manager",
-      "accounts receivable manager",
       "business office manager (medical)",
     ],
     [
@@ -1813,6 +1859,9 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "kitchen helper",
       "food prep",
       "prep",
+      "expo",
+      "expeditor",
+      "food expeditor",
     ],
     ["view_reports_only"],
     "Kitchen staff hold no money duty; they appear on the map for continuity.",
@@ -1826,6 +1875,95 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice (office)"],
     ["view_reports_only"],
     "An intern holds no money duty by default; tick anything they actually do.",
+  ),
+  entry(
+    "cash-office",
+    "Cash Office / Deposit Clerk",
+    "retail",
+    [
+      "cash office",
+      "cash office associate",
+      "cash office clerk",
+      "cash office lead",
+      "cash room clerk",
+      "cash room",
+      "deposit clerk",
+      "vault teller",
+      "cash control clerk",
+      "cash handler",
+    ],
+    ["collect_cash", "prepare_deposit", "view_reports_only"],
+    "A cash-office clerk counts the drawers and makes up the deposit; whoever reconciles the bank account must be someone else.",
+  ),
+  entry(
+    "custodial",
+    "Cleaner / Custodian / Groundskeeper",
+    "trades",
+    [
+      "cleaner",
+      "custodian",
+      "janitor",
+      "janitorial",
+      "groundskeeper",
+      "landscaper",
+      "maintenance",
+      "maintenance worker",
+      "maintenance technician",
+      "maintenance tech",
+      "porter",
+      "building attendant",
+    ],
+    ["view_reports_only"],
+    "Cleaning, grounds and maintenance staff hold no money duty by default; tick anything they actually do.",
+  ),
+  entry(
+    "board-member",
+    "Board Member / Trustee",
+    "nonprofit",
+    [
+      "board member",
+      "trustee",
+      "director (board)",
+      "board director",
+      "board chair",
+      "board president",
+      "board secretary",
+      "board vice chair",
+    ],
+    ["view_reports_only"],
+    "A board member approves budgets and reads reports; signing, reconciling and approving payroll belong to the treasurer if a board member holds them.",
+  ),
+  entry(
+    "service-manager",
+    "Service Manager (repair, dealership)",
+    "automotive",
+    [
+      "service manager",
+      "service department manager",
+      "fixed operations manager",
+      "fixed ops manager",
+      "service director",
+    ],
+    ["approve_writeoffs", "enter_payroll", "order_supplies", "receive_goods", "view_reports_only"],
+    "A service manager approves goodwill and warranty write-offs, submits the technicians' hours, and orders and receives parts.",
+  ),
+  entry(
+    "automotive-support",
+    "Lot / Detail / BDC Staff",
+    "automotive",
+    [
+      "detailer",
+      "lot attendant",
+      "lot porter",
+      "bdc",
+      "bdc representative",
+      "bdc rep",
+      "bdc agent",
+      "business development center",
+      "car washer",
+    ],
+    ["view_reports_only"],
+    "Lot, detail and business-development-center staff hold no money duty by default; tick anything they actually do.",
   ),
 ];
 
@@ -1990,6 +2128,15 @@ const DESCRIPTIONS: Record<string, string> = {
   "kitchen-staff":
     "Prepares ingredients, washes, and supports the kitchen; holds no financial duty.",
   intern: "Works in a temporary or learning role and holds no financial duty unless assigned one.",
+  "cash-office":
+    "Counts register drawers, prepares the bank deposit, and keeps the cash-office records for a store or branch.",
+  custodial: "Cleans, maintains and repairs the premises and grounds; holds no financial duty.",
+  "board-member":
+    "Serves on the governing board of a nonprofit or association, approving budgets and policies and reading financial reports.",
+  "service-manager":
+    "Runs a repair or dealership service department: schedules the shop, approves goodwill and warranty write-offs, submits technicians' hours, and orders parts.",
+  "automotive-support":
+    "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no financial duty.",
 };
 
 export const JOB_CATALOG: readonly JobCatalogEntry[] = RAW_CATALOG.map((e) => ({
@@ -2003,7 +2150,11 @@ export function jobCatalogMissingDescriptions(): string[] {
 }
 
 /** Words that describe seniority or schedule, not the job. */
-const NOISE_TOKENS = new Set([
+/** Words that join a title's parts and carry no meaning of their own. */
+const STOP_WORDS = new Set(["the", "of", "and", "for", "to", "s"]);
+
+/** Seniority, schedule and contract words: "Senior AP Clerk (part-time)" is an AP clerk. */
+const DECORATION_WORDS = new Set([
   "senior",
   "sr",
   "junior",
@@ -2028,9 +2179,59 @@ const NOISE_TOKENS = new Set([
   "contract",
   "contractor",
   "trainee",
-  "the",
-  "of",
-  "and",
+]);
+
+/**
+ * Level and department words that say nothing about money duties on their
+ * own. A title the catalog does not know as a whole ("Nursing Supervisor",
+ * "Product Manager") must not fall back to the money duties of a job that
+ * merely shares one of these words with it.
+ */
+const GENERIC_ROLE_WORDS = new Set([
+  "manager",
+  "mgr",
+  "supervisor",
+  "lead",
+  "leader",
+  "associate",
+  "assistant",
+  "asst",
+  "clerk",
+  "admin",
+  "administrator",
+  "technician",
+  "tech",
+  "operator",
+  "aide",
+  "coordinator",
+  "director",
+  "officer",
+  "agent",
+  "representative",
+  "rep",
+  "worker",
+  "staff",
+  "member",
+  "head",
+  "chief",
+  "executive",
+  "runner",
+  "host",
+  "partner",
+  "principal",
+  "president",
+  "founder",
+  "vp",
+  "professional",
+  "generalist",
+  "support",
+  "service",
+  "services",
+  "sales",
+  "team",
+  "crew",
+  "specialist",
+  "analyst",
 ]);
 
 function tokens(value: string): string[] {
@@ -2040,63 +2241,109 @@ function tokens(value: string): string[] {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .split(/\s+/)
-    .filter(Boolean);
+    .filter((t) => t.length > 0 && !STOP_WORDS.has(t));
 }
 
-function normalizeTitle(value: string): string {
-  return tokens(value)
-    .filter((t) => !NOISE_TOKENS.has(t))
-    .join(" ");
+/** The same title with seniority, schedule and contract words removed. */
+function undecorated(words: readonly string[]): string[] {
+  return words.filter((t) => !DECORATION_WORDS.has(t));
 }
 
+/**
+ * Every name the catalog knows, as written, joined with single spaces.
+ * Decoration words are not removed from the names themselves: "contract
+ * manager" must stay a contracts administrator and not become "manager".
+ */
 const ALIAS_INDEX: { alias: string; entry: JobCatalogEntry }[] = JOB_CATALOG.flatMap((e) =>
-  [e.title, ...e.aliases].map((alias) => ({ alias: normalizeTitle(alias), entry: e })),
+  [e.title, ...e.aliases].map((alias) => ({ alias: tokens(alias).join(" "), entry: e })),
 )
   .filter((a) => a.alias.length > 0)
   // Longest alias first, so "accounts payable clerk" wins over "clerk".
   .sort((a, b) => b.alias.length - a.alias.length);
 
+const EXACT_ALIAS = new Map<string, JobCatalogEntry>();
+for (const a of ALIAS_INDEX) if (!EXACT_ALIAS.has(a.alias)) EXACT_ALIAS.set(a.alias, a.entry);
+
+const carriesMoneyDuty = (e: JobCatalogEntry) =>
+  e.entitlements.some((d) => d !== "view_reports_only");
+
+/** The whole title, as written or with its decorations removed, is a known name. */
+function exactMatch(words: readonly string[]): JobCatalogEntry | undefined {
+  return EXACT_ALIAS.get(words.join(" ")) ?? EXACT_ALIAS.get(undecorated(words).join(" "));
+}
+
+/**
+ * A known name appears inside a longer title. A name of several words counts
+ * wherever it sits ("Assistant Front Desk Coordinator"). A single word counts
+ * wherever it sits too ("Senior Buyer", "Billing Supervisor"), unless it is a
+ * level word on a job that carries money duties: "Nursing Supervisor" is not
+ * a shift lead who prepares deposits, and stays unknown for the owner to
+ * tick by hand.
+ */
+function containedMatch(words: readonly string[]): JobCatalogEntry | undefined {
+  const forms = [words, undecorated(words)].map((w) => ` ${w.join(" ")} `);
+  for (const a of ALIAS_INDEX) {
+    if (!a.alias.includes(" ")) continue;
+    if (forms.some((f) => f.includes(` ${a.alias} `))) return a.entry;
+  }
+  for (const w of undecorated(words)) {
+    const e = EXACT_ALIAS.get(w);
+    if (!e) continue;
+    if (GENERIC_ROLE_WORDS.has(w) && carriesMoneyDuty(e)) continue;
+    return e;
+  }
+  return undefined;
+}
+
 export interface JobMatch {
+  /** The seat the title names; for a combined title, its first known part (the owner if any part is the owner). */
   entry: JobCatalogEntry;
-  /** exact: the whole title is a known name; partial: a known name appears inside a longer title. */
+  /** exact: the whole title is a known name; partial: a known name appears inside a longer or combined title. */
   confidence: "exact" | "partial";
+  /** The duties the title carries: for "Office Manager / Bookkeeper", both seats' duties together. */
+  entitlements: EntitlementId[];
 }
 
 /**
  * Finds the catalog entry for a roster title. Seniority and schedule words
  * are ignored ("Senior AP Clerk (part-time)" is an AP clerk). A title with
- * several parts ("Office Manager / Bookkeeper") matches on its first part
- * that the catalog knows. Returns undefined when nothing matches, so the
- * caller can leave the duties for the owner to tick rather than guess.
+ * several parts ("Office Manager / Bookkeeper", "Chef/Owner") names every
+ * seat it lists and carries all of their duties, because that is exactly the
+ * concentration the map exists to show. Returns undefined when nothing
+ * matches, so the caller can leave the duties for the owner to tick rather
+ * than guess.
  */
 export function matchJobTitle(title: string): JobMatch | undefined {
-  const whole = normalizeTitle(title);
-  if (!whole) return undefined;
-  const exact = ALIAS_INDEX.find((a) => a.alias === whole);
-  if (exact) return { entry: exact.entry, confidence: "exact" };
+  const words = tokens(title);
+  if (words.length === 0) return undefined;
+  const whole = exactMatch(words);
+  if (whole) return { entry: whole, confidence: "exact", entitlements: [...whole.entitlements] };
+
+  // Slashes, commas, brackets and dashes join seats: "Chef/Owner", "Owner-Operator".
   const parts = title
-    .split(/[/,;()|]|\s[-–—]\s/)
-    .map(normalizeTitle)
-    .filter(Boolean);
-  for (const part of parts) {
-    const hit = ALIAS_INDEX.find((a) => a.alias === part);
-    if (hit) return { entry: hit.entry, confidence: parts.length > 1 ? "partial" : "exact" };
+    .split(/[/,;()|\-–—]/)
+    .map(tokens)
+    .filter((p) => p.length > 0);
+  const matched: JobCatalogEntry[] = [];
+  if (parts.length > 1) {
+    for (const part of parts) {
+      const hit = exactMatch(part) ?? containedMatch(part);
+      if (hit && !matched.includes(hit)) matched.push(hit);
+    }
   }
-  const padded = ` ${whole} `;
-  const inside = ALIAS_INDEX.find((a) => a.alias.includes(" ") && padded.includes(` ${a.alias} `));
-  if (inside) return { entry: inside.entry, confidence: "partial" };
-  // A single-word alias only counts when it is the title's last word ("Senior
-  // Buyer"), so "Sales Associate" does not become "Associate" (attorney).
-  const last = whole.split(" ").at(-1) ?? "";
-  const tail = ALIAS_INDEX.find((a) => !a.alias.includes(" ") && a.alias === last);
-  if (tail) return { entry: tail.entry, confidence: "partial" };
-  return undefined;
+  if (matched.length === 0) {
+    const hit = containedMatch(words);
+    if (hit) matched.push(hit);
+  }
+  if (matched.length === 0) return undefined;
+  const entry = matched.find((e) => e.id === "owner") ?? matched[0];
+  const entitlements = Array.from(new Set(matched.flatMap((e) => e.entitlements)));
+  return { entry, confidence: "partial", entitlements };
 }
 
 /** Duties the catalog suggests for a title, or an empty list when the title is unknown. */
 export function entitlementsForTitle(title: string): EntitlementId[] {
-  const match = matchJobTitle(title);
-  return match ? [...match.entry.entitlements] : [];
+  return matchJobTitle(title)?.entitlements ?? [];
 }
 
 export function jobCatalogEntry(id: string): JobCatalogEntry | undefined {

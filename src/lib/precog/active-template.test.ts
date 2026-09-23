@@ -39,6 +39,15 @@ describe("resolveTemplate", () => {
     }
   });
 
+  it("clears the sample business's accepted residual risk for a business with its own people", () => {
+    const base = getBaseTemplate("dental");
+    expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(true);
+    const own = resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 2) });
+    expect(own.controls.some((c) => c.residualRiskAccepted)).toBe(false);
+    expect(own.controls.map((c) => c.id)).toEqual(base.controls.map((c) => c.id));
+    expect(resolveTemplate({ industry: "dental" }).controls).toBe(base.controls);
+  });
+
   it("does not leak overrides into later calls", () => {
     const base = getBaseTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });

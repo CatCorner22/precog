@@ -83,6 +83,9 @@ describe("ownBusinessProfile", () => {
       true,
     );
     expect(report.conflicts.filter((c) => c.personName === "Dana")).toHaveLength(0);
+    // The sample business pre-accepts the payments-versus-reconciliation
+    // control; an own business must not inherit that decision.
+    expect(report.conflicts.some((c) => c.residualRiskAccepted)).toBe(false);
   });
 
   it("keeps the base name when the owner leaves it blank", () => {

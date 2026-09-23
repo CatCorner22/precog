@@ -67,11 +67,77 @@ describe("job catalog", () => {
   });
 
   it("does not let a single-word alias swallow a longer title it does not describe", () => {
-    // "Associate" alone is an attorney; "Sales Associate" is a cashier.
     expect(matchJobTitle("Sales Associate")?.entry.id).toBe("cashier");
-    expect(matchJobTitle("Associate")?.entry.id).toBe("attorney");
+    expect(matchJobTitle("Associate Attorney")?.entry.id).toBe("attorney");
     expect(matchJobTitle("Dental Assistant")?.entry.id).toBe("dental-assistant");
     expect(matchJobTitle("Assistant Manager")?.entry.id).toBe("restaurant-manager");
+  });
+
+  it("gives no money duties to a level word the catalog does not know as a whole title", () => {
+    for (const title of [
+      "Associate",
+      "Manager",
+      "Director",
+      "Supervisor",
+      "Nursing Supervisor",
+      "Product Manager",
+      "Case Manager",
+      "Lab Manager",
+      "Tax Manager",
+      "Assistant",
+    ]) {
+      expect(matchJobTitle(title), title).toBeUndefined();
+    }
+    // A single word that names a seat still counts wherever it sits.
+    expect(matchJobTitle("Billing Supervisor")?.entry.id).toBe("billing");
+    expect(matchJobTitle("Senior Buyer")?.entry.id).toBe("purchasing");
+    expect(matchJobTitle("Payroll and Benefits Supervisor")?.entry.id).toBe("payroll");
+    // A level word on a seat with no money duties is harmless and keeps the label.
+    expect(matchJobTitle("Security Supervisor")?.entry.id).toBe("security");
+    expect(matchJobTitle("Sales Engineer")?.entry.id).toBe("consultant");
+  });
+
+  it("keeps contract titles whole instead of reading 'contract' as a decoration", () => {
+    expect(matchJobTitle("Contract Manager")?.entry.id).toBe("contracts-administrator");
+    expect(matchJobTitle("Contracts Administrator (part-time)")?.entry.id).toBe(
+      "contracts-administrator",
+    );
+    expect(matchJobTitle("Bookkeeper (contract)")?.entry.id).toBe("bookkeeper");
+    expect(matchJobTitle("Contract Bookkeeper")?.entry.id).toBe("bookkeeper");
+  });
+
+  it("reads a combined title as every seat it names, with all their duties", () => {
+    const combo = matchJobTitle("Office Manager / Bookkeeper");
+    expect(combo?.entry.id).toBe("office-manager");
+    expect(combo?.entitlements).toEqual(
+      expect.arrayContaining(["post_payments", "release_payment", "bank_reconcile"]),
+    );
+    expect(matchJobTitle("Chef/Owner")?.entry.id).toBe("owner");
+    expect(matchJobTitle("Chef/Owner")?.entitlements).toEqual(
+      expect.arrayContaining(["sign_checks", "order_supplies"]),
+    );
+    expect(matchJobTitle("HR/Payroll Admin")?.entitlements).toEqual(
+      expect.arrayContaining(["edit_payroll_master", "enter_payroll"]),
+    );
+    expect(matchJobTitle("Owner-Operator")?.entry.id).toBe("owner");
+    expect(matchJobTitle("Owner/Operator")?.entry.id).toBe("owner");
+    expect(entitlementsForTitle("Server/Bartender")).toEqual(["collect_cash", "view_reports_only"]);
+  });
+
+  it("seats cleaners, board members, cash office staff and service managers on their own duties", () => {
+    expect(entitlementsForTitle("Janitor")).toEqual(["view_reports_only"]);
+    expect(matchJobTitle("Maintenance Tech")?.entry.id).toBe("custodial");
+    expect(matchJobTitle("HVAC Technician")?.entry.id).toBe("field-technician");
+    expect(entitlementsForTitle("Board Member")).toEqual(["view_reports_only"]);
+    expect(matchJobTitle("Board Treasurer")?.entry.id).toBe("board-treasurer");
+    expect(matchJobTitle("Cash Office Associate")?.entry.id).toBe("cash-office");
+    expect(matchJobTitle("Deposit Clerk")?.entry.id).toBe("cash-office");
+    expect(matchJobTitle("AP Manager")?.entry.id).toBe("accounts-payable");
+    expect(matchJobTitle("Collections Manager")?.entry.id).toBe("accounts-receivable");
+    expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
+    expect(matchJobTitle("Night Manager")?.entry.id).toBe("shift-lead");
+    expect(matchJobTitle("Reconciliation Specialist")?.entry.id).toBe("accountant");
+    expect(matchJobTitle("Lot Attendant")?.entry.id).toBe("automotive-support");
   });
 
   it("returns nothing for an unknown title so the owner ticks duties by hand", () => {

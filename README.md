@@ -35,7 +35,7 @@ included, and a plain list with one person per line as `Name, Title`:
 Comma, tab, and semicolon delimiters are detected. A hire date becomes years
 of service; an inactive or terminated status keeps the person off the map.
 
-Job titles are read through a catalog of about eighty-five common small-business
+Job titles are read through a catalog of about ninety common small-business
 titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office
 manager, AP specialist, payroll administrator, front desk, cashier, server,
 foreman, IT administrator, night auditor, service advisor, property manager,
