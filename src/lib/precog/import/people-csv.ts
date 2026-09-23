@@ -2,8 +2,8 @@ import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { isCalendarDate } from "../continuity/coverage";
-import { parseRows, sniffDelimiter } from "./csv";
-import { matchJobTitle } from "../onboarding/job-catalog";
+import { locateTable, parseRows, sniffDelimiter } from "./csv";
+import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 
 export interface PeopleImportIssue {
   row: number;
@@ -31,6 +31,12 @@ export interface PeopleImportResult {
    * will be dropped when the import is applied.
    */
   removed: Person[];
+  /** Lines skipped because they were a report title, a repeated header, or a footer. */
+  skipped?: number;
+  /** Rows skipped because an earlier row already named the same person with the same title. */
+  duplicates?: number;
+  /** Rows past the row limit that were not read. */
+  dropped?: number;
 }
 
 export const PEOPLE_CSV_HEADER = [
@@ -44,58 +50,83 @@ export const PEOPLE_CSV_HEADER = [
 ] as const;
 
 /**
- * Column names accepted for each field. The lists cover this app's own
- * export plus the worker exports of Workday (Worker, Business Title, Job
- * Profile, Hire Date), SAP SuccessFactors (Person ID External, Job Title,
- * Position, Employment Status), Oracle HCM Cloud (Person Number, Display
- * Name, Job Name, Position Name, Assignment Status), and the payroll
- * providers (Employee Name, Job Title, Department, Status, Hire Date).
+ * Column names accepted for each field, best first: when a file has two
+ * columns for one field, the earlier alias wins whatever the column order.
+ * The lists cover this app's own export plus the worker exports of Workday,
+ * SAP SuccessFactors, Oracle HCM Cloud, ADP, BambooHR, Gusto, Paychex,
+ * Paycom, Paylocity, QuickBooks, Rippling, Square, Homebase, 7shifts, Toast,
+ * Dentrix, Open Dental, and a French export. A header also matches after a
+ * trailing "s" or trailing digits are dropped ("Roles", "Cost Center 1").
  */
 const HEADER_ALIASES = {
   name: [
     "name",
-    "employee",
-    "person",
     "full name",
-    "staff",
-    "worker",
     "employee name",
+    "employee full name",
     "worker name",
     "display name",
+    "payroll name",
     "full legal name",
     "legal name",
-    "preferred name",
-    "name - full",
     "person name",
+    "name - full",
+    "staff member",
+    "worker",
+    "employee",
+    "person",
+    "staff",
     "team member",
+    "preferred name",
   ],
   first_name: [
     "first name",
     "first_name",
     "given name",
     "legal first name",
+    "employee first name",
+    "fname",
+    "prénom",
+    "prenom",
     "preferred first name",
+    "first",
   ],
-  last_name: ["last name", "last_name", "surname", "family name", "legal last name"],
+  last_name: [
+    "last name",
+    "last_name",
+    "surname",
+    "family name",
+    "legal last name",
+    "employee last name",
+    "lname",
+    "nom",
+    "last",
+  ],
   role: [
-    "role",
-    "title",
     "job title",
-    "position",
+    "primary job title",
+    "job title description",
+    "position description",
     "business title",
     "job profile",
     "job name",
-    "job",
     "position name",
     "position title",
+    "title",
     "job classification",
     "job code description",
     "occupation",
+    "poste",
+    "job",
+    "position",
+    "role",
   ],
   department: [
     "department",
     "department name",
     "dept",
+    "home department",
+    "home department description",
     "cost center",
     "cost centre",
     "supervisory organization",
@@ -103,23 +134,31 @@ const HEADER_ALIASES = {
     "org unit",
     "business unit",
     "division",
-    "team",
+    "work location",
     "location",
+    "team",
   ],
   employee_id: [
     "employee id",
     "employee_id",
     "employee number",
+    "employee no",
+    "employee num",
     "emp id",
     "emp no",
+    "emp number",
+    "employee code",
     "person number",
     "person id",
     "person id external",
-    "user id",
     "worker id",
     "associate id",
+    "file number",
     "payroll id",
     "staff id",
+    "team member id",
+    "user id",
+    "position id",
     "id",
   ],
   hire_date: [
@@ -127,22 +166,39 @@ const HEADER_ALIASES = {
     "hire_date",
     "original hire date",
     "most recent hire date",
-    "start date",
     "date of hire",
+    "date hired",
     "hired",
+    "start date",
     "employment start date",
     "seniority date",
+    "date d'entrée",
+    "date d'embauche",
   ],
   tenure_years: ["tenure_years", "tenure", "years", "years of service", "years_employed"],
   active: [
-    "active",
     "status",
-    "employed",
-    "employment status",
-    "assignment status",
-    "worker status",
+    "active",
     "active status",
     "employee status",
+    "assignment status",
+    "worker status",
+    "position status",
+    "employed",
+    "is active",
+    "statut",
+    "employment status",
+    "employment type",
+    "employee type",
+    "worker type",
+  ],
+  inactive_flag: [
+    "is hidden",
+    "hidden",
+    "is terminated",
+    "is inactive",
+    "is deleted",
+    "is archived",
   ],
   last_day: [
     "last_day",
@@ -153,9 +209,34 @@ const HEADER_ALIASES = {
     "final day",
     "termination date",
     "term date",
+    "separation date",
   ],
   entitlements: ["entitlements", "permissions", "duties", "access", "rights"],
 } as const;
+
+type Field = keyof typeof HEADER_ALIASES;
+
+const FIELDS = Object.keys(HEADER_ALIASES) as Field[];
+
+/** Words that mark a cell as a column heading rather than a person's data. */
+const HEADER_WORDS = new Set([
+  "name",
+  "id",
+  "code",
+  "number",
+  "title",
+  "position",
+  "job",
+  "department",
+  "dept",
+  "status",
+  "hire",
+  "date",
+  "location",
+  "role",
+  "email",
+  "phone",
+]);
 
 /** Status words that mean the person no longer works here, across the common exports. */
 const INACTIVE_WORDS = [
@@ -163,66 +244,303 @@ const INACTIVE_WORDS = [
   "n",
   "false",
   "0",
+  "i",
+  "t",
   "inactive",
+  "inactif",
   "terminated",
   "term",
+  "termed",
   "former",
+  "former employee",
+  "ex employee",
   "left",
   "separated",
   "retired",
   "withdrawn",
   "resigned",
   "ended",
-  "t",
+  "deactivated",
+  "archived",
+  "deleted",
+  "deceased",
+  "suspended",
+  "furlough",
+  "furloughed",
+  "laid off",
+  "not active",
+  "non active",
+  "dormant",
+  "discarded",
+  "reported no show",
+  "not on payroll",
+  "sorti",
+  "sortie",
 ];
 
-function isInactive(value: string): boolean {
-  const v = value.trim().toLowerCase();
-  if (!v) return false;
-  if (INACTIVE_WORDS.includes(v)) return true;
-  // Oracle: "Inactive - Payroll Eligible"; SuccessFactors: "Terminated"; Workday: "No".
-  return /^(inactive|terminated|separated|retired)\b/.test(v) || /\bterminat/.test(v);
+/** Status words that mean the person works here today, including anyone on leave. */
+const ACTIVE_WORDS = [
+  "yes",
+  "y",
+  "true",
+  "1",
+  "a",
+  "l",
+  "loa",
+  "active",
+  "actif",
+  "employed",
+  "current",
+  "regular",
+  "full time",
+  "fulltime",
+  "part time",
+  "parttime",
+  "temporary",
+  "temp",
+  "seasonal",
+  "contractor",
+  "contingent",
+  "contingent worker",
+  "intern",
+  "employee",
+  "hired",
+  "rehired",
+];
+
+const TRUE_WORDS = ["1", "true", "yes", "y", "t", "x"];
+
+/** Name parts after a comma that are a credential or generation, not a first name. */
+const NAME_SUFFIXES = new Set([
+  "jr",
+  "sr",
+  "ii",
+  "iii",
+  "iv",
+  "dds",
+  "dmd",
+  "md",
+  "do",
+  "od",
+  "cpa",
+  "rn",
+  "np",
+  "pa",
+  "phd",
+  "esq",
+  "mba",
+  "lpn",
+  "cma",
+  "ea",
+]);
+
+/** First cell of a report footer row: totals, counts, page numbers, run stamps. */
+const FOOTER_PATTERN =
+  /^((grand |sub ?)?totals?\b|count[:\s]*\d+\b|page \d+|report (generated|date|run)|generated (on|by|at)|printed (on|by)|end of (report|list)|record count|\d+ (records?|rows?|employees?|people|workers?)\b)/i;
+
+const LIST_MARKER = /^(\(\d+\)|\d+[.)]|[-*•·–—])\s+/;
+
+function normalizeHeader(cell: string): string {
+  return cell
+    .toLowerCase()
+    .replace(/[#№]/g, " number ")
+    .replace(/[^a-z0-9]/g, "");
 }
 
-/** Reads a hire date as written by the common exports and returns an ISO day, or undefined. */
-export function parseHireDate(raw: string): string | undefined {
-  const value = raw.trim();
+const ALIAS_KEYS: Record<Field, string[]> = Object.fromEntries(
+  FIELDS.map((field) => [field, HEADER_ALIASES[field].map(normalizeHeader)]),
+) as Record<Field, string[]>;
+
+/** Rank of the alias a header cell matches (0 is best), or -1 when it matches none. */
+function aliasRank(cell: string, field: Field): number {
+  const key = normalizeHeader(cell);
+  const bare = key.replace(/\d+$/, "");
+  for (const candidate of [key, bare, bare.replace(/s$/, "")]) {
+    const rank = ALIAS_KEYS[field].indexOf(candidate);
+    if (rank >= 0) return rank;
+  }
+  return -1;
+}
+
+function headerField(cell: string): Field | undefined {
+  return FIELDS.find((field) => aliasRank(cell, field) >= 0);
+}
+
+function hasHeaderWord(cell: string): boolean {
+  const tokens = cell
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z]+/);
+  return tokens.some((token) => HEADER_WORDS.has(token.replace(/s$/, "")));
+}
+
+/** Two to four capitalised words, as a person's name is written. */
+function looksLikePersonName(value: string): boolean {
+  return /^\p{Lu}[\p{L}'’.-]*(\s+\p{Lu}[\p{L}'’.-]*){1,3}$/u.test(value);
+}
+
+/** Letters and digits only, accents dropped, so "José" and "Jose" are one person. */
+function nameKey(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function normalize(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function escapeCsv(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+}
+
+function canonicalRole(value: string, roleTemplates: Record<string, unknown>): string {
+  const trimmed = value.trim();
+  const match = Object.keys(roleTemplates).find(
+    (role) => role.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ?? trimmed;
+}
+
+function statusKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/** True when the status is one of the words, or starts with a word of four letters or more ("Terminated - Voluntary"). */
+function matchesStatusWord(key: string, words: readonly string[]): boolean {
+  return words.some((word) => key === word || (word.length > 3 && key.startsWith(`${word} `)));
+}
+
+function isInactive(value: string): boolean {
+  const key = statusKey(value);
+  if (!key) return false;
+  return matchesStatusWord(key, INACTIVE_WORDS) || /terminat/.test(key);
+}
+
+function isKnownActive(value: string): boolean {
+  const key = statusKey(value);
+  return matchesStatusWord(key, ACTIVE_WORDS) || /\b(leave|loa)\b/.test(key);
+}
+
+function isTrue(value: string): boolean {
+  return TRUE_WORDS.includes(value.trim().toLowerCase());
+}
+
+/** "Ruiz, Ana" becomes "Ana Ruiz"; a credential after the comma ("Roe, DDS") stays as written. */
+function reorderLastFirst(name: string): string {
+  const parts = name.split(",");
+  if (parts.length !== 2 || /\d/.test(name)) return name;
+  const [last, first] = parts.map((part) => part.trim());
+  if (!last || !first || NAME_SUFFIXES.has(first.toLowerCase().replace(/\./g, ""))) return name;
+  return `${first} ${last}`;
+}
+
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+
+function monthFromName(text: string): number {
+  const key = text.toLowerCase().replace(/\.$/, "");
+  if (key.length < 3) return 0;
+  return MONTHS.findIndex((month) => month.startsWith(key)) + 1;
+}
+
+function stripTime(value: string): string {
+  return value.replace(
+    /[T\s]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*([AaPp][Mm])?\s*(Z|[+-]\d{2}:?\d{2})?$/,
+    "",
+  );
+}
+
+/** A two-digit year above next year's two digits is last century, as Excel reads it. */
+function fullYear(text: string, today: Date): number {
+  if (text.length === 4) return Number(text);
+  const short = Number(text);
+  return short > (today.getUTCFullYear() % 100) + 1 ? 1900 + short : 2000 + short;
+}
+
+function isoDay(year: number, month: number, day: number): string | undefined {
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return isCalendarDate(iso) ? iso : undefined;
+}
+
+export interface HireDateOptions {
+  /** Read "10/01/2020" as 10 January; set when the file's other dates only fit that order. */
+  dayFirst?: boolean;
+  /** Pivot for two-digit years; defaults to now. */
+  today?: Date;
+}
+
+/**
+ * Reads a hire date as written by the common exports and returns an ISO day,
+ * or undefined. Handles ISO with or without a time part, "03/15/2019",
+ * "3/15/19 0:00", "15-Mar-2019", "Mar 15, 2019", "15 March 2019",
+ * "2019/03/15", "15.03.2019" (dotted dates are day first) and "20190315".
+ */
+export function readHireDate(raw: string, opts: HireDateOptions = {}): string | undefined {
+  const value = stripTime(raw.trim());
   if (!value) return undefined;
-  if (isCalendarDate(value)) return value;
-  // 03/15/2019 or 3/15/19 (Workday, payroll exports)
-  const us = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-  if (us) {
-    const year = us[3].length === 2 ? Number(us[3]) + 2000 : Number(us[3]);
-    const iso = `${year}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`;
-    return isCalendarDate(iso) ? iso : undefined;
+  const today = opts.today ?? new Date();
+  const iso = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (iso) return isoDay(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const packed = value.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (packed) return isoDay(Number(packed[1]), Number(packed[2]), Number(packed[3]));
+  const numeric = value.match(/^(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})$/);
+  if (numeric) {
+    const dayFirst = opts.dayFirst || numeric[2] === ".";
+    const [first, second] = [Number(numeric[1]), Number(numeric[3])];
+    const year = fullYear(numeric[4], today);
+    return dayFirst ? isoDay(year, second, first) : isoDay(year, first, second);
   }
-  // 15-Mar-2019 or 15-MAR-19 (Oracle)
-  const oracle = value.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/);
-  if (oracle) {
-    const months = [
-      "jan",
-      "feb",
-      "mar",
-      "apr",
-      "may",
-      "jun",
-      "jul",
-      "aug",
-      "sep",
-      "oct",
-      "nov",
-      "dec",
-    ];
-    const month = months.indexOf(oracle[2].toLowerCase()) + 1;
-    if (!month) return undefined;
-    const year = oracle[3].length === 2 ? Number(oracle[3]) + 2000 : Number(oracle[3]);
-    const iso = `${year}-${String(month).padStart(2, "0")}-${oracle[1].padStart(2, "0")}`;
-    return isCalendarDate(iso) ? iso : undefined;
+  const dayName = value.match(/^(\d{1,2})[ -]([A-Za-z]{3,9})\.?[ ,-]+(\d{2}|\d{4})$/);
+  if (dayName) {
+    const month = monthFromName(dayName[2]);
+    return month ? isoDay(fullYear(dayName[3], today), month, Number(dayName[1])) : undefined;
   }
-  // 2019-03-15T00:00:00 or "2019-03-15 00:00"
-  const stamped = value.match(/^(\d{4}-\d{2}-\d{2})[T ]/);
-  if (stamped && isCalendarDate(stamped[1])) return stamped[1];
+  const nameDay = value.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{2}|\d{4})$/);
+  if (nameDay) {
+    const month = monthFromName(nameDay[1]);
+    return month ? isoDay(fullYear(nameDay[3], today), month, Number(nameDay[2])) : undefined;
+  }
   return undefined;
+}
+
+/** Reads a hire date written month first, with today as the two-digit year pivot. */
+export function parseHireDate(raw: string): string | undefined {
+  return readHireDate(raw);
+}
+
+/** True when any slash or dash date in the column can only be day first ("15/03/2019"). */
+function datesAreDayFirst(values: readonly string[]): boolean {
+  return values.some((value) => {
+    const parts = stripTime(value.trim()).match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
+    return parts !== null && Number(parts[1]) > 12 && Number(parts[2]) <= 12;
+  });
 }
 
 /** Whole and tenth years between a hire date and today, never negative. */
@@ -265,30 +583,6 @@ const ENTITLEMENT_ALIASES: Record<string, EntitlementId> = {
   reports: "view_reports_only",
 };
 
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
-
-function escapeCsv(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
-
-function canonicalRole(value: string, roleTemplates: Record<string, unknown>): string {
-  const trimmed = value.trim();
-  const match = Object.keys(roleTemplates).find(
-    (role) => role.toLowerCase() === trimmed.toLowerCase(),
-  );
-  return match ?? trimmed;
-}
-
 function findEntitlement(token: string): EntitlementId | undefined {
   const normalized = normalize(token);
   const direct = ENTITLEMENTS.find((entitlement) => normalize(entitlement.id) === normalized);
@@ -299,21 +593,358 @@ function findEntitlement(token: string): EntitlementId | undefined {
   return alias?.[1];
 }
 
+function emptyResult(issues: PeopleImportIssue[], removed: Person[]): PeopleImportResult {
+  return {
+    people: [],
+    issues,
+    unknownEntitlements: [],
+    titles: [],
+    removed,
+    skipped: 0,
+    duplicates: 0,
+    dropped: 0,
+  };
+}
+
+/** Adds the lines skipped above the table to the result as one file-level issue. */
+export function addSkippedLines(
+  result: PeopleImportResult,
+  lines: readonly string[],
+): PeopleImportResult {
+  if (!lines.length) return result;
+  const shown = lines.map((line) => `"${line.slice(0, 60)}"`).join(", ");
+  result.issues.unshift({
+    row: 0,
+    message: `Skipped ${lines.length} ${lines.length === 1 ? "line" : "lines"} at the top: ${shown}`,
+  });
+  result.skipped = (result.skipped ?? 0) + lines.length;
+  return result;
+}
+
 export function parsePeopleCsv(
   text: string,
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
+  const table = locateTable(text, looksLikeRosterHeader);
+  if (table) return addSkippedLines(parsePeopleRows(table.rows, tpl, opts), table.skipped);
   return parsePeopleRows(parseRows(text, sniffDelimiter(text)), tpl, opts);
 }
 
-/** True when a row looks like a header the importer understands (it names a name column). */
+/**
+ * True when a row is a header the importer understands: it names a name
+ * column, first and last name columns, or three or more known column words.
+ * A row whose first cell reads as a person's name is data, even when a later
+ * cell is a name alias ("Ana Ruiz, Team Member").
+ */
 export function looksLikeRosterHeader(cells: readonly string[]): boolean {
-  const has = (aliases: readonly string[]) =>
-    cells.some((cell) => aliases.some((alias) => normalize(alias) === normalize(cell)));
-  return (
-    has(HEADER_ALIASES.name) || (has(HEADER_ALIASES.first_name) && has(HEADER_ALIASES.last_name))
-  );
+  const fields = cells.map(headerField);
+  const first = cells[0]?.trim() ?? "";
+  const onlyNameHits = fields.every((field) => field === undefined || field === "name");
+  if (fields[0] === undefined && looksLikePersonName(first) && onlyNameHits) return false;
+  if (fields.includes("name")) return true;
+  if (fields.includes("first_name") && fields.includes("last_name")) return true;
+  return cells.filter(hasHeaderWord).length >= 3;
+}
+
+interface ColumnMap {
+  name?: number;
+  first?: number;
+  last?: number;
+  /** Title columns, best alias first, code columns left out. */
+  titles: number[];
+  department?: number;
+  employeeId?: number;
+  hireDate?: number;
+  tenure?: number;
+  /** Status columns, best alias first; only the first reports unknown words. */
+  statuses: number[];
+  inactiveFlags: number[];
+  lastDay?: number;
+  entitlements?: number;
+}
+
+/** Column indexes matching a field, best alias first, then left to right. */
+function rankedColumns(header: readonly string[], field: Field): number[] {
+  return header
+    .map((cell, index) => ({ index, rank: aliasRank(cell, field) }))
+    .filter((hit) => hit.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((hit) => hit.index);
+}
+
+/** True when more than half of a column's values are codes like "30001234" or "POS-0001". */
+function mostlyCodes(rows: readonly string[][], column: number): boolean {
+  const values = rows.map((cells) => (cells[column] ?? "").trim()).filter(Boolean);
+  const codes = values.filter((value) => /^[A-Za-z]{0,4}[-_ ]?\d{3,}[A-Za-z0-9-]*$/.test(value));
+  return codes.length * 2 > values.length;
+}
+
+function mapColumns(header: readonly string[], rows: readonly string[][]): ColumnMap {
+  const first = (field: Field) => rankedColumns(header, field)[0];
+  const name = first("name");
+  const firstName = first("first_name");
+  const lastName = first("last_name");
+  const split = firstName !== undefined && lastName !== undefined;
+  // A preferred name is a nickname; with first and last name columns present it is never the whole name.
+  const preferred =
+    name !== undefined && aliasRank(header[name], "name") === ALIAS_KEYS.name.length - 1;
+  return {
+    name: split && preferred ? undefined : name,
+    first: firstName,
+    last: lastName,
+    titles: rankedColumns(header, "role").filter((column) => !mostlyCodes(rows, column)),
+    department: first("department"),
+    employeeId: first("employee_id"),
+    hireDate: first("hire_date"),
+    tenure: first("tenure_years"),
+    statuses: rankedColumns(header, "active"),
+    inactiveFlags: rankedColumns(header, "inactive_flag"),
+    lastDay: first("last_day"),
+    entitlements: first("entitlements"),
+  };
+}
+
+function rowKey(cells: readonly string[]): string {
+  const keys = cells.map(normalizeHeader);
+  while (keys.length && !keys[keys.length - 1]) keys.pop();
+  return keys.join("|");
+}
+
+/** The footer label when a row is a total, count, page or run stamp with nothing but numbers beside it. */
+function footerLabel(cells: readonly string[]): string | undefined {
+  const [first, ...rest] = cells.map((cell) => cell.trim()).filter(Boolean);
+  if (!first || !FOOTER_PATTERN.test(first)) return undefined;
+  return rest.every((cell) => /^[\d.,%\s-]+$/.test(cell)) ? first : undefined;
+}
+
+interface ImportContext {
+  tpl: IndustryTemplate;
+  columns: ColumnMap;
+  today: Date;
+  dayFirst: boolean;
+  issues: PeopleImportIssue[];
+  unknownEntitlements: string[];
+  unknownStatuses: Set<string>;
+  seenTitles: Map<string, Set<string>>;
+  existingByName: Map<string, Person>;
+  usedIds: Set<string>;
+}
+
+/** Cuts a value to `max` characters without leaving a dangling separator. */
+function tidyCut(value: string, max: number): string {
+  return value.slice(0, max).replace(/[\s,;:/–—-]+$/u, "");
+}
+
+function cellAt(cells: readonly string[], column: number | undefined): string {
+  return column === undefined ? "" : (cells[column] ?? "").trim();
+}
+
+function readName(
+  cells: readonly string[],
+  columns: ColumnMap,
+): { name: string; idInName: string } {
+  const split =
+    columns.first !== undefined && columns.last !== undefined
+      ? `${cellAt(cells, columns.first)} ${cellAt(cells, columns.last)}`.trim()
+      : "";
+  const raw = split || cellAt(cells, columns.name);
+  // Workday writes the employee id after the name: "Ana Ruiz (1001)".
+  const withId = raw.match(/^(.*\S)\s*\((\d{2,})\)$/);
+  const name = withId ? withId[1] : raw;
+  return { name: split ? name : reorderLastFirst(name), idInName: withId?.[2] ?? "" };
+}
+
+function readActive(context: ImportContext, cells: readonly string[], row: number): boolean {
+  let inactive = false;
+  context.columns.statuses.forEach((column, index) => {
+    const value = cellAt(cells, column);
+    if (!value) return;
+    if (isInactive(value)) inactive = true;
+    else if (index === 0 && !isKnownActive(value)) reportUnknownStatus(context, value, row);
+  });
+  for (const column of context.columns.inactiveFlags) {
+    if (isTrue(cellAt(cells, column))) inactive = true;
+  }
+  return !inactive;
+}
+
+function reportUnknownStatus(context: ImportContext, value: string, row: number): void {
+  const key = statusKey(value);
+  if (context.unknownStatuses.has(key)) return;
+  context.unknownStatuses.add(key);
+  context.issues.push({ row, message: `Status "${value}" not recognised; treated as active` });
+}
+
+function readTenure(
+  context: ImportContext,
+  cells: readonly string[],
+  row: number,
+): number | undefined {
+  const { columns, today } = context;
+  const tenureValue = cellAt(cells, columns.tenure);
+  if (tenureValue) {
+    const parsed = Number.parseFloat(tenureValue);
+    if (Number.isFinite(parsed)) return Math.min(60, Math.max(0, parsed));
+    context.issues.push({ row, message: "Tenure is not a valid number" });
+    return undefined;
+  }
+  const raw = cellAt(cells, columns.hireDate);
+  if (!raw) return undefined;
+  const hired = readHireDate(raw, { dayFirst: context.dayFirst, today });
+  if (!hired) {
+    context.issues.push({ row, message: `Hire date not understood: ${raw}` });
+    return undefined;
+  }
+  if (hired > today.toISOString().slice(0, 10)) {
+    context.issues.push({ row, message: `Hire date is in the future: ${raw}` });
+    return undefined;
+  }
+  return tenureFromHireDate(hired, today);
+}
+
+function readLastDay(
+  context: ImportContext,
+  cells: readonly string[],
+  row: number,
+  existing: Person | undefined,
+): string | undefined {
+  // A file without the column keeps whatever last day the matched person
+  // already has; a blank cell in a file that has the column clears it.
+  if (context.columns.lastDay === undefined) return existing?.lastDay;
+  const raw = cellAt(cells, context.columns.lastDay);
+  if (!raw) return undefined;
+  if (isCalendarDate(raw)) return raw;
+  context.issues.push({ row, message: "Last day must be a date like 2026-10-14" });
+  return existing?.lastDay;
+}
+
+/** Duties listed in the file's own duties column, with unknown names reported. */
+function readListedDuties(
+  context: ImportContext,
+  cells: readonly string[],
+  row: number,
+): EntitlementId[] {
+  const entitlements: EntitlementId[] = [];
+  const unknown: string[] = [];
+  for (const token of cellAt(cells, context.columns.entitlements).split(/[;|]/)) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+    const entitlement = findEntitlement(trimmed);
+    if (entitlement) {
+      if (!entitlements.includes(entitlement)) entitlements.push(entitlement);
+      continue;
+    }
+    unknown.push(trimmed);
+    if (!context.unknownEntitlements.some((seen) => normalize(seen) === normalize(trimmed))) {
+      context.unknownEntitlements.push(trimmed);
+    }
+  }
+  if (unknown.length) {
+    context.issues.push({ row, message: `Unknown entitlement(s): ${unknown.join(", ")}` });
+  }
+  return entitlements;
+}
+
+/** The first title column with a catalog match, so a Job Profile can stand in for an unknown Business Title. */
+function catalogHit(titleValues: readonly string[]) {
+  for (const value of titleValues) {
+    const match = matchJobTitle(value);
+    if (match) return { value, match };
+  }
+  return undefined;
+}
+
+/** True when the row repeats an earlier row's name and title; reports both kinds of repeat. */
+function isDuplicate(context: ImportContext, name: string, title: string, row: number): boolean {
+  const key = nameKey(name);
+  const titleKey = nameKey(title);
+  const earlier = context.seenTitles.get(key);
+  if (earlier?.has(titleKey)) {
+    context.issues.push({ row, message: `"${name}" appears twice; second copy skipped` });
+    return true;
+  }
+  if (earlier) {
+    context.issues.push({
+      row,
+      message: `"${name}" appears twice with different titles; check whether this is one person`,
+    });
+    earlier.add(titleKey);
+  } else {
+    context.seenTitles.set(key, new Set([titleKey]));
+  }
+  return false;
+}
+
+function readPerson(
+  context: ImportContext,
+  cells: readonly string[],
+  row: number,
+): { person: Person; mapping: TitleMapping } | "skip" | "duplicate" {
+  const { tpl, columns } = context;
+  const { name, idInName } = readName(cells, columns);
+  if (!name) {
+    context.issues.push({ row, message: "Name is required" });
+    return "skip";
+  }
+  const titleValues = columns.titles.map((column) => cellAt(cells, column)).filter(Boolean);
+  const roleValue = titleValues[0] ?? "";
+  if (isDuplicate(context, name, roleValue, row)) return "duplicate";
+
+  const role = canonicalRole(roleValue || "Team member", tpl.roleTemplates);
+  const department = tidyCut(cellAt(cells, columns.department), 60);
+  const employeeId = cellAt(cells, columns.employeeId) || idInName;
+  const tenureYears = readTenure(context, cells, row);
+  const active = readActive(context, cells, row);
+
+  // Only the first row naming someone already on the team takes over that
+  // person's identity; later rows with that name are new people.
+  const candidate = context.existingByName.get(nameKey(name));
+  const existing = candidate && !context.usedIds.has(candidate.id) ? candidate : undefined;
+  const lastDay = readLastDay(context, cells, row, existing);
+
+  // Duties listed in the file win; else the catalog of common titles; else a
+  // template role keeps its duties by leaving entitlements unset.
+  const listed = readListedDuties(context, cells, row);
+  const hit = catalogHit(titleValues);
+  const templateRole = Object.hasOwn(tpl.roleTemplates, role);
+  const duties = listed.length ? listed : hit ? entitlementsForTitle(hit.value) : [];
+  const mapping: TitleMapping = {
+    row,
+    name,
+    title: roleValue,
+    catalogTitle: hit?.match.entry.title ?? (templateRole ? role : undefined),
+    confidence: hit?.match.confidence ?? (templateRole ? "exact" : undefined),
+  };
+  if (!listed.length && !hit && !templateRole) {
+    context.issues.push({
+      row,
+      message: roleValue
+        ? `Title "${roleValue}" is not in the catalog; duties left for you to tick`
+        : "No job title; duties left for you to tick",
+    });
+  }
+
+  const baseId = existing
+    ? existing.id
+    : employeeId
+      ? `emp-${slug(employeeId) || slug(name)}`
+      : `p-${slug(name)}`;
+  let id = baseId;
+  let suffix = 2;
+  while (context.usedIds.has(id)) id = `${baseId}-${suffix++}`;
+  context.usedIds.add(id);
+  const person: Person = {
+    id,
+    name: name.slice(0, 60),
+    role: tidyCut(role, 40),
+    active,
+    tenureYears,
+    ...(lastDay ? { lastDay } : {}),
+    entitlements: duties.length ? duties : undefined,
+    ...(department ? { department } : {}),
+  };
+  return { person, mapping };
 }
 
 export function parsePeopleRows(
@@ -321,195 +952,91 @@ export function parsePeopleRows(
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
-  const issues: PeopleImportIssue[] = [];
-  const people: Person[] = [];
-  const unknownEntitlements: string[] = [];
-  const unknownSeen = new Set<string>();
-  const titles: TitleMapping[] = [];
   const header = rows[0] ?? [];
-  const columns = new Map<string, number>();
+  const dataRows = rows.slice(1);
+  const columns = mapColumns(header, dataRows);
+  if (columns.name === undefined && (columns.first === undefined || columns.last === undefined)) {
+    const shown = header
+      .map((cell) => cell.trim())
+      .filter(Boolean)
+      .slice(0, 8)
+      .join(", ");
+    return emptyResult([{ row: 0, message: `Missing a name column (header: ${shown})` }], []);
+  }
 
-  for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
-    const index = header.findIndex((cell) =>
-      aliases.some((alias) => normalize(alias) === normalize(cell)),
-    );
-    if (index >= 0) columns.set(key, index);
-  }
-  const nameColumn = columns.get("name");
-  const firstColumn = columns.get("first_name");
-  const lastColumn = columns.get("last_name");
-  const splitName =
-    nameColumn === undefined && firstColumn !== undefined && lastColumn !== undefined;
-  if (nameColumn === undefined && !splitName) {
-    return {
-      people: [],
-      issues: [{ row: 0, message: "Missing a name column" }],
-      unknownEntitlements: [],
-      titles: [],
-      removed: [],
-    };
-  }
+  const issues: PeopleImportIssue[] = [];
+  const headerKey = rowKey(header);
+  const candidates: { cells: string[]; row: number }[] = [];
+  let skipped = 0;
+  dataRows.forEach((cells, index) => {
+    const row = index + 1;
+    if (rowKey(cells) === headerKey) {
+      skipped += 1;
+      issues.push({ row, message: "Skipped a repeated header row" });
+      return;
+    }
+    const footer = footerLabel(cells);
+    if (footer) {
+      skipped += 1;
+      issues.push({ row, message: `Skipped a footer row: "${footer}"` });
+      return;
+    }
+    candidates.push({ cells, row });
+  });
 
   const maxRows =
     opts.maxRows === undefined ? 250 : Math.max(0, Math.floor(Number(opts.maxRows) || 0));
-  const dataRows = rows.slice(1);
-  const rowsToImport = dataRows.slice(0, maxRows);
-  if (dataRows.length > maxRows) {
-    issues.push({
-      row: maxRows + 1,
-      message: `Import truncated to ${maxRows} rows`,
-    });
+  const kept = candidates.slice(0, maxRows);
+  const dropped = candidates.length - kept.length;
+  if (dropped) {
+    issues.push({ row: candidates[maxRows].row, message: `Import truncated to ${maxRows} rows` });
   }
-  const usedIds = new Set<string>();
+
   // Rows that name someone already on the team keep that person's id, so the
   // who-knows-what register and process ownership survive a re-import.
   const existingByName = new Map<string, Person>();
   for (const person of tpl.people) {
-    const key = normalize(person.name);
+    const key = nameKey(person.name);
     if (!existingByName.has(key)) existingByName.set(key, person);
   }
+  const today = opts.today ?? new Date();
+  const context: ImportContext = {
+    tpl,
+    columns,
+    today,
+    dayFirst:
+      columns.hireDate !== undefined &&
+      datesAreDayFirst(kept.map(({ cells }) => cells[columns.hireDate!] ?? "")),
+    issues,
+    unknownEntitlements: [],
+    unknownStatuses: new Set(),
+    seenTitles: new Map(),
+    existingByName,
+    usedIds: new Set(),
+  };
 
-  rowsToImport.forEach((cells, index) => {
-    const rowNumber = index + 1;
-    const name = (
-      splitName
-        ? `${(cells[firstColumn!] ?? "").trim()} ${(cells[lastColumn!] ?? "").trim()}`
-        : (cells[nameColumn!] ?? "")
-    ).trim();
-    if (!name) {
-      issues.push({ row: rowNumber, message: "Name is required" });
-      return;
-    }
+  const people: Person[] = [];
+  const titles: TitleMapping[] = [];
+  let duplicates = 0;
+  for (const { cells, row } of kept) {
+    const read = readPerson(context, cells, row);
+    if (read === "duplicate") duplicates += 1;
+    if (typeof read === "string") continue;
+    people.push(read.person);
+    titles.push(read.mapping);
+  }
 
-    const roleValue = (columns.has("role") ? (cells[columns.get("role")!] ?? "") : "").trim();
-    const role = canonicalRole(roleValue || "Team member", tpl.roleTemplates);
-    const department = columns.has("department")
-      ? (cells[columns.get("department")!] ?? "").trim().slice(0, 60)
-      : "";
-    const employeeId = columns.has("employee_id")
-      ? (cells[columns.get("employee_id")!] ?? "").trim()
-      : "";
-    const tenureValue = columns.has("tenure_years")
-      ? (cells[columns.get("tenure_years")!] ?? "").trim()
-      : "";
-    let tenureYears: number | undefined;
-    if (tenureValue) {
-      const parsed = Number.parseFloat(tenureValue);
-      if (Number.isFinite(parsed)) {
-        tenureYears = Math.min(60, Math.max(0, parsed));
-      } else {
-        issues.push({ row: rowNumber, message: "Tenure is not a valid number" });
-      }
-    } else if (columns.has("hire_date")) {
-      const raw = (cells[columns.get("hire_date")!] ?? "").trim();
-      const hired = parseHireDate(raw);
-      if (hired) tenureYears = tenureFromHireDate(hired, opts.today);
-      else if (raw) issues.push({ row: rowNumber, message: `Hire date not understood: ${raw}` });
-    }
-
-    const activeValue = columns.has("active") ? (cells[columns.get("active")!] ?? "") : "";
-    const active = !isInactive(activeValue);
-
-    // Only the first row naming someone already on the team takes over that
-    // person's identity; later duplicates are new people.
-    const candidate = existingByName.get(normalize(name));
-    const existing = candidate && !usedIds.has(candidate.id) ? candidate : undefined;
-
-    // A file without the column keeps whatever last day the matched person
-    // already has; a blank cell in a file that has the column clears it.
-    let lastDay: string | undefined = existing?.lastDay;
-    if (columns.has("last_day")) {
-      const raw = (cells[columns.get("last_day")!] ?? "").trim();
-      if (!raw) lastDay = undefined;
-      else if (isCalendarDate(raw)) lastDay = raw;
-      else {
-        issues.push({ row: rowNumber, message: "Last day must be a date like 2026-10-14" });
-        lastDay = existing?.lastDay;
-      }
-    }
-
-    const entitlementValue = columns.has("entitlements")
-      ? (cells[columns.get("entitlements")!] ?? "")
-      : "";
-    const entitlements: EntitlementId[] = [];
-    const unknown: string[] = [];
-    for (const token of entitlementValue.split(/[;|]/)) {
-      const trimmed = token.trim();
-      if (!trimmed) continue;
-      const entitlement = findEntitlement(trimmed);
-      if (entitlement) {
-        if (!entitlements.includes(entitlement)) entitlements.push(entitlement);
-      } else {
-        unknown.push(trimmed);
-        const key = normalize(trimmed);
-        if (!unknownSeen.has(key)) {
-          unknownSeen.add(key);
-          unknownEntitlements.push(trimmed);
-        }
-      }
-    }
-    if (unknown.length) {
-      issues.push({
-        row: rowNumber,
-        message: `Unknown entitlement(s): ${unknown.join(", ")}`,
-      });
-    }
-    // No duties listed and no template role: read the job title through the
-    // catalog of common titles so the whole team lands with typical duties.
-    const templateRole = Object.keys(tpl.roleTemplates).some((key) => key === role);
-    if (!entitlements.length && !templateRole) {
-      const match = roleValue ? matchJobTitle(roleValue) : undefined;
-      if (match) {
-        entitlements.push(...match.entry.entitlements);
-        titles.push({
-          row: rowNumber,
-          name,
-          title: roleValue,
-          catalogTitle: match.entry.title,
-          confidence: match.confidence,
-        });
-      } else {
-        titles.push({ row: rowNumber, name, title: roleValue });
-        issues.push({
-          row: rowNumber,
-          message: roleValue
-            ? `Title "${roleValue}" is not in the catalog; duties left for you to tick`
-            : "No job title; duties left for you to tick",
-        });
-      }
-    } else {
-      titles.push({
-        row: rowNumber,
-        name,
-        title: roleValue,
-        catalogTitle: templateRole ? role : undefined,
-        confidence: templateRole ? "exact" : undefined,
-      });
-    }
-
-    const baseId = existing
-      ? existing.id
-      : employeeId
-        ? `emp-${slug(employeeId) || slug(name)}`
-        : `p-${slug(name)}`;
-    let id = baseId;
-    let suffix = 2;
-    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
-    usedIds.add(id);
-    people.push({
-      id,
-      name: name.slice(0, 60),
-      role: role.slice(0, 40),
-      active,
-      tenureYears,
-      ...(lastDay ? { lastDay } : {}),
-      entitlements: entitlements.length ? entitlements : undefined,
-      ...(department ? { department } : {}),
-    });
-  });
-
-  const removed = tpl.people.filter((person) => !usedIds.has(person.id));
-  return { people, issues, unknownEntitlements, titles, removed };
+  const removed = tpl.people.filter((person) => !context.usedIds.has(person.id));
+  return {
+    people,
+    issues,
+    unknownEntitlements: context.unknownEntitlements,
+    titles,
+    removed,
+    skipped,
+    duplicates,
+    dropped,
+  };
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */
@@ -545,4 +1072,22 @@ export function peopleToCsv(people: readonly Person[]): string {
     ),
   ];
   return `${rows.join("\r\n")}\r\n`;
+}
+
+/** Splits one line of a headerless list into name, title and department. */
+export function splitListLine(line: string): string[] {
+  const source = line.trim().replace(LIST_MARKER, "");
+  const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
+  const parts = /\s[-–—]\s/.test(source)
+    ? source.split(/\s[-–—]\s/)
+    : source.includes("\t")
+      ? source.split("\t")
+      : source.includes(" | ")
+        ? source.split(" | ")
+        : source.includes(": ")
+          ? source.split(": ")
+          : parenthetical
+            ? [parenthetical[1], parenthetical[2]]
+            : (parseRows(source, ",")[0] ?? [source]);
+  return parts.map((part) => part.trim());
 }
