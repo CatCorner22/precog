@@ -22,6 +22,8 @@ import { detectSodConflicts } from "../sod/detect";
 import { resolveTemplate } from "../active-template";
 import { mitigatedSodRuleIds } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
+import type { IndustryId } from "../industry";
+import { pluralTeamLabel } from "../templates/industry-copy";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 
@@ -129,10 +131,112 @@ function clamp(n: number, lo = 0, hi = 100) {
   return Math.max(lo, Math.min(hi, Math.round(n)));
 }
 
+/** The words the inventory uses for this line of business. Wording only: no item is added or dropped. */
+interface InventoryWords {
+  /** The system of record: "PMS", "POS", "billing system". */
+  system: string;
+  /** Who pays: "patient", "customer", "guest", "client". */
+  payer: string;
+  /** Two roles that could collude, for the collusion example. */
+  pair: string;
+  /** Outside partners that could inject fraud. */
+  partners: string;
+  partnerFraud: string;
+  partnerCheck: string;
+  /** The regulator item's title, description and probe. */
+  regulator: string;
+  regulatorDetail: string;
+  regulatorProbe: string;
+  /** Data an extortion would target. */
+  hostageData: string;
+  /** The revenue-shock item's title and probe. */
+  revenueShock: string;
+  revenueProbe: string;
+}
+
+const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
+  dental: {
+    system: "PMS",
+    payer: "patient",
+    pair: "front desk + OM",
+    partners: "Lab / DSO / clearinghouse",
+    partnerFraud: "inflated lab bills, claim re-routing",
+    partnerCheck: "Reconcile lab invoices to cases completed for 30 days",
+    regulator: "HIPAA / OCR enforcement trajectory",
+    regulatorDetail:
+      "Privacy breaches and OCR civil money penalties are not linked to control failures (e.g. snooping, misdirected claims).",
+    regulatorProbe: "Add OCR/HIPAA breach butterfly scenario tied to access admin entitlements",
+    hostageData: "Full PMS hostage, ePHI extortion",
+    revenueShock: "Payer mix / Medicaid cliff / fee schedule shock",
+    revenueProbe: "Add payer-mix % and largest payer concentration to the business profile",
+  },
+  retail: {
+    system: "POS",
+    payer: "customer",
+    pair: "lead cashier + store manager",
+    partners: "Supplier / marketplace / card processor",
+    partnerFraud: "inflated supplier bills, re-routed marketplace payouts",
+    partnerCheck: "Reconcile supplier invoices to goods received for 30 days",
+    regulator: "Card-data and consumer-privacy enforcement",
+    regulatorDetail:
+      "Card-data breaches and privacy penalties are not linked to control failures (e.g. snooping, exported customer lists).",
+    regulatorProbe: "Add a card-data breach scenario tied to access admin entitlements",
+    hostageData: "Full POS hostage, customer-data extortion",
+    revenueShock: "Sales mix / largest channel / pricing shock",
+    revenueProbe: "Add sales mix and largest channel concentration to the business profile",
+  },
+  restaurant: {
+    system: "POS",
+    payer: "guest",
+    pair: "head server + manager on duty",
+    partners: "Food vendor / delivery platform / card processor",
+    partnerFraud: "inflated produce bills, re-routed delivery payouts",
+    partnerCheck: "Reconcile vendor invoices to deliveries received for 30 days",
+    regulator: "Card-data and labor-law enforcement",
+    regulatorDetail:
+      "Card-data breaches and tip or wage claims are not linked to control failures (e.g. punch edits, exported guest lists).",
+    regulatorProbe: "Add a card-data breach scenario tied to access admin entitlements",
+    hostageData: "Full POS hostage, guest-data extortion",
+    revenueShock: "Covers / delivery mix / food cost shock",
+    revenueProbe: "Add sales mix and delivery-platform share to the business profile",
+  },
+  professional_services: {
+    system: "billing system",
+    payer: "client",
+    pair: "billing coordinator + office manager",
+    partners: "Subcontractor / payment processor / trust bank",
+    partnerFraud: "inflated subcontractor bills, re-routed client payments",
+    partnerCheck: "Reconcile subcontractor invoices to work delivered for 30 days",
+    regulator: "Client-confidentiality and trust-account enforcement",
+    regulatorDetail:
+      "Confidentiality breaches and trust-account findings are not linked to control failures (e.g. snooping, misdirected client files).",
+    regulatorProbe: "Add a client-data breach scenario tied to access admin entitlements",
+    hostageData: "Full billing-system hostage, client-data extortion",
+    revenueShock: "Client mix / largest client / rate shock",
+    revenueProbe: "Add client mix and largest client concentration to the business profile",
+  },
+  general: {
+    system: "accounting system",
+    payer: "customer",
+    pair: "two staff who share a desk",
+    partners: "Supplier / payment processor / bank",
+    partnerFraud: "inflated supplier bills, re-routed customer payments",
+    partnerCheck: "Reconcile supplier invoices to goods or work received for 30 days",
+    regulator: "Privacy and data-protection enforcement",
+    regulatorDetail:
+      "Data breaches and privacy penalties are not linked to control failures (e.g. snooping, exported customer lists).",
+    regulatorProbe: "Add a data breach scenario tied to access admin entitlements",
+    hostageData: "Full accounting-system hostage, customer-data extortion",
+    revenueShock: "Customer mix / largest customer / pricing shock",
+    revenueProbe: "Add customer mix and largest customer concentration to the business profile",
+  },
+};
+
 /**
  * Run epistemic meta-analysis over current practice profile + demo corpus.
  */
 export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
+  const words = INVENTORY_WORDS[profile.industry] ?? INVENTORY_WORDS.general;
   const tpl = resolveTemplate(profile);
   const { people, knowledge, relations } = tpl;
   const staff = profile.staff;
@@ -216,8 +320,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     {
       id: "ku-actual-cash-counts",
       title: "Actual cash drawer variance history",
-      description:
-        "No imported daily cash-count vs PMS variance series. Lapping and skim detection stay prior-driven.",
+      description: `No imported daily cash-count vs ${words.system} variance series. Lapping and skim detection stay prior-driven.`,
       severity: "critical",
       affects: ["precog", "watched conditions", "cash process"],
       confidenceDrag: 0.12,
@@ -263,7 +366,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "ku-pms-audit-log",
-      title: "PMS void / adjustment audit log",
+      title: `${capitalize(words.system)} void / adjustment audit log`,
       description:
         "Write-off dual release thresholds exist, but live void/adjustment velocity is not streamed.",
       severity: "high",
@@ -308,9 +411,8 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "ku-patient-refund-controls",
-      title: "Patient refund authorization trail",
-      description:
-        "A patient refund moves cash out with nothing coming back, and one person can originate, approve, and record it. The refund path is not yet a process node with dual release.",
+      title: `${capitalize(words.payer)} refund authorization trail`,
+      description: `A ${words.payer} refund moves cash out with nothing coming back, and one person can originate, approve, and record it. The refund path is not yet a process node with dual release.`,
       severity: "medium",
       affects: ["process map", "sod rules"],
       confidenceDrag: 0.05,
@@ -348,8 +450,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     {
       id: "uu-collusion-rings",
       title: "Multi-party collusion outside pairwise SoD",
-      description:
-        "SoD detects one-person conflicts. Two-person collusion (front desk + OM) can pass dual release by design. Platform does not model collusion graphs or lifestyle red flags.",
+      description: `SoD detects one-person conflicts. Two-person collusion (${words.pair}) can pass dual release by design. Platform does not model collusion graphs or lifestyle red flags.`,
       severity: "critical",
       affects: ["sod", "dual-release", "precog"],
       confidenceDrag: 0.14,
@@ -363,8 +464,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     {
       id: "uu-cyber-ransomware-ops",
       title: "Cyber / ransomware operational cascade",
-      description:
-        "Model is fraud/ops/continuity oriented. Full PMS hostage, ePHI extortion, and restoration RTO/RPO are outside residual drivers today.",
+      description: `Model is fraud/ops/continuity oriented. ${words.hostageData}, and restoration RTO/RPO are outside residual drivers today.`,
       severity: "critical",
       affects: ["continuity", "insurance", "layers"],
       confidenceDrag: 0.11,
@@ -378,15 +478,14 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "uu-regulatory-hipaa-ocr",
-      title: "HIPAA / OCR enforcement trajectory",
-      description:
-        "Privacy breaches and OCR civil money penalties are not linked to control failures (e.g. snooping, misdirected claims).",
+      title: words.regulator,
+      description: words.regulatorDetail,
       severity: "high",
       affects: ["coso", "residual"],
       confidenceDrag: 0.08,
       probe: {
         kind: "scenario_design",
-        action: "Add OCR/HIPAA breach butterfly scenario tied to access admin entitlements",
+        action: words.regulatorProbe,
         effort: "days",
         expectedLift: "Connects access control to regulatory severity",
       },
@@ -409,15 +508,14 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "uu-supply-chain-lab-integrity",
-      title: "Lab / DSO / clearinghouse integrity failure",
-      description:
-        "External partners can inject fraud (inflated lab bills, claim re-routing) without internal SoD firing.",
+      title: `${words.partners} integrity failure`,
+      description: `External partners can inject fraud (${words.partnerFraud}) without internal SoD firing.`,
       severity: "high",
       affects: ["ap", "claims", "process map"],
       confidenceDrag: 0.07,
       probe: {
         kind: "sample_test",
-        action: "Reconcile lab invoices to cases completed for 30 days",
+        action: words.partnerCheck,
         effort: "hours",
         expectedLift: "Surfaces external custody risks",
       },
@@ -440,7 +538,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "uu-macro-payer-shock",
-      title: "Payer mix / Medicaid cliff / fee schedule shock",
+      title: words.revenueShock,
       description:
         "Revenue continuity shocks change fraud pressure and cash intensity; not in dynamic variable graph yet.",
       severity: "medium",
@@ -448,7 +546,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       confidenceDrag: 0.05,
       probe: {
         kind: "data_capture",
-        action: "Add payer-mix % and largest payer concentration to practice profile",
+        action: words.revenueProbe,
         effort: "minutes",
         expectedLift: "Links macro revenue risk to cash/fraud intensity",
       },
@@ -545,7 +643,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
         kind: "data_capture",
         action: "Assign owner or bookkeeper to weekly bank rec; flip flag when live",
         effort: "hours",
-        expectedLift: "Largest single control lift for small practices",
+        expectedLift: `Largest single control lift for small ${pluralTeamLabel(profile.industry)}`,
       },
       link: { tab: "command" },
     });
@@ -555,7 +653,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const realtimeCapabilities: RealtimeCapability[] = [
     {
       id: "rt-profile",
-      label: "Practice profile → residual re-score",
+      label: "Business profile → residual re-score",
       ready: true,
       latencyClass: "instant",
       description: "Staff & variable sliders recompute residual and leading indicators.",
@@ -596,19 +694,19 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       id: "rt-pms-stream",
-      label: "Live PMS transaction stream",
+      label: `Live ${words.system} transaction stream`,
       ready: false,
       latencyClass: "manual",
       description:
         "No live import of payments, voids, or claims, so transaction-level conditions cannot be watched.",
-      dependency: "PMS API or scheduled CSV",
+      dependency: `${words.system} API or scheduled CSV`,
     },
     {
       id: "rt-bank-feed",
       label: "Bank feed vs deposit match",
       ready: false,
       latencyClass: "manual",
-      description: "Cannot auto-flag deposit lag without bank/PMS join.",
+      description: `Cannot auto-flag deposit lag without bank/${words.system} join.`,
       dependency: "bank CSV or Open Banking",
     },
     {
@@ -834,4 +932,8 @@ export function quickReadiness(profile: PracticeProfile): {
     realtimeScore: full.realtimeScore,
     criticalUnknowns: full.summary.criticalUnknowns,
   };
+}
+
+function capitalize(text: string): string {
+  return `${text[0].toUpperCase()}${text.slice(1)}`;
 }

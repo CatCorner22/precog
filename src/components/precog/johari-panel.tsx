@@ -7,6 +7,7 @@ import {
   type JohariQuadrant,
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
+import { examplesHeading } from "@/components/precog/johari-pane";
 import { usePractice } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -166,7 +167,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <div>
                 <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  Examples (dental office reference)
+                  {examplesHeading(profile.industry)}
                 </p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
                   {guide.dentalExamples.map((e) => (
