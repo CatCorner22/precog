@@ -105,9 +105,16 @@ export function LayerDetail({ layer }: { layer: MatrixLayerId }) {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{c.name}</span>
                 {!c.segregated && <Badge variant="danger">SoD gap</Badge>}
+                {c.starter && <Badge variant="default">Starter · not confirmed</Badge>}
                 {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
               </div>
               <p className="mt-1 text-muted">{c.description}</p>
+              {c.starter && (
+                <p className="mt-1 text-xs text-subtle">
+                  From the industry example. Nobody has confirmed this control runs in your
+                  business, so the app credits nothing for it yet.
+                </p>
+              )}
               {c.compensatingControls.length > 0 && (
                 <p className="mt-1 text-xs text-subtle">
                   Compensating: {c.compensatingControls.join("; ")}

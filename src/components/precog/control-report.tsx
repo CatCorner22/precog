@@ -6,8 +6,7 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import {
   contingencyCards,
   coverageReport,
@@ -115,9 +114,11 @@ export function ControlReport() {
       dualRelease: profile.dualRelease,
     });
     const portfolio = portfolioSummary(tpl, profile.staff);
-    const sod = detectSodConflicts(tpl, profile.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease, tpl),
-    });
+    const sod = detectSodConflicts(
+      tpl,
+      profile.staff,
+      sodDetectionOptions(tpl, profile.dualRelease),
+    );
     const continuity = coverageReport(tpl);
     const staleness = staleItems(tpl, today);
     const checkIns = checkInPlan(tpl, today);

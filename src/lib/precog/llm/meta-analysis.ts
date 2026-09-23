@@ -18,9 +18,8 @@
  *
  * Educational / decision-support — not actuarial or legal advice.
  */
-import { detectSodConflicts } from "../sod/detect";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { resolveTemplate } from "../active-template";
-import { mitigatedSodRuleIds } from "../controls/dual-release";
 import type { PracticeProfile } from "../practice-profile";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
@@ -139,9 +138,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const vars = profile.riskVariables;
   const dual = profile.dualRelease;
   const decisions = profile.decisions ?? [];
-  const sod = detectSodConflicts(tpl, staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dual),
-  });
+  const sod = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dual));
   const portfolio = portfolioSummary(tpl, staff);
   const leading = scoreLeadingIndicators(tpl, staff, vars);
 

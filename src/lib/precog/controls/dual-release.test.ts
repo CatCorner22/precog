@@ -227,3 +227,103 @@ describe("mitigatedSodRuleIds with a team", () => {
     expect(mitigatedSodRuleIds(policy, dental).size).toBeGreaterThan(0);
   });
 });
+
+describe("what a two-person deposit count narrows", () => {
+  it("narrows deposit preparation with posting, not collecting with posting or posting with reconciling", () => {
+    const ids = mitigatedSodRuleIds(policyOn(), dental);
+    expect(ids.has("rule-deposit-post")).toBe(true);
+    const deposit = policyOn().rules.find((r) => r.channel === "deposit")!;
+    expect(deposit.mitigatesRuleIds).toEqual(["rule-deposit-post"]);
+  });
+
+  it("applies the narrower list to a policy saved before the change", () => {
+    const saved = policyOn();
+    saved.rules = saved.rules.map((r) =>
+      r.channel === "deposit"
+        ? { ...r, mitigatesRuleIds: ["rule-collect-post", "rule-deposit-post", "rule-cash-rec"] }
+        : r,
+    );
+    const merged = mergeDualReleasePolicy(dental, saved);
+    expect(merged.rules.find((r) => r.channel === "deposit")!.mitigatesRuleIds).toEqual([
+      "rule-deposit-post",
+    ]);
+  });
+});
+
+describe("dual-release seats for a team that says what each person does", () => {
+  const person = (id: string, name: string, role: string, duties: string[]) => ({
+    id,
+    name,
+    role,
+    active: true,
+    entitlements: [...duties, "view_reports_only"],
+  });
+  const construction = {
+    ...dental,
+    people: [
+      person("o", "Owner Person", "Owner / President", ["approve_payroll", "approve_vendor"]),
+      person("c", "Carol Whitfield", "Controller - Part Time", [
+        "sign_checks",
+        "release_payment",
+        "bank_reconcile",
+      ]),
+      person("r", "Ramon Vasquez", "Project Manager", []),
+      person("g", "Grace Kim", "Bookkeeper (Contract)", ["enter_invoices", "release_payment"]),
+    ],
+  };
+
+  it("lets the check signer start a check and the owner second it", () => {
+    const policy = defaultDualReleasePolicy(construction, {
+      ...dental.staffComposition,
+      dualControlPayments: true,
+    });
+    const seats = listEligibleApprovers(construction, policy, "check");
+    const carol = seats.find((p) => p.id === "c")!;
+    expect(carol.canInitiate).toBe(true);
+    expect(carol.canSecond).toBe(true);
+    expect(seats.find((p) => p.id === "g")?.canInitiate).toBe(true);
+    expect(seats.find((p) => p.id === "o")?.canSecond).toBe(true);
+  });
+
+  it("gives a project manager with no money duties no seat on any channel", () => {
+    const policy = defaultDualReleasePolicy(construction, {
+      ...dental.staffComposition,
+      dualControlPayments: true,
+    });
+    for (const channel of [
+      "ach",
+      "check",
+      "deposit",
+      "payroll",
+      "writeoff",
+      "vendor_new",
+    ] as const) {
+      expect(listEligibleApprovers(construction, policy, channel).some((p) => p.id === "r")).toBe(
+        false,
+      );
+    }
+  });
+
+  it("lists the people who may second, not title keywords, in a blocked release", () => {
+    const policy = defaultDualReleasePolicy(construction, {
+      ...dental.staffComposition,
+      dualControlPayments: true,
+    });
+    const result = evaluateRelease(construction, policy, {
+      channel: "check",
+      amountUsd: 5000,
+      initiatorPersonId: "c",
+      secondPersonId: "r",
+      asOfDate: "2026-01-15",
+    });
+    expect(result.status).toBe("blocked_role");
+    expect(result.nextSteps.join(" ")).toMatch(/Owner Person \(Owner \/ President\)/);
+    expect(result.nextSteps.join(" ")).not.toMatch(/Project Manager/);
+  });
+
+  it("keeps the sample team seated by its role lists", () => {
+    const seats = listEligibleApprovers(dental, policyOn(), "ach");
+    expect(seats.find((p) => p.id === officeManager)?.canInitiate).toBe(true);
+    expect(seats.some((p) => p.id === hygienist)).toBe(false);
+  });
+});

@@ -6,6 +6,7 @@ import {
   activeExceptionSummary,
   dualReleaseCoverage,
   evaluateRelease,
+  listEligibleApprovers,
   makeExceptionId,
   type ExceptionAction,
   type ReleaseChannel,
@@ -59,17 +60,21 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
+  // The exception form's placeholder shows the kind of payee an exception names.
   const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
+  // Suggest a payee only when an exception on this policy names one; an own
+  // business with no exceptions gets no sample vendor to try.
+  const payeeHint = policy.exceptions.find((e) => e.enabled && e.payeeContains)?.payeeContains;
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
   const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
   const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
-  const [payee, setPayee] = useState(seed.defaultPayee);
+  const [payee, setPayee] = useState(payeeHint ?? "");
 
   useEffect(() => {
-    setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
-  }, [profile.industry]);
+    setPayee(payeeHint ?? "");
+  }, [profile.industry, payeeHint]);
 
   // Keep signer picks valid when the team changes (industry switch or team editor).
   useEffect(() => {
@@ -99,6 +104,15 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
   const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
+  // The people who may second on this channel, read the same way the release
+  // check reads them (by duty for an own team), so the line never disagrees
+  // with the result.
+  const secondsLine = useMemo(() => {
+    const seconds = listEligibleApprovers(tpl, policy, channel).filter((p) => p.canSecond);
+    return seconds.length
+      ? seconds.map((p) => `${p.name} (${p.role})`).join(", ")
+      : "nobody on the team holds a duty that allows it";
+  }, [tpl, policy, channel]);
   const exceptions = policy.exceptions ?? [];
 
   function toggleMaster(enabled: boolean) {
@@ -598,7 +612,9 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               Release simulator
             </CardTitle>
             <CardDescription>
-              Includes payee matching for exceptions (try “{seed.defaultPayee}”)
+              {payeeHint
+                ? `Includes payee matching for exceptions (try “${payeeHint}”)`
+                : "Includes payee matching for any exception you add below"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -668,8 +684,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
             </div>
             {activeRule && (
               <p className="text-[11px] text-subtle">
-                Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds:{" "}
-                {activeRule.secondApproverRoles.join(", ")}.
+                Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds: {secondsLine}.
               </p>
             )}
             <Button size="sm" onClick={runEval}>

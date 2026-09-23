@@ -49,8 +49,7 @@ import {
 import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { casesForSodRules, detectionBreakdown, observedLossRange } from "../evidence";
-import { detectSodConflicts } from "../sod/detect";
-import { mitigatedSodRuleIds } from "../controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
@@ -861,9 +860,11 @@ export function executeTool(
       }
 
       case "get_case_evidence": {
-        const sod = detectSodConflicts(tpl, profile.staff, {
-          dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease, tpl),
-        });
+        const sod = detectSodConflicts(
+          tpl,
+          profile.staff,
+          sodDetectionOptions(tpl, profile.dualRelease),
+        );
         const openRuleIds = [
           ...new Set(
             sod.conflicts

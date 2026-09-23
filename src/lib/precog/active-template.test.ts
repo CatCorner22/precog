@@ -90,6 +90,49 @@ describe("resolveTemplate", () => {
     expect(owner.controls.find((c) => c.id === "c-sod-cash")?.segregated).toBe(true);
   });
 
+  it("describes a rule-linked control from the pairs open on this team, not the sample's", () => {
+    const tpl = resolveTemplate({
+      industry: "general",
+      customPeople: [
+        { id: "a", name: "Ana", role: "Owner", active: true, entitlements: ["approve_payroll"] },
+        {
+          id: "c",
+          name: "Carol Whitfield",
+          role: "Controller",
+          active: true,
+          entitlements: ["sign_checks", "bank_reconcile"],
+        },
+        {
+          id: "o",
+          name: "Omar Okafor",
+          role: "AR Clerk",
+          active: true,
+          entitlements: ["post_payments"],
+        },
+      ],
+    });
+    const cash = tpl.controls.find((c) => c.id === "c-sod-cash")!;
+    expect(cash.segregated).toBe(false);
+    expect(cash.description).toBe(
+      "Open on your team: Carol Whitfield (check signing + bank reconciliation).",
+    );
+    expect(cash.description).not.toMatch(/posts payments and reconciles/);
+    const ap = tpl.controls.find((c) => c.id === "c-sod-ap")!;
+    expect(ap.description).toBe("Nobody on your team holds a pair of duties this control covers.");
+  });
+
+  it("marks controls no conflict rule covers as starters the owner has not confirmed", () => {
+    const base = getBaseTemplate("retail");
+    const own = resolveTemplate({ industry: "retail", customPeople: base.people.slice(0, 2) });
+    for (const id of ["c-sod-ar", "c-ap", "c-ar"]) {
+      expect(own.controls.find((c) => c.id === id)?.starter).toBe(true);
+    }
+    for (const id of ["c-cash", "c-sod-cash", "c-sod-billing", "c-sod-ap", "c-payroll"]) {
+      expect(own.controls.find((c) => c.id === id)?.starter).toBeUndefined();
+    }
+    expect(base.controls.some((c) => c.starter)).toBe(false);
+  });
+
   it("does not leak overrides into later calls", () => {
     const base = getBaseTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });
