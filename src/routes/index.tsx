@@ -864,7 +864,7 @@ function Home() {
 
         {tab === "journal" && <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />}
         {tab === "snapshots" && <AssessmentSnapshots />}
-        {tab === "blueprint" && <OperatingBlueprint />}
+        {tab === "blueprint" && <OperatingBlueprint onNavigate={(t) => navigateTab(t)} />}
         {tab === "value" && <ValueProofCenter />}
         </Suspense></TabErrorBoundary>
       </main>
