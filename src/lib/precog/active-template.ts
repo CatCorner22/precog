@@ -1,6 +1,8 @@
 import type { IndustryId } from "./industry";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
-import type { KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
+import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
+import { CONFLICT_RULES } from "./sod/conflict-rules";
+import { detectSodConflicts } from "./sod/detect";
 
 /** The slice of a practice profile that determines which template the engines see. */
 export interface TemplateSource {
@@ -36,30 +38,42 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
     peopleOverrides || knowledgeOverrides || relationOverrides
       ? rawRelations.filter((r) => ids.has(r.personId) && knowledgeIds.has(r.knowledgeId))
       : rawRelations;
-  // The sample business marks one control's residual risk as accepted and
-  // lists compensating controls its sample team performs, to show what those
-  // look like. They are the sample owner's decisions, not this owner's: a
-  // business with its own people starts with nothing accepted and nothing
-  // credited as in place, so no conflict is hidden or discounted before the
-  // owner has seen it.
-  const controls = peopleOverrides
-    ? base.controls.map((c) =>
-        c.residualRiskAccepted || c.compensatingControls.length > 0
-          ? { ...c, residualRiskAccepted: false, compensatingControls: [] }
-          : c,
-      )
-    : base.controls;
+  const processes = (processOverrides ?? base.processes).map((p) => ({
+    ...p,
+    ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
+  }));
+  const resolved = { ...base, people, knowledge, relations, processes };
   return {
-    ...base,
-    people,
-    knowledge,
-    relations,
-    controls,
-    processes: (processOverrides ?? base.processes).map((p) => ({
-      ...p,
-      ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
-    })),
+    ...resolved,
+    controls: peopleOverrides ? ownControls(base.controls, resolved) : base.controls,
   };
+}
+
+const RULE_LINKED_CONTROLS = new Set(
+  CONFLICT_RULES.map((r) => r.linkedControlId).filter((id): id is string => Boolean(id)),
+);
+
+/**
+ * The sample business's control records describe the sample team: one
+ * accepted residual risk, compensating controls its people perform, and
+ * "segregated" flags written by hand. None of that is a fact about this
+ * owner's business. With the owner's own people, a control a conflict rule
+ * links to is segregated exactly when no employee holds that rule's pair,
+ * nothing is accepted, and nothing is credited as in place until the owner
+ * records it.
+ */
+function ownControls(controls: readonly ControlItem[], tpl: IndustryTemplate): ControlItem[] {
+  const open = new Set(
+    detectSodConflicts(tpl)
+      .conflicts.filter((c) => !c.ownerHeld && c.linkedControlId)
+      .map((c) => c.linkedControlId as string),
+  );
+  return controls.map((c) => ({
+    ...c,
+    segregated: RULE_LINKED_CONTROLS.has(c.id) ? !open.has(c.id) : c.segregated,
+    residualRiskAccepted: false,
+    compensatingControls: [],
+  }));
 }
 
 /** The unmodified industry template (before any user overrides). */

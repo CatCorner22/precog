@@ -97,10 +97,15 @@ export interface SodDetectionOptions {
   dualReleaseMitigatedRuleIds?: Set<string>;
 }
 
-export function sodDetectionOptions(
-  tpl: IndustryTemplate,
-  dualRelease: DualReleasePolicy,
-): SodDetectionOptions {
+/**
+ * What the business's own control records say: which linked controls carry an
+ * accepted residual risk and which list compensating controls in place. Every
+ * surface that scores the team reads these the same way, so the health index
+ * is one number wherever it appears.
+ */
+export function controlOptions(
+  tpl: Pick<IndustryTemplate, "controls">,
+): Pick<SodDetectionOptions, "residualAcceptedControlIds" | "compensatingByControlId"> {
   const compensatingByControlId: Record<string, string[]> = {};
   for (const control of tpl.controls) {
     if (control.compensatingControls.length) {
@@ -112,6 +117,15 @@ export function sodDetectionOptions(
       tpl.controls.filter((control) => control.residualRiskAccepted).map((control) => control.id),
     ),
     compensatingByControlId,
+  };
+}
+
+export function sodDetectionOptions(
+  tpl: IndustryTemplate,
+  dualRelease: DualReleasePolicy,
+): SodDetectionOptions {
+  return {
+    ...controlOptions(tpl),
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease, tpl),
   };
 }

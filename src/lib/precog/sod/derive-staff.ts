@@ -1,6 +1,6 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
-import { detectSodConflicts } from "./detect";
+import { controlOptions, detectSodConflicts } from "./detect";
 import type { EntitlementId } from "./conflict-rules";
 import type { Person } from "../types";
 import { soleOwnerCriticalCount } from "../continuity/coverage";
@@ -55,6 +55,7 @@ export function deriveStaffFromTeam(
   };
   if (staff.segregationSource !== "manual") {
     next.segregationScore = detectSodConflicts(tpl, undefined, {
+      ...controlOptions(tpl),
       dualReleaseMitigatedRuleIds: opts.dualReleaseMitigatedRuleIds,
     }).summary.segregationHealth;
     next.segregationSource = "derived";

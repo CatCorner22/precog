@@ -50,6 +50,46 @@ describe("resolveTemplate", () => {
     expect(resolveTemplate({ industry: "dental" }).controls).toBe(base.controls);
   });
 
+  it("writes an own business's segregated flags from its own team", () => {
+    const clean = resolveTemplate({
+      industry: "general",
+      customPeople: [
+        { id: "a", name: "Ana", role: "Owner", active: true, entitlements: ["approve_payroll"] },
+        { id: "b", name: "Ben", role: "Bookkeeper", active: true, entitlements: ["post_payments"] },
+      ],
+    });
+    expect(clean.controls.find((c) => c.id === "c-sod-cash")?.segregated).toBe(true);
+    expect(clean.controls.find((c) => c.id === "c-sod-ap")?.segregated).toBe(true);
+    const tangled = resolveTemplate({
+      industry: "general",
+      customPeople: [
+        {
+          id: "b",
+          name: "Ben",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["post_payments", "bank_reconcile", "create_vendor", "release_payment"],
+        },
+      ],
+    });
+    expect(tangled.controls.find((c) => c.id === "c-sod-cash")?.segregated).toBe(false);
+    expect(tangled.controls.find((c) => c.id === "c-sod-ap")?.segregated).toBe(false);
+    // An owner holding the pair is not an employee gap.
+    const owner = resolveTemplate({
+      industry: "general",
+      customPeople: [
+        {
+          id: "a",
+          name: "Ana",
+          role: "Owner",
+          active: true,
+          entitlements: ["post_payments", "bank_reconcile"],
+        },
+      ],
+    });
+    expect(owner.controls.find((c) => c.id === "c-sod-cash")?.segregated).toBe(true);
+  });
+
   it("does not leak overrides into later calls", () => {
     const base = getBaseTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });

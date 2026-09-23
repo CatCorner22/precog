@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import type { Person, StaffComposition } from "../types";
-import { detectSodConflicts } from "./detect";
+import { controlOptions, detectSodConflicts } from "./detect";
 import { deriveStaffFromTeam } from "./derive-staff";
 
 const retail = getBaseTemplate("retail");
@@ -28,7 +28,7 @@ describe("deriveStaffFromTeam", () => {
     const result = deriveStaffFromTeam(retail, staff({ segregationScore: 1 }));
 
     expect(result.segregationScore).toBe(
-      detectSodConflicts(retail, undefined).summary.segregationHealth,
+      detectSodConflicts(retail, undefined, controlOptions(retail)).summary.segregationHealth,
     );
     expect(result.segregationSource).toBe("derived");
   });
