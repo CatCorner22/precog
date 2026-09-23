@@ -1,5 +1,5 @@
 import type { IndustryTemplate } from "../templates/types";
-import { locateTable } from "./csv";
+import { locateTable, stripInvisibleControls } from "./csv";
 import {
   addSkippedLines,
   looksLikeRosterHeader,
@@ -70,7 +70,7 @@ export function parseRoster(
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
-  const trimmed = text.replace(/^\uFEFF/, "").trim();
+  const trimmed = stripInvisibleControls(text).trim();
   if (!trimmed) {
     return {
       people: [],

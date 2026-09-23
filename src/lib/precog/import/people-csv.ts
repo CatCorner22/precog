@@ -2,7 +2,7 @@ import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { isCalendarDate } from "../continuity/coverage";
-import { csvCell, locateTable, parseRows, sniffDelimiter } from "./csv";
+import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "./csv";
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 
 export interface PeopleImportIssue {
@@ -113,8 +113,8 @@ const HEADER_ALIASES = {
     "primary job title",
     "job title description",
     "position description",
-    "business title",
     "job profile",
+    "business title",
     "job name",
     "position name",
     "position title",
@@ -391,7 +391,20 @@ const COMPANY_WORDS = new Set([
 
 /** First cell of a report footer row: totals, counts, page numbers, run stamps. */
 const FOOTER_PATTERN =
-  /^((grand |sub ?)?totals?\b|count[:\s]*\d+\b|page \d+|report (generated|date|run)|generated (on|by|at)|printed (on|by)|end of (report|list)|record count|\d+ (records?|rows?|employees?|people|workers?)\b)/i;
+  /^((grand |sub ?)?totals?\b|count[:\s]*\d+\b|page \d+|report (generated|date|run)|generated (on|by|at)|printed (on|by)|end of (report|list)|record count|(accrual|cash) basis\b|\d+ (records?|rows?|employees?|people|workers?)\b)/i;
+
+/** What may stand beside a footer label: numbers, or a count such as "9 employees". */
+const FOOTER_VALUE =
+  /^([\d.,%\s-]+|\d[\d,]*\s+(employees?|people|persons?|records?|rows?|workers?|staff|members?))$/i;
+
+/**
+ * A report's run stamp on a line of its own, as QuickBooks and payroll
+ * reports print it under the table: "Tuesday, Sep 23, 2026 09:14 AM
+ * GMT-04:00", "Accrual basis Tuesday, September 23, 2026", "09/23/2026 9:14
+ * AM". A person's row never reads as a date and time.
+ */
+const RUN_STAMP =
+  /^((accrual|cash) basis\s+)?((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}-\d{2}-\d{2})(,?\s+\d{1,2}:\d{2}(:\d{2})?\s*([ap]\.?m\.?)?)?(\s*(gmt|utc)\s*([+-]\d{1,2}(:?\d{2})?)?)?$/i;
 
 const LIST_MARKER = /^(\(\d+\)|\d+[.)]|[-*•·–—])\s+/;
 
@@ -491,10 +504,23 @@ function isInactive(value: string, typeColumn = false): boolean {
   );
 }
 
-/** A status that says the person is away but still employed: "Leave", "On Leave", "LOA", "FMLA", ADP's "L". */
+/** Words that mean someone is away but still employed: on leave, suspended or furloughed. */
+const LEAVE_PATTERN = /\b(leave|loa|fmla|suspended|suspension|furlough|furloughed|sabbatical)\b/;
+
+/** Words that mean someone has gone for good; they outrank a leave word ("Terminated - On Leave"). */
+const EXIT_PATTERN =
+  /terminat|\b(retired|deceased|resigned|separated|laid off|former|ex employee|left|withdrawn|discarded|deleted|archived|deactivated|reported no show|not on payroll|sortie?)\b/;
+
+/**
+ * A status that says the person is away but still employed: "Leave", "On
+ * Leave", "LOA", "FMLA", ADP's "L", Oracle's "Inactive - Leave of Absence"
+ * and "Suspended - Payroll Eligible", SuccessFactors' "Furlough". The leave
+ * word outranks "Inactive": the person still works here.
+ */
 function isOnLeave(value: string): boolean {
   const key = statusKey(value);
-  return !key.startsWith("active") && (key === "l" || /\b(leave|loa|fmla)\b/.test(key));
+  if (!key || key.startsWith("active") || EXIT_PATTERN.test(key)) return false;
+  return key === "l" || LEAVE_PATTERN.test(key);
 }
 
 function isKnownActive(value: string): boolean {
@@ -739,9 +765,10 @@ export function parsePeopleCsv(
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
-  const table = locateTable(text, looksLikeRosterHeader);
+  const source = stripInvisibleControls(text);
+  const table = locateTable(source, looksLikeRosterHeader);
   if (table) return addSkippedLines(parsePeopleRows(table.rows, tpl, opts), table.skipped);
-  return parsePeopleRows(parseRows(text, sniffDelimiter(text)), tpl, opts);
+  return parsePeopleRows(parseRows(source, sniffDelimiter(source)), tpl, opts);
 }
 
 /** A first cell that numbers the rows rather than naming anyone: "#", "No.". */
@@ -836,9 +863,13 @@ function rowKey(cells: readonly string[]): string {
 
 /** The footer label when a row is a total, count, page or run stamp with nothing but numbers beside it. */
 function footerLabel(cells: readonly string[]): string | undefined {
-  const [first, ...rest] = cells.map((cell) => cell.trim()).filter(Boolean);
-  if (!first || !FOOTER_PATTERN.test(first)) return undefined;
-  return rest.every((cell) => /^[\d.,%\s-]+$/.test(cell)) ? first : undefined;
+  const filled = cells.map((cell) => cell.trim()).filter(Boolean);
+  const [first, ...rest] = filled;
+  if (!first) return undefined;
+  const line = filled.join(", ");
+  if (line.length <= 80 && RUN_STAMP.test(line)) return line;
+  if (!FOOTER_PATTERN.test(first)) return undefined;
+  return rest.every((cell) => FOOTER_VALUE.test(cell)) ? first : undefined;
 }
 
 interface ImportContext {
@@ -893,12 +924,13 @@ function readActive(
   context.columns.statuses.forEach((column, index) => {
     const value = cellAt(cells, column);
     if (!value) return;
-    if (isInactive(value)) inactive = true;
-    else if (isOnLeave(value)) leave ??= value;
+    if (isOnLeave(value)) leave ??= value;
+    else if (isInactive(value)) inactive = true;
     else if (index === 0 && !isKnownActive(value)) reportUnknownStatus(context, value, row);
   });
   for (const column of context.columns.workerTypes) {
-    if (isInactive(cellAt(cells, column), true)) inactive = true;
+    const value = cellAt(cells, column);
+    if (!isOnLeave(value) && isInactive(value, true)) inactive = true;
   }
   for (const column of context.columns.inactiveFlags) {
     if (isTrue(cellAt(cells, column))) inactive = true;
@@ -951,9 +983,17 @@ function readLastDay(
   if (context.columns.lastDay === undefined) return existing?.lastDay;
   const raw = cellAt(cells, context.columns.lastDay);
   if (!raw) return undefined;
-  if (isCalendarDate(raw)) return raw;
-  context.issues.push({ row, message: "Last day must be a date like 2026-10-14" });
+  const day = readHireDate(raw, { dayFirst: context.dayFirst, today: context.today });
+  if (day) return day;
+  context.issues.push({ row, message: `Last day not understood: ${raw}` });
   return existing?.lastDay;
+}
+
+/** True when the row has a status or inactive-flag cell with something in it. */
+function hasStatus(context: ImportContext, cells: readonly string[]): boolean {
+  return [...context.columns.statuses, ...context.columns.inactiveFlags].some((column) =>
+    Boolean(cellAt(cells, column)),
+  );
 }
 
 /** Duties listed in the file's own duties column, with unknown names reported. */
@@ -983,13 +1023,20 @@ function readListedDuties(
   return entitlements;
 }
 
-/** The first title column with a catalog match, so a Job Profile can stand in for an unknown Business Title. */
+/**
+ * The title the duties are read from. Title columns are tried in rank order
+ * (the standard classification, such as Workday's Job Profile or Oracle's Job
+ * Name, before the free-text Business Title or Position), and the first with
+ * a catalog match wins, except that a column naming the owner's seat wins
+ * wherever it sits: Oracle lists an owner veterinarian's Job as
+ * "Veterinarian" and only the Position says "Owner & Medical Director".
+ */
 function catalogHit(titleValues: readonly string[], industry: string) {
-  for (const value of titleValues) {
+  const hits = titleValues.flatMap((value) => {
     const match = matchJobTitle(value, industry);
-    if (match) return { value, match };
-  }
-  return undefined;
+    return match ? [{ value, match }] : [];
+  });
+  return hits.find((hit) => hit.match.entry.id === "owner") ?? hits[0];
 }
 
 interface EmployeeSeat {
@@ -1103,7 +1150,10 @@ function readPerson(
     return "skip";
   }
   const titleValues = columns.titles.map((column) => cellAt(cells, column)).filter(Boolean);
-  const roleValue = titleValues[0] ?? "";
+  // The role shown is the title the duties were read from, so each tick has
+  // its reason in front of the owner.
+  const hit = catalogHit(titleValues, tpl.id);
+  const roleValue = hit?.value ?? titleValues[0] ?? "";
   const employeeId = cellAt(cells, columns.employeeId) || idInName;
   const repeat = repeatOf(context, name, roleValue, employeeId, row);
   if (repeat === "duplicate") return "duplicate";
@@ -1117,12 +1167,29 @@ function readPerson(
   // person's identity; later rows with that name are new people.
   const candidate = context.existingByName.get(nameKey(name));
   const existing = candidate && !context.usedIds.has(candidate.id) ? candidate : undefined;
-  const lastDay = readLastDay(context, cells, row, existing);
+  let lastDay = readLastDay(context, cells, row, existing);
+  // A last day already past means the person has left, unless a status says
+  // otherwise (a rehire can keep an old termination date).
+  if (lastDay && lastDay < context.today.toISOString().slice(0, 10) && status.active) {
+    if (hasStatus(context, cells)) {
+      context.issues.push({
+        row,
+        message: `"${name}" has a past last day (${lastDay}) but an active status; the last day was not kept`,
+      });
+      lastDay = undefined;
+    } else {
+      status.active = false;
+      delete status.leave;
+      context.issues.push({
+        row,
+        message: `"${name}" left on ${lastDay}, so is read as no longer working here`,
+      });
+    }
+  }
 
   // Duties listed in the file win; else the catalog of common titles; else a
   // template role keeps its duties by leaving entitlements unset.
   const listed = readListedDuties(context, cells, row);
-  const hit = catalogHit(titleValues, tpl.id);
   const templateRole = Object.hasOwn(tpl.roleTemplates, role);
   const duties = listed.length ? listed : hit ? entitlementsForTitle(hit.value, tpl.id) : [];
   const mapping: TitleMapping = {
@@ -1191,8 +1258,9 @@ export function parsePeopleRows(
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
-  const header = rows[0] ?? [];
-  const dataRows = rows.slice(1);
+  const clean = rows.map((cells) => cells.map(stripInvisibleControls));
+  const header = clean[0] ?? [];
+  const dataRows = clean.slice(1);
   const columns = mapColumns(header, dataRows);
   if (columns.name === undefined && (columns.first === undefined || columns.last === undefined)) {
     const shown = header
@@ -1228,7 +1296,10 @@ export function parsePeopleRows(
   const kept = candidates.slice(0, maxRows);
   const dropped = candidates.length - kept.length;
   if (dropped) {
-    issues.push({ row: candidates[maxRows].row, message: `Import truncated to ${maxRows} rows` });
+    issues.push({
+      row: candidates[maxRows].row,
+      message: `Read the first ${maxRows} rows; ${dropped} more ${dropped === 1 ? "row was" : "rows were"} not read, because one import reads up to ${maxRows}`,
+    });
   }
 
   // Rows that name someone already on the team keep that person's id, so the

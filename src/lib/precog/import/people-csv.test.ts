@@ -133,7 +133,7 @@ describe("parsePeopleCsv", () => {
     expect(result.people.map((person) => person.name)).toEqual(["One", "Two"]);
     expect(result.issues).toContainEqual({
       row: 3,
-      message: "Import truncated to 2 rows",
+      message: "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
     });
     expect(result.dropped).toBe(1);
   });
@@ -202,7 +202,7 @@ describe("parsePeopleCsv", () => {
     expect(bad.people[0].lastDay).toBe("2026-10-14");
     expect(bad.issues).toContainEqual({
       row: 1,
-      message: "Last day must be a date like 2026-10-14",
+      message: "Last day not understood: next month",
     });
     expect(parsePeopleCsv("name,last_day\nMaya Chen,2026-12-01", tpl).people[0].lastDay).toBe(
       "2026-12-01",

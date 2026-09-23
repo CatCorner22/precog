@@ -407,8 +407,6 @@ describe("parseRoster", () => {
       "Terminated - Voluntary",
       "Term",
       "Retired",
-      "Furloughed",
-      "Furlough",
       "No",
       "0",
       "T",
@@ -419,7 +417,6 @@ describe("parseRoster", () => {
       "Archived",
       "Deleted",
       "Deceased",
-      "Suspended - Payroll Eligible",
       "Not on payroll",
       "Former Employee",
       "Former",
@@ -450,6 +447,11 @@ describe("parseRoster", () => {
       "On Leave",
       "Unpaid Leave",
       "Paid Leave",
+      "Inactive - Leave of Absence",
+      "Suspended - Payroll Eligible",
+      "Suspended - No Payroll",
+      "Furloughed",
+      "Furlough",
       "Contractor",
       "Contingent Worker",
       "Employee",
@@ -475,7 +477,18 @@ describe("parseRoster", () => {
       [...active, "Onboarding", "Onboarding", "Pre-hire"].map(() => true),
     );
     // Leave statuses keep the person on the team and are noted; unknown words are reported once.
-    const onLeave = ["L", "Leave of Absence", "On Leave", "Unpaid Leave", "Paid Leave"];
+    const onLeave = [
+      "L",
+      "Leave of Absence",
+      "On Leave",
+      "Unpaid Leave",
+      "Paid Leave",
+      "Inactive - Leave of Absence",
+      "Suspended - Payroll Eligible",
+      "Suspended - No Payroll",
+      "Furloughed",
+      "Furlough",
+    ];
     const leaveRows = onLeave.map((status) => inactive.length + active.indexOf(status) + 1);
     expect(result.onLeave).toEqual(leaveRows.map((row) => `p-person-${row}`));
     expect(result.issues).toEqual([
@@ -606,7 +619,7 @@ describe("parseRoster", () => {
     );
   });
 
-  it("ranks title columns by specificity, skips numeric position codes, and tries a second title column for the catalog", () => {
+  it("ranks title columns by specificity, skips numeric position codes, and reads duties from the standard job profile before the business title", () => {
     const sap = parseRoster(
       "Person ID External,User ID,First Name,Last Name,Position,Job Title,Department,Employment Status\n10001,aruiz,Ana,Ruiz,30001234,Owner,Leadership,Active\n10002,bochoa,Ben,Ochoa,30001235,Bookkeeper,Finance,Active\n10003,cdiaz,Cal,Diaz,30001236,Cashier,Store,Active",
       general,
@@ -643,19 +656,24 @@ describe("parseRoster", () => {
         ["Ana Ruiz", "Chief Happiness Wrangler", "Office Manager", "03/15/2019"],
         ["Ben Ochoa", "Money Wizard", "Bookkeeper", "07/01/2024"],
         ["Cal Diaz", "Cashier", "Cashier", "01/10/2020"],
+        ["Dee Park", "Bookkeeper", "Finance Professional", "01/10/2020"],
       ),
       general,
       { today },
     );
+    // The role shown is the title the duties were read from: the Job Profile
+    // when it is in the catalog, else the Business Title.
     expect(twoTitles.people.map((p) => p.role)).toEqual([
-      "Chief Happiness Wrangler",
-      "Money Wizard",
+      "Office Manager",
+      "Bookkeeper",
       "Cashier",
+      "Bookkeeper",
     ]);
     expect(twoTitles.titles.map((t) => [t.title, t.catalogTitle, t.confidence])).toEqual([
-      ["Chief Happiness Wrangler", "Office Manager", "exact"],
-      ["Money Wizard", "Bookkeeper", "exact"],
+      ["Office Manager", "Office Manager", "exact"],
+      ["Bookkeeper", "Bookkeeper", "exact"],
       ["Cashier", "Cashier / Sales Associate", "exact"],
+      ["Bookkeeper", "Bookkeeper", "exact"],
     ]);
     expect(twoTitles.people[0].entitlements).toContain("enter_payroll");
     expect(twoTitles.issues).toEqual([]);
@@ -982,11 +1000,231 @@ describe("parseRoster", () => {
     const result = parseRoster(rows.join("\n"), general, { today });
     expect(result.people).toHaveLength(250);
     expect(result.dropped).toBe(50);
-    expect(result.issues).toEqual([{ row: 251, message: "Import truncated to 250 rows" }]);
+    expect(result.issues).toEqual([
+      {
+        row: 251,
+        message:
+          "Read the first 250 rows; 50 more rows were not read, because one import reads up to 250",
+      },
+    ]);
     expect(parseRoster(rows.slice(0, 4).join("\n"), general, { today, maxRows: 2 })).toMatchObject({
       dropped: 1,
-      issues: [{ row: 3, message: "Import truncated to 2 rows" }],
+      issues: [
+        {
+          row: 3,
+          message:
+            "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
+        },
+      ],
     });
+  });
+
+  it("reads an Oracle vet-hospital extract: the owner named only in Position Name holds the owner's seat", () => {
+    const oracle = [
+      '"Person Number","Display Name","Job Name","Position Name","Department Name","Assignment Status","Hire Date"',
+      '"1001","Holloway, Karen M.","Veterinarian","Owner & Medical Director","WCVH Administration","Active - Payroll Eligible","01-Jun-2011"',
+      '"1002","Brandt, Melissa","Hospital Manager","Hospital Manager","WCVH Administration","Active - Payroll Eligible","12-Aug-2014"',
+      '"1004","Nakamura, Daniel","Veterinarian","Associate Veterinarian","WCVH Medicine","Active - Payroll Eligible","15-Mar-2019"',
+      '"1009","Greer, Tomas","Inventory Coordinator","Inventory & Purchasing Coordinator","WCVH Operations","Active - Payroll Eligible","02-May-2020"',
+    ].join("\n");
+    const result = parseRoster(oracle, getBaseTemplate("dental"), { today });
+    // The owner's seat wins from any title column; otherwise the Job Name,
+    // Oracle's standard classification, is read before the Position Name, and
+    // the role shown is the title the duties came from.
+    expect(result.people.map((p) => [p.name, p.role])).toEqual([
+      ["Karen M. Holloway", "Owner & Medical Director"],
+      ["Melissa Brandt", "Hospital Manager"],
+      ["Daniel Nakamura", "Veterinarian"],
+      ["Tomas Greer", "Inventory Coordinator"],
+    ]);
+    expect(result.people[0].entitlements).toEqual(
+      expect.arrayContaining(["approve_payroll", "sign_checks", "manage_user_access"]),
+    );
+    expect(result.people[3].entitlements).toEqual(["receive_goods", "view_reports_only"]);
+    expect(result.titles.map((t) => t.title)).toEqual(result.people.map((p) => p.role));
+  });
+
+  it("reads a Workday export's Job Profile before its Business Title: a Patient Care Coordinator profiled as Front Desk Coordinator records payments", () => {
+    const meridian = tsv(
+      ["Employee ID", "Worker", "Business Title", "Job Profile", "Hire Date", "Active Status"],
+      ["100001", "Whitaker, Dana", "Founder & CEO", "Chief Executive Officer", "03/14/2009", "Yes"],
+      [
+        "100083",
+        "Ellison, Brianna",
+        "Patient Care Coordinator",
+        "Front Desk Coordinator",
+        "04/02/2022",
+        "Yes",
+      ],
+      [
+        "100091",
+        "Reyes-Montoya, Luis",
+        "Clinic Director - Lakeside",
+        "Clinic Director",
+        "08/15/2016",
+        "Yes",
+      ],
+    );
+    const result = parseRoster(meridian, general, { today });
+    expect(result.people.map((p) => p.role)).toEqual([
+      "Chief Executive Officer",
+      "Front Desk Coordinator",
+      "Clinic Director",
+    ]);
+    expect(result.people[1].entitlements).toEqual(
+      expect.arrayContaining(["collect_cash", "post_payments"]),
+    );
+    expect(result.people[1].entitlements).not.toContain("post_adjustments");
+    expect(result.issues).toEqual([]);
+  });
+
+  it("keeps an Oracle 'Inactive - Leave of Absence' or 'Suspended - No Payroll' worker on the team, on leave", () => {
+    const result = parseRoster(
+      [
+        '"Display Name","Job Name","Assignment Status"',
+        '"Morales, Ana","Client Service Representative","Inactive - Leave of Absence"',
+        '"Cole, Ben","Cashier","Suspended - No Payroll"',
+        '"Lam, Eve","Cashier","Inactive - Payroll Eligible"',
+        '"Tan, Gus","Cashier","Terminated - On Leave"',
+      ].join("\n"),
+      getBaseTemplate("dental"),
+      { today },
+    );
+    expect(result.people.map((p) => [p.name, p.active])).toEqual([
+      ["Ana Morales", true],
+      ["Ben Cole", true],
+      ["Eve Lam", false],
+      ["Gus Tan", false],
+    ]);
+    expect(result.onLeave).toEqual(["p-ana-morales", "p-ben-cole"]);
+    expect(result.issues.map((i) => i.message)).toEqual([
+      '"Ana Morales" is on leave (status "Inactive - Leave of Absence"); kept on the team',
+      '"Ben Cole" is on leave (status "Suspended - No Payroll"); kept on the team',
+    ]);
+  });
+
+  it("reads a past termination date with no status column as someone who has left, in US or ISO form", () => {
+    const result = parseRoster(
+      [
+        "Employee Name,Job Title,Hire Date,Termination Date",
+        "Olivia Owner,Owner,2010-01-04,",
+        "Former Person1,Bookkeeper,2015-03-01,2024-02-01",
+        "Former Person2,Cashier,2016-03-01,02/01/2024",
+        "Leaving Soon,Cashier,2016-03-01,12/31/2026",
+      ].join("\n"),
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => [p.name, p.active, p.lastDay])).toEqual([
+      ["Olivia Owner", true, undefined],
+      ["Former Person1", false, "2024-02-01"],
+      ["Former Person2", false, "2024-02-01"],
+      ["Leaving Soon", true, "2026-12-31"],
+    ]);
+    expect(result.issues.map((i) => i.message)).toEqual([
+      '"Former Person1" left on 2024-02-01, so is read as no longer working here',
+      '"Former Person2" left on 2024-02-01, so is read as no longer working here',
+    ]);
+
+    // A status column outranks an old date: a rehire keeps working here.
+    const rehired = parseRoster(
+      "Employee Name,Job Title,Status,Termination Date\nRita Rehire,Cashier,Active,03/01/2019",
+      general,
+      { today },
+    );
+    expect(rehired.people[0]).toMatchObject({ active: true });
+    expect(rehired.people[0].lastDay).toBeUndefined();
+    expect(rehired.issues.map((i) => i.message)).toEqual([
+      '"Rita Rehire" has a past last day (2019-03-01) but an active status; the last day was not kept',
+    ]);
+  });
+
+  it("skips the run stamp under a QuickBooks Desktop Employee Details report", () => {
+    const result = parseRoster(
+      [
+        "Pinecrest Auto Repair",
+        "Employee Details",
+        "All Dates",
+        "",
+        "Employee\tJob Title\tStatus\tHire Date",
+        "Hutchins, Dale\tOwner\tActive\t04/01/2005",
+        "Farrow, Linda\tBookkeeper (Part-Time)\tActive\t10/01/2018",
+        "",
+        "Tuesday, Sep 23, 2026 09:14 AM GMT-04:00",
+      ].join("\n"),
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => p.name)).toEqual(["Dale Hutchins", "Linda Farrow"]);
+    expect(result.issues.map((i) => i.message)).toContain(
+      'Skipped a footer row: "Tuesday, Sep 23, 2026 09:14 AM GMT-04:00"',
+    );
+    for (const stamp of [
+      "Friday, March 1, 2024 11:48:12 AM GMT-8",
+      "Accrual basis  Tuesday, September 23, 2026 09:14 AM GMT-04:00",
+      "09/23/2026 9:14 AM",
+    ]) {
+      const other = parseRoster(`Employee,Job Title\nAna Ruiz,Owner\n${stamp}`, general, { today });
+      expect(other.people.map((p) => p.name)).toEqual(["Ana Ruiz"]);
+    }
+  });
+
+  it("skips a QuickBooks Online 'TOTAL, 9 employees' footer and its weekday date stamp", () => {
+    const result = parseRoster(
+      [
+        "Riverbend Food Pantry",
+        "Employee Directory",
+        "As of September 23, 2026",
+        "",
+        "Name,Title,Department,Status,Hire Date",
+        "Marguerite Okafor-Lindqvist,Executive Director (ED),Administration,Active,03/01/2012",
+        "Rosa Delgado,Administrative Assistant,Administration,Active,06/15/2021",
+        "",
+        "TOTAL,9 employees",
+        "",
+        "Wednesday, September 23, 2026 09:14 AM GMT-04:00",
+      ].join("\n"),
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => p.name)).toEqual([
+      "Marguerite Okafor-Lindqvist",
+      "Rosa Delgado",
+    ]);
+    expect(result.issues.map((i) => i.message)).toEqual(
+      expect.arrayContaining([
+        'Skipped a footer row: "TOTAL"',
+        'Skipped a footer row: "Wednesday, September 23, 2026 09:14 AM GMT-04:00"',
+      ]),
+    );
+  });
+
+  it("strips a right-to-left override and other bidi controls from pasted names and titles", () => {
+    const result = parseRoster(
+      "\u202EAdam Evans, Bookkeeper\nCal Diaz, Cashier\u200F\nDee\u2066 Park\u2069, Server\u0007",
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => [p.name, p.role])).toEqual([
+      ["Adam Evans", "Bookkeeper"],
+      ["Cal Diaz", "Cashier"],
+      ["Dee Park", "Server"],
+    ]);
+  });
+
+  it("says how many rows of a 5,000-row paste were read, how many were not, and why", () => {
+    const rows = ["Name,Title,Status,Hire Date"];
+    for (let i = 0; i < 5000; i++) rows.push(`Person ${i},Cashier,Active,01/01/2020`);
+    const result = parseRoster(rows.join("\n"), general, { today });
+    expect(result.people).toHaveLength(250);
+    expect(result.dropped).toBe(4750);
+    expect(result.issues).toEqual([
+      {
+        row: 251,
+        message:
+          "Read the first 250 rows; 4750 more rows were not read, because one import reads up to 250",
+      },
+    ]);
   });
 
   it("returns nothing for empty text", () => {
