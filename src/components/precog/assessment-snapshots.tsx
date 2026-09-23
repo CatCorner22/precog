@@ -33,7 +33,10 @@ export function AssessmentSnapshots() {
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<AssessmentSnapshotSummary[]>([]);
+  // A save, restore, compare or delete in flight; listing has its own flag so
+  // a refresh never reads as "Saving…" or disables the Save button.
   const [busy, setBusy] = useState(false);
+  const [listing, setListing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<{
     title: string;
@@ -41,18 +44,21 @@ export function AssessmentSnapshots() {
     result: ReturnType<typeof compareAssessmentStates>;
   } | null>(null);
 
+  // Keyed on the id: the user object is rebuilt on every render, and a
+  // dependency on it re-requested the list without end.
+  const userId = user?.id;
   const refresh = useCallback(async () => {
-    if (!user) return;
-    setBusy(true);
+    if (!userId) return;
+    setListing(true);
     setError(null);
     try {
       setItems(await listAssessmentSnapshots());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load snapshots");
     } finally {
-      setBusy(false);
+      setListing(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     void refresh();
@@ -84,6 +90,7 @@ export function AssessmentSnapshots() {
         },
       });
       setTitle("");
+      setBusy(false);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save snapshot");
@@ -282,10 +289,10 @@ export function AssessmentSnapshots() {
                 size="sm"
                 variant="ghost"
                 onClick={() => void refresh()}
-                disabled={busy}
+                disabled={busy || listing}
                 aria-label="Refresh snapshots"
               >
-                <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+                <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -423,7 +430,7 @@ export function AssessmentSnapshots() {
                   {error}
                 </p>
               )}
-              {!busy && items.length === 0 && (
+              {!listing && items.length === 0 && (
                 <p className="text-sm text-muted">No saved assessments yet.</p>
               )}
               {items.map((item) => (

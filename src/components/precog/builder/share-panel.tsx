@@ -43,12 +43,23 @@ export function SharePanel({
   >(null);
   const [latest, setLatest] = useState<string | null>(null);
 
+  // Keyed on the id: the user object is rebuilt on every render, and a
+  // dependency on it re-requested the list without end.
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
+    let cancelled = false;
     void listMapShares()
-      .then(setLinks)
-      .catch(() => setLinks([]));
-  }, [user]);
+      .then((list) => {
+        if (!cancelled) setLinks(list);
+      })
+      .catch(() => {
+        if (!cancelled) setLinks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const urlFor = (token: string) => `${origin}/share/${token}`;
