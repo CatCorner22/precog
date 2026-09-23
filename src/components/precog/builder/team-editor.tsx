@@ -76,10 +76,38 @@ export function TeamEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importIssues, setImportIssues] = useState<PeopleImportIssue[]>([]);
   const [showPaste, setShowPaste] = useState(false);
+  const [howMany, setHowMany] = useState(1);
   const [paste, setPaste] = useState("");
   const csvInputRef = useRef<HTMLInputElement>(null);
   const useCustom = role === "__custom";
   const catalogChoice = role.startsWith("catalog:") ? jobCatalogEntry(role.slice(8)) : undefined;
+
+  /** Add several people with one catalog title and placeholder names, for a fast first pass. */
+  function addSeveral() {
+    if (!catalogChoice) return;
+    const count = Math.max(1, Math.min(20, howMany));
+    const existing = people.filter((p) => p.role === catalogChoice.title).length;
+    const added: Person[] = [];
+    const taken = new Set(people.map((p) => p.id));
+    for (let i = 0; i < count; i += 1) {
+      const personName = `${catalogChoice.title.split(" / ")[0]} ${existing + i + 1}`;
+      let id = `p-${slug(personName)}`;
+      let n = 2;
+      while (taken.has(id)) id = `p-${slug(personName)}-${n++}`;
+      taken.add(id);
+      added.push({
+        id,
+        name: personName,
+        role: catalogChoice.title,
+        active: true,
+        entitlements: [...catalogChoice.entitlements],
+      });
+    }
+    onChange([...people, ...added]);
+    toast.success(
+      `Added ${count} ${catalogChoice.title}${count === 1 ? "" : "s"}; rename them when you can.`,
+    );
+  }
 
   function add() {
     const finalRole = (useCustom ? customRole : catalogChoice ? catalogChoice.title : role).trim();
@@ -346,9 +374,25 @@ export function TeamEditor({
         />
       </div>
       {catalogChoice && (
-        <p className="text-[11px] text-muted">
-          {catalogChoice.note} Duties can be changed after adding.
-        </p>
+        <div className="space-y-1.5">
+          <p className="text-[11px] text-muted">
+            {catalogChoice.description} {catalogChoice.note} Duties can be changed after adding.
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              className={cn(inputCls, "w-16")}
+              type="number"
+              min={1}
+              max={20}
+              value={howMany}
+              onChange={(e) => setHowMany(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+              aria-label="How many to add"
+            />
+            <Button size="sm" variant="secondary" onClick={addSeveral}>
+              <Plus className="size-3.5" /> Add {howMany} with placeholder names
+            </Button>
+          </div>
+        </div>
       )}
       {useCustom && (
         <>

@@ -6,12 +6,19 @@ import { usePractice } from "@/lib/precog/practice-context";
 import {
   CORE_DUTIES,
   OWN_TEAM_MAX,
+  rowsForJobTitle,
   buildOwnTeam,
   coreDutyLabel,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { JOB_CATALOG, matchJobTitle } from "@/lib/precog/onboarding/job-catalog";
+import {
+  JOB_CATALOG,
+  JOB_FAMILY_LABEL,
+  matchJobTitle,
+  type JobFamily,
+} from "@/lib/precog/onboarding/job-catalog";
+import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { parseRoster } from "@/lib/precog/import/roster";
 import { ROLE_TEMPLATES } from "@/lib/precog/sod/detect";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +67,22 @@ export function IndustryOnboarding() {
 
   const [paste, setPaste] = useState("");
   const [pasteNote, setPasteNote] = useState("");
+  const [quickTitle, setQuickTitle] = useState(JOB_CATALOG[0]?.id ?? "");
+  const [quickCount, setQuickCount] = useState(1);
+  const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
+
+  /** Add N people with one job title and its usual duties; names are placeholders. */
+  function addByTitle() {
+    if (!quickEntry) return;
+    setRows((current) => {
+      const kept = current.filter((r) => r.name.trim().length > 0);
+      const sameTitle = kept.filter((r) => r.role === quickEntry.title).length;
+      return [...kept, ...rowsForJobTitle(quickEntry, quickCount, sameTitle)].slice(
+        0,
+        OWN_TEAM_MAX,
+      );
+    });
+  }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
   const coreSet = new Set<string>(CORE_DUTIES);
@@ -282,6 +305,60 @@ export function IndustryOnboarding() {
                     </Button>
                     {pasteNote && <p className="text-xs text-muted">{pasteNote}</p>}
                   </div>
+                </div>
+              </details>
+
+              <details className="rounded-xl border border-border bg-elevated/50 p-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  No roster handy? Add people by job title
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs text-muted">
+                    Pick a common job, say how many, and rows appear with placeholder names and that
+                    job's usual duties ticked. Rename them as you go.
+                  </p>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="text-muted">Job title</span>
+                      <select
+                        className={cn(inputCls, "w-64")}
+                        value={quickTitle}
+                        onChange={(e) => setQuickTitle(e.target.value)}
+                      >
+                        {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => (
+                          <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
+                            {JOB_CATALOG.filter((j) => j.family === family).map((j) => (
+                              <option key={j.id} value={j.id}>
+                                {j.title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs">
+                      <span className="text-muted">How many</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        className={cn(inputCls, "w-20")}
+                        value={quickCount}
+                        onChange={(e) =>
+                          setQuickCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
+                        }
+                      />
+                    </label>
+                    <Button size="sm" onClick={addByTitle} disabled={!quickEntry}>
+                      Add {quickCount} {quickCount === 1 ? "person" : "people"}
+                    </Button>
+                  </div>
+                  {quickEntry && (
+                    <p className="text-xs text-subtle">
+                      {quickEntry.description} {quickEntry.note}
+                    </p>
+                  )}
+                  <JobCatalogSheet />
                 </div>
               </details>
 

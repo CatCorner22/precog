@@ -32,7 +32,13 @@ export type JobFamily =
   | "it"
   | "people"
   | "legal"
-  | "professional";
+  | "professional"
+  | "hospitality"
+  | "automotive"
+  | "property"
+  | "nonprofit"
+  | "marketing"
+  | "education";
 
 export interface JobCatalogEntry {
   id: string;
@@ -46,6 +52,12 @@ export interface JobCatalogEntry {
   entitlements: readonly EntitlementId[];
   /** One sentence on why, so the owner can disagree with a reason in front of them. */
   note: string;
+  /**
+   * What the job does, in one plain sentence: the standard description an HR
+   * system's job profile would carry. Where a SOC code is recorded this
+   * paraphrases the Bureau of Labor Statistics definition.
+   */
+  description: string;
 }
 
 export const JOB_FAMILY_LABEL: Record<JobFamily, string> = {
@@ -61,6 +73,12 @@ export const JOB_FAMILY_LABEL: Record<JobFamily, string> = {
   people: "Human resources",
   legal: "Legal",
   professional: "Professional and project staff",
+  hospitality: "Hotels and hospitality",
+  automotive: "Auto dealership and service",
+  property: "Property and real estate",
+  nonprofit: "Nonprofit and association",
+  marketing: "Marketing and communications",
+  education: "Education and childcare",
 };
 
 const entry = (
@@ -71,9 +89,17 @@ const entry = (
   entitlements: readonly EntitlementId[],
   note: string,
   soc?: string,
-): JobCatalogEntry => ({ id, title, family, aliases, entitlements, note, ...(soc ? { soc } : {}) });
+): Omit<JobCatalogEntry, "description"> => ({
+  id,
+  title,
+  family,
+  aliases,
+  entitlements,
+  note,
+  ...(soc ? { soc } : {}),
+});
 
-export const JOB_CATALOG: readonly JobCatalogEntry[] = [
+const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
   // Owners and managers
   entry(
     "owner",
@@ -262,6 +288,8 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "vp of finance",
       "accounting manager",
       "head of finance",
+      "assistant controller",
+      "accounting supervisor",
     ],
     [
       "approve_vendor",
@@ -487,7 +515,6 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "front desk coordinator",
       "front desk receptionist",
       "front desk associate",
-      "front desk agent",
       "front office coordinator",
       "front office",
       "patient coordinator",
@@ -828,7 +855,6 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "counter server",
       "food runner",
       "runner",
-      "delivery driver",
       "catering server",
       "banquet server",
     ],
@@ -873,8 +899,6 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "service coordinator",
       "service dispatcher",
       "scheduling dispatcher",
-      "service writer",
-      "service advisor",
       "fleet coordinator",
     ],
     ["edit_patient_master", "collect_cash", "view_reports_only"],
@@ -900,7 +924,6 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "hvac tech",
       "mechanic",
       "auto technician",
-      "driver",
       "operator",
       "equipment operator",
       "carpenter",
@@ -1092,7 +1115,892 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ["view_reports_only"],
     "Fee-earning staff usually hold no money duty; tick collect payment if they take it at the chair or the desk.",
   ),
+  // Hotels and hospitality
+  entry(
+    "hotel-front-desk",
+    "Hotel Front Desk Agent",
+    "hospitality",
+    [
+      "hotel front desk",
+      "front desk agent",
+      "desk clerk",
+      "guest services agent",
+      "guest service agent",
+      "guest services representative",
+      "guest service representative",
+      "reservations agent",
+      "reservationist",
+      "reservations",
+    ],
+    ["collect_cash", "post_payments", "issue_refunds", "edit_patient_master", "view_reports_only"],
+    "A desk agent takes payment, posts it to the folio, adjusts the folio, and can refund; the folio is the record and the money together.",
+    "43-4081",
+  ),
+  entry(
+    "night-auditor",
+    "Night Auditor",
+    "hospitality",
+    ["night auditor", "night audit", "night audit clerk", "overnight front desk"],
+    ["post_payments", "post_adjustments", "bank_reconcile", "view_reports_only"],
+    "The night auditor posts the day's charges and balances them, alone and overnight: the one seat that both writes the day's record and checks it.",
+  ),
+  entry(
+    "housekeeping-supervisor",
+    "Housekeeping Supervisor",
+    "hospitality",
+    [
+      "housekeeping supervisor",
+      "executive housekeeper",
+      "housekeeping manager",
+      "head housekeeper",
+      "housekeeper",
+      "room attendant",
+      "janitorial supervisor",
+      "custodial supervisor",
+    ],
+    ["order_supplies", "enter_payroll", "view_reports_only"],
+    "Housekeeping orders supplies and submits the crew's hours; the check is that someone else approves the run.",
+    "37-1011",
+  ),
+  entry(
+    "hotel-manager",
+    "Hotel / Lodging Manager",
+    "hospitality",
+    [
+      "hotel manager",
+      "lodging manager",
+      "resort manager",
+      "innkeeper",
+      "hospitality manager",
+      "rooms division manager",
+    ],
+    [
+      "approve_writeoffs",
+      "issue_refunds",
+      "prepare_deposit",
+      "approve_vendor",
+      "enter_payroll",
+      "manage_user_access",
+      "view_reports_only",
+    ],
+    "A lodging manager approves rate adjustments and refunds, banks the deposit, approves suppliers, and holds the property system's admin.",
+  ),
+
+  // Auto dealership and service
+  entry(
+    "service-advisor",
+    "Service Advisor / Writer",
+    "automotive",
+    ["service advisor", "service writer", "service consultant", "shop advisor"],
+    [
+      "collect_cash",
+      "post_adjustments",
+      "approve_writeoffs",
+      "edit_patient_master",
+      "view_reports_only",
+    ],
+    "A service advisor writes the repair order, adjusts it, grants goodwill, and takes the customer's payment at the counter.",
+  ),
+  entry(
+    "parts",
+    "Parts Manager / Counter",
+    "automotive",
+    [
+      "parts manager",
+      "parts counter",
+      "parts specialist",
+      "parts advisor",
+      "parts clerk",
+      "parts associate",
+    ],
+    ["order_supplies", "receive_goods", "collect_cash", "view_reports_only"],
+    "Parts orders stock, receives it, and sells it over the counter, which is ordering, receiving, and cash in one seat.",
+  ),
+  entry(
+    "fi-manager",
+    "Finance and Insurance Manager",
+    "automotive",
+    [
+      "f&i manager",
+      "f and i manager",
+      "finance and insurance manager",
+      "finance & insurance manager",
+      "f&i",
+      "dealership finance manager",
+    ],
+    ["collect_cash", "approve_writeoffs", "edit_patient_master", "view_reports_only"],
+    "The F&I office takes down payments, structures the deal, and adjusts what the customer pays; the deal jacket is the control.",
+  ),
+  entry(
+    "title-clerk",
+    "Title / Deal Clerk",
+    "automotive",
+    ["title clerk", "deal clerk", "dmv clerk", "tag and title clerk", "deal processor"],
+    ["post_payments", "post_adjustments", "view_reports_only"],
+    "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the record is written.",
+  ),
+
+  // Property and real estate
+  entry(
+    "property-manager",
+    "Property Manager",
+    "property",
+    [
+      "property manager",
+      "community manager",
+      "community association manager",
+      "association manager",
+      "hoa manager",
+      "apartment manager",
+      "leasing manager",
+      "portfolio manager",
+      "asset manager",
+    ],
+    [
+      "collect_cash",
+      "post_payments",
+      "approve_vendor",
+      "release_payment",
+      "approve_writeoffs",
+      "view_reports_only",
+    ],
+    "A property manager collects rent, posts it, chooses and pays the contractors, and writes off balances: custody, recording, and approval in one seat.",
+  ),
+  entry(
+    "leasing-agent",
+    "Leasing Agent",
+    "property",
+    [
+      "leasing agent",
+      "leasing consultant",
+      "leasing specialist",
+      "rental agent",
+      "leasing associate",
+    ],
+    ["collect_cash", "edit_patient_master", "view_reports_only"],
+    "A leasing agent takes deposits and application fees and sets up the tenant record.",
+  ),
+  entry(
+    "real-estate-agent",
+    "Real Estate Agent / Broker",
+    "property",
+    [
+      "real estate agent",
+      "realtor",
+      "real estate broker",
+      "broker",
+      "real estate salesperson",
+      "listing agent",
+      "buyer's agent",
+    ],
+    ["collect_cash", "view_reports_only"],
+    "An agent handles earnest money and fees on the way to escrow; the control is that deposits go to the trust account the same day.",
+    "41-9022",
+  ),
+  entry(
+    "transaction-coordinator",
+    "Transaction / Closing Coordinator",
+    "property",
+    [
+      "transaction coordinator",
+      "closing coordinator",
+      "escrow assistant",
+      "escrow officer",
+      "closing agent",
+      "settlement agent",
+    ],
+    ["post_payments", "edit_patient_master", "view_reports_only"],
+    "A closing coordinator records the funds that move through a transaction and maintains the parties' records.",
+  ),
+
+  // Nonprofit and association
+  entry(
+    "executive-director",
+    "Executive Director",
+    "nonprofit",
+    [
+      "executive director",
+      "ed",
+      "nonprofit director",
+      "association executive",
+      "chief executive (nonprofit)",
+    ],
+    [
+      "approve_vendor",
+      "approve_payroll",
+      "approve_writeoffs",
+      "sign_checks",
+      "manage_user_access",
+      "view_reports_only",
+    ],
+    "An executive director approves suppliers, payroll, and write-offs and signs; a board treasurer who reads the statement is the check.",
+  ),
+  entry(
+    "development-director",
+    "Development / Fundraising",
+    "nonprofit",
+    [
+      "development director",
+      "director of development",
+      "fundraising manager",
+      "fundraiser",
+      "development coordinator",
+      "development associate",
+      "donor relations",
+      "advancement director",
+      "major gifts officer",
+      "membership coordinator",
+      "membership manager",
+    ],
+    ["collect_cash", "edit_patient_master", "view_reports_only"],
+    "Development receives gifts and maintains donor records; a gift that reaches the donor database but not the bank is the case pattern.",
+  ),
+  entry(
+    "grants-manager",
+    "Grants Manager",
+    "nonprofit",
+    [
+      "grants manager",
+      "grant writer",
+      "grants coordinator",
+      "grant administrator",
+      "grants administrator",
+      "grant manager",
+    ],
+    ["submit_claims", "view_reports_only"],
+    "A grants manager bills funders for reimbursement, which is a claim against a payer.",
+  ),
+  entry(
+    "board-treasurer",
+    "Board Treasurer",
+    "nonprofit",
+    [
+      "board treasurer",
+      "volunteer treasurer",
+      "finance committee chair",
+      "board member",
+      "trustee",
+      "director (board)",
+    ],
+    ["sign_checks", "bank_reconcile", "approve_payroll", "view_reports_only"],
+    "A volunteer treasurer signs and reads the statement; when the treasurer also keeps the books there is no second reader.",
+  ),
+  entry(
+    "volunteer-coordinator",
+    "Volunteer / Program Coordinator",
+    "nonprofit",
+    [
+      "volunteer coordinator",
+      "volunteer manager",
+      "outreach coordinator",
+      "community coordinator",
+      "program coordinator",
+      "program assistant",
+      "case worker",
+      "social worker",
+    ],
+    ["view_reports_only"],
+    "Program staff hold no money duty; they appear on the map for continuity.",
+  ),
+
+  // Marketing and communications
+  entry(
+    "marketing",
+    "Marketing / Communications",
+    "marketing",
+    [
+      "marketing manager",
+      "marketing director",
+      "director of marketing",
+      "marketing coordinator",
+      "marketing specialist",
+      "marketing",
+      "marketing associate",
+      "social media manager",
+      "social media coordinator",
+      "content manager",
+      "communications manager",
+      "communications director",
+      "communications coordinator",
+      "digital marketing manager",
+      "brand manager",
+      "cmo",
+      "chief marketing officer",
+      "public relations",
+      "pr manager",
+    ],
+    ["enter_invoices", "release_payment", "view_reports_only"],
+    "Marketing runs agency, print, and ad-platform spend, often on a card the owner never itemises.",
+    "11-2021",
+  ),
+
+  // Insurance, tax, lending
+  entry(
+    "insurance-agent",
+    "Insurance Agent / Producer",
+    "sales",
+    [
+      "insurance agent",
+      "insurance producer",
+      "producer",
+      "insurance broker",
+      "agency owner",
+      "insurance account manager",
+      "insurance csr",
+    ],
+    ["collect_cash", "edit_patient_master", "view_reports_only"],
+    "An agent takes premiums and maintains the policyholder record; premium diversion is the case pattern.",
+    "41-3021",
+  ),
+  entry(
+    "tax-preparer",
+    "Tax Preparer",
+    "finance",
+    [
+      "tax preparer",
+      "tax professional",
+      "tax associate",
+      "tax senior",
+      "enrolled agent",
+      "tax advisor",
+    ],
+    ["collect_cash", "view_reports_only"],
+    "A preparer takes the client's fee; the refund itself should never pass through the firm.",
+    "13-2082",
+  ),
+  entry(
+    "auditor",
+    "Auditor",
+    "finance",
+    [
+      "auditor",
+      "staff auditor",
+      "audit senior",
+      "audit associate",
+      "internal auditor",
+      "audit manager",
+    ],
+    ["review_audit_logs", "view_reports_only"],
+    "An auditor reads the logs and the records and should hold no transaction duty.",
+  ),
+  entry(
+    "loan-officer",
+    "Loan Officer / Processor",
+    "finance",
+    [
+      "loan officer",
+      "mortgage loan officer",
+      "loan processor",
+      "underwriter",
+      "credit officer",
+      "lending officer",
+      "mortgage broker",
+    ],
+    ["edit_patient_master", "view_reports_only"],
+    "Lending staff maintain the borrower record; funding and disbursement belong to someone else.",
+  ),
+
+  // Pharmacy and health administration
+  entry(
+    "pharmacist",
+    "Pharmacist",
+    "clinical",
+    ["pharmacist", "pharmacy manager", "pharmacist in charge", "pic", "clinical pharmacist"],
+    ["order_supplies", "receive_goods", "approve_writeoffs", "view_reports_only"],
+    "The pharmacist orders stock, receives it, and approves adjustments; controlled-substance counts are the added control.",
+  ),
+  entry(
+    "pharmacy-technician",
+    "Pharmacy Technician",
+    "clinical",
+    [
+      "pharmacy technician",
+      "pharmacy tech",
+      "cpht",
+      "pharmacy clerk",
+      "pharmacy assistant",
+      "pharmacy cashier",
+    ],
+    ["collect_cash", "submit_claims", "receive_goods", "view_reports_only"],
+    "A technician rings the sale, adjudicates the claim, and often checks in the order.",
+  ),
+  entry(
+    "medical-coder",
+    "Medical Coder",
+    "clinical",
+    [
+      "medical coder",
+      "coder",
+      "coding specialist",
+      "cpc",
+      "certified professional coder",
+      "medical records coder",
+    ],
+    ["submit_claims", "post_adjustments", "view_reports_only"],
+    "A coder decides what is billed and adjusts what was denied.",
+  ),
+  entry(
+    "billing-manager",
+    "Billing / Revenue Cycle Manager",
+    "clinical",
+    [
+      "billing manager",
+      "revenue cycle manager",
+      "patient accounts manager",
+      "ar manager",
+      "accounts receivable manager",
+      "business office manager (medical)",
+    ],
+    [
+      "submit_claims",
+      "post_payments",
+      "post_adjustments",
+      "approve_writeoffs",
+      "issue_refunds",
+      "view_reports_only",
+    ],
+    "A billing manager bills, posts, adjusts, writes off, and refunds: the whole receivable in one seat.",
+  ),
+  entry(
+    "credentialing",
+    "Credentialing / Provider Enrollment",
+    "clinical",
+    [
+      "credentialing specialist",
+      "credentialing coordinator",
+      "provider enrollment specialist",
+      "provider enrollment",
+      "credentialing",
+    ],
+    ["view_reports_only"],
+    "Credentialing keeps providers enrolled with payers and holds no money duty.",
+  ),
+
+  // Education and childcare
+  entry(
+    "center-director",
+    "Center / School Director",
+    "education",
+    [
+      "center director",
+      "childcare director",
+      "daycare director",
+      "preschool director",
+      "school director",
+      "head of school",
+      "academy director",
+      "site director",
+    ],
+    [
+      "collect_cash",
+      "prepare_deposit",
+      "approve_vendor",
+      "enter_payroll",
+      "manage_user_access",
+      "view_reports_only",
+    ],
+    "A director takes tuition, makes the deposit, approves suppliers, and submits hours, usually with no one above them on site.",
+  ),
+  entry(
+    "teacher",
+    "Teacher / Caregiver",
+    "education",
+    [
+      "teacher",
+      "lead teacher",
+      "assistant teacher",
+      "teacher assistant",
+      "teacher aide",
+      "tutor",
+      "childcare worker",
+      "caregiver",
+      "aide",
+      "educator",
+      "paraprofessional",
+    ],
+    ["view_reports_only"],
+    "Teaching staff hold no money duty; they appear on the map for continuity.",
+  ),
+
+  // Field, fleet, projects, facilities
+  entry(
+    "driver",
+    "Driver / Delivery",
+    "trades",
+    [
+      "driver",
+      "delivery driver",
+      "truck driver",
+      "cdl driver",
+      "courier",
+      "route driver",
+      "route sales",
+      "route salesperson",
+      "delivery",
+    ],
+    ["collect_cash", "view_reports_only"],
+    "A driver who collects on delivery holds cash and checks until the route settles.",
+  ),
+  entry(
+    "fleet-manager",
+    "Fleet / Logistics Manager",
+    "trades",
+    [
+      "fleet manager",
+      "transportation manager",
+      "logistics manager",
+      "dispatch manager",
+      "distribution manager",
+      "routing manager",
+    ],
+    ["approve_vendor", "order_supplies", "receive_goods", "enter_payroll", "view_reports_only"],
+    "A fleet manager approves fuel, repair, and equipment suppliers and submits drivers' hours.",
+  ),
+  entry(
+    "project-accountant",
+    "Project / Job Cost Accountant",
+    "finance",
+    [
+      "project accountant",
+      "job cost accountant",
+      "construction accountant",
+      "job cost",
+      "project controller",
+      "billing accountant",
+    ],
+    [
+      "post_journal_entries",
+      "enter_invoices",
+      "post_adjustments",
+      "submit_claims",
+      "view_reports_only",
+    ],
+    "A project accountant bills progress, enters subcontractor invoices, and posts the entries that move cost between jobs.",
+  ),
+  entry(
+    "contracts-administrator",
+    "Contracts Administrator",
+    "professional",
+    [
+      "contracts administrator",
+      "contract administrator",
+      "contracts manager",
+      "contract manager",
+      "subcontract administrator",
+      "procurement administrator",
+    ],
+    ["create_vendor", "approve_vendor", "enter_invoices", "view_reports_only"],
+    "A contracts administrator sets up and approves subcontractors and enters their invoices against the contract.",
+  ),
+  entry(
+    "compliance",
+    "Compliance / Quality / Safety",
+    "professional",
+    [
+      "compliance officer",
+      "compliance manager",
+      "compliance specialist",
+      "risk manager",
+      "quality manager",
+      "quality assurance manager",
+      "qa manager",
+      "safety manager",
+      "safety coordinator",
+      "ehs manager",
+      "privacy officer",
+      "security officer (compliance)",
+    ],
+    ["review_audit_logs", "view_reports_only"],
+    "Compliance reads the logs and tests the controls and should hold no transaction duty.",
+  ),
+  entry(
+    "facilities",
+    "Facilities / Maintenance Manager",
+    "trades",
+    [
+      "facilities manager",
+      "facility manager",
+      "building manager",
+      "maintenance manager",
+      "maintenance supervisor",
+      "plant engineer",
+      "building engineer",
+      "facilities coordinator",
+    ],
+    ["order_supplies", "receive_goods", "approve_vendor", "enter_invoices", "view_reports_only"],
+    "Facilities chooses the contractors, orders the parts, confirms the work, and enters the invoice.",
+  ),
+  entry(
+    "security",
+    "Security / Loss Prevention",
+    "retail",
+    [
+      "security guard",
+      "security officer",
+      "loss prevention",
+      "loss prevention officer",
+      "asset protection",
+      "asset protection associate",
+      "security",
+    ],
+    ["view_reports_only"],
+    "Security watches the premises and the registers and holds no money duty of its own.",
+    "33-9032",
+  ),
+
+  // Retail and restaurant additions
+  entry(
+    "ecommerce",
+    "E-commerce / Fulfillment",
+    "retail",
+    [
+      "e-commerce specialist",
+      "ecommerce specialist",
+      "ecommerce manager",
+      "e-commerce manager",
+      "online sales",
+      "marketplace manager",
+      "fulfillment associate",
+      "fulfillment specialist",
+      "order fulfillment",
+      "fulfillment",
+    ],
+    ["issue_refunds", "post_adjustments", "view_reports_only"],
+    "Online fulfilment issues refunds and credits against orders nobody else sees.",
+  ),
+  entry(
+    "merchandiser",
+    "Merchandiser / Category Manager",
+    "retail",
+    [
+      "visual merchandiser",
+      "merchandiser",
+      "merchandising manager",
+      "category manager",
+      "planner",
+      "allocator",
+    ],
+    ["order_supplies", "view_reports_only"],
+    "A merchandiser decides what is bought; receiving and paying belong to others.",
+  ),
+  entry(
+    "catering-manager",
+    "Catering / Events Manager",
+    "food",
+    [
+      "catering manager",
+      "events manager",
+      "event manager",
+      "event coordinator",
+      "banquet manager",
+      "sales and catering",
+      "catering sales",
+      "private events",
+    ],
+    ["collect_cash", "post_adjustments", "approve_writeoffs", "view_reports_only"],
+    "Events takes deposits, adjusts the bill, and comps: money and its record in one seat, usually off the main register.",
+  ),
+  entry(
+    "kitchen-staff",
+    "Kitchen Staff",
+    "food",
+    [
+      "dishwasher",
+      "kitchen staff",
+      "kitchen assistant",
+      "kitchen porter",
+      "steward",
+      "kitchen helper",
+      "food prep",
+      "prep",
+    ],
+    ["view_reports_only"],
+    "Kitchen staff hold no money duty; they appear on the map for continuity.",
+  ),
+
+  // General
+  entry(
+    "intern",
+    "Intern / Volunteer",
+    "professional",
+    ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice (office)"],
+    ["view_reports_only"],
+    "An intern holds no money duty by default; tick anything they actually do.",
+  ),
 ];
+
+/**
+ * The standard description of each job, in one plain sentence. Kept apart
+ * from the entries so the whole set can be read and corrected in one place.
+ * Where the entry carries a SOC code the sentence paraphrases the Bureau of
+ * Labor Statistics definition; elsewhere it is this app's wording.
+ */
+const DESCRIPTIONS: Record<string, string> = {
+  owner:
+    "Owns the business, sets its policies, and holds final authority over spending, hiring, and pay.",
+  "general-manager":
+    "Plans, directs, and coordinates the operations of the business, including budgeting, purchasing, and staffing, without a single functional specialty.",
+  "office-manager":
+    "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
+  "store-manager":
+    "Supervises and coordinates the retail staff of a store or department, including purchasing, budgeting, and cash handling.",
+  "restaurant-manager":
+    "Runs the dining room and the shift: seats and serves guests, closes the register, approves voids, schedules staff, and orders stock.",
+  "shift-lead":
+    "Leads a shift or a station, opens and closes the register, and stands in for the manager when none is present.",
+  controller:
+    "Plans, directs, and coordinates the accounting, reporting, and banking of the business and prepares its financial statements.",
+  accountant:
+    "Examines, analyzes, and interprets accounting records, prepares financial statements, and posts the entries that keep the ledger true.",
+  bookkeeper:
+    "Computes, classifies, and records financial transactions, keeps the ledger, and in a small business also pays bills and runs payroll.",
+  "accounts-payable":
+    "Enters supplier invoices, sets up suppliers, matches invoices to orders and receipts, and prepares payments for release.",
+  "accounts-receivable":
+    "Records customer payments, follows up on unpaid balances, and posts the adjustments and credits that settle accounts.",
+  billing:
+    "Compiles and posts charges, prepares invoices or claims, and posts what comes back from customers and payers.",
+  payroll:
+    "Compiles employee time and pay data, enters and processes payroll, and maintains the employee records payroll reads from.",
+  treasurer:
+    "Manages the cash of the business: signs or releases payments, moves funds between accounts, and reconciles the bank.",
+  purchasing:
+    "Buys goods and services for the business, selects and sets up suppliers, and places and follows orders.",
+  receiving: "Verifies and records incoming and outgoing shipments and keeps the inventory count.",
+  receptionist:
+    "Greets and directs callers and visitors, schedules, takes payments at the desk, and keeps customer or patient records.",
+  "administrative-assistant":
+    "Performs routine administrative work such as correspondence, scheduling, filing, ordering supplies, and answering calls.",
+  "executive-assistant":
+    "Provides high-level administrative support to the owner or executive, including correspondence, scheduling, travel, and often the executive's expenses.",
+  "insurance-coordinator":
+    "Verifies coverage and eligibility, submits and follows claims, and adjusts balances to what the payer allowed.",
+  "treatment-coordinator":
+    "Presents treatment plans and fees, arranges financing, takes payment, and keeps the patient's plan current.",
+  "customer-service":
+    "Handles customer inquiries, complaints, orders, returns, and account changes, and issues refunds and credits within limits.",
+  sales:
+    "Sells the business's products or services, manages customer accounts, and grants discounts and credits to close and keep business.",
+  cashier: "Receives and disburses money at a register, records the sale, and makes change.",
+  provider:
+    "Delivers the clinical or professional service the business sells and approves courtesy adjustments on their own work.",
+  "dental-hygienist":
+    "Provides preventive dental care, cleans teeth, examines patients for oral disease, and educates patients on oral hygiene.",
+  "dental-assistant":
+    "Performs limited clinical duties under the direction of a dentist, prepares patients and instruments, and assists chairside.",
+  "medical-assistant":
+    "Performs clinical and administrative tasks under a provider's direction, including intake, vitals, charting, and specimen handling.",
+  "medical-secretary":
+    "Performs secretarial duties using knowledge of medical terminology: schedules, registers patients, takes copays, and files claims.",
+  "clinic-director":
+    "Plans, directs, and coordinates the medical or clinical services of a practice or clinic and its staff.",
+  chef: "Directs food preparation and the kitchen staff, plans menus, and orders and receives food and supplies.",
+  server:
+    "Takes orders and serves food and drink to guests, presents the check, and collects payment.",
+  bartender:
+    "Mixes and serves drinks, takes payment at the bar, and keeps the bar's stock and drawer.",
+  "bar-manager":
+    "Runs the bar: orders and receives liquor, sets the pour, schedules bar staff, and closes the bar's drawer.",
+  estimator: "Prepares cost estimates and prices for jobs, bids, and change orders.",
+  dispatcher:
+    "Schedules and dispatches technicians and drivers, keeps customer and job records, and takes payments by phone.",
+  "field-technician":
+    "Performs the trade or service work in the field or on site and may collect payment from the customer on completion.",
+  foreman:
+    "Supervises and coordinates the crew on site, orders and receives materials, and approves the crew's hours.",
+  "it-administrator":
+    "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
+  hr: "Recruits, hires, and onboards staff, maintains employee records, and administers pay changes and benefits.",
+  paralegal:
+    "Assists attorneys by preparing documents, organizing files, and handling client billing and payments.",
+  attorney:
+    "Represents clients, gives legal advice, and is responsible for the matters and the fees billed on them.",
+  "project-manager":
+    "Plans and delivers projects, manages the budget and the subcontractors, and approves work and invoices against it.",
+  consultant:
+    "Delivers professional, technical, or personal services to clients and bills time or fees for the work.",
+  "hotel-front-desk":
+    "Registers guests, assigns rooms, keeps guest accounts, makes and confirms reservations, and collects payment at checkout.",
+  "night-auditor":
+    "Works the overnight desk, posts the day's charges and payments, and balances the day's accounts before the morning shift.",
+  "housekeeping-supervisor":
+    "Supervises and coordinates the cleaning staff, inspects rooms and areas, and orders cleaning supplies.",
+  "hotel-manager":
+    "Plans, directs, and coordinates the operations of a hotel or lodging property and its staff.",
+  "service-advisor":
+    "Greets service customers, writes the repair order, quotes and adjusts the work, and takes payment.",
+  parts: "Orders, receives, stocks, and sells parts over the counter and to the shop.",
+  "fi-manager":
+    "Arranges financing and sells protection products on vehicle sales, structures the deal, and collects down payments.",
+  "title-clerk":
+    "Processes the paperwork on vehicle sales: titles, registrations, and the posting of the deal to the books.",
+  "property-manager":
+    "Manages residential or commercial property for owners: collects rent, hires and pays contractors, and keeps the accounts.",
+  "leasing-agent":
+    "Shows units, takes applications, deposits, and fees, and sets up tenant records.",
+  "real-estate-agent":
+    "Rents, buys, or sells property for clients, shows listings, negotiates terms, and handles earnest money to escrow.",
+  "transaction-coordinator":
+    "Manages the documents, deadlines, and funds of a real estate transaction from contract to closing.",
+  "executive-director":
+    "Leads a nonprofit or association, directs its programs and staff, and holds final authority over its spending.",
+  "development-director":
+    "Raises funds from donors, members, and events and maintains the donor and member records.",
+  "grants-manager":
+    "Finds, writes, and administers grants and bills funders for reimbursable costs.",
+  "board-treasurer":
+    "Serves on the board, oversees the finances, signs or approves payments, and reviews the bank statements.",
+  "volunteer-coordinator":
+    "Recruits and schedules volunteers and delivers the organization's programs.",
+  marketing:
+    "Plans and runs marketing and communications, manages agencies and ad spend, and maintains the brand.",
+  "insurance-agent": "Sells insurance policies, services policyholders, and collects premiums.",
+  "tax-preparer": "Prepares tax returns for individuals or small businesses and collects the fee.",
+  auditor:
+    "Examines records and controls, tests transactions, and reports findings; holds no transaction duty.",
+  "loan-officer":
+    "Evaluates, authorizes, or recommends approval of loan applications and maintains borrower records.",
+  pharmacist:
+    "Dispenses medications, counsels patients, manages inventory including controlled substances, and supervises technicians.",
+  "pharmacy-technician":
+    "Prepares medications under a pharmacist's supervision, rings sales, and processes insurance claims.",
+  "medical-coder":
+    "Assigns diagnosis and procedure codes for billing and resolves denied or adjusted claims.",
+  "billing-manager":
+    "Manages the revenue cycle: claims, posting, adjustments, write-offs, refunds, and the billing staff.",
+  credentialing: "Enrolls and re-credentials providers with payers and licensing bodies.",
+  "center-director":
+    "Directs a childcare center or school: enrollment, tuition, staffing, suppliers, and compliance.",
+  teacher: "Teaches or cares for children or students and holds no financial duty.",
+  driver: "Drives delivery or service routes and may collect payment on delivery.",
+  "fleet-manager": "Manages vehicles, drivers, routing, fuel, and repair suppliers.",
+  "project-accountant":
+    "Tracks cost and billing by job or project, bills progress, and posts the entries that allocate cost.",
+  "contracts-administrator":
+    "Prepares, sets up, and administers contracts and subcontracts and their invoices.",
+  compliance:
+    "Monitors compliance with laws, standards, and internal policy; tests controls and reads the logs.",
+  facilities:
+    "Maintains buildings and equipment, hires and directs contractors, and orders parts and supplies.",
+  security:
+    "Guards, patrols, or monitors premises to prevent theft, violence, or infractions of rules.",
+  ecommerce: "Runs online sales channels and fulfils orders, including returns and refunds.",
+  merchandiser: "Plans and selects the products the business carries and how they are presented.",
+  "catering-manager": "Sells and runs catered events, takes deposits, and settles event bills.",
+  "kitchen-staff":
+    "Prepares ingredients, washes, and supports the kitchen; holds no financial duty.",
+  intern: "Works in a temporary or learning role and holds no financial duty unless assigned one.",
+};
+
+export const JOB_CATALOG: readonly JobCatalogEntry[] = RAW_CATALOG.map((e) => ({
+  ...e,
+  description: DESCRIPTIONS[e.id] ?? "",
+}));
+
+/** Ids in the catalog with no description, for the tests. */
+export function jobCatalogMissingDescriptions(): string[] {
+  return JOB_CATALOG.filter((e) => !e.description).map((e) => e.id);
+}
 
 /** Words that describe seniority or schedule, not the job. */
 const NOISE_TOKENS = new Set([

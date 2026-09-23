@@ -35,11 +35,15 @@ included, and a plain list with one person per line as `Name, Title`:
 Comma, tab, and semicolon delimiters are detected. A hire date becomes years
 of service; an inactive or terminated status keeps the person off the map.
 
-Job titles are read through a catalog of about forty common small-business
+Job titles are read through a catalog of about eighty-five common small-business
 titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office
 manager, AP specialist, payroll administrator, front desk, cashier, server,
-foreman, IT administrator, and so on, with the seniority and schedule words
-ignored. Each title carries the money duties it typically holds in a business
+foreman, IT administrator, night auditor, service advisor, property manager,
+development director, and so on, with the seniority and schedule words ignored.
+Each entry carries a one-sentence standard description of the job and a
+reason for its starting duties, and the whole sheet can be read from the
+onboarding step. With no roster to paste, "Add people by job title" creates
+numbered placeholder rows for any title and count. Each title carries the money duties it typically holds in a business
 of two to fifty people, so every person lands with duties ticked and the
 duty-conflict findings appear at once. Where a title corresponds to one
 occupation in the U.S. Bureau of Labor Statistics Standard Occupational
