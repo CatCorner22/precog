@@ -5,7 +5,7 @@ import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
 import { validateSharePayload } from "./share-schema";
-import { passcodeLocked, recordPasscodeFailure } from "./share-attempts";
+import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
 import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
 
@@ -110,9 +110,13 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    // Owner-triggered housekeeping: view logs are kept for a bounded period only.
+    // Owner-triggered housekeeping: view and failed-guess logs are kept for a
+    // bounded period only.
     await purgeOldShareViews(sql).catch((error) =>
       console.error("Failed to purge old share views", error),
+    );
+    await purgeOldPasscodeAttempts(sql).catch((error) =>
+      console.error("Failed to purge old passcode attempts", error),
     );
     // Every live link, then the newest revoked or expired ones: a live link
     // that dropped off the list could not be revoked from the app.
@@ -170,24 +174,24 @@ export const loadMapShare = createServerFn({ method: "POST" })
     if (row.passcode_hash) {
       if (!data.passcode) return { found: false as const, reason: "passcode" as const };
       // Two limits: the per-process limiter answers fast; the per-token count
-      // in Postgres holds across instances and cold starts.
+      // in Postgres holds across instances and cold starts. The guess takes
+      // its place in that count before the passcode is hashed, in one
+      // statement, so concurrent guesses cannot all slip under the limit.
       const attempt = passcodeLimiter.take(requestIp());
       if (!attempt.allowed) return { found: false as const, reason: "rate_limited" as const };
-      if (await passcodeLocked(sql, row.token))
-        return { found: false as const, reason: "rate_limited" as const };
-      const expected = Buffer.from(row.passcode_hash, "hex");
-      // Asynchronous: a guess must not block the event loop for every other request.
-      const actual = await new Promise<Buffer>((resolve, reject) =>
-        scrypt(data.passcode as string, row.passcode_salt ?? "", expected.length, (err, key) =>
-          err ? reject(err) : resolve(key),
-        ),
-      );
-      if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-        await recordPasscodeFailure(sql, row.token, ipHash).catch((error) =>
-          console.error("Failed to record a passcode failure", error),
+      const passcodeHash = row.passcode_hash;
+      const guess = await checkPasscodeGuess(sql, row.token, ipHash, async () => {
+        const expected = Buffer.from(passcodeHash, "hex");
+        // Asynchronous: a guess must not block the event loop for every other request.
+        const actual = await new Promise<Buffer>((resolve, reject) =>
+          scrypt(data.passcode as string, row.passcode_salt ?? "", expected.length, (err, key) =>
+            err ? reject(err) : resolve(key),
+          ),
         );
-        return { found: false as const, reason: "passcode_wrong" as const };
-      }
+        return expected.length === actual.length && timingSafeEqual(expected, actual);
+      });
+      if (guess === "locked") return { found: false as const, reason: "rate_limited" as const };
+      if (guess === "wrong") return { found: false as const, reason: "passcode_wrong" as const };
     }
     try {
       await sql`
