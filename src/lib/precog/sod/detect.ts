@@ -317,8 +317,17 @@ function directRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefine
  */
 const CHANNEL_OF: Partial<Record<EntitlementId, EntitlementId>> = {
   initiate_ach: "release_payment",
+  sign_checks: "release_payment",
   prepare_deposit: "collect_cash",
 };
+
+/**
+ * The ways money leaves the account. Two of them held together are one power
+ * (sending money out), not a pair: signing a check and releasing a payment is
+ * one act, and a check signer who also initiates ACH has not approved their
+ * own transfer.
+ */
+const PAYMENT_CHANNELS = new Set<EntitlementId>(["release_payment", "initiate_ach", "sign_checks"]);
 
 /** A rule a pair of duties falls under, with the duties the person actually holds in the rule's two seats. */
 interface RuleMatch {
@@ -332,6 +341,7 @@ interface RuleMatch {
 }
 
 function viaChannel(x: EntitlementId, y: EntitlementId): RuleMatch | undefined {
+  if (PAYMENT_CHANNELS.has(x) && PAYMENT_CHANNELS.has(y)) return undefined;
   const channel = CHANNEL_OF[x];
   if (!channel || channel === y) return undefined;
   const rule = directRule(channel, y);
@@ -453,6 +463,7 @@ function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
  */
 function familyPair(a: EntitlementId, b: EntitlementId): boolean {
   if (ACCESS_DUTIES.has(a) && ACCESS_DUTIES.has(b)) return false;
+  if (PAYMENT_CHANNELS.has(a) && PAYMENT_CHANNELS.has(b)) return false;
   return familiesConflict(entFamily(a), entFamily(b)) && sharesProcess(a, b);
 }
 
@@ -730,7 +741,10 @@ export function detectSodConflicts(
       });
     }
 
-    for (let i = 0; i < ents.length; i++) {
+    // The catch-all is for pairs no rule names. For the sole owner, whose
+    // named pairs are already listed as owner-held, a vaguer "one pair of
+    // hands" finding about their own business says nothing an owner can act on.
+    for (let i = 0; i < (owner ? 0 : ents.length); i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
         const b = ents[j];
@@ -797,12 +811,14 @@ export function detectSodConflicts(
     }
   }
 
-  // Severity first, so a named high pair never sits below a family catch-all;
-  // an owner-held pair sits below every employee's at the same severity.
+  // Every employee's finding before any owner-held pair, whatever the
+  // severity: an owner cannot steal from themselves, so a critical label on
+  // their own pair must not push an employee's open high pair down the list.
+  // Then severity, so a named high pair never sits below a family catch-all.
   conflicts.sort(
     (a, b) =>
-      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
       Number(a.ownerHeld) - Number(b.ownerHeld) ||
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
       b.score - a.score ||
       (rawScores.get(b.id) ?? b.score) - (rawScores.get(a.id) ?? a.score) ||
       a.id.localeCompare(b.id),
@@ -856,16 +872,7 @@ export function detectSodConflicts(
   if (held.has("initiate_ach") || held.has("sign_checks")) held.add("release_payment");
   const unheldDuties = UNHELD_WATCH.filter((d) => !held.has(d));
 
-  // Every conflict adds pressure. A dual-release rule narrows a pair rather
-  // than closing it, and an owner-held pair is error rather than theft, so
-  // each counts at a fraction; neither can make the index rise when added.
-  const pressure =
-    conflicts.reduce((total, c) => {
-      const weight = PRESSURE_WEIGHT[c.severity];
-      const factor = (c.dualReleaseMitigated ? 0.35 : 1) * (c.ownerHeld ? 0.5 : 1);
-      return total + weight * factor;
-    }, 0) +
-    openWithoutAcceptance * 1.5;
+  const pressure = segregationPressure(conflicts);
   // Linear down to 50, then a decay that never hits a floor: every demo team
   // and most real small offices carry pressure above 100, and a fixed floor
   // (formerly 5) hid the movement when an owner fixed a conflict.
@@ -954,6 +961,53 @@ export function detectSodConflicts(
     },
     recommendations,
   };
+}
+
+/**
+ * How much conflict a team carries, counted per distinct gap rather than per
+ * person. The index ranks control design: eight front-desk staff who each
+ * take and record payments are one gap (the front desk posts its own
+ * takings), not eight, while one bookkeeper holding five different critical
+ * pairs is five gaps. Counting per person made a well-run 43-person clinic
+ * score below a 5-person shop whose bookkeeper could steal end to end.
+ *
+ * Each gap counts its severity weight once for the most exposed holder, plus
+ * a quarter of the weight for each doubling of the other holders
+ * (log2), so more people in a flagged seat still lower the index, slowly. A
+ * dual-release rule narrows a pair rather than closing it (×0.35), and an
+ * owner-held pair is error rather than theft (×0.5). A gap with a holder
+ * whose risk nobody has accepted adds 1.5 on the same basis. Adding a
+ * conflict never raises the index. This is an index this app defines, not a
+ * measurement.
+ */
+export function segregationPressure(conflicts: readonly DetectedConflict[]): number {
+  const gaps = new Map<string, DetectedConflict[]>();
+  for (const c of conflicts) {
+    const key = c.severity === "family" ? `family:${c.entitlementA}:${c.entitlementB}` : c.ruleId;
+    gaps.set(key, [...(gaps.get(key) ?? []), c]);
+  }
+  // m + 0.25 × log2(1 + (sum − m)): the largest share in full, the rest slowly.
+  const spread = (factors: number[]) => {
+    if (factors.length === 0) return 0;
+    const top = Math.max(...factors);
+    const rest = factors.reduce((sum, f) => sum + f, 0) - top;
+    return top + 0.25 * Math.log2(1 + rest);
+  };
+  let total = 0;
+  for (const holders of gaps.values()) {
+    const weight = PRESSURE_WEIGHT[holders[0].severity];
+    total +=
+      weight *
+      spread(holders.map((c) => (c.dualReleaseMitigated ? 0.35 : 1) * (c.ownerHeld ? 0.5 : 1)));
+    total +=
+      1.5 *
+      spread(
+        holders
+          .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated && !c.ownerHeld)
+          .map(() => 1),
+      );
+  }
+  return total;
 }
 
 /**

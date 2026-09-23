@@ -617,3 +617,115 @@ describe("family catch-all", () => {
     expect(family?.title).toBe("Two master-record duties held by one person");
   });
 });
+
+describe("cash, refund, void and journal-entry rules", () => {
+  it.each([
+    [["collect_cash", "approve_writeoffs"], "rule-cash-void"],
+    [["prepare_deposit", "approve_writeoffs"], "rule-cash-void"],
+    [["collect_cash", "issue_refunds"], "rule-cash-refund"],
+    [["prepare_deposit", "issue_refunds"], "rule-cash-refund"],
+    [["issue_refunds", "post_payments"], "rule-refund-post"],
+    [["release_payment", "post_journal_entries"], "rule-release-je"],
+    [["initiate_ach", "post_journal_entries"], "rule-release-je"],
+    [["edit_payroll_master", "release_payment"], "rule-payroll-master-release"],
+  ])("flags %j as %s", (duties, ruleId) => {
+    const report = detectSodConflicts(oneClerk(duties));
+    expect(report.conflicts.map((c) => c.ruleId)).toContain(ruleId);
+  });
+});
+
+describe("signing checks is releasing payments", () => {
+  it.each([
+    [["approve_vendor", "sign_checks"], "rule-vendor-approve-pay", "high"],
+    [["create_vendor", "sign_checks"], "rule-vendor-create-pay", "critical"],
+    [["enter_invoices", "sign_checks"], "rule-invoice-pay", "critical"],
+    [["enter_payroll", "sign_checks"], "rule-payroll-release", "high"],
+  ])("reads %j through %s", (duties, ruleId, severity) => {
+    const report = detectSodConflicts(oneClerk(duties));
+    const found = report.conflicts.find((c) => c.ruleId === ruleId);
+    expect(found?.severity).toBe(severity);
+    expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
+  });
+
+  it("does not pair two ways of sending money out", () => {
+    for (const duties of [
+      ["sign_checks", "release_payment"],
+      ["sign_checks", "initiate_ach"],
+    ]) {
+      expect(detectSodConflicts(oneClerk(duties)).conflicts).toEqual([]);
+    }
+  });
+});
+
+describe("the owner's findings", () => {
+  it("gives the sole owner no vaguer catch-all about their own business", () => {
+    const report = detectSodConflicts(
+      team([{ role: "Owner", duties: ["release_payment", "sign_checks", "order_supplies"] }]),
+    );
+    expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
+  });
+
+  it("lists every employee finding before an owner-held critical pair", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["collect_cash", "bank_reconcile"] },
+        { role: "Bookkeeper", duties: ["prepare_deposit", "post_payments"] },
+      ]),
+    );
+    const order = report.conflicts.map((c) => `${c.ownerHeld ? "owner" : "staff"}:${c.severity}`);
+    expect(order).toEqual(["staff:high", "owner:critical"]);
+  });
+});
+
+describe("segregation health counts distinct gaps", () => {
+  const frontDesk = (n: number) =>
+    Array.from({ length: n }, () => ({
+      role: "Front Desk",
+      duties: ["collect_cash", "post_payments"],
+    }));
+
+  it("scores a large clinic with one repeated front-desk gap above a shop whose bookkeeper holds everything", () => {
+    const clinic = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
+        ...frontDesk(8),
+        { role: "Billing", duties: ["post_adjustments"] },
+        { role: "AP Clerk", duties: ["enter_invoices"] },
+        { role: "Controller", duties: ["release_payment", "bank_reconcile"] },
+      ]),
+    ).summary.segregationHealth;
+    const shop = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll"] },
+        {
+          role: "Bookkeeper",
+          duties: [
+            "post_payments",
+            "prepare_deposit",
+            "bank_reconcile",
+            "release_payment",
+            "create_vendor",
+            "enter_invoices",
+          ],
+        },
+      ]),
+    ).summary.segregationHealth;
+    expect(clinic).toBeGreaterThan(shop + 20);
+  });
+
+  it("lowers the index only slowly as more people hold the same flagged seat", () => {
+    const one = detectSodConflicts(team(frontDesk(1))).summary.segregationHealth;
+    const eight = detectSodConflicts(team(frontDesk(8))).summary.segregationHealth;
+    expect(eight).toBeLessThan(one);
+    expect(one - eight).toBeLessThan(10);
+  });
+
+  it("never rises when a conflict is added", () => {
+    let previous = 101;
+    for (let n = 1; n <= 12; n++) {
+      const health = detectSodConflicts(team(frontDesk(n))).summary.segregationHealth;
+      expect(health).toBeLessThanOrEqual(previous);
+      previous = health;
+    }
+  });
+});

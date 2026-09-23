@@ -601,7 +601,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 8,
     detection: "unknown",
     resolvedYear: 2014,
-    sodRuleIds: ["rule-collect-post", "rule-collect-adjust", "rule-deposit-post"],
+    sodRuleIds: ["rule-collect-post", "rule-collect-adjust", "rule-deposit-post", "rule-cash-void"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -1013,7 +1013,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 172,
     detection: "unknown",
     resolvedYear: 2013,
-    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-ach-release"],
+    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-ach-release", "rule-release-je"],
     wouldHaveCaughtIt: [
       {
         control: "payee-account-not-an-employee",
@@ -1195,7 +1195,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-payroll", "rule-payroll-release", "rule-ach-release"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-release", "rule-ach-release", "rule-release-je"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",

@@ -230,26 +230,32 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   "rounded-xl border px-3 py-3 text-sm",
                   c.dualReleaseMitigated
                     ? "border-ok/30 bg-ok/5"
-                    : c.severity === "critical"
-                      ? "border-danger/30 bg-danger/5"
-                      : c.severity === "high"
-                        ? "border-warn/30 bg-warn/5"
-                        : "border-border bg-elevated",
+                    : c.ownerHeld
+                      ? "border-border bg-elevated"
+                      : c.severity === "critical"
+                        ? "border-danger/30 bg-danger/5"
+                        : c.severity === "high"
+                          ? "border-warn/30 bg-warn/5"
+                          : "border-border bg-elevated",
                 )}
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* An owner-held pair is error and tax exposure, not theft: it
+                      carries a neutral badge, not the severity colour. */}
                   <Badge
                     variant={
                       c.dualReleaseMitigated
                         ? "ok"
-                        : c.severity === "critical"
-                          ? "danger"
-                          : c.severity === "high"
-                            ? "warn"
-                            : "default"
+                        : c.ownerHeld
+                          ? "default"
+                          : c.severity === "critical"
+                            ? "danger"
+                            : c.severity === "high"
+                              ? "warn"
+                              : "default"
                     }
                   >
-                    {c.severity} · {c.score}
+                    {c.ownerHeld ? `Owner-held · ${c.score}` : `${c.severity} · ${c.score}`}
                   </Badge>
                   {c.dualReleaseMitigated && <Badge variant="ok">Dual release mitigates</Badge>}
                   {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}

@@ -29,6 +29,9 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   "SoD: payments vs reconciliation" lower the findings linked to it, so
  *   those findings sit lower in the deck (and the professional-services
  *   index stays at 90).
+ * - A manager who prepares the deposit and approves voids or write-offs is
+ *   flagged ("Take payments + approve voids or write-offs"), and it enters
+ *   the dental and restaurant decks.
  */
 const PINNED: Record<
   string,
@@ -76,7 +79,7 @@ const PINNED: Record<
       "ctrl-c-sod-cash:87:84",
       "ctrl-c-sod-ap:87:84",
       "ctrl-c-cash:85:81",
-      "sod-rule-payroll-release:83:78",
+      "sod-rule-cash-void:83:78",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k3:79:91",
@@ -230,7 +233,7 @@ const PINNED: Record<
       "ctrl-c-sod-cash:88:86",
       "ctrl-c-sod-ap:88:86",
       "ctrl-c-cash:86:83",
-      "sod-rule-payroll-release:83:78",
+      "sod-rule-cash-void:83:78",
       "ctrl-c-sod-billing:82:76",
       "scen-sc-vendor-fraud:80:91",
       "know-k5:79:91",

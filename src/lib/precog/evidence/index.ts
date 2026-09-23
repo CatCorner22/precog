@@ -49,6 +49,16 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   // Take the payment, then void, credit, or write off the balance it settled.
   "rule-collect-adjust": ["skimming", "cash-larceny", "receivables-diversion"],
   "rule-deposit-post": ["receivables-diversion", "skimming"],
+  // Take the payment, then approve the void or write-off that cancels it.
+  "rule-cash-void": ["skimming", "cash-larceny"],
+  // Refund a sale that never happened, from the till or to your own card.
+  "rule-cash-refund": ["refund-fraud", "cash-larceny"],
+  // Record a credit or overpayment, then refund it.
+  "rule-refund-post": ["refund-fraud", "receivables-diversion"],
+  // Send the money out and post the entry that balances the books around it.
+  "rule-release-je": ["check-tampering", "financial-statement"],
+  // Put a ghost or a new bank account on payroll and release the payment.
+  "rule-payroll-master-release": ["payroll"],
   "rule-writeoff": ["skimming", "receivables-diversion"],
   "rule-claims-writeoff": ["billing-shell-vendor", "financial-statement"],
   "rule-vendor-create-pay": ["billing-shell-vendor"],
