@@ -25,10 +25,16 @@ function unwrapMarkdownTable(text: string): string {
     .join("\n");
 }
 
+/** Words a list's title line uses and a person's name does not: "Staff List", "Team Roster". */
+const LIST_TITLE =
+  /\b(list|roster|staff|team|employees?|people|crew|directory|report|members?|personnel|workers?|payroll|schedule|contacts)\b|\d|:$/i;
+
 /**
- * Reads a headerless list, one person per line. A one-word first line above
- * lines that split into several parts is a title such as "Employees", not a
- * person, and is skipped.
+ * Reads a headerless list, one person per line. A one-cell first line above
+ * lines that split into several parts is a title, not a person, and is
+ * skipped when it is one word ("Employees") or reads as a list's title
+ * ("Staff List", "Team Roster", "As of 09/01/2026"); a lone name such as
+ * "Ana Ruiz" stays a person.
  */
 function parseList(
   text: string,
@@ -37,8 +43,12 @@ function parseList(
 ): PeopleImportResult {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
   const rows = lines.map(splitListLine);
+  const first = rows[0]?.[0] ?? "";
   const titleLine =
-    rows.length > 1 && rows[0].length === 1 && !/\s/.test(rows[0][0]) && rows[1].length > 1
+    rows.length > 1 &&
+    rows[0].length === 1 &&
+    rows[1].length > 1 &&
+    (!/\s/.test(first) || LIST_TITLE.test(first))
       ? lines[0].trim()
       : undefined;
   const dataRows = titleLine ? rows.slice(1) : rows;

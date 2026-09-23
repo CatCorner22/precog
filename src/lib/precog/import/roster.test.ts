@@ -353,7 +353,7 @@ describe("parseRoster", () => {
       { today },
     );
     expect(suffixes.people.map((p) => p.name)).toEqual([
-      "Ruiz, Ana, Jr.",
+      "Ana Ruiz Jr.",
       "Sam Lee III",
       "Jane Roe, DDS",
       "Dr. Ken Ito",
@@ -667,7 +667,7 @@ describe("parseRoster", () => {
     ]);
   });
 
-  it("splits a list line on a spaced dash before the comma, then on pipes, colons, parentheses and quoted commas", () => {
+  it("splits a Last, First list line on the dash, then on pipes, colons, parentheses and quoted commas", () => {
     const dash = parseRoster(
       "Smith, John - Bookkeeper\nRoe, Jane, DDS - Dentist\nOchoa, Ben - Office Manager\nDee Park - Front Desk - Admin\nMary-Jane Smith - Server",
       general,
@@ -675,7 +675,7 @@ describe("parseRoster", () => {
     );
     expect(dash.people.map((p) => [p.name, p.role, p.department ?? ""])).toEqual([
       ["John Smith", "Bookkeeper", ""],
-      ["Roe, Jane, DDS", "Dentist", ""],
+      ["Jane Roe, DDS", "Dentist", ""],
       ["Ben Ochoa", "Office Manager", ""],
       ["Dee Park", "Front Desk", "Admin"],
       ["Mary-Jane Smith", "Server", ""],
@@ -729,6 +729,104 @@ describe("parseRoster", () => {
       today,
     });
     expect(staff.people.map((p) => p.name)).toEqual(["Ana Ruiz", "Ben Ochoa", "Cal Diaz"]);
+  });
+
+  it("reads a first-name restaurant list whose titles are Team Member, Staff or Employee", () => {
+    const restaurant = parseRoster(
+      "Jose, Team Member\nMaria, Team Member\nAna, Shift Lead\nTom, Cook",
+      general,
+      { today },
+    );
+    expect(restaurant.people.map((p) => [p.name, p.role])).toEqual([
+      ["Jose", "Team Member"],
+      ["Maria", "Team Member"],
+      ["Ana", "Shift Lead"],
+      ["Tom", "Cook"],
+    ]);
+    expect(restaurant.people[2].entitlements).toEqual(
+      expect.arrayContaining(["collect_cash", "prepare_deposit"]),
+    );
+    expect(restaurant.skipped).toBe(0);
+    const mixed = parseRoster(
+      "Jose, Server\nMaria, Team Member\nAna, Shift Lead\nTom, Line Cook\nmaria lopez, Staff\nLee, Employee",
+      general,
+      { today },
+    );
+    expect(mixed.people.map((p) => p.name)).toEqual([
+      "Jose",
+      "Maria",
+      "Ana",
+      "Tom",
+      "maria lopez",
+      "Lee",
+    ]);
+    expect(mixed.issues.some((issue) => issue.message.startsWith("Skipped"))).toBe(false);
+  });
+
+  it("keeps a title that contains a dash whole in a tab or comma list", () => {
+    const tabs = parseRoster(
+      "Ana Ruiz\tFront Desk - Evenings\nBen Cole\tBookkeeper\nCal Diaz\tServer - Weekends",
+      general,
+      { today },
+    );
+    expect(tabs.people.map((p) => [p.name, p.role])).toEqual([
+      ["Ana Ruiz", "Front Desk - Evenings"],
+      ["Ben Cole", "Bookkeeper"],
+      ["Cal Diaz", "Server - Weekends"],
+    ]);
+    expect(tabs.people[0].entitlements).toEqual(
+      expect.arrayContaining(["collect_cash", "post_payments"]),
+    );
+    const commas = parseRoster(
+      "Ana Ruiz, Office Manager - Main St\nBen Cole, Front Desk - Evenings\nAna Ruiz, Server (Weekends)\nRuiz, Dee (Owner)\nRuiz Lopez, Eva - Cook",
+      general,
+      { today },
+    );
+    expect(commas.people.map((p) => [p.name, p.role])).toEqual([
+      ["Ana Ruiz", "Office Manager - Main St"],
+      ["Ben Cole", "Front Desk - Evenings"],
+      ["Ana Ruiz", "Server (Weekends)"],
+      ["Dee Ruiz", "Owner"],
+      ["Eva Ruiz Lopez", "Cook"],
+    ]);
+  });
+
+  it("skips a Staff List or Team Roster title line above a list and keeps a lone name", () => {
+    for (const title of ["Staff List", "Team Roster", "Employee Directory", "As of 09/01/2026"]) {
+      const result = parseRoster(
+        `${title}\nAna Ruiz, Office Manager\nBen Cole, Bookkeeper`,
+        general,
+        {
+          today,
+        },
+      );
+      expect(
+        result.people.map((p) => p.name),
+        title,
+      ).toEqual(["Ana Ruiz", "Ben Cole"]);
+      expect(result.issues[0], title).toEqual({
+        row: 0,
+        message: `Skipped 1 line at the top: "${title}"`,
+      });
+    }
+    const lone = parseRoster("Ana Ruiz\nBen Cole, Bookkeeper", general, { today });
+    expect(lone.people.map((p) => p.name)).toEqual(["Ana Ruiz", "Ben Cole"]);
+  });
+
+  it("keeps company names as written and moves suffixes after the reordered name", () => {
+    const result = parseRoster(
+      'Employee Name,Job Title\n"Smith, Jones & Co",Outside Bookkeeper\n"Acme Payroll, Inc.",Payroll\n"Diaz, Cal III",Cashier\n"Cole, Ben, CPA",Accountant\n"Smith, John, Jr.",Server\n"de la Cruz, Maria",Host',
+      general,
+      { today },
+    );
+    expect(result.people.map((p) => p.name)).toEqual([
+      "Smith, Jones & Co",
+      "Acme Payroll, Inc.",
+      "Cal Diaz III",
+      "Ben Cole, CPA",
+      "John Smith Jr.",
+      "Maria de la Cruz",
+    ]);
   });
 
   it("skips a one-word title line above a list", () => {

@@ -334,6 +334,56 @@ const NAME_SUFFIXES = new Set([
   "ea",
 ]);
 
+/** Generation suffixes stay part of the name ("Ana Ruiz Jr."); credentials follow a comma ("Ben Cole, CPA"). */
+const GENERATION_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
+
+/** Lower-case words that begin a surname: "de la Cruz", "van Dyke". */
+const SURNAME_PARTICLES = new Set([
+  "de",
+  "del",
+  "della",
+  "di",
+  "da",
+  "dos",
+  "du",
+  "la",
+  "le",
+  "van",
+  "von",
+  "der",
+  "den",
+  "ter",
+  "st",
+  "bin",
+  "ibn",
+  "al",
+  "el",
+]);
+
+/** Words that make a cell a company's name, which is never reordered: "Acme Payroll, Inc.". */
+const COMPANY_WORDS = new Set([
+  "inc",
+  "incorporated",
+  "llc",
+  "llp",
+  "lp",
+  "ltd",
+  "limited",
+  "co",
+  "corp",
+  "corporation",
+  "company",
+  "pc",
+  "pllc",
+  "plc",
+  "gmbh",
+  "group",
+  "associates",
+  "partners",
+  "holdings",
+  "services",
+]);
+
 /** First cell of a report footer row: totals, counts, page numbers, run stamps. */
 const FOOTER_PATTERN =
   /^((grand |sub ?)?totals?\b|count[:\s]*\d+\b|page \d+|report (generated|date|run)|generated (on|by|at)|printed (on|by)|end of (report|list)|record count|\d+ (records?|rows?|employees?|people|workers?)\b)/i;
@@ -372,11 +422,6 @@ function hasHeaderWord(cell: string): boolean {
     .toLowerCase()
     .split(/[^a-z]+/);
   return tokens.some((token) => HEADER_WORDS.has(token.replace(/s$/, "")));
-}
-
-/** Two to four capitalised words, as a person's name is written. */
-function looksLikePersonName(value: string): boolean {
-  return /^\p{Lu}[\p{L}'’.-]*(\s+\p{Lu}[\p{L}'’.-]*){1,3}$/u.test(value);
 }
 
 /** Letters and digits only, accents dropped, so "José" and "Jose" are one person. */
@@ -440,13 +485,59 @@ function isTrue(value: string): boolean {
   return TRUE_WORDS.includes(value.trim().toLowerCase());
 }
 
-/** "Ruiz, Ana" becomes "Ana Ruiz"; a credential after the comma ("Roe, DDS") stays as written. */
+/** A name part as a lower-case word with its dots dropped: "Jr." is "jr". */
+function wordKey(value: string): string {
+  return value.toLowerCase().replace(/\./g, "").trim();
+}
+
+const NAME_WORD = /^\p{L}[\p{L}'’.-]*$/u;
+
+/** One to three words of letters, as given names are written: "Ana", "Ana Maria", "Ana M.". */
+function looksLikeGivenNames(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= 3 && words.every((w) => NAME_WORD.test(w));
+}
+
+/**
+ * A surname: one to three words of letters ("Ruiz", "Ruiz Lopez", "de la
+ * Cruz"). Strict allows only one word after any particles, for a list line
+ * where "Ana Ruiz, Groomer" must stay a name and a title.
+ */
+function looksLikeSurname(value: string, strict = false): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length < 1 || words.length > 3 || !words.every((w) => NAME_WORD.test(w))) return false;
+  return !strict || words.slice(0, -1).every((w) => SURNAME_PARTICLES.has(wordKey(w)));
+}
+
+function namesCompany(value: string): boolean {
+  return value.includes("&") || value.split(/[\s,]+/).some((w) => COMPANY_WORDS.has(wordKey(w)));
+}
+
+/**
+ * "Ruiz, Ana" becomes "Ana Ruiz", "Diaz, Cal III" becomes "Cal Diaz III",
+ * "Ruiz, Ana, Jr." becomes "Ana Ruiz Jr." and "Cole, Ben, CPA" becomes "Ben
+ * Cole, CPA". A credential alone after the comma ("Jane Roe, DDS"), a
+ * company ("Acme Payroll, Inc.", "Smith, Jones & Co") and anything else that
+ * does not read as a surname and given names stay as written.
+ */
 function reorderLastFirst(name: string): string {
-  const parts = name.split(",");
-  if (parts.length !== 2 || /\d/.test(name)) return name;
-  const [last, first] = parts.map((part) => part.trim());
-  if (!last || !first || NAME_SUFFIXES.has(first.toLowerCase().replace(/\./g, ""))) return name;
-  return `${first} ${last}`;
+  if (/\d/.test(name) || namesCompany(name)) return name;
+  const parts = name.split(",").map((part) => part.trim());
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !part)) return name;
+  const [last, given, credential] = parts;
+  if (NAME_SUFFIXES.has(wordKey(given))) return name;
+  if (credential !== undefined && !NAME_SUFFIXES.has(wordKey(credential))) return name;
+  const givenWords = given.split(/\s+/);
+  const trailing: string[] = [];
+  while (givenWords.length > 1 && GENERATION_SUFFIXES.has(wordKey(givenWords.at(-1)!))) {
+    trailing.unshift(givenWords.pop()!);
+  }
+  if (!looksLikeSurname(last) || !looksLikeGivenNames(givenWords.join(" "))) return name;
+  const reordered = [...givenWords, last, ...trailing].join(" ");
+  if (credential === undefined) return reordered;
+  return GENERATION_SUFFIXES.has(wordKey(credential))
+    ? `${reordered} ${credential}`
+    : `${reordered}, ${credential}`;
 }
 
 const MONTHS = [
@@ -631,17 +722,24 @@ export function parsePeopleCsv(
   return parsePeopleRows(parseRows(text, sniffDelimiter(text)), tpl, opts);
 }
 
+/** A first cell that numbers the rows rather than naming anyone: "#", "No.". */
+function isIndexCell(value: string): boolean {
+  return !/\p{L}/u.test(value) || /^(no|nr|num)\.?$/i.test(value);
+}
+
 /**
  * True when a row is a header the importer understands: it names a name
  * column, first and last name columns, or three or more known column words.
- * A row whose first cell reads as a person's name is data, even when a later
- * cell is a name alias ("Ana Ruiz, Team Member").
+ * A row whose only column words are name aliases is data unless its first
+ * cell is a column word too: "Ana Ruiz, Team Member" and "Jose, Staff" are
+ * people with their titles.
  */
 export function looksLikeRosterHeader(cells: readonly string[]): boolean {
   const fields = cells.map(headerField);
   const first = cells[0]?.trim() ?? "";
   const onlyNameHits = fields.every((field) => field === undefined || field === "name");
-  if (fields[0] === undefined && looksLikePersonName(first) && onlyNameHits) return false;
+  const firstIsData = fields[0] === undefined && !hasHeaderWord(first) && !isIndexCell(first);
+  if (firstIsData && onlyNameHits) return false;
   if (fields.includes("name")) return true;
   if (fields.includes("first_name") && fields.includes("last_name")) return true;
   return cells.filter(hasHeaderWord).length >= 3;
@@ -1074,20 +1172,52 @@ export function peopleToCsv(people: readonly Person[]): string {
   return `${rows.join("\r\n")}\r\n`;
 }
 
-/** Splits one line of a headerless list into name, title and department. */
+const SPACED_DASH = /\s[-–—]\s/;
+
+/**
+ * True when the text before a dash or a bracket is a "Last, First" name
+ * rather than a name and a title: "Smith, John", "Roe, Jane, DDS". The part
+ * after the comma must not be a known title, and either the surname is one
+ * word or the part after the dash is a known title ("Ruiz Lopez, Ana - Cook").
+ */
+function leadsWithLastFirst(head: string, next: string): boolean {
+  const pieces = head.split(",").map((piece) => piece.trim());
+  if (pieces.length < 2 || pieces.length > 3) return false;
+  const [last, given, credential] = pieces;
+  if (credential !== undefined && !NAME_SUFFIXES.has(wordKey(credential))) return false;
+  if (!looksLikeGivenNames(given) || matchJobTitle(given)) return false;
+  return looksLikeSurname(last, true) || (looksLikeSurname(last) && Boolean(matchJobTitle(next)));
+}
+
+/**
+ * Splits one line of a headerless list into name, title and department: on
+ * tabs first, then " | ", then ": ", then commas or spaced dashes, whichever
+ * separates the name ("Ana Ruiz, Front Desk - Evenings" keeps its title whole;
+ * "Smith, John - Bookkeeper" is a "Last, First" name), then a bracket.
+ */
 export function splitListLine(line: string): string[] {
   const source = line.trim().replace(LIST_MARKER, "");
-  const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
-  const parts = /\s[-–—]\s/.test(source)
-    ? source.split(/\s[-–—]\s/)
-    : source.includes("\t")
-      ? source.split("\t")
-      : source.includes(" | ")
-        ? source.split(" | ")
-        : source.includes(": ")
-          ? source.split(": ")
-          : parenthetical
-            ? [parenthetical[1], parenthetical[2]]
-            : (parseRows(source, ",")[0] ?? [source]);
+  let parts: string[];
+  if (source.includes("\t")) parts = source.split("\t");
+  else if (source.includes(" | ")) parts = source.split(" | ");
+  else if (source.includes(": ")) parts = source.split(": ");
+  else {
+    const dash = source.search(SPACED_DASH);
+    const comma = source.indexOf(",");
+    const parenthetical = source.match(/^(.+?)\s*\(([^()]+)\)$/);
+    if (dash >= 0 && (comma < 0 || comma > dash)) parts = source.split(SPACED_DASH);
+    else if (
+      dash >= 0 &&
+      leadsWithLastFirst(source.slice(0, dash), source.slice(dash).split(SPACED_DASH)[1] ?? "")
+    ) {
+      parts = source.split(SPACED_DASH);
+    } else if (
+      parenthetical &&
+      (comma < 0 || leadsWithLastFirst(parenthetical[1], parenthetical[2]))
+    ) {
+      parts = [parenthetical[1], parenthetical[2]];
+    } else if (comma >= 0) parts = parseRows(source, ",")[0] ?? [source];
+    else parts = [source];
+  }
   return parts.map((part) => part.trim());
 }
