@@ -40,6 +40,8 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
+import { pluralTeamLabel } from "@/lib/precog/templates/industry-copy";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
@@ -576,7 +578,7 @@ function Home() {
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base">
                 {industry.tagline}. Precog Pioneer scores SoD gaps, knowledge single points of
                 failure, and financial scenarios — then tells you what to fix this week. Built for
-                owner-operated {industry.teamLabel}s with 2–20 people.
+                owner-operated {pluralTeamLabel(profile.industry)} of 2 to {OWN_TEAM_MAX} people.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button onClick={() => setTab("sod")}>
