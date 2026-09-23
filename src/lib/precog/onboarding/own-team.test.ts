@@ -6,11 +6,15 @@ import { resolveTemplate } from "../active-template";
 import {
   CORE_DUTIES,
   OWN_TEAM_MAX,
+  addableDuties,
   buildOwnTeam,
   coreDutiesForTitle,
+  firstUnnamedWithDuties,
   ownerRow,
   ownBusinessProfile,
   rowsForJobTitle,
+  rowsKeptForAdding,
+  type OwnTeamRow,
 } from "./own-team";
 
 describe("buildOwnTeam", () => {
@@ -171,5 +175,52 @@ describe("an own business's policy and staff flags", () => {
       ]),
     });
     expect(tangled.staff.independentBankRec).toBe(false);
+  });
+});
+
+describe("the unnamed Owner row when people are added", () => {
+  const fresh = (): OwnTeamRow[] => [
+    ownerRow(),
+    { name: "", role: "", duties: [] },
+    { name: "", role: "", duties: [] },
+  ];
+
+  it("keeps the Owner row with its duties when a pasted roster or Add 3 Server has no owner", () => {
+    const { kept, ownerRow: owner } = rowsKeptForAdding(fresh(), false);
+    expect(owner).toBe("kept");
+    expect(kept).toEqual([ownerRow()]);
+  });
+
+  it("lets an owner in the paste take the place of the empty Owner row", () => {
+    const { kept, ownerRow: owner } = rowsKeptForAdding(fresh(), true);
+    expect(owner).toBe("replaced");
+    expect(kept).toEqual([]);
+  });
+
+  it("keeps named rows and unnamed rows with duties ticked, and drops empty ones", () => {
+    const rows: OwnTeamRow[] = [
+      { ...ownerRow(), name: "Dana" },
+      { name: "", role: "Bookkeeper", duties: ["bank_reconcile"] },
+      { name: "", role: "", duties: [] },
+    ];
+    const { kept, ownerRow: owner } = rowsKeptForAdding(rows, true);
+    expect(owner).toBe("none");
+    expect(kept.map((r) => r.role)).toEqual(["Owner", "Bookkeeper"]);
+  });
+
+  it("points at a row that finishing would drop with its duties", () => {
+    expect(firstUnnamedWithDuties(fresh())).toBe(0);
+    expect(firstUnnamedWithDuties([{ ...ownerRow(), name: "Dana" }, ...fresh().slice(1)])).toBe(-1);
+  });
+});
+
+describe("duties beyond the grid columns", () => {
+  it("offers every rulebook duty that is not a column, view-only, or already held", () => {
+    const offered = addableDuties(["manage_user_access", "collect_cash"]);
+    expect(offered).toContain("change_fee_schedule");
+    expect(offered).toContain("pms_admin_roles");
+    expect(offered).not.toContain("manage_user_access");
+    expect(offered).not.toContain("view_reports_only");
+    for (const column of CORE_DUTIES) expect(offered).not.toContain(column);
   });
 });

@@ -7,12 +7,16 @@ import {
   CORE_DUTIES,
   GRID_DUTY_HEADING,
   OWN_TEAM_MAX,
+  addableDuties,
   rowsForJobTitle,
   buildOwnTeam,
   coreDutiesForTitle,
   coreDutyLabel,
   extraDuties,
+  firstUnnamedWithDuties,
+  isOwnerTitle,
   ownerRow,
+  rowsKeptForAdding,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
@@ -54,6 +58,57 @@ const EMPTY_ROW = (role = ""): OwnTeamRow => ({ name: "", role, duties: [] });
 
 const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
   a.length === b.length && a.every((d) => b.includes(d));
+
+const nameInputId = (index: number) => `onboarding-person-${index + 1}-name`;
+
+/**
+ * Adds a duty that is not a grid column to one row: pick it, then press Add.
+ * A select alone would add a duty on every arrow key in some browsers.
+ */
+function AddDutyControl({
+  who,
+  duties,
+  onAdd,
+}: {
+  who: string;
+  duties: readonly EntitlementId[];
+  onAdd: (duty: EntitlementId) => void;
+}) {
+  const options = addableDuties(duties);
+  const [pick, setPick] = useState<EntitlementId | "">("");
+  if (options.length === 0) return null;
+  const chosen = pick && options.includes(pick) ? pick : "";
+  return (
+    <div className="mt-1 flex max-w-[11rem] items-center gap-1">
+      <select
+        className={cn(inputCls, "min-w-0 flex-1 px-1 py-0.5 text-[10px]")}
+        aria-label={`Other duty for ${who}`}
+        value={chosen}
+        onChange={(e) => setPick(e.target.value as EntitlementId | "")}
+      >
+        <option value="">Add a duty…</option>
+        {options.map((duty) => (
+          <option key={duty} value={duty}>
+            {coreDutyLabel(duty)}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="rounded-md border border-border bg-panel px-1.5 py-0.5 text-[10px] text-muted hover:border-border-strong hover:text-fg disabled:opacity-50"
+        aria-label={`Add the chosen duty to ${who}`}
+        disabled={!chosen}
+        onClick={() => {
+          if (!chosen) return;
+          onAdd(chosen);
+          setPick("");
+        }}
+      >
+        Add
+      </button>
+    </div>
+  );
+}
 
 /**
  * The grid in progress, kept in this tab's session storage so a reload does
@@ -104,6 +159,7 @@ export function IndustryOnboarding() {
   const [paste, setPaste] = useState("");
   const [pasteNote, setPasteNote] = useState("");
   const [pasteIssues, setPasteIssues] = useState<PeopleImportIssue[]>([]);
+  const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
   // Restore after mount, so the server-rendered dialog and the first client
   // render agree; then keep the draft in step with every edit.
@@ -126,11 +182,14 @@ export function IndustryOnboarding() {
   const [quickCount, setQuickCount] = useState(1);
   const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
 
-  /** Add N people with one job title and its usual duties; names are placeholders. */
+  /**
+   * Add N people with one job title and its usual duties; names are
+   * placeholders. The unnamed Owner row stays unless the new rows are owners.
+   */
   function addByTitle() {
     if (!quickEntry) return;
     setRows((current) => {
-      const kept = current.filter((r) => r.name.trim().length > 0);
+      const { kept } = rowsKeptForAdding(current, quickEntry.id === "owner");
       const sameTitle = kept.filter((r) => r.role === quickEntry.title).length;
       return [...kept, ...rowsForJobTitle(quickEntry, quickCount, sameTitle, selected)].slice(
         0,
@@ -188,11 +247,16 @@ export function IndustryOnboarding() {
       );
       return;
     }
-    const kept = rows.filter((r) => r.name.trim().length > 0);
+    // The unnamed Owner row stays at the top unless the paste has its own owner.
+    const { kept, ownerRow: owner } = rowsKeptForAdding(
+      rows,
+      incoming.some((r) => isOwnerTitle(r.role)),
+    );
     const room = Math.max(0, OWN_TEAM_MAX - kept.length);
     const added = incoming.slice(0, room);
     const notAdded = incoming.length - added.length;
     setRows([...kept, ...added]);
+    setFinishNote("");
     const addedNames = new Set(added.map((r) => r.name));
     const titlesAdded = result.titles.filter((t) => addedNames.has(t.name));
     const recognised = titlesAdded.filter((t) => t.catalogTitle).length;
@@ -205,14 +269,29 @@ export function IndustryOnboarding() {
         `${recognised} ${recognised === 1 ? "title" : "titles"} recognised and duties ticked from the catalog${
           unmatched ? `; ${unmatched} not recognised, tick their duties below` : ""
         }${inactive ? `; ${inactive} inactive ${inactive === 1 ? "person" : "people"} left out` : ""}.`,
+        owner === "kept"
+          ? "The Owner row stays at the top with its duties ticked: type your name in it."
+          : owner === "replaced"
+            ? "The owner in your paste takes the place of the empty Owner row."
+            : "",
         "Check every row: a title is a starting point, not a fact about your business.",
-      ].join(" "),
+      ]
+        .filter(Boolean)
+        .join(" "),
     );
     setPaste("");
   }
 
   function updateRow(index: number, patch: Partial<OwnTeamRow>) {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    if (finishNote) setFinishNote("");
+  }
+  function addDuty(index: number, duty: EntitlementId) {
+    setRows((current) =>
+      current.map((row, i) =>
+        i === index && !row.duties.includes(duty) ? { ...row, duties: [...row.duties, duty] } : row,
+      ),
+    );
   }
   function toggleDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
@@ -227,6 +306,16 @@ export function IndustryOnboarding() {
     );
   }
   function finish() {
+    // A row with duties ticked and no name would be dropped with its duties: ask for the name.
+    const unnamed = firstUnnamedWithDuties(rows);
+    if (unnamed >= 0) {
+      const role = rows[unnamed].role.trim();
+      setFinishNote(
+        `Person ${unnamed + 1}${role ? ` (${role})` : ""} has duties ticked but no name. Type a name, or remove the row.`,
+      );
+      document.getElementById(nameInputId(unnamed))?.focus();
+      return;
+    }
     const people = buildOwnTeam(rows);
     if (people.length === 0) return;
     writeDraft(null);
@@ -337,8 +426,9 @@ export function IndustryOnboarding() {
                 Name your people and tick the money duties each one handles today: enough to find
                 the arrangements that let one person take money and hide it. Paste a roster from
                 your HR or payroll system and common job titles fill the duties for you; a
-                title&rsquo;s other duties appear as small tags you can remove. You can refine
-                everything later in Who controls what.
+                title&rsquo;s other duties appear as small tags you can remove, and &ldquo;Add a
+                duty&rdquo; under each role adds any other. You can refine everything later in Who
+                controls what.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -487,8 +577,9 @@ export function IndustryOnboarding() {
                   <tbody>
                     {rows.map((row, index) => (
                       <tr key={index}>
-                        <td className="border-b border-border p-1.5">
+                        <td className="border-b border-border p-1.5 align-top">
                           <input
+                            id={nameInputId(index)}
                             className={cn(inputCls, "w-36")}
                             placeholder={index === 0 ? "Your name" : "Name"}
                             aria-label={`Person ${index + 1} name`}
@@ -528,6 +619,11 @@ export function IndustryOnboarding() {
                               ))}
                             </ul>
                           )}
+                          <AddDutyControl
+                            who={row.name || `Person ${index + 1}`}
+                            duties={row.duties}
+                            onAdd={(duty) => addDuty(index, duty)}
+                          />
                         </td>
                         {CORE_DUTIES.map((duty) => (
                           <td key={duty} className="border-b border-border p-1.5 text-center">
@@ -571,6 +667,11 @@ export function IndustryOnboarding() {
                   Up to {OWN_TEAM_MAX} people here; larger teams continue in Who knows what.
                 </p>
               </div>
+              {finishNote && (
+                <p className="text-xs text-danger" role="alert">
+                  {finishNote}
+                </p>
+              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button className="w-full" onClick={finish} disabled={namedRows.length === 0}>
                   Show me my findings
