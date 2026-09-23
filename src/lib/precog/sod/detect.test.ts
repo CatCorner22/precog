@@ -411,7 +411,21 @@ describe("unheld duties", () => {
         },
       ],
     });
-    expect(report.summary.unheldDuties).toEqual(["prepare_deposit", "release_payment"]);
+    expect(report.summary.unheldDuties).toEqual([
+      "prepare_deposit",
+      "release_payment",
+      "create_vendor",
+    ]);
+  });
+
+  it("says nobody sets up suppliers when a bookkeeper pays them and nobody is recorded adding them", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
+        { role: "Bookkeeper", duties: ["enter_invoices", "release_payment", "prepare_deposit"] },
+      ]),
+    );
+    expect(report.summary.unheldDuties).toEqual(["create_vendor"]);
   });
 });
 

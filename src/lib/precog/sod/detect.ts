@@ -540,11 +540,18 @@ const PRESSURE_WEIGHT: Record<DetectedConflict["severity"], number> = {
   family: 2,
 };
 
-/** The duties every business with money has to give someone; an empty seat is its own finding. */
+/**
+ * The duties every business with money has to give someone; an empty seat is
+ * its own finding. Setting up suppliers is on the list because a team that
+ * pays suppliers with nobody recorded as setting them up hides the supplier +
+ * payment pair. Entering bills is not: none of the samples records it, and
+ * many small businesses pay from the statement without entering bills.
+ */
 const UNHELD_WATCH: readonly EntitlementId[] = [
   "prepare_deposit",
   "bank_reconcile",
   "release_payment",
+  "create_vendor",
   "approve_payroll",
 ];
 
