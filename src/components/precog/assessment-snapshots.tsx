@@ -349,7 +349,11 @@ export function AssessmentSnapshots() {
                     />
                     <CompareMetric
                       label="Net observed value"
-                      value={signedMoney(comparison.result.netObservedValueDelta)}
+                      value={
+                        comparison.result.netObservedValueDelta === null
+                          ? "Not yet observed"
+                          : signedMoney(comparison.result.netObservedValueDelta)
+                      }
                     />
                     <CompareMetric
                       label="Verified evidence"

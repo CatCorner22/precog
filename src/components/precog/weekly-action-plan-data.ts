@@ -1,4 +1,6 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
@@ -165,7 +167,10 @@ export function buildWeeklyActions(input: {
   const { tpl } = input;
   const today = input.today ?? localDateKey(new Date());
   const committed = continuityCommitments(input.decisions ?? [], tpl, today);
-  const portfolio = portfolioSummary(tpl, input.staff);
+  // Starter scenarios count only once the owner confirms them, as on the
+  // Dashboard and the residual register.
+  const scope = { confirmedScenarioIds: confirmedScenarioIds(input.decisions ?? [], tpl.id) };
+  const portfolio = portfolioSummary(tpl, input.staff, DEFAULT_WEIGHTS, scope);
   const sod = detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease));
   const continuity = coverageReport(tpl);
   // A register nobody has filled in cannot say what stops when someone is out:
@@ -177,7 +182,7 @@ export function buildWeeklyActions(input: {
   // processes, and an empty map has nothing to score. Until the owner assigns
   // an owner or builds their own map, the one map action is to do that.
   const mapReady = input.mapAssessed ?? true;
-  const tornado = tornadoSensitivity(tpl, input.staff);
+  const tornado = tornadoSensitivity(tpl, input.staff, scope);
   const actions: WeeklyAction[] = [];
 
   if (!input.staff.independentBankRec) {

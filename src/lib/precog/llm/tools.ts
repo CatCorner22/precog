@@ -34,10 +34,19 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "../scoring/weights";
+import {
+  confirmedScenarioIds,
+  isOwnBusiness,
+  scenariosInScope,
+  starterScenarioNote,
+} from "../scoring/scope";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
   DEFAULT_RISK_VARIABLES,
+  effectiveRiskVariables,
   evaluateDynamicRisk,
+  insuranceFigureNote,
   scenarioFlags,
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
@@ -185,10 +194,34 @@ export function executeTool(
 ): ToolResult {
   const profile = profileOf(ctx);
   const tpl = resolveTemplate(profile);
-  const { people, knowledge, relations, scenarios, controls, crimeFraudStats } = tpl;
+  const { people, knowledge, relations, scenarios, crimeFraudStats } = tpl;
   const staff: StaffComposition = profile.staff;
   const practiceName = profile.practiceName || tpl.businessName;
   const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
+  // Starter scenarios count, and run, only once the owner confirms them.
+  const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
+  const scope = { confirmedScenarioIds: confirmed };
+  const ownBusiness = isOwnBusiness(tpl);
+  /** The scenario a tool runs: the one asked for if it is in scope, else the most dangerous in scope. */
+  const scenarioInScope = (asked: unknown): string | null => {
+    const inScope = scenariosInScope(tpl, confirmed);
+    if (typeof asked === "string" && inScope.some((s) => s.id === asked)) return asked;
+    const ranked = rankDangerousScenarios(tpl, {
+      staff,
+      riskVariables: riskVars,
+      confirmedScenarioIds: confirmed,
+    });
+    return ranked[0]?.scenario.id ?? inScope[0]?.id ?? null;
+  };
+  /** Returned instead of a scenario result while no scenario is in scope. */
+  const noScenario = (): ToolResult => ({
+    tool,
+    ok: false,
+    summary:
+      starterScenarioNote(tpl, confirmed) ??
+      "No scenario is in scope for this business, so no scenario figure applies.",
+    data: null,
+  });
 
   try {
     switch (tool) {
@@ -222,7 +255,11 @@ export function executeTool(
         };
 
       case "get_coso_assessment": {
-        const coso = assessCoso(tpl);
+        const coso = assessCoso(tpl, staff, {
+          riskVariables: riskVars,
+          confirmedScenarioIds: confirmed,
+          dualRelease: profile.dualRelease,
+        });
         return {
           tool,
           ok: true,
@@ -243,11 +280,22 @@ export function executeTool(
       }
 
       case "get_residual_portfolio": {
-        const p = portfolioSummary(tpl, staff);
+        const p = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, scope);
+        const leftOut = [
+          p.knowledgeAssessed ? "" : "register items (not assessed yet)",
+          p.starterScenariosLeftOut.length
+            ? `${p.starterScenariosLeftOut.length} unconfirmed starter scenario(s)`
+            : "",
+          p.starterControlsLeftOut.length
+            ? `${p.starterControlsLeftOut.length} unconfirmed starter control(s)`
+            : "",
+        ].filter(Boolean);
         return {
           tool,
           ok: true,
-          summary: `Avg residual ${p.averageResidual}; top ${p.top[0]?.name ?? "—"}`,
+          summary: `Avg residual ${p.averageResidual}; top ${p.top[0]?.name ?? "—"}${
+            leftOut.length ? `; left out: ${leftOut.join(", ")}` : ""
+          }`,
           data: {
             scoringVersion: p.scoringVersion,
             averageResidual: p.averageResidual,
@@ -664,8 +712,8 @@ export function executeTool(
       }
 
       case "run_precog_scenario": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: riskVars });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
@@ -700,8 +748,8 @@ export function executeTool(
       }
 
       case "compare_scenario_futures": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const report = compareScenarioFutures(tpl, scenarioId, staff, [], riskVars);
         return {
           tool,
@@ -724,7 +772,7 @@ export function executeTool(
       }
 
       case "get_tornado_levers": {
-        const t = tornadoSensitivity(tpl, staff);
+        const t = tornadoSensitivity(tpl, staff, scope);
         return {
           tool,
           ok: true,
@@ -735,19 +783,22 @@ export function executeTool(
       }
 
       case "get_insurance_cost_of_risk": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const scenario = scenarios.find((s) => s.id === scenarioId)!;
+        // An own business with the app's default policy figures is priced
+        // with no crime policy, and the summary says which basis applies.
         const dyn = evaluateDynamicRisk(
-          riskVars,
+          effectiveRiskVariables(riskVars, ownBusiness),
           scenario.baseFinancialImpact,
           scenarioFlags(scenarioId),
         );
+        const policyNote = insuranceFigureNote(riskVars, ownBusiness);
         return {
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}`,
+          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
           data: {
             scenarioId,
             variables: riskVars,
@@ -759,25 +810,37 @@ export function executeTool(
       }
 
       case "get_sod_conflicts": {
-        const gaps = controls.filter((c) => !c.segregated);
+        // The team's own duty conflicts, by person, scored the way Who
+        // controls what scores them; owner-held pairs are listed apart.
+        const report = detectSodConflicts(
+          tpl,
+          staff,
+          sodDetectionOptions(tpl, profile.dualRelease),
+        );
+        const open = report.conflicts.filter((c) => !c.ownerHeld);
         return {
           tool,
           ok: true,
-          summary: `${gaps.length} SoD gap(s)`,
-          data: gaps.map((g) => ({
-            id: g.id,
-            name: g.name,
-            duties: g.duties,
-            compensatingControls: g.compensatingControls,
-            residualRiskAccepted: g.residualRiskAccepted,
+          summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${new Set(open.map((c) => c.personId)).size} people; ${report.summary.ownerHeld} held by the owner; segregation health ${report.summary.segregationHealth}/100`,
+          data: open.map((c) => ({
+            id: c.id,
+            name: `${c.personName} (${c.role}): ${c.title}`,
+            person: c.personName,
+            role: c.role,
+            severity: c.severity,
+            duties: [c.labelA, c.labelB],
+            score: c.score,
+            controlsInPlace: c.controlsInPlace,
+            residualRiskAccepted: c.residualRiskAccepted,
+            dualReleaseMitigated: c.dualReleaseMitigated,
           })),
-          links: [{ tab: "sod", label: "SoD" }],
+          links: [{ tab: "sod", label: "Who controls what" }],
         };
       }
 
       case "simulate_variable_cascades": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const leverId = args.leverId as CascadeLeverId | undefined;
         if (leverId) {
           const one = simulateCascadeLever(tpl, leverId, riskVars, staff, scenarioId);

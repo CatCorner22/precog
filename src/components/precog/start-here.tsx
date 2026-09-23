@@ -32,8 +32,9 @@ import {
   detectionBreakdown,
   METHOD_CAVEATS,
   casesForSodRules,
-  observedDurationMonths,
-  observedLossRange,
+  caseForRule,
+  citingCaseStats,
+  durationPhrase,
   recommendedStepsForRules,
   isOwnSector,
   tenureExamples,
@@ -260,10 +261,15 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [openConflicts, partialCoverage],
   );
 
+  // Every case the page lists, including ones that share a scheme with the
+  // gaps without showing the exact pair; the figures below ("N cases show
+  // these gaps", median loss, duration, how they came to light) are computed
+  // over the cases whose records show the pair, and nothing else.
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
-  const lossRange = useMemo(() => observedLossRange(evidence), [evidence]);
-  const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
-  const found = useMemo(() => detectionBreakdown(evidence), [evidence]);
+  const citing = useMemo(() => citingCaseStats(openRuleIds), [openRuleIds]);
+  const lossRange = citing.loss;
+  const duration = citing.duration;
+  const found = citing.detection;
   const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
   const steps = useMemo(
     () => rankFirstSteps(recommendedStepsForRules(openRuleIds), stillOpen),
@@ -512,15 +518,6 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                     ? "Your register is empty. List the duties, tasks and know-how the business runs on and mark who can do each, and these figures fill in."
                     : `Your register holds ${template.knowledge.length} starter items from the ${industryMeta(profile.industry).label.toLowerCase()} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
                 </p>
-                {onOpenDetail && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenDetail("knowledge")}
-                    className="mt-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
-                  >
-                    Open Who knows what
-                  </button>
-                )}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -580,7 +577,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   onClick={() => onOpenDetail("knowledge")}
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                 >
-                  Open who knows what
+                  Open Who knows what
                   <ArrowRight className="size-3.5" aria-hidden />
                 </button>
               )}
@@ -622,11 +619,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               // Prefer a case from the owner's own line of business that cites
               // this rule directly; a dentist reads a dental case differently
               // from a construction one. Fall back to the best match overall.
-              const matches = casesForSodRules([conflict.ruleId]);
-              const ownSector = matches.find(
-                (c) => isOwnSector(c, industryId) && c.sodRuleIds.includes(conflict.ruleId),
-              );
-              const worst = ownSector ?? matches[0];
+              const pick = caseForRule(conflict.ruleId, industryId);
               const badge = gapBadge(conflict, partialCoverage.get(conflict.ruleId));
               const closes = closingSteps(
                 conflict.compensatingControls,
@@ -713,14 +706,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </div>
                     )}
 
-                    {worst && (
+                    {pick && (
                       <div>
                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
-                          {ownSector
-                            ? "This exact gap, in your line of business"
-                            : "This exact gap, somewhere real"}
+                          {!pick.citesRule
+                            ? "A related scheme, somewhere real"
+                            : pick.ownSector
+                              ? "This exact gap, in your line of business"
+                              : "This exact gap, somewhere real"}
                         </p>
-                        <CaseCard study={worst} />
+                        <CaseCard study={pick.study} />
                       </div>
                     )}
                   </CardContent>
@@ -794,9 +789,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           icon={<TrendingDown className="size-4" aria-hidden />}
           title="What these gaps have cost other organizations"
           subtitle={
-            evidence.length > 0
-              ? `Drawn from ${evidence.length} prosecuted cases matching the gaps above.`
-              : "No matching cases, because no gaps are open."
+            citing.count > 0
+              ? `Drawn from ${citing.count} prosecuted ${citing.count === 1 ? "case" : "cases"} whose records show the gaps above.`
+              : evidence.length > 0
+                ? "No prosecuted case in the library shows these exact gaps; the cases below share their schemes."
+                : "No matching cases, because no gaps are open."
           }
         />
 
@@ -812,7 +809,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             <StatTile
               label="How long they ran undetected"
               value={`${Math.round(duration.median)} months`}
-              detail={`Longest in this set: ${Math.round(duration.longest / 12)} years`}
+              detail={`Longest in this set: ${durationPhrase(duration.longest)}`}
             />
           )}
           {medianLoss && (
@@ -845,7 +842,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           </p>
         )}
 
-        {found.known > 0 && (
+        {found.n > 0 && (
           <Card>
             <CardContent className="flex gap-3 pt-5">
               <Eye className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
@@ -1086,8 +1083,9 @@ function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId:
       </div>
       <p className="text-xs text-subtle">
         {(() => {
-          const found = detectionBreakdown(CASE_LIBRARY);
-          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} cases; in the other ${found.unknown} it does not say.`;
+          // Counted over the cases listed here, so the footer matches the list.
+          const found = detectionBreakdown(ordered);
+          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`;
         })()}
       </p>
       <div className="space-y-2">

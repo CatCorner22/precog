@@ -14,7 +14,7 @@ import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
 import { getIndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
-import { detectSodConflicts } from "./sod/detect";
+import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import { registerAssessed } from "./continuity/register-state";
@@ -39,7 +39,6 @@ import {
   insuranceFigureNote,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
-import { mitigatedSodRuleIds } from "./controls/dual-release";
 import type { DualReleasePolicy } from "./controls/dual-release";
 
 export type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
@@ -84,9 +83,13 @@ export function buildThreatAssessment(input: {
   const tpl = input.tpl ?? getIndustryTemplate("dental");
   const { practiceName, staff, riskVariables, dualRelease, confirmedScenarioIds } = input;
   const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, { confirmedScenarioIds });
-  const sod = detectSodConflicts(tpl, staff, {
-    dualReleaseMitigatedRuleIds: dualRelease ? mitigatedSodRuleIds(dualRelease) : undefined,
-  });
+  // The same reading as every other screen: the business's own control
+  // records, and a dual-release channel only when the team can operate it.
+  const sod = detectSodConflicts(
+    tpl,
+    staff,
+    dualRelease ? sodDetectionOptions(tpl, dualRelease) : controlOptions(tpl),
+  );
   const knowledgeRisks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
   const ranked = rankDangerousScenarios(tpl, {
     staff,

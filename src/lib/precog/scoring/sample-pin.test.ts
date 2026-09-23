@@ -22,11 +22,13 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   enter write-offs", read through deposit preparation), and it takes the
  *   deck slot "Deposit prep + payment posting" held at the same priority.
  * - The professional-services bookkeeper prepares deposits and reconciles,
- *   a new critical cash-custody finding: threat index 90 → 91, and it enters
- *   the deck ahead of the lowest item (a single point of failure at 65).
- * - Findings that tie at the displayed score now rank by their full score,
- *   so "Payment posting + bank reconciliation" leads "Create vendor +
- *   release payment" where both show 91.
+ *   a new critical cash-custody finding that leads its deck.
+ * - Findings that tie at the displayed score rank by their full score.
+ * - The threat assessment reads the sample's own control records, as every
+ *   other screen does: the accepted residual and compensating control on
+ *   "SoD: payments vs reconciliation" lower the findings linked to it, so
+ *   those findings sit lower in the deck (and the professional-services
+ *   index stays at 90).
  */
 const PINNED: Record<
   string,
@@ -74,7 +76,7 @@ const PINNED: Record<
       "ctrl-c-sod-cash:87:84",
       "ctrl-c-sod-ap:87:84",
       "ctrl-c-cash:85:81",
-      "sod-rule-collect-adjust:83:78",
+      "sod-rule-payroll-release:83:78",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k3:79:91",
@@ -169,18 +171,18 @@ const PINNED: Record<
       "ctrl-c-payroll:47/38/41",
       "know-k5:65/70/27",
     ],
-    threatIndex: 91,
+    threatIndex: 90,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
-      "sod-rule-release-rec:91:92",
-      "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
+      "sod-rule-writeoff:91:92",
       "ctrl-c-sod-cash:89:88",
       "ctrl-c-sod-ap:89:88",
       "ctrl-c-cash:87:85",
       "scen-sc-vendor-fraud:80:90",
       "know-k1:79:91",
       "know-k2:79:91",
+      "spof-k3:65:65",
     ],
     coso: 33,
     cosoComponents: [
@@ -222,13 +224,13 @@ const PINNED: Record<
     ],
     threatIndex: 90,
     threatDeck: [
-      "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
+      "sod-rule-cash-rec:91:92",
       "ctrl-c-sod-cash:88:86",
       "ctrl-c-sod-ap:88:86",
       "ctrl-c-cash:86:83",
-      "sod-rule-collect-adjust:83:78",
+      "sod-rule-payroll-release:83:78",
       "ctrl-c-sod-billing:82:76",
       "scen-sc-vendor-fraud:80:91",
       "know-k5:79:91",
@@ -273,9 +275,9 @@ const PINNED: Record<
     ],
     threatIndex: 89,
     threatDeck: [
-      "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
+      "sod-rule-cash-rec:91:92",
       "ctrl-c-sod-cash:87:85",
       "ctrl-c-sod-ap:87:85",
       "ctrl-c-cash:86:82",

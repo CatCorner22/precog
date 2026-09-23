@@ -6,6 +6,9 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import {
   contingencyCards,
@@ -106,14 +109,20 @@ export function ControlReport() {
   const mapFrom = mapSource(profile);
 
   const data = useMemo(() => {
+    // Starter scenarios count only once the owner confirms them, on every
+    // figure this report prints, as on the screens it summarises.
+    const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
     const threat = buildThreatAssessment({
       tpl,
       practiceName: profile.practiceName,
       staff: profile.staff,
       riskVariables: profile.riskVariables,
       dualRelease: profile.dualRelease,
+      confirmedScenarioIds: confirmed,
     });
-    const portfolio = portfolioSummary(tpl, profile.staff);
+    const portfolio = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
+      confirmedScenarioIds: confirmed,
+    });
     const sod = detectSodConflicts(
       tpl,
       profile.staff,
@@ -134,7 +143,12 @@ export function ControlReport() {
     const leaving = leaversReport(tpl, profile.decisions, today);
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
-    const coso = assessCoso(tpl);
+    const coso = assessCoso(tpl, profile.staff, {
+      riskVariables: profile.riskVariables,
+      confirmedScenarioIds: confirmed,
+      dualRelease: profile.dualRelease,
+    });
+    const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
       tpl,
@@ -200,10 +214,12 @@ export function ControlReport() {
       steps,
       lossRange,
       found,
+      policyNote,
     };
   }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady]);
 
   const {
+    policyNote,
     threat,
     portfolio,
     sod,
@@ -389,7 +405,7 @@ export function ControlReport() {
                 <th className="py-1.5 pr-2">Type</th>
                 <th className="py-1.5 pr-2">Band</th>
                 <th className="py-1.5 pr-2 text-right">Priority</th>
-                <th className="py-1.5 text-right">Exposure</th>
+                <th className="py-1.5 text-right">Assumed loss</th>
               </tr>
             </thead>
             <tbody>
@@ -422,6 +438,10 @@ export function ControlReport() {
               ))}
             </tbody>
           </table>
+          <p className="mt-2 text-xs text-neutral-600">
+            Assumed loss is the scenario&apos;s assumption in this app, not a measured figure.
+            {policyNote ? ` Insurance: ${policyNote}.` : ""}
+          </p>
         </Section>
 
         <Section title="Segregation of duties">
