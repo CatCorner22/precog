@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { mapAssessed, mapNotAssessedNote, mapSource, starterMapFacts } from "./map-state";
+import {
+  mapAssessed,
+  mapNotAssessedNote,
+  mapSource,
+  starterMapFacts,
+  untouchedStarterProcessIds,
+} from "./map-state";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
@@ -120,5 +126,37 @@ describe("the sample business's map figures do not change", () => {
       "record-proc-ap",
       "record-proc-payroll",
     ]);
+  });
+});
+
+describe("untouchedStarterProcessIds", () => {
+  it("keeps every other starter process a starter when the owner assigns one owner", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes;
+    expect(untouchedStarterProcessIds(profile).size).toBe(processes.length);
+    const owned = {
+      ...profile,
+      customProcesses: processes.map((p, i) =>
+        i === 0 ? { ...p, ownerPersonIds: [people[0].id] } : p,
+      ),
+    };
+    const left = untouchedStarterProcessIds(owned);
+    expect(left.has(processes[0].id)).toBe(false);
+    expect(left.size).toBe(processes.length - 1);
+  });
+
+  it("treats a renamed or re-described starter process as the owner's own", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes;
+    const edited = {
+      ...profile,
+      customProcesses: processes.map((p, i) => (i === 1 ? { ...p, name: `${p.name} (ours)` } : p)),
+    };
+    expect(untouchedStarterProcessIds(edited).has(processes[1].id)).toBe(false);
+    expect(untouchedStarterProcessIds(edited).has(processes[0].id)).toBe(true);
+  });
+
+  it("is empty for the sample business", () => {
+    expect(untouchedStarterProcessIds({ industry: "dental" }).size).toBe(0);
   });
 });

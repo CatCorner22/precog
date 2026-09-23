@@ -1,6 +1,7 @@
 import { getIndustryTemplate } from "../templates";
 import { industryMeta } from "../industry";
 import type { PracticeProfile } from "../practice-profile";
+import type { ProcessNode } from "../types";
 
 /**
  * Where the process map came from.
@@ -48,6 +49,41 @@ export function mapAssessed(profile: MapProfile): boolean {
     case "own":
       return !profile.customProcesses || profile.customProcesses.length > 0;
   }
+}
+
+/** A process with its owners left out, keys sorted, for comparing content alone. */
+function contentKey(process: ProcessNode): string {
+  const { ownerPersonIds: _owners, ...rest } = process;
+  return JSON.stringify(rest, (_key, value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
+}
+
+/**
+ * Processes on an owner's map that are still exactly as the starter map had
+ * them, with none of the owner's people assigned. They stay starter
+ * processes, unscored and labelled as such, until the owner touches them:
+ * assigning one owner to one process makes that process the owner's, not
+ * the whole map. Empty for the sample business.
+ */
+export function untouchedStarterProcessIds(profile: MapProfile): Set<string> {
+  if (!profile.customPeople) return new Set();
+  const own = new Set(profile.customPeople.map((p) => p.id));
+  const starter = new Map(
+    getIndustryTemplate(profile.industry).processes.map((p) => [p.id, contentKey(p)]),
+  );
+  const current = profile.customProcesses ?? getIndustryTemplate(profile.industry).processes;
+  return new Set(
+    current
+      .filter(
+        (p) =>
+          starter.get(p.id) === contentKey(p) &&
+          !(p.ownerPersonIds ?? []).some((id) => own.has(id)),
+      )
+      .map((p) => p.id),
+  );
 }
 
 /** The starter map's process count and industry wording, for one shared sentence. */
