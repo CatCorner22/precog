@@ -207,8 +207,10 @@ describe("case ranking", () => {
 const UNCITED_RULES = [
   "rule-access-export",
   "rule-access-log",
+  "rule-access-release",
   "rule-admin-pay",
   "rule-admin-writeoff",
+  "rule-cash-admin",
   "rule-cash-refund",
   "rule-claims-writeoff",
   "rule-payroll-master-release",

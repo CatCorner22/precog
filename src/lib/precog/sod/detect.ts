@@ -248,7 +248,7 @@ const FAMILY_LABEL: Record<DutyFamily, string> = {
   custody: "Handling the money",
   recording: "Writing the records",
   reconciliation: "Checking the records",
-  master_data: "Controlling who can be paid",
+  master_data: "Changing master records",
 };
 
 const FAMILY_VERB: Record<DutyFamily, string> = {
@@ -256,7 +256,7 @@ const FAMILY_VERB: Record<DutyFamily, string> = {
   custody: "handles the money",
   recording: "writes the record",
   reconciliation: "checks the record",
-  master_data: "controls who can be paid",
+  master_data: "changes a master record (a payee, a customer, a price, a login)",
 };
 
 /**
@@ -284,11 +284,11 @@ const FAMILY_WHY: Record<string, string> = {
   "recording-reconciliation":
     "The same person writes the records and checks them, so an error or an omission has no independent reader.",
   "authorization-master_data":
-    "The same person decides who may be paid and approves paying them, so an invented payee passes both gates at once.",
+    "The same person can change a master record (a payee, a customer, a price or a login) and approve what depends on it, so a change made for their own benefit is approved by the same hands.",
   "custody-master_data":
-    "The same person controls the payee list and moves the money, which is the shortest path to paying a supplier that does not exist.",
+    "The same person can change a master record (a payee, a customer, a price or a login) and handle the money that record governs, so the record can be bent to fit what was taken.",
   "master_data-recording":
-    "The same person can add a payee and write the entry that explains it, so the payment looks routine in the accounts.",
+    "The same person can change a master record (a payee, a customer, a price or a login) and write the entries that depend on it, so a changed record and its entries agree by construction.",
   "authorization-recording":
     "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
 };

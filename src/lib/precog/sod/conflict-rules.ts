@@ -546,6 +546,35 @@ export const CONFLICT_RULES: ConflictRule[] = [
     linkedControlId: "c-cash",
   },
   {
+    id: "rule-cash-admin",
+    a: "collect_cash",
+    b: "pms_admin_roles",
+    severity: "high",
+    title: "Take payments + administer the system",
+    why: "The person who takes payments can also change the system that records them: delete a payment, edit a receipt, or change who may do either, so money kept at the counter leaves no record behind. A director who collects tuition, banks it and runs the tuition system holds exactly this pair.",
+    fraudPath: "Keep a payment, then delete or rewrite its record with administrator rights",
+    compensatingDefaults: [
+      "Administrator rights sit with the owner or an outside IT provider, not with anyone who takes payments",
+      "Owner reads the system's report of deleted and edited payments each month",
+    ],
+    linkedControlId: "c-cash",
+  },
+  {
+    id: "rule-access-release",
+    a: "manage_user_access",
+    b: "release_payment",
+    severity: "high",
+    title: "Control logins + release payments",
+    why: "The person who decides who can log in to the payment or banking system can also send payments, so they can create or borrow a second approver's login and release a payment that dual release was meant to stop.",
+    fraudPath:
+      "Give yourself a second approver's login, then release a payment with both approvals",
+    compensatingDefaults: [
+      "Access to the bank and payment systems is managed by the owner, not by anyone who releases payments",
+      "The bank alerts the owner to every new user or permission change",
+    ],
+    linkedControlId: "c-sod-ap",
+  },
+  {
     id: "rule-cash-refund",
     a: "collect_cash",
     b: "issue_refunds",

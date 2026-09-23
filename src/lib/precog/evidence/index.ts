@@ -51,6 +51,10 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-deposit-post": ["receivables-diversion", "skimming"],
   // Take the payment, then approve the void or write-off that cancels it.
   "rule-cash-void": ["skimming", "cash-larceny"],
+  // Take the payment, then delete or rewrite its record as administrator.
+  "rule-cash-admin": ["skimming", "cash-larceny"],
+  // Borrow or create a second approver's login and release the payment.
+  "rule-access-release": ["check-tampering", "billing-shell-vendor"],
   // Refund a sale that never happened, from the till or to your own card.
   "rule-cash-refund": ["refund-fraud", "cash-larceny"],
   // Record a credit or overpayment, then refund it.

@@ -628,6 +628,10 @@ describe("cash, refund, void and journal-entry rules", () => {
     [["release_payment", "post_journal_entries"], "rule-release-je"],
     [["initiate_ach", "post_journal_entries"], "rule-release-je"],
     [["edit_payroll_master", "release_payment"], "rule-payroll-master-release"],
+    [["collect_cash", "pms_admin_roles"], "rule-cash-admin"],
+    [["prepare_deposit", "pms_admin_roles"], "rule-cash-admin"],
+    [["manage_user_access", "release_payment"], "rule-access-release"],
+    [["manage_user_access", "initiate_ach"], "rule-access-release"],
   ])("flags %j as %s", (duties, ruleId) => {
     const report = detectSodConflicts(oneClerk(duties));
     expect(report.conflicts.map((c) => c.ruleId)).toContain(ruleId);
@@ -727,5 +731,14 @@ describe("segregation health counts distinct gaps", () => {
       expect(health).toBeLessThanOrEqual(previous);
       previous = health;
     }
+  });
+});
+
+describe("catch-all wording for master records", () => {
+  it("does not describe a price or customer record as deciding who may be paid", () => {
+    const report = detectSodConflicts(oneClerk(["approve_writeoffs", "edit_patient_master"]));
+    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
+    expect(family?.why).toMatch(/master record/);
+    expect(family?.why).not.toMatch(/who may be paid/);
   });
 });
