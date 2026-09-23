@@ -49,7 +49,7 @@ export const GRID_DUTY_HEADING: Record<string, string> = {
   enter_payroll: "Enter payroll",
   approve_payroll: "Approve payroll",
   issue_refunds: "Issue refunds",
-  approve_writeoffs: "Approve write-offs",
+  approve_writeoffs: "Approve write-offs and voids",
 };
 
 export function coreDutyLabel(id: EntitlementId): string {

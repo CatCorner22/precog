@@ -97,7 +97,7 @@ export const ENTITLEMENTS: Entitlement[] = [
   },
   {
     id: "approve_writeoffs",
-    label: "Approve write-offs",
+    label: "Approve write-offs and voids",
     family: "authorization",
     processIds: ["proc-ar", "proc-claims"],
     riskWeight: 5,
