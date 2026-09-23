@@ -964,7 +964,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {report.plan.length === 0 ? (
+              {!registerReady ? (
+                <p className="text-sm text-muted">{NOT_ASSESSED_PLAN}</p>
+              ) : report.plan.length === 0 ? (
                 <p className="text-sm text-ok">
                   Every item has at least two people who can run it alone. Revisit this after anyone
                   joins, leaves, or changes role.
@@ -1385,21 +1387,27 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                 />
                 <PeopleLine label="Learning" people={selected.learners.map((p) => p.name)} />
                 <PeopleLine label="Aware only" people={selected.aware.map((p) => p.name)} />
-                {selected.suggestedBackups.length > 0 && (
-                  <div>
-                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-                      Best people to train next
+                {selected.suggestedBackups.length > 0 &&
+                  (isMarked(selected) ? (
+                    <div>
+                      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                        Best people to train next
+                      </div>
+                      <ul className="space-y-1">
+                        {selected.suggestedBackups.slice(0, 3).map((s) => (
+                          <li key={s.person.id} className="flex flex-wrap items-baseline gap-2">
+                            <span className="font-medium">{s.person.name}</span>
+                            <span className="text-xs text-muted">{s.reasons.join("; ")}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="space-y-1">
-                      {selected.suggestedBackups.slice(0, 3).map((s) => (
-                        <li key={s.person.id} className="flex flex-wrap items-baseline gap-2">
-                          <span className="font-medium">{s.person.name}</span>
-                          <span className="text-xs text-muted">{s.reasons.join("; ")}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-muted">
+                      Nobody is marked on this item yet. Mark who can do it; the app suggests who to
+                      train once someone is marked.
+                    </p>
+                  ))}
               </CardContent>
             </Card>
           )}
@@ -1441,7 +1449,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   ))}
                 </div>
               </fieldset>
-              {absence ? (
+              {!registerReady ? (
+                <p className="text-muted">{NOT_ASSESSED_ABSENCE}</p>
+              ) : absence ? (
                 <>
                   {absence.people.length > 1 && (
                     <p className="text-xs font-medium text-muted">
@@ -1495,6 +1505,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                       </ul>
                     </div>
                   )}
+                  <AlreadyStopped items={absence.alreadyStopped} onSelect={setSelectedId} />
                   {absence.continues.length > 0 && (
                     <PeopleLine
                       label="Keeps running"
@@ -1647,6 +1658,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   key={w.absence.id}
                   window={w}
                   today={today}
+                  assessed={registerReady}
                   onRemove={() => removeLeave(w.absence.id)}
                   onExtend={() => stillOutTomorrow(w)}
                   onBack={() => backAtWork(w)}
@@ -1753,6 +1765,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
                   key={l.person.id}
                   leaver={l}
                   today={today}
+                  assessed={registerReady}
                   onSelect={setSelectedId}
                   onChangeDate={(d) => changeLastDay(l, d)}
                   onCancel={() => cancelLeaving(l)}
@@ -1774,37 +1787,39 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {report.people
-                .filter((l) => l.person.active)
-                .map((l) => (
-                  <div key={l.person.id} className="text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{l.person.name}</span>
-                      <span className="text-xs text-muted">
-                        {l.soleItems.length} sole · {l.sharedItems.length} shared ·{" "}
-                        {l.learningItems.length} learning
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-elevated">
-                      <div
-                        className={cn(
-                          "h-full rounded",
-                          l.dependence >= 50
-                            ? "bg-danger"
-                            : l.dependence >= 25
-                              ? "bg-warn"
-                              : "bg-ok",
-                        )}
-                        style={{ width: `${Math.max(2, l.dependence)}%` }}
-                      />
-                    </div>
-                    {l.soleItems.length > 0 && (
-                      <div className="mt-1 text-xs text-muted">
-                        Only they can do: {l.soleItems.map((k) => k.name).join(", ")}
+              {!registerReady && <p className="text-sm text-muted">{NOT_ASSESSED_ABSENCE}</p>}
+              {registerReady &&
+                report.people
+                  .filter((l) => l.person.active)
+                  .map((l) => (
+                    <div key={l.person.id} className="text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{l.person.name}</span>
+                        <span className="text-xs text-muted">
+                          {l.soleItems.length} sole · {l.sharedItems.length} shared ·{" "}
+                          {l.learningItems.length} learning
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-elevated">
+                        <div
+                          className={cn(
+                            "h-full rounded",
+                            l.dependence >= 50
+                              ? "bg-danger"
+                              : l.dependence >= 25
+                                ? "bg-warn"
+                                : "bg-ok",
+                          )}
+                          style={{ width: `${Math.max(2, l.dependence)}%` }}
+                        />
+                      </div>
+                      {l.soleItems.length > 0 && (
+                        <div className="mt-1 text-xs text-muted">
+                          Only they can do: {l.soleItems.map((k) => k.name).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ))}
             </CardContent>
           </Card>
         </div>
@@ -1814,6 +1829,49 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
 }
 
 const NOT_ASSESSED_HINT = "Fills in once someone is marked on an item.";
+
+/**
+ * Whether anyone is marked on the item at any level. Until then every
+ * candidate ties on generic reasons, so the app names nobody to train.
+ */
+function isMarked(row: ItemCoverage): boolean {
+  return row.primaries.length + row.learners.length + row.aware.length > 0;
+}
+const NOT_ASSESSED_PLAN =
+  "Nobody is marked on the register yet, so there is nobody to name. Mark who can do each item above; the plan then names who to train and who should teach.";
+const NOT_ASSESSED_ABSENCE =
+  "Not assessed yet: nobody is marked on the register, so the app cannot tell what stops when someone is out. Mark who can do each item above and this fills in.";
+
+/** Register items nobody can run alone: stopped whoever is in, listed apart from what the absence stops. */
+function AlreadyStopped({
+  items,
+  onSelect,
+}: {
+  items: KnowledgeItem[];
+  onSelect: (knowledgeId: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+        Already stopped · nobody can run {items.length === 1 ? "it" : "these"} alone
+      </div>
+      <ul className="flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated/60"
+              onClick={() => onSelect(item.id)}
+            >
+              {item.name} · {CRITICALITY_LABEL[item.criticality]}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function Stat({
   label,
@@ -1847,6 +1905,7 @@ function Stat({
 function LeaveWindow({
   window: w,
   today,
+  assessed,
   onRemove,
   onExtend,
   onBack,
@@ -1856,6 +1915,8 @@ function LeaveWindow({
 }: {
   window: AbsenceWindow;
   today: string;
+  /** False while nobody is marked on the register: the window cannot say what stops. */
+  assessed: boolean;
   onRemove: () => void;
   onExtend: () => void;
   onBack: () => void;
@@ -1925,96 +1986,109 @@ function LeaveWindow({
           </Button>
         </div>
       </div>
-      {w.overlaps.length > 0 && (
-        <p className="mt-1 text-xs text-warn">
-          Overlapping absence:{" "}
-          {w.overlaps
-            .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
-            .join("; ")}
-          .{" "}
-          {w.peak.extraStops.length > 0
-            ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
-                .filter((p) => p.id !== w.person.id)
-                .map((p) => firstName(p.name))
-                .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
-            : "Nothing extra stops on the shared days."}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge
-          variant={impact.dependence >= 50 ? "danger" : impact.dependence >= 25 ? "warn" : "ok"}
-        >
-          {impact.dependence}% of must-do work stops
-        </Badge>
-        <span className="text-xs text-muted">
-          {impact.stops.length} stop · {impact.continues.length} continue
-          {impact.orphanedProcesses.length > 0 &&
-            ` · ${impact.orphanedProcesses.length} process${impact.orphanedProcesses.length === 1 ? "" : "es"} without an owner`}
-        </span>
-      </div>
-      {impact.stops.length > 0 && (
-        <ul className="mt-2 space-y-1">
-          {impact.stops.map((s) => (
-            <li
-              key={s.item.id}
-              className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
-              onClick={() => onSelect(s.item.id)}
+      {!assessed ? (
+        <p className="mt-2 text-xs text-muted">{NOT_ASSESSED_ABSENCE}</p>
+      ) : (
+        <>
+          {w.overlaps.length > 0 && (
+            <p className="mt-1 text-xs text-warn">
+              Overlapping absence:{" "}
+              {w.overlaps
+                .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
+                .join("; ")}
+              .{" "}
+              {w.peak.extraStops.length > 0
+                ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
+                    .filter((p) => p.id !== w.person.id)
+                    .map((p) => firstName(p.name))
+                    .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
+                : "Nothing extra stops on the shared days."}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Badge
+              variant={impact.dependence >= 50 ? "danger" : impact.dependence >= 25 ? "warn" : "ok"}
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{s.item.name}</span>
-                <Badge variant={s.item.criticality === "critical" ? "danger" : "default"}>
-                  {CRITICALITY_LABEL[s.item.criticality]}
-                </Badge>
-                <span className="text-xs text-muted">
-                  → {s.standIn ? s.standIn.name : "nobody"}
-                </span>
-                {current && (
-                  <span className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}>
-                    · {procedurePointer(s)}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-muted">{s.note}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-2">
-        <PeopleLine label="Left in the business" people={impact.remaining.map((p) => p.name)} />
-      </div>
-      {impact.orphanedProcesses.length > 0 && (
-        <p className="mt-1 text-xs text-muted">
-          No owner left for: {impact.orphanedProcesses.join(", ")}
-        </p>
-      )}
-      {impact.actions.length > 0 && (
-        <div className="mt-2">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            {current ? "Do today" : `Before ${deadline}`}
+              {impact.dependence}% of must-do work stops
+            </Badge>
+            <span className="text-xs text-muted">
+              {impact.stops.length} stop · {impact.continues.length} continue
+              {impact.orphanedProcesses.length > 0 &&
+                ` · ${impact.orphanedProcesses.length} process${impact.orphanedProcesses.length === 1 ? "" : "es"} without an owner`}
+            </span>
           </div>
-          <ol className="list-decimal space-y-1 pl-5">
-            {impact.actions.map((a) => (
-              <li key={a.text}>
-                {a.text}
-                {a.knowledgeIds.length > 0 &&
-                  (tracked(a) ? (
-                    <span className="ml-2 text-xs text-subtle">
-                      In the Journal · review by {tracked(a)}
+          {impact.stops.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {impact.stops.map((s) => (
+                <li
+                  key={s.item.id}
+                  className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
+                  onClick={() => onSelect(s.item.id)}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{s.item.name}</span>
+                    <Badge variant={s.item.criticality === "critical" ? "danger" : "default"}>
+                      {CRITICALITY_LABEL[s.item.criticality]}
+                    </Badge>
+                    <span className="text-xs text-muted">
+                      → {s.standIn ? s.standIn.name : "nobody"}
                     </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-1 h-6 px-1.5 text-xs"
-                      onClick={() => onLog(a)}
-                    >
-                      <BookOpen className="size-3.5" /> Log as decision
-                    </Button>
-                  ))}
-              </li>
-            ))}
-          </ol>
-        </div>
+                    {current && (
+                      <span
+                        className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}
+                      >
+                        · {procedurePointer(s)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted">{s.note}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {impact.alreadyStopped.length > 0 && (
+            <div className="mt-2">
+              <AlreadyStopped items={impact.alreadyStopped} onSelect={onSelect} />
+            </div>
+          )}
+          <div className="mt-2">
+            <PeopleLine label="Left in the business" people={impact.remaining.map((p) => p.name)} />
+          </div>
+          {impact.orphanedProcesses.length > 0 && (
+            <p className="mt-1 text-xs text-muted">
+              No owner left for: {impact.orphanedProcesses.join(", ")}
+            </p>
+          )}
+          {impact.actions.length > 0 && (
+            <div className="mt-2">
+              <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                {current ? "Do today" : `Before ${deadline}`}
+              </div>
+              <ol className="list-decimal space-y-1 pl-5">
+                {impact.actions.map((a) => (
+                  <li key={a.text}>
+                    {a.text}
+                    {a.knowledgeIds.length > 0 &&
+                      (tracked(a) ? (
+                        <span className="ml-2 text-xs text-subtle">
+                          In the Journal · review by {tracked(a)}
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-1 h-6 px-1.5 text-xs"
+                          onClick={() => onLog(a)}
+                        >
+                          <BookOpen className="size-3.5" /> Log as decision
+                        </Button>
+                      ))}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -2061,6 +2135,7 @@ function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) 
 function LeaverCard({
   leaver: l,
   today,
+  assessed,
   onSelect,
   onChangeDate,
   onCancel,
@@ -2070,6 +2145,8 @@ function LeaverCard({
 }: {
   leaver: Leaver;
   today: string;
+  /** False while nobody is marked on the register: the hand-over cannot be worked out. */
+  assessed: boolean;
   onSelect: (knowledgeId: string) => void;
   onChangeDate: (lastDay: string) => void;
   onCancel: () => void;
@@ -2096,9 +2173,11 @@ function LeaverCard({
           <Badge variant={gone ? "danger" : urgent ? "warn" : "default"}>
             {leaverLead(l.daysLeft)}
           </Badge>
-          <Badge variant={l.dependence >= 50 ? "danger" : l.dependence >= 25 ? "warn" : "ok"}>
-            {l.dependence}% of must-do work
-          </Badge>
+          {assessed && (
+            <Badge variant={l.dependence >= 50 ? "danger" : l.dependence >= 25 ? "warn" : "ok"}>
+              {l.dependence}% of must-do work
+            </Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <label className="flex items-center gap-1 text-xs text-muted">
@@ -2127,14 +2206,16 @@ function LeaverCard({
           </Button>
         </div>
       </div>
-      <p className="mt-1 text-xs text-muted">{describeLeaver(l)}</p>
+      <p className="mt-1 text-xs text-muted">
+        {assessed ? describeLeaver(l) : NOT_ASSESSED_ABSENCE}
+      </p>
       {gone && (
         <p className="mt-1 text-xs text-danger">
           {first}&apos;s last day has passed but {first} still counts as cover. Mark as left to take{" "}
           {first} out of the coverage figures; the record stays in the history.
         </p>
       )}
-      {l.handover.length > 0 && (
+      {assessed && l.handover.length > 0 && (
         <>
           <div className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
             Hand-over checklist · {l.handover.length} only {first} can run alone
@@ -2163,7 +2244,7 @@ function LeaverCard({
           people={l.remaining.map((p) => p.name)}
         />
       </div>
-      {l.actions.length > 0 && (
+      {assessed && l.actions.length > 0 && (
         <div className="mt-2">
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
             {gone ? "Overdue — do now" : `Before ${deadline}`}

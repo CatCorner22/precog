@@ -487,3 +487,43 @@ describe("normalizePlannedAbsences", () => {
     expect(normalizePlannedAbsences({})).toEqual([]);
   });
 });
+
+describe("leave booked over a starter register nobody has marked", () => {
+  const starter: IndustryTemplate = {
+    ...getBaseTemplate("general"),
+    people,
+    relations: [],
+    processes: [],
+  };
+
+  it("says it cannot tell what stops instead of saying nothing stops", () => {
+    const [w] = plannedAbsenceReport(
+      starter,
+      [absence("ana", "a", "2025-11-02", "2025-11-02")],
+      "general",
+      "2025-11-01",
+    ).windows;
+    expect(w.impact.assessed).toBe(false);
+    expect(w.impact.stops).toEqual([]);
+    expect(w.impact.alreadyStopped).toEqual([]);
+    expect(describeWindow(w)).toBe(
+      "Ana is out 2 Nov, tomorrow: nobody is marked on the register yet, so the app cannot tell what stops.",
+    );
+  });
+
+  it("does not call a day quiet while register items wait on nobody", () => {
+    const gaps = tpl(
+      [item("payroll"), item("deposit")],
+      [{ personId: "b", knowledgeId: "payroll", level: "expert" }],
+    );
+    const [w] = plannedAbsenceReport(
+      gaps,
+      [absence("ana", "a", "2025-11-02", "2025-11-02")],
+      "general",
+      "2025-11-01",
+    ).windows;
+    expect(describeWindow(w)).toBe(
+      "Ana is out 2 Nov, tomorrow: nothing more stops, but nobody can run deposit alone even with Ana in.",
+    );
+  });
+});
