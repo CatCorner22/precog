@@ -7,6 +7,7 @@ import type { MapHealthReport } from "../process-graph";
 import { validateSharePayload } from "./share-schema";
 import { passcodeLocked, recordPasscodeFailure } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
+import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
 
 /** Frozen, self-contained view of a map for the public share page. */
 export interface SharedMapPayload {
@@ -52,15 +53,6 @@ type ShareRow = {
   passcode_hash: string | null;
 };
 
-type ShareListRow = Pick<
-  ShareRow,
-  "token" | "business_name" | "industry" | "created_at" | "expires_at" | "revoked_at" | "redacted"
-> & {
-  has_passcode: boolean;
-  views: number;
-  last_viewed_at: string | null;
-};
-
 function makeToken(): string {
   const bytes = new Uint8Array(18);
   crypto.getRandomValues(bytes);
@@ -99,23 +91,18 @@ export const createMapShare = createServerFn({ method: "POST" })
       passcodeSalt = randomBytes(16).toString("hex");
       passcodeHash = scryptSync(data.passcode, passcodeSalt, 32).toString("hex");
     }
-    await sql`
-      insert into map_shares (
-        token, user_id, business_name, industry, payload, expires_at,
-        redacted, passcode_salt, passcode_hash
-      )
-      values (
-        ${token},
-        ${context.userId},
-        ${data.payload.businessName.slice(0, 80)},
-        ${data.payload.industry},
-        ${JSON.stringify(data.payload)}::jsonb,
-        ${expires}::timestamptz,
-        ${data.redacted},
-        ${passcodeSalt ?? null},
-        ${passcodeHash ?? null}
-      )
-    `;
+    const stored = await insertMapShare(sql, {
+      token,
+      userId: context.userId,
+      businessName: data.payload.businessName.slice(0, 80),
+      industry: data.payload.industry,
+      payloadJson: JSON.stringify(data.payload),
+      expiresAt: expires,
+      redacted: data.redacted,
+      passcodeSalt: passcodeSalt ?? null,
+      passcodeHash: passcodeHash ?? null,
+    });
+    if (!stored) throw new ShareLimitError();
     return { token, expiresAt: expires };
   });
 
@@ -127,28 +114,9 @@ export const listMapShares = createServerFn({ method: "GET" })
     await purgeOldShareViews(sql).catch((error) =>
       console.error("Failed to purge old share views", error),
     );
-    const rows = await sql<ShareListRow>`
-      select
-        token, business_name, industry, created_at, expires_at, revoked_at,
-        redacted,
-        passcode_hash is not null as has_passcode,
-        (select count(*)::int from map_share_views v where v.token = map_shares.token) as views,
-        (select max(viewed_at) from map_share_views v where v.token = map_shares.token) as last_viewed_at
-      from map_shares
-      where user_id = ${context.userId}
-      order by created_at desc
-      limit 20
-    `;
-    return rows.map((r) => ({
-      token: r.token,
-      createdAt: r.created_at,
-      expiresAt: r.expires_at,
-      revoked: Boolean(r.revoked_at),
-      redacted: Boolean(r.redacted),
-      hasPasscode: Boolean(r.has_passcode),
-      views: Number(r.views ?? 0),
-      lastViewedAt: r.last_viewed_at ?? null,
-    }));
+    // Every live link, then the newest revoked or expired ones: a live link
+    // that dropped off the list could not be revoked from the app.
+    return listMapShareSummaries(sql, context.userId);
   });
 
 export const revokeMapShare = createServerFn({ method: "POST" })
