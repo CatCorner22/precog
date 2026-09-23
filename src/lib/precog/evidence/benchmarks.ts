@@ -18,6 +18,10 @@ const ACFE_2026_RTTN = {
  * Primary study: the ACFE's Occupational Fraud 2026: A Report to the Nations,
  * 14th edition, drawn from 2,402 cases investigated by Certified Fraud
  * Examiners across 143 countries, with documented losses over $3.4 billion.
+ *
+ * No entry carries a `page` or `figure` yet. Those fields are filled only after
+ * someone reads the figure in the published report; until then a reader can
+ * check a figure only through the study's landing page.
  */
 export const BENCHMARKS: Benchmark[] = [
   {

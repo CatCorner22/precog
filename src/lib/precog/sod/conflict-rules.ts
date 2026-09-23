@@ -487,6 +487,21 @@ export const CONFLICT_RULES: ConflictRule[] = [
     linkedControlId: "c-cash",
   },
   {
+    id: "rule-collect-adjust",
+    a: "collect_cash",
+    b: "post_adjustments",
+    severity: "high",
+    title: "Collect cash + enter write-offs",
+    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says nothing was owed. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries are all in the library below.",
+    fraudPath:
+      "Take the payment, then post a void, credit, or write-off so the account closes without it",
+    compensatingDefaults: [
+      "Owner reads a monthly list of every void, credit, and write-off, by employee",
+      "A second person approves any void or write-off above a set amount before it posts",
+    ],
+    linkedControlId: "c-sod-billing",
+  },
+  {
     id: "rule-deposit-post",
     a: "prepare_deposit",
     b: "post_payments",

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import type { CaseStudy } from "@/lib/precog/evidence";
+import { caseForRule, durationPhrase, type CaseStudy } from "@/lib/precog/evidence";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatUsd } from "@/lib/utils";
 
@@ -27,13 +27,6 @@ const DETECTION_LABEL: Record<string, string> = {
   reconciliation: "A reconciliation caught it",
   unknown: "Not stated in the source",
 };
-
-function durationPhrase(months: number): string {
-  if (months < 12) return `${months} months`;
-  const years = months / 12;
-  const rounded = Math.round(years * 10) / 10;
-  return `${rounded} year${rounded === 1 ? "" : "s"}`;
-}
 
 /**
  * Renders one real case.
@@ -161,6 +154,36 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div>
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">{title}</p>
       {children}
+    </div>
+  );
+}
+
+/**
+ * The case beside one duty conflict, under a heading that says what it is.
+ *
+ * A case that cites the rule shows the very pair of duties the finding names,
+ * so it sits under "This arrangement". When no case cites the rule the most
+ * relevant case that shares a scheme is shown instead, and the heading says it
+ * is a related scheme, so the page never claims more than the record shows.
+ * Renders nothing when the library holds no match at all.
+ */
+export function RuleCaseCard({
+  ruleId,
+  industryId,
+  className,
+}: {
+  ruleId: string;
+  industryId?: string;
+  className?: string;
+}) {
+  const pick = caseForRule(ruleId, industryId);
+  if (!pick) return null;
+  return (
+    <div className={className}>
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
+        {pick.citesRule ? "This arrangement, somewhere real" : "A related scheme, somewhere real"}
+      </p>
+      <CaseCard study={pick.study} />
     </div>
   );
 }

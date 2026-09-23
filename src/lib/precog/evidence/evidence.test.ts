@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { INDUSTRIES } from "../industry";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
+import { DEFAULT_FRAUD_STATS } from "../templates/shared-controls";
 import {
+  BENCHMARK_BY_ID,
   CASE_LIBRARY,
   CONTROL_CATALOG,
+  caseById,
+  caseForRule,
+  casesCitingSodRules,
   casesForSector,
   casesForControl,
   casesForSodRules,
+  citingCaseStats,
   detectionBreakdown,
+  durationPhrase,
   isOwnSector,
+  observedDurationMonths,
   observedLossRange,
   recommendedStepsForRules,
+  schemesForSodRules,
   tenureExamples,
   sectorForIndustry,
   sectorsForIndustry,
@@ -187,5 +196,184 @@ describe("case ranking", () => {
     }
     const anyCase = CASE_LIBRARY.find((c) => c.sector === "any")!;
     expect(isOwnSector(anyCase, "general")).toBe(false);
+  });
+});
+
+describe("casesCitingSodRules", () => {
+  it("keeps only the cases that cite the rules, in the order casesForSodRules gives", () => {
+    for (const rule of CONFLICT_RULES) {
+      const citing = casesCitingSodRules([rule.id]);
+      expect(citing.length, rule.id).toBeGreaterThan(0);
+      for (const c of citing) expect(c.sodRuleIds, `${rule.id} ${c.id}`).toContain(rule.id);
+      const ranked = casesForSodRules([rule.id]).filter((c) => c.sodRuleIds.includes(rule.id));
+      expect(citing.map((c) => c.id)).toEqual(ranked.map((c) => c.id));
+    }
+  });
+
+  it("returns nothing for a family finding, which no case cites", () => {
+    expect(casesForSodRules(["family-custody-recording"]).length).toBeGreaterThan(0);
+    expect(casesCitingSodRules(["family-custody-recording"])).toEqual([]);
+  });
+});
+
+describe("citingCaseStats", () => {
+  it("counts and takes the median over citing cases only, never over related schemes", () => {
+    const rules = ["rule-writeoff", "family-custody-recording"];
+    const stats = citingCaseStats(rules);
+    const citing = casesCitingSodRules(rules);
+    expect(stats.count).toBe(citing.length);
+    expect(stats.cases.map((c) => c.id)).toEqual(citing.map((c) => c.id));
+    expect(stats.loss).toEqual(observedLossRange(citing));
+    expect(stats.duration).toEqual(observedDurationMonths(citing));
+    expect(stats.detection).toEqual(detectionBreakdown(citing));
+    // The broader match carries scheme-only cases that must not enter the count.
+    expect(casesForSodRules(rules).length).toBeGreaterThan(stats.count);
+  });
+
+  it("returns an empty set, no median and no duration when nothing cites the rules", () => {
+    const stats = citingCaseStats(["family-custody-recording"]);
+    expect(stats.count).toBe(0);
+    expect(stats.loss).toBeNull();
+    expect(stats.duration).toBeNull();
+    expect(stats.detection).toEqual({ n: 0, known: 0, unknown: 0, byRoute: [] });
+  });
+});
+
+describe("caseForRule", () => {
+  it("shows a citing case from the owner's own line of business when one exists", () => {
+    const pick = caseForRule("rule-collect-post", "dental")!;
+    expect(pick.citesRule).toBe(true);
+    expect(pick.ownSector).toBe(true);
+    expect(pick.study.sodRuleIds).toContain("rule-collect-post");
+    expect(isOwnSector(pick.study, "dental")).toBe(true);
+  });
+
+  it("falls back to a citing case elsewhere, then marks a related scheme as not citing", () => {
+    const elsewhere = caseForRule("rule-backup-access", "restaurant")!;
+    expect(elsewhere.citesRule).toBe(true);
+    expect(elsewhere.ownSector).toBe(false);
+    const related = caseForRule("family-custody-recording", "general")!;
+    expect(related.citesRule).toBe(false);
+    expect(related.study.sodRuleIds).not.toContain("family-custody-recording");
+    expect(caseForRule("rule-does-not-exist")).toBeNull();
+  });
+});
+
+describe("durationPhrase", () => {
+  it("says one month in the singular and counts months below a year", () => {
+    expect(durationPhrase(1)).toBe("1 month");
+    expect(durationPhrase(8)).toBe("8 months");
+    expect(durationPhrase(0)).toBe("under a month");
+  });
+
+  it("rounds years to a tenth, so nearly 17 years never reads as 17", () => {
+    expect(durationPhrase(12)).toBe("1 year");
+    expect(durationPhrase(18)).toBe("1.5 years");
+    expect(durationPhrase(132)).toBe("11 years");
+    expect(durationPhrase(200)).toBe("16.7 years");
+  });
+});
+
+describe("rule attachments", () => {
+  it("keeps off the attachments whose records do not show the rule's pair of duties", () => {
+    const removed: [string, string][] = [
+      ["case-houston-dental-shell", "rule-vendor-create-pay"],
+      ["case-nonprofit-human-first", "rule-vendor-create-pay"],
+      ["case-bellingham-assistant-manager", "rule-vendor-create-pay"],
+      ["case-st-louis-floor-covering", "rule-vendor-create-pay"],
+      ["case-st-louis-floor-covering", "rule-invoice-pay"],
+      ["case-hutchinson-controller", "rule-vendor-create-pay"],
+      ["case-jersey-city-condo-kickbacks", "rule-invoice-pay"],
+      ["case-kearny-medical-receptionist", "rule-custody-rec"],
+      ["case-kearny-medical-receptionist", "rule-deposit-post"],
+      ["case-kearny-medical-receptionist", "rule-payments-adjust"],
+      ["case-msp-airport-restaurant-cash", "rule-custody-rec"],
+      ["case-void-no-sale-counter", "rule-refund-adjust"],
+      ["case-void-no-sale-counter", "rule-writeoff"],
+      ["case-void-no-sale-counter", "rule-custody-rec"],
+      ["case-dothan-printing-credentials", "rule-access-log"],
+      ["case-dennys-franchise-vendors", "rule-order-receive"],
+      ["case-caseyville-pediatrics-office-manager-five-ways", "rule-payroll-rec"],
+      ["case-duncan-part-time-bookkeeper-found-on-vacation", "rule-admin-pay"],
+    ];
+    for (const [caseId, ruleId] of removed) {
+      expect(caseById(caseId)?.sodRuleIds, `${caseId} ${ruleId}`).not.toContain(ruleId);
+    }
+    // System administration: only the record that mentions system access
+    // (Bellingham) and the founder who invented his own board keep it.
+    expect(
+      casesCitingSodRules(["rule-admin-pay"])
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(["case-bellingham-assistant-manager", "case-modest-needs-fake-board"]);
+  });
+
+  it("puts check signing and reconciliation on the records that state both", () => {
+    for (const id of [
+      "case-anderson-flooring-accountant-transfers-gambling",
+      "case-lenoir-secret-bank-account",
+    ]) {
+      expect(caseById(id)?.sodRuleIds, id).toContain("rule-sign-rec");
+    }
+  });
+
+  it("backs taking payments plus posting adjustments with the records that show it, mapped to schemes", () => {
+    expect(CONFLICT_RULES.find((r) => r.id === "rule-collect-adjust")).toMatchObject({
+      a: "collect_cash",
+      b: "post_adjustments",
+      severity: "high",
+    });
+    expect(
+      casesCitingSodRules(["rule-collect-adjust"])
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual([
+      "case-burlington-dealership-cash",
+      "case-st-albans-dental-billing",
+      "case-void-no-sale-counter",
+    ]);
+    expect(schemesForSodRules(["rule-collect-adjust"])).toContain("skimming");
+    // No record shows a collector approving write-offs or issuing refunds.
+    expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-writeoff")).toBe(false);
+    expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-refund")).toBe(false);
+  });
+
+  it("records no duration where the source dates only the employment, and no floor from two estimates", () => {
+    expect(
+      caseById("case-duncan-part-time-bookkeeper-found-on-vacation")?.durationMonths,
+    ).toBeUndefined();
+    expect(caseById("case-dennys-franchise-vendors")?.lossIsFloor).toBe(false);
+    expect(caseById("case-stamford-dental-billing")?.lossIsFloor).toBe(true);
+    expect(caseById("case-houston-dental-shell")?.schemes).not.toContain("billing-shell-vendor");
+    expect(caseById("case-bellingham-assistant-manager")?.detection).toBe("unknown");
+  });
+});
+
+describe("benchmarks and the shared statistics record", () => {
+  const bm = (id: string) => BENCHMARK_BY_ID[id];
+
+  it("carry the same figures wherever they state the same statistic", () => {
+    expect(DEFAULT_FRAUD_STATS.medianLossAllUsd).toBe(bm("bm-median-loss").numeric);
+    expect(DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd).toBe(bm("bm-small-org-losses").numeric);
+    expect(DEFAULT_FRAUD_STATS.revenueLossRateAnnual).toBe(bm("bm-revenue-share").numeric);
+    expect(DEFAULT_FRAUD_STATS.medianDetectionMonths).toBe(bm("bm-median-duration").numeric);
+
+    const curve = bm("bm-duration-cost-curve").value;
+    expect(curve).toContain(`$${DEFAULT_FRAUD_STATS.lossIfCaughtEarlyUsd.toLocaleString("en-US")}`);
+    expect(curve).toContain(`$${DEFAULT_FRAUD_STATS.lossIfRunsLongUsd / 1_000_000} million`);
+
+    const spread = bm("bm-duration-distribution").value;
+    expect(spread).toContain(`${Math.round(DEFAULT_FRAUD_STATS.shareRunningOverFiveYears * 100)}%`);
+    expect(spread).toMatch(/^A third are found within six months/);
+    expect(Math.abs(DEFAULT_FRAUD_STATS.shareFoundUnderSixMonths - 1 / 3)).toBeLessThan(0.01);
+
+    expect(DEFAULT_FRAUD_STATS.sourceUrl).toBe(bm("bm-median-loss").source.url);
+  });
+
+  it("leaves page and figure empty until someone checks them against the report", () => {
+    for (const b of Object.values(BENCHMARK_BY_ID)) {
+      expect(b.page, b.id).toBeUndefined();
+      expect(b.figure, b.id).toBeUndefined();
+    }
   });
 });

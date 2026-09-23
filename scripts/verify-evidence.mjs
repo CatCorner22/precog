@@ -27,6 +27,10 @@
  *      document with an https URL, or practitioner guidance marked as such.
  *      Any case a chunk points at exists. No chunk carries the old free-text
  *      "source" badge that named nothing a reader could open.
+ *  11. (Warning only.) A case's own account, howItWorked plus controlGap,
+ *      mentions at least one of the two duties each rule it cites pairs. A
+ *      keyword match cannot prove a record shows both duties, so this never
+ *      fails the run; it lists the attachments a person should read again.
  *
  * Run: npm run verify:evidence
  */
@@ -37,12 +41,20 @@ import { dirname, join } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
 
+/** The text of a string-valued field in a case record, single- or double-quoted. */
+function stringField(block, field) {
+  const m = block.match(new RegExp(`${field}:\\s*("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')`));
+  return m ? m[1].slice(1, -1) : "";
+}
+
 const rulesSrc = read("src/lib/precog/sod/conflict-rules.ts");
 const casesSrc = read("src/lib/precog/evidence/cases.ts");
 const benchSrc = read("src/lib/precog/evidence/benchmarks.ts");
 
 const failures = [];
 const fail = (msg) => failures.push(msg);
+const warnings = [];
+const warn = (msg) => warnings.push(msg);
 
 /** Rule IDs defined by the SoD engine. */
 const definedRules = new Set([...rulesSrc.matchAll(/id:\s*"(rule-[a-z0-9-]+)"/g)].map((m) => m[1]));
@@ -57,6 +69,8 @@ const caseBlocks = casesSrc
 const seenCaseIds = new Set();
 const seenSourceUrls = new Map();
 const citedRules = new Set();
+/** Each case's own account and the rules it cites, for check 11. */
+const caseAccounts = [];
 
 for (const block of caseBlocks) {
   const id = block.match(/id:\s*"([^"]+)"/)?.[1];
@@ -87,6 +101,13 @@ for (const block of caseBlocks) {
   if (!/sodRuleIds:\s*\[\s*"/.test(block)) {
     fail(`Case ${id} is not tied to any segregation-of-duties rule.`);
   }
+  caseAccounts.push({
+    id,
+    text: ["howItWorked", "controlGap"].map((field) => stringField(block, field)).join(" "),
+    rules: [...(block.match(/sodRuleIds:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(
+      (m) => m[1],
+    ),
+  });
   if (/lossUsd:\s*0\b/.test(block) && !/caveat:/.test(block)) {
     fail(`Case ${id} records no loss figure but carries no caveat explaining why.`);
   }
@@ -262,6 +283,162 @@ for (const m of corpusSrc.matchAll(/url:\s*"([^"]*)"/g)) {
   if (!/^https:\/\//.test(m[1])) fail(`Corpus citation URL is not https: ${m[1]}`);
 }
 
+// 11. Each rule a case cites should be visible in the case's own account. The
+//     keywords below are the words a record uses when it describes someone
+//     holding that duty. When a record mentions neither duty of a rule it
+//     cites, the attachment is printed for a person to reread: it is either a
+//     mistake, or one of the few records kept on its closest rule because no
+//     case shows the pair.
+const DUTY_WORDS = {
+  collect_cash: [
+    "cash",
+    "collect",
+    "customer pay",
+    "patient pay",
+    "paid by customers",
+    "insurer",
+    "insurance check",
+    "insurance pay",
+    "receipts",
+    "received the mail",
+    "take a patient payment",
+    "incoming payments",
+    "received the payments",
+    "customers to pay",
+  ],
+  post_payments: [
+    "books",
+    "ledger",
+    "record",
+    "posting",
+    "quickbooks",
+    "accounting",
+    "entries",
+    "entry",
+  ],
+  prepare_deposit: ["deposit"],
+  bank_reconcile: [
+    "reconcil",
+    "bank statement",
+    "bank account",
+    "cleared-check",
+    "cleared check",
+    "window onto the finances",
+    "view of the bank",
+    "landed in the practice",
+    "what left the bank",
+    "reviews itself",
+    "read the statement",
+    "card statement",
+  ],
+  approve_writeoffs: ["write-off", "write off", "wrote off", "written off", "writing off"],
+  post_adjustments: [
+    "adjust",
+    "write-off",
+    "write off",
+    "wrote off",
+    "void",
+    "edit the record",
+    "falsifying payment records",
+    "falsifying entries",
+    "credit balance",
+  ],
+  submit_claims: ["claim", "billed", "billing", "invoic"],
+  create_vendor: [
+    "vendor",
+    "supplier",
+    "payee",
+    "company named",
+    "sham company",
+    "fake compan",
+    "fictitious compan",
+  ],
+  approve_vendor: ["approv", "choosing the contractor", "steered"],
+  release_payment: [
+    "check",
+    "paid",
+    "pay the",
+    "payment",
+    "transfer",
+    "wire",
+    "released",
+    "spent",
+    "spending",
+    "withdraw",
+    "purchases",
+  ],
+  approve_payroll: [
+    "approv",
+    "ran payroll",
+    "ran its payroll",
+    "responsible for payroll",
+    "processed payroll",
+    "payroll register",
+  ],
+  enter_payroll: [
+    "payroll",
+    "timesheet",
+    "hours",
+    "pay rate",
+    "salary",
+    "paycheck",
+    "own pay",
+    "compensation",
+  ],
+  edit_payroll_master: [
+    "pay rate",
+    "own rate",
+    "reactivate",
+    "put a name on payroll",
+    "added her husband",
+    "employee record",
+    "employee numbers",
+    "changed the names",
+  ],
+  post_journal_entries: [
+    "journal",
+    "entries",
+    "entry",
+    "ledger",
+    "books",
+    "recorded them",
+    "recording them",
+    "coded",
+  ],
+  pms_admin_roles: ["administ", "system access", "permission", "user role"],
+  issue_refunds: ["refund"],
+  change_fee_schedule: ["fee schedule", "pricing", "price"],
+  edit_patient_master: ["customer record", "patient record", "account profile"],
+  manage_user_access: ["access", "login", "password", "user account", "credential", "privilege"],
+  export_bulk_data: ["export", "download", "account profiles", "customer list"],
+  order_supplies: ["order", "purchas"],
+  receive_goods: ["receiv", "signing for", "signed for", "arrived", "stocked", "stocks"],
+  enter_invoices: ["invoice", "bills", "accounts payable"],
+  initiate_ach: ["electronic", "online bank", "online access", "wire", "transfer", "ach"],
+  sign_checks: ["sign", "check"],
+  review_audit_logs: ["audit log", "access log", "logs"],
+  manage_backups: ["backup", "back up", "recovery"],
+  view_reports_only: [],
+};
+const ruleDuties = new Map(
+  [...rulesSrc.matchAll(/id:\s*"(rule-[a-z0-9-]+)",\s*a:\s*"([a-z_]+)",\s*b:\s*"([a-z_]+)"/g)].map(
+    (m) => [m[1], [m[2], m[3]]],
+  ),
+);
+const mentions = (text, duty) => (DUTY_WORDS[duty] ?? []).some((w) => text.includes(w));
+for (const { id, text, rules } of caseAccounts) {
+  const lower = text.toLowerCase();
+  for (const rule of rules) {
+    const duties = ruleDuties.get(rule);
+    if (!duties) continue;
+    if (!duties.some((d) => mentions(lower, d))) {
+      warn(
+        `Case ${id} cites ${rule} (${duties.join(" + ")}), but its account mentions neither duty.`,
+      );
+    }
+  }
+}
+
 const benchIds = [...benchSrc.matchAll(/id:\s*"(bm-[a-z0-9-]+)"/g)].map((m) => m[1]);
 const seenBench = new Set();
 for (const id of benchIds) {
@@ -270,6 +447,12 @@ for (const id of benchIds) {
 }
 if (benchIds.length === 0) fail("No benchmarks found — parser out of date.");
 if (!/url:\s*"https:\/\//.test(benchSrc)) fail("Benchmarks carry no source URL.");
+
+if (warnings.length > 0) {
+  console.warn(`Evidence library warnings (${warnings.length}, not failures; reread these):\n`);
+  for (const w of warnings) console.warn(`  - ${w}`);
+  console.warn("");
+}
 
 if (failures.length > 0) {
   console.error("Evidence library check failed:\n");

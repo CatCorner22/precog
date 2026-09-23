@@ -2,8 +2,7 @@ import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
-import { casesForSodRules } from "@/lib/precog/evidence";
-import { CaseCard } from "./case-card";
+import { RuleCaseCard } from "./case-card";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
@@ -495,20 +494,14 @@ function Stat({
 /**
  * The most relevant prosecuted case for a duty conflict.
  *
- * Renders nothing when the library has no match rather than showing a filler
- * message: a finding with no case behind it should look exactly as bare as it
- * is. In practice every conflict rule is covered, and verify-evidence.mjs
- * fails the build if one stops being.
+ * A case that cites the rule leads, under "This arrangement, somewhere real".
+ * A family finding, which no case cites, shows a case that shares a scheme
+ * under "A related scheme, somewhere real". Renders nothing when the library
+ * has no match rather than showing a filler message: a finding with no case
+ * behind it should look exactly as bare as it is. Every named rule is cited by
+ * at least one case, and verify-evidence.mjs fails the build if one stops
+ * being.
  */
 function ConflictEvidence({ ruleId }: { ruleId: string }) {
-  const study = casesForSodRules([ruleId])[0];
-  if (!study) return null;
-  return (
-    <div className="mt-2">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
-        This arrangement, somewhere real
-      </p>
-      <CaseCard study={study} />
-    </div>
-  );
+  return <RuleCaseCard ruleId={ruleId} className="mt-2" />;
 }

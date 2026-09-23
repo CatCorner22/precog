@@ -122,7 +122,14 @@ export interface CaseStudy {
   victimSize?: string;
   /** Year the case resolved (sentencing or plea), for recency signalling. */
   resolvedYear?: number;
-  /** IDs from sod/conflict-rules.ts that this case demonstrates. */
+  /**
+   * IDs from sod/conflict-rules.ts that this case demonstrates. A rule belongs
+   * here only when `howItWorked` or `controlGap` shows the insider held both
+   * duties the rule pairs. A record that shows no named pair keeps the one rule
+   * it comes closest to, because every case must cite a rule; the commit that
+   * placed it says which, and scripts/verify-evidence.mjs warns when a record
+   * mentions neither duty of a rule it cites.
+   */
   sodRuleIds: string[];
   /**
    * What would plausibly have caught it.
@@ -151,5 +158,13 @@ export interface Benchmark {
   study: string;
   studyYear: number;
   source: EvidenceSource;
+  /**
+   * Page of the study the figure appears on, once someone has checked it
+   * against the published report. Left empty until then; never filled from
+   * memory or from a secondary summary.
+   */
+  page?: string;
+  /** Figure or table number in the study, under the same rule as `page`. */
+  figure?: string;
   caveat?: string;
 }

@@ -441,8 +441,10 @@ export function ControlReport() {
                     .map(
                       (r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`,
                     )
-                    .join(", ")}; not stated in ${found.unknown} of ${found.n}.`
+                    .join(", ")}.`
                 : ""}
+              {/* Stated even when every case is silent: a missing fact is itself a finding. */}
+              {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
             </p>
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
               These describe other organizations, not this business, and they are prosecuted cases,
@@ -451,7 +453,8 @@ export function ControlReport() {
 
             <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>
             <p className="text-xs text-neutral-500">
-              Ordered by how many of the matching cases each control would plausibly have caught.
+              Ordered by how many of the matching cases each control would plausibly have caught, in
+              our reading of the record. That reading is ours, not a finding from any case.
             </p>
             <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm">
               {steps.map((st) => (
@@ -475,7 +478,9 @@ export function ControlReport() {
               ))}
             </ol>
 
-            <h3 className="mt-4 text-sm font-semibold text-neutral-800">Cases cited</h3>
+            <h3 className="mt-4 text-sm font-semibold text-neutral-800">
+              Cases cited, matched to these gaps in our reading of the record
+            </h3>
             <ul className="mt-1 space-y-1 text-xs text-neutral-600">
               {evidence.map((c) => (
                 <li key={c.id}>
