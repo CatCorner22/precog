@@ -45,7 +45,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await pg.exec(
-    'delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from "session"; delete from "user";',
+    'delete from llm_daily_usage; delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from "session"; delete from "user";',
   );
   for (const id of ["ua", "ub"]) {
     await pg.query(
@@ -122,6 +122,20 @@ describe("account deletion", () => {
     expect(await count("businesses", "where user_id = $1", ["ub"])).toBe(1);
     expect(await count("assessment_snapshots", "where user_id = $1", ["ub"])).toBe(1);
     expect(await count("map_shares", "where user_id = $1", ["ub"])).toBe(1);
+  });
+});
+
+describe("account deletion and model usage", () => {
+  it("removes the account's daily model-usage rows and keeps the global count", async () => {
+    await pg.exec(
+      `insert into llm_daily_usage (scope, day, calls) values
+         ('user:ua', current_date, 4), ('user:ua', current_date - 1, 2),
+         ('user:ub', current_date, 3), ('global', current_date, 7)`,
+    );
+    await deleteAccountRows(sql, "ua");
+    expect(await count("llm_daily_usage", "where scope = $1", ["user:ua"])).toBe(0);
+    expect(await count("llm_daily_usage", "where scope = $1", ["user:ub"])).toBe(1);
+    expect(await count("llm_daily_usage", "where scope = 'global'")).toBe(1);
   });
 });
 

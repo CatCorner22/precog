@@ -2,7 +2,7 @@ import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
 import { getSql } from "@/lib/db";
-import { takeDailyBudget } from "./daily-usage";
+import { withinDailyBudget } from "./daily-usage";
 import { LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 
 export type LlmAccess = {
@@ -45,27 +45,8 @@ export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess>
   if (!userResult.allowed) return { userId, grok: "rate_limited" };
   const globalResult = globalLimiter.take("global");
   if (!globalResult.allowed) return { userId, grok: "rate_limited" };
-  if (!(await withinDailyBudget(userId))) return { userId, grok: "rate_limited" };
+  // Fails closed: if the daily count cannot be read, the caller gets the
+  // local answer rather than an uncounted model call.
+  if (!(await withinDailyBudget(getSql, userId))) return { userId, grok: "rate_limited" };
   return { userId, grok: "allowed" };
-}
-
-/**
- * The persisted daily ceiling. A database failure logs and allows the call:
- * the per-minute limiters above still hold, and refusing every model call
- * because the usage table is briefly unreachable would take the coach down
- * with it.
- */
-async function withinDailyBudget(userId: string): Promise<boolean> {
-  try {
-    const budget = await takeDailyBudget(await getSql(), userId);
-    if (!budget.allowed) {
-      console.warn(
-        `[llm] daily ceiling reached: user ${budget.userCalls} calls, global ${budget.globalCalls} calls`,
-      );
-    }
-    return budget.allowed;
-  } catch (error) {
-    console.error("[llm] daily usage check failed; allowing the call", error);
-    return true;
-  }
 }

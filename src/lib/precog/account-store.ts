@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
+import { userScope } from "./llm/daily-usage";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -116,12 +117,14 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
 
 /**
  * Removes every row the account owns and then the account itself. Snapshots
- * carry no foreign key to the user, so they are deleted explicitly; shares,
- * share views, share attempts, businesses, the active pointer, sessions and
- * linked accounts cascade from the user row.
+ * and the per-user model-usage counts carry no foreign key to the user, so
+ * they are deleted explicitly; shares, share views, share attempts,
+ * businesses, the active pointer, sessions and linked accounts cascade from
+ * the user row. The app-wide usage count is not the account's and stays.
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<void> {
   await sql`delete from assessment_snapshots where user_id = ${userId}`;
+  await sql`delete from llm_daily_usage where scope = ${userScope(userId)}`;
   await sql`delete from map_shares where user_id = ${userId}`;
   await sql`delete from businesses where user_id = ${userId}`;
   await sql`delete from business_profiles where user_id = ${userId}`;

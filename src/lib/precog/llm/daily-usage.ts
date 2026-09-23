@@ -60,3 +60,57 @@ export async function takeDailyBudget(
 export async function purgeOldDailyUsage(sql: Sql, keepDays = 35): Promise<void> {
   await sql`delete from llm_daily_usage where day < current_date - ${keepDays}::int`;
 }
+
+/** How often, at most, one server instance purges old usage rows. */
+export const DAILY_USAGE_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * A purge that runs at most once per interval in this process, so the table
+ * stays bounded without a scheduled job and without a delete on every call.
+ * Returns whether it purged. A failed purge is logged and retried next time.
+ */
+export function createDailyUsagePurger(intervalMs = DAILY_USAGE_PURGE_INTERVAL_MS) {
+  let lastPurgeAt: number | null = null;
+  return async (sql: Sql, now = Date.now()): Promise<boolean> => {
+    if (lastPurgeAt !== null && now - lastPurgeAt < intervalMs) return false;
+    lastPurgeAt = now;
+    try {
+      await purgeOldDailyUsage(sql);
+      return true;
+    } catch (error) {
+      lastPurgeAt = null;
+      console.error("[llm] failed to purge old daily usage rows", error);
+      return false;
+    }
+  };
+}
+
+const purgeDailyUsageOccasionally = createDailyUsagePurger();
+
+/**
+ * The persisted daily ceiling for one model call. Fails closed: when the
+ * count cannot be read or written, the call is refused (the caller falls back
+ * to the local, model-free answer), because an unreadable budget is no budget
+ * and every model call spends the app owner's quota.
+ */
+export async function withinDailyBudget(
+  loadSql: () => Promise<Sql>,
+  userId: string,
+  limits: { perUser: number; global: number } = LLM_DAILY_LIMITS,
+  purge: (sql: Sql) => Promise<boolean> = purgeDailyUsageOccasionally,
+): Promise<boolean> {
+  try {
+    const sql = await loadSql();
+    const budget = await takeDailyBudget(sql, userId, limits);
+    if (!budget.allowed) {
+      console.warn(
+        `[llm] daily ceiling reached: user ${budget.userCalls} calls, global ${budget.globalCalls} calls`,
+      );
+    }
+    await purge(sql);
+    return budget.allowed;
+  } catch (error) {
+    console.error("[llm] daily usage check failed; refusing the model call", error);
+    return false;
+  }
+}
