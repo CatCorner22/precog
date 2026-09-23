@@ -1,6 +1,7 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import {
   checkInPlan,
   coverageReport,
@@ -165,9 +166,7 @@ export function buildWeeklyActions(input: {
   const today = input.today ?? localDateKey(new Date());
   const committed = continuityCommitments(input.decisions ?? [], tpl, today);
   const portfolio = portfolioSummary(tpl, input.staff);
-  const sod = detectSodConflicts(tpl, input.staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease, tpl),
-  });
+  const sod = detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease));
   const continuity = coverageReport(tpl);
   // A register nobody has filled in cannot say what stops when someone is out:
   // a starter list with nobody marked is not a set of single points, and an
@@ -182,17 +181,36 @@ export function buildWeeklyActions(input: {
   const actions: WeeklyAction[] = [];
 
   if (!input.staff.independentBankRec) {
-    actions.push({
-      id: "bank-rec",
-      title: "Start owner weekly bank reconciliation",
-      why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
-      effort: "low",
-      tab: "sod",
-      priority: 95,
-      evidence: evidenceFor(
-        casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
-      ),
-    });
+    // An owner who already reconciles, but also takes or records the money,
+    // is not told to start: the missing piece is a reader outside the books.
+    const activePeople = tpl.people.filter((p) => p.active);
+    const ownerId = soleOwnerId(activePeople);
+    const ownerReconciles = activePeople.some(
+      (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
+    );
+    actions.push(
+      ownerReconciles
+        ? {
+            id: "bank-rec",
+            title: "Have someone outside the books read the bank statement each month",
+            why: "You reconcile the bank yourself, but you also take or record the money, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
+            effort: "low",
+            tab: "sod",
+            priority: 95,
+            evidence: evidenceFor(casesForControls(["independent-bank-reconciliation"])),
+          }
+        : {
+            id: "bank-rec",
+            title: "Start owner weekly bank reconciliation",
+            why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
+            effort: "low",
+            tab: "sod",
+            priority: 95,
+            evidence: evidenceFor(
+              casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
+            ),
+          },
+    );
   }
 
   if (!input.staff.dualControlPayments) {

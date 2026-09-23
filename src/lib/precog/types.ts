@@ -140,6 +140,12 @@ export interface ControlItem {
   segregated: boolean;
   compensatingControls: string[];
   residualRiskAccepted: boolean;
+  /**
+   * Carried over from the industry example onto an owner's own business, and
+   * not yet confirmed to run there. Its "segregated" flag is the example's,
+   * not a fact about this business.
+   */
+  starter?: boolean;
 }
 
 export interface StaffComposition {
@@ -151,6 +157,8 @@ export interface StaffComposition {
   segregationSource?: "derived" | "manual";
   dualControlPayments: boolean;
   independentBankRec: boolean;
+  /** "manual" when the owner set the bank-reconciliation flag by hand. Absent or "derived" = read from the team's duties when the team changes. */
+  bankRecSource?: "derived" | "manual";
 }
 
 /**

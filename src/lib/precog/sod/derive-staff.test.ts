@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import type { Person, StaffComposition } from "../types";
 import { controlOptions, detectSodConflicts } from "./detect";
-import { deriveStaffFromTeam } from "./derive-staff";
+import { deriveStaffFromTeam, independentReconciliationFromTeam } from "./derive-staff";
 
 const retail = getBaseTemplate("retail");
 
@@ -82,5 +82,92 @@ describe("deriveStaffFromTeam", () => {
     const segregatedScore = deriveStaffFromTeam(segregatedTemplate, staff()).segregationScore;
 
     expect(soloScore).toBeLessThan(segregatedScore);
+  });
+});
+
+describe("independent reconciliation read from the team", () => {
+  const person = (id: string, role: string, duties: string[], active = true): Person => ({
+    id,
+    name: id,
+    role,
+    active,
+    entitlements: [...duties, "view_reports_only"],
+  });
+
+  it("counts an owner who signs checks and reconciles as independent", () => {
+    expect(
+      independentReconciliationFromTeam([
+        person("o", "Owner / Dentist", ["sign_checks", "approve_payroll", "bank_reconcile"]),
+        person("m", "Office Manager", ["collect_cash", "post_payments", "enter_invoices"]),
+      ]),
+    ).toBe(true);
+  });
+
+  it("does not count an owner who also records the payments they reconcile", () => {
+    expect(
+      independentReconciliationFromTeam([
+        person("o", "Owner", ["post_payments", "bank_reconcile"]),
+        person("c", "Cashier", ["collect_cash"]),
+      ]),
+    ).toBe(false);
+  });
+
+  it("does not count an employee who signs checks and reconciles", () => {
+    expect(
+      independentReconciliationFromTeam([
+        person("o", "Owner", ["approve_payroll"]),
+        person("b", "Bookkeeper", ["sign_checks", "bank_reconcile"]),
+      ]),
+    ).toBe(false);
+  });
+
+  it("does not give the owner's exemption to one of two partners", () => {
+    expect(
+      independentReconciliationFromTeam([
+        person("a", "Partner", ["sign_checks", "bank_reconcile"]),
+        person("b", "Partner", ["release_payment"]),
+      ]),
+    ).toBe(false);
+  });
+});
+
+describe("bank reconciliation flag after team edits", () => {
+  const withTeam = (people: Person[]) => ({ ...retail, people });
+  const reconciler: Person = {
+    id: "r",
+    name: "Outside Reviewer",
+    role: "Accountant",
+    active: true,
+    entitlements: ["bank_reconcile", "view_reports_only"],
+  };
+  const bookkeeper: Person = {
+    id: "b",
+    name: "Bookkeeper",
+    role: "Bookkeeper",
+    active: true,
+    entitlements: ["post_payments", "view_reports_only"],
+  };
+
+  it("follows the team when the independent reconciler leaves", () => {
+    const before = deriveStaffFromTeam(withTeam([reconciler, bookkeeper]), staff());
+    expect(before.independentBankRec).toBe(true);
+    const after = deriveStaffFromTeam(
+      withTeam([
+        { ...reconciler, active: false },
+        { ...bookkeeper, entitlements: ["post_payments", "bank_reconcile"] },
+      ]),
+      before,
+    );
+    expect(after.independentBankRec).toBe(false);
+    expect(after.bankRecSource).toBe("derived");
+  });
+
+  it("keeps a flag the owner set by hand", () => {
+    const after = deriveStaffFromTeam(
+      withTeam([bookkeeper]),
+      staff({ independentBankRec: true, bankRecSource: "manual" }),
+    );
+    expect(after.independentBankRec).toBe(true);
+    expect(after.bankRecSource).toBe("manual");
   });
 });

@@ -20,6 +20,9 @@ import {
   type EntitlementId,
 } from "./conflict-rules";
 import type { Person, StaffComposition } from "../types";
+import { soleOwnerId } from "./owner-role";
+
+export { isOwnerRole } from "./owner-role";
 
 export interface RoleAssignment {
   personId: string;
@@ -305,32 +308,66 @@ function directRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefine
 }
 
 /**
- * Initiating an ACH payment is releasing a payment by another channel, so a
- * pair with no rule of its own is read through the release-payment rules:
- * creating a vendor and initiating the ACH is the shell-vendor path exactly
- * as creating a vendor and releasing a check is.
+ * Duties that are another channel of a duty the rules name. Initiating an ACH
+ * is releasing a payment by wire instead of check, so creating a vendor and
+ * initiating the ACH is the shell-vendor path exactly as creating a vendor and
+ * releasing a check is. Preparing the deposit is holding the cash on its way
+ * to the bank, so preparing it and reconciling the account it lands in is the
+ * cash-custody gap exactly as taking the payment and reconciling is.
  */
-function findRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined {
-  const direct = directRule(a, b);
-  if (direct) return direct;
-  if (a === "initiate_ach" && b !== "release_payment") return directRule("release_payment", b);
-  if (b === "initiate_ach" && a !== "release_payment") return directRule(a, "release_payment");
-  return undefined;
+const CHANNEL_OF: Partial<Record<EntitlementId, EntitlementId>> = {
+  initiate_ach: "release_payment",
+  prepare_deposit: "collect_cash",
+};
+
+/** A rule a pair of duties falls under, with the duties the person actually holds in the rule's two seats. */
+interface RuleMatch {
+  rule: ConflictRule;
+  /** The person's duty standing in the rule's `a` seat. */
+  a: EntitlementId;
+  /** The person's duty standing in the rule's `b` seat. */
+  b: EntitlementId;
+  /** False when one duty stands in for the rule's duty as another channel of it. */
+  direct: boolean;
 }
 
-/** The person who owns the business: the one seat that cannot steal from itself. */
-export function isOwnerRole(role: string): boolean {
-  return /\b(owner|owners|proprietor|principal|founder|co-founder|partner|president|ceo|chief executive|managing (member|partner|director))\b/i.test(
-    role,
-  );
+function viaChannel(x: EntitlementId, y: EntitlementId): RuleMatch | undefined {
+  const channel = CHANNEL_OF[x];
+  if (!channel || channel === y) return undefined;
+  const rule = directRule(channel, y);
+  if (!rule) return undefined;
+  return rule.a === channel
+    ? { rule, a: x, b: y, direct: false }
+    : { rule, a: y, b: x, direct: false };
 }
+
+/** The rule a pair of duties falls under: its own rule first, then a rule for a duty it is a channel of. */
+function findRule(x: EntitlementId, y: EntitlementId): RuleMatch | undefined {
+  const direct = directRule(x, y);
+  if (direct) {
+    return direct.a === x
+      ? { rule: direct, a: x, b: y, direct: true }
+      : { rule: direct, a: y, b: x, direct: true };
+  }
+  return viaChannel(x, y) ?? viaChannel(y, x);
+}
+
+/**
+ * A finding that says the same thing as another one for the same person.
+ * Signing checks is releasing payments on paper, so a person who both releases
+ * payments and signs checks, and reconciles, has one gap ("sends money out and
+ * reconciles"), not two.
+ */
+const SUBSUMED_BY: Record<string, string> = {
+  "rule-sign-rec": "rule-release-rec",
+};
 
 /**
  * Duties that check or approve rather than handle or record. For the owner
  * these are the controls themselves: an owner who signs and reads the
  * statement is the design, not a gap.
  */
-const OVERSIGHT_DUTIES = new Set<EntitlementId>([
+export const OVERSIGHT_DUTIES: ReadonlySet<EntitlementId> = new Set<EntitlementId>([
   "sign_checks",
   "approve_vendor",
   "approve_payroll",
@@ -362,6 +399,33 @@ function bossPowers(a: EntitlementId, b: EntitlementId): boolean {
     (APPROVAL_DUTIES.has(a) && ACCESS_DUTIES.has(b)) ||
     (APPROVAL_DUTIES.has(b) && ACCESS_DUTIES.has(a))
   );
+}
+
+/**
+ * The money cycle the onboarding grid asks about. One employee holding most
+ * of it is a finding on its own: every pair is then in one pair of hands.
+ */
+const MONEY_CYCLE: readonly EntitlementId[] = [
+  "collect_cash",
+  "post_payments",
+  "prepare_deposit",
+  "bank_reconcile",
+  "enter_invoices",
+  "create_vendor",
+  "release_payment",
+  "enter_payroll",
+  "approve_payroll",
+  "issue_refunds",
+  "approve_writeoffs",
+];
+/** How many of the money-cycle duties one employee may hold before it is called out. */
+const CONCENTRATION_THRESHOLD = 5;
+
+/** Money-cycle duties a set of duties covers, counting ACH initiation and check signing as releasing payments. */
+function moneyCycleHeld(duties: readonly EntitlementId[]): EntitlementId[] {
+  const held = new Set(duties);
+  if (held.has("initiate_ach") || held.has("sign_checks")) held.add("release_payment");
+  return MONEY_CYCLE.filter((d) => held.has(d));
 }
 
 const OWNER_HELD_SUGGESTIONS = [
@@ -446,7 +510,7 @@ const OWNER_HELD_WHY =
   "Both duties sit with the owner, who cannot steal from themselves; the exposure is error, tax and lender reliance rather than theft, and it closes when someone outside the pair reads the records.";
 const OWNER_HELD_PATH = "An error or a tax problem that nobody but the owner would see";
 
-function scoreConflict(
+function rawConflictScore(
   severity: DetectedConflict["severity"],
   a: EntitlementId,
   b: EntitlementId,
@@ -481,7 +545,12 @@ function scoreConflict(
     s += 8;
   }
   if (staff && staff.segregationScore < 50) s += 5;
-  return Math.max(12, Math.min(100, Math.round(s)));
+  return s;
+}
+
+/** The 0–100 score a finding shows. Sorting uses the unclamped value, so two findings that both show 100 still rank by severity, weight and the business's own staffing. */
+function clampScore(raw: number): number {
+  return Math.max(12, Math.min(100, Math.round(raw)));
 }
 
 export function buildAssignments(
@@ -556,95 +625,127 @@ export function detectSodConflicts(
   const dualMitigatedRules = options?.dualReleaseMitigatedRuleIds ?? new Set<string>();
 
   const conflicts: DetectedConflict[] = [];
+  const rawScores = new Map<string, number>();
+  // Only a business with one owner has a seat that cannot steal from itself;
+  // partners and co-owners can each take from the others.
+  const ownerId = soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
 
   for (const person of assignments) {
     const ents = person.entitlements;
-    const owner = isOwnerRole(person.role);
+    const owner = person.personId === ownerId;
     // Family findings are the catch-all for pairs no named rule describes.
     // Once a named rule has already flagged one of the two duties for this
     // person, a second, vaguer finding on the same duty adds noise, not risk.
     const namedDuties = new Set<EntitlementId>();
+    // One finding per rule per person: a duty held through two channels (ACH
+    // and release, say) must not report the same gap twice. A direct pair
+    // wins over one read through a channel.
+    const ruleMatches = new Map<string, RuleMatch>();
     for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
-        if (findRule(ents[i], ents[j])) {
-          namedDuties.add(ents[i]);
-          namedDuties.add(ents[j]);
-        }
+        const match = findRule(ents[i], ents[j]);
+        if (!match) continue;
+        namedDuties.add(ents[i]);
+        namedDuties.add(ents[j]);
+        if (owner && OVERSIGHT_DUTIES.has(ents[i]) && OVERSIGHT_DUTIES.has(ents[j])) continue;
+        const seen = ruleMatches.get(match.rule.id);
+        if (!seen || (!seen.direct && match.direct)) ruleMatches.set(match.rule.id, match);
       }
     }
+    for (const [ruleId, over] of Object.entries(SUBSUMED_BY)) {
+      if (ruleMatches.has(ruleId) && ruleMatches.has(over)) ruleMatches.delete(ruleId);
+    }
+    const subsumedDefaults = (ruleId: string) =>
+      Object.entries(SUBSUMED_BY)
+        .filter(([, over]) => over === ruleId)
+        .flatMap(
+          ([under]) => CONFLICT_RULES.find((r) => r.id === under)?.compensatingDefaults ?? [],
+        );
+
+    for (const match of ruleMatches.values()) {
+      const rule = match.rule;
+      const [ruleA, ruleB] = canonicalPair(rule.a, rule.b);
+      // Labels and processes name the duties the person holds; the rating is the rule's.
+      const [heldA, heldB] = canonicalPair(match.a, match.b);
+      const dualMitigated = dualMitigatedRules.has(rule.id);
+      // A rule's suggested controls are advice, not controls the business
+      // has; only what is recorded as in place lowers the score.
+      const inPlace = [
+        ...(rule.linkedControlId ? (compensatingByControl[rule.linkedControlId] ?? []) : []),
+        ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
+      ];
+      const comps = [
+        ...(owner
+          ? OWNER_HELD_SUGGESTIONS
+          : [...rule.compensatingDefaults, ...subsumedDefaults(rule.id)]),
+        ...inPlace,
+      ];
+      const accepted = rule.linkedControlId ? residualAccepted.has(rule.linkedControlId) : false;
+      const raw =
+        rawConflictScore(
+          rule.severity,
+          ruleA,
+          ruleB,
+          accepted,
+          inPlace.length,
+          dualMitigated,
+          staff,
+        ) - (owner ? 30 : 0);
+      const id = `${person.personId}:${rule.id}`;
+      rawScores.set(id, raw);
+      conflicts.push({
+        id,
+        ruleId: rule.id,
+        personId: person.personId,
+        personName: person.personName,
+        role: person.role,
+        entitlementA: heldA,
+        entitlementB: heldB,
+        labelA: entLabel(heldA),
+        labelB: entLabel(heldB),
+        severity: rule.severity,
+        title: rule.title,
+        why: owner ? `${OWNER_HELD_WHY} ${rule.why}` : rule.why,
+        fraudPath: owner ? OWNER_HELD_PATH : rule.fraudPath,
+        score: clampScore(raw),
+        compensatingControls: Array.from(new Set(comps)),
+        controlsInPlace: Array.from(new Set(inPlace)),
+        ownerHeld: owner,
+        residualRiskAccepted: accepted,
+        dualReleaseMitigated: dualMitigated,
+        linkedScenarioId: rule.linkedScenarioId,
+        linkedControlId: rule.linkedControlId,
+        processIds: Array.from(new Set([...entProcesses(heldA), ...entProcesses(heldB)])),
+      });
+    }
+
     for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
         const b = ents[j];
-        const rule = findRule(a, b);
+        if (findRule(a, b)) continue;
         const fa = entFamily(a);
         const fb = entFamily(b);
 
-        if (!rule && (!familiesConflict(fa, fb) || !sharesProcess(a, b))) continue;
+        if (!familiesConflict(fa, fb) || !sharesProcess(a, b)) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
-        if (!rule && (namedDuties.has(a) || namedDuties.has(b))) continue;
-        if (!rule && bossPowers(a, b)) continue;
+        if (namedDuties.has(a) || namedDuties.has(b)) continue;
+        if (bossPowers(a, b)) continue;
         // The owner signing, approving and reading the statement is oversight
         // working as designed, not a gap.
         if (owner && OVERSIGHT_DUTIES.has(a) && OVERSIGHT_DUTIES.has(b)) continue;
 
-        if (rule) {
-          const [canonicalA, canonicalB] = canonicalPair(rule.a, rule.b);
-          const dualMitigated = dualMitigatedRules.has(rule.id);
-          // A rule's suggested controls are advice, not controls the business
-          // has; only what is recorded as in place lowers the score.
-          const inPlace = [
-            ...(rule.linkedControlId ? (compensatingByControl[rule.linkedControlId] ?? []) : []),
-            ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
-          ];
-          const comps = [
-            ...(owner ? OWNER_HELD_SUGGESTIONS : rule.compensatingDefaults),
-            ...inPlace,
-          ];
-          const accepted = rule.linkedControlId
-            ? residualAccepted.has(rule.linkedControlId)
-            : false;
-          const score = scoreConflict(
-            rule.severity,
-            canonicalA,
-            canonicalB,
-            accepted,
-            inPlace.length,
-            dualMitigated,
-            staff,
-          );
-          conflicts.push({
-            id: `${person.personId}:${rule.id}`,
-            ruleId: rule.id,
-            personId: person.personId,
-            personName: person.personName,
-            role: person.role,
-            entitlementA: canonicalA,
-            entitlementB: canonicalB,
-            labelA: entLabel(canonicalA),
-            labelB: entLabel(canonicalB),
-            severity: rule.severity,
-            title: rule.title,
-            why: owner ? `${OWNER_HELD_WHY} ${rule.why}` : rule.why,
-            fraudPath: owner ? OWNER_HELD_PATH : rule.fraudPath,
-            score: owner ? Math.max(12, score - 30) : score,
-            compensatingControls: Array.from(new Set(comps)),
-            controlsInPlace: Array.from(new Set(inPlace)),
-            ownerHeld: owner,
-            residualRiskAccepted: accepted,
-            dualReleaseMitigated: dualMitigated,
-            linkedScenarioId: rule.linkedScenarioId,
-            linkedControlId: rule.linkedControlId,
-            processIds: Array.from(
-              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
-            ),
-          });
-        } else {
+        {
           const [canonicalA, canonicalB] = canonicalPair(a, b);
           const canonicalFamilyA = entFamily(canonicalA);
           const canonicalFamilyB = entFamily(canonicalB);
+          const familyId = `${person.personId}:family:${canonicalA}:${canonicalB}`;
+          const familyRaw =
+            rawConflictScore("family", canonicalA, canonicalB, false, 0, false, staff) -
+            (owner ? 30 : 0);
+          rawScores.set(familyId, familyRaw);
           conflicts.push({
-            id: `${person.personId}:family:${canonicalA}:${canonicalB}`,
+            id: familyId,
             ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
             personId: person.personId,
             personName: person.personName,
@@ -668,12 +769,7 @@ export function detectSodConflicts(
               : canonicalFamilyA === canonicalFamilyB
                 ? `Complete both steps alone, with no handover anyone would notice`
                 : `Act, then write or check the record of the act, unobserved`,
-            score: owner
-              ? Math.max(
-                  12,
-                  scoreConflict("family", canonicalA, canonicalB, false, 0, false, staff) - 30,
-                )
-              : scoreConflict("family", canonicalA, canonicalB, false, 0, false, staff),
+            score: clampScore(familyRaw),
             compensatingControls: owner
               ? [...OWNER_HELD_SUGGESTIONS]
               : [
@@ -700,6 +796,7 @@ export function detectSodConflicts(
       SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
       Number(a.ownerHeld) - Number(b.ownerHeld) ||
       b.score - a.score ||
+      (rawScores.get(b.id) ?? b.score) - (rawScores.get(a.id) ?? a.score) ||
       a.id.localeCompare(b.id),
   );
 
@@ -711,7 +808,7 @@ export function detectSodConflicts(
         matrix.push({ row, col, status: "self", ruleIds: [] });
         continue;
       }
-      const rule = findRule(row, col);
+      const rule = findRule(row, col)?.rule;
       if (rule) {
         matrix.push({
           row,
@@ -746,6 +843,9 @@ export function detectSodConflicts(
   const dualReleaseMitigated = conflicts.filter((c) => c.dualReleaseMitigated).length;
   const ownerHeld = conflicts.filter((c) => c.ownerHeld).length;
   const held = new Set(assignments.flatMap((a) => a.entitlements));
+  // Releasing payments is held when anyone releases them by any channel:
+  // ACH initiation and check signing both send money out.
+  if (held.has("initiate_ach") || held.has("sign_checks")) held.add("release_payment");
   const unheldDuties = UNHELD_WATCH.filter((d) => !held.has(d));
 
   // Every conflict adds pressure. A dual-release rule narrows a pair rather
@@ -769,6 +869,20 @@ export function detectSodConflicts(
       `Resolve or dual-release-compensate ${critical} unmitigated critical conflict(s) first.`,
     );
   }
+  // One employee holding most of the money cycle is the finding a CPA leads
+  // with: every pair above is then in the same pair of hands.
+  for (const person of assignments) {
+    if (person.personId === ownerId) continue;
+    const cycle = moneyCycleHeld(person.entitlements);
+    if (cycle.length < CONCENTRATION_THRESHOLD) continue;
+    recommendations.push(
+      `${person.personName} (${person.role}) holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
+        cycle.includes("bank_reconcile")
+          ? "Start by moving the bank reconciliation to someone who holds none of the others."
+          : "Start by having someone who holds none of them reconcile the bank account."
+      }`,
+    );
+  }
   if (dualReleaseMitigated > 0) {
     recommendations.push(
       `${dualReleaseMitigated} conflict(s) mitigated by dual-release policy — keep thresholds enforced in bank/PMS.`,
@@ -776,25 +890,21 @@ export function detectSodConflicts(
   }
   if (
     conflicts.some(
-      (c) =>
-        (c.ruleId === "rule-cash-rec" || c.ruleId === "rule-custody-rec") &&
-        !c.dualReleaseMitigated,
+      (c) => (c.ruleId === "rule-cash-rec" || c.ruleId === "rule-custody-rec") && open(c),
     )
   ) {
     recommendations.push(
       "Have two people count and sign each deposit, and have the owner reconcile the bank account — two records the same person can no longer make agree.",
     );
   }
-  if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && !c.dualReleaseMitigated)) {
+  if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && open(c))) {
     recommendations.push(
       "Turn on dual release for electronic payments above the amount you set, and have the owner sign off on every new vendor.",
     );
   }
   if (
     conflicts.some(
-      (c) =>
-        (c.ruleId === "rule-writeoff" || c.ruleId === "rule-claims-writeoff") &&
-        !c.dualReleaseMitigated,
+      (c) => (c.ruleId === "rule-writeoff" || c.ruleId === "rule-claims-writeoff") && open(c),
     )
   ) {
     recommendations.push(
@@ -805,6 +915,11 @@ export function detectSodConflicts(
   if (!recommendations.length && (openHigh > 0 || medium > 0 || family > 0)) {
     recommendations.push(
       `Move one duty in each of the ${openHigh + medium + family} open pair(s) to someone else, or record the control that closes it.`,
+    );
+  }
+  if (ownerHeld > 0) {
+    recommendations.push(
+      `${ownerHeld} pair(s) sit with the owner. They are not theft findings; have an outside bookkeeper or accountant read the bank statement and the payroll register each month.`,
     );
   }
   if (!recommendations.length) {

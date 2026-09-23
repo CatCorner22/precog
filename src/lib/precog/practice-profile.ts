@@ -363,6 +363,14 @@ function normalizeStaff(value: unknown, base: StaffComposition): StaffCompositio
       typeof input.independentBankRec === "boolean"
         ? input.independentBankRec
         : base.independentBankRec,
+    // Whether the owner set these by hand survives a reload; without it the
+    // next team edit would silently re-derive a figure the owner chose.
+    ...(input.segregationSource === "manual" || input.segregationSource === "derived"
+      ? { segregationSource: input.segregationSource }
+      : {}),
+    ...(input.bankRecSource === "manual" || input.bankRecSource === "derived"
+      ? { bankRecSource: input.bankRecSource }
+      : {}),
   };
 }
 

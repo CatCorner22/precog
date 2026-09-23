@@ -498,10 +498,16 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     (staff: StaffComposition | ((s: StaffComposition) => StaffComposition)) => {
       setProfile((p) => {
         const raw = typeof staff === "function" ? staff(p.staff) : staff;
-        const next =
+        const scoreSet =
           p.customPeople && raw.segregationScore !== p.staff.segregationScore
             ? { ...raw, segregationSource: "manual" as const }
             : raw;
+        // Flipping the bank-reconciliation flag by hand keeps it: later team
+        // edits no longer re-read it from the duties.
+        const next =
+          p.customPeople && raw.independentBankRec !== p.staff.independentBankRec
+            ? { ...scoreSet, bankRecSource: "manual" as const }
+            : scoreSet;
         const dualRelease = {
           ...p.dualRelease,
           enabled: next.dualControlPayments,
@@ -532,6 +538,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
             ...p.staff,
             dualControlPayments: next.hasDualControl,
             independentBankRec: next.hasIndependentBankRec,
+            ...(p.customPeople && next.hasIndependentBankRec !== p.staff.independentBankRec
+              ? { bankRecSource: "manual" as const }
+              : {}),
           },
           dualRelease: {
             ...p.dualRelease,
