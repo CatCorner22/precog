@@ -13,6 +13,7 @@ import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
+import { personLabel } from "../person-label";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -721,7 +722,7 @@ export function listEligibleApprovers(
 /** "Ana Ruiz (Owner), Grace Kim (Bookkeeper)", or a plain statement when nobody qualifies. */
 function peopleList(people: readonly EligibleApprover[], joiner = ", "): string {
   if (people.length === 0) return "nobody on the team holds a duty that allows it";
-  return people.map((p) => `${p.name} (${p.role})`).join(joiner);
+  return people.map((p) => personLabel(p.name, p.role)).join(joiner);
 }
 
 /**
@@ -850,7 +851,9 @@ export function evaluateRelease(
       dualWaived: resolved.waiveDual,
       dualForced: resolved.forceDual,
       dualRequired,
-      reasons: [`${initiator.name} (${initiator.role}) is not allowed to initiate ${rule.label}.`],
+      reasons: [
+        `${personLabel(initiator.name, initiator.role)} is not allowed to initiate ${rule.label}.`,
+      ],
       nextSteps: [`Initiators must be: ${peopleList(eligible.filter((p) => p.canInitiate))}.`],
       eligibleSeconds,
       initiator: initiatorMeta,
@@ -1005,7 +1008,7 @@ export function evaluateRelease(
       dualForced: resolved.forceDual,
       dualRequired: true,
       reasons: [
-        `${second.name} (${second.role}) is not an allowed second signer for ${rule.label}.`,
+        `${personLabel(second.name, second.role)} is not an allowed second signer for ${rule.label}.`,
       ],
       nextSteps: [
         `Allowed seconds: ${peopleList(eligibleSeconds.filter((p) => p.id !== initiator.id))}.`,

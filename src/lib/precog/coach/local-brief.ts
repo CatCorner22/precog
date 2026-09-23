@@ -15,6 +15,7 @@ import {
 } from "../scoring/scope";
 import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
 import { closingSteps } from "./first-steps";
+import { personLabel } from "../person-label";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -123,7 +124,7 @@ export function conflictDecision(
   const meanwhile = closingSteps(first.compensatingControls, profile.dualRelease, first.ruleId)[0];
   return {
     action: `Give one of ${person.personName}'s duties to someone else: ${lower(first.labelA)} or ${lower(first.labelB)}`,
-    rationale: `${person.personName} (${person.role}) can both ${pairWords(first)}, a ${first.severity === "family" ? "duty" : first.severity} conflict${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${lower(meanwhile).replace(/\.$/, "")}.` : ""}`,
+    rationale: `${personLabel(person.personName, person.role)} can both ${pairWords(first)}, a ${first.severity === "family" ? "duty" : first.severity} conflict${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${lower(meanwhile).replace(/\.$/, "")}.` : ""}`,
     evidenceIds: [],
     effort: "medium",
     horizonDays: 14,

@@ -21,6 +21,7 @@ import {
 } from "./conflict-rules";
 import type { Person, StaffComposition } from "../types";
 import { soleOwnerId } from "./owner-role";
+import { personLabel } from "../person-label";
 
 export { isOwnerRole } from "./owner-role";
 
@@ -935,7 +936,7 @@ export function detectSodConflicts(
     const cycle = moneyCycleHeld(person.entitlements);
     if (cycle.length < CONCENTRATION_THRESHOLD) continue;
     recommendations.push(
-      `${person.personName} (${person.role}) holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
+      `${personLabel(person.personName, person.role)} holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
         cycle.includes("bank_reconcile")
           ? "Start by moving the bank reconciliation to someone who holds none of the others."
           : "Start by having someone who holds none of them reconcile the bank account."

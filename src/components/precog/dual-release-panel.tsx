@@ -28,6 +28,7 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
+import { personLabel } from "@/lib/precog/person-label";
 
 const CHANNELS: ReleaseChannel[] = ["ach", "check", "writeoff", "vendor_new", "deposit", "payroll"];
 
@@ -110,7 +111,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const secondsLine = useMemo(() => {
     const seconds = listEligibleApprovers(tpl, policy, channel).filter((p) => p.canSecond);
     return seconds.length
-      ? seconds.map((p) => `${p.name} (${p.role})`).join(", ")
+      ? seconds.map((p) => personLabel(p.name, p.role)).join(", ")
       : "nobody on the team holds a duty that allows it";
   }, [tpl, policy, channel]);
   const exceptions = policy.exceptions ?? [];

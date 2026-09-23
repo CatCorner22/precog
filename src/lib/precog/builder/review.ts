@@ -4,6 +4,7 @@
  */
 import { HEAT_BANDS } from "../process-graph";
 import { HEALTH_SCALE } from "../scoring/bands";
+import { personLabel } from "../person-label";
 
 export interface ReviewProcessInput {
   id: string;
@@ -119,7 +120,9 @@ export function reviewLocally(input: ReviewInput): MapReview {
 
   const people: string[] = [];
   for (const o of input.overburdened.slice(0, 2)) {
-    people.push(`${o.name} (${o.role}) is carrying too much: ${o.flags.slice(0, 2).join("; ")}.`);
+    people.push(
+      `${personLabel(o.name, o.role)} is carrying too much: ${o.flags.slice(0, 2).join("; ")}.`,
+    );
   }
   if (input.teamSize <= 6)
     people.push(

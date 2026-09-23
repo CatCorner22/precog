@@ -54,6 +54,7 @@ import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
+import { personLabel } from "@/lib/precog/person-label";
 
 /**
  * The first screen an owner sees.
@@ -636,7 +637,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         {headline && (
           <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm leading-relaxed">
             <span className="font-medium">
-              {headline.personName} ({headline.role}) holds {headline.gaps} of the{" "}
+              {personLabel(headline.personName, headline.role)} holds {headline.gaps} of the{" "}
               {headline.totalGaps} open gaps.
             </span>{" "}
             <span className="text-muted">
