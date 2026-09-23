@@ -132,6 +132,9 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "physician owner",
       "owner physician",
       "owner veterinarian",
+      "equity partner",
+      "name partner",
+      "founding partner",
     ],
     [
       "approve_vendor",
@@ -187,30 +190,57 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     [
       "office manager",
       "practice manager",
-      "office administrator",
       "administrative manager",
       "front office manager",
       "business office manager",
       "clinic manager",
       "office lead",
+      "hospital manager",
+      "hospital administrator",
+      "veterinary practice manager",
+      "veterinary hospital manager",
+    ],
+    [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "enter_invoices",
+      "release_payment",
+      "enter_payroll",
+      "view_reports_only",
+    ],
+    "In a small office the office manager records payments, makes the deposit, pays the bills, and runs payroll: the arrangement behind most cases in the library. In a dental, medical or veterinary office they usually reconcile the bank as well. Add write-off entry or system administration if they do it; untick what someone else does.",
+    "43-1011",
+  ),
+  entry(
+    "office-administrator",
+    "Office Administrator",
+    "office",
+    ["office administrator", "office admin"],
+    ["enter_invoices", "release_payment", "view_reports_only"],
+    "An office administrator enters and pays the bills; payroll, deposits and system set-up belong to a manager unless you tick them.",
+  ),
+  entry(
+    "firm-administrator",
+    "Firm / Legal Administrator",
+    "legal",
+    [
       "firm administrator",
       "law firm administrator",
       "legal administrator",
       "practice administrator (law)",
     ],
     [
-      "post_payments",
       "prepare_deposit",
-      "post_adjustments",
-      "create_vendor",
+      "bank_reconcile",
       "enter_invoices",
+      "create_vendor",
       "release_payment",
       "enter_payroll",
       "pms_admin_roles",
       "view_reports_only",
     ],
-    "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and administers the system: the arrangement behind most cases in the library. In a dental or medical office they usually reconcile the bank as well. Untick what someone else does.",
-    "43-1011",
+    "A firm administrator runs the firm's money and systems: makes the deposit, pays the bills, runs payroll, reconciles the operating and trust accounts and administers the practice software, while billing posts client payments. Untick what someone else does.",
   ),
   entry(
     "store-manager",
@@ -221,7 +251,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "retail manager",
       "shop manager",
       "branch manager",
-      "assistant store manager",
       "department manager",
       "location manager",
     ],
@@ -230,21 +259,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "prepare_deposit",
       "issue_refunds",
       "approve_writeoffs",
-      "order_supplies",
       "receive_goods",
-      "enter_payroll",
-      "manage_user_access",
       "view_reports_only",
     ],
-    "A store manager takes and banks cash, approves returns and markdowns, orders and receives stock, submits hours, and holds the register's override.",
+    "A store manager takes and banks cash, approves returns and markdowns, and signs for deliveries. Add ordering, payroll entry and user set-up if they do them rather than the owner or the office.",
   ),
   entry(
     "restaurant-manager",
-    "Restaurant / Assistant Manager",
+    "Restaurant Manager",
     "food",
     [
       "restaurant manager",
-      "assistant manager",
       "assistant general manager",
       "agm",
       "dining room manager",
@@ -252,9 +277,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "front of house manager",
       "foh manager",
       "front-of-house manager",
-      "asst manager",
-      "asst mgr",
-      "assistant mgr",
       "foh mgr",
     ],
     [
@@ -268,6 +290,22 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "view_reports_only",
     ],
     "A restaurant manager closes the drawer, makes the deposit, approves voids and comps, submits timecards, and orders and receives goods.",
+  ),
+  entry(
+    "assistant-manager",
+    "Assistant Manager (store or restaurant)",
+    "retail",
+    [
+      "assistant manager",
+      "assistant store manager",
+      "asst manager",
+      "asst mgr",
+      "assistant mgr",
+      "assistant shop manager",
+      "assistant retail manager",
+    ],
+    ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
+    "An assistant manager closes registers, bags the deposit and processes refunds; tick write-off and void approval if they hold the manager's override, and ordering or payroll if they do those.",
   ),
   entry(
     "shift-lead",
@@ -294,8 +332,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "closing supervisor",
       "store lead",
     ],
-    ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
-    "A shift lead takes cash, counts and bags the drawer, and can process a refund without a manager present.",
+    ["collect_cash", "prepare_deposit", "view_reports_only"],
+    "A shift lead or key holder takes cash and counts and bags the drawer; refunds need a manager unless you tick them.",
   ),
 
   // Finance and accounting
@@ -309,11 +347,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "finance manager",
       "finance director",
       "director of finance",
-      "cfo",
-      "chief financial officer",
       "fractional cfo",
-      "vp finance",
-      "vp of finance",
       "accounting manager",
       "head of finance",
       "assistant controller",
@@ -328,6 +362,15 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "view_reports_only",
     ],
     "A controller releases payments, signs, posts journal entries, and reconciles the bank: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; add them if your controller does it.",
+    "11-3031",
+  ),
+  entry(
+    "cfo",
+    "Chief Financial Officer",
+    "finance",
+    ["cfo", "chief financial officer", "vp finance", "vp of finance", "vice president of finance"],
+    ["approve_vendor", "sign_checks", "view_reports_only"],
+    "A CFO approves new suppliers and signs or gives the second approval on payments; the controller or bookkeeper records, releases and reconciles. Tick payroll approval if the CFO approves each run.",
     "11-3031",
   ),
   entry(
@@ -383,17 +426,21 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "finance coordinator",
       "finance clerk",
       "accounting",
+      "finance and operations manager",
+      "director of finance and operations",
+      "finance and administration manager",
     ],
     [
       "post_payments",
       "enter_invoices",
+      "create_vendor",
       "release_payment",
       "bank_reconcile",
       "enter_payroll",
       "post_journal_entries",
       "view_reports_only",
     ],
-    "A full-charge bookkeeper in a small business records receipts, pays bills, runs payroll, and reconciles the bank, which is every side of the ledger in one seat.",
+    "A full-charge bookkeeper in a small business records receipts, adds the suppliers whose bills they enter, pays the bills, runs payroll, and reconciles the bank, which is every side of the ledger in one seat. In a store the till records sales, so Record payments is left for you to tick.",
     "43-3031",
   ),
   entry(
@@ -420,8 +467,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "ap lead",
       "payables manager",
     ],
-    ["enter_invoices", "create_vendor", "release_payment", "view_reports_only"],
-    "Accounts payable enters invoices, sets up suppliers, and prepares or releases payment; the shell-vendor cases run through this seat.",
+    ["enter_invoices", "create_vendor", "view_reports_only"],
+    "Accounts payable enters invoices, sets up suppliers and prepares the payment run; tick Release payments if they also send the payments. The shell-vendor cases run through this seat.",
     "43-3031",
   ),
   entry(
@@ -453,8 +500,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "cash poster",
       "cash posting clerk",
     ],
-    ["post_payments", "post_adjustments", "issue_refunds", "view_reports_only"],
-    "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen.",
+    ["post_payments", "post_adjustments", "view_reports_only"],
+    "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen; refunds of credit balances are approved above this seat unless you tick them.",
     "43-3031",
   ),
   entry(
@@ -562,6 +609,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "warehouse",
       "stockroom associate",
       "parts runner",
+      "inventory coordinator",
+      "inventory associate",
     ],
     ["receive_goods", "view_reports_only"],
     "Receiving confirms what arrived, which is the check on purchasing; a supervisor here also often approves hours.",
@@ -592,6 +641,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "front desk lead",
       "front desk supervisor",
       "front office supervisor",
+      "client service representative",
+      "client services representative",
+      "client care representative",
+      "client service lead",
     ],
     ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
     "The front desk takes payments, posts them, and edits customer or patient records: the skimming cases begin at this desk.",
@@ -688,7 +741,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "customer support representative",
       "support specialist",
       "client services",
-      "client service representative",
       "client services coordinator",
       "member services",
       "call center agent",
@@ -726,8 +778,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "sales lead",
       "comfort advisor",
     ],
-    ["approve_writeoffs", "edit_patient_master", "view_reports_only"],
-    "Sales grants discounts and credits and maintains customer accounts; whether sales can also record payments decides the risk.",
+    ["edit_patient_master", "view_reports_only"],
+    "Sales maintains customer accounts; granting credits or writing off balances belongs to a manager or the owner unless you tick it, and so does taking payment unless reps collect on delivery.",
   ),
   entry(
     "cashier",
@@ -861,8 +913,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "head nurse",
       "assistant medical",
     ],
-    ["edit_patient_master", "view_reports_only"],
-    "Clinical staff update the chart and demographics but should not touch payments or claims.",
+    ["view_reports_only"],
+    "Clinical staff update the clinical chart, not the billing record, and should not touch payments or claims; tick Edit customer master records if they register patients.",
   ),
   entry(
     "medical-secretary",
@@ -905,6 +957,14 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ["approve_vendor", "approve_writeoffs", "manage_user_access", "view_reports_only"],
     "A clinical director approves suppliers and write-offs and decides who has system access.",
   ),
+  entry(
+    "clinic-site-director",
+    "Clinic Director (one site)",
+    "clinical",
+    ["clinic director", "clinic site director", "site clinic director"],
+    ["prepare_deposit", "enter_payroll", "approve_writeoffs", "view_reports_only"],
+    "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit.",
+  ),
 
   // Restaurant and food service
   entry(
@@ -933,7 +993,7 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
   ),
   entry(
     "server",
-    "Server / Host",
+    "Server",
     "food",
     [
       "server",
@@ -942,13 +1002,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "wait staff",
       "waitstaff",
       "food server",
-      "host",
-      "hostess",
-      "busser",
       "barista",
       "counter server",
-      "food runner",
-      "runner",
       "catering server",
       "banquet server",
     ],
@@ -960,18 +1015,69 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "bartender",
     "Bartender",
     "food",
-    ["bartender", "barback", "mixologist", "bar staff", "bar lead", "bar back"],
+    ["bartender", "mixologist", "bar staff", "bar lead", "beertender"],
     ["collect_cash", "view_reports_only"],
     "A bartender takes cash all night; the control is the pour count and the drawer count.",
     "35-3011",
   ),
   entry(
+    "host",
+    "Host / Busser / Barback",
+    "food",
+    [
+      "host",
+      "hostess",
+      "busser",
+      "food runner",
+      "runner",
+      "barback",
+      "bar back",
+      "restaurant host",
+    ],
+    ["view_reports_only"],
+    "Hosts, bussers, runners and barbacks seat guests and support the floor and bar without a drawer; tick Take payments if they ring out orders.",
+    "35-9031",
+  ),
+  entry(
     "bar-manager",
     "Bar / Beverage Manager",
     "food",
-    ["bar manager", "beverage manager", "beverage director", "sommelier", "wine director"],
+    [
+      "bar manager",
+      "beverage manager",
+      "beverage director",
+      "sommelier",
+      "wine director",
+      "taproom manager",
+      "tasting room manager",
+    ],
     ["collect_cash", "prepare_deposit", "order_supplies", "receive_goods", "view_reports_only"],
     "A bar manager orders and receives liquor and closes the bar drawer; inventory theft and skimming share the seat.",
+  ),
+  entry(
+    "head-brewer",
+    "Head Brewer / Brewmaster",
+    "food",
+    ["head brewer", "brewmaster", "brew master", "brewing manager"],
+    ["order_supplies", "receive_goods", "view_reports_only"],
+    "The head brewer orders malt, hops and packaging and signs for them, so the check on the supplier is the same person who chose it.",
+  ),
+  entry(
+    "brewer",
+    "Brewer / Cellar / Packaging",
+    "food",
+    [
+      "brewer",
+      "assistant brewer",
+      "cellarperson",
+      "cellar person",
+      "cellarman",
+      "cellar operator",
+      "packaging lead",
+      "packaging operator",
+    ],
+    ["view_reports_only"],
+    "Brewing, cellar and packaging staff make the product and hold no money duty; they appear on the map for continuity.",
   ),
 
   // Trades, field, and construction
@@ -1012,7 +1118,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "crew member",
       "laborer",
       "labourer",
-      "apprentice",
       "journeyman",
       "plumber",
       "electrician",
@@ -1029,7 +1134,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "pipefitter",
       "helper",
       "trade helper",
-      "apprentice technician",
     ],
     ["collect_cash", "view_reports_only"],
     "A technician who collects at the job holds cash the office never sees until it is deposited.",
@@ -1100,10 +1204,9 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "manage_user_access",
       "manage_backups",
       "export_bulk_data",
-      "review_audit_logs",
       "view_reports_only",
     ],
-    "IT administers the system, grants access, holds the backups, and can export everything; the data-theft and data-destruction cases sit here.",
+    "IT administers the system, grants access, holds the backups, and can export everything; the data-theft and data-destruction cases sit here. Reviewing the access logs should sit with someone else: tick it here only if IT does it.",
   ),
 
   // Human resources
@@ -1156,9 +1259,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "legal administrative assistant",
       "intake specialist",
       "intake coordinator",
+      "legal assistant secretary",
+      "legal secretary assistant",
     ],
-    ["enter_invoices", "post_payments", "view_reports_only"],
-    "A paralegal enters the bill and posts the client's payment; trust-account handling needs its own line if they hold it.",
+    ["view_reports_only"],
+    "A paralegal or legal assistant works the matters and holds no money duty by default; tick billing or payment posting if they do the firm's billing.",
   ),
   entry(
     "attorney",
@@ -1174,8 +1279,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "general counsel",
       "solicitor",
     ],
-    ["approve_writeoffs", "view_reports_only"],
-    "An attorney approves write-downs on their own matters; billing and trust deposits belong to someone else.",
+    ["view_reports_only"],
+    "An associate or employed attorney bills time; write-downs are approved by a partner and billing and trust deposits belong to someone else, so tick write-off approval only for an attorney who grants it.",
   ),
 
   // Professional and project staff
@@ -1313,12 +1418,12 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ["service advisor", "service writer", "service consultant", "shop advisor"],
     [
       "collect_cash",
+      "post_payments",
       "post_adjustments",
-      "approve_writeoffs",
       "edit_patient_master",
       "view_reports_only",
     ],
-    "A service advisor writes the repair order, adjusts it, grants goodwill, and takes the customer's payment at the counter.",
+    "A service advisor writes and adjusts the repair order and takes and records the customer's payment at the counter; goodwill write-offs are approved by the service manager unless you tick them.",
   ),
   entry(
     "parts",
@@ -1398,6 +1503,14 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "view_reports_only",
     ],
     "A property manager collects rent, posts it, chooses and pays the contractors, and writes off balances: custody, recording, and approval in one seat.",
+  ),
+  entry(
+    "assistant-property-manager",
+    "Assistant Property Manager",
+    "property",
+    ["assistant property manager", "assistant community manager"],
+    ["collect_cash", "post_payments", "view_reports_only"],
+    "An assistant property manager collects and posts rent; choosing and paying contractors stays with the property manager unless you tick it.",
   ),
   entry(
     "leasing-agent",
@@ -1508,8 +1621,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "Board Treasurer",
     "nonprofit",
     ["board treasurer", "volunteer treasurer", "finance committee chair"],
-    ["sign_checks", "bank_reconcile", "approve_payroll", "view_reports_only"],
-    "A volunteer treasurer signs and reads the statement; when the treasurer also keeps the books there is no second reader.",
+    ["sign_checks", "approve_payroll", "view_reports_only"],
+    "A volunteer treasurer co-signs and reviews the reconciliation someone else prepares; tick Reconcile bank only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
   ),
   entry(
     "volunteer-coordinator",
@@ -1532,22 +1645,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
   // Marketing and communications
   entry(
     "marketing",
-    "Marketing / Communications",
+    "Marketing Manager / Director",
     "marketing",
     [
       "marketing manager",
       "marketing director",
       "director of marketing",
-      "marketing coordinator",
-      "marketing specialist",
       "marketing",
-      "marketing associate",
       "social media manager",
-      "social media coordinator",
       "content manager",
       "communications manager",
       "communications director",
-      "communications coordinator",
       "digital marketing manager",
       "brand manager",
       "cmo",
@@ -1562,6 +1670,22 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ["order_supplies", "view_reports_only"],
     "Marketing buys agency, print, and ad-platform services, often on a card the owner never itemises; entering and paying the bills belong to the office.",
     "11-2021",
+  ),
+  entry(
+    "marketing-coordinator",
+    "Marketing Coordinator / Specialist",
+    "marketing",
+    [
+      "marketing coordinator",
+      "marketing specialist",
+      "marketing associate",
+      "marketing assistant",
+      "social media coordinator",
+      "communications coordinator",
+    ],
+    ["view_reports_only"],
+    "A marketing coordinator runs campaigns and content; buying the ads and paying for them sit with a manager or the office unless you tick them.",
+    "13-1161",
   ),
 
   // Insurance, tax, lending
@@ -1733,6 +1857,20 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "A director takes tuition, makes the deposit, approves suppliers, and submits hours, usually with no one above them on site.",
   ),
   entry(
+    "assistant-director",
+    "Assistant Center Director",
+    "education",
+    [
+      "assistant director",
+      "assistant center director",
+      "assistant childcare director",
+      "assistant daycare director",
+      "assistant preschool director",
+    ],
+    ["collect_cash", "post_payments", "view_reports_only"],
+    "An assistant director takes tuition payments at the front desk and records them on families' accounts; the deposit and supplier approvals stay with the director unless you tick them.",
+  ),
+  entry(
     "teacher",
     "Teacher / Caregiver",
     "education",
@@ -1748,6 +1886,10 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "aide",
       "educator",
       "paraprofessional",
+      "floater",
+      "floating teacher",
+      "school age lead",
+      "school age teacher",
     ],
     ["view_reports_only"],
     "Teaching staff hold no money duty; they appear on the map for continuity.",
@@ -1773,6 +1915,15 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     ],
     ["collect_cash", "view_reports_only"],
     "A driver who collects on delivery holds cash and checks until the route settles.",
+  ),
+  entry(
+    "transport-driver",
+    "Bus / Van Driver",
+    "education",
+    ["bus driver", "school bus driver", "van driver", "shuttle driver", "transportation driver"],
+    ["view_reports_only"],
+    "A bus or van driver carries children, clients or staff and collects nothing; tick Take payments if they collect fares.",
+    "53-3051",
   ),
   entry(
     "fleet-manager",
@@ -1899,9 +2050,13 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "fulfillment specialist",
       "order fulfillment",
       "fulfillment",
+      "e-commerce coordinator",
+      "ecommerce coordinator",
+      "online store coordinator",
+      "online store manager",
     ],
-    ["issue_refunds", "post_adjustments", "view_reports_only"],
-    "Online fulfilment issues refunds and credits against orders nobody else sees.",
+    ["issue_refunds", "view_reports_only"],
+    "Online sales issues refunds against orders nobody else sees; tick Enter write-offs if they also grant store credit or adjust orders.",
   ),
   entry(
     "merchandiser",
@@ -1967,7 +2122,15 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "intern",
     "Intern / Volunteer",
     "professional",
-    ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice (office)"],
+    [
+      "intern",
+      "volunteer",
+      "student worker",
+      "work study",
+      "co-op student",
+      "apprentice (office)",
+      "apprentice",
+    ],
     ["view_reports_only"],
     "An intern holds no money duty by default; tick anything they actually do.",
   ),
@@ -2099,6 +2262,11 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "flat rate technician",
       "body technician",
       "collision technician",
+      "apprentice technician",
+      "apprentice tech",
+      "general service technician",
+      "general service tech",
+      "gs technician",
     ],
     ["view_reports_only"],
     "A shop technician works the repair order; the advisor or cashier takes the money, so the technician holds no money duty by default.",
@@ -2118,14 +2286,21 @@ const DESCRIPTIONS: Record<string, string> = {
     "Plans, directs, and coordinates the operations of the business, including budgeting, purchasing, and staffing, without a single functional specialty.",
   "office-manager":
     "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
+  "office-administrator":
+    "Runs the office's paperwork, correspondence, and supplier bills, and pays them as directed.",
+  "firm-administrator":
+    "Manages a law firm's finances, trust and operating accounts, staff, payroll, facilities, and practice systems.",
   "store-manager":
-    "Supervises and coordinates the retail staff of a store or department, including purchasing, budgeting, and cash handling.",
+    "Supervises and coordinates the retail staff of a store or department, including cash handling, returns, deliveries, and schedules.",
+  "assistant-manager":
+    "Supports the store or restaurant manager and runs shifts: opens and closes the registers, bags the deposit, and handles returns.",
   "restaurant-manager":
-    "Runs the dining room and the shift: seats and serves guests, closes the register, approves voids, schedules staff, and orders stock.",
+    "Runs the restaurant or its dining room: closes the register, approves voids and comps, schedules staff, and orders stock.",
   "shift-lead":
     "Leads a shift or a station, opens and closes the register, and stands in for the manager when none is present.",
   controller:
     "Plans, directs, and coordinates the accounting, reporting, and banking of the business and prepares its financial statements.",
+  cfo: "Directs the finances of the business, approves spending and suppliers, and signs or approves payments.",
   accountant:
     "Examines, analyzes, and interprets accounting records, prepares financial statements, and posts the entries that keep the ledger true.",
   bookkeeper:
@@ -2155,8 +2330,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "Presents treatment plans and fees, arranges financing, takes payment, and keeps the patient's plan current.",
   "customer-service":
     "Handles customer inquiries, complaints, orders, returns, and account changes, and issues refunds and credits within limits.",
-  sales:
-    "Sells the business's products or services, manages customer accounts, and grants discounts and credits to close and keep business.",
+  sales: "Sells the business's products or services and manages customer accounts.",
   cashier: "Receives and disburses money at a register, records the sale, and makes change.",
   provider:
     "Delivers the clinical or professional service the business sells; billing, adjustments, and payments belong to the office.",
@@ -2173,6 +2347,7 @@ const DESCRIPTIONS: Record<string, string> = {
   chef: "Directs food preparation and the kitchen staff, plans menus, and orders and receives food and supplies.",
   server:
     "Takes orders and serves food and drink to guests, presents the check, and collects payment.",
+  host: "Seats guests, clears and resets tables, runs food, or stocks the bar, without handling payment.",
   bartender:
     "Mixes and serves drinks, takes payment at the bar, and keeps the bar's stock and drawer.",
   "bar-manager":
@@ -2188,9 +2363,8 @@ const DESCRIPTIONS: Record<string, string> = {
     "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
   hr: "Recruits, hires, and onboards staff, maintains employee records, and administers pay changes and benefits.",
   paralegal:
-    "Assists attorneys by preparing documents, organizing files, and handling client billing and payments.",
-  attorney:
-    "Represents clients, gives legal advice, and is responsible for the matters and the fees billed on them.",
+    "Assists attorneys by preparing documents, organizing files, and managing deadlines and client contact.",
+  attorney: "Represents clients, gives legal advice, and records the time billed on their matters.",
   "project-manager":
     "Plans and delivers projects, manages the budget and the subcontractors, and approves work and invoices against it.",
   consultant:
@@ -2225,11 +2399,13 @@ const DESCRIPTIONS: Record<string, string> = {
   "grants-manager":
     "Finds, writes, and administers grants and bills funders for reimbursable costs.",
   "board-treasurer":
-    "Serves on the board, oversees the finances, signs or approves payments, and reviews the bank statements.",
+    "Serves on the board, oversees the finances, signs or approves payments, and reviews the reconciliations.",
   "volunteer-coordinator":
     "Recruits and schedules volunteers and delivers the organization's programs.",
   marketing:
     "Plans and runs marketing and communications, manages agencies and ad spend, and maintains the brand.",
+  "marketing-coordinator":
+    "Coordinates campaigns, content, social media, and events under a marketing manager or the owner.",
   "insurance-agent": "Sells insurance policies, services policyholders, and collects premiums.",
   "tax-preparer": "Prepares tax returns for individuals or small businesses and collects the fee.",
   auditor:
@@ -2248,6 +2424,10 @@ const DESCRIPTIONS: Record<string, string> = {
   "center-director":
     "Directs a childcare center or school: enrollment, tuition, staffing, suppliers, and compliance.",
   teacher: "Teaches or cares for children or students and holds no financial duty.",
+  "assistant-director":
+    "Assists the center director with enrollment, family accounts, and tuition payments, and runs the front office.",
+  "transport-driver":
+    "Drives a bus or van carrying children, clients, or staff; holds no financial duty.",
   driver: "Drives delivery or service routes and may collect payment on delivery.",
   "fleet-manager": "Manages vehicles, drivers, routing, fuel, and repair suppliers.",
   "project-accountant":
@@ -2279,6 +2459,13 @@ const DESCRIPTIONS: Record<string, string> = {
     "Cleans and services guest rooms and public areas of a hotel or property; holds no financial duty.",
   "shop-technician":
     "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no financial duty.",
+  "clinic-site-director":
+    "Runs one clinic site: schedules and supervises its staff, signs off their hours, and oversees its billing and deposits.",
+  "assistant-property-manager":
+    "Supports the property manager: collects and posts rent, handles tenant accounts, and coordinates service requests.",
+  "head-brewer":
+    "Plans production, orders brewing ingredients and packaging, and supervises the brewing and cellar staff.",
+  brewer: "Brews, ferments, conditions, and packages the product; holds no financial duty.",
 };
 
 export const JOB_CATALOG: readonly JobCatalogEntry[] = RAW_CATALOG.map((e) => ({
@@ -2569,7 +2756,8 @@ function containedMatch(words: readonly string[]): JobCatalogEntry | undefined {
   const bare = undecorated(words);
   for (const [i, w] of bare.entries()) {
     const e = EXACT_ALIAS.get(w);
-    if (!e || WHOLE_TITLE_ONLY.has(w)) continue;
+    // A leading learner word ("Apprentice Electrician") qualifies the job after it.
+    if (!e || WHOLE_TITLE_ONLY.has(w) || LEARNER_WORDS.has(w)) continue;
     if (GENERIC_ROLE_WORDS.has(w) && carriesMoneyDuty(e)) continue;
     if (e.id === "owner" && i !== bare.length - 1) continue;
     return e;
@@ -2602,21 +2790,38 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   "crew lead": { general: "foreman" },
   "crew leader": { general: "foreman" },
   "business assistant": { dental: "receptionist" },
+  // A CSR in a dental, medical or veterinary office is the front desk.
+  csr: { dental: "receptionist" },
+  "customer service representative": { dental: "receptionist" },
+  // A restaurant's general manager runs the floor and the drawer as well as the books.
+  "general manager": { restaurant: "restaurant-manager" },
+  gm: { restaurant: "restaurant-manager" },
 };
 
 /**
- * Duties a seat carries in one line of business on top of its usual ones.
- * In a dental or medical office the office manager usually keeps the
- * practice's books, bank reconciliation included.
+ * How a seat differs in one line of business from its usual duties. In a
+ * dental, medical or veterinary office the office manager usually keeps the
+ * practice's books, bank reconciliation included. In a store the till records
+ * the sales, so the bookkeeper posts the takings as a journal entry rather
+ * than recording customer payments. In a law or accounting firm the front
+ * desk takes payments and billing records them.
  */
-const INDUSTRY_DUTIES: Record<string, Record<string, readonly EntitlementId[]>> = {
-  dental: { "office-manager": ["bank_reconcile"] },
+const INDUSTRY_SEATS: Record<
+  string,
+  Record<string, { add?: readonly EntitlementId[]; remove?: readonly EntitlementId[] }>
+> = {
+  dental: { "office-manager": { add: ["bank_reconcile"] } },
+  retail: { bookkeeper: { remove: ["post_payments"] } },
+  professional_services: { receptionist: { remove: ["post_payments"] } },
 };
 
 /** A seat's usual duties in this line of business. */
 export function seatDuties(entry: JobCatalogEntry, industry?: string): EntitlementId[] {
-  const extra = (industry && INDUSTRY_DUTIES[industry]?.[entry.id]) || [];
-  return Array.from(new Set([...entry.entitlements, ...extra]));
+  const change = industry ? INDUSTRY_SEATS[industry]?.[entry.id] : undefined;
+  const removed = new Set(change?.remove ?? []);
+  return Array.from(new Set([...entry.entitlements, ...(change?.add ?? [])])).filter(
+    (d) => !removed.has(d),
+  );
 }
 
 function seatMatch(
@@ -2717,9 +2922,13 @@ export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | u
   // Two parts joined by "and" or a slash share words: "Office & HR Manager"
   // borrows the last word of the other part, "Accounts Payable and
   // Receivable Clerk" its first. Not for "(Property)" after a title, which
-  // qualifies it. A borrowed seat replaces a part that reads alone only as a
-  // level word with no money duty ("Receivable Specialist").
+  // qualifies it. A borrowed seat replaces a part that reads alone only
+  // through a level word with no money duty ("Receivable Specialist"), and a
+  // one-word part joined by "and" ("Marketing & Events Coordinator" is a
+  // marketing coordinator). "Nurse/Office Manager" stays a nurse and an office
+  // manager: a nurse is a known name on its own.
   const shared = parts.length === 2 && /\s(?:and|&)\s|\//i.test(joined);
+  const sharedTail = parts.length === 2 && /\s(?:and|&)\s/i.test(joined);
   if (parts.length > 1) {
     for (const [i, part] of parts.entries()) {
       const own = partMatch(part);
@@ -2727,7 +2936,8 @@ export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | u
       const borrowed = shared
         ? (exactMatch([...part, other[other.length - 1]]) ?? exactMatch([other[0], ...part]))
         : undefined;
-      const hit = borrowed && (!own || !carriesMoneyDuty(own)) ? borrowed : own;
+      const weak = !own || (!exactMatch(part) && !carriesMoneyDuty(own));
+      const hit = borrowed && (weak || (sharedTail && part.length === 1)) ? borrowed : own;
       if (hit && !matched.includes(hit)) matched.push(hit);
     }
   }

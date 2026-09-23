@@ -109,7 +109,7 @@ describe("rowsForJobTitle", () => {
     const server = jobCatalogEntry("server")!;
     const rows = rowsForJobTitle(server, 3, 2);
     expect(rows.map((r) => r.name)).toEqual(["Server 3", "Server 4", "Server 5"]);
-    expect(rows[0]).toMatchObject({ role: "Server / Host", duties: ["collect_cash"] });
+    expect(rows[0]).toMatchObject({ role: "Server", duties: ["collect_cash"] });
   });
 
   it("bounds the count and carries every duty the title holds", () => {

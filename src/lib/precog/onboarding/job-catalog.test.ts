@@ -70,7 +70,7 @@ describe("job catalog", () => {
     expect(matchJobTitle("Sales Associate")?.entry.id).toBe("cashier");
     expect(matchJobTitle("Associate Attorney")?.entry.id).toBe("attorney");
     expect(matchJobTitle("Dental Assistant")?.entry.id).toBe("dental-assistant");
-    expect(matchJobTitle("Assistant Manager")?.entry.id).toBe("restaurant-manager");
+    expect(matchJobTitle("Assistant Manager")?.entry.id).toBe("assistant-manager");
   });
 
   it("gives no money duties to a level word the catalog does not know as a whole title", () => {
@@ -109,7 +109,7 @@ describe("job catalog", () => {
     expect(matchJobTitle("Payroll Analyst")?.entry.id).toBe("payroll");
     expect(matchJobTitle("Dealer Principal")?.entry.id).toBe("owner");
     expect(matchJobTitle("Parts Counterperson")?.entry.id).toBe("parts");
-    expect(matchJobTitle("Firm Administrator")?.entry.id).toBe("office-manager");
+    expect(matchJobTitle("Firm Administrator")?.entry.id).toBe("firm-administrator");
     expect(entitlementsForTitle("Diesel Technician")).toEqual(["view_reports_only"]);
     expect(matchJobTitle("HVAC Service Tech")?.entry.id).toBe("field-technician");
     // A bare level word resolves by line of business, and stays unknown elsewhere.
@@ -224,10 +224,10 @@ describe("job catalog", () => {
       const match = matchJobTitle(title);
       expect(match?.entry.id, title).toBe("accounts-payable");
       expect(match?.entitlements, title).toEqual(
-        expect.arrayContaining(["enter_invoices", "create_vendor", "release_payment"]),
+        expect.arrayContaining(["enter_invoices", "create_vendor"]),
       );
       expect(match?.entitlements, title).toEqual(
-        expect.arrayContaining(["post_payments", "post_adjustments", "issue_refunds"]),
+        expect.arrayContaining(["post_payments", "post_adjustments"]),
       );
     }
   });
@@ -293,6 +293,198 @@ describe("job catalog", () => {
     expect(matchJobTitle("Crew Lead", "general")?.entry.id).toBe("foreman");
     expect(matchJobTitle("Crew Leader", "general")?.entry.id).toBe("foreman");
     expect(matchJobTitle("Crew Lead", "restaurant")?.entry.id).toBe("shift-lead");
+  });
+
+  it("seats a 12-person law firm: the firm administrator reconciles, paralegals and associates hold no money duty", () => {
+    const law = "professional_services";
+    const admin = entitlementsForTitle("Firm Administrator", law);
+    expect(admin).toEqual(
+      expect.arrayContaining([
+        "bank_reconcile",
+        "release_payment",
+        "enter_invoices",
+        "create_vendor",
+      ]),
+    );
+    expect(admin).not.toContain("post_payments");
+    expect(admin).not.toContain("post_adjustments");
+    for (const title of [
+      "Sr. Paralegal",
+      "Paralegal, Litigation",
+      "Paralegal (Part-Time)",
+      "Legal Assistant / Secretary",
+      "Senior Associate",
+      "Associate",
+      "Associate Attorney - Litigation",
+    ]) {
+      expect(entitlementsForTitle(title, law), title).toEqual(["view_reports_only"]);
+    }
+    // The front desk takes client payments; billing records them.
+    const desk = entitlementsForTitle("Receptionist", law);
+    expect(desk).toContain("collect_cash");
+    expect(desk).not.toContain("post_payments");
+    expect(entitlementsForTitle("Receptionist", "dental")).toContain("post_payments");
+    for (const title of ["Equity Partner", "Name Partner"]) {
+      expect(matchJobTitle(title, law)?.entry.id, title).toBe("owner");
+    }
+  });
+
+  it("seats a three-store retailer: the bookkeeper sets up suppliers, assistant managers and keyholders get narrower seats", () => {
+    const bookkeeper = entitlementsForTitle("Bookkeeper", "retail");
+    expect(bookkeeper).toEqual(expect.arrayContaining(["create_vendor", "release_payment"]));
+    // The till records a store's sales, so the bookkeeper does not record customer payments.
+    expect(bookkeeper).not.toContain("post_payments");
+    expect(entitlementsForTitle("Bookkeeper", "general")).toEqual(
+      expect.arrayContaining(["post_payments", "create_vendor"]),
+    );
+    const store = entitlementsForTitle("Store Manager", "retail");
+    expect(store).toEqual(
+      expect.arrayContaining(["collect_cash", "prepare_deposit", "issue_refunds", "receive_goods"]),
+    );
+    for (const duty of ["order_supplies", "enter_payroll", "manage_user_access"] as const) {
+      expect(store, duty).not.toContain(duty);
+    }
+    for (const title of ["Assistant Store Manager", "Assistant Manager"]) {
+      const match = matchJobTitle(title, "retail");
+      expect(match?.entry.id, title).toBe("assistant-manager");
+      expect(match?.entitlements, title).not.toContain("order_supplies");
+    }
+    expect(entitlementsForTitle("Keyholder", "retail")).not.toContain("issue_refunds");
+    expect(entitlementsForTitle("E-commerce Coordinator", "retail")).toEqual([
+      "issue_refunds",
+      "view_reports_only",
+    ]);
+    expect(matchJobTitle("Inventory Associate", "retail")?.entry.id).toBe("receiving");
+  });
+
+  it("seats a veterinary hospital and a childcare center by their own titles", () => {
+    for (const title of ["Client Service Representative", "CSR"]) {
+      const match = matchJobTitle(title, "dental");
+      expect(match?.entry.id, title).toBe("receptionist");
+      expect(match?.entitlements, title).not.toContain("issue_refunds");
+    }
+    expect(matchJobTitle("Client Service Representative", "general")?.entry.id).toBe(
+      "receptionist",
+    );
+    const hospital = matchJobTitle("Hospital Manager", "dental");
+    expect(hospital?.entry.id).toBe("office-manager");
+    expect(hospital?.entitlements).toEqual(
+      expect.arrayContaining(["release_payment", "bank_reconcile", "enter_payroll"]),
+    );
+    expect(entitlementsForTitle("Office Administrator", "general")).toEqual([
+      "enter_invoices",
+      "release_payment",
+      "view_reports_only",
+    ]);
+    const assistant = matchJobTitle("Asst. Director", "general");
+    expect(assistant?.entry.id).toBe("assistant-director");
+    expect(assistant?.entitlements).toEqual(
+      expect.arrayContaining(["collect_cash", "post_payments"]),
+    );
+    for (const title of ["School Age Lead", "Floater"]) {
+      expect(matchJobTitle(title, "general")?.entry.id, title).toBe("teacher");
+    }
+    expect(matchJobTitle("Inventory Coordinator", "dental")?.entry.id).toBe("receiving");
+    for (const title of ["Bus Driver", "Van Driver", "School Bus Driver"]) {
+      expect(entitlementsForTitle(title, "general"), title).toEqual(["view_reports_only"]);
+    }
+    expect(entitlementsForTitle("Delivery Driver", "general")).toContain("collect_cash");
+  });
+
+  it("seats a repair shop: apprentices hold no cash and the service advisor records payments", () => {
+    for (const title of [
+      "Apprentice Technician",
+      "Apprentice Tech",
+      "Apprentice",
+      "General Service Technician",
+    ]) {
+      expect(entitlementsForTitle(title, "general"), title).toEqual(["view_reports_only"]);
+    }
+    expect(matchJobTitle("Apprentice Electrician")?.entry.id).toBe("field-technician");
+    const advisor = entitlementsForTitle("Service Advisor", "general");
+    expect(advisor).toEqual(expect.arrayContaining(["collect_cash", "post_payments"]));
+    expect(advisor).not.toContain("approve_writeoffs");
+  });
+
+  it("gives a well-segregated finance team defaults that fit it: CFO, AP, AR lead, marketing, IT, sales", () => {
+    const cfo = matchJobTitle("Chief Financial Officer", "general");
+    expect(cfo?.entry.id).toBe("cfo");
+    expect(cfo?.entitlements).toEqual(expect.arrayContaining(["approve_vendor", "sign_checks"]));
+    expect(cfo?.entitlements).not.toContain("release_payment");
+    expect(cfo?.entitlements).not.toContain("bank_reconcile");
+    expect(entitlementsForTitle("Controller", "general")).toEqual(
+      expect.arrayContaining(["release_payment", "bank_reconcile"]),
+    );
+    expect(entitlementsForTitle("Accounts Payable Specialist II", "general")).not.toContain(
+      "release_payment",
+    );
+    for (const title of [
+      "Marketing & Community Outreach Coordinator",
+      "Marketing & Events Coordinator",
+      "Marketing Coordinator",
+    ]) {
+      expect(entitlementsForTitle(title, "general"), title).toEqual(["view_reports_only"]);
+    }
+    expect(entitlementsForTitle("Revenue Cycle Lead - AR & Billing", "general")).not.toContain(
+      "issue_refunds",
+    );
+    expect(entitlementsForTitle("IT Administrator", "general")).not.toContain("review_audit_logs");
+    for (const title of ["Territory Sales Rep", "Sales Representative", "Comfort Advisor"]) {
+      expect(entitlementsForTitle(title, "restaurant"), title).not.toContain("approve_writeoffs");
+    }
+  });
+
+  it("trims restaurant, property, pantry and clinic defaults the CPA corrected", () => {
+    for (const title of ["Host (PT)", "Busser", "Food Runner", "Barback"]) {
+      expect(entitlementsForTitle(title, "restaurant"), title).toEqual(["view_reports_only"]);
+    }
+    expect(matchJobTitle("Beertender", "restaurant")?.entry.id).toBe("bartender");
+    expect(entitlementsForTitle("Shift Lead", "restaurant")).not.toContain("issue_refunds");
+    expect(entitlementsForTitle("Assistant Manager", "restaurant")).toEqual([
+      "collect_cash",
+      "prepare_deposit",
+      "issue_refunds",
+      "view_reports_only",
+    ]);
+    expect(matchJobTitle("General Manager", "restaurant")?.entry.id).toBe("restaurant-manager");
+    expect(entitlementsForTitle("Board Treasurer", "general")).not.toContain("bank_reconcile");
+    const apm = entitlementsForTitle("Assistant Property Manager", "general");
+    expect(apm).toEqual(["collect_cash", "post_payments", "view_reports_only"]);
+    expect(matchJobTitle("Finance & Operations Manager", "general")?.entry.id).toBe("bookkeeper");
+    expect(entitlementsForTitle("Medical Assistant (CMA)", "dental")).toEqual([
+      "view_reports_only",
+    ]);
+    // A nurse who is also the office manager holds both seats.
+    expect(matchJobTitle("Nurse/Office Manager")?.entitlements).toEqual(
+      expect.arrayContaining(["post_payments", "enter_payroll"]),
+    );
+  });
+
+  it("reads brewery, taproom and clinic-site titles", () => {
+    expect(matchJobTitle("Taproom Manager", "restaurant")?.entry.id).toBe("bar-manager");
+    for (const title of [
+      "Brewer",
+      "Brewer II",
+      "Assistant Brewer",
+      "Cellarperson",
+      "Packaging Lead",
+    ]) {
+      expect(entitlementsForTitle(title, "restaurant"), title).toEqual(["view_reports_only"]);
+    }
+    expect(entitlementsForTitle("Head Brewer / Brewmaster", "restaurant")).toEqual(
+      expect.arrayContaining(["order_supplies", "receive_goods"]),
+    );
+    for (const title of [
+      "Clinic Director - Lakeside",
+      "Clinic Director, Northfield (DPT)",
+      "Clinic Dir. - Eastgate",
+    ]) {
+      const match = matchJobTitle(title, "general");
+      expect(match?.entry.id, title).toBe("clinic-site-director");
+      expect(match?.entitlements, title).toEqual(
+        expect.arrayContaining(["approve_writeoffs", "enter_payroll", "prepare_deposit"]),
+      );
+    }
   });
 
   it("gives the office manager the wide seat the case library describes", () => {

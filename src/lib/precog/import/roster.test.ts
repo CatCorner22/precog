@@ -33,7 +33,7 @@ describe("parseRoster", () => {
       expect.arrayContaining(["post_payments", "release_payment", "enter_payroll"]),
     );
     expect(result.people[1].entitlements).toEqual(
-      expect.arrayContaining(["enter_invoices", "create_vendor", "release_payment"]),
+      expect.arrayContaining(["enter_invoices", "create_vendor"]),
     );
     expect(result.people[2]).toMatchObject({
       active: false,
@@ -290,7 +290,7 @@ describe("parseRoster", () => {
       ["Cook", "Back of House", true],
       ["Host", "Front of House", false],
     ]);
-    expect(shifts.titles[1].catalogTitle).toBe("Server / Host");
+    expect(shifts.titles[1].catalogTitle).toBe("Server");
     expect(shifts.issues).toEqual([]);
 
     const paylocity = parseRoster(
