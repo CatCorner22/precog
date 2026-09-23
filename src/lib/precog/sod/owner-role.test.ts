@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOwnerRole, soleOwnerId } from "./owner-role";
+import { isOwnerRole, ownersMarked, ownsBusiness, soleOwnerId } from "./owner-role";
 
 describe("isOwnerRole", () => {
   it.each([
@@ -88,5 +88,43 @@ describe("soleOwnerId", () => {
 
   it("names nobody when no title names an owner", () => {
     expect(soleOwnerId([{ id: "a", role: "Office Manager" }])).toBeNull();
+  });
+});
+
+describe("the owner's own mark from setup", () => {
+  it("makes an owner titled by profession the sole owner", () => {
+    const team = [
+      { id: "a", role: "Dentist", owner: true },
+      { id: "b", role: "Office Manager", owner: false },
+    ];
+    expect(soleOwnerId(team)).toBe("a");
+  });
+
+  it("does not make an unmarked 'Managing Partner' the owner on a marked team", () => {
+    const team = [
+      { id: "a", role: "Owner", owner: true },
+      { id: "b", role: "Managing Partner", owner: false },
+    ];
+    expect(ownersMarked(team)).toBe(true);
+    expect(ownsBusiness(team[1], true)).toBe(false);
+    expect(soleOwnerId(team)).toBe("a");
+  });
+
+  it("finds no sole owner when two people are marked as owners", () => {
+    expect(
+      soleOwnerId([
+        { id: "a", role: "Dentist", owner: true },
+        { id: "b", role: "Dentist", owner: true },
+      ]),
+    ).toBeNull();
+  });
+
+  it("reads titles on a team without marks, as the samples are", () => {
+    const team = [
+      { id: "a", role: "Owner / Dentist" },
+      { id: "b", role: "Office Manager" },
+    ];
+    expect(ownersMarked(team)).toBe(false);
+    expect(soleOwnerId(team)).toBe("a");
   });
 });

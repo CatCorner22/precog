@@ -29,6 +29,8 @@ export interface RoleAssignment {
   personName: string;
   role: string;
   entitlements: EntitlementId[];
+  /** The owner's own mark from setup (see Person.owner); absent, the title decides. */
+  owner?: boolean;
 }
 
 export interface DetectedConflict {
@@ -614,6 +616,7 @@ export function buildAssignments(
         personName: p.name,
         role: p.role,
         entitlements,
+        ...(typeof p.owner === "boolean" ? { owner: p.owner } : {}),
       };
     });
 }
@@ -671,7 +674,7 @@ export function detectSodConflicts(
   const ownerId =
     options?.soleOwnerId !== undefined
       ? options.soleOwnerId
-      : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
+      : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
 
   // Who approves bills for payment. Another person's approval of each bill is
   // a control in place on that person's bill entry plus payment release.

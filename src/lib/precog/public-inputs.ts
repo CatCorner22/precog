@@ -187,6 +187,7 @@ const personSchema = z.looseObject({
   lastDay: optString,
   entitlements: stringList,
   department: optString,
+  owner: z.boolean().nullish(),
 });
 
 const processSchema = z.looseObject({

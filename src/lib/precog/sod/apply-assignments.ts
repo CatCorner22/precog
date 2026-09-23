@@ -46,6 +46,7 @@ export function applyAssignmentsToPeople(
       role: assignment.role,
       active: true,
       entitlements: [...assignment.entitlements],
+      ...(typeof assignment.owner === "boolean" ? { owner: assignment.owner } : {}),
     });
   }
   return next;

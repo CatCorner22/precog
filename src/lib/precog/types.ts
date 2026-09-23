@@ -46,6 +46,12 @@ export interface Person {
   name: string;
   role: string;
   active: boolean;
+  /**
+   * This person owns the business, as marked during setup. Absent on teams
+   * set up without the mark (the samples, older saves), where the job title
+   * decides (see sod/owner-role).
+   */
+  owner?: boolean;
   /** Years of service. Undefined when unknown; never defaulted, so unknown tenure adds nothing to any score. */
   tenureYears?: number;
   /**

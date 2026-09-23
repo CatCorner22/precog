@@ -12,7 +12,7 @@ import type { Person, StaffComposition } from "../types";
 import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
-import { isOwnerRole } from "../sod/owner-role";
+import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -308,13 +308,14 @@ function localizeDualReleaseRules(
   // A team that says what each person does is seated by duty on every channel.
   if (active.length > 0 && active.every(seatedByDuty)) {
     const roles = (list: Person[]) => [...new Set(list.map((p) => p.role))];
+    const marked = ownersMarked(active);
     return rules.map((rule) => {
       const seats = CHANNEL_SEATS[rule.channel];
       return {
         ...rule,
         firstApproverRoles: roles(active.filter((p) => holdsAny(p, seats.initiate))),
         secondApproverRoles: roles(
-          active.filter((p) => holdsAny(p, seats.second) || isOwnerRole(p.role)),
+          active.filter((p) => holdsAny(p, seats.second) || ownsBusiness(p, marked)),
         ),
         processIds: rule.processIds.filter((id) => processIds.has(id)),
       };
@@ -693,10 +694,11 @@ export function listEligibleApprovers(
   if (!rule) return [];
 
   const { people } = tpl;
+  const marked = ownersMarked(people.filter((p) => p.active));
   return people
     .filter((p) => p.active)
     .map((p) => {
-      const isOwner = isOwnerRole(p.role);
+      const isOwner = ownsBusiness(p, marked);
       const seats = CHANNEL_SEATS[channel];
       const byDuty = seatedByDuty(p);
       const canInitiate = byDuty

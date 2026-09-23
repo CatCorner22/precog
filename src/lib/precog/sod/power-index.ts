@@ -22,7 +22,9 @@ export interface PersonPowerIndex {
  */
 export function calculatePowerIndex(assignments: RoleAssignment[]): PersonPowerIndex[] {
   const conflicts = detectSodConflicts(undefined, { assignments }).conflicts;
-  const ownerId = soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
+  const ownerId = soleOwnerId(
+    assignments.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })),
+  );
   const raws = new Map<string, number>();
   return assignments
     .map((person) => {

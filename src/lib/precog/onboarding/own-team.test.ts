@@ -12,6 +12,7 @@ import {
   firstUnnamedWithDuties,
   onLeavePersonIds,
   ownerRow,
+  suggestedDuties,
   ownBusinessProfile,
   OWN_BUSINESS_FALLBACK_NAME,
   rowsForJobTitle,
@@ -253,5 +254,49 @@ describe("long job titles", () => {
     ]);
     expect(site.role).toBe(title);
     expect(runaway.role).toHaveLength(80);
+  });
+});
+
+describe("the owner's mark on the setup grid", () => {
+  it("starts the first row marked and keeps the mark when the title becomes a profession", () => {
+    const row = { ...ownerRow(), name: "Dr. Ana Ruiz", role: "Dentist" };
+    expect(row.owner).toBe(true);
+    const [owner] = buildOwnTeam([row]);
+    expect(owner.owner).toBe(true);
+  });
+
+  it("keeps the owner's pairs owner-held for an owner titled 'Dentist'", () => {
+    const people = buildOwnTeam([
+      {
+        name: "Dr. Ana Ruiz",
+        role: "Dentist",
+        duties: ["sign_checks", "bank_reconcile", "approve_vendor", "create_vendor"],
+        owner: true,
+      },
+      { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
+    ]);
+    const tpl = resolveTemplate({ industry: "dental", customPeople: people });
+    const conflicts = detectSodConflicts(tpl).conflicts.filter((c) => c.personId === "own-1");
+    expect(conflicts.length).toBeGreaterThan(0);
+    expect(conflicts.every((c) => c.ownerHeld)).toBe(true);
+  });
+
+  it("reads the title when a pasted row carries no mark", () => {
+    const [owner, partner] = buildOwnTeam([
+      { name: "Ana Ruiz", role: "Owner / President", duties: [] },
+      { name: "Lee Park", role: "Principal Accountant", duties: [] },
+    ]);
+    expect(owner.owner).toBe(true);
+    expect(partner.owner).toBe(false);
+  });
+});
+
+describe("suggestedDuties", () => {
+  it("keeps the owner's usual duties when the owner calls their job 'Dentist'", () => {
+    const owner = coreDutiesForTitle("Owner");
+    expect(suggestedDuties("Dentist", true, "dental")).toEqual(expect.arrayContaining(owner));
+    expect(suggestedDuties("Dentist", false, "dental")).toEqual(
+      coreDutiesForTitle("Dentist", "dental"),
+    );
   });
 });

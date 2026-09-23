@@ -42,13 +42,38 @@ export function isOwnerRole(role: string): boolean {
   return titleParts(role).some((part) => OWNER_PART.test(part));
 }
 
+/** A person as the owner tests read them: the title, and the owner's own mark when set. */
+export interface OwnerCandidate {
+  id: string;
+  role: string;
+  /** Set during setup: this person owns the business. Absent, the title decides. */
+  owner?: boolean;
+}
+
+/**
+ * True when the team carries the owner's own marks (it was set up on the
+ * grid, where each row says whether that person owns the business). The marks
+ * then decide over titles, so an owner titled "Dentist" is still the owner and
+ * a "Managing Partner" the owner did not mark is not.
+ */
+export function ownersMarked(people: readonly OwnerCandidate[]): boolean {
+  return people.some((p) => typeof p.owner === "boolean");
+}
+
+/** Whether this person owns the business: their mark on a marked team, otherwise their title. */
+export function ownsBusiness(person: OwnerCandidate, marked: boolean): boolean {
+  return marked ? person.owner === true : isOwnerRole(person.role);
+}
+
 /**
  * The one person who owns the business alone, when exactly one active person
- * holds an owner title. With two or more (partners, co-owners, a family
- * business), each can take from the others, so none of them is treated as the
- * person who cannot steal from themselves.
+ * owns it (by the owner's marks, or by title on a team without marks). With
+ * two or more (partners, co-owners, a family business), each can take from
+ * the others, so none of them is treated as the person who cannot steal from
+ * themselves.
  */
-export function soleOwnerId(people: readonly { id: string; role: string }[]): string | null {
-  const owners = people.filter((p) => isOwnerRole(p.role));
+export function soleOwnerId(people: readonly OwnerCandidate[]): string | null {
+  const marked = ownersMarked(people);
+  const owners = people.filter((p) => ownsBusiness(p, marked));
   return owners.length === 1 ? owners[0].id : null;
 }

@@ -41,7 +41,13 @@ export function normalizeRoleAssignments(value: unknown): RoleAssignment[] | und
       ),
     );
     if (entitlements.length === 0) entitlements.push("view_reports_only");
-    normalized.push({ personId, personName, role, entitlements });
+    normalized.push({
+      personId,
+      personName,
+      role,
+      entitlements,
+      ...(typeof item.owner === "boolean" ? { owner: item.owner } : {}),
+    });
   }
   return normalized;
 }

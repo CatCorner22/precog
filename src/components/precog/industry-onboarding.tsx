@@ -12,11 +12,11 @@ import {
   addableDuties,
   rowsForJobTitle,
   buildOwnTeam,
-  coreDutiesForTitle,
   coreDutyLabel,
   extraDuties,
   firstUnnamedWithDuties,
-  isOwnerTitle,
+  rowOwnsBusiness,
+  suggestedDuties,
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
   ownerRow,
@@ -215,10 +215,11 @@ export function IndustryOnboarding() {
         if (i !== index) return row;
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
-        const previous = row.suggestedFor ? coreDutiesForTitle(row.suggestedFor, selected) : [];
+        const owns = rowOwnsBusiness(row);
+        const previous = row.suggestedFor ? suggestedDuties(row.suggestedFor, owns, selected) : [];
         const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
         return untouched
-          ? { ...row, duties: coreDutiesForTitle(role, selected), suggestedFor: role }
+          ? { ...row, duties: suggestedDuties(role, owns, selected), suggestedFor: role }
           : row;
       }),
     );
@@ -256,7 +257,7 @@ export function IndustryOnboarding() {
     // The unnamed Owner row stays at the top unless the paste has its own owner.
     const { kept, ownerRow: owner } = rowsKeptForAdding(
       rows,
-      incoming.some((r) => isOwnerTitle(r.role)),
+      incoming.some((r) => rowOwnsBusiness(r)),
     );
     const room = Math.max(0, OWN_TEAM_MAX - kept.length);
     const added = incoming.slice(0, room);
@@ -614,6 +615,15 @@ export function IndustryOnboarding() {
                             onChange={(e) => updateRow(index, { name: e.target.value })}
                             maxLength={60}
                           />
+                          <label className="mt-1 flex items-center gap-1 text-[10px] text-muted">
+                            <input
+                              type="checkbox"
+                              aria-label={`${row.name || `Person ${index + 1}`} owns the business`}
+                              checked={rowOwnsBusiness(row)}
+                              onChange={(e) => updateRow(index, { owner: e.target.checked })}
+                            />
+                            Owns the business
+                          </label>
                           {row.onLeave && (
                             <button
                               type="button"

@@ -133,7 +133,7 @@ function personConflictIds(
 
 /** The sole owner's person id on this team, or null (see soleOwnerId). */
 function teamOwnerId(team: readonly RoleAssignment[]): string | null {
-  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role })));
+  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
 }
 
 /** Whether granting `entitlement` would give the person a conflict they do not already have. */

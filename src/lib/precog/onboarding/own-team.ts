@@ -6,6 +6,7 @@ import {
   type JobCatalogEntry,
 } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
+import { isOwnerRole } from "../sod/owner-role";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
@@ -87,6 +88,17 @@ export interface OwnTeamRow {
   suggestedFor?: string;
   /** The pasted roster says this person is on leave; they stay on the team and are recorded as out. */
   onLeave?: boolean;
+  /**
+   * The owner's mark: this person owns the business. Unset, the title
+   * decides (see rowOwnsBusiness); once ticked or cleared, the mark stands
+   * whatever the title says.
+   */
+  owner?: boolean;
+}
+
+/** Whether a grid row owns the business: its mark when set, otherwise its title. */
+export function rowOwnsBusiness(row: Pick<OwnTeamRow, "role" | "owner">): boolean {
+  return row.owner ?? isOwnerRole(row.role);
 }
 
 /** The catalog's usual duties for a title, every one of them: columns and chips alike. */
@@ -94,9 +106,27 @@ export function coreDutiesForTitle(title: string, industry?: string): Entitlemen
   return entitlementsForTitle(title, industry).filter((d) => d !== "view_reports_only");
 }
 
+/**
+ * The duties the grid ticks for a row's title. A row that owns the business
+ * keeps the owner's usual duties (approving, signing) whatever the owner calls
+ * their job ("Dentist", "Head Chef"), plus any the title adds.
+ */
+export function suggestedDuties(role: string, owns: boolean, industry?: string): EntitlementId[] {
+  const title = coreDutiesForTitle(role, industry);
+  if (!owns) return title;
+  const owner = coreDutiesForTitle("Owner", industry);
+  return [...owner, ...title.filter((d) => !owner.includes(d))];
+}
+
 /** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */
 export function ownerRow(): OwnTeamRow {
-  return { name: "", role: "Owner", duties: coreDutiesForTitle("Owner"), suggestedFor: "Owner" };
+  return {
+    name: "",
+    role: "Owner",
+    duties: coreDutiesForTitle("Owner"),
+    suggestedFor: "Owner",
+    owner: true,
+  };
 }
 
 /** True when a title names the owner's seat ("Owner", "Owner/President", "CEO"). */
@@ -120,7 +150,7 @@ export function rowsKeptForAdding(
     first !== undefined &&
     !first.name.trim() &&
     first.duties.length > 0 &&
-    isOwnerTitle(first.role);
+    (first.owner ?? isOwnerTitle(first.role));
   const replaced = blankOwner && addedRowsHaveOwner;
   const kept = rows.filter(
     (row, index) =>
@@ -192,12 +222,16 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
           ? Math.min(60, Math.max(0, row.tenureYears))
           : undefined,
       department: row.department?.trim().slice(0, 60) || undefined,
+      owner: rowOwnsBusiness(row),
     }))
     .map((row, index) => ({
       id: `own-${index + 1}`,
       name: row.name,
       role: row.role,
       active: true,
+      // Every person carries the mark, so the engines read who owns the
+      // business from setup, not from the title (see sod/owner-role).
+      owner: row.owner,
       ...(row.tenureYears !== undefined ? { tenureYears: row.tenureYears } : {}),
       ...(row.department ? { department: row.department } : {}),
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
