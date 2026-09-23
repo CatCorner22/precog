@@ -64,6 +64,8 @@ export interface Person {
   entitlements?: string[];
   /** Department or cost centre from the roster, kept for grouping; the engines ignore it. */
   department?: string;
+  /** The employee id the HR or payroll roster gave this person; re-imports match on it. */
+  employeeId?: string;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";

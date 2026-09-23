@@ -2,7 +2,8 @@ import { jobCatalogEntry } from "./job-catalog";
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
-import { resolveTemplate } from "../active-template";
+import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { parseRoster } from "../import/roster";
 import {
   CORE_DUTIES,
   OWN_TEAM_MAX,
@@ -10,9 +11,12 @@ import {
   buildOwnTeam,
   coreDutiesForTitle,
   firstUnnamedWithDuties,
+  mergeTeamRows,
   onLeavePersonIds,
   ownerRow,
   suggestedDuties,
+  placeholderNames,
+  rowFromImportedPerson,
   ownBusinessProfile,
   OWN_BUSINESS_FALLBACK_NAME,
   rowsForJobTitle,
@@ -110,7 +114,7 @@ describe("rowsForJobTitle", () => {
     const server = jobCatalogEntry("server")!;
     const rows = rowsForJobTitle(server, 3, 2);
     expect(rows.map((r) => r.name)).toEqual(["Server 3", "Server 4", "Server 5"]);
-    expect(rows[0]).toMatchObject({ role: "Server / Host", duties: ["collect_cash"] });
+    expect(rows[0]).toMatchObject({ role: "Server", duties: ["collect_cash"] });
   });
 
   it("bounds the count and carries every duty the title holds", () => {
@@ -298,5 +302,90 @@ describe("suggestedDuties", () => {
     expect(suggestedDuties("Dentist", false, "dental")).toEqual(
       coreDutiesForTitle("Dentist", "dental"),
     );
+  });
+});
+
+describe("own team from a pasted roster, round three", () => {
+  const today = new Date("2026-09-22T00:00:00Z");
+
+  it("numbers placeholder servers after the highest number in use, never reusing a name", () => {
+    expect(placeholderNames("Server", 2, ["Server 1", "Server 3", "Ana Ruiz"])).toEqual([
+      "Server 4",
+      "Server 5",
+    ]);
+    expect(placeholderNames("Server", 1, [])).toEqual(["Server 1"]);
+    expect(placeholderNames("Front Desk", 1, ["front desk 2"])).toEqual(["Front Desk 3"]);
+    const server = jobCatalogEntry("server")!;
+    expect(rowsForJobTitle(server, 2, ["Server 1", "Server 3"]).map((r) => r.name)).toEqual([
+      "Server 4",
+      "Server 5",
+    ]);
+    // A count still works as before.
+    expect(rowsForJobTitle(server, 1, 2).map((r) => r.name)).toEqual(["Server 3"]);
+  });
+
+  it("fills the grid from the same roster pasted twice without doubling anyone", () => {
+    const tpl = getBaseTemplate("general");
+    const first = parseRoster(
+      "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Cashier",
+      tpl,
+    );
+    const rows = first.people.map((p) => rowFromImportedPerson(p, "general"));
+    rows[1] = { ...rows[1], duties: ["post_payments"] };
+    const second = parseRoster(
+      "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Server\nDee Park, Server",
+      tpl,
+    );
+    const merged = mergeTeamRows(
+      [{ name: "Olga Owner", role: "Owner", duties: [] }, ...rows],
+      second.people.map((p) => rowFromImportedPerson(p, "general")),
+    );
+    expect(merged.rows.map((r) => [r.name, r.role])).toEqual([
+      ["Olga Owner", "Owner"],
+      ["Ana Ruiz", "Office Manager"],
+      ["Ben Ochoa", "Bookkeeper"],
+      ["Cal Diaz", "Server"],
+      ["Dee Park", "Server"],
+    ]);
+    expect(merged.added.map((r) => r.name)).toEqual(["Dee Park"]);
+    expect(merged.updated.map((r) => r.name)).toEqual(["Cal Diaz"]);
+    // Ben's title is unchanged, so the duties ticked by hand stay.
+    expect(merged.rows[2].duties).toEqual(["post_payments"]);
+  });
+
+  it("matches a pasted row to the grid by employee id before the name", () => {
+    const merged = mergeTeamRows(
+      [
+        { name: "Ana Ruiz", role: "Cashier", duties: ["collect_cash"], employeeId: "1001" },
+        { name: "Ana Ruiz", role: "Cashier", duties: ["collect_cash"], employeeId: "1002" },
+      ],
+      [{ name: "Ana Ruiz", role: "Shift Lead", duties: ["prepare_deposit"], employeeId: "1002" }],
+    );
+    expect(merged.rows.map((r) => [r.employeeId, r.role])).toEqual([
+      ["1001", "Cashier"],
+      ["1002", "Shift Lead"],
+    ]);
+    expect(merged.added).toEqual([]);
+  });
+
+  it("keeps a Workday employee id and a notice-period last day from the paste on the saved person", () => {
+    const tpl = getBaseTemplate("general");
+    const result = parseRoster(
+      "Employee ID\tWorker\tBusiness Title\tTermination Date\n1001\tAna Ruiz\tOffice Manager\t12/31/2026",
+      tpl,
+      { today },
+    );
+    const [person] = buildOwnTeam(result.people.map((p) => rowFromImportedPerson(p, "general")));
+    expect(person).toMatchObject({ name: "Ana Ruiz", employeeId: "1001", lastDay: "2026-12-31" });
+  });
+
+  it("strips a right-to-left override from a name typed or pasted into the grid", () => {
+    const people = buildOwnTeam([
+      { name: "\u202EAdam Evans", role: "Bookkeeper\u200F", duties: ["bank_reconcile"] },
+      { name: "\u202E", role: "Cashier", duties: ["collect_cash"] },
+    ]);
+    expect(people.map((p) => [p.id, p.name, p.role])).toEqual([
+      ["own-1", "Adam Evans", "Bookkeeper"],
+    ]);
   });
 });

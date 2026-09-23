@@ -7,11 +7,13 @@ import {
 } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isOwnerRole } from "../sod/owner-role";
+import { isCalendarDate } from "../continuity/coverage";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
 import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
+import { stripInvisibleControls } from "../import/csv";
 
 /**
  * The eleven money duties the onboarding grid shows as columns. Together they
@@ -94,6 +96,10 @@ export interface OwnTeamRow {
    * whatever the title says.
    */
   owner?: boolean;
+  /** The employee id the pasted roster gave this person, kept so a later import can match them. */
+  employeeId?: string;
+  /** Last working day the roster gave, for someone who has given notice. */
+  lastDay?: string;
 }
 
 /** Whether a grid row owns the business: its mark when set, otherwise its title. */
@@ -165,20 +171,47 @@ export function firstUnnamedWithDuties(rows: readonly OwnTeamRow[]): number {
 }
 
 /**
+ * `count` placeholder names for one job ("Server 4", "Server 5"), numbered
+ * after the highest number already used with that word and never repeating
+ * a name in `taken`, so removing "Server 2" and adding one more gives
+ * "Server 4", not a second "Server 3".
+ */
+export function placeholderNames(base: string, count: number, taken: readonly string[]): string[] {
+  const key = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  const used = new Set(taken.map(key));
+  const pattern = new RegExp(`^${key(base).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} (\\d+)$`);
+  let next = Math.max(0, ...taken.map((name) => Number(key(name).match(pattern)?.[1] ?? 0))) + 1;
+  const names: string[] = [];
+  while (names.length < count) {
+    const name = `${base} ${next++}`;
+    if (!used.has(key(name))) names.push(name);
+  }
+  return names;
+}
+
+/**
  * Grid rows for `count` people with the same job, when the owner has no
  * roster to paste: "Server 1", "Server 2", … with the title's core duties in
  * this line of business ticked. Names are placeholders the owner replaces.
+ * Pass the names already in the grid as `existing` so numbering continues
+ * after the highest number and never repeats a name; a number is still
+ * read as how many rows already have this title.
  */
 export function rowsForJobTitle(
   entry: JobCatalogEntry,
   count: number,
-  existing = 0,
+  existing: number | readonly string[] = 0,
   industry?: string,
 ): OwnTeamRow[] {
   const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
   const duties = seatDuties(entry, industry).filter((d) => d !== "view_reports_only");
-  return Array.from({ length: n }, (_, i) => ({
-    name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
+  const base = entry.title.split(" / ")[0];
+  const names =
+    typeof existing === "number"
+      ? Array.from({ length: n }, (_, i) => `${base} ${existing + i + 1}`)
+      : placeholderNames(base, n, existing);
+  return names.map((name) => ({
+    name,
     role: entry.title,
     duties: [...duties],
     suggestedFor: entry.title,
@@ -191,12 +224,109 @@ export function rowsForJobTitle(
  */
 export const MAX_ROLE_LENGTH = 80;
 
+/**
+ * A grid row for a person read from a pasted roster: the duties the importer
+ * found (or the catalog's for the title), years of service, department,
+ * employee id, last day, and whether they are on leave.
+ */
+export function rowFromImportedPerson(
+  person: Person,
+  industry?: string,
+  onLeave = false,
+): OwnTeamRow {
+  return {
+    name: person.name,
+    role: person.role,
+    duties: (person.entitlements ?? entitlementsForTitle(person.role, industry)).filter(
+      (d): d is EntitlementId => d !== "view_reports_only" && ENTITLEMENT_IDS.has(d),
+    ),
+    ...(person.tenureYears !== undefined ? { tenureYears: person.tenureYears } : {}),
+    ...(person.department ? { department: person.department } : {}),
+    ...(person.employeeId ? { employeeId: person.employeeId } : {}),
+    ...(person.lastDay ? { lastDay: person.lastDay } : {}),
+    suggestedFor: person.role,
+    ...(onLeave ? { onLeave: true } : {}),
+  };
+}
+
+const ENTITLEMENT_IDS = new Set<string>(ENTITLEMENTS.map((e) => e.id));
+
+function rowKey(value: string): string {
+  return stripInvisibleControls(value)
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+/**
+ * Adds pasted rows to the grid without doubling anyone: a pasted row with
+ * the employee id or, failing that, the name of a row already in the grid
+ * updates that row, and the rest are added. An updated row keeps the duties
+ * ticked for it when its title is unchanged; a new title brings its own.
+ * Each grid row is matched once.
+ */
+export function mergeTeamRows(
+  current: readonly OwnTeamRow[],
+  incoming: readonly OwnTeamRow[],
+): { rows: OwnTeamRow[]; added: OwnTeamRow[]; updated: OwnTeamRow[] } {
+  const rows = [...current];
+  const matched = new Set<number>();
+  const added: OwnTeamRow[] = [];
+  const updated: OwnTeamRow[] = [];
+  for (const row of incoming) {
+    const id = row.employeeId ? rowKey(row.employeeId) : "";
+    const name = rowKey(row.name);
+    let index = id
+      ? rows.findIndex((r, i) => !matched.has(i) && r.employeeId && rowKey(r.employeeId) === id)
+      : -1;
+    if (index < 0 && name) {
+      index = rows.findIndex(
+        (r, i) =>
+          !matched.has(i) &&
+          rowKey(r.name) === name &&
+          !(id && r.employeeId && rowKey(r.employeeId) !== id),
+      );
+    }
+    if (index < 0) {
+      added.push(row);
+      continue;
+    }
+    matched.add(index);
+    const before = rows[index];
+    const sameTitle = rowKey(before.role) === rowKey(row.role);
+    const next: OwnTeamRow = {
+      ...before,
+      ...row,
+      ...(sameTitle ? { duties: before.duties, suggestedFor: before.suggestedFor } : {}),
+    };
+    rows[index] = next;
+    if (JSON.stringify(next) !== JSON.stringify(before)) updated.push(next);
+  }
+  return { rows: [...rows, ...added], added, updated };
+}
+
 /** Maximum people the grid accepts; larger teams continue in the register. */
 export const OWN_TEAM_MAX = 60;
 
-/** The rows that become people, in order: named, and no more than the grid holds. */
+/**
+ * The rows that become people, in order: named, and no more than the grid
+ * holds. Direction-changing and invisible control characters are removed
+ * first: a right-to-left override in a name reversed every sentence that
+ * named the person.
+ */
 function teamRows(rows: readonly OwnTeamRow[]): OwnTeamRow[] {
-  return rows.filter((row) => row.name.trim().length > 0).slice(0, OWN_TEAM_MAX);
+  return rows
+    .map((row) => ({
+      ...row,
+      name: stripInvisibleControls(row.name),
+      role: stripInvisibleControls(row.role),
+      ...(row.department !== undefined
+        ? { department: stripInvisibleControls(row.department) }
+        : {}),
+    }))
+    .filter((row) => row.name.trim().length > 0)
+    .slice(0, OWN_TEAM_MAX);
 }
 
 /** The person ids `buildOwnTeam` gives the rows marked as on leave. */
@@ -221,7 +351,9 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
         typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
           ? Math.min(60, Math.max(0, row.tenureYears))
           : undefined,
-      department: row.department?.trim().slice(0, 60) || undefined,
+      department: row.department?.trim().slice(0, 120) || undefined,
+      employeeId: row.employeeId?.trim().slice(0, 40) || undefined,
+      lastDay: row.lastDay && isCalendarDate(row.lastDay) ? row.lastDay : undefined,
       owner: rowOwnsBusiness(row),
     }))
     .map((row, index) => ({
@@ -234,6 +366,8 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
       owner: row.owner,
       ...(row.tenureYears !== undefined ? { tenureYears: row.tenureYears } : {}),
       ...(row.department ? { department: row.department } : {}),
+      ...(row.employeeId ? { employeeId: row.employeeId } : {}),
+      ...(row.lastDay ? { lastDay: row.lastDay } : {}),
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
     }));
 }

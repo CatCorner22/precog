@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import {
+  effectiveDuties,
   looksLikeRosterHeader,
+  mergeImportedPeople,
   parsePeopleCsv,
   peopleToCsv,
   removedPeopleImpact,
 } from "./people-csv";
+import { parseRoster } from "./roster";
+import type { Person } from "../types";
 
 const dental = getBaseTemplate("dental");
 const BOM = String.fromCharCode(0xfeff);
@@ -133,7 +137,7 @@ describe("parsePeopleCsv", () => {
     expect(result.people.map((person) => person.name)).toEqual(["One", "Two"]);
     expect(result.issues).toContainEqual({
       row: 3,
-      message: "Import truncated to 2 rows",
+      message: "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
     });
     expect(result.dropped).toBe(1);
   });
@@ -174,7 +178,7 @@ describe("parsePeopleCsv", () => {
     ];
     const csv = peopleToCsv(people);
     expect(csv.split(/\r?\n/)[0]).toBe(
-      "name,role,department,tenure_years,active,last_day,entitlements",
+      "name,employee_id,role,department,tenure_years,active,last_day,entitlements",
     );
     const back = parsePeopleCsv(csv, { ...dental, people }).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
@@ -202,7 +206,7 @@ describe("parsePeopleCsv", () => {
     expect(bad.people[0].lastDay).toBe("2026-10-14");
     expect(bad.issues).toContainEqual({
       row: 1,
-      message: "Last day must be a date like 2026-10-14",
+      message: "Last day not understood: next month",
     });
     expect(parsePeopleCsv("name,last_day\nMaya Chen,2026-12-01", tpl).people[0].lastDay).toBe(
       "2026-12-01",
@@ -294,5 +298,150 @@ describe("team export opened in a spreadsheet", () => {
     expect(line.startsWith("\"'=HYPERLINK")).toBe(true);
     const back = parsePeopleCsv(csv, { ...tpl, people: [] });
     expect(back.people[0]?.name).toBe('=HYPERLINK("http://evil")');
+  });
+});
+
+describe("the team editor's own export and imports", () => {
+  const general = getBaseTemplate("general");
+
+  it("re-imports the team's own export with every person's duties unchanged, role-derived ones included", () => {
+    // "Owner" and "Operations Manager" take their duties from the role; the
+    // catalog's Owner seat differs from this line of business's template.
+    const team: Person[] = [
+      { id: "p1", name: "Yan Role", role: "Owner", active: true },
+      { id: "p2", name: "Zoe Test", role: "Operations Manager", active: true },
+      {
+        id: "p3",
+        name: "Ben Ochoa",
+        role: "Bookkeeper",
+        active: true,
+        entitlements: ["post_payments"],
+      },
+    ];
+    const tpl = { ...general, people: team };
+    const csv = peopleToCsv(team, general.roleTemplates);
+    const back = parsePeopleCsv(csv, tpl);
+    expect(back.people.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+    for (const person of team) {
+      const read = back.people.find((p) => p.id === person.id)!;
+      expect(effectiveDuties(read, general.roleTemplates).sort(), person.name).toEqual(
+        effectiveDuties(person, general.roleTemplates).sort(),
+      );
+    }
+    // A pasted roster naming someone with the same title keeps their duties too.
+    const pasted = parseRoster("Yan Role, Owner", tpl);
+    expect(effectiveDuties(pasted.people[0], general.roleTemplates).sort()).toEqual(
+      effectiveDuties(team[0], general.roleTemplates).sort(),
+    );
+  });
+
+  it("keeps a 'Last, First' name as written when the team's own export is re-imported", () => {
+    const team: Person[] = [
+      { id: "own-1", name: "Olga Owner", role: "Owner", active: true },
+      { id: "own-2", name: "Ochoa, Ben", role: "Bookkeeper", active: true },
+    ];
+    const back = parsePeopleCsv(peopleToCsv(team, general.roleTemplates), {
+      ...general,
+      people: team,
+    });
+    expect(back.people.map((p) => [p.id, p.name])).toEqual([
+      ["own-1", "Olga Owner"],
+      ["own-2", "Ochoa, Ben"],
+    ]);
+    expect(back.removed).toEqual([]);
+    // An HR export still reads "Ochoa, Ben" as Ben Ochoa.
+    expect(
+      parsePeopleCsv('Employee Name,Job Title\n"Ochoa, Ben",Bookkeeper', general).people[0].name,
+    ).toBe("Ben Ochoa");
+  });
+
+  it("keeps two people with one name and title from the team's own export, and numbers new placeholders after them", () => {
+    const team: Person[] = [
+      { id: "p-server-1", name: "Server 1", role: "Server", active: true },
+      { id: "p-server-3", name: "Server 3", role: "Server", active: true },
+      { id: "p-server-3-2", name: "Server 3", role: "Server", active: true },
+    ];
+    const back = parsePeopleCsv(peopleToCsv(team, general.roleTemplates), {
+      ...general,
+      people: team,
+    });
+    expect(back.people.map((p) => p.id)).toEqual(["p-server-1", "p-server-3", "p-server-3-2"]);
+    expect(back.removed).toEqual([]);
+    expect(back.issues).toEqual([]);
+  });
+
+  it("carries the employee id from an SAP SuccessFactors roster through the export, and matches a renamed person on it", () => {
+    const sap = parseRoster(
+      "Person ID External,First Name,Last Name,Job Title,Employment Status\n10001,Ana,Ruiz,Owner,Active\n10002,Ben,Ochoa,Bookkeeper,Active",
+      general,
+    );
+    expect(sap.people.map((p) => [p.id, p.employeeId])).toEqual([
+      ["emp-10001", "10001"],
+      ["emp-10002", "10002"],
+    ]);
+    const csv = peopleToCsv(sap.people, general.roleTemplates);
+    expect(csv.split(/\r?\n/)[1]).toMatch(/^Ana Ruiz,10001,Owner,/);
+
+    // The team after onboarding has its own ids; the employee id links a
+    // renamed person back to them.
+    const team: Person[] = [
+      { id: "own-1", name: "Ana Ruiz", role: "Owner", active: true, employeeId: "10001" },
+      { id: "own-2", name: "Ben Ochoa", role: "Bookkeeper", active: true, employeeId: "10002" },
+    ];
+    const renamed = parsePeopleCsv(
+      "name,employee_id,role\nAna Ruiz-Lopez,10001,Owner\nBen Ochoa,10003,Bookkeeper",
+      { ...general, people: team },
+    );
+    expect(renamed.people.map((p) => [p.id, p.name, p.employeeId])).toEqual([
+      ["own-1", "Ana Ruiz-Lopez", "10001"],
+      ["emp-10003", "Ben Ochoa", "10003"],
+    ]);
+    // Same name, another employee id: another person, and own-2 is not in the file.
+    expect(renamed.removed.map((p) => p.id)).toEqual(["own-2"]);
+  });
+
+  it("adds two pasted new hires to a 12-person team without removing anyone, and keeps what the paste does not say", () => {
+    const team: Person[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `own-${i + 1}`,
+      name: `Person ${String.fromCharCode(65 + i)}`,
+      role: "Cashier",
+      active: true,
+      tenureYears: 3,
+      department: "Store",
+      entitlements: ["collect_cash"],
+    }));
+    const tpl = { ...general, people: team };
+    const pasted = parseRoster(
+      "Nia Cole, Accounts Receivable Clerk\nOmar Reyes, Bookkeeper\nPerson A, Cashier\nPerson B, Bookkeeper",
+      tpl,
+    );
+    const merged = mergeImportedPeople(team, pasted.people);
+    expect(merged.people).toHaveLength(14);
+    expect(merged.added.map((p) => p.name)).toEqual(["Nia Cole", "Omar Reyes"]);
+    expect(merged.updated.map((p) => p.name)).toEqual(["Person B"]);
+    // Same title: the duties set for her, her years and her department stay.
+    expect(merged.people[0]).toEqual(team[0]);
+    // A new title brings its duties; years and department the paste does not give stay.
+    expect(merged.people[1]).toMatchObject({
+      role: "Bookkeeper",
+      tenureYears: 3,
+      department: "Store",
+    });
+    expect(merged.people[1].entitlements).toContain("bank_reconcile");
+  });
+
+  it("gives the duties picker the duties the engine reads for a person whose duties come from their role", () => {
+    expect(effectiveDuties({ role: "Office Manager" }, dental.roleTemplates)).toEqual(
+      dental.roleTemplates["Office Manager"],
+    );
+    expect(
+      effectiveDuties(
+        { role: "Office Manager", entitlements: ["collect_cash"] },
+        dental.roleTemplates,
+      ),
+    ).toEqual(["collect_cash"]);
+    expect(effectiveDuties({ role: "Chief Happiness Wrangler" }, {})).toEqual([
+      "view_reports_only",
+    ]);
   });
 });

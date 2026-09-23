@@ -39,23 +39,39 @@ included, and a plain list with one person per line as `Name, Title`:
 
 Comma, tab, semicolon and pipe delimiters are detected, and a Markdown table
 pasted from a chat reads as well. The header may sit under a report title;
-repeated header rows and Total, Count, Page and "Report generated" footer rows
-are skipped and reported. A "Last, First" name becomes "First Last", with a
+repeated header rows, Total, Count, Page and "Report generated" footer rows
+(QuickBooks' "TOTAL, 9 employees" too), and a report's run stamp on a line of
+its own ("Tuesday, Sep 23, 2026 09:14 AM GMT-04:00", "Accrual basis ...") are
+skipped and reported. Direction-changing and invisible control characters
+(a right-to-left override, zero-width spaces) are removed from every cell.
+One import reads up to 250 rows, and the note says how many more were not
+read. A "Last, First" name becomes "First Last", with a
 generation suffix kept after it ("Diaz, Cal III" is "Cal Diaz III") and a
 credential after a comma ("Cole, Ben, CPA" is "Ben Cole, CPA"); a credential
 alone after the comma ("Roe, DDS") and a company name ("Acme Payroll, Inc.")
 stay as written. A hire date becomes years of service, with a warning when it
 is in the future; an inactive, terminated, deactivated, archived, deleted,
-deceased, suspended, furloughed or laid-off status keeps the person off the
-map, while someone on leave (Leave, On Leave, LOA, ADP's L) stays on it with a
-note, and a status word the importer does not know is reported and treated as
-active. An Employment Type, Employee Type or Worker Type column describes
+deceased or laid-off status keeps the person off the map, while someone on
+leave (Leave, On Leave, LOA, FMLA, ADP's L, Oracle's "Inactive - Leave of
+Absence" and "Suspended - ...", a furlough) stays on it with a note, and a
+status word the importer does not know is reported and treated as active. A
+termination or last-day date already past, in ISO or US form, marks the person
+as having left when no status column says otherwise; beside an active status
+it is reported and not kept. An Employment Type, Employee Type or Worker Type column describes
 schedule or contract, so its codes ("F", "P", "T" for temporary) never take
 anyone off the map; only a full word such as "Terminated" there does. A row
 that repeats an earlier name and title is skipped and reported; when the rows
 carry employee IDs the ID decides instead, so two employees with one name
 stay two people, and one ID on two positions is one person holding the duties
-of both.
+of both. Someone listed with one title at two locations is one person at both.
+
+In the team register, a pasted roster adds and updates people and removes
+nobody; an imported CSV that leaves people out asks before removing them. A
+row naming someone already on the team keeps that person, matched by
+employee ID before the name, along with whatever the file has no column for
+and the duties set for them when the title is unchanged. "Export CSV" writes
+each person's employee ID and the duties the conflict checks read, so the
+team's own export re-imports to the same people with the same duties.
 
 A plain list also works, one person per line: "Name, Title", "Name - Title",
 "Name<tab>Title", "Name | Title", "Name: Title" or "Name (Title)", with or
@@ -65,7 +81,13 @@ title whole, unless the text before a dash is a "Last, First" name ("Smith,
 John - Bookkeeper"). A title line above the list ("Staff List", "Team
 Roster") is skipped and reported.
 
-Job titles are read through a catalog of about ninety common small-business
+When a row has two title columns, duties are read from the standard
+classification (Workday's Job Profile, Oracle's Job Name) before the free-text
+or seat title (Business Title, Position Name), and from the other column when
+the first is not in the catalog; an owner's title in any column seats the
+owner. The role shown is the title the duties were read from.
+
+Job titles are read through a catalog of about a hundred common small-business
 titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office
 manager, AP specialist, payroll administrator, front desk, cashier, server,
 foreman, IT administrator, night auditor, service advisor, property manager,

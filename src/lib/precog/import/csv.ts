@@ -2,6 +2,23 @@
 export type Delimiter = "," | "\t" | ";" | "|";
 
 /**
+ * Control characters that change how text around them is drawn or hide
+ * inside it: C0 and C1 controls other than tab and line breaks, the
+ * right-to-left and left-to-right marks, embeddings, overrides and isolates,
+ * zero-width space, word joiner and a stray byte-order mark. A right-to-left
+ * override in a pasted name reversed every sentence that named the person.
+ * Zero-width joiners stay: some scripts need them.
+ */
+const INVISIBLE_CONTROLS =
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point.
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
+
+/** The text with invisible and direction-changing control characters removed. */
+export function stripInvisibleControls(value: string): string {
+  return value.replace(INVISIBLE_CONTROLS, "");
+}
+
+/**
  * Splits delimited text into rows. The delimiter defaults to a comma; pass
  * "\t" for text pasted from a spreadsheet, or use `sniffDelimiter`.
  */

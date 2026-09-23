@@ -107,8 +107,27 @@ function parseBool(value: string): boolean | undefined {
   return undefined;
 }
 
+/**
+ * A record in a form where an empty list, an empty text and a missing field
+ * are the same, and key order does not count: a process made in the builder
+ * has "inputs: []" where the same row read back from its CSV has none.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, canonical(record[key])] as const)
+        .filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)),
+    );
+  }
+  return value;
+}
+
 function sameRecord(a: ProcessNode, b: ProcessNode): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
 export function parseProcessCsv(
