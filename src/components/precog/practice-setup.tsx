@@ -91,8 +91,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <SyncStatusBadge />
         </div>
         <CardDescription>
-          Industry sets the demo template (process map, knowledge graph, scenarios). Team size and
-          control posture drive residual scores and your AI advisor. Sign in to sync across devices.
+          {profile.customPeople
+            ? "Industry sets the starter process map, register and scenarios; your team and the duties you ticked drive the findings and scores. Sign in to sync across devices."
+            : "Industry loads the sample business (process map, register, scenarios). Team size and control posture drive residual scores and your AI advisor. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

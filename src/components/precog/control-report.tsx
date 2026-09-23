@@ -21,6 +21,7 @@ import {
   STATUS_LABEL,
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import {
   formatDateRange,
   handoffDeadline,
@@ -95,7 +96,8 @@ export function ControlReport() {
   const industry = industryMeta(profile.industry);
   const generated = new Date();
   const today = localDateKey(generated);
-  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+  const registerReady = registerAssessed(tpl);
+  const trackFreshness = trackRegisterFreshness(profile, tpl);
 
   const data = useMemo(() => {
     const threat = buildThreatAssessment({
@@ -470,114 +472,128 @@ export function ControlReport() {
         )}
 
         <Section title="Continuity of operations">
-          <p className="text-sm text-neutral-700">
-            <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two
-            or more people who can run it alone. {continuity.counts.uncovered} item
-            {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
-            {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
-            person plus a learner.
-          </p>
-          {continuity.singlePoints.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-600">
-              No critical or important item is uncovered or relies on one person without a learner.
+          {!registerReady ? (
+            <p className="text-sm text-neutral-700">
+              Not assessed yet.{" "}
+              {tpl.knowledge.length === 0
+                ? "The register is empty: the business has not yet listed the duties, tasks and know-how it runs on."
+                : `The register holds ${tpl.knowledge.length} starter items from the ${industry.label.toLowerCase()} example with nobody marked on any of them, so no continuity figure is reported.`}
             </p>
           ) : (
-            <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-              {continuity.singlePoints.map((s) => (
-                <li key={s.item.id} className="border-b border-neutral-200 py-1">
-                  <div className="flex justify-between gap-2">
-                    <span>
-                      {s.item.name}
-                      <span className="text-neutral-500">
-                        {" "}
-                        · {s.primaries[0]?.name ?? "nobody"}
-                      </span>
-                    </span>
-                    <span className="text-xs text-neutral-600">{STATUS_LABEL[s.status]}</span>
-                  </div>
-                  {s.suggestedBackups[0] && (
-                    <div className="text-xs text-neutral-500">
-                      Train next: {s.suggestedBackups[0].person.name} (
-                      {s.suggestedBackups[0].reasons[0]})
-                    </div>
+            <>
+              <p className="text-sm text-neutral-700">
+                <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has
+                two or more people who can run it alone. {continuity.counts.uncovered} item
+                {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
+                {continuity.counts.single} with exactly one person, {continuity.counts.thin} with
+                one person plus a learner.
+              </p>
+              {continuity.singlePoints.length === 0 ? (
+                <p className="mt-2 text-sm text-neutral-600">
+                  No critical or important item is uncovered or relies on one person without a
+                  learner.
+                </p>
+              ) : (
+                <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+                  {continuity.singlePoints.map((s) => (
+                    <li key={s.item.id} className="border-b border-neutral-200 py-1">
+                      <div className="flex justify-between gap-2">
+                        <span>
+                          {s.item.name}
+                          <span className="text-neutral-500">
+                            {" "}
+                            · {s.primaries[0]?.name ?? "nobody"}
+                          </span>
+                        </span>
+                        <span className="text-xs text-neutral-600">{STATUS_LABEL[s.status]}</span>
+                      </div>
+                      {s.suggestedBackups[0] && (
+                        <div className="text-xs text-neutral-500">
+                          Train next: {s.suggestedBackups[0].person.name} (
+                          {s.suggestedBackups[0].reasons[0]})
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {continuity.plan.length > 0 && (
+                <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
+                  {continuity.plan.slice(0, 5).map((m) => (
+                    <li key={m.item.id}>
+                      {m.action}
+                      <CommitmentTag c={committed.get(continuityStepKey(m.item.id, "cover"))} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <p className="mt-3 text-sm text-neutral-700">
+                <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is
+                written down and findable. {docs.counts.none} item(s) with nothing written,{" "}
+                {docs.counts.unlocated} written but location not recorded.
+              </p>
+              {docs.gaps.length > 0 && (
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+                  {docs.gaps.slice(0, 5).map((g) => (
+                    <li key={g.item.id}>
+                      <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
+                      {g.action}
+                      <CommitmentTag
+                        c={committed.get(
+                          continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
+                        )}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {trackFreshness && (
+                <p className="mt-3 text-sm text-neutral-700">
+                  <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
+                  confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
+                  {staleness.stale.length > 0 && (
+                    <> {staleness.stale.length} item(s) to re-confirm.</>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {continuity.plan.length > 0 && (
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
-              {continuity.plan.slice(0, 5).map((m) => (
-                <li key={m.item.id}>
-                  {m.action}
-                  <CommitmentTag c={committed.get(continuityStepKey(m.item.id, "cover"))} />
-                </li>
-              ))}
-            </ol>
-          )}
-          <p className="mt-3 text-sm text-neutral-700">
-            <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is written
-            down and findable. {docs.counts.none} item(s) with nothing written,{" "}
-            {docs.counts.unlocated} written but location not recorded.
-          </p>
-          {docs.gaps.length > 0 && (
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
-              {docs.gaps.slice(0, 5).map((g) => (
-                <li key={g.item.id}>
-                  <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
-                  {g.action}
-                  <CommitmentTag
-                    c={committed.get(
-                      continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
-                    )}
-                  />
-                </li>
-              ))}
-            </ol>
-          )}
-          {trackFreshness && (
-            <p className="mt-3 text-sm text-neutral-700">
-              <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
-              confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
-              {staleness.stale.length > 0 && <> {staleness.stale.length} item(s) to re-confirm.</>}
-            </p>
-          )}
-          {trackFreshness && staleness.stale.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-neutral-600">
-              {checkIns.checkIns.slice(0, 6).map((c) => (
-                <li key={c.person.id}>
-                  <strong>Check in with {c.person.name}</strong> — {c.items.length}{" "}
-                  {c.items.length === 1 ? "entry" : "entries"}
-                  {c.soleCount > 0 && ` (${c.soleCount} nobody else can run alone)`}:{" "}
-                  {c.items.map((entry) => entry.item.name).join(", ")}
-                </li>
-              ))}
-              {checkIns.checkIns.length > 6 && (
-                <li>{checkIns.checkIns.length - 6} more people to check in with.</li>
+                </p>
               )}
-              {checkIns.unheld.length > 0 && (
-                <li>
-                  <strong>Nobody active holds</strong> —{" "}
-                  {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they still
-                  matter or assign someone.
-                </li>
+              {trackFreshness && staleness.stale.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-neutral-600">
+                  {checkIns.checkIns.slice(0, 6).map((c) => (
+                    <li key={c.person.id}>
+                      <strong>Check in with {c.person.name}</strong> — {c.items.length}{" "}
+                      {c.items.length === 1 ? "entry" : "entries"}
+                      {c.soleCount > 0 && ` (${c.soleCount} nobody else can run alone)`}:{" "}
+                      {c.items.map((entry) => entry.item.name).join(", ")}
+                    </li>
+                  ))}
+                  {checkIns.checkIns.length > 6 && (
+                    <li>{checkIns.checkIns.length - 6} more people to check in with.</li>
+                  )}
+                  {checkIns.unheld.length > 0 && (
+                    <li>
+                      <strong>Nobody active holds</strong> —{" "}
+                      {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they
+                      still matter or assign someone.
+                    </li>
+                  )}
+                </ul>
               )}
-            </ul>
-          )}
-          {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
-            0 && (
-            <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
-              {continuity.people
-                .filter((l) => l.person.active && l.soleItems.length > 0)
-                .slice(0, 6)
-                .map((l) => (
-                  <li key={l.person.id}>
-                    <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
-                    {l.dependence}% of must-do work stops if out; only they can do:{" "}
-                    {l.soleItems.map((k) => k.name).join(", ")}
-                  </li>
-                ))}
-            </ul>
+              {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
+                0 && (
+                <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
+                  {continuity.people
+                    .filter((l) => l.person.active && l.soleItems.length > 0)
+                    .slice(0, 6)
+                    .map((l) => (
+                      <li key={l.person.id}>
+                        <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
+                        {l.dependence}% of must-do work stops if out; only they can do:{" "}
+                        {l.soleItems.map((k) => k.name).join(", ")}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </>
           )}
         </Section>
 

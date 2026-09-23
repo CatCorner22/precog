@@ -6,6 +6,7 @@ import { industryMeta } from "../industry";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
 import { coverageReport, documentationDebt } from "../continuity/coverage";
+import { registerAssessed } from "../continuity/register-state";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 
 /** Dense, structured context for the Pioneer LLM coach — token-efficient. */
@@ -20,6 +21,7 @@ export function buildPioneerContextPack(
   const spofs = findKnowledgeRisks(tpl).filter((r) => r.soleOwner && r.riskScore >= 65);
   const continuity = coverageReport(tpl);
   const docs = documentationDebt(tpl);
+  const assessed = registerAssessed(tpl);
   const leanedOn = continuity.people.find((l) => l.person.active);
   const tornado = tornadoSensitivity(tpl, staffComposition);
   const { snapshots } = buildProcessMapGraph(tpl, staffComposition);
@@ -100,6 +102,7 @@ export function buildPioneerContextPack(
       riskScore: s.riskScore,
     })),
     continuity: {
+      assessed,
       backedUpPct: continuity.coverageIndex,
       counts: continuity.counts,
       documentation: {
@@ -132,7 +135,9 @@ export function buildPioneerContextPack(
         procedureLocation: m.item.documented ? m.item.procedureLocation?.trim() || null : null,
         action: m.action,
       })),
-      note: "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. 'documentation.gaps' are items with nothing written down or a written procedure whose location is not recorded; advise on writing/locating them in the same breath as cross-training. Advise on contingency in terms of these named people.",
+      note: assessed
+        ? "Coverage status is from the owner's register of who can do what; 'single' means exactly one person can run it alone. 'documentation.gaps' are items with nothing written down or a written procedure whose location is not recorded; advise on writing/locating them in the same breath as cross-training. Advise on contingency in terms of these named people."
+        : `Not assessed: the register holds ${tpl.knowledge.length} item(s) with nobody marked on any of them, so the figures above are not facts about the business. Do not quote them; advise the owner to mark who can do each item on Who knows what.`,
     },
     topScenarios: ranked.map((r) => ({
       id: r.scenario.id,

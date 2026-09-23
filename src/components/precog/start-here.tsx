@@ -21,6 +21,7 @@ import {
   staleItems,
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";
 import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
@@ -79,7 +80,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
   );
-  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+  const registerFrom = registerSource(profile);
+  const registerReady = registerAssessed(template);
+  const trackFreshness = registerFrom !== "sample" && registerReady;
   const continuityReadiness = useMemo(() => {
     const coverage = coverageReport(template);
     return {
@@ -465,44 +468,66 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         )}
         <Card>
           <CardContent className="space-y-4 pt-5">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {!registerReady ? (
               <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.coverageIndex}%
+                <p className="text-sm font-medium">Not assessed yet</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  {template.knowledge.length === 0
+                    ? "Your register is empty. List the duties, tasks and know-how the business runs on and mark who can do each, and these figures fill in."
+                    : `Your register holds ${template.knowledge.length} starter items from the ${industryMeta(profile.industry).label.toLowerCase()} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
                 </p>
-                <p className="mt-1 text-sm font-medium">Backed up</p>
-                <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+                {onOpenDetail && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetail("knowledge")}
+                    className="mt-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    Open Who knows what
+                  </button>
+                )}
               </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.documentationIndex}%
-                </p>
-                <p className="mt-1 text-sm font-medium">Written and findable</p>
-                <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {continuityReadiness.coverageIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Backed up</p>
+                  <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {continuityReadiness.documentationIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Written and findable</p>
+                  <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Confirmed recently</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    {!trackFreshness
+                      ? "starts once you enter your own register"
+                      : continuityReadiness.checkIns.checkIns[0]
+                        ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
+                        : continuityReadiness.checkIns.unheld.length > 0
+                          ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
+                          : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {slipped.length}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Slipped</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    done items whose coverage or documentation regressed
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
-                </p>
-                <p className="mt-1 text-sm font-medium">Confirmed recently</p>
-                <p className="mt-1 text-xs text-subtle">
-                  {!trackFreshness
-                    ? "starts once you enter your own register"
-                    : continuityReadiness.checkIns.checkIns[0]
-                      ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
-                      : continuityReadiness.checkIns.unheld.length > 0
-                        ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
-                        : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">{slipped.length}</p>
-                <p className="mt-1 text-sm font-medium">Slipped</p>
-                <p className="mt-1 text-xs text-subtle">
-                  done items whose coverage or documentation regressed
-                </p>
-              </div>
-            </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               {continuityReadiness.mostDepended ? (
                 <p className="text-sm text-muted">

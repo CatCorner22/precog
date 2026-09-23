@@ -54,6 +54,8 @@ import {
   type ItemCoverage,
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
+import { industryMeta } from "@/lib/precog/industry";
 import {
   endAbsence,
   extendAbsence,
@@ -232,8 +234,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       ? trackedBy(a.knowledgeIds[0], a.step, absenceId)
       : undefined;
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
-  const usingTemplateRegister = !profile.customKnowledge && !profile.customRelations;
-  const trackFreshness = !usingTemplateRegister;
+  const registerFrom = registerSource(profile);
+  const registerReady = registerAssessed(tpl);
+  const trackFreshness = registerFrom !== "sample" && registerReady;
   const freshness = useMemo(() => staleItems(tpl, today), [tpl, today]);
   const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
   const checkIns = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
@@ -583,39 +586,108 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Stat
           label="Backed up"
-          value={`${report.coverageIndex}%`}
-          hint="Share of work two or more people can run alone (weighted by criticality)."
-          tone={report.coverageIndex >= 70 ? "ok" : report.coverageIndex >= 40 ? "warn" : "danger"}
+          value={registerReady ? `${report.coverageIndex}%` : "—"}
+          hint={
+            registerReady
+              ? "Share of work two or more people can run alone (weighted by criticality)."
+              : NOT_ASSESSED_HINT
+          }
+          tone={
+            !registerReady
+              ? "default"
+              : report.coverageIndex >= 70
+                ? "ok"
+                : report.coverageIndex >= 40
+                  ? "warn"
+                  : "danger"
+          }
         />
         <Stat
           label="Single points"
-          value={String(report.counts.single + report.counts.uncovered)}
-          hint={`${report.counts.uncovered} with nobody, ${report.counts.single} with one person.`}
-          tone={report.counts.single + report.counts.uncovered === 0 ? "ok" : "danger"}
+          value={registerReady ? String(report.counts.single + report.counts.uncovered) : "—"}
+          hint={
+            registerReady
+              ? `${report.counts.uncovered} with nobody, ${report.counts.single} with one person.`
+              : NOT_ASSESSED_HINT
+          }
+          tone={
+            !registerReady
+              ? "default"
+              : report.counts.single + report.counts.uncovered === 0
+                ? "ok"
+                : "danger"
+          }
         />
         <Stat
           label="Learners in place"
-          value={String(report.counts.thin)}
-          hint="One person can run it and someone else has started learning."
-          tone="warn"
+          value={registerReady ? String(report.counts.thin) : "—"}
+          hint={
+            registerReady
+              ? "One person can run it and someone else has started learning."
+              : NOT_ASSESSED_HINT
+          }
+          tone={registerReady ? "warn" : "default"}
         />
         <Stat
           label="Written down"
-          value={`${docs.documentedIndex}%`}
-          hint={`${docs.counts.none} with nothing written, ${docs.counts.unlocated} written but location not recorded.`}
-          tone={docs.documentedIndex >= 70 ? "ok" : docs.documentedIndex >= 40 ? "warn" : "danger"}
+          value={registerReady ? `${docs.documentedIndex}%` : "—"}
+          hint={
+            registerReady
+              ? `${docs.counts.none} with nothing written, ${docs.counts.unlocated} written but location not recorded.`
+              : NOT_ASSESSED_HINT
+          }
+          tone={
+            !registerReady
+              ? "default"
+              : docs.documentedIndex >= 70
+                ? "ok"
+                : docs.documentedIndex >= 40
+                  ? "warn"
+                  : "danger"
+          }
         />
         <Stat
           label="Most depended on"
-          value={mostDepended ? mostDepended.person.name : "—"}
+          value={registerReady && mostDepended ? mostDepended.person.name : "—"}
           hint={
-            mostDepended
+            registerReady && mostDepended
               ? `${mostDepended.dependence}% of must-do work stops if they are out (app's own index).`
-              : "Add people to see who the business leans on."
+              : registerReady
+                ? "Add people to see who the business leans on."
+                : NOT_ASSESSED_HINT
           }
-          tone={mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"}
+          tone={
+            registerReady && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"
+          }
         />
       </div>
+
+      {registerFrom === "starter" && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+          <p className="font-medium">
+            Starter list from the {industryMeta(profile.industry).label.toLowerCase()} example
+          </p>
+          <p className="mt-1 leading-relaxed text-muted">
+            These {tpl.knowledge.length} duties, tasks and pieces of know-how are what a business
+            like yours usually runs on. Mark who can do each, edit or delete what does not apply, or
+            start from a blank list. The figures above stay blank until someone is marked.
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mt-3"
+            onClick={() => setCustomKnowledge([])}
+          >
+            Start from a blank list
+          </Button>
+        </div>
+      )}
+      {registerFrom === "own" && tpl.knowledge.length === 0 && (
+        <div className="rounded-lg border border-border bg-panel/60 p-4 text-sm text-muted">
+          Your register is empty. Add the duties, tasks and know-how the business runs on below, or
+          import a spreadsheet, then mark who can do each.
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex-row items-start justify-between gap-3">
@@ -664,12 +736,12 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
             >
               Blank template
             </Button>
-            {!usingTemplateRegister && (
+            {registerFrom === "own" && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={resetToTemplate}
-                title="Back to the industry example list"
+                title="Back to the starter list"
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Reset
               </Button>
@@ -1740,6 +1812,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     </div>
   );
 }
+
+const NOT_ASSESSED_HINT = "Fills in once someone is marked on an item.";
 
 function Stat({
   label,

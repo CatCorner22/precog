@@ -2,6 +2,7 @@
  * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
 import { describeChunkBasis } from "../rag/corpus";
+import { registerAssessed, trackRegisterFreshness } from "../continuity/register-state";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
@@ -271,10 +272,29 @@ export function executeTool(
       }
 
       case "get_knowledge_spofs": {
+        if (!registerAssessed(tpl)) {
+          return {
+            tool,
+            ok: true,
+            summary:
+              tpl.knowledge.length === 0
+                ? "Continuity is not assessed: the register is empty, so the owner has not listed the duties, tasks and know-how the business runs on. Do not quote coverage figures."
+                : `Continuity is not assessed: the register holds ${tpl.knowledge.length} starter item(s) from the industry example with nobody marked on any of them. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
+            data: {
+              assessed: false,
+              items: tpl.knowledge.map((k) => ({
+                knowledgeId: k.id,
+                name: k.name,
+                criticality: k.criticality,
+              })),
+            },
+            links: [{ tab: "knowledge", label: "Who knows what" }],
+          };
+        }
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         const continuity = coverageReport(tpl);
         const docs = documentationDebt(tpl);
-        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        const trackFreshness = trackRegisterFreshness(profile, tpl);
         const freshness = trackFreshness
           ? staleItems(tpl, ctx.today ?? new Date().toISOString().slice(0, 10))
           : null;
@@ -502,7 +522,7 @@ export function executeTool(
       }
 
       case "get_register_checkins": {
-        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        const trackFreshness = trackRegisterFreshness(profile, tpl);
         if (!trackFreshness) {
           return {
             tool,

@@ -10,6 +10,7 @@ import {
   ownerlessProcesses,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import {
   continuityCommitments,
   continuityStepKey,
@@ -161,6 +162,11 @@ export function buildWeeklyActions(input: {
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
   });
   const continuity = coverageReport(tpl);
+  // A register nobody has filled in cannot say what stops when someone is out:
+  // a starter list with nobody marked is not a set of single points, and an
+  // empty list is not full coverage. Until it is filled in, the one continuity
+  // action is to fill it in.
+  const registerReady = registerAssessed(tpl);
   const tornado = tornadoSensitivity(tpl, input.staff);
   const actions: WeeklyAction[] = [];
 
@@ -225,7 +231,7 @@ export function buildWeeklyActions(input: {
   // next uncommitted gap still gets recommended.
   let freshLeft = MAX_FRESH_PER_GAP_KIND;
   let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const m of continuity.plan.filter(
+  for (const m of (registerReady ? continuity.plan : []).filter(
     (x) =>
       x.item.criticality === "critical" &&
       x.status !== "thin" &&
@@ -415,7 +421,9 @@ export function buildWeeklyActions(input: {
 
   freshLeft = MAX_FRESH_PER_GAP_KIND;
   remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
+  for (const g of (registerReady ? documentationDebt(tpl).gaps : []).filter(
+    (x) => x.item.criticality === "critical",
+  )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority =
       g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
@@ -443,7 +451,29 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  if (input.trackFreshness) {
+  if (!registerReady) {
+    actions.push(
+      tpl.knowledge.length === 0
+        ? {
+            id: "register-start",
+            title: "List the duties, tasks and know-how the business runs on",
+            why: "The register is empty. Until it lists what the business runs on and who can do each, the app cannot say what stops when someone is out or who holds work alone.",
+            effort: "low",
+            tab: "knowledge",
+            priority: 80,
+          }
+        : {
+            id: "register-start",
+            title: `Mark who can do each of the ${tpl.knowledge.length} things the business runs on`,
+            why: `The register lists ${tpl.knowledge.length} duties, tasks and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until someone is marked, the app cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
+            effort: "low",
+            tab: "knowledge",
+            priority: 86,
+          },
+    );
+  }
+
+  if (input.trackFreshness && registerReady) {
     const plan = checkInPlan(tpl, today);
     const first = plan.checkIns[0];
     if (first) {
