@@ -237,8 +237,14 @@ try {
     const currentMap = archivedMap.map((item, index) =>
       index === 0 ? { ...item, entitlements: [...item.entitlements, "manage_backups"] } : item,
     );
-    const archivedValue = { ...valueCase.DEFAULT_VALUE_CASE, directRecoveries: 0 };
-    const currentValue = { ...archivedValue, directRecoveries: 5_000 };
+    // Net value is observed only from the owner's own figures: recoveries
+    // and the program's cost, both entered in each assessment.
+    const archivedValue = {
+      ...valueCase.DEFAULT_VALUE_CASE,
+      directRecoveries: 1_000,
+      annualProgramCost: 10_000,
+    };
+    const currentValue = { ...archivedValue, directRecoveries: 6_000 };
     const comparison = snapshotComparison.compareAssessmentStates(
       {
         profile: currentProfile,
@@ -269,6 +275,21 @@ try {
     assert.equal(comparison.riskChanges, 1);
     assert.equal(comparison.riskVariableChanges[0].key, "deductible");
     assert.equal(comparison.netObservedValueDelta, 5_000);
+    const fromDefaults = snapshotComparison.compareAssessmentStates(
+      {
+        profile: currentProfile,
+        powerMap: currentMap,
+        valueCase: valueCase.DEFAULT_VALUE_CASE,
+        evidence: [],
+      },
+      {
+        profile: archivedProfile,
+        powerMap: archivedMap,
+        valueCase: valueCase.DEFAULT_VALUE_CASE,
+        evidence: [],
+      },
+    );
+    assert.equal(fromDefaults.netObservedValueDelta, null);
     assert.equal(comparison.grants, 1);
     assert.equal(comparison.assignmentChanges.length, 1);
     assert.equal(comparison.assignmentChanges[0].kind, "duty_granted");
