@@ -1,4 +1,4 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PracticeProvider } from "@/lib/precog/practice-context";
 import { PresentationProvider } from "@/lib/precog/presentation";
@@ -42,7 +42,35 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootDocument,
+  notFoundComponent: NotFound,
 });
+
+/** An address with no page (a typo such as /reports): say so and offer the way back. */
+function NotFound() {
+  return (
+    <main className="mx-auto flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+      <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Page not found</p>
+      <h1 className="text-2xl font-semibold tracking-tight">There is no page at this address</h1>
+      <p className="text-sm text-muted">
+        Check the link for a typo, or go back to your business. Nothing you saved has changed.
+      </p>
+      <nav className="flex flex-wrap justify-center gap-2" aria-label="Where to go">
+        <Link
+          to="/"
+          className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
+        >
+          Go to Start here
+        </Link>
+        <Link
+          to="/report"
+          className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium text-fg hover:bg-elevated"
+        >
+          Open the report
+        </Link>
+      </nav>
+    </main>
+  );
+}
 
 function RootDocument() {
   return (

@@ -72,6 +72,7 @@ import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
+import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -108,6 +109,10 @@ export function ControlReport() {
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
   const mapFrom = mapSource(profile);
+  // The sample's people and figures print with a label on every copy, and
+  // under the sample's name until a business is set up.
+  const sample = isSampleBusiness(profile);
+  const businessName = printedBusinessName(profile);
 
   const data = useMemo(() => {
     // Starter scenarios count only once the owner confirms them, on every
@@ -115,7 +120,7 @@ export function ControlReport() {
     const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
     const threat = buildThreatAssessment({
       tpl,
-      practiceName: profile.practiceName,
+      practiceName: businessName,
       staff: profile.staff,
       riskVariables: profile.riskVariables,
       dualRelease: profile.dualRelease,
@@ -217,7 +222,7 @@ export function ControlReport() {
       found,
       policyNote,
     };
-  }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady]);
+  }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName]);
 
   const {
     policyNote,
@@ -282,9 +287,9 @@ export function ControlReport() {
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         <header className="border-b-2 border-neutral-900 pb-4">
           <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500 uppercase">
-            Internal control priorities
+            Internal control priorities{sample ? " · sample business" : ""}
           </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{profile.practiceName}</h1>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
             {mapFrom === "starter"
@@ -300,6 +305,25 @@ export function ControlReport() {
             })}
           </p>
         </header>
+
+        {sample && (
+          <section
+            className="mt-4 rounded-lg border-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-950"
+            role="note"
+            aria-label="Sample business"
+          >
+            <p className="font-semibold">
+              Sample business: the people, scores and findings in this report are fictional.
+            </p>
+            <p className="mt-1">
+              It describes the {industry.label.toLowerCase()} sample team, not your business.{" "}
+              <Link to="/" className="font-medium underline print:hidden">
+                Set up your own business
+              </Link>
+              <span className="print:hidden"> to report on your team.</span>
+            </p>
+          </section>
+        )}
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Kpi

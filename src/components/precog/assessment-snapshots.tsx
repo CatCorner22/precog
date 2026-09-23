@@ -14,28 +14,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildAssignments } from "@/lib/precog/sod/detect";
-import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { useTemplate } from "@/lib/precog/use-template";
-import {
-  DEFAULT_VALUE_CASE,
-  VALUE_CASE_STORAGE_KEY,
-  normalizeValueCase,
-} from "@/lib/precog/value-case";
-import { VALUE_EVIDENCE_STORAGE_KEY, normalizeValueEvidence } from "@/lib/precog/value-evidence";
+import { DEFAULT_VALUE_CASE, normalizeValueCase } from "@/lib/precog/value-case";
+import { normalizeValueEvidence } from "@/lib/precog/value-evidence";
 import {
   compareAssessmentStates,
   createSnapshotComparisonReport,
 } from "@/lib/precog/snapshot-comparison";
 import { formatUsd } from "@/lib/utils";
+import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
+import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
+  const businessId = profile.businessId ?? "biz_default";
   const tpl = useTemplate();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");
   const [items, setItems] = useState<AssessmentSnapshotSummary[]>([]);
+  // A save, restore, compare or delete in flight; listing has its own flag so
+  // a refresh never reads as "Saving…" or disables the Save button.
   const [busy, setBusy] = useState(false);
+  const [listing, setListing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<{
     title: string;
@@ -43,18 +44,21 @@ export function AssessmentSnapshots() {
     result: ReturnType<typeof compareAssessmentStates>;
   } | null>(null);
 
+  // Keyed on the id: the user object is rebuilt on every render, and a
+  // dependency on it re-requested the list without end.
+  const userId = user?.id;
   const refresh = useCallback(async () => {
-    if (!user) return;
-    setBusy(true);
+    if (!userId) return;
+    setListing(true);
     setError(null);
     try {
       setItems(await listAssessmentSnapshots());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load snapshots");
     } finally {
-      setBusy(false);
+      setListing(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     void refresh();
@@ -69,32 +73,25 @@ export function AssessmentSnapshots() {
       let valueEvidence;
       // The map lives on the profile's people; capture it as the engines read it.
       const powerMap = buildAssignments(tpl);
-      const storedValueCase = window.localStorage.getItem(VALUE_CASE_STORAGE_KEY);
-      if (storedValueCase) {
-        try {
-          valueCase = normalizeValueCase(JSON.parse(storedValueCase));
-        } catch {
-          /* ignore invalid local state */
-        }
+      // This business's value proof. Unreadable or blocked storage leaves it
+      // out rather than failing the whole snapshot.
+      const stored = readValueProof(businessId);
+      if (stored.valueCase && typeof stored.valueCase === "object") {
+        valueCase = normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>);
       }
-      const storedEvidence = window.localStorage.getItem(VALUE_EVIDENCE_STORAGE_KEY);
-      if (storedEvidence) {
-        try {
-          valueEvidence = normalizeValueEvidence(JSON.parse(storedEvidence));
-        } catch {
-          /* ignore invalid local state */
-        }
-      }
+      if (stored.evidence !== undefined) valueEvidence = normalizeValueEvidence(stored.evidence);
       await createAssessmentSnapshot({
         data: {
           title: title.trim() || `${profile.practiceName} assessment`,
-          profile,
+          // What a snapshot keeps; map versions and history stay behind.
+          profile: snapshotSlice(profile),
           powerMap,
           valueCase,
           valueEvidence,
         },
       });
       setTitle("");
+      setBusy(false);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save snapshot");
@@ -105,7 +102,7 @@ export function AssessmentSnapshots() {
   async function restore(id: string) {
     if (
       !window.confirm(
-        "Restore this assessment? Your current unsaved profile, responsibility map, and value proof will be replaced.",
+        `Restore this snapshot into ${profile.practiceName}? Its team, process map, register, controls, decisions and value proof replace what is there now. Save a snapshot first if you want to keep the current version.`,
       )
     )
       return;
@@ -114,23 +111,20 @@ export function AssessmentSnapshots() {
     try {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
-      // Older snapshots carried the map beside the profile; write it onto the
-      // restored people so the register and every conflict view agree.
-      replaceProfile(
-        snapshot.powerMap
-          ? {
-              ...snapshot.profile,
-              customPeople: applyAssignmentsToPeople(
-                resolveTemplate(snapshot.profile).people,
-                snapshot.powerMap,
-              ),
-            }
-          : snapshot.profile,
-      );
+      // The snapshot's business goes into this business: same id, its own
+      // map versions kept, and the saved power map written onto its people.
+      const restored = restoredProfile(snapshot, profile);
+      if (!restored) {
+        throw new Error(
+          "This snapshot was saved before snapshots kept the team and process map, so restoring it would replace your business with the sample. Compare still works.",
+        );
+      }
+      replaceProfile(restored);
       const restoredValueCase = snapshot.valueCase ?? DEFAULT_VALUE_CASE;
       const restoredEvidence = snapshot.valueEvidence ?? [];
-      window.localStorage.setItem(VALUE_CASE_STORAGE_KEY, JSON.stringify(restoredValueCase));
-      window.localStorage.setItem(VALUE_EVIDENCE_STORAGE_KEY, JSON.stringify(restoredEvidence));
+      // The Value proof tab takes the restored figures from this event even
+      // when the browser refuses to store them.
+      writeValueProof(businessId, { valueCase: restoredValueCase, evidence: restoredEvidence });
       window.dispatchEvent(
         new CustomEvent("precog:value-proof-restored", {
           detail: { valueCase: restoredValueCase, evidence: restoredEvidence },
@@ -150,12 +144,12 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       const currentMap = buildAssignments(tpl);
-      const storedValue = readStoredJson(VALUE_CASE_STORAGE_KEY);
-      const currentValue = storedValue
-        ? normalizeValueCase(storedValue as Partial<typeof DEFAULT_VALUE_CASE>)
-        : DEFAULT_VALUE_CASE;
-      const storedEvidence = readStoredJson(VALUE_EVIDENCE_STORAGE_KEY);
-      const currentEvidence = storedEvidence ? normalizeValueEvidence(storedEvidence) : [];
+      const stored = readValueProof(businessId);
+      const currentValue =
+        stored.valueCase && typeof stored.valueCase === "object"
+          ? normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>)
+          : DEFAULT_VALUE_CASE;
+      const currentEvidence = normalizeValueEvidence(stored.evidence);
       setComparison({
         title: snapshot.title,
         createdAt: snapshot.createdAt,
@@ -292,10 +286,10 @@ export function AssessmentSnapshots() {
                 size="sm"
                 variant="ghost"
                 onClick={() => void refresh()}
-                disabled={busy}
+                disabled={busy || listing}
                 aria-label="Refresh snapshots"
               >
-                <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+                <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
               </Button>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -433,7 +427,7 @@ export function AssessmentSnapshots() {
                   {error}
                 </p>
               )}
-              {!busy && items.length === 0 && (
+              {!listing && items.length === 0 && (
                 <p className="text-sm text-muted">No saved assessments yet.</p>
               )}
               {items.map((item) => (
@@ -488,18 +482,6 @@ export function AssessmentSnapshots() {
       )}
     </div>
   );
-}
-
-/** Parses one localStorage entry, dropping it when it is not valid JSON. */
-function readStoredJson(key: string): unknown {
-  const stored = window.localStorage.getItem(key);
-  if (!stored) return undefined;
-  try {
-    return JSON.parse(stored);
-  } catch {
-    window.localStorage.removeItem(key);
-    return undefined;
-  }
 }
 
 function signed(value: number) {

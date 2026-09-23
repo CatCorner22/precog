@@ -4,6 +4,15 @@ import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
+import { ownBusinessName } from "@/lib/precog/business-lifecycle";
+import { canKeepLocalData } from "@/lib/precog/local-data";
+import {
+  draftHasTypedWork,
+  initialSetup,
+  namedPeople,
+  readSetupDraft,
+  writeSetupDraft,
+} from "@/lib/precog/onboarding/setup-draft";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import {
   CORE_DUTIES,
@@ -59,6 +68,8 @@ const inputCls =
   "rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
 const EMPTY_ROW = (role = ""): OwnTeamRow => ({ name: "", role, duties: [] });
+/** A fresh grid: the Owner row and two empty rows. */
+const freshRows = (): OwnTeamRow[] => [ownerRow(), EMPTY_ROW(""), EMPTY_ROW("")];
 
 const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
   a.length === b.length && a.every((d) => b.includes(d));
@@ -115,73 +126,99 @@ function AddDutyControl({
 }
 
 /**
- * The grid in progress, kept in this tab's session storage so a reload does
- * not throw away names the owner has typed. Cleared when they finish or load
- * the sample business.
- */
-const DRAFT_KEY = "precog.onboarding-draft.v1";
-interface OnboardingDraft {
-  step: "industry" | "team";
-  selected: IndustryId;
-  businessName: string;
-  rows: OwnTeamRow[];
-}
-function readDraft(): OnboardingDraft | null {
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as OnboardingDraft;
-    return draft && Array.isArray(draft.rows) && typeof draft.businessName === "string"
-      ? draft
-      : null;
-  } catch {
-    return null;
-  }
-}
-function writeDraft(draft: OnboardingDraft | null) {
-  try {
-    if (draft) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    else sessionStorage.removeItem(DRAFT_KEY);
-  } catch {
-    // Storage refused (private mode, quota): the draft lives only in memory.
-  }
-}
-
-/**
  * First visit. Step one picks the line of business; step two takes the
  * owner's own business name, people, and who does the money duties,
  * so the first screen they see is about their team. "Explore a sample"
  * stays as the second path.
  */
 export function IndustryOnboarding() {
-  const { completeOnboarding, startOwnBusiness, setPlannedAbsences } = usePractice();
-  const [selected, setSelected] = useState<IndustryId>("dental");
-  const [step, setStep] = useState<"industry" | "team">("industry");
-  const [businessName, setBusinessName] = useState("");
-  const [rows, setRows] = useState<OwnTeamRow[]>([ownerRow(), EMPTY_ROW(""), EMPTY_ROW("")]);
+  const {
+    profile,
+    completeOnboarding,
+    startOwnBusiness,
+    setPlannedAbsences,
+    cancelSetup,
+    setupReturnsTo,
+  } = usePractice();
+  // A business added from the business menu arrives with its name and line
+  // of business; setup starts on its team.
+  const typedName = ownBusinessName(profile);
+  const [selected, setSelected] = useState<IndustryId>(profile.industry);
+  const [step, setStep] = useState<"industry" | "team">(typedName ? "team" : "industry");
+  const [businessName, setBusinessName] = useState(typedName);
+  const [rows, setRows] = useState<OwnTeamRow[]>(freshRows);
 
   const [paste, setPaste] = useState("");
   const [pasteNote, setPasteNote] = useState("");
   const [pasteIssues, setPasteIssues] = useState<PeopleImportIssue[]>([]);
   const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
+  // A team typed in an earlier setup in this tab came back with this one.
+  const [restoredEarlier, setRestoredEarlier] = useState(false);
+  // This browser keeps nothing the app writes (site data blocked).
+  const [keepsNothing, setKeepsNothing] = useState(false);
+  const businessId = profile.businessId ?? "biz_default";
   // Restore after mount, so the server-rendered dialog and the first client
-  // render agree; then keep the draft in step with every edit.
+  // render agree; then keep the draft in step with every edit, including the
+  // line of business picked and a roster pasted but not yet used.
   useEffect(() => {
-    const draft = readDraft();
-    if (draft && draft.rows.some((r) => r.name.trim().length > 0)) {
-      setSelected(draft.selected);
-      setBusinessName(draft.businessName);
-      setRows(draft.rows);
-      setStep(draft.step);
-    }
+    const start = initialSetup(
+      readSetupDraft(),
+      { businessId, industry: profile.industry, typedName },
+      freshRows,
+    );
+    setSelected(start.draft.selected);
+    setBusinessName(start.draft.businessName);
+    setRows(start.draft.rows);
+    setStep(start.draft.step);
+    setPaste(start.draft.paste);
+    setRestoredEarlier(start.restoredEarlier);
+    setKeepsNothing(!canKeepLocalData());
     setRestored(true);
-  }, []);
+    // Once per setup: later edits are the owner's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId]);
   useEffect(() => {
     if (!restored) return;
-    const hasWork = businessName.trim().length > 0 || rows.some((r) => r.name.trim().length > 0);
-    writeDraft(hasWork ? { step, selected, businessName, rows } : null);
-  }, [restored, step, selected, businessName, rows]);
+    writeSetupDraft({ step, selected, businessName, rows, paste, businessId });
+  }, [restored, step, selected, businessName, rows, paste, businessId]);
+
+  /** Drops the team restored from an earlier setup and starts this one fresh. */
+  function startOver() {
+    setRows(freshRows());
+    setPaste("");
+    setPasteNote("");
+    setPasteIssues([]);
+    setBusinessName(typedName);
+    setRestoredEarlier(false);
+  }
+
+  /**
+   * Loads the sample instead. Typed work is not thrown away: the owner
+   * confirms, and the draft stays in this tab for "Set up my own business".
+   */
+  function loadSample() {
+    const draft = { step, selected, businessName, rows, paste, businessId };
+    if (draftHasTypedWork(draft)) {
+      const people = namedPeople(draft);
+      const what =
+        people === 0
+          ? "What you entered stays"
+          : people === 1
+            ? "The person you entered stays"
+            : `The ${people} people you entered stay`;
+      if (
+        !window.confirm(
+          `Load the sample business instead? ${what} in this tab: choose "Set up my own business" in the business menu to finish setting up.`,
+        )
+      ) {
+        return;
+      }
+    } else {
+      writeSetupDraft(null);
+    }
+    completeOnboarding(selected);
+  }
   const [quickTitle, setQuickTitle] = useState(JOB_CATALOG[0]?.id ?? "");
   const [quickCount, setQuickCount] = useState(1);
   const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
@@ -330,7 +367,7 @@ export function IndustryOnboarding() {
     const people = buildOwnTeam(rows);
     if (people.length === 0) return;
     const onLeave = onLeavePersonIds(rows);
-    writeDraft(null);
+    writeSetupDraft(null);
     startOwnBusiness({ industry: selected, practiceName: businessName, people });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
@@ -349,6 +386,29 @@ export function IndustryOnboarding() {
       ]);
     }
   }
+
+  const storageNote = keepsNothing ? (
+    <p
+      className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
+      role="status"
+    >
+      This browser is not keeping data for this site, so what you set up here is lost when this tab
+      closes or reloads. Allow site data for this site to keep it.
+    </p>
+  ) : null;
+
+  // Setting up an added business: the owner can go back without finishing.
+  const cancelLink = setupReturnsTo ? (
+    <p className="text-center text-xs">
+      <button
+        type="button"
+        className="text-muted underline underline-offset-2 hover:text-fg"
+        onClick={() => void cancelSetup()}
+      >
+        Cancel and go back to {setupReturnsTo.name}
+      </button>
+    </p>
+  ) : null;
 
   return (
     <div
@@ -373,6 +433,7 @@ export function IndustryOnboarding() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {storageNote}
               <div className="grid gap-2 sm:grid-cols-2">
                 {INDUSTRIES.map((ind) => {
                   const Icon = ICONS[ind.id];
@@ -425,20 +486,14 @@ export function IndustryOnboarding() {
                 <Button className="w-full" onClick={() => setStep("team")} autoFocus>
                   Set up my own business
                 </Button>
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  onClick={() => {
-                    writeDraft(null);
-                    completeOnboarding(selected);
-                  }}
-                >
+                <Button className="w-full" variant="secondary" onClick={loadSample}>
                   Load {industry?.label} demo
                 </Button>
               </div>
               <p className="text-center text-[11px] text-subtle">
                 The demo is a fictional team. Every finding on it says so until you enter your own.
               </p>
+              {cancelLink}
             </CardContent>
           </>
         ) : (
@@ -460,6 +515,19 @@ export function IndustryOnboarding() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {storageNote}
+              {restoredEarlier && (
+                <p className="rounded-lg border border-border bg-elevated/60 px-3 py-2 text-xs text-muted">
+                  The team you started entering earlier in this tab is back below.{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2"
+                    onClick={startOver}
+                  >
+                    Start over
+                  </button>
+                </p>
+              )}
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-muted">Business name</span>
                 <input
@@ -471,7 +539,10 @@ export function IndustryOnboarding() {
                 />
               </label>
 
-              <details className="rounded-xl border border-border bg-elevated/50 p-3">
+              <details
+                className="rounded-xl border border-border bg-elevated/50 p-3"
+                open={paste.trim().length > 0 || undefined}
+              >
                 <summary className="cursor-pointer text-sm font-medium">
                   Paste your team from Workday, SAP, Oracle, or your payroll export
                 </summary>
@@ -731,6 +802,7 @@ export function IndustryOnboarding() {
               <p className="text-center text-[11px] text-subtle">
                 Nothing leaves this browser until you sign in and choose to sync.
               </p>
+              {cancelLink}
             </CardContent>
           </>
         )}
