@@ -339,7 +339,7 @@ export function PowerMapBuilder() {
 
   function exportGovernanceReport() {
     downloadFile(
-      createGovernanceReport(assignments, profile.staff),
+      createGovernanceReport(assignments, profile.staff, new Date(), profile.industry),
       "text/markdown;charset=utf-8",
       `precog-governance-report-${new Date().toISOString().slice(0, 10)}.md`,
     );

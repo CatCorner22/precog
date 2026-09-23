@@ -40,8 +40,8 @@ export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       ],
     },
     dualReleaseSeed: {
-      defaultPayee: "Apex Dental Lab",
-      exceptionPayeeContains: "apex dental lab",
+      defaultPayee: "Northgate Lab Services",
+      exceptionPayeeContains: "northgate lab services",
       exceptionLabel: "Trusted lab ACH raise",
     },
     pioneerPrompts: [

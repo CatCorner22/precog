@@ -31,7 +31,7 @@ function decision(overrides: Partial<DecisionEntry> = {}): DecisionEntry {
   return {
     id: "d-1",
     createdAt: "2025-01-01T00:00:00.000Z",
-    subject: "Practice-wide monitoring",
+    subject: "Business-wide monitoring",
     kind: "monitor",
     note: "Monitor",
     ...overrides,

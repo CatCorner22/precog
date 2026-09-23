@@ -104,7 +104,7 @@ describe("evaluateRelease", () => {
     const plain = evaluateRelease(dental, policy, { ...base, payee: "Unknown Supplies" });
     expect(plain.status).toBe("blocked_missing_second");
 
-    const matched = evaluateRelease(dental, policy, { ...base, payee: "Apex Dental Lab" });
+    const matched = evaluateRelease(dental, policy, { ...base, payee: "Northgate Lab Services" });
     expect(matched.status).toBe("approved_exception");
     expect(matched.appliedException?.id).toBe(ex.id);
     expect(matched.thresholdUsd).toBe(ex.thresholdUsd);
@@ -112,7 +112,7 @@ describe("evaluateRelease", () => {
     const over = evaluateRelease(dental, policy, {
       ...base,
       amountUsd: 4000,
-      payee: "Apex Dental Lab",
+      payee: "Northgate Lab Services",
     });
     expect(over.dualRequired).toBe(true);
   });

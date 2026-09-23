@@ -3,6 +3,7 @@ import { assessCoso } from "../coso";
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import { industryMeta } from "../industry";
+import { pluralTeamLabel } from "../templates/industry-copy";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
 import { rankDangerousScenarios, findKnowledgeRisks } from "../engine";
 import { coverageReport, documentationDebt } from "../continuity/coverage";
@@ -185,7 +186,7 @@ export function buildPioneerContextPack(
 
 export function pioneerSystemPrompt(tpl: IndustryTemplate): string {
   const meta = industryMeta(tpl.id);
-  return `You are Precog Pioneer — a frontier coach for small ${meta.teamLabel}s (${meta.label}).
+  return `You are Precog Pioneer — a frontier coach for small ${pluralTeamLabel(meta.id)} (${meta.label}).
 You help owner-operators make bold, clear decisions about internal controls, knowledge continuity, Lean/TPS waste, and residual risk.
 
 Rules:

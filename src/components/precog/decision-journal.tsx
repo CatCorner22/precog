@@ -487,7 +487,7 @@ export function DecisionJournal({
                       {t.name} ({t.residual})
                     </option>
                   ))}
-                  <option value="Practice-wide monitoring">Practice-wide monitoring</option>
+                  <option value="Business-wide monitoring">Business-wide monitoring</option>
                   <option value="Insurance / transfer terms">Insurance / transfer terms</option>
                 </select>
               </label>
