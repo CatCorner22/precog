@@ -4,8 +4,10 @@ import {
   mapNotAssessedNote,
   mapSource,
   starterMapFacts,
+  starterProcesses,
   untouchedStarterProcessIds,
 } from "./map-state";
+import { diffMaps } from "./diff";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
@@ -158,5 +160,24 @@ describe("untouchedStarterProcessIds", () => {
 
   it("is empty for the sample business", () => {
     expect(untouchedStarterProcessIds({ industry: "dental" }).size).toBe(0);
+  });
+});
+
+describe("starterProcesses", () => {
+  it("lists only the owner's one edit when they assign one owner, not the sample team or every process", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes.map((p, i) =>
+      i === 0 ? { ...p, ownerPersonIds: [people[0].id] } : p,
+    );
+    const diff = diffMaps({ processes: starterProcesses(profile), people }, { processes, people });
+    expect(diff.total).toBe(1);
+    expect(diff.modified.map((m) => m.changes)).toEqual([["owners"]]);
+    expect(diff.peopleRemoved).toEqual([]);
+  });
+
+  it("keeps the starter's processes and leaves every owner off", () => {
+    const starter = starterProcesses({ industry: "retail" });
+    expect(starter.map((p) => p.id)).toEqual(getBaseTemplate("retail").processes.map((p) => p.id));
+    expect(starter.every((p) => p.ownerPersonIds?.length === 0)).toBe(true);
   });
 });

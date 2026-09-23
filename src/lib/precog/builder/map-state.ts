@@ -86,6 +86,18 @@ export function untouchedStarterProcessIds(profile: MapProfile): Set<string> {
   );
 }
 
+/**
+ * The map an owner's own business began from: the industry's starter
+ * processes with nobody assigned (the sample team's owners never carry over).
+ * The builder's Changes list compares an own map with this, not the sample.
+ */
+export function starterProcesses(profile: Pick<PracticeProfile, "industry">): ProcessNode[] {
+  return getIndustryTemplate(profile.industry).processes.map((p) => ({
+    ...p,
+    ownerPersonIds: [],
+  }));
+}
+
 /** The starter map's process count and industry wording, for one shared sentence. */
 export function starterMapFacts(profile: Pick<PracticeProfile, "industry">): {
   count: number;

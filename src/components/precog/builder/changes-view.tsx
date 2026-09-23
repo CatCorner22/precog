@@ -10,6 +10,7 @@ import { getBaseTemplate } from "@/lib/precog/active-template";
 import { industryMeta } from "@/lib/precog/industry";
 
 import { diffMaps } from "@/lib/precog/builder/diff";
+import { starterProcesses } from "@/lib/precog/builder/map-state";
 
 export function ChangesView({
   processes,
@@ -25,12 +26,16 @@ export function ChangesView({
   against?: { processes: ProcessNode[]; people: Person[] };
   label?: string;
 }) {
-  const { industry } = usePractice().profile;
+  const { industry, customPeople } = usePractice().profile;
+  // An owner's own business began from the starter map with its own team, so
+  // it is compared with that: never with the sample team or the sample's owners.
+  const ownStart = !against && Boolean(customPeople);
   const baseline = useMemo(() => {
     if (against) return against;
+    if (ownStart) return { processes: starterProcesses({ industry }), people };
     const base = getBaseTemplate(industry);
     return { processes: base.processes, people: base.people };
-  }, [against, industry]);
+  }, [against, industry, ownStart, people]);
   const { added, removed, modified, peopleAdded, peopleRemoved, total } = diffMaps(baseline, {
     processes,
     people,
@@ -40,8 +45,17 @@ export function ChangesView({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
       <p className="text-muted">
         <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs{" "}
-        {label ?? `the ${industryMeta(industry).label} template`}.
+        {label ??
+          (ownStart
+            ? `the starter map you began from (${industryMeta(industry).label.toLowerCase()} example)`
+            : `the ${industryMeta(industry).label} template`)}
+        .
       </p>
+      {ownStart && (
+        <p className="text-subtle">
+          Your team has been yours since setup, so it is not compared with the sample team.
+        </p>
+      )}
       {added.length > 0 && (
         <ChangeGroup label="Added processes" tone="ok">
           {added.map((p) => (
