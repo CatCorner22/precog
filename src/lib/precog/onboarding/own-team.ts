@@ -85,6 +85,8 @@ export interface OwnTeamRow {
    * the owner set by hand stay.
    */
   suggestedFor?: string;
+  /** The pasted roster says this person is on leave; they stay on the team and are recorded as out. */
+  onLeave?: boolean;
 }
 
 /** The catalog's usual duties for a title, every one of them: columns and chips alike. */
@@ -159,6 +161,11 @@ export const OWN_TEAM_MAX = 60;
 /** The rows that become people, in order: named, and no more than the grid holds. */
 function teamRows(rows: readonly OwnTeamRow[]): OwnTeamRow[] {
   return rows.filter((row) => row.name.trim().length > 0).slice(0, OWN_TEAM_MAX);
+}
+
+/** The person ids `buildOwnTeam` gives the rows marked as on leave. */
+export function onLeavePersonIds(rows: readonly OwnTeamRow[]): string[] {
+  return teamRows(rows).flatMap((row, index) => (row.onLeave ? [`own-${index + 1}`] : []));
 }
 
 /**

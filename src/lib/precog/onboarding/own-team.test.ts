@@ -10,6 +10,7 @@ import {
   buildOwnTeam,
   coreDutiesForTitle,
   firstUnnamedWithDuties,
+  onLeavePersonIds,
   ownerRow,
   ownBusinessProfile,
   rowsForJobTitle,
@@ -222,5 +223,21 @@ describe("duties beyond the grid columns", () => {
     expect(offered).not.toContain("manage_user_access");
     expect(offered).not.toContain("view_reports_only");
     for (const column of CORE_DUTIES) expect(offered).not.toContain(column);
+  });
+});
+
+describe("people on leave in a pasted roster", () => {
+  it("gives the rows marked on leave the ids buildOwnTeam gives them", () => {
+    const rows: OwnTeamRow[] = [
+      { name: "", role: "", duties: [] },
+      { name: "Rosa Alvarez", role: "Medical Assistant", duties: [] },
+      { name: "Layla Haddad", role: "Medical Assistant - Float", duties: [], onLeave: true },
+    ];
+    const people = buildOwnTeam(rows);
+    expect(onLeavePersonIds(rows)).toEqual(["own-2"]);
+    expect(people.find((p) => p.id === "own-2")).toMatchObject({
+      name: "Layla Haddad",
+      active: true,
+    });
   });
 });

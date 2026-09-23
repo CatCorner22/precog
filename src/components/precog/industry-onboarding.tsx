@@ -3,6 +3,8 @@ import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
+import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
+import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import {
   CORE_DUTIES,
   GRID_DUTY_HEADING,
@@ -15,6 +17,7 @@ import {
   extraDuties,
   firstUnnamedWithDuties,
   isOwnerTitle,
+  onLeavePersonIds,
   ownerRow,
   rowsKeptForAdding,
   type OwnTeamRow,
@@ -150,7 +153,7 @@ function writeDraft(draft: OnboardingDraft | null) {
  * stays as the second path.
  */
 export function IndustryOnboarding() {
-  const { completeOnboarding, startOwnBusiness } = usePractice();
+  const { completeOnboarding, startOwnBusiness, setPlannedAbsences } = usePractice();
   const [selected, setSelected] = useState<IndustryId>("dental");
   const [step, setStep] = useState<"industry" | "team">("industry");
   const [businessName, setBusinessName] = useState("");
@@ -225,6 +228,7 @@ export function IndustryOnboarding() {
     const tpl = getIndustryTemplate(selected);
     const result = parseRoster(paste, tpl);
     const activePeople = result.people.filter((p) => p.active);
+    const onLeave = new Set(result.onLeave ?? []);
     const incoming: OwnTeamRow[] = activePeople.map((p) => ({
       name: p.name,
       role: p.role,
@@ -236,6 +240,7 @@ export function IndustryOnboarding() {
       ...(p.tenureYears !== undefined ? { tenureYears: p.tenureYears } : {}),
       ...(p.department ? { department: p.department } : {}),
       suggestedFor: p.role,
+      ...(onLeave.has(p.id) ? { onLeave: true } : {}),
     }));
     const inactive = result.people.length - activePeople.length;
     setPasteIssues(result.issues);
@@ -261,6 +266,7 @@ export function IndustryOnboarding() {
     const titlesAdded = result.titles.filter((t) => addedNames.has(t.name));
     const recognised = titlesAdded.filter((t) => t.catalogTitle).length;
     const unmatched = titlesAdded.length - recognised;
+    const away = added.filter((r) => r.onLeave).map((r) => r.name);
     setPasteNote(
       [
         notAdded > 0
@@ -274,6 +280,9 @@ export function IndustryOnboarding() {
           : owner === "replaced"
             ? "The owner in your paste takes the place of the empty Owner row."
             : "",
+        away.length
+          ? `${away.join(", ")} ${away.length === 1 ? "is" : "are"} on leave: kept on the team and recorded as out today in Who knows what when you finish; extend the absence there until they return.`
+          : "",
         "Check every row: a title is a starting point, not a fact about your business.",
       ]
         .filter(Boolean)
@@ -318,8 +327,25 @@ export function IndustryOnboarding() {
     }
     const people = buildOwnTeam(rows);
     if (people.length === 0) return;
+    const onLeave = onLeavePersonIds(rows);
     writeDraft(null);
     startOwnBusiness({ industry: selected, practiceName: businessName, people });
+    if (onLeave.length > 0) {
+      // The roster gives no return date, so the absence covers today; the
+      // continuity planner's "Still out tomorrow" extends it.
+      const today = localDateKey(new Date());
+      setPlannedAbsences((current) => [
+        ...current,
+        ...onLeave.map((personId) => ({
+          id: makePlannedAbsenceId(),
+          personId,
+          industry: selected,
+          from: today,
+          to: today,
+          note: "On leave in the pasted roster; the return date was not given.",
+        })),
+      ]);
+    }
   }
 
   return (
@@ -587,6 +613,17 @@ export function IndustryOnboarding() {
                             onChange={(e) => updateRow(index, { name: e.target.value })}
                             maxLength={60}
                           />
+                          {row.onLeave && (
+                            <button
+                              type="button"
+                              className="mt-1 rounded-full border border-warn/40 bg-warn/10 px-1.5 py-0.5 text-[10px] text-warn hover:border-danger hover:text-danger"
+                              title="The pasted roster says this person is on leave"
+                              aria-label={`${row.name || `Person ${index + 1}`} is on leave; remove the on-leave mark`}
+                              onClick={() => updateRow(index, { onLeave: undefined })}
+                            >
+                              On leave ×
+                            </button>
+                          )}
                         </td>
                         <td className="border-b border-border p-1.5">
                           <input
