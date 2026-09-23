@@ -13,6 +13,7 @@ import {
   onLeavePersonIds,
   ownerRow,
   ownBusinessProfile,
+  OWN_BUSINESS_FALLBACK_NAME,
   rowsForJobTitle,
   rowsKeptForAdding,
   type OwnTeamRow,
@@ -95,10 +96,11 @@ describe("ownBusinessProfile", () => {
     expect(report.conflicts.some((c) => c.residualRiskAccepted)).toBe(false);
   });
 
-  it("keeps the base name when the owner leaves it blank", () => {
+  it("uses a neutral name, not the sample business's, when the owner leaves it blank", () => {
     const base = defaultProfile("dental");
     const profile = ownBusinessProfile(base, { practiceName: "   ", people: [] });
-    expect(profile.practiceName).toBe(base.practiceName);
+    expect(profile.practiceName).toBe(OWN_BUSINESS_FALLBACK_NAME);
+    expect(profile.practiceName).not.toBe(base.practiceName);
   });
 });
 

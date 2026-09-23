@@ -14,7 +14,11 @@ import {
   JOB_CATALOG,
   JOB_FAMILY_LABEL,
   jobCatalogEntry,
+  seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
+import { usePractice } from "@/lib/precog/practice-context";
+import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
+import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { parseRoster } from "@/lib/precog/import/roster";
 import {
   parsePeopleCsv,
@@ -66,6 +70,7 @@ export function TeamEditor({
   onChange: (next: Person[]) => void;
 }) {
   const tpl = useTemplate();
+  const { setPlannedAbsences } = usePractice();
   const { roleTemplates } = tpl;
   const roleOptions = useMemo(() => Object.keys(roleTemplates), [roleTemplates]);
   const [name, setName] = useState("");
@@ -100,7 +105,8 @@ export function TeamEditor({
         name: personName,
         role: catalogChoice.title,
         active: true,
-        entitlements: [...catalogChoice.entitlements],
+        // The title's duties for this line of business, as onboarding seats them.
+        entitlements: seatDuties(catalogChoice, tpl.id),
       });
     }
     onChange([...people, ...added]);
@@ -128,7 +134,7 @@ export function TeamEditor({
             ? entitlements
             : undefined
           : catalogChoice
-            ? [...catalogChoice.entitlements]
+            ? seatDuties(catalogChoice, tpl.id)
             : undefined,
       },
     ]);
@@ -198,6 +204,7 @@ export function TeamEditor({
         return;
       }
       onChange(result.people);
+      recordOnLeave(result.onLeave ?? []);
       const kept = tpl.people.length - result.removed.length;
       const recognised = result.titles.filter((t) => t.catalogTitle).length;
       toast.success(
@@ -208,6 +215,35 @@ export function TeamEditor({
         }${issues.length ? `; ${issues.length} thing(s) need attention` : ""}`,
       );
     }
+  }
+
+  /**
+   * People the roster lists as on leave are recorded as out today, as
+   * onboarding does: the roster gives no return date, and the continuity
+   * planner's "Still out tomorrow" extends it. Someone already recorded as
+   * out today is left as is.
+   */
+  function recordOnLeave(personIds: readonly string[]) {
+    if (personIds.length === 0) return;
+    const today = localDateKey(new Date());
+    setPlannedAbsences((current) => {
+      const outToday = new Set(
+        current
+          .filter((a) => a.industry === tpl.id && a.from <= today && a.to >= today)
+          .map((a) => a.personId),
+      );
+      const added = personIds
+        .filter((personId) => !outToday.has(personId))
+        .map((personId) => ({
+          id: makePlannedAbsenceId(),
+          personId,
+          industry: tpl.id,
+          from: today,
+          to: today,
+          note: "On leave in the imported roster; the return date was not given.",
+        }));
+      return added.length ? [...current, ...added] : current;
+    });
   }
 
   function downloadTemplate() {

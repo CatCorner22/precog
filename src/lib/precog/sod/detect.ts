@@ -264,7 +264,7 @@ const SAME_FAMILY_NOUN: Record<DutyFamily, string> = {
   custody: "money-handling",
   recording: "record-keeping",
   reconciliation: "checking",
-  master_data: "payee-list",
+  master_data: "master-record",
 };
 
 /** Mechanism for the pairings worth spelling out. Keys are sorted pairs. */
@@ -443,6 +443,17 @@ function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
     return fa === "master_data";
   }
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
+}
+
+/**
+ * A pair the family catch-all flags: families that conflict, in a process both
+ * duties touch. Administering the system and assigning its logins are one IT
+ * seat, not two record-keeping duties, so that pair is left to the named
+ * access rules.
+ */
+function familyPair(a: EntitlementId, b: EntitlementId): boolean {
+  if (ACCESS_DUTIES.has(a) && ACCESS_DUTIES.has(b)) return false;
+  return familiesConflict(entFamily(a), entFamily(b)) && sharesProcess(a, b);
 }
 
 function sharesProcess(a: EntitlementId, b: EntitlementId): boolean {
@@ -724,10 +735,7 @@ export function detectSodConflicts(
         const a = ents[i];
         const b = ents[j];
         if (findRule(a, b)) continue;
-        const fa = entFamily(a);
-        const fb = entFamily(b);
-
-        if (!familiesConflict(fa, fb) || !sharesProcess(a, b)) continue;
+        if (!familyPair(a, b)) continue;
         if (a === "view_reports_only" || b === "view_reports_only") continue;
         if (namedDuties.has(a) || namedDuties.has(b)) continue;
         if (bossPowers(a, b)) continue;
@@ -817,7 +825,7 @@ export function detectSodConflicts(
           ruleIds: [rule.id],
           severity: rule.severity,
         });
-      } else if (familiesConflict(entFamily(row), entFamily(col)) && sharesProcess(row, col)) {
+      } else if (familyPair(row, col)) {
         matrix.push({
           row,
           col,

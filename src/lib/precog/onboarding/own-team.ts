@@ -198,6 +198,9 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
     }));
 }
 
+/** The name an own business gets when the owner leaves the name blank. */
+export const OWN_BUSINESS_FALLBACK_NAME = "My business";
+
 /**
  * A fresh profile for the owner's own business: their name, their people, no
  * sample relations, no sample dual-release exceptions, and staff figures
@@ -207,7 +210,8 @@ export function ownBusinessProfile(
   base: PracticeProfile,
   input: { practiceName: string; people: Person[] },
 ): PracticeProfile {
-  const practiceName = input.practiceName.trim().slice(0, 80) || base.practiceName;
+  // A blank name stays neutral; the sample business's name is not this business's.
+  const practiceName = input.practiceName.trim().slice(0, 80) || OWN_BUSINESS_FALLBACK_NAME;
   const ownTemplate = resolveTemplate({ ...base, customPeople: input.people, customRelations: [] });
   // The dual-release approver roles are read off this team, not the sample's,
   // and no sample exception comes along.

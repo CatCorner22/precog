@@ -600,3 +600,20 @@ describe("recommendations", () => {
     expect(critical.map((c) => c.ruleId)).toEqual(["rule-custody-rec", "rule-cash-rec"]);
   });
 });
+
+describe("family catch-all", () => {
+  it("does not flag administering the system and assigning its logins as two record duties", () => {
+    const report = detectSodConflicts(oneClerk(["pms_admin_roles", "manage_user_access"]));
+    expect(report.conflicts.filter((c) => c.ruleId.startsWith("family-"))).toEqual([]);
+    const cell = report.matrix.find(
+      (m) => m.row === "pms_admin_roles" && m.col === "manage_user_access",
+    );
+    expect(cell?.status).toBe("safe");
+  });
+
+  it("names two master-record duties as such, not as payee-list duties", () => {
+    const report = detectSodConflicts(oneClerk(["change_fee_schedule", "edit_patient_master"]));
+    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
+    expect(family?.title).toBe("Two master-record duties held by one person");
+  });
+});
