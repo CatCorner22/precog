@@ -2695,6 +2695,16 @@ const PATRON_CLAUSE = new RegExp(
   "gi",
 );
 const PATRON_POSSESSIVE = new RegExp(`\\b(?:${OWNER_WORDS})['’]s?(?=\\s)`, "gi");
+const OWNER_NAMED = new RegExp(`\\b(?:${OWNER_WORDS})\\b`, "i");
+
+/** "Office Manager - reports to Controller": whom a job reports to is not the job. */
+const REPORTS_TO = /\b(?:reports?|reporting)\s+to\s+[^,;/|()–—-]*/gi;
+
+/**
+ * "Assistant to the Controller", "Secretary to the Board": an assistant named
+ * for the person they support, whose seat is not the assistant's.
+ */
+const ASSISTANT_TO = /^(.*\b(?:assistant|secretary|asst\.?))\s+to\s+(?:the\s+)?(.+)$/i;
 
 /** Words that, left alone once the owner is taken out, describe an assistant to the owner. */
 const ASSISTANT_WORDS = new Set([
@@ -2836,16 +2846,17 @@ function seatMatch(
 
 /**
  * Takes out a clause or possessive naming the owner as the person a job
- * serves. Returns the rest of the title, or undefined when there is none.
+ * serves, and a "reports to" clause naming anyone. Returns the rest of the
+ * title and whether the owner was named, or undefined when there is no such
+ * clause.
  */
-function withoutPatron(title: string): string | undefined {
+function withoutPatron(title: string): { rest: string; owner: boolean } | undefined {
+  const withoutOwner = title.replace(PATRON_CLAUSE, " ").replace(PATRON_POSSESSIVE, " ");
   const rest = trimTrailingJoiners(
-    title
-      .replace(PATRON_CLAUSE, " ")
-      .replace(PATRON_POSSESSIVE, " ")
-      .replace(/\(\s*\)/g, " "),
+    withoutOwner.replace(REPORTS_TO, " ").replace(/\(\s*\)/g, " "),
   ).trim();
-  return rest === title.trim() ? undefined : rest;
+  if (rest === title.trim()) return undefined;
+  return { rest, owner: withoutOwner !== title };
 }
 
 /** A character left dangling at the end of a title once a clause is taken out. */
@@ -2886,17 +2897,30 @@ export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | u
     const hinted = INDUSTRY_HINTS[bare.join(" ")]?.[industry];
     if (hinted) return seatMatch([catalogEntry(hinted)], "partial", industry);
   }
+  // "Assistant to the Controller" is an administrative assistant, not a
+  // controller; an assistant to the owner is the owner's executive assistant.
+  const assistantTo = title.match(ASSISTANT_TO);
+  if (assistantTo && !OWNER_NAMED.test(assistantTo[2])) {
+    const headWords = tokens(assistantTo[1]);
+    const head = exactMatch(headWords);
+    if (head) return seatMatch([head], "partial", industry);
+    if (undecorated(headWords).every((w) => ASSISTANT_WORDS.has(w))) {
+      return seatMatch([catalogEntry("administrative-assistant")], "partial", industry);
+    }
+    const served = matchJobTitle(assistantTo[1], industry);
+    return served && { ...served, confidence: "partial" };
+  }
   const literal = EXACT_ALIAS.get(words.join(" "));
   if (literal) return seatMatch([literal], "exact", industry);
 
-  const rest = withoutPatron(title);
-  if (rest !== undefined) {
-    const restWords = undecorated(tokens(rest));
+  const patron = withoutPatron(title);
+  if (patron !== undefined) {
+    const restWords = undecorated(tokens(patron.rest));
     if (restWords.length === 0) return undefined;
-    if (restWords.every((w) => ASSISTANT_WORDS.has(w))) {
+    if (patron.owner && restWords.every((w) => ASSISTANT_WORDS.has(w))) {
       return seatMatch([catalogEntry("executive-assistant")], "partial", industry);
     }
-    const served = matchJobTitle(rest, industry);
+    const served = matchJobTitle(patron.rest, industry);
     return served && { ...served, confidence: "partial" };
   }
 

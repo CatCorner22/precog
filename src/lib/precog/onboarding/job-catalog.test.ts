@@ -487,6 +487,22 @@ describe("job catalog", () => {
     }
   });
 
+  it("reads an assistant named for whom they support as an assistant, not that person's seat", () => {
+    for (const title of [
+      "Assistant to the Controller",
+      "Asst. to the Controller",
+      "Assistant to the Office Manager",
+      "Secretary to the Board",
+    ]) {
+      expect(matchJobTitle(title)?.entry.id, title).toBe("administrative-assistant");
+    }
+    expect(matchJobTitle("Executive Assistant to the CFO")?.entry.id).toBe("executive-assistant");
+    expect(matchJobTitle("Assistant Controller")?.entry.id).toBe("controller");
+    const reports = matchJobTitle("Office Manager - reports to Controller");
+    expect(reports?.entry.id).toBe("office-manager");
+    expect(reports?.entitlements).not.toContain("post_journal_entries");
+  });
+
   it("gives the office manager the wide seat the case library describes", () => {
     const duties = entitlementsForTitle("Practice Manager");
     expect(duties).toEqual(
