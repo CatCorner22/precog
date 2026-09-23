@@ -8,23 +8,50 @@ import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
 
 /**
- * The eight money duties the onboarding grid asks about. Together they cover
- * the conflict rules behind most of the case library: cash in, cash out,
- * payroll, and the reconciliation that should sit with someone else.
+ * The eleven money duties the onboarding grid shows as columns. Together they
+ * reach the conflict rules behind most of the case library: cash in, bills
+ * and payments out, payroll, refunds and write-offs, and the reconciliation
+ * that should sit with someone else. A title's other duties ride along as
+ * chips the owner can remove.
  */
 export const CORE_DUTIES: readonly EntitlementId[] = [
   "collect_cash",
   "post_payments",
   "prepare_deposit",
   "bank_reconcile",
+  "enter_invoices",
   "create_vendor",
   "release_payment",
   "enter_payroll",
   "approve_payroll",
+  "issue_refunds",
+  "approve_writeoffs",
 ];
+
+/** Short column headings for the grid; the full duty wording stays on each checkbox. */
+export const GRID_DUTY_HEADING: Record<string, string> = {
+  collect_cash: "Take payments",
+  post_payments: "Record payments",
+  prepare_deposit: "Prepare deposits",
+  bank_reconcile: "Reconcile bank",
+  enter_invoices: "Enter bills",
+  create_vendor: "Set up suppliers",
+  release_payment: "Release payments",
+  enter_payroll: "Enter payroll",
+  approve_payroll: "Approve payroll",
+  issue_refunds: "Issue refunds",
+  approve_writeoffs: "Approve write-offs, voids",
+};
 
 export function coreDutyLabel(id: EntitlementId): string {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
+}
+
+const GRID = new Set<string>(CORE_DUTIES);
+
+/** A row's duties that are not grid columns: shown as chips so nothing a title carries is hidden. */
+export function extraDuties(duties: readonly EntitlementId[]): EntitlementId[] {
+  return duties.filter((d) => !GRID.has(d) && d !== "view_reports_only");
 }
 
 export interface OwnTeamRow {
@@ -43,10 +70,9 @@ export interface OwnTeamRow {
   suggestedFor?: string;
 }
 
-/** The catalog's usual duties for a title, kept to the eight the grid shows. */
+/** The catalog's usual duties for a title, every one of them: columns and chips alike. */
 export function coreDutiesForTitle(title: string): EntitlementId[] {
-  const core = new Set<string>(CORE_DUTIES);
-  return entitlementsForTitle(title).filter((d) => core.has(d));
+  return entitlementsForTitle(title).filter((d) => d !== "view_reports_only");
 }
 
 /** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */
@@ -60,9 +86,8 @@ export function ownerRow(): OwnTeamRow {
  * ticked. Names are placeholders the owner replaces.
  */
 export function rowsForJobTitle(entry: JobCatalogEntry, count: number, existing = 0): OwnTeamRow[] {
-  const core = new Set<string>(CORE_DUTIES);
   const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
-  const duties = entry.entitlements.filter((d) => core.has(d));
+  const duties = entry.entitlements.filter((d) => d !== "view_reports_only");
   return Array.from({ length: n }, (_, i) => ({
     name: `${entry.title.split(" / ")[0]} ${existing + i + 1}`,
     role: entry.title,
@@ -81,7 +106,7 @@ export const OWN_TEAM_MAX = 60;
  * instead of guessing from a job title.
  */
 export function buildOwnTeam(rows: readonly OwnTeamRow[]): Person[] {
-  const allowed = new Set<string>(CORE_DUTIES);
+  const allowed = new Set<string>(ENTITLEMENTS.map((e) => e.id));
   return rows
     .map((row) => ({
       name: row.name.trim().slice(0, 60),

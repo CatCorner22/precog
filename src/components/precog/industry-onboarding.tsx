@@ -5,11 +5,13 @@ import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   CORE_DUTIES,
+  GRID_DUTY_HEADING,
   OWN_TEAM_MAX,
   rowsForJobTitle,
   buildOwnTeam,
   coreDutiesForTitle,
   coreDutyLabel,
+  extraDuties,
   ownerRow,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
@@ -88,7 +90,7 @@ function writeDraft(draft: OnboardingDraft | null) {
 
 /**
  * First visit. Step one picks the line of business; step two takes the
- * owner's own business name, people, and who does the eight money duties,
+ * owner's own business name, people, and who does the money duties,
  * so the first screen they see is about their team. "Explore a sample"
  * stays as the second path.
  */
@@ -138,7 +140,6 @@ export function IndustryOnboarding() {
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
-  const coreSet = new Set<string>(CORE_DUTIES);
 
   /**
    * When a role is typed, tick what that title usually holds. A later role
@@ -168,8 +169,8 @@ export function IndustryOnboarding() {
       role: p.role,
       // The importer reads each title through the catalog of common jobs. A
       // title it could not read leaves the duties for the owner to tick.
-      duties: (p.entitlements ?? entitlementsForTitle(p.role)).filter((d): d is EntitlementId =>
-        coreSet.has(d),
+      duties: (p.entitlements ?? entitlementsForTitle(p.role)).filter(
+        (d): d is EntitlementId => d !== "view_reports_only",
       ),
       ...(p.tenureYears !== undefined ? { tenureYears: p.tenureYears } : {}),
       ...(p.department ? { department: p.department } : {}),
@@ -331,10 +332,11 @@ export function IndustryOnboarding() {
                 Your business and who does the money work
               </CardTitle>
               <CardDescription>
-                Name your people and tick the duties each one handles today. Eight duties are enough
-                to find the arrangements that let one person take money and hide it. Paste a roster
-                from your HR or payroll system and common job titles fill the duties for you; you
-                can add everything else later in Who knows what.
+                Name your people and tick the money duties each one handles today: enough to find
+                the arrangements that let one person take money and hide it. Paste a roster from
+                your HR or payroll system and common job titles fill the duties for you; a
+                title&rsquo;s other duties appear as small tags you can remove. You can refine
+                everything later in Who controls what.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -452,8 +454,11 @@ export function IndustryOnboarding() {
                 ))}
               </datalist>
 
+              <p className="text-[11px] text-subtle sm:hidden">
+                Scroll sideways to reach every duty column.
+              </p>
               <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[720px] border-separate border-spacing-0 text-xs">
+                <table className="w-full min-w-[980px] border-separate border-spacing-0 text-xs">
                   <thead className="bg-elevated">
                     <tr>
                       <th scope="col" className="border-b border-border p-2 text-left font-medium">
@@ -466,9 +471,10 @@ export function IndustryOnboarding() {
                         <th
                           key={duty}
                           scope="col"
+                          title={coreDutyLabel(duty)}
                           className="border-b border-border p-2 text-center font-normal text-muted"
                         >
-                          {coreDutyLabel(duty)}
+                          {GRID_DUTY_HEADING[duty] ?? coreDutyLabel(duty)}
                         </th>
                       ))}
                       <th scope="col" className="border-b border-border p-2">
@@ -500,6 +506,26 @@ export function IndustryOnboarding() {
                             onBlur={() => suggestDuties(index)}
                             maxLength={40}
                           />
+                          {extraDuties(row.duties).length > 0 && (
+                            <ul
+                              className="mt-1 flex max-w-[11rem] flex-wrap gap-1"
+                              aria-label={`${row.name || `Person ${index + 1}`}: other duties`}
+                            >
+                              {extraDuties(row.duties).map((duty) => (
+                                <li key={duty}>
+                                  <button
+                                    type="button"
+                                    className="rounded-full border border-border bg-panel px-1.5 py-0.5 text-[10px] text-muted hover:border-danger hover:text-danger"
+                                    title="Remove this duty"
+                                    aria-label={`Remove ${coreDutyLabel(duty)} from ${row.name || `Person ${index + 1}`}`}
+                                    onClick={() => toggleDuty(index, duty)}
+                                  >
+                                    {coreDutyLabel(duty)} ×
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </td>
                         {CORE_DUTIES.map((duty) => (
                           <td key={duty} className="border-b border-border p-1.5 text-center">

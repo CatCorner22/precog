@@ -105,14 +105,14 @@ describe("rowsForJobTitle", () => {
     expect(rows[0]).toMatchObject({ role: "Server / Host", duties: ["collect_cash"] });
   });
 
-  it("bounds the count and keeps only the eight grid duties", () => {
+  it("bounds the count and carries every duty the title holds", () => {
     const controller = jobCatalogEntry("controller")!;
     expect(rowsForJobTitle(controller, 0)).toEqual([]);
     const [row] = rowsForJobTitle(controller, 1);
     expect(row.duties).toEqual(
       expect.arrayContaining(["release_payment", "bank_reconcile", "approve_payroll"]),
     );
-    expect(row.duties).not.toContain("post_journal_entries");
+    expect(row.duties).toContain("post_journal_entries");
   });
 });
 
