@@ -3,6 +3,8 @@
  */
 import { describeChunkBasis } from "../rag/corpus";
 import { registerAssessed, trackRegisterFreshness } from "../continuity/register-state";
+import { mapAssessed } from "../builder/map-state";
+import { industryMeta } from "../industry";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
@@ -606,8 +608,29 @@ export function executeTool(
       }
 
       case "get_process_records": {
-        const report = processRecordReport(tpl.processes);
         const personName = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+        if (!mapAssessed(profile)) {
+          return {
+            tool,
+            ok: true,
+            summary:
+              tpl.processes.length === 0
+                ? "The process map is not assessed: it is empty, so the owner has not yet listed the processes the business runs. Do not quote map figures; advise the owner to add their processes on How work flows."
+                : `The process map is not assessed: it holds ${tpl.processes.length} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.`,
+            data: {
+              assessed: false,
+              processes: tpl.processes.map((p) => ({
+                processId: p.id,
+                name: p.name,
+                cadence: p.cadence ?? null,
+                systems: p.systems ?? [],
+                owners: (p.ownerPersonIds ?? []).map(personName),
+              })),
+            },
+            links: [{ tab: "map", label: "How work flows" }],
+          };
+        }
+        const report = processRecordReport(tpl.processes);
         return {
           tool,
           ok: true,

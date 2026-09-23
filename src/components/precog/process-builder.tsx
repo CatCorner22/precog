@@ -29,6 +29,7 @@ import { industryMeta } from "@/lib/precog/industry";
 
 import { Blocks, GitCompare, Redo2, ShieldCheck, Undo2 } from "lucide-react";
 import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
+import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   analyzeWorkload,
   healthDelta,
@@ -36,7 +37,7 @@ import {
   previewMapHealth,
   type HealthDelta,
 } from "@/lib/precog/builder/what-if";
-import { ChevronRight, HelpCircle, Scale } from "lucide-react";
+import { ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
 import { BuilderTour } from "@/components/precog/builder-tour";
 import { useBuilderTour } from "@/components/precog/builder-tour-state";
 
@@ -105,6 +106,12 @@ export function ProcessBuilder({
     [showDeparture, tpl, processes, profile.staff],
   );
   const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
+  // The starter map with nobody assigned, or an empty map, has no health to
+  // show; the pill and the what-if deltas wait until the owner assigns an
+  // owner or builds their own map.
+  const mapReady = mapAssessed(profile);
+  const notAssessed = mapNotAssessedNote(profile);
+  const starterMap = mapSource(profile) === "starter";
 
   const currentHealth = useMemo(
     () =>
@@ -115,13 +122,17 @@ export function ProcessBuilder({
       }),
     [tpl, processes, profile.staff, profile.mapLayout, mapCustomized],
   );
-  // Baseline when the builder opened — shows the session's net effect.
+  // Baseline when the builder opened — shows the session's net effect. It is
+  // taken from the first assessed score, never from the starter map.
   const sessionBaseline = useRef<number | null>(null);
-  if (sessionBaseline.current === null) sessionBaseline.current = currentHealth.score;
+  if (sessionBaseline.current === null && mapReady) sessionBaseline.current = currentHealth.score;
 
   /** Score a hypothetical process list against the current one. */
-  const whatIf = (next: ProcessNode[]): HealthDelta =>
-    healthDelta(
+  const whatIf = (next: ProcessNode[]): HealthDelta => {
+    if (!mapReady) {
+      return { before: currentHealth.score, after: currentHealth.score, delta: 0 };
+    }
+    return healthDelta(
       currentHealth,
       previewMapHealth(tpl, next, profile.staff, {
         people: tpl.people,
@@ -129,6 +140,7 @@ export function ProcessBuilder({
         customized: true,
       }),
     );
+  };
 
   const workload = useMemo(
     () =>
@@ -518,11 +530,23 @@ export function ProcessBuilder({
                 name · Shift+A arranges by stage · Ctrl+Z undo
               </span>
             </CardDescription>
-            <HealthPill
-              score={currentHealth.score}
-              band={currentHealth.bandLabel}
-              sessionDelta={currentHealth.score - (sessionBaseline.current ?? currentHealth.score)}
-            />
+            {mapReady ? (
+              <HealthPill
+                score={currentHealth.score}
+                band={currentHealth.bandLabel}
+                sessionDelta={
+                  currentHealth.score - (sessionBaseline.current ?? currentHealth.score)
+                }
+              />
+            ) : (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-elevated px-1.5 py-0.5 font-semibold text-muted">
+                  <Gauge className="size-3" />
+                  {"—"}
+                </span>
+                <span className="text-muted">Map health · not assessed yet</span>
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             {!tour.show && (
@@ -748,6 +772,7 @@ export function ProcessBuilder({
                 staff: profile.staff,
                 dualRelease: profile.dualRelease,
                 mapSnapshots: snapshots,
+                mapAssessed: mapReady,
               });
               return buildSharePayload(profile, actions, note, redactNames);
             }}
@@ -845,6 +870,17 @@ export function ProcessBuilder({
           />
         )}
 
+        {showValidation && notAssessed && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-[11px] leading-relaxed text-fg">
+            <p className="font-medium">Not assessed yet</p>
+            <p className="mt-0.5 text-muted">
+              {notAssessed}
+              {starterMap
+                ? " Each Fix below assigns a suggested owner; remove the processes that do not apply."
+                : ""}
+            </p>
+          </div>
+        )}
         {showValidation && (
           <ValidationPanel
             issues={validationIssues}

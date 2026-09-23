@@ -5,6 +5,7 @@ import { executeTool, planTools } from "./tools";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 
 const dental = getBaseTemplate("dental");
@@ -546,5 +547,46 @@ describe("get_process_records", () => {
     expect(planTools("what should we write down first?")).toContain("get_process_records");
     expect(planTools("which processes stop if Maya is out sick")).toContain("get_process_records");
     expect(planTools("insurance premium")).not.toContain("get_process_records");
+  });
+});
+
+describe("get_process_records on a map that is not assessed", () => {
+  it("carries assessed: false and tells the coach not to quote map figures for a starter map", () => {
+    const profile = ownBusinessProfile(defaultProfile(), {
+      practiceName: "Ruiz Dental",
+      people: buildOwnTeam([
+        { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+        { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
+      ]),
+    });
+    const r = executeTool("get_process_records", {}, { profile });
+    expect(r.ok).toBe(true);
+    const data = r.data as { assessed: boolean; processes: { name: string; owners: string[] }[] };
+    expect(data.assessed).toBe(false);
+    expect(data.processes).toHaveLength(7);
+    expect(data.processes.every((p) => p.owners.length === 0)).toBe(true);
+    expect(r.summary).toBe(
+      "The process map is not assessed: it holds 7 starter processes from the dental / medical office example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+    );
+    expect(JSON.stringify(r.data)).not.toContain("documentedIndex");
+  });
+
+  it("says the map is empty for an own map with no processes", () => {
+    const profile = ownBusinessProfile(defaultProfile(), {
+      practiceName: "Ruiz Dental",
+      people: buildOwnTeam([{ name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] }]),
+    });
+    const r = executeTool(
+      "get_process_records",
+      {},
+      { profile: { ...profile, customProcesses: [] } },
+    );
+    expect(r.summary).toMatch(/^The process map is not assessed: it is empty/);
+  });
+
+  it("reports the sample business's records as before", () => {
+    const r = executeTool("get_process_records", {}, { profile: defaultProfile() });
+    expect((r.data as { assessed?: boolean }).assessed).toBeUndefined();
+    expect(r.summary).toMatch(/written, findable procedure/);
   });
 });

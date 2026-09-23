@@ -45,6 +45,7 @@ import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
+import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { StartHere } from "@/components/precog/start-here";
@@ -385,6 +386,8 @@ function Home() {
     );
     return computeMapHealth(snapshots, issues, { customized: mapCustomized });
   }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
+  // A starter map nobody has assigned, or an empty map, has no health to show.
+  const mapReady = mapAssessed(profile);
 
   function navigateDeepLink(target: DeepLinkTarget) {
     if (target.type === "tab") {
@@ -628,10 +631,10 @@ function Home() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <MetricCard
                 label="Map health"
-                value={String(mapHealth.score)}
-                hint={mapHealth.bandLabel}
+                value={mapReady ? String(mapHealth.score) : "—"}
+                hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
                 tone={
-                  mapHealth.score >= HEALTH_SCALE.adequate
+                  !mapReady || mapHealth.score >= HEALTH_SCALE.adequate
                     ? "primary"
                     : mapHealth.score >= HEALTH_SCALE.weak
                       ? "warn"

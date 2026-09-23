@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+import { mapAssessed, mapNotAssessedNote, mapSource, starterMapFacts } from "./map-state";
+import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
+import { defaultProfile } from "../practice-profile";
+import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+
+const people = buildOwnTeam([
+  { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+  { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments", "prepare_deposit"] },
+]);
+
+function ruiz() {
+  return ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
+}
+
+describe("mapSource", () => {
+  it("is the sample map until the owner enters their own people, even with map edits", () => {
+    expect(mapSource({ industry: "dental" })).toBe("sample");
+    expect(mapSource({ industry: "dental", customPeople: null, customProcesses: null })).toBe(
+      "sample",
+    );
+    expect(mapSource({ industry: "dental", customProcesses: [] })).toBe("sample");
+  });
+
+  it("is a starter map for a fresh own business (own people, nobody assigned)", () => {
+    const profile = ruiz();
+    expect(profile.customProcesses ?? null).toBeNull();
+    expect(resolveTemplate(profile).processes.every((p) => !p.ownerPersonIds?.length)).toBe(true);
+    expect(mapSource(profile)).toBe("starter");
+  });
+
+  it("becomes the owner's own map once the map is edited or a process points at their person", () => {
+    const profile = ruiz();
+    const first = resolveTemplate(profile).processes[0];
+    expect(mapSource({ ...profile, customProcesses: [{ ...first, ownerPersonIds: [] }] })).toBe(
+      "own",
+    );
+    expect(mapSource({ ...profile, customProcesses: [] })).toBe("own");
+    // The sample team edited in the builder keeps its ids, so the starter
+    // map's owner references still resolve and the map counts as owned.
+    const dental = getBaseTemplate("dental");
+    expect(mapSource({ industry: "dental", customPeople: dental.people.slice(0, 3) })).toBe("own");
+  });
+});
+
+describe("mapAssessed", () => {
+  it("is false for a starter map and for an own map with no processes", () => {
+    const profile = ruiz();
+    expect(mapAssessed(profile)).toBe(false);
+    expect(mapAssessed({ ...profile, customProcesses: [] })).toBe(false);
+  });
+
+  it("is true for the sample business and once the owner edits the map or assigns an owner", () => {
+    expect(mapAssessed({ industry: "dental" })).toBe(true);
+    expect(mapAssessed({ industry: "restaurant", customProcesses: [] })).toBe(true);
+    const profile = ruiz();
+    const first = resolveTemplate(profile).processes[0];
+    const assigned = resolveTemplate({
+      ...profile,
+      customProcesses: [{ ...first, ownerPersonIds: ["own-2"] }],
+    });
+    expect(assigned.processes[0].ownerPersonIds).toEqual(["own-2"]);
+    expect(mapAssessed({ ...profile, customProcesses: assigned.processes })).toBe(true);
+  });
+});
+
+describe("mapNotAssessedNote", () => {
+  it("names the starter process count and the industry example, in one sentence", () => {
+    const profile = ruiz();
+    expect(starterMapFacts(profile)).toEqual({
+      count: 7,
+      example: "dental / medical office example",
+    });
+    expect(mapNotAssessedNote(profile)).toBe(
+      "Your map holds 7 starter processes from the dental / medical office example and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
+    );
+  });
+
+  it("asks for processes on an empty own map and is null once the map is assessed", () => {
+    const profile = ruiz();
+    expect(mapNotAssessedNote({ ...profile, customProcesses: [] })).toBe(
+      "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.",
+    );
+    expect(mapNotAssessedNote({ industry: "dental" })).toBeNull();
+  });
+});
+
+describe("the sample business's map figures do not change", () => {
+  it("scores the dental demo exactly as before", () => {
+    const profile = defaultProfile();
+    const tpl = resolveTemplate(profile);
+    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+    const issues = validateProcessMap(
+      tpl.processes,
+      tpl.people,
+      new Set(tpl.controls.map((c) => c.id)),
+    );
+    const health = computeMapHealth(snapshots, issues);
+    expect(mapSource(profile)).toBe("sample");
+    expect(mapAssessed(profile)).toBe(true);
+    expect(health.score).toBe(73);
+    expect(health.band).toBe("fair");
+    expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
+      ["integrity", 100],
+      ["ownership", 100],
+      ["controls", 100],
+      ["documentation", 0],
+      ["calm", 43],
+    ]);
+    expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 7 });
+    expect(health.hotProcesses).toBe(3);
+    expect(health.unownedProcesses).toBe(0);
+    expect(issues.map((i) => i.id)).toEqual([
+      "record-proc-schedule",
+      "record-proc-clinical",
+      "record-proc-claims",
+      "record-proc-cash",
+      "record-proc-ar",
+      "record-proc-ap",
+      "record-proc-payroll",
+    ]);
+  });
+});

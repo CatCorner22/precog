@@ -22,6 +22,7 @@ import {
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
+import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   formatDateRange,
   handoffDeadline,
@@ -98,6 +99,11 @@ export function ControlReport() {
   const today = localDateKey(generated);
   const registerReady = registerAssessed(tpl);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
+  // The starter map with nobody assigned, or an empty map, has no health,
+  // ownership, documentation or issues to print; one sentence says why.
+  const mapReady = mapAssessed(profile);
+  const mapNote = mapNotAssessedNote(profile);
+  const mapFrom = mapSource(profile);
 
   const data = useMemo(() => {
     const threat = buildThreatAssessment({
@@ -135,6 +141,7 @@ export function ControlReport() {
       mapSnapshots: snapshots,
       today,
       trackFreshness,
+      mapAssessed: mapReady,
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
     });
@@ -186,7 +193,7 @@ export function ControlReport() {
       lossRange,
       found,
     };
-  }, [tpl, profile, mapCustomized, today, trackFreshness]);
+  }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady]);
 
   const {
     threat,
@@ -214,7 +221,7 @@ export function ControlReport() {
   const caseById = new Map(evidence.map((c) => [c.id, c]));
   const history = profile.mapHealthHistory ?? [];
   const firstPoint = history[0];
-  const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
+  const healthDelta = mapReady && firstPoint ? mapHealth.score - firstPoint.score : null;
   const top = threat.targetDeck.slice(0, 12);
   const openDecisions = profile.decisions.slice(0, 10);
   const continuityDecisions = profile.decisions.filter((d) =>
@@ -254,7 +261,12 @@ export function ControlReport() {
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{profile.practiceName}</h1>
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
-            {mapCustomized ? "custom process map" : "industry template map"} · generated{" "}
+            {mapFrom === "starter"
+              ? "starter process map"
+              : mapCustomized
+                ? "custom process map"
+                : "industry template map"}{" "}
+            · generated{" "}
             {generated.toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
@@ -264,7 +276,11 @@ export function ControlReport() {
         </header>
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Kpi label="Map health" value={String(mapHealth.score)} hint={mapHealth.bandLabel} />
+          <Kpi
+            label="Map health"
+            value={mapReady ? String(mapHealth.score) : "—"}
+            hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
+          />
           <Kpi
             label="Threat index"
             value={String(threat.overallThreatIndex)}
@@ -285,38 +301,44 @@ export function ControlReport() {
         <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
         <Section title="Process map health">
-          <p className="text-sm text-neutral-700">
-            {mapHealth.summary}{" "}
-            {healthDelta !== null && healthDelta !== 0 && firstPoint
-              ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
-              : ""}
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {mapHealth.dimensions.map((d) => (
-              <div key={d.id} className="rounded border border-neutral-300 p-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-medium">{d.label}</span>
-                  <span className="text-sm font-bold tabular">{d.score}</span>
-                </div>
-                <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
-                  <div
-                    className="h-full rounded-full bg-neutral-800"
-                    style={{ width: `${d.score}%` }}
-                  />
-                </div>
-                <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
-              </div>
-            ))}
-          </div>
-          {issues.filter((i) => i.severity !== "info").length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
-              {issues
-                .filter((i) => i.severity !== "info")
-                .slice(0, 6)
-                .map((i) => (
-                  <li key={i.id}>{i.message}</li>
+          {mapNote ? (
+            <p className="text-sm text-neutral-700">Not assessed yet. {mapNote}</p>
+          ) : (
+            <>
+              <p className="text-sm text-neutral-700">
+                {mapHealth.summary}{" "}
+                {healthDelta !== null && healthDelta !== 0 && firstPoint
+                  ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
+                  : ""}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {mapHealth.dimensions.map((d) => (
+                  <div key={d.id} className="rounded border border-neutral-300 p-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs font-medium">{d.label}</span>
+                      <span className="text-sm font-bold tabular">{d.score}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+                      <div
+                        className="h-full rounded-full bg-neutral-800"
+                        style={{ width: `${d.score}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
+                  </div>
                 ))}
-            </ul>
+              </div>
+              {issues.filter((i) => i.severity !== "info").length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
+                  {issues
+                    .filter((i) => i.severity !== "info")
+                    .slice(0, 6)
+                    .map((i) => (
+                      <li key={i.id}>{i.message}</li>
+                    ))}
+                </ul>
+              )}
+            </>
           )}
         </Section>
 
@@ -939,6 +961,15 @@ export function ControlReport() {
         )}
 
         <Section title="Process map">
+          {mapFrom === "starter" && (
+            <p className="mb-2 text-sm text-neutral-700">
+              Starter map from the {industry.label.toLowerCase()} example: {tpl.processes.length}{" "}
+              processes, none with an owner yet.
+            </p>
+          )}
+          {mapNote && mapFrom !== "starter" && (
+            <p className="text-sm text-neutral-700">{mapNote}</p>
+          )}
           <ul className="grid gap-1 text-sm sm:grid-cols-2">
             {tpl.processes
               .slice()
@@ -948,14 +979,18 @@ export function ControlReport() {
                   <span className="font-medium">{p.name}</span>
                   <span className="text-neutral-500">
                     {" "}
-                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas ·{" "}
-                    {(p.ownerPersonIds ?? [])
-                      .map((id) => {
-                        const p = tpl.people.find((x) => x.id === id);
-                        return p ? firstName(p.name) : undefined;
-                      })
-                      .filter(Boolean)
-                      .join(", ") || "no owner"}
+                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas
+                    {mapFrom === "starter"
+                      ? ""
+                      : ` · ${
+                          (p.ownerPersonIds ?? [])
+                            .map((id) => {
+                              const person = tpl.people.find((x) => x.id === id);
+                              return person ? firstName(person.name) : undefined;
+                            })
+                            .filter(Boolean)
+                            .join(", ") || "no owner"
+                        }`}
                   </span>
                 </li>
               ))}

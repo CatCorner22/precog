@@ -44,6 +44,7 @@ import {
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
 import { usePractice } from "@/lib/precog/practice-context";
+import { mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
 import { ProcessBuilder } from "@/components/precog/process-builder";
 import { ExportMapImageButton } from "@/components/precog/export-map-image";
 import { Badge } from "@/components/ui/badge";
@@ -935,7 +936,11 @@ export function ProcessMap({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Interactive process map</Badge>
           <Badge variant="primary">Vision systems online</Badge>
-          {mapCustomized && <Badge variant="ok">Your custom map</Badge>}
+          {mapSource(profile) === "starter" ? (
+            <Badge variant="default">Starter map from the {starterMapFacts(profile).example}</Badge>
+          ) : (
+            mapCustomized && <Badge variant="ok">Your custom map</Badge>
+          )}
         </div>
         <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
           Map your business · see risk light up · fix what matters
