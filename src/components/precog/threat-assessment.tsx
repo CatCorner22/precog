@@ -8,7 +8,8 @@ import {
   terminatorThreatColor,
 } from "@/lib/precog/map-vision";
 import { formatUsd, cn } from "@/lib/utils";
-import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
+import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Crosshair, Radio, Target, Zap } from "lucide-react";
 
@@ -254,6 +255,15 @@ export function ThreatAssessmentPanel() {
                     {formatUsd(selected.expectedLoss)}
                     {selected.p50Days != null
                       ? ` · about ${selected.p50Days} assumed days until found`
+                      : ""}
+                    {selected.domain === "scenario"
+                      ? (() => {
+                          const note = insuranceFigureNote(
+                            profile.riskVariables,
+                            isOwnBusiness(template),
+                          );
+                          return note ? ` · ${note}` : "";
+                        })()
                       : ""}
                   </p>
                 )}

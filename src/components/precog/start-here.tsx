@@ -773,7 +773,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             <p className="mt-1 text-sm leading-relaxed text-muted">
               These pairs sit with you as the owner. You cannot steal from yourself, so they are not
               theft findings; the exposure is error, tax and lender reliance.{" "}
-              {ownerHeld[0].suggestion ? `${ownerHeld[0].suggestion}.` : ""}
+              {ownerHeld[0].suggestion
+                ? `What closes it: ${ownerHeld[0].suggestion.replace(/^An /, "an ")}.`
+                : ""}
             </p>
             <ul className="mt-2 space-y-1 text-sm text-muted">
               {ownerHeld.map((o) => (

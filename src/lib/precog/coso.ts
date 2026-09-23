@@ -10,6 +10,9 @@ import {
 } from "./scoring/scope";
 import type { IndustryTemplate } from "./templates";
 import type { StaffComposition } from "./types";
+import type { DualReleasePolicy } from "./controls/dual-release";
+import { CONFLICT_RULES } from "./sod/conflict-rules";
+import { withLiveThreshold } from "./coach/first-steps";
 
 export type CosoComponentId =
   | "control_environment"
@@ -73,7 +76,12 @@ function statusFromScore(score: number): HealthStatus {
 export function assessCoso(
   tpl: IndustryTemplate,
   staff: StaffComposition = tpl.staffComposition,
-  opts: { riskVariables?: RiskVariableState; confirmedScenarioIds?: ReadonlySet<string> } = {},
+  opts: {
+    riskVariables?: RiskVariableState;
+    confirmedScenarioIds?: ReadonlySet<string>;
+    /** The live dual-release policy, so a recorded control never quotes its own threshold. */
+    dualRelease?: DualReleasePolicy;
+  } = {},
 ): {
   overall: number;
   overallStatus: HealthStatus;
@@ -302,7 +310,15 @@ export function assessCoso(
         label: g.name,
         detail:
           g.compensatingControls.length > 0
-            ? `Compensating: ${g.compensatingControls.join("; ")}`
+            ? `Compensating: ${g.compensatingControls
+                .map((c) =>
+                  withLiveThreshold(
+                    c,
+                    opts.dualRelease,
+                    CONFLICT_RULES.filter((r) => r.linkedControlId === g.id).map((r) => r.id),
+                  ),
+                )
+                .join("; ")}`
             : "No compensating control documented.",
         severity: g.residualRiskAccepted ? "adequate" : "critical",
         link: { type: "sod" as const },

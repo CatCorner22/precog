@@ -58,8 +58,16 @@ export function CosoHeatmap({
       assessCoso(template, profile.staff, {
         riskVariables: profile.riskVariables,
         confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+        dualRelease: profile.dualRelease,
       }),
-    [template, profile.staff, profile.riskVariables, profile.decisions, profile.industry],
+    [
+      template,
+      profile.staff,
+      profile.riskVariables,
+      profile.decisions,
+      profile.industry,
+      profile.dualRelease,
+    ],
   );
   const [activeId, setActiveId] = useState<CosoComponentId>(
     initialComponentId ??

@@ -21,6 +21,7 @@ import { registerAssessed } from "./continuity/register-state";
 import {
   MAKE_SCENARIO_YOURS,
   REGISTER_NOT_ASSESSED,
+  isOwnBusiness,
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "./scoring/scope";
@@ -33,7 +34,11 @@ import {
   type PriorityTarget,
 } from "./map-vision";
 import type { StaffComposition } from "./types";
-import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./scoring/dynamic-variables";
+import {
+  DEFAULT_RISK_VARIABLES,
+  insuranceFigureNote,
+  type RiskVariableState,
+} from "./scoring/dynamic-variables";
 import { mitigatedSodRuleIds } from "./controls/dual-release";
 import type { DualReleasePolicy } from "./controls/dual-release";
 
@@ -89,6 +94,10 @@ export function buildThreatAssessment(input: {
     confirmedScenarioIds,
   });
   const scenariosLeftOut = starterScenariosLeftOut(tpl, confirmedScenarioIds).length;
+  const policyNote = insuranceFigureNote(
+    { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
+    isOwnBusiness(tpl),
+  );
   const leading = scoreLeadingIndicators(tpl, staff, {
     ...DEFAULT_RISK_VARIABLES,
     ...(riskVariables ?? {}),
@@ -225,7 +234,7 @@ export function buildThreatAssessment(input: {
         `about ${row.result.timelineDays.p50} assumed days until found`,
         `Retained ~$${Math.round(
           row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
-        ).toLocaleString()}`,
+        ).toLocaleString()}${policyNote ? ` (${policyNote})` : ""}`,
       ],
       immediate: scored.immediate,
       domain: "scenario",

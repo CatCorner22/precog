@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "./active-template";
 import { assessCoso } from "./coso";
+import { defaultProfile } from "./practice-profile";
 import type { Person, StaffComposition } from "./types";
 
 const people: Person[] = [
@@ -63,5 +64,23 @@ describe("assessCoso", () => {
     const top = one.priorityFindings.find((f) => f.id === "ra-top")!;
     expect(top.label).toBe("Top residual future: Vendor setup + payment not segregated");
     expect(top.detail).toContain("assumed days until found");
+  });
+});
+
+describe("compensating controls in COSO findings", () => {
+  it("quote the live dual-release policy, never the sample record's own figure", () => {
+    const p = defaultProfile("dental");
+    const tpl = getBaseTemplate("dental");
+    const detail = (a: ReturnType<typeof assessCoso>) =>
+      a.components
+        .find((c) => c.id === "control_activities")!
+        .findings.find((f) => f.id === "ca-c-sod-ap")!.detail;
+    const off = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: false } });
+    expect(detail(off)).toBe("Compensating: Dual release (off in your dual-release policy)");
+    const on = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: true } });
+    expect(detail(on)).toBe(
+      "Compensating: Dual release per your policy: ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
+    );
+    expect(detail(assessCoso(tpl, p.staff))).not.toContain("$1,000");
   });
 });

@@ -11,7 +11,6 @@ import {
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
 import {
-  MAKE_SCENARIO_YOURS,
   confirmedScenarioIds,
   isOwnBusiness,
   starterScenarioLabel,
@@ -274,8 +273,9 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
                 These scenarios come with the example business. Their losses and timelines are the
-                example&rsquo;s assumptions, not facts about your business, and they stay out of the
-                threat index and your totals. {MAKE_SCENARIO_YOURS}
+                example&rsquo;s assumptions, not facts about your business, so they stay out of the
+                threat index and your totals until you pick one and choose &ldquo;This could happen
+                here&rdquo;.
               </p>
             </div>
           )}

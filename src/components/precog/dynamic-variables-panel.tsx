@@ -122,7 +122,7 @@ export function DynamicVariablesPanel({
 
           <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
             {basis === "none"
-              ? `No crime policy entered, so the app assumes none: the business keeps the whole assumed loss, pays no premium and earns no credit. The figures below are the ${APP_DEFAULT_POLICY}: set your premium, deductible and limit to price your own policy.`
+              ? `No crime policy entered, so the app assumes none: the business keeps the whole assumed loss, pays no premium and earns no credit. The premium, deductible and limit below are app defaults; enter your own policy's figures to price it.`
               : basis === "app_default"
                 ? `The sample business is priced on the app's default policy (${APP_DEFAULT_POLICY}).`
                 : note

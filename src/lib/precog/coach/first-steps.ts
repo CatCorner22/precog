@@ -142,19 +142,20 @@ function usd(n: number): string {
 export function dualReleaseLine(policy: DualReleasePolicy, ruleId: string): string | null {
   const covering = policy.rules.filter((r) => r.mitigatesRuleIds.includes(ruleId));
   if (covering.length === 0) return null;
-  const channels = (rules: typeof covering) =>
-    rules
-      .map((r) =>
-        r.thresholdUsd > 0
-          ? `${r.label} above ${usd(r.thresholdUsd)}`
-          : `${r.label} at every amount`,
-      )
-      .join("; ");
   const on = policy.enabled ? covering.filter((r) => r.enabled) : [];
   if (on.length === 0) {
-    return `Dual release is off for this in your policy; switching it on under Who controls what would require a second person on ${channels(covering)}`;
+    return `Dual release is off for this in your policy; switching it on under Who controls what would require a second person on ${channelWords(covering)}`;
   }
-  return `Your dual-release policy requires a second person on ${channels(on)}`;
+  return `Your dual-release policy requires a second person on ${channelWords(on)}`;
+}
+
+/** "ACH / vendor electronic pay above $500; New vendor master at every amount" */
+function channelWords(rules: readonly DualReleasePolicy["rules"][number][]): string {
+  return rules
+    .map((r) =>
+      r.thresholdUsd > 0 ? `${r.label} above ${usd(r.thresholdUsd)}` : `${r.label} at every amount`,
+    )
+    .join("; ");
 }
 
 /**
@@ -170,6 +171,28 @@ export function closingSteps(
   const kept = compensatingControls.filter((c) => !STALE_DUAL_RELEASE.some((re) => re.test(c)));
   const line = dualReleaseLine(policy, ruleId);
   return line ? [...kept, line] : kept;
+}
+
+/**
+ * A recorded control that quotes its own dual-release figure ("Dual release on
+ * payments > $1,000"), rewritten to the live policy: its threshold when the
+ * policy covers the rule and is on, "off" when it is not, and no figure at all
+ * when no policy is at hand.
+ */
+export function withLiveThreshold(
+  text: string,
+  policy: DualReleasePolicy | undefined,
+  ruleIds: readonly string[],
+): string {
+  if (!STALE_DUAL_RELEASE[0].test(text)) return text;
+  if (!policy) return "Dual release above the thresholds in your dual-release policy";
+  const covering = policy.rules.filter(
+    (r) => r.enabled && r.mitigatesRuleIds.some((id) => ruleIds.includes(id)),
+  );
+  if (!policy.enabled || covering.length === 0) {
+    return "Dual release (off in your dual-release policy)";
+  }
+  return `Dual release per your policy: ${channelWords(covering)}`;
 }
 
 /** How a gap card is badged: severity until dual release covers it. */
@@ -214,7 +237,7 @@ export function ownerHeldPairs(conflicts: readonly DetectedConflict[]): OwnerHel
     out.set(c.ruleId, {
       ruleId: c.ruleId,
       personName: c.personName,
-      pair: `${c.labelA} with ${lowerFirst(c.labelB)}`,
+      pair: `${c.labelA} and ${lowerFirst(c.labelB)}`,
       suggestion: c.compensatingControls[0] ?? "",
     });
   }
