@@ -69,6 +69,7 @@ import {
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { removeValueProof } from "./value-proof-store";
+import { processesToEdit } from "./business-lifecycle";
 
 export type SyncStatus =
   "idle" | "loading" | "synced" | "local" | "local-error" | "error" | "conflict";
@@ -717,7 +718,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     (v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null)) => {
       pushUndo();
       setProfile((p) => {
-        const current = p.customProcesses ?? getIndustryTemplate(p.industry).processes;
+        const current = processesToEdit(p);
         const next = typeof v === "function" ? v(current) : v;
         const nextTemplate = p.customPeople
           ? resolveTemplate({ ...p, customProcesses: next })
@@ -847,7 +848,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       name: name.trim().slice(0, 60) || `Version ${new Date().toLocaleDateString()}`,
       createdAt: new Date().toISOString(),
       healthScore,
-      processes: structuredClone(p.customProcesses ?? tpl.processes),
+      processes: structuredClone(processesToEdit(p)),
       people: structuredClone(p.customPeople ?? tpl.people),
       layout: { ...(p.mapLayout ?? {}) },
     };
