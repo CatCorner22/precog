@@ -3,6 +3,7 @@ import {
   defaultProfile,
   normalizeCustomKnowledge,
   normalizePlannedAbsences,
+  normalizeLeaverAccessChecks,
   type PracticeProfile,
 } from "./practice-profile";
 
@@ -40,6 +41,7 @@ export function mergeProfile(
       ? row.profile.customRelations
       : null,
     plannedAbsences: normalizePlannedAbsences(row.profile.plannedAbsences),
+    leaverAccessChecks: normalizeLeaverAccessChecks(row.profile.leaverAccessChecks),
     mapLayout: row.profile.mapLayout ?? {},
     savedProcessBlocks: Array.isArray(row.profile.savedProcessBlocks)
       ? row.profile.savedProcessBlocks

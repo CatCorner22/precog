@@ -17,6 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  businessLocations,
+  locationsById,
+  locationText,
+  worksAt,
+} from "@/lib/precog/person-location";
 import { AlertTriangle, Grid3x3, Network, Shield, ShieldCheck, Users } from "lucide-react";
 
 const FRAMEWORK_DUTIES = [
@@ -48,9 +54,24 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     [tpl, profile.staff, profile.dualRelease],
   );
 
-  const filtered = report.conflicts.filter((c) =>
-    filterSeverity === "all" ? true : c.severity === filterSeverity,
-  );
+  // A business with two or more locations: say where each person works, and
+  // let the owner look at one location at a time.
+  const locations = useMemo(() => businessLocations(tpl.people), [tpl.people]);
+  const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
+  // null: people with no location on record.
+  const [location, setLocation] = useState<string | null | "all">("all");
+  const unplaced = report.conflicts.some((c) => !placesOf.has(c.personId));
+  const shownLocation =
+    location === "all" || location === null || locations.includes(location) ? location : "all";
+
+  const filtered = report.conflicts
+    .filter((c) => (filterSeverity === "all" ? true : c.severity === filterSeverity))
+    .filter(
+      (c) =>
+        locations.length < 2 ||
+        shownLocation === "all" ||
+        worksAt(placesOf.get(c.personId), shownLocation),
+    );
 
   const matrixIds = useMemo(() => {
     return ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => e.id);
@@ -252,6 +273,43 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 </button>
               ))}
             </div>
+            {locations.length > 1 && (
+              <div
+                role="group"
+                aria-label="Show conflicts for one location"
+                className="flex flex-wrap items-center gap-1.5 pt-1"
+              >
+                <span className="text-xs text-muted">Location:</span>
+                {[
+                  { key: "all", label: "All locations", value: "all" as const },
+                  ...locations.map((place) => ({ key: place, label: place, value: place })),
+                  ...(unplaced ? [{ key: "none", label: "No location given", value: null }] : []),
+                ].map((option) => {
+                  const count =
+                    option.value === "all"
+                      ? report.conflicts.length
+                      : report.conflicts.filter((c) =>
+                          worksAt(placesOf.get(c.personId), option.value),
+                        ).length;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      aria-pressed={shownLocation === option.value}
+                      onClick={() => setLocation(option.value)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-0.5 text-xs",
+                        shownLocation === option.value
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border bg-elevated text-muted",
+                      )}
+                    >
+                      {option.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {filtered.length === 0 && (
@@ -295,6 +353,8 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
                   <span className="text-xs text-muted">
                     {c.personName} · {c.role}
+                    {placesOf.has(c.personId) &&
+                      ` · ${locationText(placesOf.get(c.personId) ?? [])}`}
                   </span>
                 </div>
                 <p className="mt-1.5 font-medium">{c.title}</p>
@@ -475,7 +535,11 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-medium">{a.personName}</p>
-                      <p className="text-xs text-muted">{a.role}</p>
+                      <p className="text-xs text-muted">
+                        {a.role}
+                        {placesOf.has(a.personId) &&
+                          ` · ${locationText(placesOf.get(a.personId) ?? [])}`}
+                      </p>
                     </div>
                     <div className="flex gap-1">
                       <Badge variant={n > 0 ? "danger" : "ok"}>

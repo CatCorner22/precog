@@ -59,6 +59,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { personLocations } from "@/lib/precog/person-location";
+import type { Departure } from "@/lib/precog/continuity/access-removal";
 import {
   Briefcase,
   ChefHat,
@@ -244,6 +246,9 @@ export function IndustryOnboarding() {
   // roster notes stay in view; the owner closes it.
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteNote, setPasteNote] = useState("");
+  // People a pasted roster left out as terminated or inactive: once setup
+  // finishes, the owner is asked to confirm their pay and logins are stopped.
+  const [leftOut, setLeftOut] = useState<Departure[]>([]);
   const [quickNote, setQuickNote] = useState("");
   /** What the last change in the table did, announced, with an undo for a removed row. */
   const [gridStatus, setGridStatus] = useState<{ text: string; undo?: () => void } | null>(null);
@@ -482,6 +487,15 @@ export function IndustryOnboarding() {
     // title it could not read leaves the duties for the owner to tick.
     const { rows: incoming, inactiveNames } = pastedRows(result, selected);
     setPasteIssues(result.issues);
+    const inactive = result.people.filter((person) => !person.active);
+    if (inactive.length > 0) {
+      setLeftOut((current) => [
+        ...current,
+        ...inactive
+          .filter((person) => !current.some((who) => who.name === person.name))
+          .map((person) => ({ name: person.name, role: person.role })),
+      ]);
+    }
     const announce = () => focusSoon(() => noteRef.current);
     if (incoming.length === 0) {
       setPasteNote(
@@ -606,7 +620,7 @@ export function IndustryOnboarding() {
     if (people.length === 0) return;
     const onLeave = onLeavePersonIds(rows);
     writeSetupDraft(null);
-    startOwnBusiness({ industry: selected, practiceName: businessName, people });
+    startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
       // continuity planner's "Still out tomorrow" extends it.
@@ -1041,13 +1055,22 @@ export function IndustryOnboarding() {
                               maxLength={60}
                             />
                             {row.department && (
-                              <p
-                                className="mt-1 max-w-28 truncate text-xs text-muted sm:max-w-36"
-                                title={row.department}
+                              // One line per place: a person listed at two
+                              // stores shows both, not one cut short.
+                              <ul
+                                className="mt-1 text-xs text-muted"
+                                aria-label={`Where ${who} works`}
                               >
-                                <span className="sr-only">Department or location: </span>
-                                {row.department}
-                              </p>
+                                {personLocations(row).map((place) => (
+                                  <li
+                                    key={place}
+                                    className="max-w-28 truncate sm:max-w-36"
+                                    title={place}
+                                  >
+                                    {place}
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                             {industryHasOwner(selected) && (
                               <label className="mt-1 flex min-h-6 items-center gap-1.5 text-xs text-muted">

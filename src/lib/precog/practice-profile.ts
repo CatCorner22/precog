@@ -108,8 +108,64 @@ export interface PlannedAbsence {
   debriefedAt?: string;
 }
 
+/**
+ * Someone who has left: a pasted roster left them out as terminated or
+ * inactive, or the owner marked them as left. Until the owner confirms they
+ * are off payroll and their logins are removed, the check stays open. Kept
+ * after confirming (with the day), so a later import of the same roster does
+ * not ask again. See continuity/access-removal.ts.
+ */
+export interface LeaverAccessCheck {
+  id: string;
+  /** The team member, when they stay on the team marked as left. */
+  personId?: string;
+  name: string;
+  role?: string;
+  industry: IndustryId;
+  /** Calendar day the app noted they had left. */
+  notedOn: string;
+  /** How the app learned: a pasted or imported roster, or the owner marking them as left. */
+  source: "roster" | "marked";
+  /** The owner has seen the prompt for this person; it is not shown again. */
+  prompted?: true;
+  /** Calendar day the owner confirmed payroll and logins; unset while open. */
+  confirmedOn?: string;
+}
+
 export function makePlannedAbsenceId(): string {
   return `abs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Most leaver checks kept per business; the oldest confirmed ones go first. */
+export const MAX_LEAVER_CHECKS = 300;
+
+/** Keep only well-formed leaver checks: a name, a known industry, and real calendar days. */
+export function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
+  if (!Array.isArray(value)) return [];
+  const out: LeaverAccessCheck[] = [];
+  for (const entry of value.slice(0, MAX_LEAVER_CHECKS)) {
+    if (!entry || typeof entry !== "object") continue;
+    const raw = entry as Record<string, unknown>;
+    if (typeof raw.id !== "string" || typeof raw.name !== "string" || !raw.name.trim()) continue;
+    if (!isIndustryId(raw.industry)) continue;
+    if (typeof raw.notedOn !== "string" || !isCalendarDate(raw.notedOn)) continue;
+    out.push({
+      id: raw.id.slice(0, 60),
+      ...(typeof raw.personId === "string" ? { personId: raw.personId.slice(0, 120) } : {}),
+      name: raw.name.trim().slice(0, 80),
+      ...(typeof raw.role === "string" && raw.role.trim()
+        ? { role: raw.role.trim().slice(0, 120) }
+        : {}),
+      industry: raw.industry,
+      notedOn: raw.notedOn,
+      source: raw.source === "marked" ? "marked" : "roster",
+      ...(raw.prompted === true ? { prompted: true as const } : {}),
+      ...(typeof raw.confirmedOn === "string" && isCalendarDate(raw.confirmedOn)
+        ? { confirmedOn: raw.confirmedOn }
+        : {}),
+    });
+  }
+  return out;
 }
 
 /** Keep only entries with a real person id, a known industry and an ordered pair of calendar days. */
@@ -160,6 +216,8 @@ export interface PracticeProfile {
   customRelations?: KnowledgeRelation[] | null;
   /** Known leave, so continuity advice can warn ahead of it. */
   plannedAbsences?: PlannedAbsence[];
+  /** People who have left, and whether the owner has confirmed their pay and logins are stopped. */
+  leaverAccessChecks?: LeaverAccessCheck[];
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
@@ -488,6 +546,7 @@ export function normalizeProfile(
     customKnowledge,
     customRelations,
     plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
+    leaverAccessChecks: normalizeLeaverAccessChecks(parsed.leaverAccessChecks),
     mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
     savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
     mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],

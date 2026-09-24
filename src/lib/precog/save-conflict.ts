@@ -154,3 +154,42 @@ export class LocalProfileStore {
     this.seenStamp = stamp;
   }
 }
+
+/** Versions kept per business; far more than two tabs ever pass back and forth between two account saves. */
+const MAX_LINEAGE = 64;
+
+/**
+ * The versions of each business this tab holds or has built on, by their
+ * `updatedAt` stamp: the copy it opened, every copy it saved to the account,
+ * and every copy it took from another tab of this browser.
+ *
+ * Another tab's account save moves the account's revision on without this
+ * tab hearing of it, even when this tab took that very version from the other
+ * tab. The account then refuses this tab's next save as stale. When the
+ * version the account holds is one in this lineage, this tab's copy already
+ * builds on it, so saving on top of it loses nothing. Any version this tab has
+ * never held (a save from another device, or a tab it never heard from) is
+ * still a real conflict for the owner to settle.
+ */
+export class AccountLineage {
+  private readonly stamps = new Map<string, string[]>();
+
+  /** This tab opened `stamp` of the business as a whole new copy: nothing before it counts. */
+  start(businessId: string, stamp: string): void {
+    this.stamps.set(businessId, [stamp]);
+  }
+
+  /** This tab now builds on `stamp` too (it saved it, or took it from another tab). */
+  add(businessId: string, stamp: string): void {
+    const held = this.stamps.get(businessId) ?? [];
+    if (held.includes(stamp)) return;
+    held.push(stamp);
+    if (held.length > MAX_LINEAGE) held.shift();
+    this.stamps.set(businessId, held);
+  }
+
+  /** Whether this tab's copy of the business builds on the version stamped `stamp`. */
+  buildsOn(businessId: string, stamp: string | undefined): boolean {
+    return Boolean(stamp) && (this.stamps.get(businessId)?.includes(stamp as string) ?? false);
+  }
+}
