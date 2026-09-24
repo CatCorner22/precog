@@ -2120,4 +2120,122 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Katherine Dyson of Denham Springs, Louisiana was sentenced in December 2019 to 42 months in prison after pleading guilty; the release states the loss as more than $1.2 million across more than 300 transactions, so the figure is recorded as a floor. The employer's name comes from the release and from The Advocate's coverage. The release does not say how the checks were discovered, give her hire date, or state the company's headcount.",
   },
+  {
+    id: "case-lowell-animal-hospital-refunds",
+    title:
+      "Animal hospital client relations specialist entered about 482 false refunds to her own debit cards over four years",
+    sector: "any",
+    schemes: ["refund-fraud"],
+    howItWorked:
+      "A client relations specialist at a full-service animal hospital, who worked there from October 2011 until September 2018, sold retail products to customers at the hospital. A temporary supervisory role also gave her access to the hospital's management software and the ability to manipulate account transactions. From March 2014 through August 2018 she entered false refund transactions in that software and credited them to her own personal debit cards: some refunded merchandise a customer had really bought and never returned, others refunded purchases that were never made. About 482 transactions in all. She hid them on the dormant accounts of inactive clients, such as those whose pets had died, and on test accounts set up for training.",
+    controlGap:
+      "The person who took customers' payments at the counter could also issue refunds, and a refund to her own debit card went through as readily as one to a customer's. The accounts the refunds were booked against belonged to clients nobody was going to hear from, so no customer was ever in a position to notice.",
+    lossUsd: 182827.68,
+    lossIsFloor: false,
+    durationMonths: 53,
+    tenureYearsStated: 6,
+    detection: "unknown",
+    resolvedYear: 2020,
+    sodRuleIds: ["rule-cash-refund"],
+    wouldHaveCaughtIt: [
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Refunds listed monthly by employee and by the card they went to; one employee's cards receiving refunds for years is the finding",
+      },
+      {
+        control: "void-refund-second-approval",
+        asApplied:
+          "Every refund approved by someone who does not work the counter, with the original sale attached and paid back only to the card that paid",
+      },
+      {
+        control: "permission-review",
+        asApplied:
+          "Owner reviews who can issue refunds in the practice software, and removes the right when a temporary supervisory role ends",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Massachusetts",
+      url: "https://www.justice.gov/usao-ma/pr/lowell-woman-sentenced-stealing-approximately-182000-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Sasha A. Saulnier of Lowell, Massachusetts pleaded guilty in January 2020 to six counts of wire fraud and was sentenced by U.S. District Judge Nathaniel M. Gorton to one year and one day in prison and restitution of $182,827.68, the figure recorded here. The resolved year is the year of the plea; the sentencing date could not be confirmed from here. The six years of tenure are the whole years from October 2011 to September 2018. The releases do not name the hospital, give its size, or say how the refunds were found; the sector is recorded as any because a veterinary hospital is neither a dental nor a medical practice, though its front desk works the same way.",
+  },
+  {
+    id: "case-norfolk-brake-maker-treasurer-payroll",
+    title:
+      "Manufacturer's treasurer put her husband on the payroll and paid herself above her salary",
+    sector: "any",
+    schemes: ["payroll"],
+    howItWorked:
+      "The treasurer of a manufacturer of brake products in Norfolk, Virginia had access to the company's financial records and accounts, including the ability to approve payroll. She created a payroll account for her husband, who never worked for the company and did not know about it, and issued herself unauthorized payroll funds above her salary. She also intercepted vendor payments, diverted them to her personal accounts, and changed the company's records so the payments appeared to have been deposited in the company's accounts. The release says she took the money to cover online gambling losses and to support her shopping.",
+    controlGap:
+      "The same person could add a name to the payroll and send the pay out. A payroll account for someone who never worked there needs only one pair of hands when the person who sets it up also releases the money, and the same access let her rewrite the records that would otherwise have shown it.",
+    lossUsd: 123104.42,
+    lossIsFloor: false,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-payroll-master-release"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each cycle against who actually works there, before the run is released",
+      },
+      {
+        control: "no-self-approval",
+        asApplied: "The treasurer's own pay is approved by someone else, at any amount",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Eastern District of Virginia",
+      url: "https://www.justice.gov/usao-edva/pr/norfolk-woman-sentenced-over-year-prison-embezzling-her-employer-pay-gambling-debts",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Katherine Louise Henderson, 55, of Norfolk was sentenced in June 2026 to a year and six months in prison for wire fraud; the release gives the total taken as $123,104.42, the figure recorded here, which includes the diverted vendor payments. The release does not name the company, give its size, say when the scheme began or how long it ran, or say how it was found.",
+  },
+  {
+    id: "case-pittsburgh-foundation-it-invoices",
+    title:
+      "Foundation IT manager approved his own shell company's invoices for eight years, nearly $1 million",
+    sector: "nonprofit",
+    schemes: ["billing-shell-vendor"],
+    howItWorked:
+      "An IT manager at The Heinz Endowments, a Pittsburgh philanthropic foundation, worked there from 2014 to 2024, maintained its servers and IT systems, and was required to approve vendor invoices and to hire outside contractors for technical work. Between 2016 and 2024 he billed the foundation through a shell corporation he controlled, submitting invoices for work that was never performed or was performed by other vendors, and authorized payment of those invoices himself.",
+    controlGap:
+      "The person who put a bill forward was also the person who approved it for payment, so a bill from his own company needed nobody else's sign-off.",
+    lossUsd: 977977,
+    lossIsFloor: false,
+    durationMonths: 96,
+    tenureYearsStated: 10,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-invoice-approve"],
+    wouldHaveCaughtIt: [
+      {
+        control: "no-self-approval",
+        asApplied:
+          "Invoices a department head puts forward are approved by someone outside that department before they are paid",
+      },
+      {
+        control: "new-payee-review",
+        asApplied:
+          "Someone outside IT reviews each new vendor that month and who at the vendor the foundation actually deals with",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "Outside IT spending read once a year against what was actually delivered, by someone who does not approve it",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Pennsylvania",
+      url: "https://www.justice.gov/usao-wdpa/pr/former-foundation-it-manager-sentenced-prison-embezzling-nearly-1-million-employer",
+      grade: "primary-document-reported",
+    },
+    caveat:
+      "Charles A. Richardson, 45, of Pittsburgh pleaded guilty to one count of wire fraud and was sentenced in 2026 by U.S. District Judge Christy Criswell Wiegand to one year and one day in prison. The release gives the loss as nearly $1 million; the $977,977 recorded here is the restitution ordered, as reported by Hoodline. That he was required to approve vendor invoices and submitted the shell company's invoices comes from press coverage of the sentencing, which attributes it to prosecutors; the release itself says he embezzled the money by authorizing payment of the fraudulent invoices. The 96 months are the eight years of billing, 2016 to 2024, and the ten years of tenure are 2014 to 2024. The foundation's headcount is not stated.",
+  },
 ];
