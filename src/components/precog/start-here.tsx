@@ -57,6 +57,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import { personLabel } from "@/lib/precog/person-label";
 import { locationsById, locationText } from "@/lib/precog/person-location";
+import { LeaverAccessList } from "@/components/precog/leaver-access";
 
 /**
  * The first screen an owner sees.
@@ -387,6 +388,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           </button>
         </div>
       )}
+
+      {/* People who left, until the owner confirms their pay and logins are stopped. */}
+      <LeaverAccessList />
 
       {isSampleTeam && (
         <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">

@@ -6,7 +6,7 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
-import { Download, Plus, Trash2, Upload } from "lucide-react";
+import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
@@ -192,6 +192,27 @@ export function TeamEditor({
     }
     if (!window.confirm(`Remove ${p.name}? They will be unassigned from any processes.`)) return;
     onChange(people.filter((x) => x.id !== id));
+  }
+
+  /**
+   * They have left: kept on the list for history, holding no live duties.
+   * The owner is then asked, once, to confirm their pay and logins are stopped.
+   */
+  function markAsLeft(id: string) {
+    const p = people.find((x) => x.id === id);
+    if (!p || !p.active) return;
+    if (people.filter((x) => x.active).length <= 1) {
+      toast.error("Keep at least one person working here.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Mark ${p.name} as left? They stay on the list for history but no longer hold any duty or count as cover.`,
+      )
+    ) {
+      return;
+    }
+    updatePerson(id, { active: false });
   }
 
   async function importCsv(file: File) {
@@ -425,6 +446,17 @@ export function TeamEditor({
                   >
                     left
                   </span>
+                )}
+                {p.active && (
+                  <button
+                    type="button"
+                    onClick={() => markAsLeft(p.id)}
+                    className="text-subtle hover:text-warn"
+                    aria-label={`Mark ${p.name} as left`}
+                    title="Mark as left"
+                  >
+                    <UserMinus className="size-3" />
+                  </button>
                 )}
                 <button
                   type="button"

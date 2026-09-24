@@ -99,6 +99,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { LeaverAccessList } from "@/components/precog/leaver-access";
 
 const KIND_LABEL: Record<KnowledgeKind, string> = {
   duty: "Duty",
@@ -1733,6 +1734,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <LeaverAccessList />
               {staying.length > 0 && (
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-xs text-muted">

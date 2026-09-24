@@ -80,6 +80,13 @@ import {
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
 import { AccountLineage, LocalProfileStore } from "./save-conflict";
+import {
+  confirmAccessRemoved,
+  departuresBetween,
+  markPrompted,
+  noteDepartures,
+  type Departure,
+} from "./continuity/access-removal";
 import { canKeepLocalData } from "./local-data";
 
 export type SyncStatus =
@@ -141,7 +148,16 @@ interface PracticeContextValue {
     industry: IndustryId;
     practiceName: string;
     people: Person[];
+    /** People the pasted roster left out as terminated or inactive. */
+    leftOut?: Departure[];
   }) => void;
+  /**
+   * The owner confirmed these leavers are off payroll and their logins are
+   * removed: closes their checks and records each in the decisions log.
+   */
+  confirmLeaverAccess: (checkIds: string[]) => void;
+  /** The owner has seen the prompt for these leavers; it is not shown again. */
+  markLeaverPrompted: (checkIds: string[]) => void;
   /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
   cancelSetup: () => Promise<void>;
   /** The business to go back to from setup; null on a first visit. */
@@ -815,6 +831,34 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const confirmLeaverAccess = useCallback((checkIds: string[]) => {
+    if (checkIds.length === 0) return;
+    setProfile((p) => {
+      const { checks, decisions } = confirmAccessRemoved(
+        p.leaverAccessChecks ?? [],
+        checkIds,
+        localDateKey(new Date()),
+      );
+      if (decisions.length === 0) return p;
+      return {
+        ...p,
+        leaverAccessChecks: checks,
+        decisions: [...decisions, ...p.decisions].slice(0, 100),
+      };
+    });
+  }, []);
+
+  const markLeaverPrompted = useCallback((checkIds: string[]) => {
+    if (checkIds.length === 0) return;
+    setProfile((p) => {
+      const before = p.leaverAccessChecks ?? [];
+      const after = markPrompted(before, checkIds);
+      return after.some((check, i) => check !== before[i])
+        ? { ...p, leaverAccessChecks: after }
+        : p;
+    });
+  }, []);
+
   const removeDecision = useCallback((id: string) => {
     setProfile((p) => ({
       ...p,
@@ -887,12 +931,35 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const startOwnBusiness = useCallback(
-    (input: { industry: IndustryId; practiceName: string; people: Person[] }) => {
+    (input: {
+      industry: IndustryId;
+      practiceName: string;
+      people: Person[];
+      leftOut?: Departure[];
+    }) => {
       clearHistory();
       const previous = profileRef.current;
       if (previous.onboardingComplete === false) retireUnfinished(previous);
       openBeforeSetup.current = null;
-      setProfile(() => ownSetupProfile(input));
+      setProfile(() => {
+        const next = ownSetupProfile(input);
+        // Someone the roster left out who is on the team after all is not a leaver.
+        const onTeam = new Set(input.people.map((p) => p.name.trim().toLowerCase()));
+        const leftOut = (input.leftOut ?? []).filter(
+          (who) => !onTeam.has(who.name.trim().toLowerCase()),
+        );
+        if (leftOut.length === 0) return next;
+        return {
+          ...next,
+          leaverAccessChecks: noteDepartures(
+            next.leaverAccessChecks ?? [],
+            leftOut,
+            "roster",
+            next.industry,
+            localDateKey(new Date()),
+          ),
+        };
+      });
     },
     [clearHistory, retireUnfinished],
   );
@@ -924,7 +991,33 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
               dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(base.dualRelease, nextTemplate),
             })
           : base.staff;
-        return { ...base, customPeople: next, staff };
+        // Anyone who has just left, by being marked as left or arriving
+        // terminated in an imported roster, gets a pay-and-logins check.
+        const sample = getIndustryTemplate(p.industry).people;
+        const known = new Set(current.map((person) => person.id));
+        const left = departuresBetween(current, next, sample);
+        const today = localDateKey(new Date());
+        let checks = base.leaverAccessChecks ?? [];
+        checks = noteDepartures(
+          checks,
+          left.filter((who) => who.personId && known.has(who.personId)),
+          "marked",
+          p.industry,
+          today,
+        );
+        checks = noteDepartures(
+          checks,
+          left.filter((who) => !who.personId || !known.has(who.personId)),
+          "roster",
+          p.industry,
+          today,
+        );
+        return {
+          ...base,
+          customPeople: next,
+          staff,
+          ...(checks !== (base.leaverAccessChecks ?? []) ? { leaverAccessChecks: checks } : {}),
+        };
       });
     },
     [pushUndo],
@@ -1373,6 +1466,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      confirmLeaverAccess,
+      markLeaverPrompted,
       cancelSetup,
       setupReturnsTo,
       setCustomProcesses,
@@ -1418,6 +1513,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      confirmLeaverAccess,
+      markLeaverPrompted,
       cancelSetup,
       setupReturnsTo,
       setCustomProcesses,
