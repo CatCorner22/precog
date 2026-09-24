@@ -70,6 +70,7 @@ import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
+import { locationsById, locationText } from "@/lib/precog/person-location";
 
 const FAMILY_META: Record<DutyFamily, { label: string; color: string; description: string }> = {
   authorization: {
@@ -101,6 +102,8 @@ const FAMILY_META: Record<DutyFamily, { label: string; color: string; descriptio
 
 export function PowerMapBuilder() {
   const tpl = useTemplate();
+  // Where each person works, when the business has two or more locations.
+  const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
   const { profile, setCustomPeople } = usePractice();
   // The map is a view of the people register: every grant, revocation, hire,
   // or import writes through to the profile, so the conflict list, the
@@ -203,8 +206,8 @@ export function PowerMapBuilder() {
     [selectedConflicts],
   );
   const graph = useMemo(
-    () => buildGraph(assignments, report.conflicts, conflictsOnly, processId),
-    [assignments, report.conflicts, conflictsOnly, processId],
+    () => buildGraph(assignments, report.conflicts, conflictsOnly, processId, placesOf),
+    [assignments, report.conflicts, conflictsOnly, processId, placesOf],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges);
@@ -520,7 +523,9 @@ export function PowerMapBuilder() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">{person.personName}</p>
-                  <p className="text-xs text-subtle">{person.role}</p>
+                  <p className="text-xs text-subtle">
+                    {withPlaces(person.role, placesOf.get(person.personId))}
+                  </p>
                 </div>
                 <span
                   className={cn(
@@ -726,7 +731,7 @@ export function PowerMapBuilder() {
               <option value="">Select a person…</option>
               {assignments.map((person) => (
                 <option key={person.personId} value={person.personId}>
-                  {person.personName} · {person.role}
+                  {person.personName} · {withPlaces(person.role, placesOf.get(person.personId))}
                 </option>
               ))}
             </select>
@@ -929,6 +934,7 @@ export function PowerMapBuilder() {
                 conflicts={report.conflicts}
                 conflictsOnly={conflictsOnly}
                 processId={processId}
+                placesOf={placesOf}
                 onToggle={toggleForPerson}
               />
             )}
@@ -989,7 +995,7 @@ export function PowerMapBuilder() {
                 >
                   {assignments.map((person) => (
                     <option key={person.personId} value={person.personId}>
-                      {person.personName} · {person.role}
+                      {person.personName} · {withPlaces(person.role, placesOf.get(person.personId))}
                     </option>
                   ))}
                 </select>
@@ -1286,12 +1292,14 @@ function ResponsibilityMatrix({
   conflicts,
   conflictsOnly,
   processId,
+  placesOf,
   onToggle,
 }: {
   assignments: RoleAssignment[];
   conflicts: DetectedConflict[];
   conflictsOnly: boolean;
   processId: string;
+  placesOf: ReadonlyMap<string, string[]>;
   onToggle: (personId: string, entitlement: EntitlementId) => void;
 }) {
   const conflictKeys = new Set(
@@ -1336,9 +1344,14 @@ function ResponsibilityMatrix({
               >
                 <span
                   className="block max-w-32 -rotate-45 origin-bottom-left whitespace-nowrap text-left font-medium text-muted"
-                  title={`${person.personName} · ${person.role}`}
+                  title={`${person.personName} · ${withPlaces(person.role, placesOf.get(person.personId))}`}
                 >
                   {person.personName}
+                  {placesOf.has(person.personId) && (
+                    <span className="block text-[10px] font-normal text-subtle">
+                      {locationText(placesOf.get(person.personId) ?? [])}
+                    </span>
+                  )}
                 </span>
               </th>
             ))}
@@ -1595,11 +1608,17 @@ function ResolutionOptions({
   );
 }
 
+/** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
+function withPlaces(role: string, places: readonly string[] | undefined): string {
+  return places && places.length > 0 ? `${role} · ${locationText(places)}` : role;
+}
+
 function buildGraph(
   assignments: RoleAssignment[],
   conflicts: DetectedConflict[],
   conflictsOnly: boolean,
   processId = "all",
+  placesOf: ReadonlyMap<string, string[]> = new Map(),
 ): { nodes: Node[]; edges: Edge[] } {
   const conflictKeys = new Set(
     conflicts.flatMap((item) => [
@@ -1624,7 +1643,15 @@ function buildGraph(
   const nodes: Node[] = shownAssignments.map((person, index) => ({
     id: `person:${person.personId}`,
     position: { x: 10, y: 80 + index * 110 },
-    data: { label: `${person.personName}\n${person.role}` },
+    data: {
+      label: [
+        person.personName,
+        person.role,
+        ...(placesOf.has(person.personId)
+          ? [locationText(placesOf.get(person.personId) ?? [])]
+          : []),
+      ].join("\n"),
+    },
     style: {
       width: 205,
       border: `1px solid ${conflictedPeople.has(person.personId) ? "#f87171" : "#3d9cfd"}`,

@@ -34,6 +34,7 @@ import {
 import { placeholderNames } from "@/lib/precog/onboarding/own-team";
 import { stripInvisibleControls } from "@/lib/precog/import/csv";
 import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
+import { locationText, personLocations } from "@/lib/precog/person-location";
 export function EntitlementPicker({
   selected,
   onChange,
@@ -406,7 +407,9 @@ export function TeamEditor({
                     {p.name}
                   </span>
                   <span className="text-subtle"> · {p.role}</span>
-                  {p.department && <span className="text-subtle"> · {p.department}</span>}
+                  {p.department && (
+                    <span className="text-subtle"> · {locationText(personLocations(p))}</span>
+                  )}
                   {p.employeeId && <span className="text-subtle"> · ID {p.employeeId}</span>}
                   {p.active && p.lastDay && (
                     <span className="text-subtle"> · last day {p.lastDay}</span>

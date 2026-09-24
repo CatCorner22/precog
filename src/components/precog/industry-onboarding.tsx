@@ -57,6 +57,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { personLocations } from "@/lib/precog/person-location";
 import {
   Briefcase,
   ChefHat,
@@ -1027,13 +1028,22 @@ export function IndustryOnboarding() {
                               maxLength={60}
                             />
                             {row.department && (
-                              <p
-                                className="mt-1 max-w-28 truncate text-xs text-muted sm:max-w-36"
-                                title={row.department}
+                              // One line per place: a person listed at two
+                              // stores shows both, not one cut short.
+                              <ul
+                                className="mt-1 text-xs text-muted"
+                                aria-label={`Where ${who} works`}
                               >
-                                <span className="sr-only">Department or location: </span>
-                                {row.department}
-                              </p>
+                                {personLocations(row).map((place) => (
+                                  <li
+                                    key={place}
+                                    className="max-w-28 truncate sm:max-w-36"
+                                    title={place}
+                                  >
+                                    {place}
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                             <label className="mt-1 flex min-h-6 items-center gap-1.5 text-xs text-muted">
                               <input

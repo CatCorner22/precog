@@ -56,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import { personLabel } from "@/lib/precog/person-label";
+import { locationsById, locationText } from "@/lib/precog/person-location";
 
 /**
  * The first screen an owner sees.
@@ -154,6 +155,17 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [sod.conflicts],
   );
   const ownerHeld = useMemo(() => ownerHeldPairs(sod.conflicts), [sod.conflicts]);
+  // Where each person works, when the business has two or more locations.
+  const placesOf = useMemo(() => locationsById(template.people), [template.people]);
+  /** "Jordan Lee (Oakridge Mall and Riverside)" in a business with more than one location. */
+  const atPlaces = (name: string, id: string) => {
+    const places = placesOf.get(id);
+    return places ? `${name} (${locationText(places)})` : name;
+  };
+  /** The locations a gap reaches, each once, in roster order. */
+  const gapPlaces = (ids: readonly string[]) => [
+    ...new Set(ids.flatMap((id) => placesOf.get(id) ?? [])),
+  ];
   // One person holding most of the gaps is the headline a CPA leads with, and
   // the pairs the team already keeps apart are worth saying out loud.
   const headline = useMemo(() => concentrationHeadline(sod.conflicts), [sod.conflicts]);
@@ -223,19 +235,22 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const gaps = useMemo(() => {
     const byRule = new Map<
       string,
-      { people: string[]; conflict: (typeof openConflicts)[number] }
+      { people: string[]; ids: string[]; conflict: (typeof openConflicts)[number] }
     >();
     for (const c of openConflicts) {
       const existing = byRule.get(c.ruleId);
       if (existing) {
-        if (!existing.people.includes(c.personName)) existing.people.push(c.personName);
+        if (!existing.ids.includes(c.personId)) {
+          existing.people.push(c.personName);
+          existing.ids.push(c.personId);
+        }
         // Keep the worst representative: an unmitigated instance outranks a
         // mitigated one, so a gap is never shown as softer than it is.
         if (existing.conflict.dualReleaseMitigated && !c.dualReleaseMitigated) {
           existing.conflict = c;
         }
       } else {
-        byRule.set(c.ruleId, { people: [c.personName], conflict: c });
+        byRule.set(c.ruleId, { people: [c.personName], ids: [c.personId], conflict: c });
       }
     }
     // Open gaps first, then those the policy narrows, then those it covers at
@@ -657,8 +672,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         {headline && (
           <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm leading-relaxed">
             <span className="font-medium">
-              {personLabel(headline.personName, headline.role)} holds {headline.gaps} of the{" "}
-              {headline.totalGaps} open gaps.
+              {personLabel(headline.personName, headline.role)}
+              {placesOf.has(headline.personId)
+                ? `, at ${locationText(placesOf.get(headline.personId) ?? [])},`
+                : ""}{" "}
+              holds {headline.gaps} of the {headline.totalGaps} open gaps.
             </span>{" "}
             <span className="text-muted">
               Moving one duty, {midSentence(headline.dutyLabel)}, to someone who holds none of the
@@ -678,7 +696,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           </Card>
         ) : (
           <div className="space-y-3">
-            {topThree.map(({ conflict, people }) => {
+            {topThree.map(({ conflict, people, ids }) => {
               // Prefer a case from the owner's own line of business that cites
               // this rule directly; a dentist reads a dental case differently
               // from a construction one. Fall back to the best match overall.
@@ -697,9 +715,12 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       <Badge variant={BADGE_VARIANT[badge]}>{badge}</Badge>
                       <span className="text-xs text-subtle">
                         {people.length === 1
-                          ? people[0]
-                          : `${people.length} people: ${people.join(", ")}`}
+                          ? atPlaces(people[0], ids[0])
+                          : `${people.length} people: ${people.map((name, i) => atPlaces(name, ids[i])).join(", ")}`}
                       </span>
+                      {people.length > 1 && gapPlaces(ids).length > 0 && (
+                        <Badge variant="default">At {locationText(gapPlaces(ids))}</Badge>
+                      )}
                     </div>
                     <CardTitle as="h3" className="leading-snug">
                       {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
@@ -797,10 +818,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   raises or waives the threshold, one person can still act alone.
                 </p>
                 <ul className="mt-3 space-y-2">
-                  {narrowed.map(({ conflict, people }) => (
+                  {narrowed.map(({ conflict, people, ids }) => (
                     <li key={conflict.ruleId} className="text-sm">
                       <span className="text-fg">
-                        {people.join(", ")} — {conflict.labelA} with {conflict.labelB}
+                        {people.map((name, i) => atPlaces(name, ids[i])).join(", ")} —{" "}
+                        {conflict.labelA} with {conflict.labelB}
                       </span>
                       <span className="text-subtle">
                         {" "}
