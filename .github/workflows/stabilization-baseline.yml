@@ -1,0 +1,52 @@
+name: Stabilization baseline
+on:
+  push:
+    branches: [fix/precog-stabilization-expanded-20260924]
+    paths: [.github/workflows/stabilization-baseline.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=tar HEAD > source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stabilization-source
+          path: source.tar
+          retention-days: 3
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Archive installed review dependencies
+        run: tar -czf review-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stabilization-dependencies
+          path: review-dependencies.tar.gz
+          compression-level: 0
+          retention-days: 3
+      - name: Baseline checks without production credentials
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee baseline-typecheck.log
+          npm run lint 2>&1 | tee baseline-lint.log
+          npm test 2>&1 | tee baseline-tests.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stabilization-baseline-results
+          path: baseline-*.log
+          retention-days: 7
