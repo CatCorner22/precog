@@ -54,7 +54,15 @@ export interface PeopleImportResult {
 
 /** The fields of a person a file can carry. */
 export type PersonField =
-  "role" | "department" | "tenureYears" | "active" | "lastDay" | "entitlements" | "employeeId";
+  | "role"
+  | "department"
+  | "tenureYears"
+  | "active"
+  | "lastDay"
+  | "entitlements"
+  | "employeeId"
+  | "owner"
+  | "dutiesFromTitle";
 
 export const PEOPLE_CSV_HEADER = [
   "name",
@@ -65,7 +73,16 @@ export const PEOPLE_CSV_HEADER = [
   "active",
   "last_day",
   "entitlements",
+  "owns_business",
+  "duties_from_title",
 ] as const;
+
+/** Columns this app's export added later; an older export without them is still its own. */
+const LATER_EXPORT_COLUMNS: readonly string[] = [
+  "employee_id",
+  "owns_business",
+  "duties_from_title",
+];
 
 /**
  * Column names accepted for each field, best first: when a file has two
@@ -229,6 +246,9 @@ const HEADER_ALIASES = {
     "separation date",
   ],
   entitlements: ["entitlements", "permissions", "duties", "access", "rights"],
+  // This app's own export only: common HR words ("owner", "guessed") mean other things.
+  owns_business: ["owns_business", "owns the business"],
+  duties_from_title: ["duties_from_title", "duties from title"],
 } as const;
 
 type Field = keyof typeof HEADER_ALIASES;
@@ -823,6 +843,8 @@ interface ColumnMap {
   inactiveFlags: number[];
   lastDay?: number;
   entitlements?: number;
+  ownsBusiness?: number;
+  dutiesFromTitle?: number;
 }
 
 /** Column indexes matching a field, best alias first, then left to right. */
@@ -864,6 +886,8 @@ function mapColumns(header: readonly string[], rows: readonly string[][]): Colum
     inactiveFlags: rankedColumns(header, "inactive_flag"),
     lastDay: first("last_day"),
     entitlements: first("entitlements"),
+    ownsBusiness: first("owns_business"),
+    dutiesFromTitle: first("duties_from_title"),
   };
 }
 
@@ -1303,6 +1327,18 @@ function readPerson(
   // "Name, Title" list has a department column only for the lines that name one.
   const keptDepartment = department || existing?.department;
   const keptEmployeeId = employeeId || existing?.employeeId;
+  // The owner's mark from setup is not in an HR export: a person already on
+  // the team keeps theirs unless this app's own export says otherwise.
+  const ownerCell = yesNo(cellAt(cells, context.columns.ownsBusiness));
+  const keptOwner = ownerCell ?? existing?.owner;
+  // Duties still guessed from the title stay marked only while they are unchanged.
+  const guessCell = yesNo(cellAt(cells, context.columns.dutiesFromTitle));
+  const sameDutiesAsBefore =
+    existing !== undefined &&
+    [...(existing.entitlements ?? [])].sort().join("|") === [...duties].sort().join("|");
+  const keptGuess =
+    guessCell ??
+    (existing?.dutiesFromTitle === true && (duties.length === 0 || sameDutiesAsBefore));
   const person: Person = {
     id,
     name: name.slice(0, 60),
@@ -1313,6 +1349,8 @@ function readPerson(
     entitlements: duties.length ? [...duties] : undefined,
     ...(keptDepartment ? { department: keptDepartment } : {}),
     ...(keptEmployeeId ? { employeeId: keptEmployeeId } : {}),
+    ...(typeof keptOwner === "boolean" ? { owner: keptOwner } : {}),
+    ...(keptGuess ? { dutiesFromTitle: true as const } : {}),
   };
   const idKey = nameKey(employeeId);
   if (idKey && !context.byEmployeeId.has(idKey)) {
@@ -1475,6 +1513,8 @@ function suppliedFields(columns: ColumnMap): PersonField[] {
     ["lastDay", columns.lastDay !== undefined],
     ["entitlements", columns.entitlements !== undefined],
     ["employeeId", columns.employeeId !== undefined],
+    ["owner", columns.ownsBusiness !== undefined],
+    ["dutiesFromTitle", columns.dutiesFromTitle !== undefined],
   ];
   return has.filter(([, present]) => present).map(([field]) => field);
 }
@@ -1482,8 +1522,8 @@ function suppliedFields(columns: ColumnMap): PersonField[] {
 /** True when the header is this app's own team export, old or current. */
 function isOwnExportHeader(header: readonly string[]): boolean {
   const keys = new Set(header.map(normalizeHeader));
-  return PEOPLE_CSV_HEADER.filter((column) => column !== "employee_id").every((column) =>
-    keys.has(normalizeHeader(column)),
+  return PEOPLE_CSV_HEADER.filter((column) => !LATER_EXPORT_COLUMNS.includes(column)).every(
+    (column) => keys.has(normalizeHeader(column)),
   );
 }
 
@@ -1578,6 +1618,8 @@ export function peopleToCsv(
         (roleTemplates ? effectiveDuties(person, roleTemplates) : (person.entitlements ?? [])).join(
           ";",
         ),
+        person.owner === undefined ? "" : person.owner ? "yes" : "no",
+        person.dutiesFromTitle ? "yes" : "",
       ]
         .map(escapeCsv)
         .join(","),
@@ -1587,6 +1629,14 @@ export function peopleToCsv(
 }
 
 const SPACED_DASH = /\s[-–—]\s/;
+
+/** "yes"/"true"/"y"/"1" is true, "no"/"false"/"n"/"0" is false, anything else says nothing. */
+function yesNo(cell: string): boolean | undefined {
+  const value = cell.trim().toLowerCase();
+  if (["yes", "true", "y", "1"].includes(value)) return true;
+  if (["no", "false", "n", "0"].includes(value)) return false;
+  return undefined;
+}
 
 /**
  * True when the text before a dash or a bracket is a "Last, First" name

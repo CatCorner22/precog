@@ -178,7 +178,7 @@ describe("parsePeopleCsv", () => {
     ];
     const csv = peopleToCsv(people);
     expect(csv.split(/\r?\n/)[0]).toBe(
-      "name,employee_id,role,department,tenure_years,active,last_day,entitlements",
+      "name,employee_id,role,department,tenure_years,active,last_day,entitlements,owns_business,duties_from_title",
     );
     const back = parsePeopleCsv(csv, { ...dental, people }).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
@@ -443,5 +443,43 @@ describe("the team editor's own export and imports", () => {
     expect(effectiveDuties({ role: "Chief Happiness Wrangler" }, {})).toEqual([
       "view_reports_only",
     ]);
+  });
+});
+
+describe("the owner's mark and guessed duties through a team CSV", () => {
+  const team: Person[] = [
+    {
+      id: "own-1",
+      name: "Dr. Ana Ruiz",
+      role: "Dentist",
+      active: true,
+      owner: true,
+      entitlements: ["sign_checks", "approve_vendor"],
+    },
+    {
+      id: "own-2",
+      name: "Ben Ochoa",
+      role: "Office Manager",
+      active: true,
+      owner: false,
+      dutiesFromTitle: true,
+      entitlements: ["post_payments", "prepare_deposit"],
+    },
+  ];
+
+  it("keeps both marks through the app's own export and re-import", () => {
+    const back = parsePeopleCsv(peopleToCsv(team), { ...dental, people: team }).people;
+    const ana = back.find((p) => p.name === "Dr. Ana Ruiz")!;
+    const ben = back.find((p) => p.name === "Ben Ochoa")!;
+    expect(ana.owner).toBe(true);
+    expect(ben.owner).toBe(false);
+    expect(ben.dutiesFromTitle).toBe(true);
+  });
+
+  it("keeps the owner's mark when an HR roster without it is pasted over the team", () => {
+    const roster = "Employee Name,Job Title\nDr. Ana Ruiz,Dentist\nBen Ochoa,Office Manager\n";
+    const back = parsePeopleCsv(roster, { ...dental, people: team }).people;
+    expect(back.find((p) => p.name === "Dr. Ana Ruiz")?.owner).toBe(true);
+    expect(back.find((p) => p.name === "Ben Ochoa")?.owner).toBe(false);
   });
 });
