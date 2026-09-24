@@ -29,7 +29,7 @@ import {
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { INDUSTRIES, industryMeta, type IndustryId } from "./industry";
+import { INDUSTRIES, industryHasOwner, industryMeta, type IndustryId } from "./industry";
 import {
   deleteBusiness as deleteBusinessRemote,
   listBusinesses,
@@ -79,7 +79,14 @@ import {
   sampleSetupProfile,
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
-import { LocalProfileStore } from "./save-conflict";
+import { AccountLineage, LocalProfileStore } from "./save-conflict";
+import {
+  confirmAccessRemoved,
+  departuresBetween,
+  markPrompted,
+  noteDepartures,
+  type Departure,
+} from "./continuity/access-removal";
 import { canKeepLocalData } from "./local-data";
 
 export type SyncStatus =
@@ -141,7 +148,16 @@ interface PracticeContextValue {
     industry: IndustryId;
     practiceName: string;
     people: Person[];
+    /** People the pasted roster left out as terminated or inactive. */
+    leftOut?: Departure[];
   }) => void;
+  /**
+   * The owner confirmed these leavers are off payroll and their logins are
+   * removed: closes their checks and records each in the decisions log.
+   */
+  confirmLeaverAccess: (checkIds: string[]) => void;
+  /** The owner has seen the prompt for these leavers; it is not shown again. */
+  markLeaverPrompted: (checkIds: string[]) => void;
   /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
   cancelSetup: () => Promise<void>;
   /** The business to go back to from setup; null on a first visit. */
@@ -285,6 +301,9 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   saveConflictRef.current = saveConflict;
   // This browser's copy of the open business, shared by every tab.
   const [localStore] = useState(() => new LocalProfileStore());
+  // The versions this tab builds on, so an account save made from another
+  // tab of the same version is not mistaken for a change on another device.
+  const [lineage] = useState(() => new AccountLineage());
   // Whether the last write of the open business to this browser went through.
   const lastLocalWrite = useRef<"saved" | "failed" | "none">("none");
   // The profile object this browser's copy holds, so a tab knows when it has
@@ -349,40 +368,58 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** Swap the whole active business — template, overrides, history, profile. */
-  const activateProfile = useCallback((next: PracticeProfile) => {
-    undoStack.current = [];
-    redoStack.current = [];
-    setHistoryVersion((v) => v + 1);
-    setProfile({ load: next });
-  }, []);
+  const activateProfile = useCallback(
+    (next: PracticeProfile) => {
+      undoStack.current = [];
+      redoStack.current = [];
+      setHistoryVersion((v) => v + 1);
+      lineage.start(next.businessId ?? "biz_default", next.updatedAt);
+      setProfile({ load: next });
+    },
+    [lineage],
+  );
 
-  const saveCloud = useCallback(async (current: PracticeProfile) => {
-    const id = current.businessId ?? "biz_default";
-    const result = await saveBusinessProfile({
-      data: {
-        profile: current,
-        industry: current.industry,
-        baseRevision: cloudRevision.current.get(id) ?? null,
-        today: localDateKey(new Date()),
-      },
-    });
-    if (result.ok) {
-      cloudRevision.current.set(id, result.revision);
-      lastCloudError.current = null;
-      setSyncStatus("synced");
-      return true;
-    }
-    const nextConflict: SaveConflictState = {
-      reason: "remote-edit",
-      remote: normalizeProfile(result.profile),
-      revision: result.revision,
-      updatedAt: result.updatedAt,
-    };
-    saveConflictRef.current = nextConflict;
-    setSaveConflict(nextConflict);
-    setSyncStatus("conflict");
-    return false;
-  }, []);
+  const saveCloud = useCallback(
+    async (current: PracticeProfile) => {
+      const id = current.businessId ?? "biz_default";
+      const save = () =>
+        saveBusinessProfile({
+          data: {
+            profile: current,
+            industry: current.industry,
+            baseRevision: cloudRevision.current.get(id) ?? null,
+            today: localDateKey(new Date()),
+          },
+        });
+      let result = await save();
+      // Refused as stale, but the account holds a version this tab already
+      // builds on (another tab of this browser saved it, and this tab took
+      // it): nothing would be lost, so save on top of it. Once only; a
+      // second refusal means someone else saved in between.
+      if (!result.ok && lineage.buildsOn(id, result.profile.updatedAt)) {
+        cloudRevision.current.set(id, result.revision);
+        result = await save();
+      }
+      if (result.ok) {
+        cloudRevision.current.set(id, result.revision);
+        lineage.add(id, current.updatedAt);
+        lastCloudError.current = null;
+        setSyncStatus("synced");
+        return true;
+      }
+      const nextConflict: SaveConflictState = {
+        reason: "remote-edit",
+        remote: normalizeProfile(result.profile),
+        revision: result.revision,
+        updatedAt: result.updatedAt,
+      };
+      saveConflictRef.current = nextConflict;
+      setSaveConflict(nextConflict);
+      setSyncStatus("conflict");
+      return false;
+    },
+    [lineage],
+  );
 
   /**
    * A save to the account failed. The badge says so; the reason (the
@@ -525,6 +562,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       // and the account copy, so nothing is written from here.
       adopted.current = null;
       localStore.accept(took.rev, profile.updatedAt);
+      lineage.add(profile.businessId ?? "biz_default", profile.updatedAt);
       storedProfile.current = profile;
       lastLocalWrite.current = "saved";
       if (!cloud) setSyncStatus("local");
@@ -578,6 +616,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     userIsDevFallback,
     saveCloud,
     localStore,
+    lineage,
     raiseTabConflict,
     reportCloudError,
   ]);
@@ -792,6 +831,34 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const confirmLeaverAccess = useCallback((checkIds: string[]) => {
+    if (checkIds.length === 0) return;
+    setProfile((p) => {
+      const { checks, decisions } = confirmAccessRemoved(
+        p.leaverAccessChecks ?? [],
+        checkIds,
+        localDateKey(new Date()),
+      );
+      if (decisions.length === 0) return p;
+      return {
+        ...p,
+        leaverAccessChecks: checks,
+        decisions: [...decisions, ...p.decisions].slice(0, 100),
+      };
+    });
+  }, []);
+
+  const markLeaverPrompted = useCallback((checkIds: string[]) => {
+    if (checkIds.length === 0) return;
+    setProfile((p) => {
+      const before = p.leaverAccessChecks ?? [];
+      const after = markPrompted(before, checkIds);
+      return after.some((check, i) => check !== before[i])
+        ? { ...p, leaverAccessChecks: after }
+        : p;
+    });
+  }, []);
+
   const removeDecision = useCallback((id: string) => {
     setProfile((p) => ({
       ...p,
@@ -864,12 +931,35 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const startOwnBusiness = useCallback(
-    (input: { industry: IndustryId; practiceName: string; people: Person[] }) => {
+    (input: {
+      industry: IndustryId;
+      practiceName: string;
+      people: Person[];
+      leftOut?: Departure[];
+    }) => {
       clearHistory();
       const previous = profileRef.current;
       if (previous.onboardingComplete === false) retireUnfinished(previous);
       openBeforeSetup.current = null;
-      setProfile(() => ownSetupProfile(input));
+      setProfile(() => {
+        const next = ownSetupProfile(input);
+        // Someone the roster left out who is on the team after all is not a leaver.
+        const onTeam = new Set(input.people.map((p) => p.name.trim().toLowerCase()));
+        const leftOut = (input.leftOut ?? []).filter(
+          (who) => !onTeam.has(who.name.trim().toLowerCase()),
+        );
+        if (leftOut.length === 0) return next;
+        return {
+          ...next,
+          leaverAccessChecks: noteDepartures(
+            next.leaverAccessChecks ?? [],
+            leftOut,
+            "roster",
+            next.industry,
+            localDateKey(new Date()),
+          ),
+        };
+      });
     },
     [clearHistory, retireUnfinished],
   );
@@ -891,7 +981,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       }
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
-        const next = typeof v === "function" ? v(current) : v;
+        const given = typeof v === "function" ? v(current) : v;
+        // A nonprofit has no owner: a "President" or "CEO" in an imported
+        // roster is an employee the board oversees, never the owner.
+        const next =
+          given && !industryHasOwner(p.industry)
+            ? given.map((person) => (person.owner === false ? person : { ...person, owner: false }))
+            : given;
         // Replacing the sample's people with the owner's gives the same clean
         // slate as setup; editing the sample's people keeps the sample.
         const base = next && replacesSampleTeam(p, next) ? adoptOwnTeam(p, next) : p;
@@ -901,7 +997,33 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
               dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(base.dualRelease, nextTemplate),
             })
           : base.staff;
-        return { ...base, customPeople: next, staff };
+        // Anyone who has just left, by being marked as left or arriving
+        // terminated in an imported roster, gets a pay-and-logins check.
+        const sample = getIndustryTemplate(p.industry).people;
+        const known = new Set(current.map((person) => person.id));
+        const left = departuresBetween(current, next, sample);
+        const today = localDateKey(new Date());
+        let checks = base.leaverAccessChecks ?? [];
+        checks = noteDepartures(
+          checks,
+          left.filter((who) => who.personId && known.has(who.personId)),
+          "marked",
+          p.industry,
+          today,
+        );
+        checks = noteDepartures(
+          checks,
+          left.filter((who) => !who.personId || !known.has(who.personId)),
+          "roster",
+          p.industry,
+          today,
+        );
+        return {
+          ...base,
+          customPeople: next,
+          staff,
+          ...(checks !== (base.leaverAccessChecks ?? []) ? { leaverAccessChecks: checks } : {}),
+        };
       });
     },
     [pushUndo],
@@ -1287,6 +1409,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
           return;
         }
         const kept = keepAsCopy(theirs, "copy from another tab");
+        // The owner chose this tab's version over theirs, in the account too.
+        lineage.add(id, theirs.updatedAt);
         const result = localStore.write(mine, { force: true });
         lastLocalWrite.current = result.kind === "saved" ? "saved" : "failed";
         if (result.kind === "saved") storedProfile.current = mine;
@@ -1310,7 +1434,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       setSyncStatus("loading");
       await saveCloud(profileRef.current).catch(reportCloudError);
     },
-    [activateProfile, saveCloud, localStore, keepAsCopy, reportCloudError],
+    [activateProfile, saveCloud, localStore, lineage, keepAsCopy, reportCloudError],
   );
 
   const deleteBusinessLocal = useCallback(
@@ -1348,6 +1472,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      confirmLeaverAccess,
+      markLeaverPrompted,
       cancelSetup,
       setupReturnsTo,
       setCustomProcesses,
@@ -1393,6 +1519,8 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       resetProfile,
       completeOnboarding,
       startOwnBusiness,
+      confirmLeaverAccess,
+      markLeaverPrompted,
       cancelSetup,
       setupReturnsTo,
       setCustomProcesses,

@@ -1,3 +1,4 @@
+import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustryTemplate } from "./types";
 import {
   baseFinancialControls,
@@ -5,6 +6,102 @@ import {
   DEFAULT_FRAUD_STATS,
   DEFAULT_STAFF,
 } from "./shared-controls";
+
+/**
+ * Sales tax and tips. Sales tax a restaurant collects is the state's money
+ * from the moment it is collected, and in many states the person responsible
+ * for paying it over is personally liable when it is not. Tips belong to the
+ * employees: under the Fair Labor Standards Act an employer, including its
+ * managers and supervisors, may not keep any part of them, and tipped
+ * employees report their tips to the employer for payroll taxes (IRS Form
+ * 4070; large food or beverage establishments also file Form 8027). The two
+ * schemes below, tax collected but not paid and a tip pool shifted or held
+ * back, follow from those rules; no rate is given for either.
+ */
+const taxAndTipControls: ControlItem[] = [
+  {
+    id: "c-salestax",
+    name: "Sales tax return review",
+    description:
+      "Each return's taxable sales tie to the POS sales report, and someone other than the preparer sees the state's confirmation that the payment arrived.",
+    duties: ["review", "reconciliation"],
+    segregated: false,
+    compensatingControls: ["Owner reads the state tax account online each quarter"],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-tip-pool",
+    name: "Tip pool distribution review",
+    description:
+      "Pool shares follow a written policy; someone outside the pool checks each distribution against POS tips and hours, and no manager or supervisor draws from it.",
+    duties: ["review", "authorization"],
+    segregated: false,
+    compensatingControls: ["Staff can see their own tip totals in the POS"],
+    residualRiskAccepted: false,
+  },
+];
+
+/*
+ * Timeline and loss figures reuse the shared scenarios' illustrative model
+ * inputs (the cash scenario for sales tax, the write-off scenario for the tip
+ * pool); they are assumptions, not measurements.
+ */
+const taxAndTipScenarios: ScenarioTemplate[] = [
+  {
+    id: "sc-salestax-unremitted",
+    title: "Sales tax collected but not paid to the state",
+    description:
+      "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
+    controlId: "c-salestax",
+    knowledgeId: "k7",
+    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
+    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
+    cascadeLayers: ["control", "process", "surface", "continuity"],
+    mitigations: [
+      {
+        id: "m-tax-1",
+        label: "Tie every return to the POS report and file the state's payment confirmation",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m-tax-2",
+        label: "Owner checks the state tax account each quarter",
+        effort: "low",
+        riskReduction: 0.45,
+        costAnnual: 0,
+      },
+    ],
+  },
+  {
+    id: "sc-tip-pool-manipulation",
+    title: "Tip pool shares shifted or paid to a manager",
+    description:
+      "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
+    controlId: "c-tip-pool",
+    knowledgeId: "k1",
+    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
+    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
+    cascadeLayers: ["control", "knowledge", "process", "continuity"],
+    mitigations: [
+      {
+        id: "m-tip-1",
+        label: "Written pool policy, and each distribution checked by someone outside the pool",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m-tip-2",
+        label: "Staff see their own POS tip totals each pay period",
+        effort: "low",
+        riskReduction: 0.35,
+        costAnnual: 0,
+      },
+    ],
+  },
+];
 
 export const restaurantTemplate: IndustryTemplate = {
   id: "restaurant",
@@ -30,7 +127,7 @@ export const restaurantTemplate: IndustryTemplate = {
       description: "Tip distribution, paid vs reported tips, shift closeout.",
       criticality: "critical",
       category: "process",
-      linkedProcessIds: ["proc-cash"],
+      linkedProcessIds: ["proc-cash", "proc-tips"],
     },
     {
       id: "k2",
@@ -70,7 +167,16 @@ export const restaurantTemplate: IndustryTemplate = {
       description: "Tip credit, reported tips, state compliance.",
       criticality: "important",
       category: "compliance",
-      linkedProcessIds: ["proc-payroll"],
+      linkedProcessIds: ["proc-payroll", "proc-tips"],
+    },
+    {
+      id: "k7",
+      name: "Sales tax returns & remittance",
+      description:
+        "Filing frequency, taxable and exempt sales, and where the POS tax report lives.",
+      criticality: "critical",
+      category: "compliance",
+      linkedProcessIds: ["proc-salestax"],
     },
   ],
   relations: [
@@ -83,6 +189,8 @@ export const restaurantTemplate: IndustryTemplate = {
     { personId: "p5", knowledgeId: "k5", level: "expert" },
     { personId: "p2", knowledgeId: "k6", level: "expert" },
     { personId: "p6", knowledgeId: "k2", level: "basic" },
+    { personId: "p6", knowledgeId: "k7", level: "expert" },
+    { personId: "p1", knowledgeId: "k7", level: "aware" },
   ],
   processes: [
     {
@@ -443,6 +551,129 @@ export const restaurantTemplate: IndustryTemplate = {
       ],
     },
     {
+      id: "proc-tips",
+      name: "Tip pool & tip reporting",
+      layer: "process",
+      description: "Card and cash tips, pool shares, tip-outs, employee tip reports.",
+      dependencies: ["proc-cash"],
+      controlIds: ["c-tip-pool"],
+      stage: 3,
+      ownerPersonIds: ["p3", "p2"],
+      inputs: ["Card tips from the POS", "Declared cash tips", "Hours by position"],
+      outputs: ["Tip pool distribution", "Tip records for payroll"],
+      risks: [
+        {
+          id: "r-tip-1",
+          title: "A manager or supervisor takes part of the pool",
+          kind: "compliance",
+          severity: 5,
+          likelihood: 3,
+          note: "Federal law bars employers, including managers and supervisors, from keeping any part of employees' tips; the tips taken are owed back to the staff.",
+          linkedControlId: "c-tip-pool",
+          linkedScenarioId: "sc-tip-pool-manipulation",
+          linkedKnowledgeId: "k1",
+        },
+        {
+          id: "r-tip-2",
+          title: "Cash tips under-reported",
+          kind: "compliance",
+          severity: 3,
+          likelihood: 4,
+          note: "Tipped staff report tips to the employer each month and payroll taxes are owed on them; unreported tips become back taxes at audit.",
+          linkedKnowledgeId: "k6",
+        },
+      ],
+      ideas: [
+        {
+          id: "i-tip-1",
+          title: "Written tip pool policy with shares by position",
+          category: "policy",
+          effort: "low",
+          impact: "high",
+          note: "Every eligible position and its share on one page staff have signed.",
+          status: "planned",
+        },
+        {
+          id: "i-tip-2",
+          title: "Bookkeeper checks each distribution against POS tips and hours",
+          category: "control",
+          effort: "low",
+          impact: "high",
+          note: "Someone outside the pool confirms the total paid out equals the tips collected.",
+          status: "exploring",
+        },
+      ],
+      wastes: [
+        {
+          id: "w-tip-1",
+          kind: "muda_rework",
+          label: "Shares recalculated after every dispute",
+          note: "Without a written split, each complaint means rebuilding the week's pool by hand.",
+        },
+      ],
+    },
+    {
+      id: "proc-salestax",
+      name: "Sales tax collection & remittance",
+      layer: "process",
+      description: "POS tax settings, sales tax returns, payments to the state.",
+      dependencies: ["proc-cash"],
+      controlIds: ["c-salestax"],
+      stage: 4,
+      ownerPersonIds: ["p6", "p1"],
+      inputs: ["POS sales and tax report", "Exempt and third-party sales", "State filing calendar"],
+      outputs: ["Filed sales tax returns", "Tax payments"],
+      risks: [
+        {
+          id: "r-tax-1",
+          title: "Sales tax collected but not paid to the state",
+          kind: "fraud",
+          severity: 5,
+          likelihood: 2,
+          note: "The tax is the state's money once collected; in many states the person responsible for paying it is personally liable, and the gap surfaces only when the state writes.",
+          linkedControlId: "c-salestax",
+          linkedScenarioId: "sc-salestax-unremitted",
+          linkedKnowledgeId: "k7",
+        },
+        {
+          id: "r-tax-2",
+          title: "Return prepared from bank deposits, not the POS report",
+          kind: "compliance",
+          severity: 4,
+          likelihood: 3,
+          note: "Taxable sales that do not match the POS report become an assessment with penalties and interest at audit.",
+        },
+      ],
+      ideas: [
+        {
+          id: "i-tax-1",
+          title: "Owner sees each return and the state's payment confirmation",
+          category: "control",
+          effort: "low",
+          impact: "high",
+          note: "The confirmation is filed with the return and the POS report it was prepared from.",
+          status: "planned",
+        },
+        {
+          id: "i-tax-2",
+          title: "Check POS tax settings after every menu change",
+          category: "policy",
+          effort: "low",
+          impact: "medium",
+          note: "New items are set to the right tax category before they are sold.",
+          status: "backlog",
+        },
+      ],
+      wastes: [
+        {
+          id: "w-tax-1",
+          kind: "muda_overprocessing",
+          label: "Taxable sales rebuilt from several reports",
+          note: "Delivery, catering and dine-in sales are pulled from separate systems and added by hand each period.",
+        },
+      ],
+    },
+    {
       id: "proc-payroll",
       name: "Payroll & tips reporting",
       layer: "process",
@@ -502,16 +733,19 @@ export const restaurantTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: baseFinancialControls(),
+  controls: [...baseFinancialControls(), ...taxAndTipControls],
   staffComposition: { ...DEFAULT_STAFF, teamSize: 6, segregationScore: 35 },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios({
-    keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
-    keyPersonDesc:
-      "The head server (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",
-    knowledgeId: "k1",
-    billingLabel: "Void/comp authority without owner review",
-  }),
+  scenarios: [
+    ...baseFraudScenarios({
+      keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
+      keyPersonDesc:
+        "The head server (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",
+      knowledgeId: "k1",
+      billingLabel: "Void/comp authority without owner review",
+    }),
+    ...taxAndTipScenarios,
+  ],
   roleTemplates: {
     "Owner / Executive Chef": [
       "approve_writeoffs",

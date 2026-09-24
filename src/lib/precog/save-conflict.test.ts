@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isStaleSave, LocalProfileStore, storedRevision } from "./save-conflict";
+import { AccountLineage, isStaleSave, LocalProfileStore, storedRevision } from "./save-conflict";
 import { ACTIVE_PROFILE_KEY, defaultProfile, type PracticeProfile } from "./practice-profile";
 import type { StorageLike } from "./local-data";
 import type { KnowledgeItem } from "./types";
@@ -158,6 +158,104 @@ describe("two tabs of one browser on the same business", () => {
     expect(A.write(accountCopy).kind).toBe("saved");
     expect(B.write({ ...accountCopy }).kind).toBe("saved");
     expect(A.receive(b.stored(), accountCopy, true).kind).toBe("ignore");
+  });
+});
+
+/** The account's copy of one business, refusing a save built on an older revision as the server does. */
+function account(first: PracticeProfile) {
+  let held = { profile: first, revision: 1 };
+  return {
+    load: () => ({ ...held }),
+    save(profile: PracticeProfile, base: number | null) {
+      if (isStaleSave(held.revision, base)) return { ok: false as const, ...held };
+      held = { profile, revision: held.revision + 1 };
+      return { ok: true as const, revision: held.revision };
+    },
+    held: () => held.profile,
+  };
+}
+
+/** One signed-in tab's account save, as the provider makes it: once more on top of a version it builds on. */
+function saveToAccount(
+  acct: ReturnType<typeof account>,
+  tab: { lineage: AccountLineage; revision: number | null },
+  profile: PracticeProfile,
+): "saved" | "conflict" {
+  const id = profile.businessId ?? "biz_default";
+  let result = acct.save(profile, tab.revision);
+  if (!result.ok && tab.lineage.buildsOn(id, result.profile.updatedAt)) {
+    tab.revision = result.revision;
+    result = acct.save(profile, tab.revision);
+  }
+  if (!result.ok) return "conflict";
+  tab.revision = result.revision;
+  tab.lineage.add(id, profile.updatedAt);
+  return "saved";
+}
+
+describe("two signed-in tabs of one browser on the same business", () => {
+  function signedInTabs() {
+    const b = browser();
+    const start = edit(ownBusiness(), {});
+    b.tab().write(start);
+    const acct = account(start);
+    const open = () => {
+      const local = b.tab();
+      const { profile } = local.load();
+      const lineage = new AccountLineage();
+      lineage.start("biz_two_tab", profile.updatedAt);
+      return {
+        local,
+        profile,
+        cloud: { lineage, revision: acct.load().revision as number | null },
+      };
+    };
+    return { b, acct, A: open(), B: open() };
+  }
+
+  it("a tab that took the other tab's save can save its own edit without a false 'changed on another device' warning", () => {
+    const { b, acct, A, B } = signedInTabs();
+    // Tab A adds an item; it lands in this browser, then in the account.
+    const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
+    A.local.write(aSaved);
+    // Tab B has nothing unsaved and takes it, as the provider does.
+    const change = B.local.receive(b.stored(), B.profile, true);
+    expect(change.kind).toBe("adopt");
+    if (change.kind !== "adopt") return;
+    B.local.accept(change.rev, change.profile.updatedAt);
+    B.cloud.lineage.add("biz_two_tab", change.profile.updatedAt);
+    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+
+    // B edits on top of A's item. B's account revision is behind, yet the
+    // account holds exactly the version B took: no warning, both items kept.
+    const bNext = edit(change.profile, {
+      customKnowledge: [...(change.profile.customKnowledge ?? []), item("Item from tab B")],
+    });
+    expect(B.local.write(bNext).kind).toBe("saved");
+    expect(saveToAccount(acct, B.cloud, bNext)).toBe("saved");
+    expect(names(acct.held())).toEqual(["Item from tab A", "Item from tab B"]);
+  });
+
+  it("a tab that never heard of the other tab's account save still gets the warning, and overwrites nothing", () => {
+    const { acct, A, B } = signedInTabs();
+    const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
+    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+    // B was asleep: it never took A's version and edits its old copy.
+    const staleB = edit(B.profile, { customKnowledge: [item("Item from stale tab B")] });
+    expect(saveToAccount(acct, B.cloud, staleB)).toBe("conflict");
+    expect(names(acct.held())).toEqual(["Item from tab A"]);
+  });
+
+  it("a version the tab held before it opened another copy no longer counts", () => {
+    const lineage = new AccountLineage();
+    lineage.start("biz_two_tab", "2026-09-23T10:00:00.000Z");
+    lineage.add("biz_two_tab", "2026-09-23T10:05:00.000Z");
+    expect(lineage.buildsOn("biz_two_tab", "2026-09-23T10:05:00.000Z")).toBe(true);
+    // A switch or a reload opens the account's copy as a whole new starting point.
+    lineage.start("biz_two_tab", "2026-09-23T11:00:00.000Z");
+    expect(lineage.buildsOn("biz_two_tab", "2026-09-23T10:05:00.000Z")).toBe(false);
+    expect(lineage.buildsOn("biz_other", "2026-09-23T11:00:00.000Z")).toBe(false);
+    expect(lineage.buildsOn("biz_two_tab", undefined)).toBe(false);
   });
 });
 

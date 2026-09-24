@@ -110,7 +110,7 @@ export const PROCESS_BLOCKS: ProcessBlock[] = [
     name: "Cash collection & deposit",
     description: "Front-line cash handling with daily deposit and dual count.",
     category: "cash",
-    industries: ["dental", "retail", "restaurant"],
+    industries: ["dental", "retail", "restaurant", "nonprofit"],
     template: {
       name: "Cash collection",
       layer: "process",
@@ -169,7 +169,7 @@ export const PROCESS_BLOCKS: ProcessBlock[] = [
     name: "Client invoicing",
     description: "Bill generation through collections — revenue-side controls.",
     category: "revenue",
-    industries: ["professional_services", "dental", "general"],
+    industries: ["professional_services", "dental", "construction", "general"],
     template: {
       name: "Client invoicing",
       layer: "process",
@@ -199,7 +199,7 @@ export const PROCESS_BLOCKS: ProcessBlock[] = [
     name: "Inventory cycle count",
     description: "Periodic count independent of purchasing and receiving.",
     category: "ops",
-    industries: ["retail", "restaurant"],
+    industries: ["retail", "restaurant", "construction"],
     template: {
       name: "Inventory count",
       layer: "process",

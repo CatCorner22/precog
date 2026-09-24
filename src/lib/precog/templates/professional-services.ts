@@ -1,3 +1,4 @@
+import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustryTemplate } from "./types";
 import {
   baseFinancialControls,
@@ -5,6 +6,80 @@ import {
   DEFAULT_FRAUD_STATS,
   DEFAULT_STAFF,
 } from "./shared-controls";
+
+/**
+ * Client trust accounts. A law firm holds client money in a trust account (in
+ * most states an IOLTA account for small or short-term balances), and the bar
+ * rules follow ABA Model Rule 1.15: client money is kept separate, recorded by
+ * client, and reconciled. The ABA Model Rules for Client Trust Account Records
+ * call for a monthly reconciliation of the bank statement, the trust journal
+ * and the client ledgers, the "three-way" reconciliation. Taking one client's
+ * money and covering it with another's is the misappropriation pattern that
+ * state bars discipline most severely; no rate is given for it here.
+ */
+const trustControls: ControlItem[] = [
+  {
+    id: "c-trust-rec",
+    name: "Three-way trust reconciliation",
+    description:
+      "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a lawyer who did not prepare the reconciliation reviews and signs it.",
+    duties: ["reconciliation", "review"],
+    segregated: false,
+    compensatingControls: ["Managing partner reads the trust bank statement monthly"],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-trust-disb",
+    name: "Trust disbursement approval",
+    description:
+      "No money leaves the trust account without a matter, enough funds in that client's ledger, and a lawyer's approval; only lawyers sign trust checks or release trust wires.",
+    duties: ["authorization", "custody"],
+    segregated: false,
+    compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
+    residualRiskAccepted: false,
+  },
+];
+
+/*
+ * Timeline and loss figures reuse the shared cash scenario's illustrative
+ * model inputs; they are assumptions, not measurements.
+ */
+const trustScenarios: ScenarioTemplate[] = [
+  {
+    id: "sc-trust-misappropriation",
+    title: "Client trust money taken and covered with other clients' funds",
+    description:
+      "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
+    controlId: "c-trust-rec",
+    knowledgeId: "k7",
+    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
+    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
+    cascadeLayers: ["control", "process", "surface", "continuity"],
+    mitigations: [
+      {
+        id: "m-trust-1",
+        label: "A lawyer who did not prepare it signs the three-way reconciliation monthly",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m-trust-2",
+        label: "Only lawyers approve and sign trust disbursements",
+        effort: "low",
+        riskReduction: 0.6,
+        costAnnual: 0,
+      },
+      {
+        id: "m-trust-3",
+        label: "Trust bank statements go to the managing partner first",
+        effort: "low",
+        riskReduction: 0.35,
+        costAnnual: 0,
+      },
+    ],
+  },
+];
 
 export const professionalServicesTemplate: IndustryTemplate = {
   id: "professional_services",
@@ -66,6 +141,15 @@ export const professionalServicesTemplate: IndustryTemplate = {
       category: "process",
       linkedProcessIds: ["proc-payroll"],
     },
+    {
+      id: "k7",
+      name: "Three-way trust reconciliation",
+      description:
+        "Bank statement, trust journal and client ledgers agreed monthly; handling unidentified deposits and negative client balances.",
+      criticality: "critical",
+      category: "compliance",
+      linkedProcessIds: ["proc-trust-rec", "proc-trust"],
+    },
   ],
   relations: [
     { personId: "p4", knowledgeId: "k1", level: "expert" },
@@ -77,6 +161,8 @@ export const professionalServicesTemplate: IndustryTemplate = {
     { personId: "p4", knowledgeId: "k5", level: "expert" },
     { personId: "p2", knowledgeId: "k6", level: "expert" },
     { personId: "p6", knowledgeId: "k5", level: "proficient" },
+    { personId: "p2", knowledgeId: "k7", level: "expert" },
+    { personId: "p6", knowledgeId: "k7", level: "aware" },
   ],
   processes: [
     {
@@ -202,9 +288,9 @@ export const professionalServicesTemplate: IndustryTemplate = {
       id: "proc-trust",
       name: "Client trust / retainer funds",
       layer: "process",
-      description: "Segregated client funds, disbursements.",
+      description: "Segregated client funds (a law firm's IOLTA account), deposits, disbursements.",
       dependencies: [],
-      controlIds: ["c-cash"],
+      controlIds: ["c-cash", "c-trust-disb"],
       stage: 1,
       ownerPersonIds: ["p2"],
       inputs: ["Client retainer payments", "Disbursement requests", "Engagement fee terms"],
@@ -255,6 +341,68 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "muda_overprocessing",
           label: "Trust ledger kept in spreadsheet and accounting system",
           note: "Every retainer movement is keyed twice and reconciled by hand.",
+        },
+      ],
+    },
+    {
+      id: "proc-trust-rec",
+      name: "Trust reconciliation & client ledgers",
+      layer: "process",
+      description:
+        "Monthly three-way reconciliation: trust bank statement, trust journal, client ledgers.",
+      dependencies: ["proc-trust"],
+      controlIds: ["c-trust-rec"],
+      stage: 2,
+      ownerPersonIds: ["p6", "p1"],
+      inputs: ["Trust bank statement", "Trust account journal", "Client ledger balances"],
+      outputs: ["Signed three-way reconciliation", "Client ledger report"],
+      risks: [
+        {
+          id: "r-trec-1",
+          title: "Trust deposits, disbursements and reconciliation by one person",
+          kind: "fraud",
+          severity: 5,
+          likelihood: 3,
+          note: "Money taken from one client's funds can be covered with another client's deposit, and the same person reconciles the account.",
+          linkedControlId: "c-trust-rec",
+          linkedScenarioId: "sc-trust-misappropriation",
+          linkedKnowledgeId: "k7",
+        },
+        {
+          id: "r-trec-2",
+          title: "Client ledger with a negative balance",
+          kind: "compliance",
+          severity: 5,
+          likelihood: 2,
+          note: "Paying one client's costs with another client's money breaks the trust rules even if it is repaid; in many states the bank reports a trust overdraft to the bar.",
+        },
+      ],
+      ideas: [
+        {
+          id: "i-trec-1",
+          title: "A lawyer who did not prepare it signs the reconciliation",
+          category: "control",
+          effort: "low",
+          impact: "high",
+          note: "Bank balance, journal and the sum of client ledgers on one page, signed within the month.",
+          status: "planned",
+        },
+        {
+          id: "i-trec-2",
+          title: "Trust software that blocks overdrawing a client ledger",
+          category: "tech",
+          effort: "medium",
+          impact: "high",
+          note: "A disbursement larger than that client's balance cannot be entered.",
+          status: "exploring",
+        },
+      ],
+      wastes: [
+        {
+          id: "w-trec-1",
+          kind: "muda_rework",
+          label: "Reconciliation rebuilt at year end",
+          note: "Months are reconciled together when the annual certification is due, so differences are old and hard to trace.",
         },
       ],
     },
@@ -501,16 +649,19 @@ export const professionalServicesTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: baseFinancialControls(),
-  staffComposition: { ...DEFAULT_STAFF, segregationScore: 38 },
+  controls: [...baseFinancialControls(), ...trustControls],
+  staffComposition: { ...DEFAULT_STAFF, soleOwnerKnowledgeCount: 3, segregationScore: 38 },
   crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: baseFraudScenarios({
-    keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
-    keyPersonDesc:
-      "The billing coordinator (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
-    knowledgeId: "k1",
-    billingLabel: "Client write-offs without partner approval",
-  }),
+  scenarios: [
+    ...baseFraudScenarios({
+      keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
+      keyPersonDesc:
+        "The billing coordinator (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
+      knowledgeId: "k1",
+      billingLabel: "Client write-offs without partner approval",
+    }),
+    ...trustScenarios,
+  ],
   roleTemplates: {
     "Managing Partner": [
       "approve_writeoffs",

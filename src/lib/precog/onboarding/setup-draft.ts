@@ -1,6 +1,6 @@
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
-import type { OwnTeamRow } from "./own-team";
+import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
 /**
  * The setup grid in progress, kept in this tab's session storage so a reload
@@ -110,7 +110,8 @@ export function initialSetup(
     step: business.typedName ? "team" : "industry",
     selected: business.industry,
     businessName: business.typedName,
-    rows: freshRows(),
+    // A nonprofit's grid starts with its executive director, not an owner.
+    rows: firstRowForIndustry(freshRows(), business.industry),
     paste: "",
     businessId: business.businessId,
   };

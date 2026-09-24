@@ -77,11 +77,11 @@ describe("mapNotAssessedNote", () => {
   it("names the starter process count and the industry example, in one sentence", () => {
     const profile = ruiz();
     expect(starterMapFacts(profile)).toEqual({
-      count: 7,
-      example: "dental / medical office example",
+      count: 8,
+      example: "dental / medical / veterinary office example",
     });
     expect(mapNotAssessedNote(profile)).toBe(
-      "Your map holds 7 starter processes from the dental / medical office example and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
+      "Your map holds 8 starter processes from the dental / medical / veterinary office example and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
     );
   });
 
@@ -95,6 +95,9 @@ describe("mapNotAssessedNote", () => {
 });
 
 describe("the sample business's map figures do not change", () => {
+  // The controlled-drugs process added to the dental and medical sample is
+  // one more process with a hot fraud risk and no written record: the score
+  // moves from 73 to 72 and calm from 43 to 39.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -107,21 +110,22 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(73);
+    expect(health.score).toBe(72);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 43],
+      ["calm", 39],
     ]);
-    expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 7 });
-    expect(health.hotProcesses).toBe(3);
+    expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
+    expect(health.hotProcesses).toBe(4);
     expect(health.unownedProcesses).toBe(0);
     expect(issues.map((i) => i.id)).toEqual([
       "record-proc-schedule",
       "record-proc-clinical",
+      "record-proc-controlled",
       "record-proc-claims",
       "record-proc-cash",
       "record-proc-ar",

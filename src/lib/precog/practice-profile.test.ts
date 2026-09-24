@@ -61,7 +61,8 @@ describe("a sample business shows one sole-owner figure", () => {
         soleOwnerCriticalCount(resolveTemplate(profile)),
       );
     }
-    // The restaurant preset said 2 while its register has 1 critical item with one holder.
-    expect(defaultProfile("restaurant").staff.soleOwnerKnowledgeCount).toBe(1);
+    // The restaurant register has two critical items with one holder: liquor
+    // inventory and the sales tax returns.
+    expect(defaultProfile("restaurant").staff.soleOwnerKnowledgeCount).toBe(2);
   });
 });
