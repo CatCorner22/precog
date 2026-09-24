@@ -73,10 +73,10 @@ export const BENCHMARKS: Benchmark[] = [
   {
     id: "bm-small-org-hotline-gap",
     label: "Organizations under 100 employees with a reporting mechanism",
-    value: "24%, against 85% of large organizations",
+    value: "24%, against 85% of organizations with 100 or more employees",
     numeric: 0.24,
     soWhat:
-      "Three quarters of small businesses lack the one control that detects the most fraud, while relying on tips at the same rate as everyone else. This is the widest and cheapest gap to close on this list.",
+      "Three quarters of small businesses lack the one control that detects the most fraud, while 85% of organizations with 100 or more employees have it. This is the widest and cheapest gap to close on this list.",
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
@@ -104,8 +104,7 @@ export const BENCHMARKS: Benchmark[] = [
     study: "Occupational Fraud 2026: A Report to the Nations",
     studyYear: 2026,
     source: ACFE_2026_RTTN,
-    caveat:
-      "An estimate by practitioners, not a measurement, and the ACFE describes it as conservative because undetected fraud cannot be counted. Treat it as an order of magnitude.",
+    caveat: "An estimate by practitioners, not a measurement. Treat it as an order of magnitude.",
   },
   {
     id: "bm-duration-distribution",
