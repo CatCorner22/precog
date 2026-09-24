@@ -22,6 +22,7 @@ import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { parseRoster } from "@/lib/precog/import/roster";
 import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";
+import { isOwnerRole, ownersMarked, ownsBusiness } from "@/lib/precog/sod/owner-role";
 import {
   effectiveDuties,
   mergeImportedPeople,
@@ -162,6 +163,24 @@ export function TeamEditor({
   function updatePerson(id: string, patch: Partial<Person>) {
     onChange(people.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
+
+  /**
+   * Marks or unmarks one person as owning the business. A team without
+   * marks yet (read by title) gets everyone marked from their title first,
+   * so nobody else changes seat by this one tick.
+   */
+  function setOwner(id: string, owns: boolean) {
+    onChange(
+      people.map((p) =>
+        p.id === id
+          ? { ...p, owner: owns }
+          : typeof p.owner === "boolean"
+            ? p
+            : { ...p, owner: isOwnerRole(p.role) },
+      ),
+    );
+  }
+  const marked = ownersMarked(people);
 
   function remove(id: string) {
     const p = people.find((x) => x.id === id);
@@ -420,6 +439,16 @@ export function TeamEditor({
                   <Trash2 className="size-3" />
                 </button>
               </div>
+              {editing && (
+                <label className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={ownsBusiness(p, marked)}
+                    onChange={(e) => setOwner(p.id, e.target.checked)}
+                  />
+                  {p.name} owns the business
+                </label>
+              )}
               {editing && (
                 <EntitlementPicker
                   // The duties the conflict engine reads for this person,

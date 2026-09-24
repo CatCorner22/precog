@@ -307,6 +307,16 @@ export function IndustryOnboarding() {
 
   /** Tab and Shift+Tab stay inside the dialog while it is open. */
   function keepFocusInside(event: ReactKeyboardEvent<HTMLDivElement>) {
+    // Escape leaves setup only when there is a business to go back to, and
+    // asks first when the owner has typed something.
+    if (event.key === "Escape" && setupReturnsTo) {
+      event.preventDefault();
+      const typed = draftHasTypedWork({ businessName, rows, paste });
+      if (!typed || window.confirm(`Leave setup and go back to ${setupReturnsTo.name}?`)) {
+        void cancelSetup();
+      }
+      return;
+    }
     if (event.key !== "Tab") return;
     const items = focusableIn(dialogRef.current);
     if (items.length === 0) return;
