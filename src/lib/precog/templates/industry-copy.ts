@@ -166,6 +166,82 @@ export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Give me a plain-English brief for the managing partner.",
     ],
   },
+  construction: {
+    sodExamples: [
+      "Owner approves new subcontractors, large change orders, payroll",
+      "Client checks, deposits, subcontractor and supplier payments",
+      "Pay applications, job cost entries, change-order log",
+      "Bank rec, job cost vs estimate, lien waiver log",
+    ],
+    layerCopy: {
+      surface: [
+        "Jobs in progress, schedule slips and weather days",
+        "Over and under billing by job",
+        "Retainage held by clients and owed to subcontractors",
+      ],
+      source: [
+        "Accounting and job-cost system roles",
+        "Bank portal and ACH approvals",
+        "Payroll provider and certified payroll reports",
+        "Supplier accounts, fuel cards and equipment rentals",
+      ],
+      continuity: [
+        "If the project accountant exits → pay applications and retainage billing stall",
+        "If the payroll administrator is out → certified payroll on public jobs is late",
+        "Without dual release → subcontractor payments stay single-person",
+      ],
+    },
+    dualReleaseSeed: {
+      defaultPayee: "Keystone Concrete Supply",
+      exceptionPayeeContains: "keystone concrete",
+      exceptionLabel: "Trusted supplier ACH raise",
+    },
+    pioneerPrompts: [
+      "What should I fix this week to protect subcontractor payments?",
+      "Where could someone pay a fake subcontractor or pad field hours?",
+      "If my project accountant leaves, what billing stops?",
+      "Walk me through a change-order kickback scenario and its controls.",
+      "Give me a plain-English brief on top residual risks.",
+    ],
+  },
+  nonprofit: {
+    sodExamples: [
+      "Executive director and board treasurer approve budgets, payroll, new vendors",
+      "Mail and event cash, deposits, organization cards",
+      "Gift entry, grant expense coding, vendor bills",
+      "Bank rec, donor database vs deposits, restricted-fund review",
+    ],
+    layerCopy: {
+      surface: [
+        "Giving by month and campaign",
+        "Grant spending against budget and deadlines",
+        "Card spending and reimbursement requests",
+      ],
+      source: [
+        "Donor database and online giving platform",
+        "Accounting system fund and grant codes",
+        "Bank portal and card program",
+        "Payroll provider and grant time allocations",
+      ],
+      continuity: [
+        "If the finance manager exits → close, payroll and audit support stall",
+        "If the grants manager is out → funder reports and draws are late",
+        "Without a second signer → vendor and card payments stay single-person",
+      ],
+    },
+    dualReleaseSeed: {
+      defaultPayee: "Lakeside Printing Co.",
+      exceptionPayeeContains: "lakeside printing",
+      exceptionLabel: "Trusted vendor ACH raise",
+    },
+    pioneerPrompts: [
+      "What should we fix this week to protect donations?",
+      "Where could restricted grant money be spent on the wrong thing?",
+      "If our finance manager leaves, what stops first?",
+      "Walk me through a card abuse scenario and what the treasurer should check.",
+      "Give me a plain-English brief for the board.",
+    ],
+  },
   general: {
     sodExamples: [
       "Owner approves large expenses, payroll, write-offs",

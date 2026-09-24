@@ -18,7 +18,15 @@ const baseUrl = (process.argv[2] || process.env.E2E_BASE_URL || "http://127.0.0.
 const timeout = Number(process.env.E2E_TIMEOUT_MS || 45000);
 const failureShot = process.env.E2E_SCREENSHOT || "";
 
-const INDUSTRIES = ["Dental", "Retail", "Professional", "Restaurant", "General"];
+const INDUSTRIES = [
+  "Dental",
+  "Retail",
+  "Professional",
+  "Restaurant",
+  "Construction",
+  "Nonprofit",
+  "General",
+];
 const IGNORED_CONSOLE = /favicon|net::ERR_|Download the React DevTools/;
 
 const failures = [];

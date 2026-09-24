@@ -642,7 +642,14 @@ describe("contingencyCards", () => {
 
 describe("soleOwnerCriticalCount", () => {
   it("matches the template figure for the default industries where relations are consistent", () => {
-    for (const id of ["dental", "retail", "professional_services", "general"] as const) {
+    for (const id of [
+      "dental",
+      "retail",
+      "professional_services",
+      "construction",
+      "nonprofit",
+      "general",
+    ] as const) {
       const base = getBaseTemplate(id);
       expect(soleOwnerCriticalCount(base)).toBe(base.staffComposition.soleOwnerKnowledgeCount);
     }

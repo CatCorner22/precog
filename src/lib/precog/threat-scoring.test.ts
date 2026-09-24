@@ -70,6 +70,6 @@ describe("buildThreatAssessment for the sample", () => {
     const tpl = getBaseTemplate("dental");
     const p = defaultProfile("dental");
     const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
-    expect(report.missionBrief).toContain("Knowledge: 4 item(s) one person holds, 0 nobody holds.");
+    expect(report.missionBrief).toContain("Knowledge: 5 item(s) one person holds, 0 nobody holds.");
   });
 });

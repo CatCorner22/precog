@@ -563,10 +563,10 @@ describe("get_process_records on a map that is not assessed", () => {
     expect(r.ok).toBe(true);
     const data = r.data as { assessed: boolean; processes: { name: string; owners: string[] }[] };
     expect(data.assessed).toBe(false);
-    expect(data.processes).toHaveLength(7);
+    expect(data.processes).toHaveLength(8);
     expect(data.processes.every((p) => p.owners.length === 0)).toBe(true);
     expect(r.summary).toBe(
-      "The process map is not assessed: it holds 7 starter processes from the dental / medical office example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+      "The process map is not assessed: it holds 8 starter processes from the dental / medical / veterinary office example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
     );
     expect(JSON.stringify(r.data)).not.toContain("documentedIndex");
   });

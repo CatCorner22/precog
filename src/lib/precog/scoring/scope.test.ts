@@ -53,7 +53,7 @@ describe("starter scenarios", () => {
       "Starter scenarios from the restaurant / hospitality example",
     );
     expect(starterScenarioNote(own)).toBe(
-      'Starter scenarios from the restaurant / hospitality example (4) are left out: their losses and timelines are the example\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the threat index and your totals.',
+      'Starter scenarios from the restaurant / hospitality example (6) are left out: their losses and timelines are the example\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the threat index and your totals.',
     );
     expect(starterScenarioNote(getBaseTemplate("restaurant"))).toBeNull();
   });
