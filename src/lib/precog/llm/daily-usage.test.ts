@@ -10,9 +10,7 @@ import {
   withinDailyBudget,
 } from "./daily-usage";
 
-/** Same PGLite harness as share-attempts.test.ts: every migration applied for real. */
 const MIGRATIONS_DIR = join(process.cwd(), "migrations");
-
 let pg: PGlite;
 let sql: Sql;
 
@@ -36,94 +34,118 @@ beforeAll(async () => {
   const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql")).sort();
   for (const name of files) await pg.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
   sql = pgliteSql(pg);
-});
+}, 60_000);
 
 afterAll(async () => {
   await pg.close();
 });
-
 beforeEach(async () => {
-  await pg.exec("delete from llm_daily_usage");
+  await pg.exec("delete from llm_daily_usage; delete from llm_daily_rejections;");
 });
 
 describe("daily model-call budget", () => {
-  it("counts per user and globally and denies past either ceiling", async () => {
+  it("counts only admitted requests; one exhausted user cannot drain the global quota", async () => {
     const limits = { perUser: 2, global: 3 };
     expect((await takeDailyBudget(sql, "a", limits)).allowed).toBe(true);
     expect((await takeDailyBudget(sql, "a", limits)).allowed).toBe(true);
-    const third = await takeDailyBudget(sql, "a", limits);
-    expect(third.allowed).toBe(false);
-    expect(third.userCalls).toBe(3);
-    expect(third.globalCalls).toBe(3);
-    // A different user is under their own ceiling but the app is over its total.
-    const other = await takeDailyBudget(sql, "b", limits);
-    expect(other.userCalls).toBe(1);
-    expect(other.globalCalls).toBe(4);
-    expect(other.allowed).toBe(false);
+    for (let i = 0; i < 10; i += 1) {
+      expect(await takeDailyBudget(sql, "a", limits)).toEqual({
+        allowed: false,
+        userCalls: 2,
+        globalCalls: 2,
+      });
+    }
+    expect(await takeDailyBudget(sql, "b", limits)).toEqual({
+      allowed: true,
+      userCalls: 1,
+      globalCalls: 3,
+    });
+    expect(await takeDailyBudget(sql, "b", limits)).toEqual({
+      allowed: false,
+      userCalls: 1,
+      globalCalls: 3,
+    });
+    const rejected = await sql<{ attempts: string | number }>`
+      select attempts from llm_daily_rejections where scope = 'user:a'
+    `;
+    expect(Number(rejected[0].attempts)).toBe(10);
   });
 
-  it("purges rows older than the retention window and keeps today's", async () => {
+  it("never admits more than either limit under concurrent requests", async () => {
+    const outcomes = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        takeDailyBudget(sql, `user-${i % 3}`, { perUser: 2, global: 5 }),
+      ),
+    );
+    expect(outcomes.filter((r) => r.allowed)).toHaveLength(5);
+    expect(outcomes.every((r) => r.userCalls <= 2 && r.globalCalls <= 5)).toBe(true);
+  });
+
+  it("does not let earlier-day usage consume today's budget", async () => {
     await pg.exec(
-      "insert into llm_daily_usage (scope, day, calls) values ('user:old', current_date - 40, 9)",
+      "insert into llm_daily_usage (scope, day, calls) values ('global', (now() at time zone 'UTC')::date - 1, 999)",
+    );
+    expect(await takeDailyBudget(sql, "a", { perUser: 1, global: 1 })).toEqual({
+      allowed: true,
+      userCalls: 1,
+      globalCalls: 1,
+    });
+  });
+
+  it("purges old usage and rejection rows without removing today's", async () => {
+    await pg.exec(
+      "insert into llm_daily_usage (scope, day, calls) values ('user:old', current_date - 40, 9); insert into llm_daily_rejections (scope, day, attempts) values ('user:old', current_date - 40, 9);",
     );
     await takeDailyBudget(sql, "today");
     await purgeOldDailyUsage(sql);
     const rows = await sql<{ scope: string }>`select scope from llm_daily_usage order by scope`;
     expect(rows.map((r) => r.scope)).toEqual(["global", "user:today"]);
+    expect(await sql`select * from llm_daily_rejections`).toEqual([]);
   });
 });
 
 describe("withinDailyBudget", () => {
   const noPurge = async () => false;
-
-  it("allows calls under the ceilings and refuses past them", async () => {
+  it("allows under the ceilings and refuses over them", async () => {
     const limits = { perUser: 1, global: 10 };
     expect(await withinDailyBudget(async () => sql, "a", limits, noPurge)).toBe(true);
     const quiet = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect(await withinDailyBudget(async () => sql, "a", limits, noPurge)).toBe(false);
     quiet.mockRestore();
   });
-
-  it("refuses the call when the usage table cannot be written", async () => {
-    // Regression: a database error used to log and allow the call.
+  it("fails closed on a query failure", async () => {
     const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const broken = (async () => {
       throw new Error("connection terminated");
     }) as unknown as Sql;
-    broken.query = async () => {
-      throw new Error("connection terminated");
-    };
     expect(await withinDailyBudget(async () => broken, "a", undefined, noPurge)).toBe(false);
     quiet.mockRestore();
   });
-
-  it("refuses the call when the database cannot be reached at all", async () => {
+  it("fails closed when no connection can be obtained", async () => {
     const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const unreachable = async (): Promise<Sql> => {
-      throw new Error("getaddrinfo ENOTFOUND");
-    };
-    expect(await withinDailyBudget(unreachable, "a", undefined, noPurge)).toBe(false);
+    expect(
+      await withinDailyBudget(async () => {
+        throw new Error("getaddrinfo ENOTFOUND");
+      }, "a"),
+    ).toBe(false);
     quiet.mockRestore();
   });
-
-  it("purges old rows on the way through", async () => {
+  it("purges through the normal admission path", async () => {
     await pg.exec(
       "insert into llm_daily_usage (scope, day, calls) values ('user:old', current_date - 40, 9)",
     );
-    const purge = createDailyUsagePurger();
-    expect(await withinDailyBudget(async () => sql, "a", undefined, purge)).toBe(true);
+    expect(await withinDailyBudget(async () => sql, "a", undefined, createDailyUsagePurger())).toBe(true);
     const rows = await sql<{ scope: string }>`select scope from llm_daily_usage order by scope`;
     expect(rows.map((r) => r.scope)).toEqual(["global", "user:a"]);
   });
 });
 
 describe("createDailyUsagePurger", () => {
-  it("purges at most once per interval and retries after a failure", async () => {
+  it("runs once per interval and retries failed housekeeping", async () => {
     const purge = createDailyUsagePurger(1_000);
     expect(await purge(sql, 10_000)).toBe(true);
     expect(await purge(sql, 10_500)).toBe(false);
     expect(await purge(sql, 11_000)).toBe(true);
-
     const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const broken = (async () => {
       throw new Error("down");
