@@ -28,6 +28,9 @@ import {
 } from "./controls/dual-release";
 import { INDUSTRIES, type IndustryId } from "./industry";
 import { isBusinessId } from "./profile-input";
+import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
+import { normalizeReviewRecords, type ReviewRecord } from "./firm/reviews";
+import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm/reconcile";
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 
 function isIndustryId(value: unknown): value is IndustryId {
@@ -228,6 +231,12 @@ export interface PracticeProfile {
   mapVersions?: MapVersion[];
   /** Stable id of this business within the user's portfolio. */
   businessId?: string;
+  /** Pilot stamps: when the owner's team was started, when the map was complete, when the report was sent. */
+  engagement?: EngagementStamp;
+  /** Monthly close results. A later result is appended; earlier ones stay. */
+  monthlyReviews?: ReviewRecord[];
+  /** Read-only user and vendor export compared with the duty map. */
+  accessReconciliation?: AccessReconciliation;
   updatedAt: string;
 }
 
@@ -552,6 +561,9 @@ export function normalizeProfile(
     mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
     mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
     businessId: isBusinessId(parsed.businessId) ? parsed.businessId : base.businessId,
+    engagement: normalizeEngagement(parsed.engagement),
+    monthlyReviews: normalizeReviewRecords(parsed.monthlyReviews),
+    accessReconciliation: normalizeAccessReconciliation(parsed.accessReconciliation),
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
   };
 }

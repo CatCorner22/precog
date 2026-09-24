@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp } from "./iso-time";
+import { deleteClientAudit } from "./firm/store";
 
 /**
  * Revision-checked write of one business row.
@@ -279,6 +280,7 @@ export async function deleteBusinessRow(
   userId: string,
   businessId: string,
 ): Promise<void> {
+  await deleteClientAudit(sql, userId, businessId);
   await sql`delete from businesses where user_id = ${userId} and id = ${businessId}`;
   await sql`
     delete from business_profiles

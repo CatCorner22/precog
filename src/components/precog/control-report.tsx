@@ -1,7 +1,9 @@
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { usePractice } from "@/lib/precog/practice-context";
+import { getFirm } from "@/lib/precog/firm/server";
+import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
@@ -97,7 +99,19 @@ function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
 
 /** Print-friendly control priorities report — File → Print → Save as PDF. */
 export function ControlReport() {
-  const { profile, mapCustomized } = usePractice();
+  const { profile, mapCustomized, replaceProfile } = usePractice();
+  const [firmName, setFirmName] = useState<string | null>(null);
+  useEffect(() => {
+    let cancel = false;
+    void getFirm()
+      .then((res) => {
+        if (!cancel) setFirmName(res.firm?.name ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, []);
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
   const generated = new Date();
@@ -278,9 +292,26 @@ export function ControlReport() {
           >
             <ArrowLeft className="size-4" /> Back to dashboard
           </Link>
-          <Button size="sm" onClick={() => window.print()}>
-            <Printer className="size-3.5" /> Print / Save as PDF
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                replaceProfile({
+                  ...profile,
+                  engagement: {
+                    ...profile.engagement,
+                    reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
+                  },
+                });
+              }}
+            >
+              {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
+            </Button>
+            <Button size="sm" onClick={() => window.print()}>
+              <Printer className="size-3.5" /> Print / Save as PDF
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -290,6 +321,7 @@ export function ControlReport() {
             Internal control priorities{sample ? " · sample business" : ""}
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
+          {firmName && <p className="mt-1 text-sm text-neutral-700">Prepared by {firmName}</p>}
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
             {mapFrom === "starter"
@@ -324,6 +356,31 @@ export function ControlReport() {
             </p>
           </section>
         )}
+
+        <section className="mt-6">
+          <h2 className="text-lg font-semibold">Monthly review</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Results the owner recorded for {today.slice(0, 7)}. Earlier results stay in the business
+            record and, when signed in, in the account log.
+          </p>
+          <ul className="mt-2 space-y-1 text-sm">
+            {REVIEW_ITEMS.map((item) => {
+              const latest = latestReview(
+                profile.monthlyReviews ?? [],
+                item.key,
+                today.slice(0, 7),
+              );
+              return (
+                <li key={item.key}>
+                  {item.title}:{" "}
+                  {latest
+                    ? `${latest.result}${latest.ownerName ? ` — ${latest.ownerName}` : ""}`
+                    : "not recorded"}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Kpi

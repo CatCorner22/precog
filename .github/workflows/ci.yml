@@ -78,7 +78,7 @@ jobs:
           node -e '
             const pg = require("pg");
             const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-            const need = ["user","session","business_profiles","businesses","assessment_snapshots","map_shares","map_share_attempts","llm_daily_usage","_migrations"];
+            const need = ["user","session","business_profiles","businesses","assessment_snapshots","map_shares","map_share_attempts","llm_daily_usage","firms","engagement_marks","review_events","_migrations"];
             pool.query("select table_name from information_schema.tables where table_schema = $1", ["public"]).then(({ rows }) => {
               const have = new Set(rows.map((r) => r.table_name));
               const missing = need.filter((t) => !have.has(t));

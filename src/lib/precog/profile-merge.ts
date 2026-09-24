@@ -6,6 +6,9 @@ import {
   normalizeLeaverAccessChecks,
   type PracticeProfile,
 } from "./practice-profile";
+import { normalizeEngagement } from "./firm/engagement";
+import { normalizeReviewRecords } from "./firm/reviews";
+import { normalizeAccessReconciliation } from "./firm/reconcile";
 
 /**
  * A stored profile row as the server hands it back: the industry's defaults
@@ -50,5 +53,8 @@ export function mergeProfile(
       ? row.profile.mapHealthHistory
       : [],
     mapVersions: Array.isArray(row.profile.mapVersions) ? row.profile.mapVersions : [],
+    engagement: normalizeEngagement(row.profile.engagement),
+    monthlyReviews: normalizeReviewRecords(row.profile.monthlyReviews),
+    accessReconciliation: normalizeAccessReconciliation(row.profile.accessReconciliation),
   };
 }

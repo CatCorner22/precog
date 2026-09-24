@@ -36,6 +36,24 @@ export interface AccountExport {
     redacted: boolean;
     payload: unknown;
   }>;
+  firm: { name: string; plan: string; updatedAt: string } | null;
+  engagements: Array<{
+    businessId: string;
+    startedAt: string | null;
+    mapCompletedAt: string | null;
+    reportSentAt: string | null;
+    openFindings: number;
+    acceptedFindings: number;
+  }>;
+  reviews: Array<{
+    businessId: string;
+    period: string;
+    itemKey: string;
+    ownerName: string;
+    result: string;
+    notes: string;
+    recordedAt: string;
+  }>;
 }
 
 export async function exportAccountRows(sql: Sql, userId: string): Promise<AccountExport> {
@@ -79,7 +97,34 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
     select token, business_name, created_at, expires_at, revoked_at, redacted, payload
     from map_shares where user_id = ${userId} order by created_at desc
   `;
+  const firmRows = await sql<{ name: string; plan: string; updated_at: string }>`
+    select name, plan, updated_at from firms where user_id = ${userId}
+  `;
+  const engagements = await sql<{
+    business_id: string;
+    started_at: string | null;
+    map_completed_at: string | null;
+    report_sent_at: string | null;
+    open_findings: number | string;
+    accepted_findings: number | string;
+  }>`
+    select business_id, started_at, map_completed_at, report_sent_at, open_findings, accepted_findings
+    from engagement_marks where user_id = ${userId}
+  `;
+  const reviews = await sql<{
+    business_id: string;
+    period: string;
+    item_key: string;
+    owner_name: string;
+    result: string;
+    notes: string;
+    recorded_at: string;
+  }>`
+    select business_id, period, item_key, owner_name, result, notes, recorded_at
+    from review_events where user_id = ${userId} order by recorded_at desc
+  `;
   const u = users[0];
+  const firm = firmRows[0];
   return {
     exportedAt: new Date().toISOString(),
     user: u
@@ -111,6 +156,26 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       revokedAt: toIsoTimestampOrNull(s.revoked_at),
       redacted: Boolean(s.redacted),
       payload: s.payload,
+    })),
+    firm: firm
+      ? { name: firm.name, plan: firm.plan, updatedAt: toIsoTimestamp(firm.updated_at) }
+      : null,
+    engagements: engagements.map((e) => ({
+      businessId: e.business_id,
+      startedAt: toIsoTimestampOrNull(e.started_at),
+      mapCompletedAt: toIsoTimestampOrNull(e.map_completed_at),
+      reportSentAt: toIsoTimestampOrNull(e.report_sent_at),
+      openFindings: Number(e.open_findings),
+      acceptedFindings: Number(e.accepted_findings),
+    })),
+    reviews: reviews.map((r) => ({
+      businessId: r.business_id,
+      period: r.period,
+      itemKey: r.item_key,
+      ownerName: r.owner_name,
+      result: r.result,
+      notes: r.notes,
+      recordedAt: toIsoTimestamp(r.recorded_at),
     })),
   };
 }
