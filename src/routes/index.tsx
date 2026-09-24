@@ -530,6 +530,12 @@ function Home() {
                 <div className="h-8 w-8 animate-pulse rounded-full bg-elevated" />
               ) : (
                 <>
+                  <Link
+                    to="/firm"
+                    className="hidden h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium hover:border-border-strong sm:inline-flex"
+                  >
+                    Firm
+                  </Link>
                   <SignedOut>
                     <Link
                       to="/login"

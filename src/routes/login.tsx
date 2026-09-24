@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
+import { LegalFooter } from "@/components/precog/legal-footer";
 
 export const Route = createFileRoute("/login")({
   component: Login,
@@ -38,6 +39,7 @@ function Login() {
         >
           Continue as guest demo
         </Link>
+        <LegalFooter className="mt-4 justify-center" />
       </div>
     </main>
   );

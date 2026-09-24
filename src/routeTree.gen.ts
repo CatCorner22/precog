@@ -10,8 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -22,14 +25,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FirmRoute = FirmRouteImport.update({
+  id: '/firm',
+  path: '/firm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThreatRoute = ThreatRouteImport.update({
@@ -55,8 +73,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
+  '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
@@ -64,8 +85,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
+  '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
@@ -74,8 +98,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
+  '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
@@ -85,8 +112,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/firm'
     | '/login'
+    | '/privacy'
     | '/report'
+    | '/terms'
     | '/threat'
     | '/api/health'
     | '/share/$token'
@@ -94,8 +124,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/firm'
     | '/login'
+    | '/privacy'
     | '/report'
+    | '/terms'
     | '/threat'
     | '/api/health'
     | '/share/$token'
@@ -103,8 +136,11 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/firm'
     | '/login'
+    | '/privacy'
     | '/report'
+    | '/terms'
     | '/threat'
     | '/api/health'
     | '/share/$token'
@@ -113,8 +149,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FirmRoute: typeof FirmRoute
   LoginRoute: typeof LoginRoute
+  PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
+  TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ShareTokenRoute: typeof ShareTokenRoute
@@ -130,6 +169,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/firm': {
+      id: '/firm'
+      path: '/firm'
+      fullPath: '/firm'
+      preLoaderRoute: typeof FirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -137,11 +183,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/report': {
       id: '/report'
       path: '/report'
       fullPath: '/report'
       preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/threat': {
@@ -177,8 +237,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FirmRoute: FirmRoute,
   LoginRoute: LoginRoute,
+  PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,
+  TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ShareTokenRoute: ShareTokenRoute,

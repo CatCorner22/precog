@@ -121,7 +121,7 @@ try {
     }
   }
 
-  for (const path of ["/login", "/share/not-a-real-token"]) {
+  for (const path of ["/login", "/privacy", "/terms", "/firm", "/share/not-a-real-token"]) {
     await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle", timeout });
     await drain(path);
   }

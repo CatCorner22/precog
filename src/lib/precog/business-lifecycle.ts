@@ -54,10 +54,13 @@ export function ownSetupProfile(input: {
   practiceName: string;
   people: Person[];
 }): PracticeProfile {
-  return ownBusinessProfile(
-    { ...defaultProfile(input.industry), decisions: [] },
-    { practiceName: input.practiceName, people: input.people },
-  );
+  return {
+    ...ownBusinessProfile(
+      { ...defaultProfile(input.industry), decisions: [] },
+      { practiceName: input.practiceName, people: input.people },
+    ),
+    engagement: { startedAt: new Date().toISOString() },
+  };
 }
 
 /** Setup finished by loading the sample: also a business of its own. */
