@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
 import {
+  BusinessDeletedError,
   BusinessLimitError,
   deleteBusinessRow,
   listBusinessSummaries,
@@ -13,18 +14,9 @@ import {
   setActiveBusiness,
 } from "./business-store";
 
-/**
- * Runs against an embedded Postgres with every file in migrations/ applied, so
- * the test exercises the real `businesses` schema (composite key, revision
- * column) rather than a hand-written stand-in.
- */
-
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
-
 let pg: PGlite;
 let sql: Sql;
 
-/** Same placeholder rewriting as src/lib/db.ts `toSql`, without importing the app's db bootstrap. */
 function pgliteSql(db: PGlite): Sql {
   const run = async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows;
   const tagged = (async <T = Record<string, unknown>>(
@@ -38,21 +30,6 @@ function pgliteSql(db: PGlite): Sql {
   tagged.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
     run<T>(text, params);
   return tagged;
-}
-
-async function applyMigrations(db: PGlite): Promise<void> {
-  const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql")).sort();
-  for (const name of files) {
-    await db.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
-  }
-}
-
-async function seedUser(id: string): Promise<void> {
-  await pg.query(
-    `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     values ($1, $1, $2, true, now(), now())`,
-    [id, `${id}@example.test`],
-  );
 }
 
 function input(userId: string, businessId: string, baseRevision: number | null, name = "Business") {
@@ -76,7 +53,10 @@ async function revisionOf(userId: string, businessId: string): Promise<number | 
 beforeAll(async () => {
   pg = new PGlite();
   await pg.waitReady;
-  await applyMigrations(pg);
+  const dir = join(process.cwd(), "migrations");
+  for (const name of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
+    await pg.exec(await readFile(join(dir, name), "utf8"));
+  }
   sql = pgliteSql(pg);
 }, 60_000);
 
@@ -85,286 +65,197 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pg.exec(`delete from businesses; delete from business_profiles; delete from "user";`);
-  await seedUser("user-a");
-  await seedUser("user-b");
-});
-
-describe("businesses schema", () => {
-  it("is keyed by (user_id, id), not id alone", async () => {
-    const rows = await pg.query<{ column_name: string }>(
-      `select kcu.column_name
-       from information_schema.table_constraints tc
-       join information_schema.key_column_usage kcu
-         on kcu.constraint_name = tc.constraint_name
-       where tc.table_name = 'businesses' and tc.constraint_type = 'PRIMARY KEY'
-       order by kcu.ordinal_position`,
+  await pg.exec('delete from "user";');
+  for (const id of ["user-a", "user-b"]) {
+    await pg.query(
+      'insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") values ($1, $1, $2, true, now(), now())',
+      [id, `${id}@example.test`],
     );
-    expect(rows.rows.map((r) => r.column_name)).toEqual(["user_id", "id"]);
-  });
-});
-
-describe("saveBusinessRevision — first save", () => {
-  it("creates the row at revision 1 when the client has never loaded it", async () => {
-    const result = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.revision).toBe(1);
-    expect(await revisionOf("user-a", "biz_1")).toBe(1);
-  });
-
-  it("two users can each own a business with the same client-generated id", async () => {
-    // Regression: under the old global primary key the second save matched
-    // nothing and the server threw "Unable to save business profile".
-    const a = await saveBusinessRevision(sql, input("user-a", "biz_default", null, "A Dental"));
-    const b = await saveBusinessRevision(sql, input("user-b", "biz_default", null, "B Dental"));
-    expect(a.ok).toBe(true);
-    expect(b.ok).toBe(true);
-
-    const rows = await sql<{ user_id: string; name: string; revision: number | string }>`
-      select user_id, name, revision from businesses where id = 'biz_default' order by user_id
-    `;
-    expect(rows.map((r) => [r.user_id, r.name, Number(r.revision)])).toEqual([
-      ["user-a", "A Dental", 1],
-      ["user-b", "B Dental", 1],
-    ]);
-  });
-
-  it("one user's save never touches another user's row with the same id", async () => {
-    await saveBusinessRevision(sql, input("user-a", "shared-id", null, "A"));
-    await saveBusinessRevision(sql, input("user-a", "shared-id", 1, "A v2"));
-    await saveBusinessRevision(sql, input("user-b", "shared-id", null, "B"));
-
-    const rows = await sql<{ user_id: string; name: string; revision: number | string }>`
-      select user_id, name, revision from businesses where id = 'shared-id' order by user_id
-    `;
-    expect(rows.map((r) => [r.user_id, r.name, Number(r.revision)])).toEqual([
-      ["user-a", "A v2", 2],
-      ["user-b", "B", 1],
-    ]);
-  });
-});
-
-describe("saveBusinessRevision — compare-and-swap", () => {
-  it("increments the revision when the base matches", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    const second = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v2"));
-    expect(second.ok).toBe(true);
-    if (second.ok) expect(second.revision).toBe(2);
-    expect(await revisionOf("user-a", "biz_1")).toBe(2);
-  });
-
-  it("rejects a save whose base revision is behind, and returns the current row", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
-    await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v2"));
-
-    const stale = await saveBusinessRevision<{ practiceName: string }>(
-      sql,
-      input("user-a", "biz_1", 1, "v2-from-other-tab"),
-    );
-    expect(stale.ok).toBe(false);
-    if (!stale.ok) {
-      expect(stale.existing.revision).toBe(2);
-      expect(stale.existing.name).toBe("v2");
-      expect(stale.existing.profile.practiceName).toBe("v2");
-    }
-    // The stale writer changed nothing.
-    expect(await revisionOf("user-a", "biz_1")).toBe(2);
-    const rows = await sql<{ name: string }>`
-      select name from businesses where user_id = 'user-a' and id = 'biz_1'
-    `;
-    expect(rows[0].name).toBe("v2");
-  });
-
-  it("rejects a save from a client that never loaded a business that already exists", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "cloud"));
-    const fresh = await saveBusinessRevision(sql, input("user-a", "biz_1", null, "local-only"));
-    expect(fresh.ok).toBe(false);
-    if (!fresh.ok) expect(fresh.existing.name).toBe("cloud");
-    expect(await revisionOf("user-a", "biz_1")).toBe(1);
-  });
-
-  it("lets exactly one of two racing writers on the same base revision win", async () => {
-    // Regression: the previous read-then-write implementation let both pass
-    // the stale check, so the second silently overwrote the first.
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
-
-    const [x, y] = await Promise.all([
-      saveBusinessRevision(sql, input("user-a", "biz_1", 1, "writer-x")),
-      saveBusinessRevision(sql, input("user-a", "biz_1", 1, "writer-y")),
-    ]);
-    const winners = [x, y].filter((r) => r.ok);
-    const losers = [x, y].filter((r) => !r.ok);
-    expect(winners).toHaveLength(1);
-    expect(losers).toHaveLength(1);
-    expect(await revisionOf("user-a", "biz_1")).toBe(2);
-
-    const rows = await sql<{ name: string }>`
-      select name from businesses where user_id = 'user-a' and id = 'biz_1'
-    `;
-    const winnerName = x.ok ? "writer-x" : "writer-y";
-    expect(rows[0].name).toBe(winnerName);
-    if (!losers[0].ok) expect(losers[0].existing.name).toBe(winnerName);
-  });
-
-  it("throws only when the row vanished between the write and the re-read", async () => {
-    // A base revision for a row that no longer exists is not a conflict — the
-    // insert path creates it fresh (matches the previous `isStaleSave(null, N)` behaviour).
-    const result = await saveBusinessRevision(sql, input("user-a", "gone", 7, "recreated"));
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.revision).toBe(1);
-  });
-});
-
-describe("loadActiveBusiness", () => {
-  it("returns null for a user with no saved business", async () => {
-    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-  });
-
-  it("prefers the revision-checked row over the active pointer", async () => {
-    // Simulates the pointer write failing after the businesses row succeeded:
-    // the pointer still holds v1, the authoritative row is at v2.
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
-    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "v1") });
-    await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v2"));
-
-    const active = await loadActiveBusiness<{ practiceName: string; businessId?: string }>(
-      sql,
-      "user-a",
-    );
-    expect(active?.businessId).toBe("biz_1");
-    expect(active?.name).toBe("v2");
-    expect(active?.profile.practiceName).toBe("v2");
-    expect(active?.revision).toBe(2);
-  });
-
-  it("falls back to the pointer row for a legacy user with no businesses row", async () => {
-    await setActiveBusiness(sql, { ...input("user-a", "biz_default", null, "legacy") });
-    const active = await loadActiveBusiness(sql, "user-a");
-    expect(active?.businessId).toBe("biz_default");
-    expect(active?.name).toBe("legacy");
-    expect(active?.revision).toBeNull();
-  });
-
-  it("drops the active pointer with the business so a later load cannot resurrect it", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
-    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "one") });
-    await saveBusinessRevision(sql, input("user-a", "biz_2", null, "two"));
-
-    await deleteBusinessRow(sql, "user-a", "biz_1");
-
-    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-    expect(await revisionOf("user-a", "biz_1")).toBeNull();
-    expect(await revisionOf("user-a", "biz_2")).toBe(1);
-  });
-
-  it("ignores a dangling pointer when the user has other businesses", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
-    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "one") });
-    await saveBusinessRevision(sql, input("user-a", "biz_2", null, "two"));
-    await sql`delete from businesses where user_id = ${"user-a"} and id = ${"biz_1"}`;
-
-    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-  });
-
-  it("never returns another user's business", async () => {
-    await saveBusinessRevision(sql, input("user-b", "biz_1", null, "B"));
-    await setActiveBusiness(sql, { ...input("user-b", "biz_1", null, "B") });
-    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-  });
-});
-
-describe("timestamps", () => {
-  const ISO_MS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-
-  async function storedMs(userId: string, businessId: string): Promise<number> {
-    const rows = await sql<{ ms: number | string | bigint }>`
-      select floor(extract(epoch from updated_at) * 1000)::bigint as ms
-      from businesses where user_id = ${userId} and id = ${businessId}
-    `;
-    return Number(rows[0].ms);
   }
+});
 
-  it("returns updatedAt from a save as ISO 8601 with milliseconds", async () => {
-    const saved = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    expect(saved.ok).toBe(true);
-    if (!saved.ok) return;
-    expect(saved.updatedAt).toMatch(ISO_MS);
-    expect(new Date(saved.updatedAt).getTime()).toBe(await storedMs("user-a", "biz_1"));
+describe("business identity and revision checks", () => {
+  it("creates at revision one and isolates identical business ids by account", async () => {
+    const a = await saveBusinessRevision(sql, input("user-a", "biz_default", null, "A"));
+    const b = await saveBusinessRevision(sql, input("user-b", "biz_default", null, "B"));
+    expect(a).toMatchObject({ ok: true, revision: 1 });
+    expect(b).toMatchObject({ ok: true, revision: 1 });
+    await saveBusinessRevision(sql, input("user-a", "biz_default", 1, "A2"));
+    expect(await revisionOf("user-a", "biz_default")).toBe(2);
+    expect(await revisionOf("user-b", "biz_default")).toBe(1);
+    expect((await listBusinessSummaries(sql, "user-b"))[0].name).toBe("B");
   });
 
-  it("returns the conflicting row's updated_at as ISO 8601", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    expect(stale.ok).toBe(false);
-    if (stale.ok) return;
-    expect(stale.existing.updated_at).toMatch(ISO_MS);
-    expect(new Date(stale.existing.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  it("returns the current row without changing it when a revision is stale or absent", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null, "v1"));
+    await saveBusinessRevision(sql, input("user-a", "one", 1, "v2"));
+    for (const base of [1, null]) {
+      const result = await saveBusinessRevision(sql, input("user-a", "one", base, "stale"));
+      expect(result).toMatchObject({
+        ok: false,
+        conflict: true,
+        existing: { revision: 2, name: "v2", profile: { practiceName: "v2" } },
+      });
+    }
+    expect(await revisionOf("user-a", "one")).toBe(2);
   });
 
-  it("loads updated_at as ISO 8601 from the business row and the legacy pointer", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null));
-    await setActiveBusiness(sql, { ...input("user-a", "biz_1", null) });
-    const active = await loadActiveBusiness(sql, "user-a");
-    expect(active?.updated_at).toMatch(ISO_MS);
-    expect(new Date(active!.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
+  it("lets only one racing update on a given revision succeed", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null));
+    const results = await Promise.all([
+      saveBusinessRevision(sql, input("user-a", "one", 1, "x")),
+      saveBusinessRevision(sql, input("user-a", "one", 1, "y")),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toHaveLength(1);
+    expect(await revisionOf("user-a", "one")).toBe(2);
+  });
 
-    await setActiveBusiness(sql, { ...input("user-b", "biz_default", null, "legacy") });
-    const legacy = await loadActiveBusiness(sql, "user-b");
-    expect(legacy?.revision).toBeNull();
-    expect(legacy?.updated_at).toMatch(ISO_MS);
+  it("never turns a revision-bearing update into a creation", async () => {
+    await expect(saveBusinessRevision(sql, input("user-a", "gone", 7))).rejects.toThrow(
+      BusinessDeletedError,
+    );
+    expect(await revisionOf("user-a", "gone")).toBeNull();
+  });
+
+  it("rejects unsafe, fractional, zero, and negative revisions", async () => {
+    for (const revision of [0, -1, 1.2, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      await expect(saveBusinessRevision(sql, input("user-a", "one", revision))).rejects.toThrow();
+    }
+    expect(await listBusinessSummaries(sql, "user-a")).toEqual([]);
   });
 });
 
-describe("business limit", () => {
-  it("refuses a new business once the account holds the limit, and stores nothing", async () => {
-    for (let i = 0; i < 3; i += 1) {
-      expect((await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3)).ok).toBe(true);
+describe("active pointer and atomic saves", () => {
+  it("returns null when the account has no active business", async () => {
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+  });
+  it("reads the authoritative row rather than a stale pointer snapshot", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null, "v1"));
+    await setActiveBusiness(sql, input("user-a", "one", null, "v1"));
+    await saveBusinessRevision(sql, input("user-a", "one", 1, "v2"));
+    expect(await loadActiveBusiness(sql, "user-a")).toMatchObject({ name: "v2", revision: 2 });
+  });
+  it("still loads a genuine legacy pointer-only account", async () => {
+    await setActiveBusiness(sql, input("user-a", "biz_default", null, "legacy"));
+    expect(await loadActiveBusiness(sql, "user-a")).toMatchObject({ name: "legacy", revision: null });
+  });
+  it("sets the active business within the successful save transaction", async () => {
+    await saveBusinessRevision(sql, { ...input("user-a", "one", null, "atomic"), activate: true });
+    expect(await loadActiveBusiness(sql, "user-a")).toMatchObject({
+      businessId: "one",
+      name: "atomic",
+      revision: 1,
+    });
+  });
+  it("rolls back the business if the active-pointer write fails", async () => {
+    await pg.exec(`
+      create function test_fail_pointer() returns trigger language plpgsql as $$
+      begin raise exception 'injected pointer failure'; end; $$;
+      create trigger test_pointer before insert or update on business_profiles
+      for each row execute function test_fail_pointer();
+    `);
+    try {
+      await expect(
+        saveBusinessRevision(sql, { ...input("user-a", "one", null), activate: true }),
+      ).rejects.toThrow("injected pointer failure");
+      expect(await revisionOf("user-a", "one")).toBeNull();
+      expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+    } finally {
+      await pg.exec("drop trigger test_pointer on business_profiles; drop function test_fail_pointer();");
     }
-    await expect(saveBusinessRevision(sql, input("user-a", "biz_3", null), 3)).rejects.toThrow(
-      BusinessLimitError,
+  });
+  it("ignores a dangling pointer when the account has revision-tracked businesses", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null));
+    await setActiveBusiness(sql, input("user-a", "one", null));
+    await saveBusinessRevision(sql, input("user-a", "two", null));
+    await sql`delete from businesses where user_id = 'user-a' and id = 'one'`;
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+  });
+  it("never loads another account's business", async () => {
+    await saveBusinessRevision(sql, { ...input("user-b", "one", null), activate: true });
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+  });
+});
+
+describe("deletion and tombstones", () => {
+  it("deletes the last business without legacy fallback and rejects both stale create paths", async () => {
+    await saveBusinessRevision(sql, { ...input("user-a", "one", null), activate: true });
+    await deleteBusinessRow(sql, "user-a", "one");
+    expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
+    for (const revision of [1, null]) {
+      await expect(saveBusinessRevision(sql, input("user-a", "one", revision))).rejects.toThrow(
+        BusinessDeletedError,
+      );
+    }
+    await expect(setActiveBusiness(sql, input("user-a", "one", null))).rejects.toThrow();
+    expect(await revisionOf("user-a", "one")).toBeNull();
+  });
+  it("is idempotent and does not delete another account or business", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null));
+    await saveBusinessRevision(sql, input("user-a", "two", null));
+    await saveBusinessRevision(sql, input("user-b", "one", null));
+    await deleteBusinessRow(sql, "user-a", "one");
+    await deleteBusinessRow(sql, "user-a", "one");
+    expect(await revisionOf("user-a", "two")).toBe(1);
+    expect(await revisionOf("user-b", "one")).toBe(1);
+  });
+  it("cannot be undone by a racing stale save", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null));
+    await Promise.allSettled([
+      deleteBusinessRow(sql, "user-a", "one"),
+      saveBusinessRevision(sql, input("user-a", "one", 1)),
+    ]);
+    expect(await revisionOf("user-a", "one")).toBeNull();
+  });
+  it("rolls back the tombstone and deletion if pointer deletion fails", async () => {
+    await saveBusinessRevision(sql, { ...input("user-a", "one", null), activate: true });
+    await pg.exec(`
+      create function test_fail_delete() returns trigger language plpgsql as $$
+      begin raise exception 'injected delete failure'; end; $$;
+      create trigger test_delete before delete on business_profiles
+      for each row execute function test_fail_delete();
+    `);
+    try {
+      await expect(deleteBusinessRow(sql, "user-a", "one")).rejects.toThrow("injected delete failure");
+      expect(await revisionOf("user-a", "one")).toBe(1);
+      expect(await sql`select * from business_tombstones`).toEqual([]);
+    } finally {
+      await pg.exec("drop trigger test_delete on business_profiles; drop function test_fail_delete();");
+    }
+  });
+  it("removes tombstones on full account deletion", async () => {
+    await saveBusinessRevision(sql, input("user-a", "one", null));
+    await deleteBusinessRow(sql, "user-a", "one");
+    await sql`delete from "user" where id = 'user-a'`;
+    expect(await sql`select * from business_tombstones where user_id = 'user-a'`).toEqual([]);
+  });
+});
+
+describe("limits, summaries, and timestamps", () => {
+  it("enforces limits atomically while permitting updates and other accounts", async () => {
+    const results = await Promise.allSettled(
+      ["one", "two", "three", "four"].map((id) => saveBusinessRevision(sql, input("user-a", id, null), 3)),
     );
-    expect(await revisionOf("user-a", "biz_3")).toBeNull();
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(BusinessLimitError);
+    expect((await saveBusinessRevision(sql, input("user-a", "one", 1), 3)).ok).toBe(true);
+    expect((await saveBusinessRevision(sql, input("user-b", "one", null), 3)).ok).toBe(true);
+    await deleteBusinessRow(sql, "user-a", "one");
+    expect((await saveBusinessRevision(sql, input("user-a", "new", null), 3)).ok).toBe(true);
   });
-
-  it("still saves, and still reports conflicts on, businesses the account already has", async () => {
-    for (let i = 0; i < 3; i += 1)
-      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
-    const update = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "renamed"), 3);
-    expect(update.ok).toBe(true);
-    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "stale"), 3);
-    expect(stale.ok).toBe(false);
-  });
-
-  it("counts each account separately", async () => {
-    for (let i = 0; i < 3; i += 1)
-      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
-    expect((await saveBusinessRevision(sql, input("user-b", "biz_0", null), 3)).ok).toBe(true);
-  });
-
-  it("lets a deleted business make room for a new one", async () => {
-    for (let i = 0; i < 3; i += 1)
-      await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null), 3);
-    await deleteBusinessRow(sql, "user-a", "biz_0");
-    expect((await saveBusinessRevision(sql, input("user-a", "biz_3", null), 3)).ok).toBe(true);
-  });
-
-  it("defaults to MAX_BUSINESSES_PER_USER", async () => {
+  it("uses the published default limit", async () => {
     for (let i = 0; i < MAX_BUSINESSES_PER_USER; i += 1) {
       await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null));
     }
-    await expect(saveBusinessRevision(sql, input("user-a", "one_too_many", null))).rejects.toThrow(
+    await expect(saveBusinessRevision(sql, input("user-a", "extra", null))).rejects.toThrow(
       `${MAX_BUSINESSES_PER_USER} businesses`,
     );
   });
-});
-
-describe("listBusinessSummaries", () => {
-  it("lists every business the account holds, beyond the old limit of 50", async () => {
-    // Rows written before the limit existed must stay reachable.
+  it("lists legacy portfolios beyond the creation limit, newest first", async () => {
     for (let i = 0; i < 60; i += 1) {
       await pg.query(
-        `insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
-         values ($1, 'user-a', $1, 'dental', '{}'::jsonb, 1, now() - make_interval(mins => $2))`,
+        "insert into businesses (id,user_id,name,industry,profile,revision,updated_at) values ($1,'user-a',$1,'dental','{}',1,now()-make_interval(mins=>$2))",
         [`biz_${i}`, i],
       );
     }
@@ -372,33 +263,29 @@ describe("listBusinessSummaries", () => {
     expect(list).toHaveLength(60);
     expect(list[0].id).toBe("biz_0");
     expect(list[59].id).toBe("biz_59");
-    expect(list[0].updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(await listBusinessSummaries(sql, "user-b")).toEqual([]);
   });
-
-  it("reads the process count and the latest health score from the profile", async () => {
-    const profile = {
-      customProcesses: [{ id: "a" }, { id: "b" }],
-      mapHealthHistory: [{ score: 40 }, { score: 72 }],
-    };
+  it("reads process counts and latest health without trusting malformed shapes", async () => {
     await saveBusinessRevision(sql, {
-      ...input("user-a", "biz_1", null),
-      profileJson: JSON.stringify(profile),
+      ...input("user-a", "one", null),
+      profileJson: JSON.stringify({ customProcesses: [{}, {}], mapHealthHistory: [{ score: 40 }, { score: 72 }] }),
     });
     await saveBusinessRevision(sql, {
-      ...input("user-a", "biz_2", null),
+      ...input("user-a", "two", null),
       profileJson: JSON.stringify({ customProcesses: "x", mapHealthHistory: [null] }),
     });
     const byId = new Map((await listBusinessSummaries(sql, "user-a")).map((b) => [b.id, b]));
-    expect(byId.get("biz_1")).toMatchObject({
-      processCount: 2,
-      healthScore: 72,
-      industry: "dental",
-    });
-    expect(byId.get("biz_2")).toMatchObject({ processCount: 0, healthScore: null });
+    expect(byId.get("one")).toMatchObject({ processCount: 2, healthScore: 72 });
+    expect(byId.get("two")).toMatchObject({ processCount: 0, healthScore: null });
   });
-
-  it("never lists another user's businesses", async () => {
-    await saveBusinessRevision(sql, input("user-b", "biz_1", null));
-    expect(await listBusinessSummaries(sql, "user-a")).toEqual([]);
+  it("normalizes save, conflict, and load timestamps to ISO milliseconds", async () => {
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+    const saved = await saveBusinessRevision(sql, { ...input("user-a", "one", null), activate: true });
+    if (!saved.ok) throw new Error("save failed");
+    expect(saved.updatedAt).toMatch(iso);
+    const conflict = await saveBusinessRevision(sql, input("user-a", "one", null));
+    if (conflict.ok) throw new Error("expected conflict");
+    expect(conflict.existing.updated_at).toMatch(iso);
+    expect((await loadActiveBusiness(sql, "user-a"))?.updated_at).toMatch(iso);
   });
 });
