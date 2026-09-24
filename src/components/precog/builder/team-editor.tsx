@@ -17,6 +17,7 @@ import {
   jobCatalogEntry,
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
+import { industryHasOwner } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
@@ -474,7 +475,7 @@ export function TeamEditor({
                   <Trash2 className="size-3" />
                 </button>
               </div>
-              {editing && (
+              {editing && industryHasOwner(tpl.id) && (
                 <label className="mt-2 flex items-center gap-1.5 text-xs text-muted">
                   <input
                     type="checkbox"

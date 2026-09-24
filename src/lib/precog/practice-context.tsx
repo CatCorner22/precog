@@ -29,7 +29,7 @@ import {
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { INDUSTRIES, industryMeta, type IndustryId } from "./industry";
+import { INDUSTRIES, industryHasOwner, industryMeta, type IndustryId } from "./industry";
 import {
   deleteBusiness as deleteBusinessRemote,
   listBusinesses,
@@ -981,7 +981,13 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       }
       setProfile((p) => {
         const current = p.customPeople ?? getIndustryTemplate(p.industry).people;
-        const next = typeof v === "function" ? v(current) : v;
+        const given = typeof v === "function" ? v(current) : v;
+        // A nonprofit has no owner: a "President" or "CEO" in an imported
+        // roster is an employee the board oversees, never the owner.
+        const next =
+          given && !industryHasOwner(p.industry)
+            ? given.map((person) => (person.owner === false ? person : { ...person, owner: false }))
+            : given;
         // Replacing the sample's people with the owner's gives the same clean
         // slate as setup; editing the sample's people keeps the sample.
         const base = next && replacesSampleTeam(p, next) ? adoptOwnTeam(p, next) : p;
