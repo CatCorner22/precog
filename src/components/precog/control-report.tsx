@@ -2,6 +2,7 @@ import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getFirm } from "@/lib/precog/firm/server";
 import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import { useTemplate } from "@/lib/precog/use-template";
@@ -100,8 +101,10 @@ function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
 /** Print-friendly control priorities report — File → Print → Save as PDF. */
 export function ControlReport() {
   const { profile, mapCustomized, replaceProfile } = usePractice();
+  const { user, isPending } = useCurrentUserState();
   const [firmName, setFirmName] = useState<string | null>(null);
   useEffect(() => {
+    if (isPending || !user) return;
     let cancel = false;
     void getFirm()
       .then((res) => {
@@ -111,7 +114,7 @@ export function ControlReport() {
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [isPending, user]);
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
   const generated = new Date();
