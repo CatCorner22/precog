@@ -19,23 +19,34 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - run: npm ci
-
       - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm run audit:prod
-      - run: npm test
-      - run: npm run build
-      - run: npm run check:bundle
-      - run: npm run verify:evidence
-      - run: npm run verify:template
+      - if: ${{ !cancelled() }}
+        run: npm run lint
+      - if: ${{ !cancelled() }}
+        run: npm run format:check
+      - if: ${{ !cancelled() }}
+        run: npm run audit:prod
+      - if: ${{ !cancelled() }}
+        run: npm test
+      - if: ${{ !cancelled() }}
+        id: build
+        run: npm run build
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: npm run check:bundle
+      - if: ${{ !cancelled() }}
+        run: npm run verify:evidence
+      - if: ${{ !cancelled() }}
+        run: npm run verify:template
+      - name: Show formatting corrections without committing them
+        if: ${{ failure() && !cancelled() }}
+        run: |
+          npm run format > /dev/null
+          git diff --no-ext-diff -- src scripts .github package.json
 
   migrations:
     name: Migrations against real Postgres, applied twice
@@ -59,33 +70,27 @@ jobs:
       DATABASE_URL: postgresql://precog:precog@localhost:5432/precog
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - run: npm ci
-
-      - name: Apply every migration to an empty database
+      - name: Apply migrations to an empty database
         run: node scripts/migrate.mjs
-
-      - name: Apply again; the ledger must skip every file
+      - name: Reapply; the ledger must skip every file
         run: node scripts/migrate.mjs | tee second-run.log && grep -q "up to date" second-run.log
-
-      - name: The schema the app expects exists
+      - name: Required schema exists
         run: |
           node -e '
             const pg = require("pg");
             const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-            const need = ["user","session","business_profiles","businesses","assessment_snapshots","map_shares","map_share_attempts","llm_daily_usage","firms","engagement_marks","review_events","_migrations"];
+            const need = ["user","session","business_profiles","businesses","assessment_snapshots","map_shares","map_share_attempts","llm_daily_usage","firms","engagement_marks","review_events","business_tombstones","llm_daily_rejections","_migrations"];
             pool.query("select table_name from information_schema.tables where table_schema = $1", ["public"]).then(({ rows }) => {
               const have = new Set(rows.map((r) => r.table_name));
               const missing = need.filter((t) => !have.has(t));
-              if (missing.length) { console.error("missing tables:", missing); process.exit(1); }
-              console.log("all expected tables present:", need.join(", "));
+              if (missing.length) { console.error("missing tables:", missing); process.exitCode = 1; }
               return pool.end();
-            });
+            }).catch((error) => { console.error(error); process.exitCode = 1; return pool.end(); });
           '
 
   e2e:
@@ -94,15 +99,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-
       - name: Start dev server
         run: |
           npm run dev > dev.log 2>&1 &
@@ -110,20 +112,15 @@ jobs:
             curl -sSf http://127.0.0.1:8080/ > /dev/null && exit 0
             sleep 2
           done
-          echo "dev server did not start"; cat dev.log; exit 1
-
-      - name: Warm the dev server so dependency discovery finishes before the tests
-        run: node scripts/e2e-warmup.mjs http://127.0.0.1:8080/
-
+          cat dev.log; exit 1
+      - run: node scripts/e2e-warmup.mjs http://127.0.0.1:8080/
       - run: npm run e2e -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-failure.png
-
-      - name: Every tab, every industry, plus /threat, /report, /login, /share
+      - name: Every industry and tab plus standalone routes
         run: npm run e2e:tabs -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-tabs-failure.png
-
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -133,3 +130,15 @@ jobs:
             e2e-tabs-failure.png
             dev.log
           if-no-files-found: ignore
+
+  release-gate:
+    name: Required release gate
+    if: ${{ always() }}
+    needs: [checks, migrations, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mandatory jobs must succeed, not merely skip
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const jobs = JSON.parse(process.env.RESULTS); const bad = Object.entries(jobs).filter(([,j]) => j.result !== "success"); if (bad.length) { console.error(bad); process.exit(1); }'
