@@ -1,11 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
-import { runGrokAgentLoop, runLocalAgentLoop } from "../llm/agent-loop";
-import { llmMiddleware } from "../llm/middleware";
+import { runGrokAgentLoop } from "../llm/agent-loop";
+import { heavyLlmMiddleware } from "../llm/middleware";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
+import { invalidRequest } from "@/lib/request-errors";
 import { resolveClientDate } from "../continuity/coverage";
+import type { PracticeProfile } from "../practice-profile";
+import { parsePioneerInput } from "../public-inputs";
 import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
+import { localBrief } from "./local-brief";
 
 export type PioneerCoachResult = {
   ok: true;
@@ -44,20 +48,35 @@ export type PioneerCoachError = {
   error: string;
 };
 
+const PIONEER_FAILED_MESSAGE =
+  "Pioneer could not build a brief for this map. Try again in a moment.";
+
 export const runPioneerCoach = createServerFn({ method: "POST" })
-  .middleware([llmMiddleware])
+  .middleware([heavyLlmMiddleware])
   .validator(
     (input: {
       question?: string;
       preferLocal?: boolean;
       profile?: PioneerProfileInput;
       today?: string;
-    }) => ({
-      question: (input.question ?? "").trim().slice(0, 1500),
-      preferLocal: Boolean(input.preferLocal),
-      profile: pioneerProfileFrom(input.profile ?? {}),
-      today: resolveClientDate(input.today),
-    }),
+    }) => {
+      const request = parsePioneerInput(input);
+      let profile: PracticeProfile;
+      try {
+        profile = pioneerProfileFrom(request.profile);
+      } catch (error) {
+        // The schema checked the shapes Pioneer walks; anything it missed is
+        // still the caller's input, answered as such without the internal text.
+        console.error("[pioneer] profile rejected", error);
+        throw invalidRequest();
+      }
+      return {
+        question: request.question,
+        preferLocal: request.preferLocal,
+        profile,
+        today: resolveClientDate(request.today),
+      };
+    },
   )
   .handler(async ({ data, context }): Promise<PioneerCoachResult | PioneerCoachError> => {
     const question =
@@ -69,7 +88,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
     try {
       const result =
         data.preferLocal || context.llm.grok !== "allowed"
-          ? runLocalAgentLoop(question, ctx)
+          ? localBrief(question, ctx, data.profile)
           : await runGrokAgentLoop(question, ctx);
       const warnings = [...result.brief.chickenLittleWarnings];
       if (
@@ -110,11 +129,10 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
         specialistNotes: result.brief.specialistNotes,
       };
     } catch (e) {
+      // Logged in full here; the caller gets a plain message, never the
+      // internal error text.
       console.error("[pioneer] runPioneerCoach failed", e);
-      return {
-        ok: false,
-        error: e instanceof Error ? e.message : "Pioneer agent failed",
-      };
+      return { ok: false, error: PIONEER_FAILED_MESSAGE };
     }
   });
 

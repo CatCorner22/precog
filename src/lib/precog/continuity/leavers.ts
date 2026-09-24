@@ -32,6 +32,8 @@ export interface HandoverItem {
 
 export interface Leaver {
   person: Person;
+  /** False while nobody is marked on the register: the hand-over cannot be worked out yet. */
+  assessed: boolean;
   lastDay: string;
   /** Days until the last day: 0 on the day itself, negative once it has passed. */
   daysLeft: number;
@@ -111,6 +113,7 @@ export function leavers(
     const orphanedProcesses = impact.orphanedProcesses.filter((n) => owns.has(n));
     out.push({
       person,
+      assessed: impact.assessed,
       lastDay: person.lastDay,
       daysLeft,
       status: daysLeft < 0 ? "gone" : "notice",
@@ -120,7 +123,13 @@ export function leavers(
       remaining: impact.remaining,
       dependence: own.dependence,
       unlogged: handover.filter((h) => !h.training).length,
-      actions: handoverActions(person, handover, orphanedProcesses, impact.remaining),
+      actions: handoverActions(
+        person,
+        handover,
+        orphanedProcesses,
+        impact.remaining,
+        impact.assessed,
+      ),
     });
   }
   return out.sort((a, b) => a.daysLeft - b.daysLeft || b.dependence - a.dependence);
@@ -131,9 +140,16 @@ function handoverActions(
   handover: HandoverItem[],
   orphanedProcesses: string[],
   remaining: Person[],
+  assessed: boolean,
 ): AbsenceAction[] {
   const first = firstName(person.name);
   const actions: AbsenceAction[] = [];
+  if (!assessed)
+    actions.push({
+      text: `Nobody is marked on the register yet, so the app cannot tell what leaves with ${first}. Mark who can do each item before ${first}'s last day.`,
+      step: "cover",
+      knowledgeIds: [],
+    });
   const ids = (list: HandoverItem[]) => list.map((h) => h.item.id);
   const quoted = (list: HandoverItem[], max: number) =>
     `${list
@@ -214,6 +230,9 @@ export function describeLeaver(l: Leaver): string {
         ? ` so the register stops relying on ${first} for ${n} ${n === 1 ? "entry" : "entries"}`
         : ""
     }.`;
+  }
+  if (!l.assessed && l.orphanedProcesses.length === 0) {
+    return `${when}: nobody is marked on the register yet, so the app cannot tell what leaves with ${first}.`;
   }
   if (l.handover.length === 0 && l.orphanedProcesses.length === 0) {
     return `${when}: nothing on the register leaves with ${first}.`;

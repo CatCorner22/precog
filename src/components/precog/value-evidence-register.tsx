@@ -147,14 +147,14 @@ export function ValueEvidenceRegister({
             value={draft.description}
             onChange={(event) => setDraft({ ...draft, description: event.target.value })}
             placeholder="What was observed?"
-            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm outline-none focus:border-primary/60"
+            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm focus:border-primary/60"
           />
           <input
             aria-label="Evidence source"
             value={draft.source}
             onChange={(event) => setDraft({ ...draft, source: event.target.value })}
             placeholder="Source, ticket, or report"
-            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm outline-none focus:border-primary/60"
+            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm focus:border-primary/60"
           />
           <input
             aria-label={
@@ -168,7 +168,7 @@ export function ValueEvidenceRegister({
             min="0"
             value={draft.amount}
             onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value) })}
-            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm outline-none focus:border-primary/60"
+            className="h-10 rounded-lg border border-border bg-elevated px-3 text-sm focus:border-primary/60"
           />
           <button
             type="button"
@@ -221,7 +221,7 @@ export function ValueEvidenceRegister({
                           if (event.key === "Escape") setEditingId(null);
                         }}
                         placeholder="Report, ticket, invoice, or file reference"
-                        className="h-8 min-w-0 flex-1 rounded-md border border-primary/50 bg-bg px-2 text-xs outline-none"
+                        className="h-8 min-w-0 flex-1 rounded-md border border-primary/50 bg-bg px-2 text-xs"
                       />
                       <button
                         type="button"

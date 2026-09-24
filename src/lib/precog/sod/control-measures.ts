@@ -184,6 +184,24 @@ export const DUTY_CONTROL_MEASURES: Record<EntitlementId, DutyControlMeasures> =
       "Recover improper payments and update approval criteria",
     ],
   ),
+  approve_invoices: measures(
+    [
+      "Write down who approves bills and up to what amount",
+      "Require the bill, the order and the proof of receipt before approval",
+    ],
+    [
+      "Approve each bill before it enters a payment run",
+      "Keep bill approval with someone who enters no bills and releases no payments",
+    ],
+    [
+      "Compare paid bills with supplier statements each month",
+      "Review bills paid without a recorded approval",
+    ],
+    [
+      "Hold payment on any bill found without approval until it is approved",
+      "Recover and report any bill paid on false support",
+    ],
+  ),
   release_payment: measures(
     [
       "Define payment-release limits, timing, and evidence",

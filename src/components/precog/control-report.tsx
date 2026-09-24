@@ -6,8 +6,11 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds } from "@/lib/precog/controls/dual-release";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import {
   contingencyCards,
   coverageReport,
@@ -21,6 +24,8 @@ import {
   STATUS_LABEL,
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
+import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   formatDateRange,
   handoffDeadline,
@@ -50,6 +55,7 @@ import { assessCoso } from "@/lib/precog/coso";
 import {
   METHOD_CAVEATS,
   casesForSodRules,
+  citingCaseStats,
   detectionBreakdown,
   observedLossRange,
   recommendedStepsForRules,
@@ -66,6 +72,7 @@ import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
+import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -95,20 +102,38 @@ export function ControlReport() {
   const industry = industryMeta(profile.industry);
   const generated = new Date();
   const today = localDateKey(generated);
-  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+  const registerReady = registerAssessed(tpl);
+  const trackFreshness = trackRegisterFreshness(profile, tpl);
+  // The starter map with nobody assigned, or an empty map, has no health,
+  // ownership, documentation or issues to print; one sentence says why.
+  const mapReady = mapAssessed(profile);
+  const mapNote = mapNotAssessedNote(profile);
+  const mapFrom = mapSource(profile);
+  // The sample's people and figures print with a label on every copy, and
+  // under the sample's name until a business is set up.
+  const sample = isSampleBusiness(profile);
+  const businessName = printedBusinessName(profile);
 
   const data = useMemo(() => {
+    // Starter scenarios count only once the owner confirms them, on every
+    // figure this report prints, as on the screens it summarises.
+    const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
     const threat = buildThreatAssessment({
       tpl,
-      practiceName: profile.practiceName,
+      practiceName: businessName,
       staff: profile.staff,
       riskVariables: profile.riskVariables,
       dualRelease: profile.dualRelease,
+      confirmedScenarioIds: confirmed,
     });
-    const portfolio = portfolioSummary(tpl, profile.staff);
-    const sod = detectSodConflicts(tpl, profile.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
+    const portfolio = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
+      confirmedScenarioIds: confirmed,
     });
+    const sod = detectSodConflicts(
+      tpl,
+      profile.staff,
+      sodDetectionOptions(tpl, profile.dualRelease),
+    );
     const continuity = coverageReport(tpl);
     const staleness = staleItems(tpl, today);
     const checkIns = checkInPlan(tpl, today);
@@ -124,7 +149,12 @@ export function ControlReport() {
     const leaving = leaversReport(tpl, profile.decisions, today);
     const slips = continuitySlips(profile.decisions, tpl);
     const committed = continuityCommitments(profile.decisions, tpl, today);
-    const coso = assessCoso(tpl);
+    const coso = assessCoso(tpl, profile.staff, {
+      riskVariables: profile.riskVariables,
+      confirmedScenarioIds: confirmed,
+      dualRelease: profile.dualRelease,
+    });
+    const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
     const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
     const actions = buildWeeklyActions({
       tpl,
@@ -133,6 +163,7 @@ export function ControlReport() {
       mapSnapshots: snapshots,
       today,
       trackFreshness,
+      mapAssessed: mapReady,
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
     });
@@ -158,8 +189,13 @@ export function ControlReport() {
       ...matched.filter((c) => !isOwnSector(c, profile.industry)),
     ];
     const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
-    const lossRange = observedLossRange(evidence);
-    const found = detectionBreakdown(evidence);
+    // Count, median and detection routes describe the cases whose records
+    // show these gaps; cases that only share a scheme are listed but not
+    // counted as matches.
+    const citing = citingCaseStats(openRuleIds);
+    const statsFrom = citing.count > 0 ? citing.cases : evidence;
+    const lossRange = observedLossRange(statsFrom);
+    const found = detectionBreakdown(statsFrom);
     const docs = documentationDebt(tpl);
     return {
       threat,
@@ -180,13 +216,16 @@ export function ControlReport() {
       mapHealth,
       issues,
       evidence,
+      citing,
       steps,
       lossRange,
       found,
+      policyNote,
     };
-  }, [tpl, profile, mapCustomized, today, trackFreshness]);
+  }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName]);
 
   const {
+    policyNote,
     threat,
     portfolio,
     sod,
@@ -205,6 +244,7 @@ export function ControlReport() {
     mapHealth,
     issues,
     evidence,
+    citing,
     steps,
     lossRange,
     found,
@@ -212,7 +252,7 @@ export function ControlReport() {
   const caseById = new Map(evidence.map((c) => [c.id, c]));
   const history = profile.mapHealthHistory ?? [];
   const firstPoint = history[0];
-  const healthDelta = firstPoint ? mapHealth.score - firstPoint.score : null;
+  const healthDelta = mapReady && firstPoint ? mapHealth.score - firstPoint.score : null;
   const top = threat.targetDeck.slice(0, 12);
   const openDecisions = profile.decisions.slice(0, 10);
   const continuityDecisions = profile.decisions.filter((d) =>
@@ -247,12 +287,17 @@ export function ControlReport() {
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         <header className="border-b-2 border-neutral-900 pb-4">
           <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500 uppercase">
-            Internal control priorities
+            Internal control priorities{sample ? " · sample business" : ""}
           </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{profile.practiceName}</h1>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
-            {mapCustomized ? "custom process map" : "industry template map"} · generated{" "}
+            {mapFrom === "starter"
+              ? "starter process map"
+              : mapCustomized
+                ? "custom process map"
+                : "industry template map"}{" "}
+            · generated{" "}
             {generated.toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
@@ -261,8 +306,31 @@ export function ControlReport() {
           </p>
         </header>
 
+        {sample && (
+          <section
+            className="mt-4 rounded-lg border-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-950"
+            role="note"
+            aria-label="Sample business"
+          >
+            <p className="font-semibold">
+              Sample business: the people, scores and findings in this report are fictional.
+            </p>
+            <p className="mt-1">
+              It describes the {industry.label.toLowerCase()} sample team, not your business.{" "}
+              <Link to="/" className="font-medium underline print:hidden">
+                Set up your own business
+              </Link>
+              <span className="print:hidden"> to report on your team.</span>
+            </p>
+          </section>
+        )}
+
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Kpi label="Map health" value={String(mapHealth.score)} hint={mapHealth.bandLabel} />
+          <Kpi
+            label="Map health"
+            value={mapReady ? String(mapHealth.score) : "—"}
+            hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
+          />
           <Kpi
             label="Threat index"
             value={String(threat.overallThreatIndex)}
@@ -280,41 +348,47 @@ export function ControlReport() {
           />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
-        <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
+        <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
         <Section title="Process map health">
-          <p className="text-sm text-neutral-700">
-            {mapHealth.summary}{" "}
-            {healthDelta !== null && healthDelta !== 0 && firstPoint
-              ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
-              : ""}
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {mapHealth.dimensions.map((d) => (
-              <div key={d.id} className="rounded border border-neutral-300 p-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-medium">{d.label}</span>
-                  <span className="text-sm font-bold tabular">{d.score}</span>
-                </div>
-                <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
-                  <div
-                    className="h-full rounded-full bg-neutral-800"
-                    style={{ width: `${d.score}%` }}
-                  />
-                </div>
-                <p className="mt-1 text-[10px] text-neutral-600">{d.hint}</p>
-              </div>
-            ))}
-          </div>
-          {issues.filter((i) => i.severity !== "info").length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
-              {issues
-                .filter((i) => i.severity !== "info")
-                .slice(0, 6)
-                .map((i) => (
-                  <li key={i.id}>{i.message}</li>
+          {mapNote ? (
+            <p className="text-sm text-neutral-700">Not assessed yet. {mapNote}</p>
+          ) : (
+            <>
+              <p className="text-sm text-neutral-700">
+                {mapHealth.summary}{" "}
+                {healthDelta !== null && healthDelta !== 0 && firstPoint
+                  ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
+                  : ""}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {mapHealth.dimensions.map((d) => (
+                  <div key={d.id} className="rounded border border-neutral-300 p-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs font-medium">{d.label}</span>
+                      <span className="text-sm font-bold tabular">{d.score}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+                      <div
+                        className="h-full rounded-full bg-neutral-800"
+                        style={{ width: `${d.score}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-600">{d.hint}</p>
+                  </div>
                 ))}
-            </ul>
+              </div>
+              {issues.filter((i) => i.severity !== "info").length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
+                  {issues
+                    .filter((i) => i.severity !== "info")
+                    .slice(0, 6)
+                    .map((i) => (
+                      <li key={i.id}>{i.message}</li>
+                    ))}
+                </ul>
+              )}
+            </>
           )}
         </Section>
 
@@ -336,7 +410,7 @@ export function ControlReport() {
                 <div>
                   <p className="font-medium">
                     {a.title}{" "}
-                    <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-neutral-600">
+                    <span className="ml-1 rounded border border-neutral-300 px-1.5 py-0.5 text-xs uppercase tracking-wide text-neutral-600">
                       {a.effort} effort
                     </span>
                   </p>
@@ -348,47 +422,53 @@ export function ControlReport() {
         </Section>
 
         <Section title="Priority stack">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-neutral-300 text-left text-[11px] tracking-wide text-neutral-500 uppercase">
-                <th className="py-1.5 pr-2">#</th>
-                <th className="py-1.5 pr-2">Target</th>
-                <th className="py-1.5 pr-2">Type</th>
-                <th className="py-1.5 pr-2">Band</th>
-                <th className="py-1.5 pr-2 text-right">Priority</th>
-                <th className="py-1.5 text-right">Exposure</th>
-              </tr>
-            </thead>
-            <tbody>
-              {top.map((t, i) => (
-                <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
-                  <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
-                  <td className="py-1.5 pr-2">
-                    <p className="font-medium">{t.label}</p>
-                    <p className="text-xs text-neutral-600">{t.impactHint}</p>
-                  </td>
-                  <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
-                  <td className="py-1.5 pr-2">
-                    <span
-                      className={
-                        t.band === "white_hot" || t.band === "critical"
-                          ? "font-semibold text-red-700"
-                          : t.band === "elevated"
-                            ? "font-medium text-amber-700"
-                            : "text-neutral-600"
-                      }
-                    >
-                      {PRIORITY_BAND_LABEL[t.band]}
-                    </span>
-                  </td>
-                  <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
-                  <td className="py-1.5 text-right tabular text-neutral-700">
-                    {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
+                  <th className="py-1.5 pr-2">#</th>
+                  <th className="py-1.5 pr-2">Target</th>
+                  <th className="py-1.5 pr-2">Type</th>
+                  <th className="py-1.5 pr-2">Band</th>
+                  <th className="py-1.5 pr-2 text-right">Priority</th>
+                  <th className="py-1.5 text-right">Assumed loss</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {top.map((t, i) => (
+                  <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
+                    <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
+                    <td className="py-1.5 pr-2">
+                      <p className="font-medium">{t.label}</p>
+                      <p className="text-xs text-neutral-600">{t.impactHint}</p>
+                    </td>
+                    <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
+                    <td className="py-1.5 pr-2">
+                      <span
+                        className={
+                          t.band === "white_hot" || t.band === "critical"
+                            ? "font-semibold text-red-700"
+                            : t.band === "elevated"
+                              ? "font-medium text-amber-700"
+                              : "text-neutral-600"
+                        }
+                      >
+                        {PRIORITY_BAND_LABEL[t.band]}
+                      </span>
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
+                    <td className="py-1.5 text-right tabular text-neutral-700">
+                      {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-xs text-neutral-600">
+            Assumed loss is the scenario&apos;s assumption in this app, not a measured figure.
+            {policyNote ? ` Insurance: ${policyNote}.` : ""}
+          </p>
         </Section>
 
         <Section title="Segregation of duties">
@@ -397,6 +477,16 @@ export function ControlReport() {
             conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length} people.{" "}
             {sod.summary.dualReleaseMitigated} mitigated by dual release.
           </p>
+          {sod.summary.unheldDuties.length > 0 && (
+            <p className="mt-2 text-sm text-neutral-700">
+              Nobody active is marked for:{" "}
+              {sod.summary.unheldDuties
+                .map((d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d)
+                .join(", ")}
+              . Somebody does each of these in every business that handles money; until the team
+              records who, these findings cannot see that seat.
+            </p>
+          )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
             {sod.recommendations.slice(0, 4).map((r) => (
               <li key={r}>{r}</li>
@@ -407,8 +497,13 @@ export function ControlReport() {
         {evidence.length > 0 && (
           <Section title="What these gaps have cost other businesses">
             <p className="text-sm text-neutral-700">
-              {evidence.length} prosecuted {evidence.length === 1 ? "case" : "cases"} match the open
-              duty conflicts above.
+              {citing.count > 0
+                ? `${citing.count} prosecuted ${citing.count === 1 ? "case shows" : "cases show"} the open duty conflicts above${
+                    evidence.length > citing.count
+                      ? `; ${evidence.length - citing.count} more share their schemes`
+                      : ""
+                  }.`
+                : `No prosecuted case in the library shows these exact conflicts; the ${evidence.length} below share their schemes.`}
               {lossRange
                 ? ` Median loss ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)} across ${lossRange.n} cases with a stated figure.`
                 : ""}
@@ -417,8 +512,10 @@ export function ControlReport() {
                     .map(
                       (r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`,
                     )
-                    .join(", ")}; not stated in ${found.unknown} of ${found.n}.`
+                    .join(", ")}.`
                 : ""}
+              {/* Stated even when every case is silent: a missing fact is itself a finding. */}
+              {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
             </p>
             <p className="mt-2 text-xs leading-relaxed text-neutral-500">
               These describe other organizations, not this business, and they are prosecuted cases,
@@ -427,7 +524,8 @@ export function ControlReport() {
 
             <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>
             <p className="text-xs text-neutral-500">
-              Ordered by how many of the matching cases each control would plausibly have caught.
+              Ordered by how many of the matching cases each control would plausibly have caught, in
+              our reading of the record. That reading is ours, not a finding from any case.
             </p>
             <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm">
               {steps.map((st) => (
@@ -451,7 +549,9 @@ export function ControlReport() {
               ))}
             </ol>
 
-            <h3 className="mt-4 text-sm font-semibold text-neutral-800">Cases cited</h3>
+            <h3 className="mt-4 text-sm font-semibold text-neutral-800">
+              Cases cited, matched to these gaps in our reading of the record
+            </h3>
             <ul className="mt-1 space-y-1 text-xs text-neutral-600">
               {evidence.map((c) => (
                 <li key={c.id}>
@@ -470,114 +570,128 @@ export function ControlReport() {
         )}
 
         <Section title="Continuity of operations">
-          <p className="text-sm text-neutral-700">
-            <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two
-            or more people who can run it alone. {continuity.counts.uncovered} item
-            {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
-            {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
-            person plus a learner.
-          </p>
-          {continuity.singlePoints.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-600">
-              No critical or important item is uncovered or relies on one person without a learner.
+          {!registerReady ? (
+            <p className="text-sm text-neutral-700">
+              Not assessed yet.{" "}
+              {tpl.knowledge.length === 0
+                ? "The register is empty: the business has not yet listed the duties, tasks and know-how it runs on."
+                : `The register holds ${tpl.knowledge.length} starter items from the ${industry.label.toLowerCase()} example with nobody marked on any of them, so no continuity figure is reported.`}
             </p>
           ) : (
-            <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-              {continuity.singlePoints.map((s) => (
-                <li key={s.item.id} className="border-b border-neutral-200 py-1">
-                  <div className="flex justify-between gap-2">
-                    <span>
-                      {s.item.name}
-                      <span className="text-neutral-500">
-                        {" "}
-                        · {s.primaries[0]?.name ?? "nobody"}
-                      </span>
-                    </span>
-                    <span className="text-xs text-neutral-600">{STATUS_LABEL[s.status]}</span>
-                  </div>
-                  {s.suggestedBackups[0] && (
-                    <div className="text-xs text-neutral-500">
-                      Train next: {s.suggestedBackups[0].person.name} (
-                      {s.suggestedBackups[0].reasons[0]})
-                    </div>
+            <>
+              <p className="text-sm text-neutral-700">
+                <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has
+                two or more people who can run it alone. {continuity.counts.uncovered} item
+                {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
+                {continuity.counts.single} with exactly one person, {continuity.counts.thin} with
+                one person plus a learner.
+              </p>
+              {continuity.singlePoints.length === 0 ? (
+                <p className="mt-2 text-sm text-neutral-600">
+                  No critical or important item is uncovered or relies on one person without a
+                  learner.
+                </p>
+              ) : (
+                <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+                  {continuity.singlePoints.map((s) => (
+                    <li key={s.item.id} className="border-b border-neutral-200 py-1">
+                      <div className="flex justify-between gap-2">
+                        <span>
+                          {s.item.name}
+                          <span className="text-neutral-500">
+                            {" "}
+                            · {s.primaries[0]?.name ?? "nobody"}
+                          </span>
+                        </span>
+                        <span className="text-xs text-neutral-600">{STATUS_LABEL[s.status]}</span>
+                      </div>
+                      {s.suggestedBackups[0] && (
+                        <div className="text-xs text-neutral-500">
+                          Train next: {s.suggestedBackups[0].person.name} (
+                          {s.suggestedBackups[0].reasons[0]})
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {continuity.plan.length > 0 && (
+                <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
+                  {continuity.plan.slice(0, 5).map((m) => (
+                    <li key={m.item.id}>
+                      {m.action}
+                      <CommitmentTag c={committed.get(continuityStepKey(m.item.id, "cover"))} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <p className="mt-3 text-sm text-neutral-700">
+                <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is
+                written down and findable. {docs.counts.none} item(s) with nothing written,{" "}
+                {docs.counts.unlocated} written but location not recorded.
+              </p>
+              {docs.gaps.length > 0 && (
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+                  {docs.gaps.slice(0, 5).map((g) => (
+                    <li key={g.item.id}>
+                      <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
+                      {g.action}
+                      <CommitmentTag
+                        c={committed.get(
+                          continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
+                        )}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {trackFreshness && (
+                <p className="mt-3 text-sm text-neutral-700">
+                  <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
+                  confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
+                  {staleness.stale.length > 0 && (
+                    <> {staleness.stale.length} item(s) to re-confirm.</>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {continuity.plan.length > 0 && (
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
-              {continuity.plan.slice(0, 5).map((m) => (
-                <li key={m.item.id}>
-                  {m.action}
-                  <CommitmentTag c={committed.get(continuityStepKey(m.item.id, "cover"))} />
-                </li>
-              ))}
-            </ol>
-          )}
-          <p className="mt-3 text-sm text-neutral-700">
-            <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is written
-            down and findable. {docs.counts.none} item(s) with nothing written,{" "}
-            {docs.counts.unlocated} written but location not recorded.
-          </p>
-          {docs.gaps.length > 0 && (
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
-              {docs.gaps.slice(0, 5).map((g) => (
-                <li key={g.item.id}>
-                  <span className="text-neutral-500">{DOCUMENTATION_LABEL[g.state]} · </span>
-                  {g.action}
-                  <CommitmentTag
-                    c={committed.get(
-                      continuityStepKey(g.item.id, g.state === "none" ? "document" : "locate"),
-                    )}
-                  />
-                </li>
-              ))}
-            </ol>
-          )}
-          {trackFreshness && (
-            <p className="mt-3 text-sm text-neutral-700">
-              <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
-              confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
-              {staleness.stale.length > 0 && <> {staleness.stale.length} item(s) to re-confirm.</>}
-            </p>
-          )}
-          {trackFreshness && staleness.stale.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-neutral-600">
-              {checkIns.checkIns.slice(0, 6).map((c) => (
-                <li key={c.person.id}>
-                  <strong>Check in with {c.person.name}</strong> — {c.items.length}{" "}
-                  {c.items.length === 1 ? "entry" : "entries"}
-                  {c.soleCount > 0 && ` (${c.soleCount} nobody else can run alone)`}:{" "}
-                  {c.items.map((entry) => entry.item.name).join(", ")}
-                </li>
-              ))}
-              {checkIns.checkIns.length > 6 && (
-                <li>{checkIns.checkIns.length - 6} more people to check in with.</li>
+                </p>
               )}
-              {checkIns.unheld.length > 0 && (
-                <li>
-                  <strong>Nobody active holds</strong> —{" "}
-                  {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they still
-                  matter or assign someone.
-                </li>
+              {trackFreshness && staleness.stale.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-neutral-600">
+                  {checkIns.checkIns.slice(0, 6).map((c) => (
+                    <li key={c.person.id}>
+                      <strong>Check in with {c.person.name}</strong> — {c.items.length}{" "}
+                      {c.items.length === 1 ? "entry" : "entries"}
+                      {c.soleCount > 0 && ` (${c.soleCount} nobody else can run alone)`}:{" "}
+                      {c.items.map((entry) => entry.item.name).join(", ")}
+                    </li>
+                  ))}
+                  {checkIns.checkIns.length > 6 && (
+                    <li>{checkIns.checkIns.length - 6} more people to check in with.</li>
+                  )}
+                  {checkIns.unheld.length > 0 && (
+                    <li>
+                      <strong>Nobody active holds</strong> —{" "}
+                      {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they
+                      still matter or assign someone.
+                    </li>
+                  )}
+                </ul>
               )}
-            </ul>
-          )}
-          {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
-            0 && (
-            <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
-              {continuity.people
-                .filter((l) => l.person.active && l.soleItems.length > 0)
-                .slice(0, 6)
-                .map((l) => (
-                  <li key={l.person.id}>
-                    <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
-                    {l.dependence}% of must-do work stops if out; only they can do:{" "}
-                    {l.soleItems.map((k) => k.name).join(", ")}
-                  </li>
-                ))}
-            </ul>
+              {continuity.people.filter((l) => l.person.active && l.soleItems.length > 0).length >
+                0 && (
+                <ul className="mt-3 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
+                  {continuity.people
+                    .filter((l) => l.person.active && l.soleItems.length > 0)
+                    .slice(0, 6)
+                    .map((l) => (
+                      <li key={l.person.id}>
+                        <span className="font-medium text-neutral-800">{l.person.name}</span> —{" "}
+                        {l.dependence}% of must-do work stops if out; only they can do:{" "}
+                        {l.soleItems.map((k) => k.name).join(", ")}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </>
           )}
         </Section>
 
@@ -923,6 +1037,15 @@ export function ControlReport() {
         )}
 
         <Section title="Process map">
+          {mapFrom === "starter" && (
+            <p className="mb-2 text-sm text-neutral-700">
+              Starter map from the {industry.label.toLowerCase()} example: {tpl.processes.length}{" "}
+              processes, none with an owner yet.
+            </p>
+          )}
+          {mapNote && mapFrom !== "starter" && (
+            <p className="text-sm text-neutral-700">{mapNote}</p>
+          )}
           <ul className="grid gap-1 text-sm sm:grid-cols-2">
             {tpl.processes
               .slice()
@@ -932,14 +1055,18 @@ export function ControlReport() {
                   <span className="font-medium">{p.name}</span>
                   <span className="text-neutral-500">
                     {" "}
-                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas ·{" "}
-                    {(p.ownerPersonIds ?? [])
-                      .map((id) => {
-                        const p = tpl.people.find((x) => x.id === id);
-                        return p ? firstName(p.name) : undefined;
-                      })
-                      .filter(Boolean)
-                      .join(", ") || "no owner"}
+                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas
+                    {mapFrom === "starter"
+                      ? ""
+                      : ` · ${
+                          (p.ownerPersonIds ?? [])
+                            .map((id) => {
+                              const person = tpl.people.find((x) => x.id === id);
+                              return person ? firstName(person.name) : undefined;
+                            })
+                            .filter(Boolean)
+                            .join(", ") || "no owner"
+                        }`}
                   </span>
                 </li>
               ))}
@@ -1038,7 +1165,7 @@ export function ControlReport() {
           </Section>
         )}
 
-        <footer className="mt-8 border-t border-neutral-300 pt-3 text-[11px] leading-relaxed text-neutral-500">
+        <footer className="mt-8 border-t border-neutral-300 pt-3 text-xs leading-relaxed text-neutral-500">
           {threat.caveats.join(" ")} Educational internal-control decision support — not actuarial,
           legal, or forensic advice, and never an accusation against any person. Generated by Precog
           Pioneer.
@@ -1051,7 +1178,7 @@ export function ControlReport() {
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="rounded-lg border border-neutral-300 p-3">
-      <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">{label}</p>
+      <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular">{value}</p>
       <p className="text-xs text-neutral-600 capitalize">{hint}</p>
     </div>

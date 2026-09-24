@@ -17,7 +17,7 @@ export function ChipPicker({
     <div>
       <span className={labelCls}>{label}</span>
       <div className="mt-1 flex flex-wrap gap-1">
-        {options.length === 0 && <span className="text-[11px] text-subtle">None available</span>}
+        {options.length === 0 && <span className="text-xs text-subtle">None available</span>}
         {options.map((o) => {
           const on = selected.includes(o.id);
           return (
@@ -26,7 +26,7 @@ export function ChipPicker({
               type="button"
               onClick={() => onToggle(o.id)}
               className={cn(
-                "rounded-md border px-2 py-0.5 text-[11px] transition-colors",
+                "rounded-md border px-2 py-0.5 text-xs transition-colors",
                 on
                   ? o.tone === "danger"
                     ? "border-danger/50 bg-danger/15 text-fg"
@@ -65,7 +65,7 @@ export function SectionHeader({
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
       >
         {adding ? <X className="size-3" /> : <Plus className="size-3" />}
         {adding ? "Cancel" : "Add"}

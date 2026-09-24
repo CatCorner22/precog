@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { grokChat } from "../llm/grok-client.server";
 import { llmMiddleware } from "../llm/middleware";
+import { parseReviewInput } from "../public-inputs";
 import { gradeFromScore, reviewLocally, type MapReview, type ReviewInput } from "./review";
 
 function cleanPoints(v: unknown, max = 5): string[] {
@@ -108,41 +109,7 @@ function ownerText(value: string): string {
 
 export const reviewMap = createServerFn({ method: "POST" })
   .middleware([llmMiddleware])
-  .validator((input: ReviewInput): ReviewInput => ({
-    businessName: String(input.businessName ?? "").slice(0, 80),
-    industryLabel: String(input.industryLabel ?? "small business").slice(0, 60),
-    teamSize: Math.max(1, Math.min(200, Number(input.teamSize) || 1)),
-    health: {
-      score: Math.max(0, Math.min(100, Number(input.health?.score) || 0)),
-      band: String(input.health?.band ?? "").slice(0, 30),
-      dimensions: (input.health?.dimensions ?? []).slice(0, 6).map((d) => ({
-        label: String(d.label).slice(0, 30),
-        score: Math.max(0, Math.min(100, Number(d.score) || 0)),
-        hint: String(d.hint).slice(0, 80),
-      })),
-    },
-    processes: (input.processes ?? []).slice(0, 40).map((p) => ({
-      id: String(p.id).slice(0, 60),
-      name: String(p.name).slice(0, 80),
-      stage: Number(p.stage) || 0,
-      owners: (p.owners ?? []).map(String).slice(0, 6),
-      controls: (p.controls ?? []).map(String).slice(0, 8),
-      riskTitles: (p.riskTitles ?? []).map((t) => String(t).slice(0, 80)).slice(0, 4),
-      fraudRisks: Number(p.fraudRisks) || 0,
-      heat: Math.max(0, Math.min(100, Number(p.heat) || 0)),
-      dependencyCount: Number(p.dependencyCount) || 0,
-      openSodGaps: Number(p.openSodGaps) || 0,
-    })),
-    issues: (input.issues ?? []).map((i) => String(i).slice(0, 160)).slice(0, 10),
-    overburdened: (input.overburdened ?? []).slice(0, 4).map((o) => ({
-      name: String(o.name).slice(0, 60),
-      role: String(o.role).slice(0, 40),
-      flags: (o.flags ?? []).map((f) => String(f).slice(0, 80)).slice(0, 4),
-    })),
-    unownedProcesses: (input.unownedProcesses ?? [])
-      .map((s) => String(s).slice(0, 80))
-      .slice(0, 10),
-  }))
+  .validator((input: ReviewInput): ReviewInput => parseReviewInput(input))
   .handler(async ({ data, context }): Promise<MapReview> => {
     const local = reviewLocally(data);
     const apiKey = process.env.XAI_API_KEY;

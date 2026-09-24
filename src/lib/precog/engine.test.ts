@@ -1,10 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
+import { getBaseTemplate, resolveTemplate } from "./active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "./engine";
 import { INDUSTRIES } from "./industry";
-import type { StaffComposition } from "./types";
+import { DEFAULT_RISK_VARIABLES } from "./scoring/dynamic-variables";
+import type { Person, StaffComposition } from "./types";
 
 const dental = getBaseTemplate("dental");
+
+/** An owner's own team: two people, no register marks. */
+const ownPeople: Person[] = [
+  {
+    id: "own-1",
+    name: "Ana Ruiz",
+    role: "Owner",
+    active: true,
+    entitlements: ["bank_reconcile", "view_reports_only"],
+  },
+  {
+    id: "own-2",
+    name: "Ben Ochoa",
+    role: "Bookkeeper",
+    active: true,
+    entitlements: ["create_vendor", "release_payment", "view_reports_only"],
+  },
+];
+const ownDental = resolveTemplate({ industry: "dental", customPeople: ownPeople });
 
 describe("findKnowledgeRisks", () => {
   it("only reports critical or important knowledge, sorted by risk", () => {
@@ -21,10 +41,29 @@ describe("findKnowledgeRisks", () => {
   });
 
   it("marks knowledge with no strong holder as unowned and highest risk", () => {
-    const tpl = { ...dental, relations: [] };
+    // A register the owner wrote themselves, with nobody marked yet. A plain
+    // copy of the starter list is still the starter list, so each item is
+    // renamed as the owner's own wording.
+    const tpl = {
+      ...dental,
+      knowledge: dental.knowledge.map((k) => ({ ...k, name: `${k.name} (ours)` })),
+      relations: [],
+    };
     const risks = findKnowledgeRisks(tpl);
+    expect(risks.length).toBeGreaterThan(0);
     expect(risks.every((r) => r.ownerCount === 0)).toBe(true);
     expect(new Set(risks.map((r) => r.riskScore)).size).toBe(1);
+  });
+
+  it("reports nothing for a starter register nobody has marked", () => {
+    // The industry's starter list with no relations is not a fact about the business.
+    expect(findKnowledgeRisks({ ...dental, relations: [] })).toEqual([]);
+    const own = resolveTemplate({
+      industry: "dental",
+      customPeople: ownPeople,
+      customRelations: [],
+    });
+    expect(findKnowledgeRisks(own)).toEqual([]);
   });
 
   it("does not count former (inactive) staff as holders", () => {
@@ -119,5 +158,49 @@ describe("rankDangerousScenarios", () => {
     for (let i = 1; i < ranked.length; i++) {
       expect(ranked[i - 1].score).toBeGreaterThanOrEqual(ranked[i].score);
     }
+  });
+});
+
+describe("insurance on an own business", () => {
+  const fraud = "sc-vendor-fraud";
+
+  it("keeps the whole loss with no premium until the owner enters a policy", () => {
+    const r = runPrecogScenario(ownDental, fraud, { riskVariables: DEFAULT_RISK_VARIABLES })!;
+    expect(r.retainedImpact.expected).toBe(r.financialImpact.expected);
+    expect(r.dynamic?.premiumAnnualNet).toBe(0);
+    expect(r.dynamic?.transferredExpected).toBe(0);
+    expect(r.dynamic?.discountPctApplied).toBe(0);
+    const line = r.crimeModifiers.find((m) => m.startsWith("Insurance"))!;
+    expect(line).toContain("no crime policy entered");
+    expect(line).toContain("app default, enter your policy");
+    expect(r.crimeModifiers.join(" ")).not.toMatch(/your premium/);
+  });
+
+  it("prices the policy the owner entered", () => {
+    const r = runPrecogScenario(ownDental, fraud, {
+      riskVariables: { ...DEFAULT_RISK_VARIABLES, basePremiumAnnual: 1800, deductible: 2500 },
+    })!;
+    expect(r.dynamic?.premiumAnnualNet).toBe(1800);
+    expect(r.retainedImpact.expected).toBeLessThan(r.financialImpact.expected);
+    expect(r.crimeModifiers.join(" ")).toContain("the policy you entered");
+  });
+
+  it("keeps the sample business on the app's default policy, labelled as such", () => {
+    const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    expect(r.dynamic?.premiumAnnualNet).toBe(4200);
+    expect(r.retainedImpact.expected).toBe(5000);
+    expect(r.crimeModifiers.join(" ")).toContain(
+      "Insurance arithmetic on the app's default policy (app default, enter your policy)",
+    );
+  });
+});
+
+describe("scenarios in scope", () => {
+  it("ranks none of the starter scenarios for an own business until one is confirmed", () => {
+    expect(rankDangerousScenarios(ownDental)).toEqual([]);
+    const ranked = rankDangerousScenarios(ownDental, {
+      confirmedScenarioIds: new Set(["sc-cash-sod-failure"]),
+    });
+    expect(ranked.map((r) => r.scenario.id)).toEqual(["sc-cash-sod-failure"]);
   });
 });

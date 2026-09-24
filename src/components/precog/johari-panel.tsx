@@ -7,6 +7,7 @@ import {
   type JohariQuadrant,
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
+import { examplesHeading, paneItems } from "@/components/precog/johari-pane";
 import { usePractice } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,11 +48,16 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
     return counts;
   }, [meta.items]);
 
-  const liveItems = useMemo(() => {
-    return meta.items
-      .filter((i) => johariQuadrantFromEpistemic(i.classification) === activeQ)
-      .slice(0, 8);
-  }, [meta.items, activeQ]);
+  const [showAll, setShowAll] = useState(false);
+  const pane = useMemo(
+    () =>
+      paneItems(
+        meta.items.filter((i) => johariQuadrantFromEpistemic(i.classification) === activeQ),
+        showAll,
+      ),
+    [meta.items, activeQ, showAll],
+  );
+  const liveItems = pane.shown;
 
   const moves = useMemo(() => recommendJohariMoves(loads), [loads]);
   const guide = JOHARI_PLAYBOOK.quadrants.find((q) => q.id === activeQ)!;
@@ -117,6 +123,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               type="button"
               onClick={() => {
                 setActiveQ(q);
+                setShowAll(false);
                 setView("matrix");
               }}
               className={cn(
@@ -135,7 +142,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </div>
               <p className="mt-2 text-sm font-medium">{g.classicName}</p>
               <p className="mt-1 text-xs text-muted line-clamp-2">{g.precogMeaning}</p>
-              <p className="mt-2 text-[10px] text-subtle">
+              <p className="mt-2 text-xs text-subtle">
                 Self: {g.axes.self ? "known" : "unknown"} · Others:{" "}
                 {g.axes.others ? "known" : "unknown"}
               </p>
@@ -166,7 +173,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <div>
                 <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  Examples (dental office reference)
+                  {examplesHeading(profile.industry)}
                 </p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
                   {guide.dentalExamples.map((e) => (
@@ -193,7 +200,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[11px]"
+                          className="h-7 text-xs"
                           onClick={() => onNavigate?.(m.precogTab!)}
                         >
                           Open {m.precogTab}
@@ -210,7 +217,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Live items in {Q_META[activeQ].label} ({liveItems.length})
+                Live items in {Q_META[activeQ].label} ({pane.count})
               </CardTitle>
               <CardDescription>Mapped from meta-analysis epistemic inventory</CardDescription>
             </CardHeader>
@@ -228,14 +235,12 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <span className="font-medium">{item.title}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted line-clamp-2">{item.description}</p>
-                  {item.probe && (
-                    <p className="mt-1 text-[11px] text-ok">Probe: {item.probe.action}</p>
-                  )}
+                  {item.probe && <p className="mt-1 text-xs text-ok">Probe: {item.probe.action}</p>}
                   {item.link && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="mt-1 h-7 px-2 text-[11px]"
+                      className="mt-1 h-7 px-2 text-xs"
                       onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
                     >
                       Open {item.link.tab}
@@ -244,6 +249,16 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 </div>
               ))}
 
+              {pane.total > liveItems.length && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setShowAll(true)}
+                >
+                  Show all {pane.total}
+                </Button>
+              )}
               <div className="rounded-lg border border-border bg-panel p-3">
                 <p className="flex items-center gap-1 text-xs font-medium text-subtle uppercase">
                   <Lightbulb className="size-3" />
@@ -271,7 +286,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 type="button"
                 onClick={() => setDomain(d.domain)}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px]",
+                  "rounded-full border px-2.5 py-1 text-xs",
                   domain === d.domain
                     ? "border-primary/40 bg-primary/10 text-fg"
                     : "border-border bg-elevated text-muted",

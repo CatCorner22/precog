@@ -1,5 +1,6 @@
 import { INDUSTRIES, type IndustryId } from "./industry";
 import type { PracticeProfile } from "./practice-profile";
+import { RequestError } from "@/lib/request-errors";
 
 /** Largest profile document a single save may carry (bytes of JSON). */
 export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
@@ -25,22 +26,22 @@ export function validateProfileInput(input: unknown): {
   json: string;
 } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new Error("Profile must be an object");
+    throw new RequestError(400, "Profile must be an object");
   }
   const profile = input as PracticeProfile;
   if (typeof profile.practiceName !== "string") {
-    throw new Error("Profile needs a business name");
+    throw new RequestError(400, "Profile needs a business name");
   }
   if (!isIndustryId(profile.industry)) {
-    throw new Error("Profile has an unknown industry");
+    throw new RequestError(400, "Profile has an unknown industry");
   }
   if (profile.businessId !== undefined && !isBusinessId(profile.businessId)) {
-    throw new Error("Business id must be 1–64 letters, digits, '_' or '-'");
+    throw new RequestError(400, "Business id must be 1–64 letters, digits, '_' or '-'");
   }
   const businessId = profile.businessId ?? "biz_default";
   const json = JSON.stringify({ ...profile, businessId });
   if (new TextEncoder().encode(json).length > MAX_PROFILE_BYTES) {
-    throw new Error("Profile is too large to save (over 2 MB)");
+    throw new RequestError(413, "Profile is too large to save (over 2 MB)");
   }
   return { profile: { ...profile, businessId }, businessId, json };
 }

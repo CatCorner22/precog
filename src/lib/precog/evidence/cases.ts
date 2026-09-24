@@ -39,7 +39,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 24,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-deposit-post"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -77,7 +77,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2020,
-    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-deposit-post"],
+    sodRuleIds: ["rule-collect-post", "rule-deposit-post"],
     wouldHaveCaughtIt: [
       {
         control: "electronic-remittance",
@@ -107,7 +107,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     title:
       "Dental practice payments rerouted to a shell company, found only when the owner prepared to retire",
     sector: "dental",
-    schemes: ["billing-shell-vendor", "receivables-diversion", "skimming"],
+    schemes: ["receivables-diversion", "skimming"],
     howItWorked:
       "The financial coordinator of a Houston dental practice formed a company named SGS Healthcare and directed practice revenue to it. Insurance checks written payable to the practice were deposited into accounts she controlled. The dentist had been in business 38 years. In July 2021 he began a detailed review of his own company accounts to prepare for retirement, and that review is what surfaced the scheme. She also manipulated the books to conceal cash payments patients had made directly to the practice.",
     controlGap:
@@ -116,7 +116,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "owner-review",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-vendor-create-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-collect-post", "rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -150,11 +150,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
     controlGap:
       "Claim submission authority sat with one person and no one verified that the rendering provider on a claim was a provider who actually worked that day. The practice bank account received the proceeds, which put the practice itself on the hook.",
     lossUsd: 581729,
-    lossIsFloor: false,
+    lossIsFloor: true,
     durationMonths: 132,
     detection: "bank-or-insurer",
     resolvedYear: 2017,
-    sodRuleIds: ["rule-claims-writeoff", "rule-admin-writeoff"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "billing-matches-the-schedule",
@@ -176,7 +176,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "This case runs the other direction from embezzlement: the money flowed into the practice, and the practice carried the repayment and reputational exposure. Billing ran from 2005 to 2016; the $581,729 reflects insurer payments between 2011 and 2015. The 132 months recorded is the full 2005 to 2016 billing period, which is how long the scheme ran; the $581,729 is what insurers paid during the 2011 to 2015 window within it. The provider whose identity was used was a retired dentist. Sentenced 2017 to twelve months and one day.",
+      "This case runs the other direction from embezzlement: the money flowed into the practice, and the practice carried the repayment and reputational exposure. Billing ran from 2005 to 2016; the $581,729 reflects insurer payments between 2011 and 2015. The 132 months recorded is the full 2005 to 2016 billing period, which is how long the scheme ran; the $581,729 is what insurers paid during the 2011 to 2015 window within it, so it is recorded as a floor for the full period. The provider whose identity was used was a retired dentist. Sentenced 2017 to twelve months and one day.",
   },
   {
     id: "case-dennys-franchise-vendors",
@@ -188,17 +188,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
     controlGap:
       "The same role could add a vendor and approve payment to it. Supporting documentation was accepted at face value because it arrived by email from what looked like a vendor, and no one matched new vendors against an independent record such as a business registration or a W-9.",
     lossUsd: 356000,
-    lossIsFloor: true,
+    lossIsFloor: false,
     durationMonths: 63,
     detection: "owner-review",
     resolvedYear: 2022,
-    sodRuleIds: [
-      "rule-vendor-create-pay",
-      "rule-vendor-create-approve",
-      "rule-vendor-approve-pay",
-      "rule-order-receive",
-      "rule-payroll",
-    ],
+    sodRuleIds: ["rule-vendor-create-pay", "rule-vendor-create-approve", "rule-vendor-approve-pay"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-second-approval",
@@ -222,7 +216,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
+      "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. Both components are approximate, so the sum is an estimate, not a floor. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
   },
   {
     id: "case-hutchinson-controller",
@@ -242,10 +236,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-cash-rec",
       "rule-custody-rec",
       "rule-deposit-post",
-      "rule-vendor-create-pay",
-      "rule-payroll",
-      "rule-admin-pay",
+      "rule-release-rec",
       "rule-sign-rec",
+      "rule-payroll",
     ],
     wouldHaveCaughtIt: [
       {
@@ -285,7 +278,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 27,
     detection: "owner-review",
     resolvedYear: 2022,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -324,7 +317,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 63,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-payroll"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "receipt-and-second-approval",
@@ -369,7 +362,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 36,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-payroll", "rule-payroll-master-run", "rule-admin-pay"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run"],
     wouldHaveCaughtIt: [
       {
         control: "terminated-staff-vs-payroll",
@@ -414,7 +407,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 64,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-admin-pay", "rule-vendor-create-pay"],
+    sodRuleIds: ["rule-release-rec"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -452,7 +445,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: true,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-admin-pay"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "verify-oversight-is-real",
@@ -492,7 +485,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 100,
     detection: "unknown",
     resolvedYear: 2017,
-    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-release-rec"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -529,9 +522,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 1400000,
     lossIsFloor: true,
     durationMonths: 108,
-    detection: "bank-or-insurer",
+    detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay", "rule-vendor-create-pay"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -553,7 +546,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is the longest run in this library, and it is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. On 12 August 2022 a bank representative told the owners that an electronic check had moved from the business account to her personal account; the owners' review of past transactions then found nine more, and they reported the theft to Bellingham police that month (Cascadia Daily News, from the charging papers). The detection route is recorded as the bank on that basis; the federal release itself does not say how the theft was found. The release puts the scheme at 2013 to 2022.",
+      "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. On 12 August 2022 a bank representative told the owners that an electronic check had moved from the business account to her personal account; the owners' review of past transactions then found nine more, and they reported the theft to Bellingham police that month (Cascadia Daily News, from the charging papers). That account comes from the newspaper, not from the cited release, which does not say how the theft was found, so the detection route is recorded as unknown. The release puts the scheme at 2013 to 2022.",
   },
   {
     id: "case-kearny-medical-receptionist",
@@ -569,12 +562,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 48,
     detection: "unknown",
     resolvedYear: 2015,
-    sodRuleIds: [
-      "rule-collect-post",
-      "rule-custody-rec",
-      "rule-deposit-post",
-      "rule-payments-adjust",
-    ],
+    sodRuleIds: ["rule-collect-post"],
     wouldHaveCaughtIt: [
       {
         control: "log-payments-at-the-mail",
@@ -613,7 +601,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 8,
     detection: "unknown",
     resolvedYear: 2014,
-    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-custody-rec", "rule-refund-adjust"],
+    sodRuleIds: ["rule-collect-post", "rule-collect-adjust", "rule-deposit-post", "rule-cash-void"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -653,7 +641,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 17,
     detection: "by-accident",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -694,7 +682,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 13,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-deposit-post", "rule-custody-rec"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "expected-receipts-vs-deposits",
@@ -734,7 +722,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 92,
     detection: "unknown",
     resolvedYear: 2021,
-    sodRuleIds: ["rule-collect-post", "rule-cash-rec"],
+    sodRuleIds: ["rule-collect-post", "rule-deposit-post"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -774,12 +762,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 60,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: [
-      "rule-vendor-create-pay",
-      "rule-invoice-pay",
-      "rule-ach-release",
-      "rule-admin-pay",
-    ],
+    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay", "rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -820,7 +803,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 0,
     detection: "by-accident",
     resolvedYear: 2018,
-    sodRuleIds: ["rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -861,7 +844,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 96,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "positive-pay",
@@ -902,7 +885,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 60,
     detection: "owner-review",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "independent-financial-review",
@@ -943,7 +926,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 84,
     detection: "owner-review",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-payroll", "rule-admin-pay", "rule-collect-post"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -989,7 +972,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 18,
     detection: "unknown",
     resolvedYear: 2018,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -1030,7 +1013,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 172,
     detection: "unknown",
     resolvedYear: 2013,
-    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec", "rule-je-rec", "rule-ach-release", "rule-release-je"],
     wouldHaveCaughtIt: [
       {
         control: "payee-account-not-an-employee",
@@ -1071,7 +1054,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 96,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-payroll", "rule-cash-rec"],
+    sodRuleIds: [
+      "rule-payroll",
+      "rule-payroll-master-run",
+      "rule-payroll-release",
+      "rule-payroll-rec",
+      "rule-cash-rec",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1104,11 +1093,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
   {
     id: "case-anderson-flooring-accountant-transfers-gambling",
     title:
-      "Flooring company's accountant moved $952,000 to his own accounts in 18 months and reconciled the bank himself",
-    sector: "trades",
+      "Indiana business's accountant moved $952,000 to his own accounts in 18 months and reconciled the bank himself",
+    sector: "any",
     schemes: ["check-tampering", "financial-statement"],
     howItWorked:
-      "The accountant and director of administration of an Indiana flooring business, employed there for nearly six years, wrote and signed checks, made electronic payments, reconciled the accounting records against the bank, and kept the ledgers. From August 2020 to at least February 2022 he transferred about $952,237 from the company's payroll and operating accounts to his personal accounts in 120 transactions and spent much of it on online gambling. He hid the transfers by recording them as invoice payments, falsifying inventory logs, listing paid jobs as unpaid, and voiding checks.",
+      "The accountant and director of administration of an Indiana business, employed there for nearly six years, wrote and signed checks, made electronic payments, reconciled the accounting records against the bank, and kept the ledgers. From August 2020 to at least February 2022 he transferred about $952,237 from the company's payroll and operating accounts to his personal accounts in 120 transactions and spent much of it on online gambling. He hid the transfers by recording them as invoice payments, falsifying inventory logs, listing paid jobs as unpaid, and voiding checks.",
     controlGap:
       "The person who moved the money also performed the bank reconciliation, so the one check that compares the books with the bank was done by the one person with a reason to make them agree. Every cover entry he made was in a record only he reviewed.",
     lossUsd: 952237,
@@ -1117,7 +1106,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 5,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: [
+      "rule-release-rec",
+      "rule-sign-rec",
+      "rule-cash-rec",
+      "rule-je-rec",
+      "rule-ach-release",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "independent-bank-reconciliation",
@@ -1141,7 +1136,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      'Nathaniel Wills, 34, of Anderson, Indiana, pleaded guilty to wire fraud and was sentenced in October 2024 by U.S. District Judge James P. Hanlon to 41 months in prison, three years of supervised release, and $877,507 in restitution; the loss recorded here is the $952,237 the release says he took. The release names the employer only as an Indiana business; local reporting identifies it as a flooring company, which is the basis for the sector. Five years of tenure is the release\'s "nearly six years" rounded down. The release does not say how the theft was discovered, so the detection route is recorded as unknown.',
+      'Nathaniel Wills, 34, of Anderson, Indiana, pleaded guilty to wire fraud and was sentenced in October 2024 by U.S. District Judge James P. Hanlon to 41 months in prison, three years of supervised release, and $877,507 in restitution; the loss recorded here is the $952,237 the release says he took. The release names the employer only as an Indiana business; local reporting identifies it as a flooring company, which the release does not, so the sector is recorded as any. Five years of tenure is the release\'s "nearly six years" rounded down. The release does not say how the theft was discovered, so the detection route is recorded as unknown.',
   },
   {
     id: "case-columbus-realty-office-manager-personal-amex",
@@ -1159,7 +1154,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 9,
     detection: "owner-review",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -1200,7 +1195,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 72,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-payroll", "rule-je-rec", "rule-admin-pay", "rule-cash-rec"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-release", "rule-ach-release", "rule-release-je"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1246,7 +1241,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 68,
     detection: "unknown",
     resolvedYear: 2015,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -1275,7 +1270,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
   {
     id: "case-duncan-part-time-bookkeeper-found-on-vacation",
     title:
-      "Part-time bookkeeper wrote herself checks for more than ten years, $2.28 million; found the week she was on vacation",
+      "Part-time bookkeeper employed more than a decade wrote herself checks, $2.28 million; found the week she was on vacation",
     sector: "any",
     schemes: ["check-tampering", "payroll", "expense-reimbursement", "financial-statement"],
     howItWorked:
@@ -1284,11 +1279,10 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "One person wrote the checks, ran payroll, and kept both sets of records, and for more than a decade nobody else had a reason to open them. The week she was away, someone did, and the scheme did not survive one person looking for one ordinary record.",
     lossUsd: 2276830,
     lossIsFloor: false,
-    durationMonths: 120,
     tenureYearsStated: 10,
     detection: "cover",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-cash-rec", "rule-payroll", "rule-admin-pay"],
+    sodRuleIds: ["rule-payroll", "rule-payroll-release"],
     wouldHaveCaughtIt: [
       {
         control: "mandatory-time-away",
@@ -1317,7 +1311,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      'Jennifer L. Bengston Cook, 56, of Greer, South Carolina, pleaded guilty to wire fraud and was sentenced in June 2025 by U.S. District Judge Jacquelin D. Austin to 36 months in prison and restitution of $2,276,830.09, the loss figure recorded here; the release\'s headline rounds it to $2 million. The release says she was employed for more than a decade and does not give dates, so the duration is recorded as 120 months and ten years of tenure, both floors. The detection route is recorded as "someone else covered the desk": the release says the conduct was discovered when she was on vacation and her supervisor needed to find the record of a vendor payment. The release does not name the business or its trade, so the sector is recorded as any.',
+      'Jennifer L. Bengston Cook, 56, of Greer, South Carolina, pleaded guilty to wire fraud and was sentenced in June 2025 by U.S. District Judge Jacquelin D. Austin to 36 months in prison and restitution of $2,276,830.09, the loss figure recorded here; the release\'s headline rounds it to $2 million. The release says she was employed for more than a decade and does not date the scheme, so no duration is recorded; ten years of tenure is recorded as a floor. The detection route is recorded as "someone else covered the desk": the release says the conduct was discovered when she was on vacation and her supervisor needed to find the record of a vendor payment. The release does not name the business or its trade, so the sector is recorded as any.',
   },
   {
     id: "case-evansville-parts-manager",
@@ -1371,7 +1365,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 17,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-invoice-pay", "rule-order-receive", "rule-vendor-create-pay"],
+    sodRuleIds: ["rule-invoice-pay", "rule-vendor-create-pay"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -1409,7 +1403,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "tip",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-order-receive"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "controlled-substance-count",
@@ -1444,7 +1438,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 15,
     detection: "law-enforcement",
     resolvedYear: 2021,
-    sodRuleIds: ["rule-collect-post", "rule-writeoff", "rule-payments-adjust"],
+    sodRuleIds: ["rule-collect-post", "rule-collect-adjust", "rule-payments-adjust"],
     wouldHaveCaughtIt: [
       {
         control: "adjustments-report-by-employee",
@@ -1483,7 +1477,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "law-enforcement",
     resolvedYear: 2012,
-    sodRuleIds: ["rule-cash-rec"],
+    sodRuleIds: ["rule-release-rec"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -1520,7 +1514,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 0,
     detection: "unknown",
     resolvedYear: 2018,
-    sodRuleIds: ["rule-ach-release", "rule-cash-rec"],
+    sodRuleIds: ["rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "dual-release-above-threshold",
@@ -1566,12 +1560,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 25,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: [
-      "rule-payroll",
-      "rule-payroll-master-run",
-      "rule-vendor-create-pay",
-      "rule-invoice-pay",
-    ],
+    sodRuleIds: ["rule-payroll", "rule-payroll-master-run"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1664,10 +1653,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
     detection: "owner-review",
     resolvedYear: 2025,
     sodRuleIds: [
+      "rule-collect-post",
+      "rule-collect-adjust",
+      "rule-payments-adjust",
       "rule-cash-rec",
       "rule-custody-rec",
-      "rule-collect-post",
-      "rule-payments-adjust",
       "rule-sign-rec",
     ],
     wouldHaveCaughtIt: [
@@ -1710,7 +1700,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 12,
     detection: "unknown",
     resolvedYear: 2022,
-    sodRuleIds: ["rule-access-export", "rule-access-log"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "no-shared-logins",
@@ -1751,7 +1741,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 6,
     detection: "unknown",
     resolvedYear: 2021,
-    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-deposit-post"],
+    sodRuleIds: ["rule-cash-rec", "rule-custody-rec", "rule-release-rec", "rule-sign-rec"],
     wouldHaveCaughtIt: [
       {
         control: "verify-oversight-is-real",
@@ -1790,7 +1780,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: true,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-vendor-create-pay", "rule-payroll", "rule-invoice-pay"],
+    sodRuleIds: ["rule-vendor-create-pay", "rule-payroll-release"],
     wouldHaveCaughtIt: [
       {
         control: "background-check-money-handlers",
@@ -1839,7 +1829,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 23,
     detection: "unknown",
     resolvedYear: 2024,
-    sodRuleIds: ["rule-invoice-pay", "rule-vendor-approve-pay"],
+    sodRuleIds: ["rule-vendor-approve-pay"],
     wouldHaveCaughtIt: [
       {
         control: "billing-matches-the-schedule",
@@ -1881,7 +1871,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 0,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-backup-access", "rule-access-log"],
+    sodRuleIds: ["rule-backup-access"],
     wouldHaveCaughtIt: [
       {
         control: "recovery-copy-out-of-reach",
@@ -1914,20 +1904,19 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-centro-san-antonio-fake-audit",
-    title:
-      "Nonprofit bookkeeper wrote herself 118 checks over three years, then staged a fake audit to cover it",
+    title: "Nonprofit bookkeeper wrote herself 118 checks over three years",
     sector: "nonprofit",
     schemes: ["check-tampering", "financial-statement"],
     howItWorked:
-      "The office manager and bookkeeper of Centro San Antonio, a nonprofit that ran services for the city's downtown public improvement district, forged or wrote to herself 118 checks on the nonprofit's bank account between July 2014 and November 2017 and deposited them in her own account, $291,385.23 in all. To keep the board satisfied she arranged an elaborate fake audit: fabricated emails and websites, and at least one other person who posed as the auditor.",
+      "The office manager and bookkeeper of a San Antonio nonprofit that ran services for the city's downtown public improvement district forged or wrote to herself 118 checks on the nonprofit's bank account between July 2014 and November 2017 and deposited them in her own account, $291,385.23 in all.",
     controlGap:
-      "One person kept the books, wrote the checks, and was the board's only window onto the finances, so she could also stage the review that was supposed to check her. An audit the bookkeeper arranges, introduces, and reports back on is not oversight. The board needed to engage the auditor itself and read the cleared checks itself.",
+      "One person kept the books, wrote the checks, and was the board's only window onto the finances, so every check on her work passed through her. The board needed to read the cleared checks itself.",
     lossUsd: 291385.23,
     lossIsFloor: false,
     durationMonths: 40,
     detection: "unknown",
     resolvedYear: 2022,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "verify-oversight-is-real",
@@ -1950,7 +1939,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       grade: "primary-document-reported",
     },
     caveat:
-      "Alicia Henderson pleaded guilty in 2020 and was sentenced on 5 August 2022 to 33 months in prison and $356,104.23 in restitution, which covers the $291,385.23 taken plus $64,719 in unpaid federal tax on it; the loss recorded here is the amount taken. The nonprofit's name and the fake-audit detail come from San Antonio Report and KSAT coverage of the case; the release identifies the victim as a nonprofit serving the Downtown Public Improvement District. The release does not say how the theft was discovered or how long she had worked there.",
+      "Alicia Henderson pleaded guilty in 2020 and was sentenced on 5 August 2022 to 33 months in prison and $356,104.23 in restitution, which covers the $291,385.23 taken plus $64,719 in unpaid federal tax on it; the loss recorded here is the amount taken. The nonprofit's name, Centro San Antonio, and the fake-audit detail come from San Antonio Report and KSAT coverage of the case: to keep the board satisfied she arranged an elaborate fake audit, with fabricated emails and websites and at least one other person who posed as the auditor. The release identifies the victim only as a nonprofit serving the Downtown Public Improvement District and does not describe the audit, so neither detail appears in the account above. The release does not say how the theft was discovered or how long she had worked there.",
   },
   {
     id: "case-dc-advocacy-finance-director-transfers",
@@ -2009,7 +1998,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 66,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-release-rec"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -2050,7 +2039,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 200,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay", "rule-vendor-approve-pay"],
+    sodRuleIds: [
+      "rule-vendor-create-pay",
+      "rule-vendor-create-approve",
+      "rule-invoice-pay",
+      "rule-vendor-approve-pay",
+    ],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -2096,7 +2090,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 78,
     detection: "unknown",
     resolvedYear: 2019,
-    sodRuleIds: ["rule-cash-rec", "rule-admin-pay"],
+    sodRuleIds: ["rule-cash-rec"],
     wouldHaveCaughtIt: [
       {
         control: "positive-pay",

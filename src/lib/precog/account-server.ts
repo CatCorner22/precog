@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { deleteAccountRows, exportAccountRows } from "./account-store";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * Everything the account holds, for the owner to keep. Serialised here because
@@ -21,7 +22,7 @@ export const exportAccountData = createServerFn({ method: "GET" })
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { confirm: string }) => {
-    if (input?.confirm !== "DELETE") throw new Error("Type DELETE to confirm");
+    if (input?.confirm !== "DELETE") throw new RequestError(400, "Type DELETE to confirm");
     return { confirm: "DELETE" as const };
   })
   .handler(async ({ context }) => {

@@ -15,7 +15,7 @@ export const INDUSTRIES: IndustryMeta[] = [
   {
     id: "dental",
     label: "Dental / medical office",
-    tagline: "Chairside revenue, billing, and cash controls",
+    tagline: "Patient revenue, billing, and cash controls",
     demoName: "Ridgeview Family Dental",
     teamLabel: "practice",
     customerLabel: "patients",

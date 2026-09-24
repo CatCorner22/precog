@@ -21,7 +21,7 @@ export function HealthPill({
         ? "text-warn border-warn/40 bg-warn/10"
         : "text-danger border-danger/40 bg-danger/10";
   return (
-    <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px]">
+    <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs">
       <span
         className={cn(
           "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold tabular",
@@ -55,7 +55,7 @@ export function DeltaBadge({ delta, title }: { delta: HealthDelta | null; title?
           : `Health ${delta.before} → ${delta.after}`)
       }
       className={cn(
-        "inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold tabular",
+        "inline-flex items-center gap-0.5 rounded px-1 py-px text-xs font-semibold tabular",
         up ? "bg-ok/15 text-ok" : "bg-danger/15 text-danger",
       )}
     >

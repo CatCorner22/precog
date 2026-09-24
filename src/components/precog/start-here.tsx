@@ -21,6 +21,7 @@ import {
   staleItems,
   CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";
 import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
@@ -31,18 +32,30 @@ import {
   detectionBreakdown,
   METHOD_CAVEATS,
   casesForSodRules,
-  observedDurationMonths,
-  observedLossRange,
+  caseForRule,
+  citingCaseStats,
+  durationPhrase,
   recommendedStepsForRules,
   isOwnSector,
   tenureExamples,
   type CaseStudy,
   type SchemeKind,
 } from "@/lib/precog/evidence";
+import {
+  closingSteps,
+  gapBadge,
+  ownerHeldPairs,
+  rankFirstSteps,
+  type GapBadge,
+} from "@/lib/precog/coach/first-steps";
 import { CaseCard } from "./case-card";
+import { concentrationHeadline, midSentence, separatedPairs } from "@/lib/precog/sod/verdict";
+import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
+import { personLabel } from "@/lib/precog/person-label";
 
 /**
  * The first screen an owner sees.
@@ -79,7 +92,9 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
   );
-  const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+  const registerFrom = registerSource(profile);
+  const registerReady = registerAssessed(template);
+  const trackFreshness = registerFrom !== "sample" && registerReady;
   const continuityReadiness = useMemo(() => {
     const coverage = coverageReport(template);
     return {
@@ -129,12 +144,27 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   const openConflicts = useMemo(
     () =>
       sod.conflicts
-        .filter((c) => !c.residualRiskAccepted)
+        // An owner-held pair is not a theft finding: it gets its own note below
+        // and never a "Fix first" card above an employee's.
+        .filter((c) => !c.residualRiskAccepted && !c.ownerHeld)
         .sort(
           (a, b) =>
             Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
         ),
     [sod.conflicts],
+  );
+  const ownerHeld = useMemo(() => ownerHeldPairs(sod.conflicts), [sod.conflicts]);
+  // One person holding most of the gaps is the headline a CPA leads with, and
+  // the pairs the team already keeps apart are worth saying out loud.
+  const headline = useMemo(() => concentrationHeadline(sod.conflicts), [sod.conflicts]);
+  const keptApart = useMemo(
+    () => separatedPairs(sod.conflicts, sod.assignments),
+    [sod.conflicts, sod.assignments],
+  );
+  // Findings that rest on duties guessed from job titles say so.
+  const titleDuties = isSampleTeam ? "" : titleDutiesSentence(template.people);
+  const unheld = sod.summary.unheldDuties.map(
+    (d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d,
   );
 
   /**
@@ -160,15 +190,24 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       }
     }
     const partial = new Map<string, number>();
+    // Only a gap the detector counts as mitigated (a distinct second person
+    // exists on the team) is narrowed; otherwise it is still open.
+    const mitigated = new Set(
+      sod.conflicts.filter((c) => c.dualReleaseMitigated).map((c) => c.ruleId),
+    );
     for (const [ruleId, thresholds] of byRuleId) {
       const gapThresholds = thresholds.filter((t) => t > 0);
       // Covered at every amount by at least one rule → nothing left beneath.
-      if (gapThresholds.length === thresholds.length && gapThresholds.length > 0) {
+      if (
+        mitigated.has(ruleId) &&
+        gapThresholds.length === thresholds.length &&
+        gapThresholds.length > 0
+      ) {
         partial.set(ruleId, Math.min(...gapThresholds));
       }
     }
     return partial;
-  }, [profile.dualRelease]);
+  }, [profile.dualRelease, sod.conflicts]);
 
   /**
    * Group by the gap, not by the person.
@@ -199,8 +238,14 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         byRule.set(c.ruleId, { people: [c.personName], conflict: c });
       }
     }
-    return [...byRule.values()].sort((a, b) => b.conflict.score - a.conflict.score);
-  }, [openConflicts]);
+    // Open gaps first, then those the policy narrows, then those it covers at
+    // every amount; worst first within each.
+    const rank = (c: (typeof openConflicts)[number]) =>
+      !c.dualReleaseMitigated ? 0 : partialCoverage.has(c.ruleId) ? 1 : 2;
+    return [...byRule.values()].sort(
+      (a, b) => rank(a.conflict) - rank(b.conflict) || b.conflict.score - a.conflict.score,
+    );
+  }, [openConflicts, partialCoverage]);
 
   const topThree = gaps.slice(0, 3);
   /**
@@ -222,14 +267,30 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [gaps, partialCoverage, topThree],
   );
   const narrowedCount = gaps.filter((g) => partialCoverage.has(g.conflict.ruleId)).length;
+  const coveredCount = gaps.filter(
+    (g) => g.conflict.dualReleaseMitigated && !partialCoverage.has(g.conflict.ruleId),
+  ).length;
   const openRuleIds = useMemo(() => gaps.map((g) => g.conflict.ruleId), [gaps]);
+  /** Findings still open at some amount: not covered by dual release at every amount. */
+  const stillOpen = useMemo(
+    () => openConflicts.filter((c) => !c.dualReleaseMitigated || partialCoverage.has(c.ruleId)),
+    [openConflicts, partialCoverage],
+  );
 
+  // Every case the page lists, including ones that share a scheme with the
+  // gaps without showing the exact pair; the figures below ("N cases show
+  // these gaps", median loss, duration, how they came to light) are computed
+  // over the cases whose records show the pair, and nothing else.
   const evidence = useMemo(() => casesForSodRules(openRuleIds), [openRuleIds]);
-  const lossRange = useMemo(() => observedLossRange(evidence), [evidence]);
-  const duration = useMemo(() => observedDurationMonths(evidence), [evidence]);
-  const found = useMemo(() => detectionBreakdown(evidence), [evidence]);
+  const citing = useMemo(() => citingCaseStats(openRuleIds), [openRuleIds]);
+  const lossRange = citing.loss;
+  const duration = citing.duration;
+  const found = citing.detection;
   const caseById = useMemo(() => new Map(evidence.map((c) => [c.id, c])), [evidence]);
-  const steps = useMemo(() => recommendedStepsForRules(openRuleIds), [openRuleIds]);
+  const steps = useMemo(
+    () => rankFirstSteps(recommendedStepsForRules(openRuleIds), stillOpen),
+    [openRuleIds, stillOpen],
+  );
 
   /**
    * Years of service for each named person, where the team record states it.
@@ -260,7 +321,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
     [template],
   );
 
-  const medianLoss = BENCHMARK_BY_ID["bm-median-loss"];
+  // A team under 100 people reads the small-organization median, which the
+  // same report gives; a larger one reads the all-sizes median.
+  const smallOrg = Math.max(profile.staff.teamSize, template.people.length) < 100;
+  const medianLoss = BENCHMARK_BY_ID[smallOrg ? "bm-small-org-losses" : "bm-median-loss"];
+  // The small-organization entry's full value also quotes the largest
+  // organizations; the tile shows its own figure.
+  const medianLossValue =
+    smallOrg && typeof medianLoss?.numeric === "number"
+      ? `$${medianLoss.numeric.toLocaleString("en-US")}`
+      : medianLoss?.value;
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];
   const delayCurve = BENCHMARK_BY_ID["bm-duration-cost-curve"];
   const tips = BENCHMARK_BY_ID["bm-tips"];
@@ -465,44 +535,57 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         )}
         <Card>
           <CardContent className="space-y-4 pt-5">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {!registerReady ? (
               <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.coverageIndex}%
-                </p>
-                <p className="mt-1 text-sm font-medium">Backed up</p>
-                <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
-              </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.documentationIndex}%
-                </p>
-                <p className="mt-1 text-sm font-medium">Written and findable</p>
-                <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
-              </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
-                </p>
-                <p className="mt-1 text-sm font-medium">Confirmed recently</p>
-                <p className="mt-1 text-xs text-subtle">
-                  {!trackFreshness
-                    ? "starts once you enter your own register"
-                    : continuityReadiness.checkIns.checkIns[0]
-                      ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
-                      : continuityReadiness.checkIns.unheld.length > 0
-                        ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
-                        : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
+                <p className="text-sm font-medium">Not assessed yet</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  {template.knowledge.length === 0
+                    ? "Your register is empty. List the duties, tasks and know-how the business runs on and mark who can do each, and these figures fill in."
+                    : `Your register holds ${template.knowledge.length} starter items from the ${industryMeta(profile.industry).label.toLowerCase()} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">{slipped.length}</p>
-                <p className="mt-1 text-sm font-medium">Slipped</p>
-                <p className="mt-1 text-xs text-subtle">
-                  done items whose coverage or documentation regressed
-                </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {continuityReadiness.coverageIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Backed up</p>
+                  <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {continuityReadiness.documentationIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Written and findable</p>
+                  <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Confirmed recently</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    {!trackFreshness
+                      ? "starts once you enter your own register"
+                      : continuityReadiness.checkIns.checkIns[0]
+                        ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
+                        : continuityReadiness.checkIns.unheld.length > 0
+                          ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
+                          : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {slipped.length}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Slipped</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    done items whose coverage or documentation regressed
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3">
               {continuityReadiness.mostDepended ? (
                 <p className="text-sm text-muted">
@@ -519,7 +602,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                   onClick={() => onOpenDetail("knowledge")}
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                 >
-                  Open who knows what
+                  Open Who knows what
                   <ArrowRight className="size-3.5" aria-hidden />
                 </button>
               )}
@@ -539,9 +622,50 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.` +
                 (narrowedCount > 0
                   ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
+                  : "") +
+                (coveredCount > 0
+                  ? ` ${coveredCount} ${coveredCount === 1 ? "is" : "are"} covered by dual release at every amount.`
                   : "")
           }
         />
+
+        {titleDuties && (
+          <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+            {titleDuties}{" "}
+            {onOpenDetail ? (
+              <button
+                type="button"
+                onClick={() => onOpenDetail("sod")}
+                className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+              >
+                Check them in Who controls what.
+              </button>
+            ) : (
+              "Check them in Who controls what."
+            )}
+          </p>
+        )}
+
+        {unheld.length > 0 && (
+          <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+            Nobody active is marked for: {unheld.join(", ")}. Somebody does each of these in every
+            business that handles money, so mark who on Who controls what; until then the findings
+            here cannot see that seat.
+          </p>
+        )}
+
+        {headline && (
+          <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm leading-relaxed">
+            <span className="font-medium">
+              {personLabel(headline.personName, headline.role)} holds {headline.gaps} of the{" "}
+              {headline.totalGaps} open gaps.
+            </span>{" "}
+            <span className="text-muted">
+              Moving one duty, {midSentence(headline.dutyLabel)}, to someone who holds none of the
+              others closes {headline.closes} of them.
+            </span>
+          </p>
+        )}
 
         {gaps.length === 0 ? (
           <Card>
@@ -558,41 +682,26 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               // Prefer a case from the owner's own line of business that cites
               // this rule directly; a dentist reads a dental case differently
               // from a construction one. Fall back to the best match overall.
-              const matches = casesForSodRules([conflict.ruleId]);
-              const ownSector = matches.find(
-                (c) => isOwnSector(c, industryId) && c.sodRuleIds.includes(conflict.ruleId),
+              const pick = caseForRule(conflict.ruleId, industryId);
+              const badge = gapBadge(conflict, partialCoverage.get(conflict.ruleId));
+              const closes = closingSteps(
+                conflict.compensatingControls,
+                profile.dualRelease,
+                conflict.ruleId,
+                conflict.controlsInPlace,
               );
-              const worst = ownSector ?? matches[0];
               return (
                 <Card key={conflict.ruleId}>
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant={
-                          partialCoverage.has(conflict.ruleId)
-                            ? "primary"
-                            : conflict.severity === "critical"
-                              ? "danger"
-                              : conflict.severity === "high"
-                                ? "warn"
-                                : "default"
-                        }
-                      >
-                        {partialCoverage.has(conflict.ruleId)
-                          ? "Reduced, not closed"
-                          : conflict.severity === "critical"
-                            ? "Fix first"
-                            : conflict.severity === "high"
-                              ? "Fix soon"
-                              : "Worth doing"}
-                      </Badge>
+                      <Badge variant={BADGE_VARIANT[badge]}>{badge}</Badge>
                       <span className="text-xs text-subtle">
                         {people.length === 1
                           ? people[0]
                           : `${people.length} people: ${people.join(", ")}`}
                       </span>
                     </div>
-                    <CardTitle className="leading-snug">
+                    <CardTitle as="h3" className="leading-snug">
                       {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
                       {lower(conflict.labelA)} and {lower(conflict.labelB)}
                     </CardTitle>
@@ -642,13 +751,13 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </p>
                     )}
 
-                    {conflict.compensatingControls.length > 0 && (
+                    {closes.length > 0 && (
                       <div>
                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">
                           What closes it
                         </p>
                         <ul className="space-y-1">
-                          {conflict.compensatingControls.map((c) => (
+                          {closes.map((c) => (
                             <li key={c} className="flex gap-2 leading-relaxed text-muted">
                               <span
                                 aria-hidden
@@ -661,14 +770,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
                       </div>
                     )}
 
-                    {worst && (
+                    {pick && (
                       <div>
                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
-                          {ownSector
-                            ? "This exact gap, in your line of business"
-                            : "This exact gap, somewhere real"}
+                          {!pick.citesRule
+                            ? "A related scheme, somewhere real"
+                            : pick.ownSector
+                              ? "This exact gap, in your line of business"
+                              : "This exact gap, somewhere real"}
                         </p>
-                        <CaseCard study={worst} />
+                        <CaseCard study={pick.study} />
                       </div>
                     )}
                   </CardContent>
@@ -714,6 +825,41 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             )}
           </div>
         )}
+
+        {keptApart.length > 0 && (
+          <div className="rounded-lg border border-ok/30 bg-ok/5 p-4">
+            <p className="text-sm font-medium">Kept apart on your team</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              Both duties in each of these pairs are held, by different people, so the pair needs no
+              fix:{" "}
+              {keptApart
+                .slice(0, 6)
+                .map((p) => midSentence(p.title))
+                .join("; ")}
+              {keptApart.length > 6 ? `; and ${keptApart.length - 6} more` : ""}.
+            </p>
+          </div>
+        )}
+
+        {ownerHeld.length > 0 && (
+          <div className="rounded-lg border border-border bg-panel/60 p-4">
+            <p className="text-sm font-medium">Duties you hold yourself</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              These pairs sit with you as the owner. You cannot steal from yourself, so they are not
+              theft findings; the exposure is error, tax and lender reliance.{" "}
+              {ownerHeld[0].suggestion
+                ? `What closes it: ${ownerHeld[0].suggestion.replace(/^An /, "an ")}.`
+                : ""}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-muted">
+              {ownerHeld.map((o) => (
+                <li key={o.ruleId}>
+                  {o.personName}: {o.pair}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       {/* 2. What it has cost. */}
@@ -722,9 +868,11 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           icon={<TrendingDown className="size-4" aria-hidden />}
           title="What these gaps have cost other organizations"
           subtitle={
-            evidence.length > 0
-              ? `Drawn from ${evidence.length} prosecuted cases matching the gaps above.`
-              : "No matching cases, because no gaps are open."
+            citing.count > 0
+              ? `Drawn from ${citing.count} prosecuted ${citing.count === 1 ? "case" : "cases"} whose records show the gaps above.`
+              : evidence.length > 0
+                ? "No prosecuted case in the library shows these exact gaps; the cases below share their schemes."
+                : "No matching cases, because no gaps are open."
           }
         />
 
@@ -740,13 +888,17 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
             <StatTile
               label="How long they ran undetected"
               value={`${Math.round(duration.median)} months`}
-              detail={`Longest in this set: ${Math.round(duration.longest / 12)} years`}
+              detail={`Longest in this set: ${durationPhrase(duration.longest)}`}
             />
           )}
           {medianLoss && (
             <StatTile
-              label="Median loss, given an investigated fraud"
-              value={medianLoss.value}
+              label={
+                smallOrg
+                  ? "Median loss, organizations under 100 employees"
+                  : "Median loss, given an investigated fraud"
+              }
+              value={medianLossValue ?? medianLoss.value}
               detail={medianLoss.study}
               href={medianLoss.source.url}
             />
@@ -765,15 +917,16 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
           <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
             <span className="font-medium text-muted">Read these numbers as conditional. </span>
             Neither figure is a forecast for your business. Both describe what happened{" "}
-            <em>given</em> that a fraud occurred and was found: {medianLoss.value} is the median
-            across investigated cases, and the case range above is higher still because federal
-            prosecutors do not charge small thefts. Nothing here estimates how likely any of it is
-            to happen to you — that depends on the gaps listed at the top of this page, not on a
-            median.
+            <em>given</em> that a fraud occurred and was found:{" "}
+            {medianLossValue ?? medianLoss.value} is the median across investigated cases
+            {smallOrg ? " at organizations under 100 employees" : ""}, and the case range above is
+            higher still because federal prosecutors do not charge small thefts. Nothing here
+            estimates how likely any of it is to happen to you — that depends on the gaps listed at
+            the top of this page, not on a median.
           </p>
         )}
 
-        {found.known > 0 && (
+        {found.n > 0 && (
           <Card>
             <CardContent className="flex gap-3 pt-5">
               <Eye className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
@@ -834,7 +987,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         <SectionHeading
           icon={<ArrowRight className="size-4" aria-hidden />}
           title="Do these first"
-          subtitle="Ordered by how many of the real cases above each one would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
+          subtitle="Ordered first by how many of your open findings each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
         />
 
         <Card>
@@ -848,15 +1001,18 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
               <ol className="space-y-3">
                 {steps.slice(0, 6).map((s, i) => (
                   <li key={s.control.id} className="flex gap-3">
-                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-[11px] text-muted">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
                       {i + 1}
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm leading-relaxed">{s.control.label}</p>
                       <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        {effortPhrase(s.control.effort)} · would plausibly have caught{" "}
-                        {s.supportingCaseIds.length}{" "}
+                        {effortPhrase(s.control.effort)} ·{" "}
+                        {s.answers > 0
+                          ? `answers ${s.answers} of your open ${s.answers === 1 ? "finding" : "findings"} · `
+                          : ""}
+                        would plausibly have caught {s.supportingCaseIds.length}{" "}
                         {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
                       </p>
                       {s.supportingCaseIds.length > 0 && (
@@ -1011,8 +1167,9 @@ function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId:
       </div>
       <p className="text-xs text-subtle">
         {(() => {
-          const found = detectionBreakdown(CASE_LIBRARY);
-          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} cases; in the other ${found.unknown} it does not say.`;
+          // Counted over the cases listed here, so the footer matches the list.
+          const found = detectionBreakdown(ordered);
+          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`;
         })()}
       </p>
       <div className="space-y-2">
@@ -1023,6 +1180,14 @@ function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId:
     </section>
   );
 }
+
+const BADGE_VARIANT: Record<GapBadge, "danger" | "warn" | "default" | "primary" | "ok"> = {
+  "Fix first": "danger",
+  "Fix soon": "warn",
+  "Worth doing": "default",
+  "Reduced, not closed": "primary",
+  "Covered by dual release": "ok",
+};
 
 /** Plain wording for each scheme shape, in the order the chips appear. */
 const SCHEME_ORDER: SchemeKind[] = [

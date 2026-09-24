@@ -29,7 +29,7 @@ export function VersionsPanel({
   const compare = versions.find((v) => v.id === compareId) ?? null;
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-[11px]">
+    <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         Saved snapshots of your map. Compare to see what changed, or restore (undoable).
       </p>
@@ -47,7 +47,7 @@ export function VersionsPanel({
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-fg">{v.name}</p>
-                <p className="text-[10px] text-subtle">
+                <p className="text-xs text-subtle">
                   {new Date(v.createdAt).toLocaleString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -68,14 +68,14 @@ export function VersionsPanel({
               <button
                 type="button"
                 onClick={() => setCompareId(compareId === v.id ? null : v.id)}
-                className="text-[10px] text-primary hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 {compareId === v.id ? "Hide" : "Compare"}
               </button>
               <button
                 type="button"
                 onClick={() => onRestore(v.id)}
-                className="text-[10px] text-primary hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 Restore
               </button>

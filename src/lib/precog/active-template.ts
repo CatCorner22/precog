@@ -1,6 +1,17 @@
 import type { IndustryId } from "./industry";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
-import type { KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
+import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
+import { CONFLICT_RULES } from "./sod/conflict-rules";
+import { detectSodConflicts, type DetectedConflict } from "./sod/detect";
+
+/** A journal entry's link to what it is about (see DecisionEntry in practice-profile). */
+export interface DecisionLink {
+  linkedTab?: string;
+  linkedId?: string;
+  linkedIndustry?: IndustryId;
+  /** The entry's note: for a control in place, what the owner does. */
+  note?: string;
+}
 
 /** The slice of a practice profile that determines which template the engines see. */
 export interface TemplateSource {
@@ -9,6 +20,62 @@ export interface TemplateSource {
   customPeople?: Person[] | null;
   customKnowledge?: KnowledgeItem[] | null;
   customRelations?: KnowledgeRelation[] | null;
+  /** The journal: an entry linked to a starter control confirms that it runs here. */
+  decisions?: readonly DecisionLink[] | null;
+  /** Starter controls the owner has confirmed; read from `decisions` when absent. */
+  confirmedControlIds?: readonly string[] | null;
+  /** Controls the owner already has, by control id; read from `decisions` when absent. */
+  controlsInPlace?: Readonly<Record<string, readonly string[]>> | null;
+}
+
+/** The linkedTab of a journal entry that confirms a starter control runs in this business. */
+export const CONTROL_CONFIRM_TAB = "control";
+
+/**
+ * Starter controls the owner has confirmed by logging a journal entry on them
+ * ("This runs here" on Where risk sits). Template ids repeat across
+ * industries, so an entry counts only under the industry it was logged for.
+ */
+export function confirmedControlIds(
+  decisions: readonly DecisionLink[] | null | undefined,
+  industry: IndustryId,
+): string[] {
+  const ids = new Set<string>();
+  for (const d of decisions ?? []) {
+    if (d.linkedTab !== CONTROL_CONFIRM_TAB || !d.linkedId) continue;
+    if (d.linkedIndustry && d.linkedIndustry !== industry) continue;
+    ids.add(d.linkedId);
+  }
+  return [...ids].sort();
+}
+
+/** The linkedTab of a journal entry that records a control the owner already has against a duty gap. */
+export const CONTROL_IN_PLACE_TAB = "control-in-place";
+
+/** Longest description of a control in place that the engines carry. */
+const MAX_IN_PLACE_TEXT = 200;
+
+/**
+ * Controls the owner already has, recorded on Where risk sits ("We already
+ * do this"), by the control they narrow: for example "The CFO reviews each
+ * bank reconciliation" against the cash duty-separation control. Each is a
+ * journal entry, so it carries a date and a review date, and removing the
+ * entry removes the credit. Only entries logged under this industry count.
+ */
+export function controlsInPlace(
+  decisions: readonly DecisionLink[] | null | undefined,
+  industry: IndustryId,
+): Record<string, string[]> {
+  const byControl: Record<string, string[]> = {};
+  for (const d of decisions ?? []) {
+    if (d.linkedTab !== CONTROL_IN_PLACE_TAB || !d.linkedId) continue;
+    if (d.linkedIndustry && d.linkedIndustry !== industry) continue;
+    const text = (d.note ?? "").trim().slice(0, MAX_IN_PLACE_TEXT);
+    if (!text) continue;
+    const list = (byControl[d.linkedId] ??= []);
+    if (!list.includes(text)) list.push(text);
+  }
+  return byControl;
 }
 
 /**
@@ -36,16 +103,94 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
     peopleOverrides || knowledgeOverrides || relationOverrides
       ? rawRelations.filter((r) => ids.has(r.personId) && knowledgeIds.has(r.knowledgeId))
       : rawRelations;
+  const processes = (processOverrides ?? base.processes).map((p) => ({
+    ...p,
+    ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
+  }));
+  const resolved = { ...base, people, knowledge, relations, processes };
+  const confirmed = new Set(
+    source.confirmedControlIds ?? confirmedControlIds(source.decisions, source.industry),
+  );
+  const inPlace = source.controlsInPlace ?? controlsInPlace(source.decisions, source.industry);
   return {
-    ...base,
-    people,
-    knowledge,
-    relations,
-    processes: (processOverrides ?? base.processes).map((p) => ({
-      ...p,
-      ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => ids.has(id)),
-    })),
+    ...resolved,
+    controls: peopleOverrides
+      ? ownControls(base.controls, resolved, confirmed, inPlace)
+      : base.controls,
   };
+}
+
+const RULE_LINKED_CONTROLS = new Set(
+  CONFLICT_RULES.map((r) => r.linkedControlId).filter((id): id is string => Boolean(id)),
+);
+
+/**
+ * The sample business's control records describe the sample team: one
+ * accepted residual risk, compensating controls its people perform,
+ * "segregated" flags written by hand and descriptions of the sample's gaps.
+ * None of that is a fact about this owner's business. With the owner's own
+ * people:
+ * - a control a conflict rule links to is segregated exactly when no employee
+ *   holds one of its pairs, and its description names the pairs that are open;
+ * - every other control is marked as a starter until the owner confirms it
+ *   runs here (a journal entry linked to it);
+ * - nothing is accepted, and nothing is credited as in place until the owner
+ *   records it (see controlsInPlace).
+ */
+function ownControls(
+  controls: readonly ControlItem[],
+  tpl: IndustryTemplate,
+  confirmed: ReadonlySet<string>,
+  inPlace: Readonly<Record<string, readonly string[]>>,
+): ControlItem[] {
+  const openByControl = new Map<string, DetectedConflict[]>();
+  const ownerHolds = new Set<string>();
+  for (const conflict of detectSodConflicts(tpl).conflicts) {
+    const controlId = conflict.linkedControlId;
+    if (!controlId) continue;
+    if (conflict.ownerHeld) {
+      ownerHolds.add(controlId);
+      continue;
+    }
+    openByControl.set(controlId, [...(openByControl.get(controlId) ?? []), conflict]);
+  }
+  return controls.map((c) => {
+    const own = {
+      ...c,
+      residualRiskAccepted: false,
+      compensatingControls: [...(inPlace[c.id] ?? [])],
+    };
+    // A control no conflict rule covers is the example's until the owner says
+    // it runs here; once confirmed it counts as the example describes it.
+    if (!RULE_LINKED_CONTROLS.has(c.id))
+      return confirmed.has(c.id) ? own : { ...own, starter: true };
+    const open = openByControl.get(c.id) ?? [];
+    return {
+      ...own,
+      segregated: open.length === 0,
+      description: describeOwnControl(open, ownerHolds.has(c.id)),
+    };
+  });
+}
+
+/** Lower-cases a rule title's first word unless it is an acronym ("ACH initiation"). */
+function lowerFirst(title: string): string {
+  return /^[A-Z][a-z]/.test(title) ? title[0].toLowerCase() + title.slice(1) : title;
+}
+
+/** What a rule-linked control covers on this team, named from the pairs actually open. */
+function describeOwnControl(open: readonly DetectedConflict[], ownerHolds: boolean): string {
+  if (open.length === 0) {
+    return ownerHolds
+      ? "Only the owner holds a pair of duties this control covers; someone outside the pair reading the records closes it."
+      : "Nobody on your team holds a pair of duties this control covers.";
+  }
+  const shown = open
+    .slice(0, 3)
+    .map((c) => `${c.personName} (${lowerFirst(c.title)})`)
+    .join("; ");
+  const more = open.length - 3;
+  return `Open on your team: ${shown}${more > 0 ? `; and ${more} more` : ""}.`;
 }
 
 /** The unmodified industry template (before any user overrides). */

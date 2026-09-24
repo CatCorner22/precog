@@ -2,8 +2,8 @@ import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
 import { getSql } from "@/lib/db";
-import { takeDailyBudget } from "./daily-usage";
-import { LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
+import { withinDailyBudget } from "./daily-usage";
+import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 
 export type LlmAccess = {
   userId: string | null;
@@ -14,8 +14,8 @@ export class TooManyRequestsError extends Error {
   readonly status = 429;
   readonly retryAfterMs: number;
 
-  constructor(retryAfterMs: number) {
-    super("Too many requests — try again in a minute.");
+  constructor(retryAfterMs: number, message = "Too many requests — try again in a minute.") {
+    super(message);
     this.name = "TooManyRequestsError";
     this.retryAfterMs = retryAfterMs;
   }
@@ -24,8 +24,21 @@ export class TooManyRequestsError extends Error {
 const perUserLimiter = new SlidingWindowLimiter(LLM_LIMITS.perUser);
 const perIpLimiter = new SlidingWindowLimiter(LLM_LIMITS.perIp);
 const globalLimiter = new SlidingWindowLimiter(LLM_LIMITS.global);
+const anonymousHeavyGate = createAnonymousHeavyGate();
 
-export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess> {
+export interface LlmAccessOptions {
+  /**
+   * The function does costly work on the server even without a model call
+   * (Pioneer's local analysis), so signed-out callers get a much smaller
+   * allowance there than the per-address limit every model path shares.
+   */
+  heavy?: boolean;
+}
+
+export async function resolveLlmAccess(
+  bearerToken?: string,
+  options: LlmAccessOptions = {},
+): Promise<LlmAccess> {
   assertSameSiteRequest();
   const ipKey = `ip:${requestIp()}`;
   const ipResult = perIpLimiter.take(ipKey);
@@ -38,6 +51,17 @@ export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess>
     userId = (await getSessionUser(bearerToken))?.id ?? null;
   }
 
+  // Checked before the input is parsed or any analysis runs.
+  if (options.heavy && !userId) {
+    const anonymous = anonymousHeavyGate(ipKey);
+    if (!anonymous.allowed) {
+      throw new TooManyRequestsError(
+        anonymous.retryAfterMs,
+        "Too many requests — sign in, or try again in a minute.",
+      );
+    }
+  }
+
   if (!process.env.XAI_API_KEY?.trim()) return { userId, grok: "no_api_key" };
   if (!userId) return { userId, grok: "unauthenticated" };
 
@@ -45,27 +69,8 @@ export async function resolveLlmAccess(bearerToken?: string): Promise<LlmAccess>
   if (!userResult.allowed) return { userId, grok: "rate_limited" };
   const globalResult = globalLimiter.take("global");
   if (!globalResult.allowed) return { userId, grok: "rate_limited" };
-  if (!(await withinDailyBudget(userId))) return { userId, grok: "rate_limited" };
+  // Fails closed: if the daily count cannot be read, the caller gets the
+  // local answer rather than an uncounted model call.
+  if (!(await withinDailyBudget(getSql, userId))) return { userId, grok: "rate_limited" };
   return { userId, grok: "allowed" };
-}
-
-/**
- * The persisted daily ceiling. A database failure logs and allows the call:
- * the per-minute limiters above still hold, and refusing every model call
- * because the usage table is briefly unreachable would take the coach down
- * with it.
- */
-async function withinDailyBudget(userId: string): Promise<boolean> {
-  try {
-    const budget = await takeDailyBudget(await getSql(), userId);
-    if (!budget.allowed) {
-      console.warn(
-        `[llm] daily ceiling reached: user ${budget.userCalls} calls, global ${budget.globalCalls} calls`,
-      );
-    }
-    return budget.allowed;
-  } catch (error) {
-    console.error("[llm] daily usage check failed; allowing the call", error);
-    return true;
-  }
 }

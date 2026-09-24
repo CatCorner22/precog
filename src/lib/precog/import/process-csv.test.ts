@@ -65,6 +65,28 @@ describe("parseProcessCsv", () => {
     expect(r.removed).toEqual([]);
   });
 
+  it("reports a process made in the map builder and re-imported from its own CSV as unchanged", () => {
+    const made = {
+      id: "proc-new-process",
+      name: "New process",
+      layer: "process" as const,
+      description: "Describe what this process does and who touches it.",
+      dependencies: [],
+      controlIds: [],
+      stage: 3,
+      ownerPersonIds: [],
+      risks: [],
+      ideas: [],
+      wastes: [],
+      inputs: [],
+      outputs: [],
+    };
+    const map = { ...tpl, processes: [...tpl.processes, made] };
+    const r = parseProcessCsv(processesToCsv(map.processes, map.people, map.controls), map);
+    expect(r.updated).toEqual([]);
+    expect(r.unchanged).toHaveLength(map.processes.length);
+  });
+
   it("resolves dependencies between rows regardless of order", () => {
     const csv = [
       "process,depends on",

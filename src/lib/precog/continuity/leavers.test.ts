@@ -256,3 +256,23 @@ describe("leavers", () => {
     }
   });
 });
+
+describe("a leaver over a starter register nobody has marked", () => {
+  it("does not promise that nothing leaves with them", () => {
+    const starter: IndustryTemplate = {
+      ...getBaseTemplate("general"),
+      people,
+      relations: [],
+      processes: [],
+    };
+    const [maya] = leavers(starter, [], "2026-10-01");
+    expect(maya.assessed).toBe(false);
+    expect(maya.handover).toEqual([]);
+    expect(describeLeaver(maya)).toBe(
+      "Maya leaves in 13 days (last day 14 Oct): nobody is marked on the register yet, so the app cannot tell what leaves with Maya.",
+    );
+    expect(maya.actions.map((a) => a.text)).toEqual([
+      "Nobody is marked on the register yet, so the app cannot tell what leaves with Maya. Mark who can do each item before Maya's last day.",
+    ]);
+  });
+});

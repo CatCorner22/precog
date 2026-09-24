@@ -2,6 +2,9 @@
  * Grounding tools for the Pioneer LLM — deterministic practice facts + ML/RAG.
  */
 import { describeChunkBasis } from "../rag/corpus";
+import { registerAssessed, trackRegisterFreshness } from "../continuity/register-state";
+import { mapAssessed } from "../builder/map-state";
+import { industryMeta } from "../industry";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
@@ -31,10 +34,19 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "../scoring/weights";
+import {
+  confirmedScenarioIds,
+  isOwnBusiness,
+  scenariosInScope,
+  starterScenarioNote,
+} from "../scoring/scope";
 import { compareScenarioFutures } from "../scoring/scenario-compare";
 import {
   DEFAULT_RISK_VARIABLES,
+  effectiveRiskVariables,
   evaluateDynamicRisk,
+  insuranceFigureNote,
   scenarioFlags,
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
@@ -46,8 +58,7 @@ import {
 import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { casesForSodRules, detectionBreakdown, observedLossRange } from "../evidence";
-import { detectSodConflicts } from "../sod/detect";
-import { mitigatedSodRuleIds } from "../controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
@@ -183,10 +194,34 @@ export function executeTool(
 ): ToolResult {
   const profile = profileOf(ctx);
   const tpl = resolveTemplate(profile);
-  const { people, knowledge, relations, scenarios, controls, crimeFraudStats } = tpl;
+  const { people, knowledge, relations, scenarios, crimeFraudStats } = tpl;
   const staff: StaffComposition = profile.staff;
   const practiceName = profile.practiceName || tpl.businessName;
   const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
+  // Starter scenarios count, and run, only once the owner confirms them.
+  const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
+  const scope = { confirmedScenarioIds: confirmed };
+  const ownBusiness = isOwnBusiness(tpl);
+  /** The scenario a tool runs: the one asked for if it is in scope, else the most dangerous in scope. */
+  const scenarioInScope = (asked: unknown): string | null => {
+    const inScope = scenariosInScope(tpl, confirmed);
+    if (typeof asked === "string" && inScope.some((s) => s.id === asked)) return asked;
+    const ranked = rankDangerousScenarios(tpl, {
+      staff,
+      riskVariables: riskVars,
+      confirmedScenarioIds: confirmed,
+    });
+    return ranked[0]?.scenario.id ?? inScope[0]?.id ?? null;
+  };
+  /** Returned instead of a scenario result while no scenario is in scope. */
+  const noScenario = (): ToolResult => ({
+    tool,
+    ok: false,
+    summary:
+      starterScenarioNote(tpl, confirmed) ??
+      "No scenario is in scope for this business, so no scenario figure applies.",
+    data: null,
+  });
 
   try {
     switch (tool) {
@@ -220,7 +255,11 @@ export function executeTool(
         };
 
       case "get_coso_assessment": {
-        const coso = assessCoso(tpl);
+        const coso = assessCoso(tpl, staff, {
+          riskVariables: riskVars,
+          confirmedScenarioIds: confirmed,
+          dualRelease: profile.dualRelease,
+        });
         return {
           tool,
           ok: true,
@@ -241,11 +280,22 @@ export function executeTool(
       }
 
       case "get_residual_portfolio": {
-        const p = portfolioSummary(tpl, staff);
+        const p = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, scope);
+        const leftOut = [
+          p.knowledgeAssessed ? "" : "register items (not assessed yet)",
+          p.starterScenariosLeftOut.length
+            ? `${p.starterScenariosLeftOut.length} unconfirmed starter scenario(s)`
+            : "",
+          p.starterControlsLeftOut.length
+            ? `${p.starterControlsLeftOut.length} unconfirmed starter control(s)`
+            : "",
+        ].filter(Boolean);
         return {
           tool,
           ok: true,
-          summary: `Avg residual ${p.averageResidual}; top ${p.top[0]?.name ?? "—"}`,
+          summary: `Avg residual ${p.averageResidual}; top ${p.top[0]?.name ?? "—"}${
+            leftOut.length ? `; left out: ${leftOut.join(", ")}` : ""
+          }`,
           data: {
             scoringVersion: p.scoringVersion,
             averageResidual: p.averageResidual,
@@ -271,10 +321,29 @@ export function executeTool(
       }
 
       case "get_knowledge_spofs": {
+        if (!registerAssessed(tpl)) {
+          return {
+            tool,
+            ok: true,
+            summary:
+              tpl.knowledge.length === 0
+                ? "Continuity is not assessed: the register is empty, so the owner has not listed the duties, tasks and know-how the business runs on. Do not quote coverage figures."
+                : `Continuity is not assessed: the register holds ${tpl.knowledge.length} starter item(s) from the industry example with nobody marked on any of them. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
+            data: {
+              assessed: false,
+              items: tpl.knowledge.map((k) => ({
+                knowledgeId: k.id,
+                name: k.name,
+                criticality: k.criticality,
+              })),
+            },
+            links: [{ tab: "knowledge", label: "Who knows what" }],
+          };
+        }
         const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
         const continuity = coverageReport(tpl);
         const docs = documentationDebt(tpl);
-        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        const trackFreshness = trackRegisterFreshness(profile, tpl);
         const freshness = trackFreshness
           ? staleItems(tpl, ctx.today ?? new Date().toISOString().slice(0, 10))
           : null;
@@ -502,7 +571,7 @@ export function executeTool(
       }
 
       case "get_register_checkins": {
-        const trackFreshness = Boolean(profile.customKnowledge || profile.customRelations);
+        const trackFreshness = trackRegisterFreshness(profile, tpl);
         if (!trackFreshness) {
           return {
             tool,
@@ -586,8 +655,29 @@ export function executeTool(
       }
 
       case "get_process_records": {
-        const report = processRecordReport(tpl.processes);
         const personName = (id: string) => people.find((p) => p.id === id)?.name ?? id;
+        if (!mapAssessed(profile)) {
+          return {
+            tool,
+            ok: true,
+            summary:
+              tpl.processes.length === 0
+                ? "The process map is not assessed: it is empty, so the owner has not yet listed the processes the business runs. Do not quote map figures; advise the owner to add their processes on How work flows."
+                : `The process map is not assessed: it holds ${tpl.processes.length} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.`,
+            data: {
+              assessed: false,
+              processes: tpl.processes.map((p) => ({
+                processId: p.id,
+                name: p.name,
+                cadence: p.cadence ?? null,
+                systems: p.systems ?? [],
+                owners: (p.ownerPersonIds ?? []).map(personName),
+              })),
+            },
+            links: [{ tab: "map", label: "How work flows" }],
+          };
+        }
+        const report = processRecordReport(tpl.processes);
         return {
           tool,
           ok: true,
@@ -622,8 +712,8 @@ export function executeTool(
       }
 
       case "run_precog_scenario": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: riskVars });
         const scenario = scenarios.find((s) => s.id === scenarioId);
         if (!result || !scenario) {
@@ -658,8 +748,8 @@ export function executeTool(
       }
 
       case "compare_scenario_futures": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const report = compareScenarioFutures(tpl, scenarioId, staff, [], riskVars);
         return {
           tool,
@@ -682,7 +772,7 @@ export function executeTool(
       }
 
       case "get_tornado_levers": {
-        const t = tornadoSensitivity(tpl, staff);
+        const t = tornadoSensitivity(tpl, staff, scope);
         return {
           tool,
           ok: true,
@@ -693,19 +783,22 @@ export function executeTool(
       }
 
       case "get_insurance_cost_of_risk": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const scenario = scenarios.find((s) => s.id === scenarioId)!;
+        // An own business with the app's default policy figures is priced
+        // with no crime policy, and the summary says which basis applies.
         const dyn = evaluateDynamicRisk(
-          riskVars,
+          effectiveRiskVariables(riskVars, ownBusiness),
           scenario.baseFinancialImpact,
           scenarioFlags(scenarioId),
         );
+        const policyNote = insuranceFigureNote(riskVars, ownBusiness);
         return {
           tool,
           args: { scenarioId },
           ok: true,
-          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}`,
+          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
           data: {
             scenarioId,
             variables: riskVars,
@@ -717,25 +810,37 @@ export function executeTool(
       }
 
       case "get_sod_conflicts": {
-        const gaps = controls.filter((c) => !c.segregated);
+        // The team's own duty conflicts, by person, scored the way Who
+        // controls what scores them; owner-held pairs are listed apart.
+        const report = detectSodConflicts(
+          tpl,
+          staff,
+          sodDetectionOptions(tpl, profile.dualRelease),
+        );
+        const open = report.conflicts.filter((c) => !c.ownerHeld);
         return {
           tool,
           ok: true,
-          summary: `${gaps.length} SoD gap(s)`,
-          data: gaps.map((g) => ({
-            id: g.id,
-            name: g.name,
-            duties: g.duties,
-            compensatingControls: g.compensatingControls,
-            residualRiskAccepted: g.residualRiskAccepted,
+          summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${new Set(open.map((c) => c.personId)).size} people; ${report.summary.ownerHeld} held by the owner; segregation health ${report.summary.segregationHealth}/100`,
+          data: open.map((c) => ({
+            id: c.id,
+            name: `${c.personName} (${c.role}): ${c.title}`,
+            person: c.personName,
+            role: c.role,
+            severity: c.severity,
+            duties: [c.labelA, c.labelB],
+            score: c.score,
+            controlsInPlace: c.controlsInPlace,
+            residualRiskAccepted: c.residualRiskAccepted,
+            dualReleaseMitigated: c.dualReleaseMitigated,
           })),
-          links: [{ tab: "sod", label: "SoD" }],
+          links: [{ tab: "sod", label: "Who controls what" }],
         };
       }
 
       case "simulate_variable_cascades": {
-        const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
-        const scenarioId = (args.scenarioId as string) || ranked[0]?.scenario.id || scenarios[0].id;
+        const scenarioId = scenarioInScope(args.scenarioId);
+        if (!scenarioId) return noScenario();
         const leverId = args.leverId as CascadeLeverId | undefined;
         if (leverId) {
           const one = simulateCascadeLever(tpl, leverId, riskVars, staff, scenarioId);
@@ -818,9 +923,11 @@ export function executeTool(
       }
 
       case "get_case_evidence": {
-        const sod = detectSodConflicts(tpl, profile.staff, {
-          dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(profile.dualRelease),
-        });
+        const sod = detectSodConflicts(
+          tpl,
+          profile.staff,
+          sodDetectionOptions(tpl, profile.dualRelease),
+        );
         const openRuleIds = [
           ...new Set(
             sod.conflicts

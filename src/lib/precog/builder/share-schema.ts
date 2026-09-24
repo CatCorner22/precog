@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { INDUSTRIES, type IndustryId } from "../industry";
 
 /**
@@ -71,13 +72,51 @@ export type ParsedSharedMapPayload = z.infer<typeof sharedMapPayloadSchema>;
 export function validateSharePayload(input: unknown): ParsedSharedMapPayload {
   const bytes = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
   if (bytes > MAX_SHARE_BYTES) {
-    throw new Error(`Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
+    throw new RequestError(413, `Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
   }
   const parsed = sharedMapPayloadSchema.safeParse(input);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const where = first?.path.length ? ` at ${first.path.join(".")}` : "";
-    throw new Error(`Share payload is not valid${where}: ${first?.message ?? "unknown"}`);
+    throw new RequestError(
+      400,
+      `Share payload is not valid${where}: ${first?.message ?? "unknown"}`,
+    );
   }
   return parsed.data;
+}
+
+/** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
+export const SHARE_PASSCODE_MIN = 8;
+export const SHARE_PASSCODE_MAX = 64;
+
+export interface CreateShareInput {
+  payload: ParsedSharedMapPayload;
+  expiresInDays: number;
+  redacted: boolean;
+  passcode: string | undefined;
+}
+
+/**
+ * createMapShare's input. A passcode the owner typed but that is too short or
+ * too long is refused, not dropped: dropping it created a link with no
+ * passcode while the owner believed it had one.
+ */
+export function parseCreateShareInput(input: unknown): CreateShareInput {
+  const raw = requireObject(input);
+  if (raw.passcode != null && typeof raw.passcode !== "string") throw invalidRequest();
+  const passcode = raw.passcode?.trim() || undefined;
+  if (passcode && (passcode.length < SHARE_PASSCODE_MIN || passcode.length > SHARE_PASSCODE_MAX)) {
+    throw new RequestError(
+      400,
+      `A passcode needs ${SHARE_PASSCODE_MIN} to ${SHARE_PASSCODE_MAX} characters. Leave it empty for a link without one.`,
+    );
+  }
+  const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
+  return {
+    payload: validateSharePayload(raw.payload),
+    expiresInDays: Math.min(365, Math.max(1, days || 30)),
+    redacted: raw.redacted === true,
+    passcode,
+  };
 }

@@ -1,4 +1,9 @@
-import { bandForScore } from "@/lib/precog/scoring/weights";
+import { bandForScore, DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import {
+  REGISTER_NOT_ASSESSED,
+  confirmedScenarioIds,
+  starterScenarioNote,
+} from "@/lib/precog/scoring/scope";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { ScoringBasis } from "@/components/precog/scoring-basis";
@@ -26,18 +31,28 @@ function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
 
 export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { profile, template } = usePractice();
+  const confirmed = useMemo(
+    () => confirmedScenarioIds(profile.decisions, profile.industry),
+    [profile.decisions, profile.industry],
+  );
+  const scope = useMemo(() => ({ confirmedScenarioIds: confirmed }), [confirmed]);
   const summary = useMemo(
-    () => portfolioSummary(template, profile.staff),
-    [template, profile.staff],
+    () => portfolioSummary(template, profile.staff, DEFAULT_WEIGHTS, scope),
+    [template, profile.staff, scope],
   );
   const tornado = useMemo(
-    () => tornadoSensitivity(template, profile.staff),
-    [template, profile.staff],
+    () => tornadoSensitivity(template, profile.staff, scope),
+    [template, profile.staff, scope],
   );
   const sensitivity = useMemo(
-    () => weightSensitivity(template, profile.staff),
-    [template, profile.staff],
+    () => weightSensitivity(template, profile.staff, 0.2, scope),
+    [template, profile.staff, scope],
   );
+  const scenarioNote = useMemo(
+    () => starterScenarioNote(template, confirmed),
+    [template, confirmed],
+  );
+  const scenarioCredit = DEFAULT_WEIGHTS.scenario.effectivenessCredit;
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
   const active = selected ?? summary.top[0] ?? null;
 
@@ -93,11 +108,26 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           <CardHeader>
             <CardTitle>Residual risk register</CardTitle>
             <CardDescription>
-              Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app chose
-              — sorted by the resulting index
+              Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app
+              chose, sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
+              {Math.round(scenarioCredit * 100)}%: Inherent × (1 − effectiveness × {scenarioCredit})
+              × staff modifiers.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
+            {!summary.knowledgeAssessed && (
+              <NotCounted onClick={() => onNavigate({ type: "knowledge" })}>
+                {REGISTER_NOT_ASSESSED}
+              </NotCounted>
+            )}
+            {scenarioNote && (
+              <NotCounted onClick={() => onNavigate({ type: "precog" })}>{scenarioNote}</NotCounted>
+            )}
+            {summary.starterControlsLeftOut.length > 0 && (
+              <NotCounted onClick={() => onNavigate({ type: "layers", layer: "control" })}>
+                {`Starter controls from the example (${summary.starterControlsLeftOut.length}) are left out: nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
+              </NotCounted>
+            )}
             {summary.top.map((item) => (
               <button
                 key={item.id}
@@ -120,7 +150,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-xl font-semibold tabular">{item.residual}</p>
-                    <p className="text-[10px] text-subtle">residual</p>
+                    <p className="text-xs text-subtle">residual</p>
                     <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
                   </div>
                   <div className="hidden w-24 sm:block">
@@ -139,8 +169,11 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                         style={{ width: `${item.residual}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-muted">
+                    <p className="mt-1 text-xs text-muted">
                       I {item.inherent} · E {item.controlEffectiveness}
+                      {item.creditedEffectiveness != null
+                        ? ` (counts ${item.creditedEffectiveness})`
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -165,6 +198,15 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                     <Mini n={active.controlEffectiveness} l="Effectiveness" />
                     <Mini n={active.residual} l="Residual" />
                   </div>
+                  {active.creditedEffectiveness != null && active.effectivenessCredit != null && (
+                    <p className="text-xs text-subtle">
+                      Scenario rows credit control effectiveness at{" "}
+                      {Math.round(active.effectivenessCredit * 100)}%, so effectiveness{" "}
+                      {active.controlEffectiveness} counts as {active.creditedEffectiveness}:{" "}
+                      {active.inherent} × (1 − {active.creditedEffectiveness}/100) × staff
+                      modifiers.
+                    </p>
+                  )}
                   <ul className="space-y-2">
                     {active.drivers.map((d) => (
                       <li
@@ -189,7 +231,9 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
                       Scenario assumes a loss of {formatUsd(active.expectedLoss)}
-                      {active.p50Days != null ? ` about ${active.p50Days} days out` : ""}
+                      {active.p50Days != null
+                        ? ` and about ${active.p50Days} assumed days until found`
+                        : ""}
                     </p>
                   )}
                 </div>
@@ -207,35 +251,43 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={tornadoData} layout="vertical" margin={{ left: 8, right: 12 }}>
-                    <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                    <XAxis type="number" tick={{ fill: "var(--color-muted)", fontSize: 11 }} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={120}
-                      tick={{ fill: "var(--color-muted)", fontSize: 10 }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--color-elevated)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      formatter={(v: number) => [`−${v} pts`, "Residual drop"]}
-                      labelFormatter={(_, payload) =>
-                        (payload?.[0]?.payload as { full?: string })?.full ?? ""
-                      }
-                    />
-                    <Bar dataKey="delta" fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {tornadoData.length === 0 ? (
+                <p className="text-sm text-muted">
+                  No lever in this chart would lower the average: each one is already in place for
+                  your team.
+                </p>
+              ) : (
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={tornadoData} layout="vertical" margin={{ left: 8, right: 12 }}>
+                      <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
+                      <XAxis type="number" tick={{ fill: "var(--color-muted)", fontSize: 12 }} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={120}
+                        tick={{ fill: "var(--color-muted)", fontSize: 12 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--color-elevated)",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                        formatter={(v: number) => [`${Math.abs(v)} pts lower`, "Average residual"]}
+                        labelFormatter={(_, payload) =>
+                          (payload?.[0]?.payload as { full?: string })?.full ?? ""
+                        }
+                      />
+                      <Bar dataKey="delta" fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               <p className="mt-2 text-xs text-subtle">
-                Base average residual {tornado.baseAverage}. Pull the longest bar first.
+                Base average residual {tornado.baseAverage}.
+                {tornadoData.length > 0 ? " Pull the longest bar first." : ""}
               </p>
             </CardContent>
           </Card>
@@ -260,7 +312,7 @@ function Stat({
   return (
     <Card>
       <CardContent className="p-4">
-        <p className="text-[11px] tracking-wide text-subtle uppercase">{label}</p>
+        <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
         <p className="mt-1 truncate text-lg font-semibold tabular tracking-tight">{value}</p>
         {subvalue && <p className="mt-1 text-xs text-muted">{subvalue}</p>}
         <p className="mt-1 text-xs text-muted">{hint}</p>
@@ -269,11 +321,24 @@ function Stat({
   );
 }
 
+/** A note where rows would have been, for inputs that do not describe the business yet. */
+function NotCounted({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-xl border border-dashed border-border bg-panel/60 px-3 py-2.5 text-left text-sm text-muted hover:border-border-strong"
+    >
+      {children}
+    </button>
+  );
+}
+
 function Mini({ n, l }: { n: number; l: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-2">
       <p className="text-lg font-semibold tabular">{n}</p>
-      <p className="text-[10px] text-subtle">{l}</p>
+      <p className="text-xs text-subtle">{l}</p>
     </div>
   );
 }
@@ -290,7 +355,7 @@ function ItemSensitivityMeta({
 
   return (
     <>
-      <p className="text-[10px] tabular text-muted">
+      <p className="text-xs tabular text-muted">
         range {item.low}–{item.high}
       </p>
       {!item.bandStable && (

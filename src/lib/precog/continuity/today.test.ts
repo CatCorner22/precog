@@ -294,3 +294,32 @@ describe("todayBrief", () => {
     expect(brief.headline).toBeNull();
   });
 });
+
+describe("today's brief over a starter register nobody has marked", () => {
+  it("says it cannot tell what stops when someone calls in sick", () => {
+    const starter: IndustryTemplate = {
+      ...getBaseTemplate("general"),
+      people,
+      relations: [],
+      processes: [],
+    };
+    const brief = todayBrief(starter, [absence()], [], "general", TODAY);
+    expect(brief.assessed).toBe(false);
+    expect(brief.headline).toBe(
+      "Maya is out unexpectedly today — nobody is marked on the register yet, so the app cannot tell what stops.",
+    );
+  });
+});
+
+describe("today's brief when register items wait on nobody", () => {
+  it("does not say nothing stops while must-do items have nobody who can run them", () => {
+    const gaps = tpl(
+      [{ personId: "sam", knowledgeId: "payroll", level: "expert" }],
+      [item("payroll"), item("deposit")],
+    );
+    const brief = todayBrief(gaps, [absence()], [], "general", TODAY);
+    expect(brief.headline).toBe(
+      "Maya is out unexpectedly today — nothing more on the register stops, but 1 entry nobody can run alone already waits.",
+    );
+  });
+});

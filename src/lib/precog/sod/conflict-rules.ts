@@ -19,6 +19,7 @@ export type EntitlementId =
   | "submit_claims"
   | "create_vendor"
   | "approve_vendor"
+  | "approve_invoices"
   | "release_payment"
   | "approve_payroll"
   | "enter_payroll"
@@ -45,6 +46,11 @@ export interface Entitlement {
   family: DutyFamily;
   processIds: string[];
   riskWeight: number; // 1–5
+  /**
+   * A control step many small businesses do not have. Nobody holding it is
+   * a choice, not a gap: coverage leaves it out until someone holds it.
+   */
+  optional?: boolean;
 }
 
 export interface ConflictRule {
@@ -91,7 +97,7 @@ export const ENTITLEMENTS: Entitlement[] = [
   },
   {
     id: "approve_writeoffs",
-    label: "Approve write-offs",
+    label: "Approve write-offs and voids",
     family: "authorization",
     processIds: ["proc-ar", "proc-claims"],
     riskWeight: 5,
@@ -123,6 +129,16 @@ export const ENTITLEMENTS: Entitlement[] = [
     family: "authorization",
     processIds: ["proc-ap"],
     riskWeight: 4,
+  },
+  {
+    // The second person on a bill: they check the bill against what was
+    // ordered and received before anyone pays it.
+    id: "approve_invoices",
+    label: "Approve bills for payment",
+    family: "authorization",
+    processIds: ["proc-ap"],
+    riskWeight: 4,
+    optional: true,
   },
   {
     id: "release_payment",
@@ -283,7 +299,25 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Invoice entry + payment release",
     why: "The same person can enter an unsupported invoice and pay it.",
     fraudPath: "Enter fictitious invoice and release payment",
-    compensatingDefaults: ["Owner reviews invoice support", "Dual release above threshold"],
+    compensatingDefaults: [
+      "Someone who enters no bills approves each one before it is paid (record them as approving bills for payment)",
+      "Dual release above threshold",
+    ],
+    linkedControlId: "c-sod-ap",
+  },
+  {
+    id: "rule-invoice-approve",
+    a: "enter_invoices",
+    b: "approve_invoices",
+    severity: "high",
+    title: "Bill entry + bill approval",
+    why: "The person who enters a bill also approves it for payment, so a false or inflated bill needs nobody else's sign-off.",
+    fraudPath:
+      "Enter a bill from a shell or friendly supplier, approve it, and let the payment run pay it",
+    compensatingDefaults: [
+      "Someone who enters no bills approves each one before payment",
+      "Owner compares the paid-bills list with supplier statements monthly",
+    ],
     linkedControlId: "c-sod-ap",
   },
   {
@@ -369,6 +403,80 @@ export const CONFLICT_RULES: ConflictRule[] = [
     linkedControlId: "c-sod-cash",
   },
   {
+    id: "rule-release-rec",
+    a: "release_payment",
+    b: "bank_reconcile",
+    severity: "critical",
+    title: "Payment release + bank reconciliation",
+    why: "The person who sends the money out also produces the record that proves it went where it should. A transfer to their own account, or to a payee they invented, is reconciled by the same hands, and the one check that compares the books with the bank is done by the one person with a reason to make them agree.",
+    fraudPath:
+      "Pay yourself or an invented payee by ACH or card, then reconcile the statement so nobody else sees where it went",
+    compensatingDefaults: [
+      "Owner opens the bank statement first and questions every payee they do not know",
+      "Someone who releases no payments reconciles the account each month",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-release-je",
+    a: "release_payment",
+    b: "post_journal_entries",
+    severity: "critical",
+    title: "Payment release + manual journal entries",
+    why: "The person who sends money out can also post the journal entry that explains it, so a transfer to their own account is booked as an expense or buried in a balance-sheet account and the books still balance. A dealership office manager who wired himself $1.4 million over 14 years, and a practice office manager who moved payments to her own card, each covered it with false journal entries; both are in the library below.",
+    fraudPath:
+      "Send a payment to yourself, then post a journal entry that makes the books balance around it",
+    compensatingDefaults: [
+      "Owner opens the bank statement first and questions every payee they do not know",
+      "An outside accountant reviews manual journal entries and asks for support for each one",
+    ],
+    linkedControlId: "c-sod-cash",
+  },
+  {
+    id: "rule-payroll-master-release",
+    a: "edit_payroll_master",
+    b: "release_payment",
+    severity: "high",
+    title: "Change employee records + release payments",
+    why: "The person who can add an employee or change a bank account on the payroll file can also send payments, so a ghost employee or a redirected paycheck is set up and then paid by the same hands without passing anyone else.",
+    fraudPath: "Add a ghost employee or change a pay account to your own, then release the payment",
+    compensatingDefaults: [
+      "Owner reads the payroll register each cycle against who actually works there",
+      "A new employee or a changed bank account needs a second person's approval before the next pay run",
+    ],
+    linkedControlId: "c-payroll",
+  },
+  {
+    id: "rule-payroll-release",
+    a: "enter_payroll",
+    b: "release_payment",
+    severity: "high",
+    title: "Payroll entry + payment release",
+    why: "Whoever enters the hours and pay rates also sends the pay run to the bank or prints the checks, so an extra check to themselves, a raised rate, or a pay line for someone who has left is paid without a second person seeing the register.",
+    fraudPath:
+      "Add a pay line or a paper check for yourself and release it with the rest of the run",
+    compensatingDefaults: [
+      "Owner reads the payroll register each cycle before the run is released",
+      "Owner compares the payroll register with the bank's cleared payments and headcount",
+    ],
+    linkedControlId: "c-payroll",
+  },
+  {
+    id: "rule-payroll-rec",
+    a: "enter_payroll",
+    b: "bank_reconcile",
+    severity: "high",
+    title: "Payroll entry + bank reconciliation",
+    why: "The person who runs payroll also reconciles the account it pays from, so a payroll payment that should not exist is matched off by the same hands and never reaches anyone who would ask who it was for.",
+    fraudPath:
+      "Pay yourself through payroll, then reconcile the account so the extra payment looks like any other pay run",
+    compensatingDefaults: [
+      "Owner reads the payroll register each cycle and compares it with the bank's payroll debits",
+      "Someone who enters no payroll reconciles the account each month",
+    ],
+    linkedControlId: "c-payroll",
+  },
+  {
     id: "rule-cash-rec",
     a: "post_payments",
     b: "bank_reconcile",
@@ -389,7 +497,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Manual journal entries + bank reconciliation",
-    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; a Caseyville, Illinois office manager covered five schemes the same way. Both cases are in the library below.",
+    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments. Both cases are in the library below.",
     fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
     compensatingDefaults: [
       "Owner or outside accountant reviews every manual journal entry each month with its support",
@@ -440,6 +548,93 @@ export const CONFLICT_RULES: ConflictRule[] = [
       "Every void and adjustment must carry a stated reason",
     ],
     linkedControlId: "c-cash",
+  },
+  {
+    id: "rule-collect-adjust",
+    a: "collect_cash",
+    b: "post_adjustments",
+    severity: "high",
+    title: "Collect cash + enter write-offs",
+    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says nothing was owed. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries are all in the library below.",
+    fraudPath:
+      "Take the payment, then post a void, credit, or write-off so the account closes without it",
+    compensatingDefaults: [
+      "Owner reads a monthly list of every void, credit, and write-off, by employee",
+      "A second person approves any void or write-off above a set amount before it posts",
+    ],
+    linkedControlId: "c-sod-billing",
+  },
+  {
+    id: "rule-cash-void",
+    a: "collect_cash",
+    b: "approve_writeoffs",
+    severity: "high",
+    title: "Take payments + approve voids or write-offs",
+    why: "The person who takes the money can also approve the void, comp or write-off that cancels the record of taking it, so a payment kept from the till or the deposit leaves no balance behind and needs nobody else's sign-off. A counter clerk who turned sales into voids and no-sales is in the library below.",
+    fraudPath:
+      "Take the payment, then approve a void or write-off so the sale or the balance disappears",
+    compensatingDefaults: [
+      "Owner reads a weekly list of voids, comps and write-offs by employee",
+      "Voids above a small amount need a second person's code at the time",
+    ],
+    linkedControlId: "c-cash",
+  },
+  {
+    id: "rule-cash-admin",
+    a: "collect_cash",
+    b: "pms_admin_roles",
+    severity: "high",
+    title: "Take payments + administer the system",
+    why: "The person who takes payments can also change the system that records them: delete a payment, edit a receipt, or change who may do either, so money kept at the counter leaves no record behind. A director who collects tuition, banks it and runs the tuition system holds exactly this pair.",
+    fraudPath: "Keep a payment, then delete or rewrite its record with administrator rights",
+    compensatingDefaults: [
+      "Administrator rights sit with the owner or an outside IT provider, not with anyone who takes payments",
+      "Owner reads the system's report of deleted and edited payments each month",
+    ],
+    linkedControlId: "c-cash",
+  },
+  {
+    id: "rule-access-release",
+    a: "manage_user_access",
+    b: "release_payment",
+    severity: "high",
+    title: "Control logins + release payments",
+    why: "The person who decides who can log in to the payment or banking system can also send payments, so they can create or borrow a second approver's login and release a payment that dual release was meant to stop.",
+    fraudPath:
+      "Give yourself a second approver's login, then release a payment with both approvals",
+    compensatingDefaults: [
+      "Access to the bank and payment systems is managed by the owner, not by anyone who releases payments",
+      "The bank alerts the owner to every new user or permission change",
+    ],
+    linkedControlId: "c-sod-ap",
+  },
+  {
+    id: "rule-cash-refund",
+    a: "collect_cash",
+    b: "issue_refunds",
+    severity: "high",
+    title: "Take payments + issue refunds",
+    why: "The person at the till can refund a sale that never happened, or refund a real one to their own card, and the refund reads as ordinary customer service. Refunds with no sale behind them, sent to the refunder's own cards, are in the library below.",
+    fraudPath: "Issue a refund with no sale behind it, to cash or to your own card",
+    compensatingDefaults: [
+      "Refunds only to the card or account that paid, with the original sale attached",
+      "Owner reads a monthly list of refunds by employee and by destination card",
+    ],
+    linkedControlId: "c-cash",
+  },
+  {
+    id: "rule-refund-post",
+    a: "issue_refunds",
+    b: "post_payments",
+    severity: "high",
+    title: "Issue refunds + record payments",
+    why: "The person who records what customers paid can also send money back to them, so a refund can go out against a payment that was never received, or against a balance recorded as overpaid, and the account still looks settled.",
+    fraudPath: "Record a credit or overpayment on an account, then refund it to yourself",
+    compensatingDefaults: [
+      "A second person approves each refund before it is paid, with the original payment attached",
+      "Owner reads a monthly list of refunds by employee and by destination",
+    ],
+    linkedControlId: "c-sod-billing",
   },
   {
     id: "rule-deposit-post",
@@ -510,7 +705,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     a: "approve_vendor",
     b: "release_payment",
     // Approving a supplier and paying it is the fictitious-vendor path in the
-    // case library (Human First, Dartmouth, Brooklyn), so it ranks high.
+    // case library (a Denny's franchise, a Jersey City condominium, a Brooklyn
+    // nonprofit), so it ranks high.
     severity: "high",
     title: "Approve vendor + release payment",
     why: "The approval meant to confirm a supplier is real is given by the person releasing the money, which removes the only check on where it goes.",

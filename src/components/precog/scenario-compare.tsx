@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import type { StaffComposition } from "@/lib/precog/types";
-import type { RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
+import {
+  insuranceBasis,
+  insuranceFigureNote,
+  type RiskVariableState,
+} from "@/lib/precog/scoring/dynamic-variables";
+import { usePractice } from "@/lib/precog/practice-context";
+import {
+  MAKE_SCENARIO_YOURS,
+  confirmedScenarioIds,
+  isOwnBusiness,
+  starterScenarioLabel,
+  withOwnScenarioWording,
+} from "@/lib/precog/scoring/scope";
 import {
   COMPARE_PALETTE,
   compareScenarioFutures,
@@ -27,7 +39,17 @@ export function ScenarioCompare({
   onStaffChange?: (s: StaffComposition) => void;
   riskVariables?: RiskVariableState;
 }) {
-  const tpl = useTemplate();
+  const baseTpl = useTemplate();
+  const tpl = withOwnScenarioWording(baseTpl);
+  const ownBusiness = isOwnBusiness(baseTpl);
+  const { profile } = usePractice();
+  const confirmed = useMemo(
+    () => confirmedScenarioIds(profile.decisions, profile.industry),
+    [profile.decisions, profile.industry],
+  );
+  const vars = riskVariables ?? profile.riskVariables;
+  const noPolicy = insuranceBasis(vars, ownBusiness) === "none";
+  const policyNote = insuranceFigureNote(vars, ownBusiness);
   const { scenarios, staffComposition: baseStaff } = tpl;
   const [mode, setMode] = useState<Mode>("futures");
   const [focusScenarioId, setFocusScenarioId] = useState(
@@ -217,7 +239,7 @@ export function ScenarioCompare({
                               type="button"
                               onClick={() => toggleCrossMit(s.id, m.id)}
                               className={cn(
-                                "rounded-full border px-2 py-0.5 text-[10px]",
+                                "rounded-full border px-2 py-0.5 text-xs",
                                 mitOn
                                   ? "border-ok/40 bg-ok/10 text-ok"
                                   : "border-border text-muted",
@@ -281,6 +303,16 @@ export function ScenarioCompare({
         </CardContent>
       </Card>
 
+      {ownBusiness && (
+        <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm text-muted">
+          <span className="font-medium text-warn">{starterScenarioLabel(profile.industry)}.</span>{" "}
+          {confirmed.size > 0
+            ? `${confirmed.size} of them ${confirmed.size === 1 ? "is" : "are"} yours; the rest are the example's assumptions.`
+            : "Their losses and timelines are the example's assumptions, not facts about your business."}{" "}
+          {MAKE_SCENARIO_YOURS}
+        </p>
+      )}
+
       {report.columns.length > 0 && (
         <>
           <div className="flex flex-wrap gap-2">
@@ -298,6 +330,12 @@ export function ScenarioCompare({
               value={report.columns.find((c) => c.id === report.winnerByPriority)?.label ?? "—"}
             />
           </div>
+          <p className="text-xs text-subtle">
+            {report.mode === "futures"
+              ? "Do nothing is the baseline and never counts as a winner; a tie on retained loss or cost of risk goes to the lower assumed loss before insurance."
+              : "A tie on retained loss or cost of risk goes to the lower assumed loss before insurance."}
+            {policyNote ? ` Retained loss and cost of risk: ${policyNote}.` : ""}
+          </p>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {report.columns.map((col, i) => {
@@ -319,7 +357,7 @@ export function ScenarioCompare({
                       {isWinner && (
                         <Badge variant="ok">
                           <Trophy className="mr-1 inline size-3" />
-                          Best retained
+                          Lowest retained
                         </Badge>
                       )}
                     </div>
@@ -334,23 +372,29 @@ export function ScenarioCompare({
                     <Metric
                       label="Assumed retained loss"
                       value={formatUsd(retained)}
-                      sub={
-                        col.result.dynamic
-                          ? `transferred ${formatUsd(col.result.dynamic.transferredExpected)}`
-                          : "after deductible/limit"
-                      }
+                      sub={withNote(
+                        noPolicy
+                          ? "all of it"
+                          : col.result.dynamic
+                            ? `transferred ${formatUsd(col.result.dynamic.transferredExpected)}`
+                            : "after deductible/limit",
+                        policyNote,
+                      )}
                     />
                     <Metric
                       label="Annual cost of risk"
                       value={formatUsd(cor)}
-                      sub={
-                        col.result.dynamic
-                          ? `premium ${formatUsd(col.result.dynamic.premiumAnnualNet)}`
-                          : "incl. premium when modeled"
-                      }
+                      sub={withNote(
+                        noPolicy
+                          ? "no premium"
+                          : col.result.dynamic
+                            ? `premium ${formatUsd(col.result.dynamic.premiumAnnualNet)}`
+                            : "incl. premium when modeled",
+                        policyNote,
+                      )}
                     />
                     <Metric
-                      label="Assumed time to impact"
+                      label="Assumed days until found"
                       value={`about ${col.result.timelineDays.p50} days`}
                       sub={`assumed range ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High}d`}
                     />
@@ -370,8 +414,8 @@ export function ScenarioCompare({
                         >
                           Annual CoR {fmtDeltaMoney(d.vsBaseline.annualCorDelta)}
                         </p>
-                        <p className="text-muted">
-                          Time to impact {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
+                        <p className={cn(d.vsBaseline.p50DaysDelta < 0 ? "text-ok" : "text-muted")}>
+                          Assumed days until found {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
                         </p>
                       </div>
                     )}
@@ -394,7 +438,7 @@ export function ScenarioCompare({
                     <th className="py-2 pr-3 font-medium">Gross $</th>
                     <th className="py-2 pr-3 font-medium">Retained $</th>
                     <th className="py-2 pr-3 font-medium">Annual CoR</th>
-                    <th className="py-2 pr-3 font-medium">Assumed days</th>
+                    <th className="py-2 pr-3 font-medium">Assumed days until found</th>
                     <th className="py-2 font-medium">Δ retained</th>
                   </tr>
                 </thead>
@@ -410,7 +454,7 @@ export function ScenarioCompare({
                           {c.label}
                           {c.id === report.winnerByRetained && (
                             <Badge variant="ok" className="ml-2">
-                              best
+                              lowest retained
                             </Badge>
                           )}
                         </td>
@@ -447,7 +491,7 @@ export function ScenarioCompare({
 function WinnerChip({ label, value, icon }: { label: string; value: string; icon?: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-surface px-3 py-2">
-      <p className="text-[10px] tracking-wide text-subtle uppercase">{label}</p>
+      <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
       <p className="mt-0.5 max-w-[280px] truncate text-sm font-medium">
         {icon && <Trophy className="mr-1 inline size-3.5 text-ok" />}
         {value}
@@ -459,7 +503,7 @@ function WinnerChip({ label, value, icon }: { label: string; value: string; icon
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div>
-      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="text-xs text-subtle">{label}</p>
       <p className="font-semibold tabular tracking-tight">{value}</p>
       <p className="text-xs text-muted">{sub}</p>
     </div>
@@ -495,6 +539,10 @@ function Slider({
       />
     </label>
   );
+}
+
+function withNote(text: string, note: string | null) {
+  return note ? `${text} · ${note}` : text;
 }
 
 function fmtDeltaMoney(n: number) {

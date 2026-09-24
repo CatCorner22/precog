@@ -1,5 +1,6 @@
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import type { RoleAssignment } from "./detect";
+import { csvCell } from "../import/csv";
 
 export const POWER_MAP_MODEL_VERSION = 1;
 export const POWER_MAP_STORAGE_KEY = "precog.power-map.v1";
@@ -40,7 +41,13 @@ export function normalizeRoleAssignments(value: unknown): RoleAssignment[] | und
       ),
     );
     if (entitlements.length === 0) entitlements.push("view_reports_only");
-    normalized.push({ personId, personName, role, entitlements });
+    normalized.push({
+      personId,
+      personName,
+      role,
+      entitlements,
+      ...(typeof item.owner === "boolean" ? { owner: item.owner } : {}),
+    });
   }
   return normalized;
 }
@@ -55,10 +62,7 @@ export function createPowerMapFile(assignments: RoleAssignment[]): PowerMapModel
 
 /** Export an audit-friendly RACI-style assignment register without formula injection. */
 export function createResponsibilityMatrixCsv(assignments: RoleAssignment[]): string {
-  const escape = (value: string) => {
-    const safe = /^[=+@-]/.test(value) ? `'${value}` : value;
-    return `"${safe.replaceAll('"', '""')}"`;
-  };
+  const escape = csvCell;
   const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only");
   const rows = [
     [

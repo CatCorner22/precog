@@ -3,8 +3,8 @@
  * the template's controls/people, so alternates can be scored side by side.
  */
 import type { IndustryTemplate } from "../templates";
-import { detectSodConflicts, type DetectedConflict } from "../sod/detect";
-import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
+import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
+import type { DualReleasePolicy } from "../controls/dual-release";
 import { findKnowledgeRisks } from "../engine";
 import {
   computeMapHealth,
@@ -88,9 +88,7 @@ export function analyzeWorkload(
   staff: StaffComposition,
   dualRelease: DualReleasePolicy,
 ): PersonWorkload[] {
-  const sod = detectSodConflicts(tpl, staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease),
-  });
+  const sod = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease));
   const kRisks = findKnowledgeRisks(tpl);
   const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
   const total = Math.max(1, processes.length);

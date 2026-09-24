@@ -1,7 +1,7 @@
 import type { PracticeProfile } from "./practice-profile";
 import { diffAssignments } from "./sod/assignment-diff";
 import type { RoleAssignment } from "./sod/detect";
-import { calculateValueCase, type ValueCaseInputs } from "./value-case";
+import { observedValueStatus, type ValueCaseInputs } from "./value-case";
 import {
   assessEvidenceQuality,
   summarizeValueEvidence,
@@ -33,8 +33,10 @@ export function compareAssessmentStates(
     return before === after ? [] : [{ key, before, after }];
   });
   const assignmentChanges = diffAssignments(archived.powerMap, current.powerMap);
-  const archivedValue = calculateValueCase(archived.valueCase).observed.net;
-  const currentValue = calculateValueCase(current.valueCase).observed.net;
+  // Only what the owner entered counts as observed; a value built from the
+  // app's defaults is not a change anyone saw.
+  const archivedValue = observedValueStatus(archived.valueCase).net.value;
+  const currentValue = observedValueStatus(current.valueCase).net.value;
   const currentAsOf = current.asOf ?? new Date();
   const archivedAsOf = archived.asOf ?? currentAsOf;
   const currentEvidence = summarizeValueEvidence(current.evidence, currentAsOf);
@@ -50,7 +52,9 @@ export function compareAssessmentStates(
     hires: assignmentChanges.filter((item) => item.kind === "person_added").length,
     removals: assignmentChanges.filter((item) => item.kind === "person_removed").length,
     assignmentChanges,
-    netObservedValueDelta: currentValue - archivedValue,
+    /** Null unless both assessments carry an observed net value. */
+    netObservedValueDelta:
+      currentValue === null || archivedValue === null ? null : currentValue - archivedValue,
     verifiedEvidenceDelta: currentEvidence.verified - archivedEvidence.verified,
     verifiedRecoveryDelta: currentEvidence.recoveries - archivedEvidence.recoveries,
     evidenceReadinessDelta: currentQuality.score - archivedQuality.score,
@@ -78,7 +82,11 @@ export function createSnapshotComparisonReport(
     `- Risk inputs changed: ${comparison.riskChanges}`,
     `- Duty grants / revocations: ${comparison.grants} / ${comparison.revocations}`,
     `- People added / removed: ${comparison.hires} / ${comparison.removals}`,
-    `- Net observed value: ${dollars(comparison.netObservedValueDelta)}`,
+    `- Net observed value: ${
+      comparison.netObservedValueDelta === null
+        ? "not observed in both assessments"
+        : dollars(comparison.netObservedValueDelta)
+    }`,
     `- Verified evidence: ${signed(comparison.verifiedEvidenceDelta)}`,
     `- Evidence readiness: ${signed(comparison.evidenceReadinessDelta)} points`,
     `- Verified recoveries: ${dollars(comparison.verifiedRecoveryDelta)}`,

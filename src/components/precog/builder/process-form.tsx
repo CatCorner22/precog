@@ -1,9 +1,10 @@
 import { EvidenceList } from "@/components/precog/builder/evidence-list";
 import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useTemplate } from "@/lib/precog/use-template";
+import { textPatch } from "@/lib/precog/builder/process-text";
 import type {
   LeanWasteKind,
   ProcessIdea,
@@ -21,7 +22,6 @@ import {
   CADENCE_LABEL,
   PROCESS_CADENCES,
   PROCESS_DOCUMENTATION_LABEL,
-  normalizeSystems,
   parseCadence,
   processDocumentationState,
 } from "@/lib/precog/process-record";
@@ -63,28 +63,36 @@ export function ProcessForm({
   // Debounce text field commits so typing doesn't thrash the graph.
   useEffect(() => {
     const t = setTimeout(() => {
-      const parse = (s: string) =>
-        s
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
-      const patch: Partial<ProcessNode> = {};
-      if (name !== process.name) patch.name = name.slice(0, 60);
-      if (desc !== process.description) patch.description = desc.slice(0, 240);
-      const pi = parse(inputs);
-      const po = parse(outputs);
-      if (pi.join("|") !== (process.inputs ?? []).join("|")) patch.inputs = pi;
-      if (po.join("|") !== (process.outputs ?? []).join("|")) patch.outputs = po;
-      const ps = normalizeSystems(parse(systems));
-      if (ps.join("|") !== (process.systems ?? []).join("|"))
-        patch.systems = ps.length ? ps : undefined;
-      const loc = location.trim().slice(0, 200);
-      if (loc !== (process.procedureLocation ?? "")) patch.procedureLocation = loc || undefined;
+      const patch = textPatch({ name, desc, inputs, outputs, systems, location }, process);
       if (Object.keys(patch).length) onChange(patch);
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, desc, inputs, outputs, systems, location]);
+
+  // The form remounts for each process, so an edit still inside the debounce
+  // window when the owner selects another process, or closes the panel, is
+  // committed as the form unmounts instead of being dropped.
+  const latest = useRef({
+    fields: { name, desc, inputs, outputs, systems, location },
+    process,
+    onChange,
+  });
+  useEffect(() => {
+    latest.current = {
+      fields: { name, desc, inputs, outputs, systems, location },
+      process,
+      onChange,
+    };
+  });
+  useEffect(
+    () => () => {
+      const { fields, process: current, onChange: commit } = latest.current;
+      const patch = textPatch(fields, current);
+      if (Object.keys(patch).length) commit(patch);
+    },
+    [],
+  );
 
   const docState = processDocumentationState(process);
 
@@ -151,7 +159,7 @@ export function ProcessForm({
           <p className="flex items-center gap-1.5 text-xs font-semibold text-fg">
             <BookOpen className="size-3.5 text-primary" /> Continuity record
           </p>
-          <p className="text-[11px] text-muted">
+          <p className="text-xs text-muted">
             What a stand-in needs on day one: how often this runs, where it runs, and where the
             written steps live.
           </p>
@@ -215,7 +223,7 @@ export function ProcessForm({
         </div>
         <p
           className={cn(
-            "text-[11px]",
+            "text-xs",
             docState === "located"
               ? "text-ok"
               : docState === "unlocated"
@@ -344,7 +352,7 @@ export function RiskList({
       {risks.map((r) => (
         <div
           key={r.id}
-          className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="space-y-1 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
@@ -546,7 +554,7 @@ export function IdeaList({
       {ideas.map((i) => (
         <div
           key={i.id}
-          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{i.title}</p>
@@ -555,7 +563,7 @@ export function IdeaList({
             </p>
           </div>
           <select
-            className="rounded border border-border bg-surface px-1 text-[10px] text-muted"
+            className="rounded border border-border bg-surface px-1 text-xs text-muted"
             value={i.status}
             onChange={(e) =>
               onChange(
@@ -686,7 +694,7 @@ export function WasteList({
       {wastes.map((w) => (
         <div
           key={w.id}
-          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-[11px]"
+          className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{w.label}</p>

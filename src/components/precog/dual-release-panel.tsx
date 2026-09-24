@@ -6,6 +6,7 @@ import {
   activeExceptionSummary,
   dualReleaseCoverage,
   evaluateRelease,
+  listEligibleApprovers,
   makeExceptionId,
   type ExceptionAction,
   type ReleaseChannel,
@@ -27,6 +28,7 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
+import { personLabel } from "@/lib/precog/person-label";
 
 const CHANNELS: ReleaseChannel[] = ["ach", "check", "writeoff", "vendor_new", "deposit", "payroll"];
 
@@ -59,17 +61,21 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
   const { profile, setDualRelease, setStaff, addDecision } = usePractice();
   const policy = profile.dualRelease;
+  // The exception form's placeholder shows the kind of payee an exception names.
   const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
+  // Suggest a payee only when an exception on this policy names one; an own
+  // business with no exceptions gets no sample vendor to try.
+  const payeeHint = policy.exceptions.find((e) => e.enabled && e.payeeContains)?.payeeContains;
 
   const [channel, setChannel] = useState<ReleaseChannel>("ach");
   const [amount, setAmount] = useState(2500);
   const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
   const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
-  const [payee, setPayee] = useState(seed.defaultPayee);
+  const [payee, setPayee] = useState(payeeHint ?? "");
 
   useEffect(() => {
-    setPayee(getIndustryCopy(profile.industry).dualReleaseSeed.defaultPayee);
-  }, [profile.industry]);
+    setPayee(payeeHint ?? "");
+  }, [profile.industry, payeeHint]);
 
   // Keep signer picks valid when the team changes (industry switch or team editor).
   useEffect(() => {
@@ -99,6 +105,15 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
   const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
+  // The people who may second on this channel, read the same way the release
+  // check reads them (by duty for an own team), so the line never disagrees
+  // with the result.
+  const secondsLine = useMemo(() => {
+    const seconds = listEligibleApprovers(tpl, policy, channel).filter((p) => p.canSecond);
+    return seconds.length
+      ? seconds.map((p) => personLabel(p.name, p.role)).join(", ")
+      : "nobody on the team holds a duty that allows it";
+  }, [tpl, policy, channel]);
   const exceptions = policy.exceptions ?? [];
 
   function toggleMaster(enabled: boolean) {
@@ -306,7 +321,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       </option>
                     ))}
                   </select>
-                  <span className="mt-0.5 block text-[10px] text-subtle">
+                  <span className="mt-0.5 block text-xs text-subtle">
                     {ACTIONS.find((a) => a.id === exAction)?.hint}
                   </span>
                 </label>
@@ -408,7 +423,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       type="button"
                       onClick={() => toggleExChannel(ch)}
                       className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-[11px]",
+                        "rounded-full border px-2.5 py-0.5 text-xs",
                         exChannels.includes(ch)
                           ? "border-primary/40 bg-primary/10 text-fg"
                           : "border-border bg-elevated text-muted",
@@ -462,7 +477,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                     )}
                   </div>
                   <p className="mt-1 text-xs text-muted">{ex.reason}</p>
-                  <p className="mt-1 text-[11px] text-subtle">
+                  <p className="mt-1 text-xs text-subtle">
                     {ex.channels.length ? ex.channels.join(", ") : "all channels"}
                     {ex.payeeContains ? ` · payee ~"${ex.payeeContains}"` : ""}
                     {ex.personId
@@ -474,14 +489,14 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                       : ""}
                   </p>
                   {ex.residualNote && (
-                    <p className="mt-1 text-[11px] text-warn">Residual: {ex.residualNote}</p>
+                    <p className="mt-1 text-xs text-warn">Residual: {ex.residualNote}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={() => toggleException(ex.id, !ex.enabled)}
                   >
                     {ex.enabled ? "Disable" : "Enable"}
@@ -598,7 +613,9 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               Release simulator
             </CardTitle>
             <CardDescription>
-              Includes payee matching for exceptions (try “{seed.defaultPayee}”)
+              {payeeHint
+                ? `Includes payee matching for exceptions (try “${payeeHint}”)`
+                : "Includes payee matching for any exception you add below"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -667,9 +684,8 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               </label>
             </div>
             {activeRule && (
-              <p className="text-[11px] text-subtle">
-                Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds:{" "}
-                {activeRule.secondApproverRoles.join(", ")}.
+              <p className="text-xs text-subtle">
+                Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds: {secondsLine}.
               </p>
             )}
             <Button size="sm" onClick={runEval}>
@@ -780,7 +796,7 @@ function EvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-subtle">{result.controlCredit.note}</p>
+      <p className="mt-2 text-xs text-subtle">{result.controlCredit.note}</p>
     </div>
   );
 }

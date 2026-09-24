@@ -59,7 +59,7 @@ export function AdvancedReasoningPanel() {
             <ol className="space-y-1.5 text-sm">
               {report.recommendedSequence.map((step, i) => (
                 <li key={step} className="flex gap-3">
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-[11px] text-muted">
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
                     {i + 1}
                   </span>
                   <span>{step}</span>

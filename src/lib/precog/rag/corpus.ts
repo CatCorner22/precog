@@ -257,7 +257,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     tags: ["vendor", "ap", "payments", "fraud"],
     text: "Vendor-master fraud includes invented vendors and address changes that redirect payments to personal accounts. Separate vendor setup from payment release; require dual approval above a dollar threshold; review every new vendor monthly. When one person both sets up vendors and releases payments, an invented vendor is paid like any other; two prosecuted cases in this library ran on exactly that.",
     basis: practice("Accounts-payable control practice."),
-    caseIds: ["case-dennys-franchise-vendors", "case-houston-dental-shell"],
+    caseIds: ["case-dennys-franchise-vendors", "case-wnc-contract-bookkeeper-phony-vendors"],
   },
   {
     id: "leading-indicators",

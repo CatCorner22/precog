@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { runLocalAgentLoop } from "./agent-loop";
+import { runSpecialistAgents } from "./multi-agent";
+import { resolveTemplate } from "../active-template";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
+import { defaultProfile } from "../practice-profile";
 
 const dental = getBaseTemplate("dental");
 
@@ -161,5 +165,75 @@ describe("local brief leavers", () => {
     });
     expect(brief.decisions.some((x) => /leaves|as left/.test(x.action))).toBe(false);
     expect(brief.chickenLittleWarnings.some((w) => /left \d+ days ago/.test(w))).toBe(false);
+  });
+});
+
+describe("local brief before the register is assessed", () => {
+  const industries = [
+    "dental",
+    "restaurant",
+    "retail",
+    "professional_services",
+    "general",
+  ] as const;
+
+  it.each(industries)(
+    "answers for a new %s business whose starter register has nobody marked",
+    (industry) => {
+      const people = buildOwnTeam([
+        { name: "Pat Owner", role: "Owner", duties: ["sign_checks", "bank_reconcile"] },
+        { name: "Lee Front", role: "Front desk", duties: ["collect_cash", "post_payments"] },
+      ]);
+      const profile = ownBusinessProfile(defaultProfile(industry), {
+        practiceName: "Test business",
+        people,
+      });
+      const { brief } = runLocalAgentLoop("Who could we not run without for a week?", {
+        profile,
+        today: "2026-01-01",
+      });
+      const actions = brief.decisions.map((d) => d.action);
+      const knowledge = resolveTemplate(profile).knowledge.length;
+
+      expect(actions).toContain(
+        knowledge === 0
+          ? "List the duties, tasks and know-how the business runs on"
+          : `Mark who can do each of the ${knowledge} things the business runs on`,
+      );
+      expect(actions.some((a) => /cross-train/i.test(a))).toBe(false);
+      expect(actions.some((a) => /re-confirm/i.test(a))).toBe(false);
+    },
+  );
+
+  it("still recommends cross-training once someone is marked on the register", () => {
+    const item = dental.knowledge[0];
+    const holder = dental.people.find((p) => p.active)!;
+    const { brief } = runLocalAgentLoop("continuity", {
+      profile: pioneerProfileFrom({
+        industry: "dental",
+        customKnowledge: [item],
+        customRelations: [{ personId: holder.id, knowledgeId: item.id, level: "expert" }],
+      }),
+      today: "2026-01-01",
+    });
+    const actions = brief.decisions.map((d) => d.action);
+    expect(actions.some((a) => /cross-train/i.test(a))).toBe(true);
+    expect(actions.some((a) => /^Mark who can do/.test(a))).toBe(false);
+  });
+});
+
+describe("specialist notes before the register is assessed", () => {
+  it("says continuity is not assessed instead of 'No critical SPOFs flagged'", () => {
+    const notes = runSpecialistAgents([
+      {
+        tool: "get_knowledge_spofs",
+        ok: true,
+        summary: "",
+        data: { assessed: false, items: [{ knowledgeId: "k1", name: "Payroll" }] },
+      },
+    ]);
+    const bullets = notes.flatMap((n) => n.bullets).join("\n");
+    expect(bullets).toMatch(/not assessed yet/);
+    expect(bullets).not.toMatch(/No critical SPOFs flagged/);
   });
 });

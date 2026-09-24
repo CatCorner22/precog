@@ -189,7 +189,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "training",
           effort: "low",
           impact: "medium",
-          note: "Maya runs one weekly count with Riley so pars and variance are not single-owner.",
+          note: "The general manager runs one weekly count with the bar manager so pars and variance are not single-owner.",
           status: "backlog",
         },
       ],
@@ -290,7 +290,7 @@ export const restaurantTemplate: IndustryTemplate = {
           kind: "continuity",
           severity: 4,
           likelihood: 3,
-          note: "Only Jordan knows the split rules; disputes and wage claims spike if Jordan is out.",
+          note: "Often only the head server knows the split rules; disputes and wage claims spike when they are out.",
           linkedKnowledgeId: "k1",
         },
       ],
@@ -310,7 +310,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Elena checks the bank statement against nightly closeouts; catches skimming fast.",
+          note: "The owner checks the bank statement against nightly closeouts; catches skimming fast.",
           status: "exploring",
         },
       ],
@@ -361,7 +361,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "policy",
           effort: "low",
           impact: "high",
-          note: "Elena signs off before any vendor is added or ACH details change.",
+          note: "The owner signs off before any vendor is added or ACH details change.",
           status: "planned",
         },
         {
@@ -479,7 +479,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Elena checks hours, tips, and any punch edits each period.",
+          note: "The owner checks hours, tips, and any punch edits each period.",
           status: "planned",
         },
         {
@@ -508,7 +508,7 @@ export const restaurantTemplate: IndustryTemplate = {
   scenarios: baseFraudScenarios({
     keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
     keyPersonDesc:
-      "Jordan (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",
+      "The head server (sole expert on tip pooling and shift closeout) resigns mid-week. Deposits mismatch and tip disputes spike.",
     knowledgeId: "k1",
     billingLabel: "Void/comp authority without owner review",
   }),

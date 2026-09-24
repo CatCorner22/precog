@@ -156,7 +156,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "continuity",
           severity: 5,
           likelihood: 3,
-          note: "Sam sole expert on WIP and billing rules.",
+          note: "Often only the billing coordinator knows the WIP and billing rules.",
           linkedKnowledgeId: "k1",
           linkedScenarioId: "sc-key-person-leaves",
         },
@@ -185,7 +185,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "Chris shadows two billing cycles and documents the rate and write-down rules.",
+          note: "The bookkeeper shadows two billing cycles and documents the rate and write-down rules.",
           status: "exploring",
         },
       ],
@@ -245,7 +245,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "Bookkeeper trained to run one month of trust activity without Maya.",
+          note: "Bookkeeper trained to run one month of trust activity without the office manager.",
           status: "exploring",
         },
       ],
@@ -354,11 +354,11 @@ export const professionalServicesTemplate: IndustryTemplate = {
         {
           id: "i-ap-1",
           title:
-            "Partner approval for every new vendor, with dual release at the existing $1,000 threshold",
+            "Partner approval for every new vendor, with dual release above the amount you set",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Office manager prepares, partner approves, at the same threshold the existing dual-release control already uses.",
+          note: "Office manager prepares, partner approves, at the threshold your dual-release policy uses.",
           status: "planned",
         },
         {
@@ -458,7 +458,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "continuity",
           severity: 3,
           likelihood: 3,
-          note: "Maya is the only person who knows how partner draws and bonus true-ups are calculated.",
+          note: "Often only the office manager knows how partner draws and bonus true-ups are calculated.",
           linkedKnowledgeId: "k6",
         },
         {
@@ -487,7 +487,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           category: "training",
           effort: "low",
           impact: "medium",
-          note: "One-page worksheet so the bookkeeper can run a cycle when Maya is out.",
+          note: "One-page worksheet so the bookkeeper can run a cycle when the office manager is out.",
           status: "exploring",
         },
       ],
@@ -507,7 +507,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
   scenarios: baseFraudScenarios({
     keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
     keyPersonDesc:
-      "Sam (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
+      "The billing coordinator (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
     knowledgeId: "k1",
     billingLabel: "Client write-offs without partner approval",
   }),

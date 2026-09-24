@@ -1,14 +1,18 @@
 import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
-import { casesForSodRules } from "@/lib/precog/evidence";
-import { CaseCard } from "./case-card";
+import { CONFLICT_RULES, ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { RuleCaseCard } from "./case-card";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
+import {
+  confirmTitleDuties,
+  peopleWithTitleDuties,
+  titleDutiesSentence,
+} from "@/lib/precog/onboarding/own-team";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +30,14 @@ type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
-  const { profile } = usePractice();
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">("dual");
+  const { profile, setCustomPeople } = usePractice();
+  // Duties still guessed from job titles: the findings below rest on them.
+  const titleDuties = profile.customPeople ? titleDutiesSentence(tpl.people) : "";
+  const titleDutyNames = peopleWithTitleDuties(tpl.people).map((person) => person.name);
+  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">(
+    // People and their duty pairs first; the dual-release policy is one step away.
+    "conflicts",
+  );
   const sodExamples = getIndustryCopy(profile.industry).sodExamples;
   const [filterSeverity, setFilterSeverity] = useState<
     "all" | "critical" | "high" | "medium" | "family"
@@ -64,19 +74,20 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">SoD + dual release</Badge>
+          <Badge variant="accent">Duty conflicts</Badge>
           <Badge variant={profile.dualRelease.enabled ? "ok" : "warn"}>
             Dual release {profile.dualRelease.enabled ? "ON" : "OFF"}
           </Badge>
         </div>
-        <h2 className="mt-3 text-xl font-semibold tracking-tight">
-          Who holds incompatible powers — and what dual release fixes
-        </h2>
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">
+          Who can move money, or hide it, on their own
+        </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Automated entitlement scan plus dual-release mitigation. When dual ACH, write-off,
-          deposit, or vendor gates are on, matching conflicts drop in score and show mitigated.
+          Each person&apos;s duties are checked in pairs against {CONFLICT_RULES.length} named
+          rules, plus a catch-all for related duties in the same process. Turning on dual release
+          puts a second person on the payment channels you choose; the conflicts it covers drop in
+          score and say so.
         </p>
-        <p className="mt-2 text-xs text-subtle">{report.method}</p>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -105,7 +116,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="warn"
         />
         <Stat
-          label="Dual-mitigated"
+          label="Narrowed by dual release"
           value={String(report.summary.dualReleaseMitigated)}
           hint="By dual release"
           tone="ok"
@@ -117,12 +128,41 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="primary"
         />
         <Stat
-          label="Open (no accept)"
+          label="Open, no decision"
           value={String(report.summary.openWithoutAcceptance)}
-          hint="Need decision"
+          hint="Not accepted or narrowed"
           tone="warn"
         />
       </div>
+      {report.summary.unheldDuties.length > 0 && (
+        <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
+          Nobody active is marked for:{" "}
+          {report.summary.unheldDuties.map((d) => entLabel(d)).join(", ")}. Somebody does each of
+          these in every business that handles money; mark who, or the map cannot see that seat.
+        </p>
+      )}
+
+      {titleDuties && (
+        <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
+          <p>
+            {titleDuties} Check them in the power map: {titleDutyNames.slice(0, 6).join(", ")}
+            {titleDutyNames.length > 6 ? ` and ${titleDutyNames.length - 6} more` : ""}.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setView("power")}>
+              <Network className="size-3.5" aria-hidden />
+              Open the power map
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setCustomPeople((people) => confirmTitleDuties(people))}
+            >
+              I checked them: they are right
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         {FRAMEWORK_DUTIES.map((f, i) => (
@@ -202,7 +242,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   type="button"
                   onClick={() => setFilterSeverity(s)}
                   className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-[11px] capitalize",
+                    "rounded-full border px-2.5 py-0.5 text-xs capitalize",
                     filterSeverity === s
                       ? "border-primary/40 bg-primary/10"
                       : "border-border bg-elevated text-muted",
@@ -224,26 +264,32 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   "rounded-xl border px-3 py-3 text-sm",
                   c.dualReleaseMitigated
                     ? "border-ok/30 bg-ok/5"
-                    : c.severity === "critical"
-                      ? "border-danger/30 bg-danger/5"
-                      : c.severity === "high"
-                        ? "border-warn/30 bg-warn/5"
-                        : "border-border bg-elevated",
+                    : c.ownerHeld
+                      ? "border-border bg-elevated"
+                      : c.severity === "critical"
+                        ? "border-danger/30 bg-danger/5"
+                        : c.severity === "high"
+                          ? "border-warn/30 bg-warn/5"
+                          : "border-border bg-elevated",
                 )}
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* An owner-held pair is error and tax exposure, not theft: it
+                      carries a neutral badge, not the severity colour. */}
                   <Badge
                     variant={
                       c.dualReleaseMitigated
                         ? "ok"
-                        : c.severity === "critical"
-                          ? "danger"
-                          : c.severity === "high"
-                            ? "warn"
-                            : "default"
+                        : c.ownerHeld
+                          ? "default"
+                          : c.severity === "critical"
+                            ? "danger"
+                            : c.severity === "high"
+                              ? "warn"
+                              : "default"
                     }
                   >
-                    {c.severity} · {c.score}
+                    {c.ownerHeld ? `Owner-held · ${c.score}` : `${c.severity} · ${c.score}`}
                   </Badge>
                   {c.dualReleaseMitigated && <Badge variant="ok">Dual release mitigates</Badge>}
                   {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
@@ -258,10 +304,18 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   <span className="text-fg">{c.labelB}</span>
                 </p>
                 <p className="mt-1 text-xs text-muted">{c.why}</p>
-                <p className="mt-1 text-[11px] text-subtle">Fraud path: {c.fraudPath}</p>
-                {c.compensatingControls.length > 0 && (
+                <p className="mt-1 text-xs text-subtle">Fraud path: {c.fraudPath}</p>
+                {c.controlsInPlace.length > 0 && (
                   <p className="mt-2 text-xs text-ok">
-                    Compensate: {c.compensatingControls.join("; ")}
+                    Already in place: {c.controlsInPlace.join("; ")}
+                  </p>
+                )}
+                {c.compensatingControls.some((x) => !c.controlsInPlace.includes(x)) && (
+                  <p className="mt-2 text-xs text-muted">
+                    Until the duties are split:{" "}
+                    {c.compensatingControls
+                      .filter((x) => !c.controlsInPlace.includes(x))
+                      .join("; ")}
                   </p>
                 )}
                 {/*
@@ -276,7 +330,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => onNavigate?.("precog", c.linkedScenarioId)}
                     >
                       Precog scenario
@@ -286,7 +340,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => onNavigate?.("map", c.processIds[0])}
                     >
                       Process map
@@ -296,7 +350,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-xs"
                       onClick={() => setView("dual")}
                     >
                       Configure dual release
@@ -329,7 +383,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <table className="border-collapse text-[10px]">
+            <table className="border-collapse text-xs">
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-surface p-1 text-left text-muted">
@@ -488,20 +542,14 @@ function Stat({
 /**
  * The most relevant prosecuted case for a duty conflict.
  *
- * Renders nothing when the library has no match rather than showing a filler
- * message: a finding with no case behind it should look exactly as bare as it
- * is. In practice every conflict rule is covered, and verify-evidence.mjs
- * fails the build if one stops being.
+ * A case that cites the rule leads, under "This arrangement, somewhere real".
+ * A family finding, which no case cites, shows a case that shares a scheme
+ * under "A related scheme, somewhere real". Renders nothing when the library
+ * has no match rather than showing a filler message: a finding with no case
+ * behind it should look exactly as bare as it is. Every named rule is cited by
+ * at least one case, and verify-evidence.mjs fails the build if one stops
+ * being.
  */
 function ConflictEvidence({ ruleId }: { ruleId: string }) {
-  const study = casesForSodRules([ruleId])[0];
-  if (!study) return null;
-  return (
-    <div className="mt-2">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">
-        This arrangement, somewhere real
-      </p>
-      <CaseCard study={study} />
-    </div>
-  );
+  return <RuleCaseCard ruleId={ruleId} className="mt-2" />;
 }

@@ -1,0 +1,132 @@
+import { getIndustryTemplate } from "../templates";
+import { industryMeta } from "../industry";
+import type { PracticeProfile } from "../practice-profile";
+import type { ProcessNode } from "../types";
+
+/**
+ * Where the process map came from.
+ *
+ * - "sample": the sample business (no own people entered), with or without
+ *   map edits.
+ * - "starter": the owner's own people over the industry's starter map, with
+ *   no process owned by anyone yet. The map is a starting point, not a fact
+ *   about the business.
+ * - "own": a process points at one of the owner's people, or the owner added
+ *   or removed processes. Renaming a starter process alone leaves it a
+ *   starter map.
+ */
+export type MapSource = "sample" | "starter" | "own";
+
+export type MapProfile = Pick<PracticeProfile, "industry" | "customPeople" | "customProcesses">;
+
+export function mapSource(profile: MapProfile): MapSource {
+  if (!profile.customPeople) return "sample";
+  // resolveTemplate keeps only owner references that point at the owner's own
+  // people, so the starter map stays unowned until one of them is assigned.
+  const ids = new Set(profile.customPeople.map((p) => p.id));
+  const starter = getIndustryTemplate(profile.industry).processes;
+  const current = profile.customProcesses ?? starter;
+  const owned = current.some((p) => (p.ownerPersonIds ?? []).some((id) => ids.has(id)));
+  if (owned) return "own";
+  // Renaming, re-describing or reordering starter processes, with nobody
+  // assigned, still leaves the starter map; adding or removing a process
+  // makes it the owner's.
+  const idsOf = (list: readonly ProcessNode[]) =>
+    list
+      .map((p) => p.id)
+      .sort()
+      .join("|");
+  return idsOf(current) === idsOf(starter) ? "starter" : "own";
+}
+
+/**
+ * Whether map health, ownership, documentation, issue counts and hot
+ * processes describe a map the owner has worked on.
+ *
+ * The starter map with nobody assigned would score every process as unowned
+ * and every procedure as unwritten, and an empty map scores nothing at all.
+ * Neither is a fact about the business, so the figures wait until the owner
+ * assigns an owner to a process or builds their own map with at least one
+ * process on it. The sample business is scored as it always was.
+ */
+export function mapAssessed(profile: MapProfile): boolean {
+  switch (mapSource(profile)) {
+    case "sample":
+      return true;
+    case "starter":
+      return false;
+    case "own":
+      return !profile.customProcesses || profile.customProcesses.length > 0;
+  }
+}
+
+/** A process with its owners left out, keys sorted, for comparing content alone. */
+function contentKey(process: ProcessNode): string {
+  const { ownerPersonIds: _owners, ...rest } = process;
+  return JSON.stringify(rest, (_key, value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
+}
+
+/**
+ * Processes on an owner's map that are still exactly as the starter map had
+ * them, with none of the owner's people assigned. They stay starter
+ * processes, unscored and labelled as such, until the owner touches them:
+ * assigning one owner to one process makes that process the owner's, not
+ * the whole map. Empty for the sample business.
+ */
+export function untouchedStarterProcessIds(profile: MapProfile): Set<string> {
+  if (!profile.customPeople) return new Set();
+  const own = new Set(profile.customPeople.map((p) => p.id));
+  const starter = new Map(
+    getIndustryTemplate(profile.industry).processes.map((p) => [p.id, contentKey(p)]),
+  );
+  const current = profile.customProcesses ?? getIndustryTemplate(profile.industry).processes;
+  return new Set(
+    current
+      .filter(
+        (p) =>
+          starter.get(p.id) === contentKey(p) &&
+          !(p.ownerPersonIds ?? []).some((id) => own.has(id)),
+      )
+      .map((p) => p.id),
+  );
+}
+
+/**
+ * The map an owner's own business began from: the industry's starter
+ * processes with nobody assigned (the sample team's owners never carry over).
+ * The builder's Changes list compares an own map with this, not the sample.
+ */
+export function starterProcesses(profile: Pick<PracticeProfile, "industry">): ProcessNode[] {
+  return getIndustryTemplate(profile.industry).processes.map((p) => ({
+    ...p,
+    ownerPersonIds: [],
+  }));
+}
+
+/** The starter map's process count and industry wording, for one shared sentence. */
+export function starterMapFacts(profile: Pick<PracticeProfile, "industry">): {
+  count: number;
+  example: string;
+} {
+  return {
+    count: getIndustryTemplate(profile.industry).processes.length,
+    example: `${industryMeta(profile.industry).label.toLowerCase()} example`,
+  };
+}
+
+/**
+ * The one plain sentence every screen shows in place of map figures while the
+ * map is not assessed, or null once it is.
+ */
+export function mapNotAssessedNote(profile: MapProfile): string | null {
+  if (mapAssessed(profile)) return null;
+  if (mapSource(profile) === "starter") {
+    const { count, example } = starterMapFacts(profile);
+    return `Your map holds ${count} starter processes from the ${example} and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.`;
+  }
+  return "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.";
+}

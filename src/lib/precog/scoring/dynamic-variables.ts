@@ -2,7 +2,7 @@
  * Dynamic risk variables: insurance transfer + control-linked discounts.
  * Changing any variable recomputes likelihood multipliers and severity/cost.
  *
- * Educational model for small dental practices — not an insurance quote.
+ * Educational model for small businesses, not an insurance quote.
  */
 
 export type VariableCategory =
@@ -93,6 +93,138 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   underwritingLoadAnnual: 0,
 };
 
+/**
+ * The crime-policy figures an owner reads off their own policy. Until the
+ * owner changes one of them, every one is the app's default, not a fact about
+ * the business.
+ */
+export const POLICY_FIELDS = [
+  "basePremiumAnnual",
+  "deductible",
+  "policyLimit",
+  "coinsurancePct",
+  "maxDiscountPct",
+  "claimsLoadFactor",
+  "underwritingLoadAnnual",
+  "discountCamerasPct",
+  "discountDualControlPct",
+  "discountBankRecPct",
+  "discountAlarmPct",
+  "discountBondedStaffPct",
+] as const satisfies readonly (keyof RiskVariableState)[];
+
+export type PolicyField = (typeof POLICY_FIELDS)[number];
+
+/** The label every insurance figure carries while an app default is still in force. */
+export const APP_DEFAULT_POLICY = "app default, enter your policy";
+
+/** Whether one policy figure is still the app's default. */
+export function policyFieldIsDefault(v: RiskVariableState, key: PolicyField): boolean {
+  return v[key] === DEFAULT_RISK_VARIABLES[key];
+}
+
+/**
+ * Whether the owner has entered a crime policy: the premium, the deductible or
+ * the limit differs from the app's default. The other terms refine a policy
+ * and do not make one on their own.
+ */
+export function policyEntered(v: RiskVariableState): boolean {
+  return (
+    !policyFieldIsDefault(v, "basePremiumAnnual") ||
+    !policyFieldIsDefault(v, "deductible") ||
+    !policyFieldIsDefault(v, "policyLimit")
+  );
+}
+
+/** Whether any of the premium, deductible and limit is still the app's default. */
+export function policyDefaultsInForce(v: RiskVariableState): boolean {
+  return (
+    policyFieldIsDefault(v, "basePremiumAnnual") ||
+    policyFieldIsDefault(v, "deductible") ||
+    policyFieldIsDefault(v, "policyLimit")
+  );
+}
+
+/**
+ * Where the insurance figures come from.
+ *
+ * - "entered": the owner entered their policy (any remaining default figure is
+ *   still labelled as one).
+ * - "none": the owner's own business with no policy entered, so the app assumes
+ *   no crime policy: the business keeps the whole loss, pays no premium and
+ *   earns no credit.
+ * - "app_default": the sample business, priced on the app's default policy.
+ */
+export type InsuranceBasis = "entered" | "none" | "app_default";
+
+export function insuranceBasis(v: RiskVariableState, ownBusiness: boolean): InsuranceBasis {
+  if (policyEntered(v)) return "entered";
+  return ownBusiness ? "none" : "app_default";
+}
+
+/** No crime policy: nothing transfers, nothing is paid, no credit applies. */
+export function withoutPolicy(v: RiskVariableState): RiskVariableState {
+  return {
+    ...v,
+    basePremiumAnnual: 0,
+    deductible: 0,
+    policyLimit: 0,
+    coinsurancePct: 0,
+    underwritingLoadAnnual: 0,
+    discountCamerasPct: 0,
+    discountDualControlPct: 0,
+    discountBankRecPct: 0,
+    discountAlarmPct: 0,
+    discountBondedStaffPct: 0,
+  };
+}
+
+/**
+ * The variables the insurance arithmetic runs on. An owner's own business
+ * with no policy entered is treated as having no crime policy; the sample
+ * business and an entered policy run as stored.
+ */
+export function effectiveRiskVariables(
+  v: RiskVariableState,
+  ownBusiness: boolean,
+): RiskVariableState {
+  return insuranceBasis(v, ownBusiness) === "none" ? withoutPolicy(v) : v;
+}
+
+/**
+ * The short note an insurance figure carries, or null once the owner's own
+ * premium, deductible and limit are all in.
+ */
+export function insuranceFigureNote(v: RiskVariableState, ownBusiness: boolean): string | null {
+  const basis = insuranceBasis(v, ownBusiness);
+  if (basis === "none") return `No crime policy entered (${APP_DEFAULT_POLICY})`;
+  if (basis === "app_default") return APP_DEFAULT_POLICY;
+  const left = (["basePremiumAnnual", "deductible", "policyLimit"] as const)
+    .filter((k) => policyFieldIsDefault(v, k))
+    .map((k) => POLICY_FIELD_WORD[k]);
+  return left.length ? `${joinWords(left)} still the ${APP_DEFAULT_POLICY}` : null;
+}
+
+const POLICY_FIELD_WORD: Record<"basePremiumAnnual" | "deductible" | "policyLimit", string> = {
+  basePremiumAnnual: "premium",
+  deductible: "deductible",
+  policyLimit: "limit",
+};
+
+function joinWords(words: string[]): string {
+  if (words.length <= 1) return words.join("");
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/**
+ * Share of years in which the annual cost-of-risk figure assumes the event
+ * happens: 12% scaled by the likelihood multiplier, kept between 3% and 45%.
+ * This app's assumption, not a measured frequency.
+ */
+export function assumedAnnualFrequency(likelihoodMultiplier: number): number {
+  return clamp(0.12 * likelihoodMultiplier, 0.03, 0.45);
+}
+
 export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   {
     id: "basePremiumAnnual",
@@ -127,7 +259,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     kind: "currency",
     description: "Maximum recovery per claim / aggregate (simplified single limit).",
     likelihoodEffect: "None.",
-    severityEffect: "Caps transferred severity; excess loss stays with the practice.",
+    severityEffect: "Caps transferred severity; excess loss stays with the business.",
     min: 10000,
     max: 1000000,
     step: 5000,
@@ -170,7 +302,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 20,
     step: 1,
-    defaultValue: 5,
+    defaultValue: 0,
   },
   {
     id: "hasDualControl",
@@ -188,13 +320,14 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Credit from your quote: dual control",
     category: "insurance",
     kind: "percent",
-    description: "Illustrative premium credit for dual signature / dual release.",
+    description:
+      "The credit your own carrier quoted for dual signature or dual release, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect via control presence.",
     severityEffect: "Reduces premium.",
     min: 0,
     max: 20,
     step: 1,
-    defaultValue: 8,
+    defaultValue: 0,
   },
   {
     id: "hasIndependentBankRec",
@@ -212,13 +345,14 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Credit from your quote: bank rec / CPA",
     category: "insurance",
     kind: "percent",
-    description: "Credit for independent recon or external bookkeeping review.",
+    description:
+      "The credit your own carrier quoted for independent reconciliation or an outside review, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,
     max: 15,
     step: 1,
-    defaultValue: 5,
+    defaultValue: 0,
   },
   {
     id: "hasAlarmAccess",
@@ -236,13 +370,14 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Credit from your quote: alarm",
     category: "insurance",
     kind: "percent",
-    description: "Illustrative alarm credit.",
+    description:
+      "The credit your own carrier quoted for an alarm, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,
     max: 10,
     step: 1,
-    defaultValue: 3,
+    defaultValue: 0,
   },
   {
     id: "hasBondedCashHandlers",
@@ -260,13 +395,14 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Credit from your quote: bonded staff",
     category: "insurance",
     kind: "percent",
-    description: "Illustrative credit for bonding / screening program.",
+    description:
+      "The credit your own carrier quoted for bonding or screening, if any. The app assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,
     max: 15,
     step: 1,
-    defaultValue: 4,
+    defaultValue: 0,
   },
   {
     id: "maxDiscountPct",
@@ -378,51 +514,72 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[] {
+  const reason = (present: boolean, pct: number, what: string, none: string) =>
+    !present
+      ? none
+      : pct > 0
+        ? `${what} present; the ${pct}% credit you entered from your quote is applied.`
+        : `${what} present; no credit entered from your quote, so none is applied.`;
   const items: AppliedDiscount[] = [
     {
       id: "cameras",
       label: "Security cameras",
       pct: v.discountCamerasPct,
       active: v.hasSecurityCameras,
-      reason: v.hasSecurityCameras
-        ? "Cameras present — the credit you entered is applied."
-        : "No cameras — credit not earned.",
+      reason: reason(
+        v.hasSecurityCameras,
+        v.discountCamerasPct,
+        "Cameras",
+        "No cameras, so no credit.",
+      ),
     },
     {
       id: "dual",
       label: "Dual control",
       pct: v.discountDualControlPct,
       active: v.hasDualControl,
-      reason: v.hasDualControl
-        ? "Dual control present — the credit you entered is applied."
-        : "No dual control — credit not earned.",
+      reason: reason(
+        v.hasDualControl,
+        v.discountDualControlPct,
+        "Dual control",
+        "No dual control, so no credit.",
+      ),
     },
     {
       id: "bank",
       label: "Independent bank rec",
       pct: v.discountBankRecPct,
       active: v.hasIndependentBankRec,
-      reason: v.hasIndependentBankRec
-        ? "Independent reconciliation present — the credit you entered is applied."
-        : "No independent recon — credit not earned.",
+      reason: reason(
+        v.hasIndependentBankRec,
+        v.discountBankRecPct,
+        "Independent reconciliation",
+        "No independent reconciliation, so no credit.",
+      ),
     },
     {
       id: "alarm",
       label: "Alarm / access",
       pct: v.discountAlarmPct,
       active: v.hasAlarmAccess,
-      reason: v.hasAlarmAccess
-        ? "Alarm/access present — the credit you entered is applied."
-        : "No alarm credit.",
+      reason: reason(
+        v.hasAlarmAccess,
+        v.discountAlarmPct,
+        "Alarm or access control",
+        "No alarm, so no credit.",
+      ),
     },
     {
       id: "bonded",
       label: "Bonded cash handlers",
       pct: v.discountBondedStaffPct,
       active: v.hasBondedCashHandlers,
-      reason: v.hasBondedCashHandlers
-        ? "Bonding/screening present — the credit you entered is applied."
-        : "No bonding credit.",
+      reason: reason(
+        v.hasBondedCashHandlers,
+        v.discountBondedStaffPct,
+        "Bonding or screening",
+        "No bonding, so no credit.",
+      ),
     },
   ];
   return items;
@@ -580,8 +737,8 @@ export function applyInsuranceTransfer(
 ): InsuranceTransferResult {
   const { premiumAnnualNet, discountPctApplied, discounts } = computeNetPremium(v);
 
-  // Frequency weight for annualizing single-event EL (illustrative)
-  const annualFreqWeight = clamp(0.12 * likelihoodMultiplier, 0.03, 0.45);
+  // Share of years the event is assumed to happen, to annualize one event's loss.
+  const annualFreqWeight = assumedAnnualFrequency(likelihoodMultiplier);
 
   const rE = retainLoss(grossExpected, v);
   const rL = retainLoss(grossLow, v);
@@ -590,14 +747,22 @@ export function applyInsuranceTransfer(
   const expectedAnnualCostOfRisk = Math.round(premiumAnnualNet + rE.retained * annualFreqWeight);
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
 
-  const notes: string[] = [
-    `Net premium ${premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`,
-    `Retained loss ≈ deductible + unreimbursed share + excess over limit.`,
-    `Annualized cost-of-risk uses illustrative frequency weight ${(annualFreqWeight * 100).toFixed(1)}% × retained EL + premium.`,
-  ];
+  const noPolicy = v.basePremiumAnnual === 0 && v.policyLimit === 0;
+  const notes: string[] = noPolicy
+    ? [
+        "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
+        `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss.`,
+      ]
+    : [
+        `Net premium ${premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`,
+        `Retained loss ≈ deductible + unreimbursed share + excess over limit.`,
+        `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss, plus the premium.`,
+      ];
 
-  if (grossExpected > v.deductible + v.policyLimit) {
-    notes.push("Gross loss may exceed deductible + limit — severity towers above transfer.");
+  if (!noPolicy && grossExpected > v.deductible + v.policyLimit) {
+    notes.push(
+      "The assumed loss can exceed the deductible plus the limit; the excess stays with the business.",
+    );
   }
 
   return {

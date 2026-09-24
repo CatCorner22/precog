@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { CONFLICT_RULES } from "./conflict-rules";
+import { CONFLICT_RULES, type EntitlementId } from "./conflict-rules";
 import {
   buildAssignments,
   detectSodConflicts,
+  type SodDetectionOptions,
   dropInactiveAssignments,
   ROLE_TEMPLATES,
   segregationHealthIndex,
@@ -163,7 +164,13 @@ describe("detectSodConflicts", () => {
     );
     const named = report.conflicts.filter((c) => !c.ruleId.startsWith("family-"));
     const family = report.conflicts.filter((c) => c.ruleId.startsWith("family-"));
-    expect(named.map((c) => c.ruleId).sort()).toEqual(["rule-cash-rec", "rule-deposit-post"]);
+    // Preparing the deposit is holding the cash on its way to the bank, so
+    // preparing it and reconciling the account is the cash-custody gap too.
+    expect(named.map((c) => c.ruleId).sort()).toEqual([
+      "rule-cash-rec",
+      "rule-custody-rec",
+      "rule-deposit-post",
+    ]);
     expect(family).toEqual([]);
   });
 
@@ -198,7 +205,8 @@ describe("detectSodConflicts", () => {
       ),
     };
     const after = detectSodConflicts(bookkeeperFreed).summary.segregationHealth;
-    expect(before).toBeGreaterThan(5);
+    // The index has no floor above 1, so a heavily loaded team still moves.
+    expect(before).toBeGreaterThan(1);
     expect(after).toBeGreaterThan(before);
   });
 
@@ -218,5 +226,533 @@ describe("detectSodConflicts", () => {
     expect(a.conflicts.length).toBeGreaterThan(0);
     expect(a.summary.segregationHealth).toBeGreaterThanOrEqual(0);
     expect(a.summary.segregationHealth).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("release, payroll and reconciliation pairs", () => {
+  const team = (entitlements: EntitlementId[]) =>
+    detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [{ personId: "p1", personName: "Pat", role: "Bookkeeper", entitlements }],
+    });
+
+  it("names the person who releases payments and reconciles the account they leave from", () => {
+    const report = team(["release_payment", "bank_reconcile", "view_reports_only"]);
+    const hit = report.conflicts.find((c) => c.ruleId === "rule-release-rec");
+    expect(hit?.severity).toBe("critical");
+  });
+
+  it("names payroll entry held with payment release or with reconciliation", () => {
+    const ids = (e: EntitlementId[]) => team(e).conflicts.map((c) => c.ruleId);
+    expect(ids(["enter_payroll", "release_payment", "view_reports_only"])).toContain(
+      "rule-payroll-release",
+    );
+    expect(ids(["enter_payroll", "bank_reconcile", "view_reports_only"])).toContain(
+      "rule-payroll-rec",
+    );
+  });
+
+  it("does not lower a score for the controls it merely suggests", () => {
+    const report = team(["sign_checks", "bank_reconcile", "view_reports_only"]);
+    const hit = report.conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
+    expect(hit.compensatingControls.length).toBeGreaterThan(0);
+    expect(hit.controlsInPlace).toEqual([]);
+    const mitigated = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Bookkeeper",
+          entitlements: ["sign_checks", "bank_reconcile", "view_reports_only"],
+        },
+      ],
+      compensatingByControlId: { "c-sod-cash": ["Owner reads every cleared-check image monthly"] },
+    }).conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
+    expect(mitigated.controlsInPlace).toHaveLength(1);
+    expect(mitigated.score).toBeLessThan(hit.score);
+  });
+});
+
+describe("owner-aware and mitigation-aware detection", () => {
+  const general = getBaseTemplate("general");
+  const one = (role: string, entitlements: EntitlementId[], extra: SodDetectionOptions = {}) =>
+    detectSodConflicts(general, undefined, {
+      assignments: [{ personId: "p1", personName: "Pat", role, entitlements }],
+      ...extra,
+    });
+
+  it("does not flag the owner for signing checks and reading the bank statement", () => {
+    const owner = one("Owner", [
+      "sign_checks",
+      "bank_reconcile",
+      "approve_payroll",
+      "view_reports_only",
+    ]);
+    expect(owner.conflicts).toEqual([]);
+    const treasurer = one("Board Treasurer", [
+      "sign_checks",
+      "bank_reconcile",
+      "view_reports_only",
+    ]);
+    expect(treasurer.conflicts.map((c) => c.ruleId)).toContain("rule-sign-rec");
+  });
+
+  it("keeps an owner's money-handling pair but marks it, ranks it last, and asks for an outside reader", () => {
+    const owner = one("Owner / Principal", ["collect_cash", "bank_reconcile", "view_reports_only"]);
+    expect(owner.conflicts).toHaveLength(1);
+    const hit = owner.conflicts[0];
+    expect(hit.ruleId).toBe("rule-custody-rec");
+    expect(hit.ownerHeld).toBe(true);
+    expect(hit.why).toMatch(/cannot steal from themselves/);
+    expect(hit.compensatingControls[0]).toMatch(/outside bookkeeper or accountant/);
+    const employee = one("Bookkeeper", ["collect_cash", "bank_reconcile", "view_reports_only"]);
+    expect(hit.score).toBeLessThan(employee.conflicts[0].score);
+    expect(owner.summary.critical).toBe(0);
+    expect(owner.summary.ownerHeld).toBe(1);
+    expect(owner.summary.segregationHealth).toBeGreaterThan(employee.summary.segregationHealth);
+  });
+
+  it("does not raise a family flag for approving and administering access", () => {
+    const gm = one("General Manager", [
+      "approve_writeoffs",
+      "approve_vendor",
+      "manage_user_access",
+      "view_reports_only",
+    ]);
+    expect(gm.conflicts.filter((c) => c.severity === "family")).toEqual([]);
+  });
+
+  it("reads initiating an ACH through the payment-release rules", () => {
+    const ids = one("AP Specialist", [
+      "create_vendor",
+      "initiate_ach",
+      "view_reports_only",
+    ]).conflicts.map((c) => c.ruleId);
+    expect(ids).toContain("rule-vendor-create-pay");
+    expect(
+      one("Bookkeeper", ["initiate_ach", "bank_reconcile", "view_reports_only"]).conflicts.map(
+        (c) => c.ruleId,
+      ),
+    ).toContain("rule-release-rec");
+  });
+
+  it("lists every named finding above every family finding", () => {
+    const report = one("Office Manager", [
+      "order_supplies",
+      "receive_goods",
+      "create_vendor",
+      "change_fee_schedule",
+      "view_reports_only",
+    ]);
+    const severities = report.conflicts.map((c) => c.severity);
+    const firstFamily = severities.indexOf("family");
+    const lastNamed = severities.map((s) => s !== "family").lastIndexOf(true);
+    expect(firstFamily === -1 || lastNamed < firstFamily).toBe(true);
+  });
+
+  it("never lets a mitigated conflict raise the health index", () => {
+    const base = one("Bookkeeper", ["post_payments", "bank_reconcile", "view_reports_only"]);
+    const more = one(
+      "Bookkeeper",
+      ["post_payments", "bank_reconcile", "create_vendor", "release_payment", "view_reports_only"],
+      {
+        dualReleaseMitigatedRuleIds: new Set(["rule-vendor-create-pay"]),
+      },
+    );
+    expect(more.conflicts.some((c) => c.dualReleaseMitigated)).toBe(true);
+    expect(more.summary.segregationHealth).toBeLessThan(base.summary.segregationHealth);
+  });
+});
+
+describe("recommendations", () => {
+  it("never calls duties healthy while a high pair is open", () => {
+    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Property Manager",
+          entitlements: ["collect_cash", "post_payments", "view_reports_only"],
+        },
+      ],
+    });
+    expect(report.summary.high).toBeGreaterThan(0);
+    expect(report.recommendations.join(" ")).not.toMatch(/look healthy|look separated/);
+    const clean = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Cashier",
+          entitlements: ["collect_cash", "view_reports_only"],
+        },
+      ],
+    });
+    expect(clean.recommendations).toEqual([
+      "Duties look separated; scan again after any role change.",
+    ]);
+  });
+});
+
+describe("unheld duties", () => {
+  it("names the money duties nobody active holds", () => {
+    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Bookkeeper",
+          entitlements: ["post_payments", "bank_reconcile"],
+        },
+        {
+          personId: "p2",
+          personName: "Ana",
+          role: "Owner",
+          entitlements: ["approve_payroll", "view_reports_only"],
+        },
+      ],
+    });
+    expect(report.summary.unheldDuties).toEqual([
+      "prepare_deposit",
+      "release_payment",
+      "create_vendor",
+    ]);
+  });
+
+  it("says nobody sets up suppliers when a bookkeeper pays them and nobody is recorded adding them", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
+        { role: "Bookkeeper", duties: ["enter_invoices", "release_payment", "prepare_deposit"] },
+      ]),
+    );
+    expect(report.summary.unheldDuties).toEqual(["create_vendor"]);
+  });
+});
+
+function team(people: { role: string; duties: string[] }[]): IndustryTemplate {
+  return {
+    ...dental,
+    people: people.map((p, i) => ({
+      id: `t${i + 1}`,
+      name: `Person ${i + 1}`,
+      role: p.role,
+      active: true,
+      entitlements: p.duties,
+    })),
+    relations: [],
+    roleTemplates: {},
+  };
+}
+
+describe("owner-held pairs belong to the one owner only", () => {
+  it.each([
+    "Principal Accountant",
+    "Assistant to the Owner",
+    "Vice President, Finance",
+    "Office Manager (Owner's wife)",
+  ])("keeps a %s's critical pair open", (role) => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["sign_checks"] },
+        { role, duties: ["release_payment", "bank_reconcile"] },
+      ]),
+    );
+    const pair = report.conflicts.find((c) => c.ruleId === "rule-release-rec")!;
+    expect(pair.ownerHeld).toBe(false);
+    expect(pair.fraudPath).not.toMatch(/nobody but the owner/);
+    expect(report.summary.critical).toBe(1);
+  });
+
+  it("treats no partner as the owner who cannot steal from themselves", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Partner", duties: ["release_payment", "bank_reconcile"] },
+        { role: "Partner", duties: ["sign_checks"] },
+      ]),
+    );
+    expect(report.summary.ownerHeld).toBe(0);
+    expect(report.summary.critical).toBe(1);
+  });
+
+  it("still ranks a sole owner's own pair last and at half weight", () => {
+    const report = detectSodConflicts(
+      team([{ role: "Owner", duties: ["collect_cash", "post_payments", "bank_reconcile"] }]),
+    );
+    expect(report.conflicts.every((c) => c.ownerHeld)).toBe(true);
+    expect(report.summary.critical).toBe(0);
+  });
+});
+
+describe("one finding per gap per person", () => {
+  it("reports ACH initiation and payment release with reconciliation once, not twice", () => {
+    const report = detectSodConflicts(
+      oneClerk(["initiate_ach", "release_payment", "bank_reconcile", "create_vendor"]),
+    );
+    const ids = report.conflicts.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter((id) => id.endsWith(":rule-release-rec"))).toHaveLength(1);
+    expect(ids.filter((id) => id.endsWith(":rule-vendor-create-pay"))).toHaveLength(1);
+  });
+
+  it("labels a pair read through a channel with the duties the person holds", () => {
+    const report = detectSodConflicts(oneClerk(["initiate_ach", "bank_reconcile"]));
+    const pair = report.conflicts.find((c) => c.ruleId === "rule-release-rec")!;
+    expect([pair.entitlementA, pair.entitlementB].sort()).toEqual([
+      "bank_reconcile",
+      "initiate_ach",
+    ]);
+  });
+
+  it("counts a controller who releases, signs and reconciles as one gap", () => {
+    const report = detectSodConflicts(
+      oneClerk(["release_payment", "sign_checks", "bank_reconcile"]),
+    );
+    const rules = report.conflicts.map((c) => c.ruleId);
+    expect(rules).toContain("rule-release-rec");
+    expect(rules).not.toContain("rule-sign-rec");
+    const pair = report.conflicts.find((c) => c.ruleId === "rule-release-rec")!;
+    expect(pair.compensatingControls).toContain(
+      "Bank Positive Pay: only checks on the owner's list are paid",
+    );
+  });
+
+  it("keeps a check signer who releases nothing on the check-signing rule", () => {
+    const report = detectSodConflicts(oneClerk(["sign_checks", "bank_reconcile"]));
+    expect(report.conflicts.map((c) => c.ruleId)).toEqual(["rule-sign-rec"]);
+  });
+});
+
+describe("deposit preparation with reconciliation", () => {
+  it("flags a practice manager who prepares deposits, reconciles and enters payroll", () => {
+    const report = detectSodConflicts(
+      oneClerk(["prepare_deposit", "bank_reconcile", "enter_payroll", "approve_writeoffs"]),
+    );
+    const rules = report.conflicts.map((c) => c.ruleId);
+    expect(rules).toContain("rule-custody-rec");
+    expect(rules).toContain("rule-payroll-rec");
+    const custody = report.conflicts.find((c) => c.ruleId === "rule-custody-rec")!;
+    expect(custody.severity).toBe("critical");
+    expect(custody.labelA + custody.labelB).toMatch(/deposit/i);
+  });
+});
+
+describe("money duties nobody holds", () => {
+  it("counts check signing and ACH initiation as releasing payments", () => {
+    const signs = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["sign_checks", "approve_payroll"] },
+        { role: "Bookkeeper", duties: ["prepare_deposit", "bank_reconcile"] },
+      ]),
+    );
+    expect(signs.summary.unheldDuties).not.toContain("release_payment");
+    const ach = detectSodConflicts(
+      team([{ role: "Treasurer", duties: ["initiate_ach", "prepare_deposit", "approve_payroll"] }]),
+    );
+    expect(ach.summary.unheldDuties).not.toContain("release_payment");
+  });
+});
+
+describe("recommendations", () => {
+  it("does not tell a one-person business to have two people count the deposit", () => {
+    const report = detectSodConflicts(
+      team([
+        {
+          role: "Owner",
+          duties: ["collect_cash", "post_payments", "release_payment", "bank_reconcile"],
+        },
+      ]),
+    );
+    expect(report.recommendations.join(" ")).not.toMatch(/two people count/);
+    expect(report.recommendations.join(" ")).toMatch(/outside bookkeeper or accountant/);
+    expect(report.recommendations).not.toContain(
+      "Duties look separated; scan again after any role change.",
+    );
+  });
+
+  it("names an employee who holds most of the money cycle", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["sign_checks"] },
+        {
+          role: "Office Manager",
+          duties: [
+            "collect_cash",
+            "post_payments",
+            "prepare_deposit",
+            "enter_invoices",
+            "initiate_ach",
+            "enter_payroll",
+            "bank_reconcile",
+          ],
+        },
+      ]),
+    );
+    expect(report.recommendations.join(" ")).toMatch(
+      /Person 2 \(Office Manager\) holds 7 of the 11 core money duties/,
+    );
+    expect(report.recommendations.join(" ")).toMatch(/moving the bank reconciliation/);
+  });
+
+  it("ranks two critical findings that both show 100 by their full score, not their id", () => {
+    // Payment posting (weight 4) + reconciliation for the first clerk, cash
+    // custody (weight 5) + reconciliation for the second. Both clamp to 100
+    // under weak staffing; the heavier pair must still come first.
+    const report = detectSodConflicts(
+      team([
+        { role: "Clerk", duties: ["post_payments", "bank_reconcile"] },
+        { role: "Cashier", duties: ["collect_cash", "bank_reconcile"] },
+      ]),
+      {
+        ...dental.staffComposition,
+        dualControlPayments: false,
+        independentBankRec: false,
+        segregationScore: 20,
+      },
+    );
+    const critical = report.conflicts.filter((c) => c.severity === "critical");
+    expect(critical.map((c) => c.score)).toEqual([100, 100]);
+    expect(critical.map((c) => c.ruleId)).toEqual(["rule-custody-rec", "rule-cash-rec"]);
+  });
+});
+
+describe("family catch-all", () => {
+  it("does not flag administering the system and assigning its logins as two record duties", () => {
+    const report = detectSodConflicts(oneClerk(["pms_admin_roles", "manage_user_access"]));
+    expect(report.conflicts.filter((c) => c.ruleId.startsWith("family-"))).toEqual([]);
+    const cell = report.matrix.find(
+      (m) => m.row === "pms_admin_roles" && m.col === "manage_user_access",
+    );
+    expect(cell?.status).toBe("safe");
+  });
+
+  it("names two master-record duties as such, not as payee-list duties", () => {
+    const report = detectSodConflicts(oneClerk(["change_fee_schedule", "edit_patient_master"]));
+    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
+    expect(family?.title).toBe("Two master-record duties held by one person");
+  });
+});
+
+describe("cash, refund, void and journal-entry rules", () => {
+  it.each([
+    [["collect_cash", "approve_writeoffs"], "rule-cash-void"],
+    [["prepare_deposit", "approve_writeoffs"], "rule-cash-void"],
+    [["collect_cash", "issue_refunds"], "rule-cash-refund"],
+    [["prepare_deposit", "issue_refunds"], "rule-cash-refund"],
+    [["issue_refunds", "post_payments"], "rule-refund-post"],
+    [["release_payment", "post_journal_entries"], "rule-release-je"],
+    [["initiate_ach", "post_journal_entries"], "rule-release-je"],
+    [["edit_payroll_master", "release_payment"], "rule-payroll-master-release"],
+    [["collect_cash", "pms_admin_roles"], "rule-cash-admin"],
+    [["prepare_deposit", "pms_admin_roles"], "rule-cash-admin"],
+    [["manage_user_access", "release_payment"], "rule-access-release"],
+    [["manage_user_access", "initiate_ach"], "rule-access-release"],
+  ])("flags %j as %s", (duties, ruleId) => {
+    const report = detectSodConflicts(oneClerk(duties));
+    expect(report.conflicts.map((c) => c.ruleId)).toContain(ruleId);
+  });
+});
+
+describe("signing checks is releasing payments", () => {
+  it.each([
+    [["approve_vendor", "sign_checks"], "rule-vendor-approve-pay", "high"],
+    [["create_vendor", "sign_checks"], "rule-vendor-create-pay", "critical"],
+    [["enter_invoices", "sign_checks"], "rule-invoice-pay", "critical"],
+    [["enter_payroll", "sign_checks"], "rule-payroll-release", "high"],
+  ])("reads %j through %s", (duties, ruleId, severity) => {
+    const report = detectSodConflicts(oneClerk(duties));
+    const found = report.conflicts.find((c) => c.ruleId === ruleId);
+    expect(found?.severity).toBe(severity);
+    expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
+  });
+
+  it("does not pair two ways of sending money out", () => {
+    for (const duties of [
+      ["sign_checks", "release_payment"],
+      ["sign_checks", "initiate_ach"],
+    ]) {
+      expect(detectSodConflicts(oneClerk(duties)).conflicts).toEqual([]);
+    }
+  });
+});
+
+describe("the owner's findings", () => {
+  it("gives the sole owner no vaguer catch-all about their own business", () => {
+    const report = detectSodConflicts(
+      team([{ role: "Owner", duties: ["release_payment", "sign_checks", "order_supplies"] }]),
+    );
+    expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
+  });
+
+  it("lists every employee finding before an owner-held critical pair", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["collect_cash", "bank_reconcile"] },
+        { role: "Bookkeeper", duties: ["prepare_deposit", "post_payments"] },
+      ]),
+    );
+    const order = report.conflicts.map((c) => `${c.ownerHeld ? "owner" : "staff"}:${c.severity}`);
+    expect(order).toEqual(["staff:high", "owner:critical"]);
+  });
+});
+
+describe("segregation health counts distinct gaps", () => {
+  const frontDesk = (n: number) =>
+    Array.from({ length: n }, () => ({
+      role: "Front Desk",
+      duties: ["collect_cash", "post_payments"],
+    }));
+
+  it("scores a large clinic with one repeated front-desk gap above a shop whose bookkeeper holds everything", () => {
+    const clinic = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
+        ...frontDesk(8),
+        { role: "Billing", duties: ["post_adjustments"] },
+        { role: "AP Clerk", duties: ["enter_invoices"] },
+        { role: "Controller", duties: ["release_payment", "bank_reconcile"] },
+      ]),
+    ).summary.segregationHealth;
+    const shop = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_payroll"] },
+        {
+          role: "Bookkeeper",
+          duties: [
+            "post_payments",
+            "prepare_deposit",
+            "bank_reconcile",
+            "release_payment",
+            "create_vendor",
+            "enter_invoices",
+          ],
+        },
+      ]),
+    ).summary.segregationHealth;
+    expect(clinic).toBeGreaterThan(shop + 20);
+  });
+
+  it("lowers the index only slowly as more people hold the same flagged seat", () => {
+    const one = detectSodConflicts(team(frontDesk(1))).summary.segregationHealth;
+    const eight = detectSodConflicts(team(frontDesk(8))).summary.segregationHealth;
+    expect(eight).toBeLessThan(one);
+    expect(one - eight).toBeLessThan(10);
+  });
+
+  it("never rises when a conflict is added", () => {
+    let previous = 101;
+    for (let n = 1; n <= 12; n++) {
+      const health = detectSodConflicts(team(frontDesk(n))).summary.segregationHealth;
+      expect(health).toBeLessThanOrEqual(previous);
+      previous = health;
+    }
+  });
+});
+
+describe("catch-all wording for master records", () => {
+  it("does not describe a price or customer record as deciding who may be paid", () => {
+    const report = detectSodConflicts(oneClerk(["approve_writeoffs", "edit_patient_master"]));
+    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
+    expect(family?.why).toMatch(/master record/);
+    expect(family?.why).not.toMatch(/who may be paid/);
   });
 });

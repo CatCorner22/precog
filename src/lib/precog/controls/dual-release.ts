@@ -11,6 +11,9 @@
 import type { Person, StaffComposition } from "../types";
 import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
+import type { EntitlementId } from "../sod/conflict-rules";
+import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
+import { personLabel } from "../person-label";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -226,7 +229,11 @@ export const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
     requireDistinctPeople: true,
     firstApproverRoles: ["Front Desk Lead", "Office Manager"],
     secondApproverRoles: ["Office Manager", "Owner / Dentist", "Billing Specialist"],
-    mitigatesRuleIds: ["rule-collect-post", "rule-deposit-post", "rule-cash-rec"],
+    // A second counter checks the bag against the deposit slip. That narrows
+    // the person who prepares the deposit and posts it; it does not stop a
+    // cashier recording less than was taken, or a poster who reconciles
+    // adjusting the books, so collect + post and post + reconcile stay open.
+    mitigatesRuleIds: ["rule-deposit-post"],
     processIds: ["proc-cash"],
     description: "Dual count of deposit before bag is sealed.",
   },
@@ -244,15 +251,53 @@ export const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
   },
 ];
 
-const DENTAL_ROLE_SLOTS: Record<string, RegExp[]> = {
-  "Owner / Dentist": [/owner|dentist|managing partner|principal/i],
-  "Office Manager": [/manager|general manager/i],
-  "Front Desk Lead": [/front desk|cashier|lead cashier|host|shift lead/i],
-  "Billing Specialist": [/billing|bookkeeper|accounting|controller|specialist/i],
+/**
+ * Who may start a release on each channel, and who may second it, read from
+ * the duties a person holds. People who carry their own duty list (the
+ * owner's own team) are seated by these; people without one (the sample
+ * teams) by the rule's role lists. The owner may also second any channel
+ * when the policy allows it.
+ */
+const CHANNEL_SEATS: Record<
+  ReleaseChannel,
+  { initiate: readonly EntitlementId[]; second: readonly EntitlementId[] }
+> = {
+  ach: {
+    initiate: ["initiate_ach", "release_payment"],
+    second: ["release_payment", "initiate_ach", "sign_checks"],
+  },
+  check: {
+    initiate: ["sign_checks", "release_payment"],
+    second: ["sign_checks", "release_payment"],
+  },
+  writeoff: { initiate: ["post_adjustments", "approve_writeoffs"], second: ["approve_writeoffs"] },
+  vendor_new: { initiate: ["create_vendor"], second: ["approve_vendor"] },
+  deposit: {
+    initiate: ["prepare_deposit", "collect_cash"],
+    second: ["prepare_deposit", "collect_cash", "post_payments", "bank_reconcile"],
+  },
+  payroll: { initiate: ["enter_payroll"], second: ["approve_payroll"] },
 };
 
-function rolesForSlot(people: Person[], patterns: RegExp[]): string[] {
-  return people.filter((p) => patterns.some((re) => re.test(p.role))).map((p) => p.role);
+function holdsAny(person: Person, duties: readonly EntitlementId[]): boolean {
+  const held = person.entitlements ?? [];
+  return duties.some((d) => held.includes(d));
+}
+
+/** True when the person carries a duty list of their own, so seats come from duties rather than titles. */
+function seatedByDuty(person: Person): boolean {
+  return (person.entitlements?.length ?? 0) > 0;
+}
+
+const DENTAL_ROLE_SLOTS: Record<string, (role: string) => boolean> = {
+  "Owner / Dentist": isOwnerRole,
+  "Office Manager": (role) => /manager|general manager/i.test(role),
+  "Front Desk Lead": (role) => /front desk|cashier|lead cashier|host|shift lead/i.test(role),
+  "Billing Specialist": (role) => /billing|bookkeeper|accounting|controller|specialist/i.test(role),
+};
+
+function rolesForSlot(people: Person[], matches: (role: string) => boolean): string[] {
+  return people.filter((p) => matches(p.role)).map((p) => p.role);
 }
 
 function localizeDualReleaseRules(
@@ -260,9 +305,26 @@ function localizeDualReleaseRules(
   rules: DualReleaseRule[],
 ): DualReleaseRule[] {
   const processIds = new Set(tpl.processes.map((p) => p.id));
+  const active = tpl.people.filter((p) => p.active);
+  // A team that says what each person does is seated by duty on every channel.
+  if (active.length > 0 && active.every(seatedByDuty)) {
+    const roles = (list: Person[]) => [...new Set(list.map((p) => p.role))];
+    const marked = ownersMarked(active);
+    return rules.map((rule) => {
+      const seats = CHANNEL_SEATS[rule.channel];
+      return {
+        ...rule,
+        firstApproverRoles: roles(active.filter((p) => holdsAny(p, seats.initiate))),
+        secondApproverRoles: roles(
+          active.filter((p) => holdsAny(p, seats.second) || ownsBusiness(p, marked)),
+        ),
+        processIds: rule.processIds.filter((id) => processIds.has(id)),
+      };
+    });
+  }
   const slotMap = new Map<string, string[]>();
-  for (const [slot, patterns] of Object.entries(DENTAL_ROLE_SLOTS)) {
-    slotMap.set(slot, rolesForSlot(tpl.people, patterns));
+  for (const [slot, matches] of Object.entries(DENTAL_ROLE_SLOTS)) {
+    slotMap.set(slot, rolesForSlot(tpl.people, matches));
   }
 
   const mapRoles = (roles: string[]) => {
@@ -633,13 +695,19 @@ export function listEligibleApprovers(
   if (!rule) return [];
 
   const { people } = tpl;
+  const marked = ownersMarked(people.filter((p) => p.active));
   return people
     .filter((p) => p.active)
     .map((p) => {
-      const isOwner = /owner|managing partner/i.test(p.role);
-      const canInitiate = rule.firstApproverRoles.includes(p.role);
+      const isOwner = ownsBusiness(p, marked);
+      const seats = CHANNEL_SEATS[channel];
+      const byDuty = seatedByDuty(p);
+      const canInitiate = byDuty
+        ? holdsAny(p, seats.initiate)
+        : rule.firstApproverRoles.includes(p.role);
       const canSecond =
-        rule.secondApproverRoles.includes(p.role) || (policy.ownerCanSecondAny && isOwner);
+        (byDuty ? holdsAny(p, seats.second) : rule.secondApproverRoles.includes(p.role)) ||
+        (policy.ownerCanSecondAny && isOwner);
       return {
         id: p.id,
         name: p.name,
@@ -649,6 +717,12 @@ export function listEligibleApprovers(
       };
     })
     .filter((p) => p.canInitiate || p.canSecond);
+}
+
+/** "Ana Ruiz (Owner), Grace Kim (Bookkeeper)", or a plain statement when nobody qualifies. */
+function peopleList(people: readonly EligibleApprover[], joiner = ", "): string {
+  if (people.length === 0) return "nobody on the team holds a duty that allows it";
+  return people.map((p) => personLabel(p.name, p.role)).join(joiner);
 }
 
 /**
@@ -777,8 +851,10 @@ export function evaluateRelease(
       dualWaived: resolved.waiveDual,
       dualForced: resolved.forceDual,
       dualRequired,
-      reasons: [`${initiator.name} (${initiator.role}) is not allowed to initiate ${rule.label}.`],
-      nextSteps: [`Initiators must be: ${rule.firstApproverRoles.join(", ")}.`],
+      reasons: [
+        `${personLabel(initiator.name, initiator.role)} is not allowed to initiate ${rule.label}.`,
+      ],
+      nextSteps: [`Initiators must be: ${peopleList(eligible.filter((p) => p.canInitiate))}.`],
       eligibleSeconds,
       initiator: initiatorMeta,
       mitigatesRules: rule.mitigatesRuleIds,
@@ -879,7 +955,10 @@ export function evaluateRelease(
           : []),
       ],
       nextSteps: [
-        `Select second signer: ${rule.secondApproverRoles.join(" or ")}.`,
+        `Select second signer: ${peopleList(
+          eligibleSeconds.filter((p) => p.id !== initiator.id),
+          " or ",
+        )}.`,
         policy.ownerCanSecondAny
           ? "Owner may second any channel."
           : "Owner seconding only if listed in rule.",
@@ -929,9 +1008,11 @@ export function evaluateRelease(
       dualForced: resolved.forceDual,
       dualRequired: true,
       reasons: [
-        `${second.name} (${second.role}) is not an allowed second signer for ${rule.label}.`,
+        `${personLabel(second.name, second.role)} is not an allowed second signer for ${rule.label}.`,
       ],
-      nextSteps: [`Allowed seconds: ${rule.secondApproverRoles.join(", ")}.`],
+      nextSteps: [
+        `Allowed seconds: ${peopleList(eligibleSeconds.filter((p) => p.id !== initiator.id))}.`,
+      ],
       eligibleSeconds: eligibleSeconds.filter((p) => p.id !== initiator.id),
       initiator: initiatorMeta,
       second: secondMeta,
@@ -971,14 +1052,35 @@ export function evaluateRelease(
   };
 }
 
-export function mitigatedSodRuleIds(policy: DualReleasePolicy): Set<string> {
+/**
+ * The conflict rules an active dual-release policy narrows. With the team
+ * given, a channel counts only when someone on it may initiate and a
+ * different person may second: a policy nobody can operate, or one where the
+ * only second signer is the initiator, narrows nothing.
+ */
+export function mitigatedSodRuleIds(
+  policy: DualReleasePolicy,
+  tpl?: Pick<IndustryTemplate, "people">,
+): Set<string> {
   const ids = new Set<string>();
   if (!policy.enabled) return ids;
   for (const r of policy.rules) {
     if (!r.enabled) continue;
+    if (tpl && !hasDistinctSecond(tpl, policy, r.channel)) continue;
     for (const mid of r.mitigatesRuleIds) ids.add(mid);
   }
   return ids;
+}
+
+function hasDistinctSecond(
+  tpl: Pick<IndustryTemplate, "people">,
+  policy: DualReleasePolicy,
+  channel: ReleaseChannel,
+): boolean {
+  const eligible = listEligibleApprovers(tpl as IndustryTemplate, policy, channel);
+  const initiators = eligible.filter((p) => p.canInitiate);
+  const seconds = eligible.filter((p) => p.canSecond);
+  return initiators.some((a) => seconds.some((b) => b.id !== a.id));
 }
 
 export function dualReleaseCoverage(policy: DualReleasePolicy): DualReleaseCoverage[] {

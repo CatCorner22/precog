@@ -35,13 +35,34 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
   // Sign the check and reconcile the account it clears through.
   "rule-sign-rec": ["check-tampering", "financial-statement"],
+  // Send the payment out and reconcile the account it left from.
+  "rule-release-rec": ["check-tampering", "billing-shell-vendor", "financial-statement"],
+  // Enter the pay run and release it, or reconcile the account that paid it.
+  "rule-payroll-release": ["payroll", "check-tampering"],
+  "rule-payroll-rec": ["payroll", "check-tampering", "financial-statement"],
   // Post the entry that makes a reconciliation tie around the missing money.
   "rule-je-rec": ["check-tampering", "financial-statement", "cash-larceny"],
   // Put a name or a bank account on payroll and run the payroll that pays it.
   "rule-payroll-master-run": ["payroll"],
   "rule-custody-rec": ["skimming", "cash-larceny", "receivables-diversion"],
   "rule-collect-post": ["skimming", "cash-larceny"],
+  // Take the payment, then void, credit, or write off the balance it settled.
+  "rule-collect-adjust": ["skimming", "cash-larceny", "receivables-diversion"],
   "rule-deposit-post": ["receivables-diversion", "skimming"],
+  // Take the payment, then approve the void or write-off that cancels it.
+  "rule-cash-void": ["skimming", "cash-larceny"],
+  // Take the payment, then delete or rewrite its record as administrator.
+  "rule-cash-admin": ["skimming", "cash-larceny"],
+  // Borrow or create a second approver's login and release the payment.
+  "rule-access-release": ["check-tampering", "billing-shell-vendor"],
+  // Refund a sale that never happened, from the till or to your own card.
+  "rule-cash-refund": ["refund-fraud", "cash-larceny"],
+  // Record a credit or overpayment, then refund it.
+  "rule-refund-post": ["refund-fraud", "receivables-diversion"],
+  // Send the money out and post the entry that balances the books around it.
+  "rule-release-je": ["check-tampering", "financial-statement"],
+  // Put a ghost or a new bank account on payroll and release the payment.
+  "rule-payroll-master-release": ["payroll"],
   "rule-writeoff": ["skimming", "receivables-diversion"],
   "rule-claims-writeoff": ["billing-shell-vendor", "financial-statement"],
   "rule-vendor-create-pay": ["billing-shell-vendor"],
@@ -55,6 +76,8 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   // Enter an invoice and pay it: a shell vendor needs nothing else, and a
   // real vendor paying kickbacks needs only the approval.
   "rule-invoice-pay": ["billing-shell-vendor", "corruption"],
+  // Enter a bill and approve it: the payment run then pays it as approved.
+  "rule-invoice-approve": ["billing-shell-vendor", "corruption"],
   // Order goods and confirm they arrived: the classic path for stock that
   // never reached the shelf.
   "rule-order-receive": ["inventory-theft", "billing-shell-vendor"],
@@ -129,18 +152,21 @@ export function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
 /**
  * Cases matching any of several rules, most relevant first.
  *
- * Ordering runs on three keys, in this priority:
+ * A case matches when it cites one of the rules, or when it shows a scheme one
+ * of the rules enables. Ordering runs on four keys, in this priority:
  *
- *   1. Scheme overlap — does this case show the kind of fraud these conflicts
- *      actually enable. This dominates, because an owner asked about vendor
- *      payments learns nothing useful from an unrelated case that happens to
- *      touch the same rule.
- *   2. Rule overlap — how many of the asked-about rules the case demonstrates.
- *   3. Loss amount — among equally apt cases, the costlier one leads.
+ *   1. Citation: a case that cites one of the rules shows that very pair of
+ *      duties, so it always sits above a case that only shares a scheme.
+ *   2. Scheme overlap: does this case show the kind of fraud these conflicts
+ *      actually enable. An owner asked about vendor payments learns little
+ *      from an unrelated case that happens to touch the same rule.
+ *   3. Rule overlap: how many of the asked-about rules the case demonstrates.
+ *   4. Loss amount: among equally apt cases, the costlier one leads.
  *
  * Ranking by loss alone would surface the same few large cases against every
  * finding; ranking by rule count alone rewards cases for being narrow rather
- * than for being on point.
+ * than for being on point. Use `casesCitingSodRules` wherever a count or a
+ * median has to describe cases that show the pair itself.
  */
 export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
   const wantedRules = new Set(ruleIds);
@@ -155,19 +181,110 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
       (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
   );
 
-  return candidates
-    .map((c) => ({
-      study: c,
-      schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
-      ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
-    }))
-    .sort(
-      (a, b) =>
-        b.schemeHits - a.schemeHits ||
-        b.ruleHits - a.ruleHits ||
-        byLossDescending(a.study, b.study),
-    )
-    .map((r) => r.study);
+  return (
+    candidates
+      .map((c) => ({
+        study: c,
+        schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
+        ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
+      }))
+      // A case that cites the rule leads; among those, scheme overlap orders.
+      // A case that merely shares a scheme never sits above one that shows the
+      // very pair of duties the finding names.
+      .sort(
+        (a, b) =>
+          Number(b.ruleHits > 0) - Number(a.ruleHits > 0) ||
+          b.schemeHits - a.schemeHits ||
+          b.ruleHits - a.ruleHits ||
+          byLossDescending(a.study, b.study),
+      )
+      .map((r) => r.study)
+  );
+}
+
+/**
+ * Only the cases that cite one of these rules, in the same order as
+ * `casesForSodRules`.
+ *
+ * A count, a median, or a heading that says "this arrangement" has to rest on
+ * cases whose own record shows the pair of duties. Cases that merely share a
+ * scheme are useful reading, but they are related schemes, not this gap. A
+ * family-derived id ("family-custody-recording") is cited by no case, so it
+ * returns nothing here.
+ */
+export function casesCitingSodRules(ruleIds: readonly string[]): CaseStudy[] {
+  const wanted = new Set(ruleIds);
+  return casesForSodRules(ruleIds).filter((c) => c.sodRuleIds.some((id) => wanted.has(id)));
+}
+
+/**
+ * Count, loss range, duration, and detection routes over the cases that cite
+ * these rules, and over nothing else.
+ *
+ * This is the figure set for sentences such as "N prosecuted cases match" and
+ * "median loss": both claim the cases show the gaps, so both must be computed
+ * over citing cases only.
+ */
+export function citingCaseStats(ruleIds: readonly string[]): {
+  cases: CaseStudy[];
+  count: number;
+  loss: ReturnType<typeof observedLossRange>;
+  duration: ReturnType<typeof observedDurationMonths>;
+  detection: ReturnType<typeof detectionBreakdown>;
+} {
+  const cases = casesCitingSodRules(ruleIds);
+  return {
+    cases,
+    count: cases.length,
+    loss: observedLossRange(cases),
+    duration: observedDurationMonths(cases),
+    detection: detectionBreakdown(cases),
+  };
+}
+
+/**
+ * The one case to show beside a single finding, and what it may be called.
+ *
+ * Preference runs: a case that cites the rule and comes from the owner's own
+ * line of business; then any case that cites the rule; then, only when no
+ * case cites it, the most relevant case that shares a scheme. `citesRule`
+ * tells the caller which of those it got, so a heading never calls a related
+ * scheme "this arrangement".
+ */
+export function caseForRule(
+  ruleId: string,
+  industryId?: string,
+): { study: CaseStudy; citesRule: boolean; ownSector: boolean } | null {
+  const citing = casesCitingSodRules([ruleId]);
+  const own = industryId ? citing.find((c) => isOwnSector(c, industryId)) : undefined;
+  if (own) return { study: own, citesRule: true, ownSector: true };
+  if (citing[0]) return { study: citing[0], citesRule: true, ownSector: false };
+  const related = casesForSodRules([ruleId])[0];
+  if (!related) return null;
+  return {
+    study: related,
+    citesRule: false,
+    ownSector: industryId ? isOwnSector(related, industryId) : false,
+  };
+}
+
+/**
+ * How long a scheme ran, in words: "1 month", "8 months", "1 year",
+ * "16.7 years".
+ *
+ * Years are rounded to a tenth, never to a whole number, so a record that says
+ * "nearly 17 years" (200 months) reads 16.7 and not 17. Every place that shows
+ * a duration uses this, so a card and a summary never disagree about the same
+ * case.
+ */
+export function durationPhrase(months: number): string {
+  if (months < 1) return "under a month";
+  if (months < 12) {
+    const whole = Math.round(months);
+    return `${whole} month${whole === 1 ? "" : "s"}`;
+  }
+  const years = Math.round((months / 12) * 10) / 10;
+  return `${years} year${years === 1 ? "" : "s"}`;
 }
 
 /**
@@ -209,7 +326,8 @@ export function sectorsForIndustry(industryId: string): IndustrySector[] {
 
 /** Whether a case is from the owner's own line of business. */
 export function isOwnSector(study: CaseStudy, industryId: string): boolean {
-  return sectorsForIndustry(industryId).includes(study.sector);
+  // A cross-sector case is real anywhere, but it is not "in your line of business".
+  return study.sector !== "any" && sectorsForIndustry(industryId).includes(study.sector);
 }
 
 /**

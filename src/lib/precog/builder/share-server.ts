@@ -4,9 +4,12 @@ import { getSql } from "@/lib/db";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import type { IndustryId } from "../industry";
 import type { MapHealthReport } from "../process-graph";
-import { validateSharePayload } from "./share-schema";
-import { passcodeLocked, recordPasscodeFailure } from "./share-attempts";
+import { parseCreateShareInput } from "./share-schema";
+import { parseLoadShareInput } from "../public-inputs";
+import { invalidRequest, requireObject } from "@/lib/request-errors";
+import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
+import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
 
 /** Frozen, self-contained view of a map for the public share page. */
 export interface SharedMapPayload {
@@ -52,15 +55,6 @@ type ShareRow = {
   passcode_hash: string | null;
 };
 
-type ShareListRow = Pick<
-  ShareRow,
-  "token" | "business_name" | "industry" | "created_at" | "expires_at" | "revoked_at" | "redacted"
-> & {
-  has_passcode: boolean;
-  views: number;
-  last_viewed_at: string | null;
-};
-
 function makeToken(): string {
   const bytes = new Uint8Array(18);
   crypto.getRandomValues(bytes);
@@ -77,16 +71,7 @@ export const createMapShare = createServerFn({ method: "POST" })
       expiresInDays?: number;
       redacted?: boolean;
       passcode?: string;
-    }) => {
-      const passcode = input.passcode?.trim();
-      return {
-        payload: validateSharePayload(input.payload),
-        expiresInDays: Math.min(365, Math.max(1, Number(input.expiresInDays) || 30)),
-        redacted: Boolean(input.redacted),
-        // Eight characters or more: a four-digit PIN falls to a few thousand guesses.
-        passcode: passcode && passcode.length >= 8 && passcode.length <= 64 ? passcode : undefined,
-      };
-    },
+    }) => parseCreateShareInput(input),
   )
   .handler(async ({ context, data }) => {
     const { randomBytes, scryptSync } = await import("node:crypto");
@@ -99,23 +84,18 @@ export const createMapShare = createServerFn({ method: "POST" })
       passcodeSalt = randomBytes(16).toString("hex");
       passcodeHash = scryptSync(data.passcode, passcodeSalt, 32).toString("hex");
     }
-    await sql`
-      insert into map_shares (
-        token, user_id, business_name, industry, payload, expires_at,
-        redacted, passcode_salt, passcode_hash
-      )
-      values (
-        ${token},
-        ${context.userId},
-        ${data.payload.businessName.slice(0, 80)},
-        ${data.payload.industry},
-        ${JSON.stringify(data.payload)}::jsonb,
-        ${expires}::timestamptz,
-        ${data.redacted},
-        ${passcodeSalt ?? null},
-        ${passcodeHash ?? null}
-      )
-    `;
+    const stored = await insertMapShare(sql, {
+      token,
+      userId: context.userId,
+      businessName: data.payload.businessName.slice(0, 80),
+      industry: data.payload.industry,
+      payloadJson: JSON.stringify(data.payload),
+      expiresAt: expires,
+      redacted: data.redacted,
+      passcodeSalt: passcodeSalt ?? null,
+      passcodeHash: passcodeHash ?? null,
+    });
+    if (!stored) throw new ShareLimitError();
     return { token, expiresAt: expires };
   });
 
@@ -123,37 +103,26 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    // Owner-triggered housekeeping: view logs are kept for a bounded period only.
+    // Owner-triggered housekeeping: view and failed-guess logs are kept for a
+    // bounded period only.
     await purgeOldShareViews(sql).catch((error) =>
       console.error("Failed to purge old share views", error),
     );
-    const rows = await sql<ShareListRow>`
-      select
-        token, business_name, industry, created_at, expires_at, revoked_at,
-        redacted,
-        passcode_hash is not null as has_passcode,
-        (select count(*)::int from map_share_views v where v.token = map_shares.token) as views,
-        (select max(viewed_at) from map_share_views v where v.token = map_shares.token) as last_viewed_at
-      from map_shares
-      where user_id = ${context.userId}
-      order by created_at desc
-      limit 20
-    `;
-    return rows.map((r) => ({
-      token: r.token,
-      createdAt: r.created_at,
-      expiresAt: r.expires_at,
-      revoked: Boolean(r.revoked_at),
-      redacted: Boolean(r.redacted),
-      hasPasscode: Boolean(r.has_passcode),
-      views: Number(r.views ?? 0),
-      lastViewedAt: r.last_viewed_at ?? null,
-    }));
+    await purgeOldPasscodeAttempts(sql).catch((error) =>
+      console.error("Failed to purge old passcode attempts", error),
+    );
+    // Every live link, then the newest revoked or expired ones: a live link
+    // that dropped off the list could not be revoked from the app.
+    return listMapShareSummaries(sql, context.userId);
   });
 
 export const revokeMapShare = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string }) => ({ token: String(input.token).slice(0, 64) }))
+  .validator((input: { token: string }) => {
+    const raw = requireObject(input);
+    if (typeof raw.token !== "string") throw invalidRequest();
+    return { token: raw.token.slice(0, 64) };
+  })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await sql`
@@ -169,10 +138,7 @@ export const revokeMapShare = createServerFn({ method: "POST" })
  * logs and browser history.
  */
 export const loadMapShare = createServerFn({ method: "POST" })
-  .validator((input: { token: string; passcode?: string }) => ({
-    token: String(input.token).slice(0, 64),
-    passcode: input.passcode?.trim(),
-  }))
+  .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
     if (!/^[a-f0-9]{24,64}$/.test(data.token))
       return { found: false as const, reason: "invalid" as const };
@@ -202,24 +168,24 @@ export const loadMapShare = createServerFn({ method: "POST" })
     if (row.passcode_hash) {
       if (!data.passcode) return { found: false as const, reason: "passcode" as const };
       // Two limits: the per-process limiter answers fast; the per-token count
-      // in Postgres holds across instances and cold starts.
+      // in Postgres holds across instances and cold starts. The guess takes
+      // its place in that count before the passcode is hashed, in one
+      // statement, so concurrent guesses cannot all slip under the limit.
       const attempt = passcodeLimiter.take(requestIp());
       if (!attempt.allowed) return { found: false as const, reason: "rate_limited" as const };
-      if (await passcodeLocked(sql, row.token))
-        return { found: false as const, reason: "rate_limited" as const };
-      const expected = Buffer.from(row.passcode_hash, "hex");
-      // Asynchronous: a guess must not block the event loop for every other request.
-      const actual = await new Promise<Buffer>((resolve, reject) =>
-        scrypt(data.passcode as string, row.passcode_salt ?? "", expected.length, (err, key) =>
-          err ? reject(err) : resolve(key),
-        ),
-      );
-      if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-        await recordPasscodeFailure(sql, row.token, ipHash).catch((error) =>
-          console.error("Failed to record a passcode failure", error),
+      const passcodeHash = row.passcode_hash;
+      const guess = await checkPasscodeGuess(sql, row.token, ipHash, async () => {
+        const expected = Buffer.from(passcodeHash, "hex");
+        // Asynchronous: a guess must not block the event loop for every other request.
+        const actual = await new Promise<Buffer>((resolve, reject) =>
+          scrypt(data.passcode as string, row.passcode_salt ?? "", expected.length, (err, key) =>
+            err ? reject(err) : resolve(key),
+          ),
         );
-        return { found: false as const, reason: "passcode_wrong" as const };
-      }
+        return expected.length === actual.length && timingSafeEqual(expected, actual);
+      });
+      if (guess === "locked") return { found: false as const, reason: "rate_limited" as const };
+      if (guess === "wrong") return { found: false as const, reason: "passcode_wrong" as const };
     }
     try {
       await sql`

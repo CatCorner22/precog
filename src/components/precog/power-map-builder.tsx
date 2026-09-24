@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -31,9 +31,9 @@ import {
 } from "lucide-react";
 import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
+import { JOB_CATALOG, jobCatalogEntry, seatDuties } from "@/lib/precog/onboarding/job-catalog";
 import {
   buildAssignments,
-  COMMON_JOB_TEMPLATES,
   detectSodConflicts,
   sodDetectionOptions,
   type DetectedConflict,
@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { POWER_GUIDANCE } from "@/lib/precog/sod/power-guidance";
+import { powerGuidance } from "@/lib/precog/sod/power-guidance";
 import {
   applyResolutionPlan,
   buildResolutionPlans,
@@ -62,7 +62,9 @@ import { evaluateAssignmentChange } from "@/lib/precog/sod/change-impact";
 import {
   buildCoveragePlans,
   buildCoverageProgram,
+  dutyToggleEffects,
   type CoveragePlan,
+  type DutyToggleEffect,
 } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
@@ -104,11 +106,14 @@ export function PowerMapBuilder() {
   // or import writes through to the profile, so the conflict list, the
   // matrix, and the dashboard summary all read the same assignments.
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
+  const guidanceByDuty = powerGuidance(profile.industry);
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState<DutyFamily | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
-  const [newRole, setNewRole] = useState("Receptionist");
+  // Simulated hires come from the same job catalog the setup grid uses, seated
+  // for this line of business; the sample's dental role list suits no one else.
+  const [newJobId, setNewJobId] = useState(JOB_CATALOG[0]?.id ?? "");
   const [simulationName, setSimulationName] = useState("");
   const [history, setHistory] = useState<RoleAssignment[][]>([]);
   const [absentPersonId, setAbsentPersonId] = useState("");
@@ -226,22 +231,26 @@ export function PowerMapBuilder() {
           `${item.label} ${item.family} ${item.processIds.join(" ")}`.toLowerCase().includes(query),
       );
   }, [family, processId, search]);
-  const assignmentImpacts = useMemo(() => {
-    const impacts = new Map<EntitlementId, ReturnType<typeof evaluateAssignmentChange>>();
-    if (!selected) return impacts;
-    for (const entitlement of ENTITLEMENTS) {
-      if (entitlement.id !== "view_reports_only") {
-        impacts.set(
-          entitlement.id,
-          evaluateAssignmentChange(assignments, selected.personId, entitlement.id, profile.staff),
-        );
-      }
-    }
-    return impacts;
-  }, [assignments, profile.staff, selected]);
+  const toggleEffects = useMemo(
+    () =>
+      selected
+        ? dutyToggleEffects(
+            selected,
+            ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map((item) => item.id),
+            assignments,
+          )
+        : new Map<EntitlementId, DutyToggleEffect>(),
+    [selected, assignments],
+  );
 
   function toggle(entitlement: EntitlementId) {
-    const impact = assignmentImpacts.get(entitlement);
+    if (!selected) return;
+    const impact = evaluateAssignmentChange(
+      assignments,
+      selected.personId,
+      entitlement,
+      profile.staff,
+    );
     if (impact) commit(impact.nextAssignments);
   }
 
@@ -253,16 +262,16 @@ export function PowerMapBuilder() {
   }
 
   function addSimulationRole() {
-    const template = COMMON_JOB_TEMPLATES.find((item) => item.role === newRole);
-    if (!template) return;
+    const job = jobCatalogEntry(newJobId);
+    if (!job) return;
     const id = `sim-${Date.now().toString(36)}`;
     commit([
       ...assignments,
       {
         personId: id,
-        personName: simulationName.trim().slice(0, 40) || `Proposed ${newRole}`,
-        role: newRole,
-        entitlements: [...template.entitlements],
+        personName: simulationName.trim().slice(0, 40) || `Proposed ${job.title}`,
+        role: job.title,
+        entitlements: seatDuties(job, profile.industry),
       },
     ]);
     setSelectedId(id);
@@ -270,7 +279,26 @@ export function PowerMapBuilder() {
   }
 
   function reset() {
-    // Back to what each person's role implies, with simulated hires removed.
+    // An owner's own team goes back to the baseline they last accepted; its
+    // people carry the duties the owner entered, and a job's usual duties
+    // would overwrite them. The sample goes back to its role defaults.
+    const ownTeam = tpl.people.some((person) => (person.entitlements?.length ?? 0) > 0);
+    if (
+      !window.confirm(
+        ownTeam
+          ? "Put every person's duties back to the baseline you last accepted, and remove simulated hires? Changes since then are undone."
+          : "Put every person back to the duties their role implies, and remove simulated hires?",
+      )
+    ) {
+      return;
+    }
+    if (ownTeam) {
+      const accepted = baseline.filter((person) => !person.personId.startsWith("sim-"));
+      commit(accepted);
+      setSelectedId(accepted[0]?.personId ?? "");
+      setConflictsOnly(false);
+      return;
+    }
     const defaults = buildAssignments({
       ...tpl,
       people: tpl.people
@@ -332,7 +360,7 @@ export function PowerMapBuilder() {
 
   function exportGovernanceReport() {
     downloadFile(
-      createGovernanceReport(assignments, profile.staff),
+      createGovernanceReport(assignments, profile.staff, new Date(), profile.industry),
       "text/markdown;charset=utf-8",
       `precog-governance-report-${new Date().toISOString().slice(0, 10)}.md`,
     );
@@ -360,13 +388,13 @@ export function PowerMapBuilder() {
           icon={Users}
           label="People / jobs"
           value={assignments.length}
-          detail={`${COMMON_JOB_TEMPLATES.length} templates available`}
+          detail={`${JOB_CATALOG.length} job titles to simulate a hire`}
         />
         <Metric
           icon={UserRoundCheck}
-          label="Continuity"
+          label="Duty backup (this app's index, 0 to 100)"
           value={coverage.resilienceScore}
-          detail={`${coverage.unassigned.length} gaps · ${coverage.singlePoints.length} single points`}
+          detail={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds (some may not apply)`}
           danger={coverage.unassigned.length > 0}
         />
         <Metric
@@ -441,7 +469,7 @@ export function PowerMapBuilder() {
                     <p className="text-xs font-medium">{change.personName}</p>
                     <p
                       className={cn(
-                        "mt-0.5 text-[10px]",
+                        "mt-0.5 text-xs",
                         change.kind === "duty_granted" || change.kind === "person_added"
                           ? "text-primary"
                           : "text-warn",
@@ -492,7 +520,7 @@ export function PowerMapBuilder() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">{person.personName}</p>
-                  <p className="text-[10px] text-subtle">{person.role}</p>
+                  <p className="text-xs text-subtle">{person.role}</p>
                 </div>
                 <span
                   className={cn(
@@ -520,7 +548,7 @@ export function PowerMapBuilder() {
                   style={{ width: `${person.authorityIndex}%` }}
                 />
               </div>
-              <p className="mt-2 text-[10px] text-subtle">
+              <p className="mt-2 text-xs text-subtle">
                 {person.familyCount} duty families · {person.exclusiveDutyCount} exclusive powers ·{" "}
                 {person.conflictCount} conflicts
               </p>
@@ -573,36 +601,48 @@ export function PowerMapBuilder() {
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Continuity planner</CardTitle>
+              <CardTitle className="text-base">Backup suggestions</CardTitle>
               <CardDescription>
-                Conflict-free ownership and backup recommendations, ranked by continuity improvement
-                and current workload. Apply a suggestion, inspect the new scores, and undo if
-                needed.
+                For high-risk duties only one person holds: people who already hold a significant
+                duty in the same process and hold no conflict, where adding the duty creates no
+                conflict the rules detect. Check each person can actually do the work before you
+                assign it; undo is one click.
               </CardDescription>
             </div>
             {coverageProgram.steps.length > 1 && (
-              <Button size="sm" onClick={() => commit(coverageProgram.nextAssignments)}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Assign all ${coverageProgram.steps.length} suggested backups? Check each person can do the work; you can undo.`,
+                    )
+                  ) {
+                    commit(coverageProgram.nextAssignments);
+                  }
+                }}
+              >
                 <ShieldCheck className="size-3.5" />
-                Apply safe program
+                Assign all suggested backups
               </Button>
             )}
           </CardHeader>
           {coverageProgram.steps.length > 1 && (
             <CardContent className="grid gap-2 border-t border-border py-3 sm:grid-cols-3">
               <ImpactMetric
-                label="Safe assignments"
+                label="Suggested backups"
                 value={String(coverageProgram.steps.length)}
-                detail="Recalculated sequentially"
+                detail="Recalculated after each one"
               />
               <ImpactMetric
-                label="Projected continuity"
+                label="Projected duty backup"
                 value={`${coverageProgram.projectedScore}/100`}
                 detail={`+${coverageProgram.projectedScore - coverageProgram.startingScore} points`}
               />
               <ImpactMetric
-                label="Remaining weaknesses"
+                label="Still one holder"
                 value={String(coverageProgram.unresolvedGaps)}
-                detail="Need manual control design"
+                detail="Need someone outside, or a control"
                 danger={coverageProgram.unresolvedGaps > 0}
               />
             </CardContent>
@@ -624,7 +664,8 @@ export function PowerMapBuilder() {
                       </Badge>
                       <p className="mt-2 text-sm font-medium">{first.dutyLabel}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        Choose a candidate below; none creates a new detected SoD conflict.
+                        Each candidate works in this duty&apos;s process already and adds no
+                        conflict the rules detect.
                       </p>
                     </div>
                     <div className="grid gap-2 xl:grid-cols-3">
@@ -642,6 +683,26 @@ export function PowerMapBuilder() {
                   </div>
                 );
               })}
+          </CardContent>
+        </Card>
+      )}
+
+      {coveragePlans.length === 0 && coverage.singlePoints.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Backup suggestions</CardTitle>
+            <CardDescription>
+              No backup to suggest. Everyone who works in these duties&apos; processes already holds
+              a conflict, or would gain one by taking the duty on. Separate a conflict first, or
+              write the procedure down so a stand-in or your outside accountant can follow it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {coverage.singlePoints.map((duty) => (
+              <Badge key={duty.entitlementId} variant="warn">
+                {duty.label} · only {duty.assignees[0]?.personName ?? "one person"}
+              </Badge>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -805,7 +866,7 @@ export function PowerMapBuilder() {
                 <RotateCcw className="size-3.5" />
                 Reset model
               </Button>
-              <span aria-live="polite" className="ml-auto text-[11px] text-subtle">
+              <span aria-live="polite" className="ml-auto text-xs text-subtle">
                 {importMessage || "Saved with your business"}
               </span>
             </div>
@@ -813,14 +874,14 @@ export function PowerMapBuilder() {
               {Object.entries(FAMILY_META).map(([id, meta]) => (
                 <span
                   key={id}
-                  className="flex items-center gap-1.5 text-[10px] text-muted"
+                  className="flex items-center gap-1.5 text-xs text-muted"
                   title={meta.description}
                 >
                   <span className="size-2 rounded-full" style={{ background: meta.color }} />
                   {meta.label}
                 </span>
               ))}
-              <label className="ml-auto flex items-center gap-2 text-[10px] text-muted">
+              <label className="ml-auto flex items-center gap-2 text-xs text-muted">
                 <span>Process lens</span>
                 <select
                   value={processId}
@@ -845,6 +906,7 @@ export function PowerMapBuilder() {
                   edges={edges}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
+                  edgesFocusable={false}
                   fitView
                   minZoom={0.18}
                   maxZoom={1.8}
@@ -890,12 +952,15 @@ export function PowerMapBuilder() {
               />
               <div className="flex gap-2">
                 <select
-                  value={newRole}
-                  onChange={(event) => setNewRole(event.target.value)}
+                  value={newJobId}
+                  onChange={(event) => setNewJobId(event.target.value)}
+                  aria-label="Job title for a simulated hire"
                   className="min-w-0 flex-1 rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
                 >
-                  {COMMON_JOB_TEMPLATES.map((item) => (
-                    <option key={item.role}>{item.role}</option>
+                  {JOB_CATALOG.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
                   ))}
                 </select>
                 <Button size="sm" onClick={addSimulationRole}>
@@ -931,7 +996,7 @@ export function PowerMapBuilder() {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg border border-border bg-elevated p-2">
-                  <p className="text-[10px] text-subtle">POWERS</p>
+                  <p className="text-xs text-subtle">POWERS</p>
                   <p className="text-lg font-semibold">{selected?.entitlements.length ?? 0}</p>
                 </div>
                 <div
@@ -942,7 +1007,7 @@ export function PowerMapBuilder() {
                       : "border-ok/30 bg-ok/10",
                   )}
                 >
-                  <p className="text-[10px] text-subtle">CONFLICTS</p>
+                  <p className="text-xs text-subtle">CONFLICTS</p>
                   <p className="text-lg font-semibold">{selectedConflicts.length}</p>
                 </div>
               </div>
@@ -973,7 +1038,7 @@ export function PowerMapBuilder() {
                     type="button"
                     onClick={() => setFamily(item)}
                     className={cn(
-                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] capitalize",
+                      "shrink-0 rounded-full border px-2 py-0.5 text-xs capitalize",
                       family === item
                         ? "border-primary/50 bg-primary/10"
                         : "border-border text-muted",
@@ -987,10 +1052,10 @@ export function PowerMapBuilder() {
                 {visibleEntitlements.map((entitlement) => {
                   const active = selected?.entitlements.includes(entitlement.id);
                   const conflict = conflictEntitlements.has(entitlement.id);
-                  const guidance = POWER_GUIDANCE[entitlement.id];
-                  const impact = assignmentImpacts.get(entitlement.id);
-                  const creates = impact?.conflictsCreated.length ?? 0;
-                  const resolves = impact?.conflictsResolved.length ?? 0;
+                  const guidance = guidanceByDuty[entitlement.id];
+                  const effect = toggleEffects.get(entitlement.id);
+                  const creates = effect?.created ?? 0;
+                  const resolves = effect?.resolved ?? 0;
                   return (
                     <button
                       key={entitlement.id}
@@ -1010,7 +1075,7 @@ export function PowerMapBuilder() {
                     >
                       <span
                         className={cn(
-                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-[10px]",
+                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-xs",
                           active && "border-primary bg-primary text-primary-fg",
                         )}
                       >
@@ -1018,19 +1083,19 @@ export function PowerMapBuilder() {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-xs font-medium">{entitlement.label}</span>
-                        <span className="text-[10px] capitalize text-subtle">
+                        <span className="text-xs capitalize text-subtle">
                           {FAMILY_META[entitlement.family].label} · risk {entitlement.riskWeight}/5
                         </span>
-                        <span className="mt-1 block text-[10px] leading-relaxed text-subtle">
+                        <span className="mt-1 block text-xs leading-relaxed text-subtle">
                           {guidance.purpose}
                         </span>
                         {creates > 0 && (
-                          <span className="mt-1 block text-[10px] font-medium text-danger">
+                          <span className="mt-1 block text-xs font-medium text-danger">
                             Assigning creates {creates} conflict{creates === 1 ? "" : "s"}
                           </span>
                         )}
                         {resolves > 0 && (
-                          <span className="mt-1 block text-[10px] font-medium text-ok">
+                          <span className="mt-1 block text-xs font-medium text-ok">
                             Removing resolves {resolves} conflict{resolves === 1 ? "" : "s"}
                           </span>
                         )}
@@ -1092,7 +1157,7 @@ export function PowerMapBuilder() {
               .filter((id) => id !== "view_reports_only")
               .map((id) => {
                 const entitlement = ENTITLEMENTS.find((item) => item.id === id);
-                const guidance = POWER_GUIDANCE[id];
+                const guidance = guidanceByDuty[id];
                 return (
                   <div key={id} className="rounded-xl border border-border bg-elevated p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -1100,10 +1165,10 @@ export function PowerMapBuilder() {
                       <Badge>{entitlement ? FAMILY_META[entitlement.family].label : "Duty"}</Badge>
                     </div>
                     <p className="mt-2 text-xs text-muted">{guidance.purpose}</p>
-                    <p className="mt-2 text-[11px] text-subtle">
+                    <p className="mt-2 text-xs text-subtle">
                       <strong className="text-muted">Evidence:</strong> {guidance.evidence}
                     </p>
-                    <p className="mt-1 text-[11px] text-subtle">
+                    <p className="mt-1 text-xs text-subtle">
                       <strong className="text-muted">Boundary:</strong> {guidance.boundary}
                     </p>
                   </div>
@@ -1116,82 +1181,105 @@ export function PowerMapBuilder() {
   );
 }
 
-function ControlMeasuresMatrix({ duties }: { duties: typeof ENTITLEMENTS }) {
+/**
+ * The catalog is fixed advice for every visible duty, several hundred rows of
+ * it. It opens on request, so the Power map does not lay out a 1,280-pixel
+ * table nobody asked for, and it re-renders only when the duty filter
+ * changes, not on every grant or selection.
+ */
+const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
+  duties,
+}: {
+  duties: typeof ENTITLEMENTS;
+}) {
+  const [open, setOpen] = useState(false);
   const categories = ["directive", "preventive", "detective", "corrective"] as const;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Internal control action catalog</CardTitle>
-        <CardDescription>
-          A menu of directive, preventive, detective, and corrective measures for every visible
-          duty. Pick proportionate primary controls and documented alternatives; no single action
-          replaces accountable review.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
-          <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
-            <caption className="sr-only">
-              Internal control measures for each duty, organized by directive, preventive,
-              detective, and corrective category.
-            </caption>
-            <thead className="sticky top-0 z-20 bg-surface">
-              <tr>
-                <th
-                  scope="col"
-                  className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
-                >
-                  Power / duty
-                </th>
-                {categories.map((category) => (
-                  <th
-                    key={category}
-                    scope="col"
-                    className="w-64 border-b border-r border-border p-3 text-left capitalize"
-                  >
-                    {category}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {duties.map((duty) => {
-                const controls = DUTY_CONTROL_MEASURES[duty.id];
-                return (
-                  <tr key={duty.id} className="align-top">
-                    <th
-                      scope="row"
-                      className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"
-                    >
-                      <span className="block font-medium text-fg">{duty.label}</span>
-                      <span className="mt-1 block text-[10px] font-normal text-subtle">
-                        {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
-                      </span>
-                    </th>
-                    {categories.map((category) => (
-                      <td key={category} className="border-b border-r border-border bg-bg p-3">
-                        <ul className="space-y-2 text-muted">
-                          {controls[category].map((action) => (
-                            <li key={action} className="flex gap-2">
-                              <span aria-hidden="true" className="text-primary">
-                                •
-                              </span>
-                              <span>{action}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <CardHeader className="flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="text-base">Internal control action catalog</CardTitle>
+          <CardDescription>
+            A menu of directive, preventive, detective, and corrective measures for every visible
+            duty. Pick proportionate primary controls and documented alternatives; no single action
+            replaces accountable review.
+          </CardDescription>
         </div>
-      </CardContent>
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? "Hide the catalog" : `Show the catalog (${duties.length} duties)`}
+        </Button>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
+            <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
+              <caption className="sr-only">
+                Internal control measures for each duty, organized by directive, preventive,
+                detective, and corrective category.
+              </caption>
+              <thead className="sticky top-0 z-20 bg-surface">
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
+                  >
+                    Power / duty
+                  </th>
+                  {categories.map((category) => (
+                    <th
+                      key={category}
+                      scope="col"
+                      className="w-64 border-b border-r border-border p-3 text-left capitalize"
+                    >
+                      {category}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {duties.map((duty) => {
+                  const controls = DUTY_CONTROL_MEASURES[duty.id];
+                  return (
+                    <tr key={duty.id} className="align-top">
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 border-b border-r border-border bg-surface p-3 text-left"
+                      >
+                        <span className="block font-medium text-fg">{duty.label}</span>
+                        <span className="mt-1 block text-xs font-normal text-subtle">
+                          {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
+                        </span>
+                      </th>
+                      {categories.map((category) => (
+                        <td key={category} className="border-b border-r border-border bg-bg p-3">
+                          <ul className="space-y-2 text-muted">
+                            {controls[category].map((action) => (
+                              <li key={action} className="flex gap-2">
+                                <span aria-hidden="true" className="text-primary">
+                                  •
+                                </span>
+                                <span>{action}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
-}
+});
 
 function ResponsibilityMatrix({
   assignments,
@@ -1264,7 +1352,7 @@ function ResponsibilityMatrix({
                 className="sticky left-0 z-10 border-b border-r border-border bg-surface p-2 text-left"
               >
                 <span className="block font-medium">{duty.label}</span>
-                <span className="text-[10px] font-normal text-subtle">
+                <span className="text-xs font-normal text-subtle">
                   {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
                 </span>
               </th>
@@ -1332,7 +1420,7 @@ function CoverageList({
           {items.map((item) => (
             <div key={item.id} className="rounded-lg border border-border bg-bg p-2">
               <p className="text-xs font-medium">{item.label}</p>
-              <p className="mt-0.5 text-[10px] leading-relaxed text-subtle">{item.detail}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-subtle">{item.detail}</p>
             </div>
           ))}
         </div>
@@ -1351,10 +1439,10 @@ function CoveragePlanOption({ plan, onApply }: { plan: CoveragePlan; onApply: ()
       className="rounded-lg border border-border bg-bg p-2.5 text-left hover:border-primary/50"
     >
       <span className="block text-xs font-medium">{plan.toPersonName}</span>
-      <span className="block text-[10px] text-subtle">
+      <span className="block text-xs text-subtle">
         {plan.toRole} · {plan.currentWorkload} current duties
       </span>
-      <span className="mt-1 block text-[10px] font-medium text-ok">
+      <span className="mt-1 block text-xs font-medium text-ok">
         +{plan.continuityGain} continuity · no new conflicts
       </span>
     </button>
@@ -1379,9 +1467,9 @@ function ImpactMetric({
         danger ? "border-danger/40" : "border-ok/30",
       )}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">{label}</p>
       <p className="mt-1 text-xl font-semibold tabular">{value}</p>
-      <p className={cn("text-[11px]", danger ? "text-danger" : "text-ok")}>{detail}</p>
+      <p className={cn("text-xs", danger ? "text-danger" : "text-ok")}>{detail}</p>
     </div>
   );
 }
@@ -1411,7 +1499,7 @@ function Metric({
         {label}
       </div>
       <p className="mt-1 text-2xl font-semibold tabular">{value}</p>
-      <p className="text-[11px] text-subtle">{detail}</p>
+      <p className="text-xs text-subtle">{detail}</p>
     </div>
   );
 }
@@ -1466,7 +1554,7 @@ function ResolutionOptions({
   const plans = buildResolutionPlans(assignments, conflict);
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-subtle">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle">
         Clean resolution paths
       </p>
       {plans.length ? (
@@ -1480,7 +1568,7 @@ function ResolutionOptions({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium">{plan.summary}</p>
-              <p className="mt-0.5 text-[10px] text-subtle">
+              <p className="mt-0.5 text-xs text-subtle">
                 Resolves {plan.conflictsResolved} conflict{plan.conflictsResolved === 1 ? "" : "s"}{" "}
                 · creates no new conflicts
                 {plan.toPersonName
@@ -1563,7 +1651,7 @@ function buildGraph(
           background: "#1a1d26",
           color: "#e8eaef",
           whiteSpace: "pre-line",
-          fontSize: 11,
+          fontSize: 12,
           borderRadius: 9,
         },
       });

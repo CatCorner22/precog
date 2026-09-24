@@ -9,6 +9,9 @@ import {
   listEnteredWork,
 } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
+import { useTemplate } from "@/lib/precog/use-template";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +28,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     resetSegregationToDerived,
     resetProfile,
     createBusiness,
+    setCustomProcesses,
+    setMapLayout,
   } = usePractice();
   const s = profile.staff;
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
@@ -61,6 +66,16 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
       description: `${kept} is saved in your businesses — switch back from the header any time.`,
     });
   }
+  const template = useTemplate();
+  // Figures that are not facts about this business yet say so.
+  const soleOwnerNote = registerAssessed(template)
+    ? undefined
+    : "Not assessed yet: this figure comes from Who knows what once someone is marked there.";
+  const tenureNote =
+    profile.customPeople &&
+    !template.people.some((p) => p.active && typeof p.tenureYears === "number")
+      ? "No hire dates were entered for your team, so this is the example business's figure."
+      : undefined;
   const segregationNote = profile.customPeople ? (
     profile.staff.segregationSource === "manual" ? (
       <>
@@ -91,8 +106,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <SyncStatusBadge />
         </div>
         <CardDescription>
-          Industry sets the demo template (process map, knowledge graph, scenarios). Team size and
-          control posture drive residual scores and your AI advisor. Sign in to sync across devices.
+          {profile.customPeople
+            ? "Industry sets the starter process map, register and scenarios; your team and the duties you ticked drive the findings and scores. Sign in to sync across devices."
+            : "Industry loads the sample business (process map, register, scenarios). Team size and control posture drive residual scores and your AI advisor. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -179,8 +195,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <Slider
             label="Team size"
             value={s.teamSize}
-            min={2}
-            max={20}
+            min={1}
+            max={OWN_TEAM_MAX}
             onChange={(v) => setStaff({ ...s, teamSize: v })}
           />
           <Slider
@@ -195,8 +211,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             label="Sole-owner knowledge items"
             value={s.soleOwnerKnowledgeCount}
             min={0}
-            max={8}
+            max={30}
             onChange={(v) => setStaff({ ...s, soleOwnerKnowledgeCount: v })}
+            note={soleOwnerNote}
           />
           <Slider
             label="Avg tenure (years)"
@@ -205,6 +222,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             max={15}
             step={0.5}
             onChange={(v) => setStaff({ ...s, avgTenureYears: v })}
+            note={tenureNote}
           />
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -235,25 +253,51 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             Configure dual-release thresholds
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
-              Boolean,
-            );
-            if (
-              lost.length &&
-              !window.confirm(
-                `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
+        {profile.customPeople ? (
+          // An own business never goes back to the sample business from here.
+          // Once the owner has edited the map, even by renaming a starter
+          // process, this returns it to the starter map; their team, register
+          // and journal stay.
+          profile.customProcesses && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "Go back to the starter map? This discards your process map edits. Your team, register and journal stay.",
+                  )
+                )
+                  return;
+                setCustomProcesses(null);
+                setMapLayout({});
+                toast.success("Back to the starter map");
+              }}
+            >
+              Back to the starter map
+            </Button>
+          )
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
+                Boolean,
+              );
+              if (
+                lost.length &&
+                !window.confirm(
+                  `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
+                )
               )
-            )
-              return;
-            resetProfile();
-          }}
-        >
-          Reset to demo defaults
-        </Button>
+                return;
+              resetProfile();
+            }}
+          >
+            Reset to demo defaults
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

@@ -29,6 +29,7 @@ import { industryMeta } from "@/lib/precog/industry";
 
 import { Blocks, GitCompare, Redo2, ShieldCheck, Undo2 } from "lucide-react";
 import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
+import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   analyzeWorkload,
   healthDelta,
@@ -36,7 +37,7 @@ import {
   previewMapHealth,
   type HealthDelta,
 } from "@/lib/precog/builder/what-if";
-import { ChevronRight, HelpCircle, Scale } from "lucide-react";
+import { ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
 import { BuilderTour } from "@/components/precog/builder-tour";
 import { useBuilderTour } from "@/components/precog/builder-tour-state";
 
@@ -59,6 +60,7 @@ import {
   type SavedProcessBlock,
 } from "@/lib/precog/builder/process-blocks";
 import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
+import { peopleFromBackup } from "@/lib/precog/import/people-backup";
 
 export function ProcessBuilder({
   selectedProcessId,
@@ -105,6 +107,12 @@ export function ProcessBuilder({
     [showDeparture, tpl, processes, profile.staff],
   );
   const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
+  // The starter map with nobody assigned, or an empty map, has no health to
+  // show; the pill and the what-if deltas wait until the owner assigns an
+  // owner or builds their own map.
+  const mapReady = mapAssessed(profile);
+  const notAssessed = mapNotAssessedNote(profile);
+  const starterMap = mapSource(profile) === "starter";
 
   const currentHealth = useMemo(
     () =>
@@ -115,13 +123,17 @@ export function ProcessBuilder({
       }),
     [tpl, processes, profile.staff, profile.mapLayout, mapCustomized],
   );
-  // Baseline when the builder opened — shows the session's net effect.
+  // Baseline when the builder opened — shows the session's net effect. It is
+  // taken from the first assessed score, never from the starter map.
   const sessionBaseline = useRef<number | null>(null);
-  if (sessionBaseline.current === null) sessionBaseline.current = currentHealth.score;
+  if (sessionBaseline.current === null && mapReady) sessionBaseline.current = currentHealth.score;
 
   /** Score a hypothetical process list against the current one. */
-  const whatIf = (next: ProcessNode[]): HealthDelta =>
-    healthDelta(
+  const whatIf = (next: ProcessNode[]): HealthDelta => {
+    if (!mapReady) {
+      return { before: currentHealth.score, after: currentHealth.score, delta: 0 };
+    }
+    return healthDelta(
       currentHealth,
       previewMapHealth(tpl, next, profile.staff, {
         people: tpl.people,
@@ -129,6 +141,7 @@ export function ProcessBuilder({
         customized: true,
       }),
     );
+  };
 
   const workload = useMemo(
     () =>
@@ -390,13 +403,21 @@ export function ProcessBuilder({
     toast("Process deleted");
   }
 
+  /**
+   * The sample business goes back to its template, people included. A
+   * business with its own people goes back to the starter map only: the team,
+   * register and journal are the owner's and stay.
+   */
   function resetToTemplate() {
-    if (!window.confirm("Discard your custom map and team, and restore the industry template?"))
-      return;
+    const ownTeam = Boolean(profile.customPeople);
+    const question = ownTeam
+      ? "Go back to the starter map? This discards your process map edits. Your team, register and journal stay."
+      : "Discard your custom map and team, and restore the industry template?";
+    if (!window.confirm(question)) return;
     setCustomProcesses(null);
-    setCustomPeople(null);
+    if (!ownTeam) setCustomPeople(null);
     setMapLayout({});
-    toast.success("Template restored");
+    toast.success(ownTeam ? "Back to the starter map" : "Template restored");
   }
 
   function exportMap() {
@@ -461,23 +482,13 @@ export function ProcessBuilder({
               ? p.procedureLocation.trim().slice(0, 200) || undefined
               : undefined,
         }));
-      if (Array.isArray(parsed.people) && parsed.people.length) {
-        setCustomPeople(
-          parsed.people
-            .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
-            .map((p) => ({
-              id: p.id,
-              name: p.name,
-              role: p.role ?? "Team member",
-              active: p.active ?? true,
-              tenureYears: typeof p.tenureYears === "number" ? p.tenureYears : undefined,
-              entitlements: Array.isArray(p.entitlements) ? p.entitlements : undefined,
-            })),
-        );
-      }
+      // Every person field the backup carries comes back: department, last
+      // day and employee id too, each checked.
+      const restoredPeople = peopleFromBackup(parsed.people);
+      if (restoredPeople.length) setCustomPeople(restoredPeople);
       const importIssues = validateProcessMap(
         cleaned,
-        Array.isArray(parsed.people) ? parsed.people : tpl.people,
+        restoredPeople.length ? restoredPeople : tpl.people,
         new Set(tpl.controls.map((c) => c.id)),
         parsed.layout ?? {},
       );
@@ -513,16 +524,28 @@ export function ProcessBuilder({
             <CardDescription>
               Build your real value stream. Every change re-scores residual risk, SoD, and scenarios
               live.
-              <span className="mt-1 block text-[10px] text-subtle">
+              <span className="mt-1 block text-xs text-subtle">
                 Keyboard: arrows move between processes · F frames the selection · Enter edits the
                 name · Shift+A arranges by stage · Ctrl+Z undo
               </span>
             </CardDescription>
-            <HealthPill
-              score={currentHealth.score}
-              band={currentHealth.bandLabel}
-              sessionDelta={currentHealth.score - (sessionBaseline.current ?? currentHealth.score)}
-            />
+            {mapReady ? (
+              <HealthPill
+                score={currentHealth.score}
+                band={currentHealth.bandLabel}
+                sessionDelta={
+                  currentHealth.score - (sessionBaseline.current ?? currentHealth.score)
+                }
+              />
+            ) : (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-elevated px-1.5 py-0.5 font-semibold text-muted">
+                  <Gauge className="size-3" />
+                  {"—"}
+                </span>
+                <span className="text-muted">Map health · not assessed yet</span>
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             {!tour.show && (
@@ -689,7 +712,7 @@ export function ProcessBuilder({
             <ShieldCheck className="size-3.5" />
             Validate
             {validationIssues.filter((i) => i.severity === "error").length > 0 && (
-              <Badge variant="warn" className="ml-1 px-1 py-0 text-[9px]">
+              <Badge variant="warn" className="ml-1 px-1 py-0 text-xs">
                 {validationIssues.filter((i) => i.severity === "error").length}
               </Badge>
             )}
@@ -705,7 +728,7 @@ export function ProcessBuilder({
           )}
           {mapCustomized && (
             <Button size="sm" variant="ghost" onClick={resetToTemplate}>
-              <RotateCcw className="size-3.5" /> Template
+              <RotateCcw className="size-3.5" /> {profile.customPeople ? "Starter map" : "Template"}
             </Button>
           )}
         </div>
@@ -748,6 +771,7 @@ export function ProcessBuilder({
                 staff: profile.staff,
                 dualRelease: profile.dualRelease,
                 mapSnapshots: snapshots,
+                mapAssessed: mapReady,
               });
               return buildSharePayload(profile, actions, note, redactNames);
             }}
@@ -763,7 +787,7 @@ export function ProcessBuilder({
                 const first = evidenceSummary.overdueItems[0];
                 if (first) onSelectProcess(first.process.id);
               }}
-              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-[11px] text-fg hover:border-warn/60"
+              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
             >
               <Clock className="size-3.5 shrink-0 text-warn" />
               <span className="min-w-0 flex-1">
@@ -845,6 +869,17 @@ export function ProcessBuilder({
           />
         )}
 
+        {showValidation && notAssessed && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs leading-relaxed text-fg">
+            <p className="font-medium">Not assessed yet</p>
+            <p className="mt-0.5 text-muted">
+              {notAssessed}
+              {starterMap
+                ? " Each Fix below assigns a suggested owner; remove the processes that do not apply."
+                : ""}
+            </p>
+          </div>
+        )}
         {showValidation && (
           <ValidationPanel
             issues={validationIssues}
@@ -887,7 +922,7 @@ export function ProcessBuilder({
                   type="button"
                   onClick={() => onSelectProcess(p.id)}
                   className={cn(
-                    "rounded-md border px-2 py-0.5 text-[11px] transition-colors",
+                    "rounded-md border px-2 py-0.5 text-xs transition-colors",
                     p.id === selectedProcessId
                       ? "border-primary/50 bg-primary/15 text-fg"
                       : "border-border bg-elevated text-muted hover:text-fg",

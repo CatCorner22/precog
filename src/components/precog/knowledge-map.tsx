@@ -97,13 +97,13 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                   x={p.x + 10}
                   y={p.y + 18}
                   fill="var(--color-fg)"
-                  fontSize="11"
+                  fontSize="12"
                   fontWeight="600"
                 >
                   {p.name.split(" ")[0]}
                 </text>
-                <text x={p.x + 10} y={p.y + 32} fill="var(--color-muted)" fontSize="9">
-                  {p.role.length > 16 ? p.role.slice(0, 15) + "…" : p.role}
+                <text x={p.x + 10} y={p.y + 34} fill="var(--color-muted)" fontSize="12">
+                  {p.role.length > 13 ? p.role.slice(0, 12) + "…" : p.role}
                 </text>
               </g>
             );
@@ -141,12 +141,12 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                   x={k.x + 10}
                   y={k.y + 18}
                   fill="var(--color-fg)"
-                  fontSize="11"
+                  fontSize="12"
                   fontWeight="600"
                 >
                   {k.name.length > 24 ? k.name.slice(0, 23) + "…" : k.name}
                 </text>
-                <text x={k.x + 10} y={k.y + 34} fill="var(--color-muted)" fontSize="9">
+                <text x={k.x + 10} y={k.y + 36} fill="var(--color-muted)" fontSize="12">
                   {k.criticality}
                   {sole ? " · SOLE OWNER" : ` · ${k.risk?.ownerCount ?? 0} owners`}
                 </text>
@@ -154,21 +154,21 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
             );
           })}
 
-          <text x={80} y={24} fill="var(--color-subtle)" fontSize="10" letterSpacing="0.08em">
+          <text x={80} y={24} fill="var(--color-subtle)" fontSize="12" letterSpacing="0.08em">
             PEOPLE
           </text>
-          <text x={420} y={24} fill="var(--color-subtle)" fontSize="10" letterSpacing="0.08em">
+          <text x={420} y={24} fill="var(--color-subtle)" fontSize="12" letterSpacing="0.08em">
             CRITICAL KNOWLEDGE
           </text>
         </svg>
       </div>
 
       <aside className="rounded-xl border border-border bg-surface p-4">
-        <p className="text-[11px] font-medium tracking-wide text-subtle uppercase">Drill-down</p>
+        <p className="text-xs font-medium tracking-wide text-subtle uppercase">Drill-down</p>
         {item && selected ? (
           <div className="mt-3 space-y-3">
             <div>
-              <h4 className="font-semibold">{item.name}</h4>
+              <h3 className="font-semibold">{item.name}</h3>
               <p className="mt-1 text-sm text-muted">{item.description}</p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -204,9 +204,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
         )}
 
         <div className="mt-6 border-t border-border pt-4">
-          <p className="text-[11px] font-medium tracking-wide text-subtle uppercase">
-            Highest risk
-          </p>
+          <p className="text-xs font-medium tracking-wide text-subtle uppercase">Highest risk</p>
           <ul className="mt-2 space-y-2">
             {risks
               .filter((r) => r.riskScore >= RISK_SCALE.actNow)

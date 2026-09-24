@@ -4,6 +4,9 @@ import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
 import { buildPioneerContextPack } from "./context-pack";
 import { pioneerProfileFrom } from "./pioneer-profile";
+import { mapAssessed } from "../builder/map-state";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
+import { defaultProfile } from "../practice-profile";
 
 const dental = getBaseTemplate("dental");
 const retail = getBaseTemplate("retail");
@@ -30,6 +33,29 @@ describe("pioneerProfileFrom", () => {
     expect(p.riskVariables.hasDualControl).toBe(true);
     expect(p.riskVariables.hasIndependentBankRec).toBe(false);
     expect(p.staff.teamSize).toBe(getBaseTemplate("restaurant").staffComposition.teamSize);
+  });
+
+  it("keeps the journal links that confirm a starter control and a scenario", () => {
+    const people = retail.people.slice(0, 2);
+    const entry = (id: string, linkedTab: string, linkedId: string) => ({
+      id,
+      createdAt: "2026-09-01T00:00:00.000Z",
+      subject: "Runs here",
+      kind: "monitor" as const,
+      note: "",
+      linkedTab,
+      linkedId,
+      linkedIndustry: "retail" as const,
+    });
+    const p = pioneerProfileFrom({
+      industry: "retail",
+      customPeople: people,
+      decisions: [entry("d1", "control", "c-ap"), entry("d2", "precog", "t-skim")],
+    });
+    const tpl = resolveTemplate(p);
+    expect(tpl.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
+    expect(tpl.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    expect(p.decisions.map((d) => d.linkedTab)).toEqual(["control", "precog"]);
   });
 
   it("caps custom lists and trims the practice name", () => {
@@ -169,5 +195,41 @@ describe("Pioneer tools on a Retail profile", () => {
     }
     expect(pack.continuity.documentation.writtenAndFindablePct).toBeGreaterThanOrEqual(0);
     expect(pack.continuity.documentation.writtenAndFindablePct).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("context pack process map", () => {
+  it("marks the sample business's map as assessed", () => {
+    const pack = buildPioneerContextPack(dental);
+    expect(pack.processMap.assessed).toBe(true);
+    expect(pack.processMap.note).toMatch(/^Map health/);
+  });
+
+  it("carries assessed: false and a do-not-quote note for a starter map", () => {
+    const profile = ownBusinessProfile(defaultProfile(), {
+      practiceName: "Ruiz Dental",
+      people: buildOwnTeam([
+        { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+        { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
+      ]),
+    });
+    const tpl = resolveTemplate(profile);
+    const pack = buildPioneerContextPack(tpl, profile.staff, { mapAssessed: mapAssessed(profile) });
+    expect(pack.processMap.assessed).toBe(false);
+    expect(pack.processMap.note).toBe(
+      "Not assessed: the map holds 7 starter processes from the dental / medical office example with no owner assigned, so no map figure describes the business. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+    );
+    // A starter map feeds no ownership, health or hot-process figure.
+    expect(pack.processMap.healthScore).toBeNull();
+    expect(pack.processMap.unownedProcesses).toEqual([]);
+    expect(pack.processMap.hotProcesses).toEqual([]);
+    // Judged from the template alone, the same map is not assessed either.
+    expect(buildPioneerContextPack(tpl, profile.staff).processMap.assessed).toBe(false);
+    const empty = buildPioneerContextPack(
+      resolveTemplate({ ...profile, customProcesses: [] }),
+      profile.staff,
+      { mapAssessed: false },
+    );
+    expect(empty.processMap.note).toMatch(/^Not assessed: the map is empty/);
   });
 });

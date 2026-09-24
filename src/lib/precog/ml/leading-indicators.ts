@@ -35,7 +35,7 @@ export function scoreLeadingIndicators(
 ): LeadingIndicatorReport {
   const { controls } = tpl;
   const portfolio = portfolioSummary(tpl, staff);
-  const coso = assessCoso(tpl);
+  const coso = assessCoso(tpl, staff, { riskVariables: riskVars });
   const spofs = findKnowledgeRisks(tpl).filter((r) => r.soleOwner && r.riskScore >= 65);
   const openSod = controls.filter((c) => !c.segregated && !c.residualRiskAccepted).length;
 

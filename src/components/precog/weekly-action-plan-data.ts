@@ -1,6 +1,9 @@
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { mitigatedSodRuleIds, type DualReleasePolicy } from "@/lib/precog/controls/dual-release";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import {
   checkInPlan,
   coverageReport,
@@ -10,6 +13,8 @@ import {
   ownerlessProcesses,
   STATUS_LABEL,
 } from "@/lib/precog/continuity/coverage";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { industryMeta } from "@/lib/precog/industry";
 import {
   continuityCommitments,
   continuityStepKey,
@@ -148,6 +153,12 @@ export function buildWeeklyActions(input: {
   mapSnapshots?: ProcessMapSnapshot[];
   today?: string;
   trackFreshness?: boolean;
+  /**
+   * Whether the process map's figures describe a map the owner has worked on
+   * (see mapAssessed in builder/map-state). Off, the map-derived actions give
+   * way to one action: assign owners to the starter map, or add processes.
+   */
+  mapAssessed?: boolean;
   /** The Journal, so steps already logged are reported as in progress rather than recommended again. */
   decisions?: readonly DecisionEntry[];
   /** Known leave, so hand-offs are advised ahead of time. */
@@ -156,29 +167,61 @@ export function buildWeeklyActions(input: {
   const { tpl } = input;
   const today = input.today ?? localDateKey(new Date());
   const committed = continuityCommitments(input.decisions ?? [], tpl, today);
-  const portfolio = portfolioSummary(tpl, input.staff);
-  const sod = detectSodConflicts(tpl, input.staff, {
-    dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(input.dualRelease),
-  });
+  // Starter scenarios count only once the owner confirms them, as on the
+  // Dashboard and the residual register.
+  const scope = { confirmedScenarioIds: confirmedScenarioIds(input.decisions ?? [], tpl.id) };
+  const portfolio = portfolioSummary(tpl, input.staff, DEFAULT_WEIGHTS, scope);
+  const sod = detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease));
   const continuity = coverageReport(tpl);
-  const tornado = tornadoSensitivity(tpl, input.staff);
+  // A register nobody has filled in cannot say what stops when someone is out:
+  // a starter list with nobody marked is not a set of single points, and an
+  // empty list is not full coverage. Until it is filled in, the one continuity
+  // action is to fill it in.
+  const registerReady = registerAssessed(tpl);
+  // The starter map with nobody assigned is not a set of unowned hot
+  // processes, and an empty map has nothing to score. Until the owner assigns
+  // an owner or builds their own map, the one map action is to do that.
+  const mapReady = input.mapAssessed ?? true;
+  const tornado = tornadoSensitivity(tpl, input.staff, scope);
   const actions: WeeklyAction[] = [];
 
   if (!input.staff.independentBankRec) {
-    actions.push({
-      id: "bank-rec",
-      title: "Start owner weekly bank reconciliation",
-      why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
-      effort: "low",
-      tab: "sod",
-      priority: 95,
-      evidence: evidenceFor(
-        casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
-      ),
-    });
+    // An owner who already reconciles, but also takes or records the money,
+    // is not told to start: the missing piece is a reader outside the books.
+    const activePeople = tpl.people.filter((p) => p.active);
+    const ownerId = soleOwnerId(activePeople);
+    const ownerReconciles = activePeople.some(
+      (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
+    );
+    actions.push(
+      ownerReconciles
+        ? {
+            id: "bank-rec",
+            title: "Have someone outside the books read the bank statement each month",
+            why: "You reconcile the bank yourself, but you also take or record the money, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
+            effort: "low",
+            tab: "sod",
+            priority: 95,
+            evidence: evidenceFor(casesForControls(["independent-bank-reconciliation"])),
+          }
+        : {
+            id: "bank-rec",
+            title: "Start owner weekly bank reconciliation",
+            why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
+            effort: "low",
+            tab: "sod",
+            priority: 95,
+            evidence: evidenceFor(
+              casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
+            ),
+          },
+    );
   }
 
-  if (!input.staff.dualControlPayments) {
+  // Dual control needs a second person; a one-person business is advised to
+  // have an outside reader instead (the bank-reconciliation action above).
+  const activeCount = tpl.people.filter((p) => p.active).length;
+  if (!input.staff.dualControlPayments && activeCount >= 2) {
     actions.push({
       id: "dual-control",
       title: "Enable dual control on payments",
@@ -192,7 +235,12 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  for (const c of sod.conflicts.filter((x) => x.severity === "critical").slice(0, 2)) {
+  // Split only what an employee holds, once per gap: the owner's own pairs
+  // have no one to move to and are handled by the outside-reader step.
+  const splits = sod.conflicts
+    .filter((x) => x.severity === "critical" && !x.ownerHeld)
+    .filter((x, i, all) => all.findIndex((o) => o.ruleId === x.ruleId) === i);
+  for (const c of splits.slice(0, 2)) {
     actions.push({
       id: `sod-${c.ruleId}`,
       title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,
@@ -225,7 +273,7 @@ export function buildWeeklyActions(input: {
   // next uncommitted gap still gets recommended.
   let freshLeft = MAX_FRESH_PER_GAP_KIND;
   let remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const m of continuity.plan.filter(
+  for (const m of (registerReady ? continuity.plan : []).filter(
     (x) =>
       x.item.criticality === "critical" &&
       x.status !== "thin" &&
@@ -381,7 +429,7 @@ export function buildWeeklyActions(input: {
 
   // A process whose every listed owner has been marked as left still looks
   // owned on the map; the owner slot is the leaver's last unfinished hand-over.
-  for (const o of ownerlessProcesses(tpl).slice(0, 2)) {
+  for (const o of (mapReady ? ownerlessProcesses(tpl) : []).slice(0, 2)) {
     const former = o.formerOwners.map((p) => firstName(p.name));
     actions.push({
       id: `map-owner-left-${o.id}`,
@@ -415,7 +463,9 @@ export function buildWeeklyActions(input: {
 
   freshLeft = MAX_FRESH_PER_GAP_KIND;
   remindersLeft = MAX_REMINDERS_PER_GAP_KIND;
-  for (const g of documentationDebt(tpl).gaps.filter((x) => x.item.criticality === "critical")) {
+  for (const g of (registerReady ? documentationDebt(tpl).gaps : []).filter(
+    (x) => x.item.criticality === "critical",
+  )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority =
       g.state === "none" ? (g.coverage === "single" || g.coverage === "uncovered" ? 84 : 78) : 72;
@@ -443,7 +493,29 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  if (input.trackFreshness) {
+  if (!registerReady) {
+    actions.push(
+      tpl.knowledge.length === 0
+        ? {
+            id: "register-start",
+            title: "List the duties, tasks and know-how the business runs on",
+            why: "The register is empty. Until it lists what the business runs on and who can do each, the app cannot say what stops when someone is out or who holds work alone.",
+            effort: "low",
+            tab: "knowledge",
+            priority: 80,
+          }
+        : {
+            id: "register-start",
+            title: `Mark who can do each of the ${tpl.knowledge.length} things the business runs on`,
+            why: `The register lists ${tpl.knowledge.length} duties, tasks and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until someone is marked, the app cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
+            effort: "low",
+            tab: "knowledge",
+            priority: 86,
+          },
+    );
+  }
+
+  if (input.trackFreshness && registerReady) {
     const plan = checkInPlan(tpl, today);
     const first = plan.checkIns[0];
     if (first) {
@@ -517,7 +589,30 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  if (input.mapSnapshots?.length) {
+  if (!mapReady) {
+    const count = tpl.processes.length;
+    actions.push(
+      count === 0
+        ? {
+            id: "map-start",
+            title: "Add the processes your business runs to the map",
+            why: "The map is empty. Until it lists the processes your business runs and who owns each, the app cannot score ownership, controls, documentation or heat.",
+            effort: "low",
+            tab: "map",
+            priority: 84,
+          }
+        : {
+            id: "map-start",
+            title: `Assign an owner to each of the ${count} starter processes`,
+            why: `Your map holds ${count} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
+            effort: "low",
+            tab: "map",
+            priority: 84,
+          },
+    );
+  }
+
+  if (mapReady && input.mapSnapshots?.length) {
     for (const snap of input.mapSnapshots.filter((s) => s.heat >= HEAT_BANDS.hot).slice(0, 2)) {
       const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
       actions.push({

@@ -1,4 +1,6 @@
 import type { Sql } from "@/lib/db";
+import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
+import { userScope } from "./llm/daily-usage";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -80,20 +82,22 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
   const u = users[0];
   return {
     exportedAt: new Date().toISOString(),
-    user: u ? { id: u.id, name: u.name, email: u.email, createdAt: String(u.createdAt) } : null,
+    user: u
+      ? { id: u.id, name: u.name, email: u.email, createdAt: toIsoTimestamp(u.createdAt) }
+      : null,
     businesses: businesses.map((b) => ({
       id: b.id,
       name: b.name,
       industry: b.industry,
       revision: Number(b.revision),
-      updatedAt: String(b.updated_at),
+      updatedAt: toIsoTimestamp(b.updated_at),
       profile: b.profile,
     })),
     snapshots: snapshots.map((s) => ({
       id: s.id,
       title: s.title,
       practiceName: s.practice_name,
-      createdAt: String(s.created_at),
+      createdAt: toIsoTimestamp(s.created_at),
       profile: s.profile_json,
       powerMap: s.power_map_json,
       valueCase: s.value_case_json,
@@ -102,9 +106,9 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
     shares: shares.map((s) => ({
       token: s.token,
       businessName: s.business_name,
-      createdAt: String(s.created_at),
-      expiresAt: s.expires_at ? String(s.expires_at) : null,
-      revokedAt: s.revoked_at ? String(s.revoked_at) : null,
+      createdAt: toIsoTimestamp(s.created_at),
+      expiresAt: toIsoTimestampOrNull(s.expires_at),
+      revokedAt: toIsoTimestampOrNull(s.revoked_at),
       redacted: Boolean(s.redacted),
       payload: s.payload,
     })),
@@ -113,12 +117,14 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
 
 /**
  * Removes every row the account owns and then the account itself. Snapshots
- * carry no foreign key to the user, so they are deleted explicitly; shares,
- * share views, share attempts, businesses, the active pointer, sessions and
- * linked accounts cascade from the user row.
+ * and the per-user model-usage counts carry no foreign key to the user, so
+ * they are deleted explicitly; shares, share views, share attempts,
+ * businesses, the active pointer, sessions and linked accounts cascade from
+ * the user row. The app-wide usage count is not the account's and stays.
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<void> {
   await sql`delete from assessment_snapshots where user_id = ${userId}`;
+  await sql`delete from llm_daily_usage where scope = ${userScope(userId)}`;
   await sql`delete from map_shares where user_id = ${userId}`;
   await sql`delete from businesses where user_id = ${userId}`;
   await sql`delete from business_profiles where user_id = ${userId}`;

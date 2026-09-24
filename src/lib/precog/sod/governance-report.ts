@@ -1,7 +1,8 @@
 import { ENTITLEMENTS } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
 import { detectSodConflicts, type RoleAssignment } from "./detect";
-import { POWER_GUIDANCE } from "./power-guidance";
+import { powerGuidance } from "./power-guidance";
+import type { IndustryId } from "../industry";
 import type { StaffComposition } from "../types";
 
 function clean(value: string) {
@@ -16,6 +17,8 @@ export function createGovernanceReport(
   assignments: RoleAssignment[],
   staff?: StaffComposition,
   generatedAt = new Date(),
+  /** The line of business, so each power's guidance uses its own words. */
+  industry: IndustryId = "general",
 ): string {
   const report = detectSodConflicts(staff, { assignments });
   const coverage = analyzeDutyCoverage(assignments);
@@ -62,13 +65,14 @@ export function createGovernanceReport(
     "",
   ];
 
+  const guidanceFor = powerGuidance(industry);
   for (const person of assignments) {
     lines.push(`### ${clean(person.personName)} — ${clean(person.role)}`, "");
     const duties = person.entitlements.filter((id) => id !== "view_reports_only");
     if (!duties.length) lines.push("- Reporting access only; no operating powers modeled.", "");
     for (const id of duties) {
       const entitlement = ENTITLEMENTS.find((item) => item.id === id);
-      const guidance = POWER_GUIDANCE[id];
+      const guidance = guidanceFor[id];
       if (!entitlement || !guidance) continue;
       lines.push(
         `#### ${clean(entitlement.label)}`,

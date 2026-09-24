@@ -1,5 +1,5 @@
 import type { MatrixLayerId } from "../types";
-import type { IndustryId } from "../industry";
+import { industryMeta, type IndustryId } from "../industry";
 
 export interface IndustryCopyBundle {
   /** Authorization, custody, recording, reconciliation examples for SoD cards. */
@@ -23,7 +23,7 @@ export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
     layerCopy: {
       surface: [
-        "Chair utilization and same-day openings",
+        "Chair and exam-room use, and same-day openings",
         "Front desk call volume and no-shows",
         "Daily collections and patient experience noise",
       ],
@@ -40,8 +40,8 @@ export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       ],
     },
     dualReleaseSeed: {
-      defaultPayee: "Apex Dental Lab",
-      exceptionPayeeContains: "apex dental lab",
+      defaultPayee: "Northgate Lab Services",
+      exceptionPayeeContains: "northgate lab services",
       exceptionLabel: "Trusted lab ACH raise",
     },
     pioneerPrompts: [
@@ -208,4 +208,10 @@ export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
 
 export function getIndustryCopy(id: IndustryId): IndustryCopyBundle {
   return INDUSTRY_COPY[id] ?? INDUSTRY_COPY.general;
+}
+
+/** The plural of the industry's word for a business: "practices", "stores", "businesses". */
+export function pluralTeamLabel(id: IndustryId): string {
+  const word = industryMeta(id).teamLabel;
+  return /(s|x|z|ch|sh)$/.test(word) ? `${word}es` : `${word}s`;
 }

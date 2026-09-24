@@ -47,6 +47,8 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) =
 
   return (
     <div className="space-y-4">
+      {/* Each view below has its own heading; this names the tab. */}
+      <h1 className="sr-only">Patterns</h1>
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"

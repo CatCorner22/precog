@@ -6,10 +6,10 @@ Built for owner-operated teams (2–20 people): dental and medical offices, reta
 
 | Module               | Path                          | Role                                                                                                        |
 | -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers, action bands, drivers                                     |
+| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands  |
 | Tornado sensitivity  | `scoring/residual-engine.ts`  | Highest-leverage control levers                                                                             |
 | COSO heat map        | `coso.ts` + UI                | 5 components, 17 principles, deep links                                                                     |
-| Precog scenarios     | `engine.ts`                   | p50 / 95% CI timelines + $ impact                                                                           |
+| Precog scenarios     | `engine.ts`                   | Assumed days until found and $ loss; an own business has no crime policy until you enter one                |
 | Knowledge SPOF map   | knowledge UI                  | Continuity / single points of failure                                                                       |
 | Pioneer LLM coach    | `coach/`                      | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always                                   |
 | Operating blueprint  | `operating-blueprint.ts` + UI | 10 core practice processes with standard, leading, optimal, and fallback designs                            |
@@ -25,25 +25,88 @@ payroll export"; in the team register, use "Paste roster" or "Import CSV".
 The importer reads the worker exports these systems produce, header row
 included, and a plain list with one person per line as `Name, Title`:
 
-| System                                              | Columns it reads                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Workday worker report or Excel export               | Worker, Employee ID, Business Title, Job Profile, Manager, Hire Date, Cost Center                      |
-| SAP SuccessFactors Employee Central                 | Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status |
-| Oracle HCM Cloud worker extract                     | Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date    |
-| Payroll providers (ADP, Gusto, Paychex, QuickBooks) | Employee Name, Job Title, Department, Status, Hire Date                                                |
+| System                                     | Columns it reads                                                                                                 |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Workday worker report or Excel export      | Worker (with or without the id in parentheses), Employee ID, Business Title, Job Profile, Hire Date, Cost Center |
+| SAP SuccessFactors Employee Central        | Person ID External, User ID, First Name, Last Name, Job Title, Position, Department, Employment Status           |
+| Oracle HCM Cloud worker extract            | Person Number, Display Name, Job Name, Position Name, Department Name, Assignment Status, Hire Date              |
+| ADP Workforce Now                          | Payroll Name, Position ID, Position Description, Home Department, Position Status (A, L, T), Hire Date           |
+| Gusto, Paychex, QuickBooks Payroll, Paycom | Employee Name or First Name and Last Name, Job Title or Position, Department, Status, Hire Date or Start Date    |
+| BambooHR, Rippling, Paylocity              | Employee # or Employee Number or Employee Id, Preferred Name (ignored beside First and Last Name), Cost Center 1 |
+| Square, Homebase, 7shifts, Toast           | Given name and Family name, Team member ID, Job title (over Role), Roles, Departments, Locations, Job, Active    |
+| Dentrix, Open Dental                       | Staff ID, Name, Position, Status; EmployeeNum, LName, FName, IsHidden                                            |
+| A French export                            | Nom, Prénom, Poste, Statut, Date d'entrée, with day-first dates                                                  |
 
-Comma, tab, and semicolon delimiters are detected. A hire date becomes years
-of service; an inactive or terminated status keeps the person off the map.
+Comma, tab, semicolon and pipe delimiters are detected, and a Markdown table
+pasted from a chat reads as well. The header may sit under a report title;
+repeated header rows, Total, Count, Page and "Report generated" footer rows
+(QuickBooks' "TOTAL, 9 employees" too), and a report's run stamp on a line of
+its own ("Tuesday, Sep 23, 2026 09:14 AM GMT-04:00", "Accrual basis ...") are
+skipped and reported. Direction-changing and invisible control characters
+(a right-to-left override, zero-width spaces) are removed from every cell.
+One import reads up to 250 rows, and the note says how many more were not
+read. A "Last, First" name becomes "First Last", with a
+generation suffix kept after it ("Diaz, Cal III" is "Cal Diaz III") and a
+credential after a comma ("Cole, Ben, CPA" is "Ben Cole, CPA"); a credential
+alone after the comma ("Roe, DDS") and a company name ("Acme Payroll, Inc.")
+stay as written. A hire date becomes years of service, with a warning when it
+is in the future; an inactive, terminated, deactivated, archived, deleted,
+deceased or laid-off status keeps the person off the map, while someone on
+leave (Leave, On Leave, LOA, FMLA, ADP's L, Oracle's "Inactive - Leave of
+Absence" and "Suspended - ...", a furlough) stays on it with a note, and a
+status word the importer does not know is reported and treated as active. A
+termination or last-day date already past, in ISO or US form, marks the person
+as having left when no status column says otherwise; beside an active status
+it is reported and not kept. An Employment Type, Employee Type or Worker Type column describes
+schedule or contract, so its codes ("F", "P", "T" for temporary) never take
+anyone off the map; only a full word such as "Terminated" there does. A row
+that repeats an earlier name and title is skipped and reported; when the rows
+carry employee IDs the ID decides instead, so two employees with one name
+stay two people, and one ID on two positions is one person holding the duties
+of both. Someone listed with one title at two locations is one person at both.
 
-Job titles are read through a catalog of about eighty-five common small-business
+In the team register, a pasted roster adds and updates people and removes
+nobody; an imported CSV that leaves people out asks before removing them. A
+row naming someone already on the team keeps that person, matched by
+employee ID before the name, along with whatever the file has no column for
+and the duties set for them when the title is unchanged. "Export CSV" writes
+each person's employee ID and the duties the conflict checks read, so the
+team's own export re-imports to the same people with the same duties.
+
+A plain list also works, one person per line: "Name, Title", "Name - Title",
+"Name<tab>Title", "Name | Title", "Name: Title" or "Name (Title)", with or
+without list numbers or bullets. A line splits on a tab first, then " | ",
+then ": ", then the comma, so "Ana Ruiz, Front Desk - Evenings" keeps its
+title whole, unless the text before a dash is a "Last, First" name ("Smith,
+John - Bookkeeper"). A title line above the list ("Staff List", "Team
+Roster") is skipped and reported.
+
+When a row has two title columns, duties are read from the standard
+classification (Workday's Job Profile, Oracle's Job Name) before the free-text
+or seat title (Business Title, Position Name), and from the other column when
+the first is not in the catalog; an owner's title in any column seats the
+owner. The role shown is the title the duties were read from.
+
+Job titles are read through a catalog of about a hundred common small-business
 titles (`src/lib/precog/onboarding/job-catalog.ts`): bookkeeper, office
 manager, AP specialist, payroll administrator, front desk, cashier, server,
 foreman, IT administrator, night auditor, service advisor, property manager,
 development director, and so on, with the seniority and schedule words ignored.
+A title that only names whom the job serves ("Owner's Assistant", "Office Manager -
+reports to Owner") never takes the owner's seat, and a learner's title ("Accounting
+Student") carries no money duty.
 Each entry carries a one-sentence standard description of the job and a
 reason for its starting duties, and the whole sheet can be read from the
 onboarding step. With no roster to paste, "Add people by job title" creates
-numbered placeholder rows for any title and count. Each title carries the money duties it typically holds in a business
+numbered placeholder rows for any title and count. The grid shows eleven money
+duties as columns (taking payments, recording them, preparing deposits, reconciling the
+bank, entering bills, setting up suppliers, releasing payments, entering and approving
+payroll, issuing refunds, and approving write-offs); any other duty a title carries appears
+as a tag on the row that the owner can remove, so nothing a title carries is hidden, and
+"Add a duty" on each row adds any other duty the rulebook defines. Pasting or adding
+people keeps the Owner row and its ticks until the owner names it or the paste brings its
+own owner, and finishing with a row that has duties but no name asks for the name. Someone the roster
+shows on leave is recorded as out today in Who knows what when onboarding finishes. Each title carries the money duties it typically holds in a business
 of two to fifty people, so every person lands with duties ticked and the
 duty-conflict findings appear at once. Where a title corresponds to one
 occupation in the U.S. Bureau of Labor Statistics Standard Occupational

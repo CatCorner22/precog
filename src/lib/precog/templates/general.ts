@@ -106,7 +106,7 @@ export const generalTemplate: IndustryTemplate = {
           kind: "continuity",
           severity: 3,
           likelihood: 3,
-          note: "Open deals and customer promises are in Jordan's inbox, not the shared system.",
+          note: "Open deals and customer promises sit in the sales lead's inbox, not the shared system.",
           linkedKnowledgeId: "k5",
         },
       ],
@@ -186,7 +186,7 @@ export const generalTemplate: IndustryTemplate = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "Chris runs one billing cycle a month with Sam reviewing; steps written into a checklist.",
+          note: "The bookkeeper runs one billing cycle a month with the AR admin reviewing; steps written into a checklist.",
           status: "exploring",
         },
       ],
@@ -317,7 +317,7 @@ export const generalTemplate: IndustryTemplate = {
           id: "w-ap-1",
           kind: "muri",
           label: "AP clerk carries every vendor payment alone",
-          note: "No backup when Riley is out; payments pile up and late fees follow.",
+          note: "No backup when the AP clerk is out; payments pile up and late fees follow.",
         },
       ],
     },
@@ -447,7 +447,7 @@ export const generalTemplate: IndustryTemplate = {
   scenarios: baseFraudScenarios({
     keyPersonTitle: "AR lead leaves with sole billing knowledge",
     keyPersonDesc:
-      "Sam (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
+      "The AR admin (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
     knowledgeId: "k1",
   }),
   roleTemplates: {

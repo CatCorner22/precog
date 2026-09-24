@@ -46,6 +46,12 @@ export interface Person {
   name: string;
   role: string;
   active: boolean;
+  /**
+   * This person owns the business, as marked during setup. Absent on teams
+   * set up without the mark (the samples, older saves), where the job title
+   * decides (see sod/owner-role).
+   */
+  owner?: boolean;
   /** Years of service. Undefined when unknown; never defaulted, so unknown tenure adds nothing to any score. */
   tenureYears?: number;
   /**
@@ -58,6 +64,14 @@ export interface Person {
   entitlements?: string[];
   /** Department or cost centre from the roster, kept for grouping; the engines ignore it. */
   department?: string;
+  /** The employee id the HR or payroll roster gave this person; re-imports match on it. */
+  employeeId?: string;
+  /**
+   * Set at setup when this person's duties are still exactly the usual ones
+   * for their job title: guessed from the title, not confirmed by the owner.
+   * Cleared as soon as the owner edits their duties anywhere.
+   */
+  dutiesFromTitle?: true;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";
@@ -140,6 +154,12 @@ export interface ControlItem {
   segregated: boolean;
   compensatingControls: string[];
   residualRiskAccepted: boolean;
+  /**
+   * Carried over from the industry example onto an owner's own business, and
+   * not yet confirmed to run there. Its "segregated" flag is the example's,
+   * not a fact about this business.
+   */
+  starter?: boolean;
 }
 
 export interface StaffComposition {
@@ -151,6 +171,8 @@ export interface StaffComposition {
   segregationSource?: "derived" | "manual";
   dualControlPayments: boolean;
   independentBankRec: boolean;
+  /** "manual" when the owner set the bank-reconciliation flag by hand. Absent or "derived" = read from the team's duties when the team changes. */
+  bankRecSource?: "derived" | "manual";
 }
 
 /**
