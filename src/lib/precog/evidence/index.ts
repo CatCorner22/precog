@@ -307,7 +307,8 @@ export function sectorForIndustry(industryId: string): IndustrySector {
  * The "Dental / Medical Office" template serves both dental and medical
  * practices, and a medical office case reads as "in your line of business"
  * to a dentist exactly as a dental one does: same front desk, same insurer
- * remittances, same write-off authority. Other templates map to one sector.
+ * remittances, same write-off authority. The construction template likewise
+ * counts both construction and trades cases. Other templates map to one sector.
  */
 export function sectorsForIndustry(industryId: string): IndustrySector[] {
   switch (industryId) {
@@ -319,6 +320,13 @@ export function sectorsForIndustry(industryId: string): IndustrySector[] {
       return ["restaurant"];
     case "professional_services":
       return ["professional-services"];
+    // A general contractor's cases and a specialty trade's (HVAC, flooring)
+    // read as the same line of business: same field crews, job materials,
+    // and subcontractor and supplier payments.
+    case "construction":
+      return ["construction", "trades"];
+    case "nonprofit":
+      return ["nonprofit"];
     default:
       return ["any"];
   }

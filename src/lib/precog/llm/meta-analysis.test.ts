@@ -3,7 +3,14 @@ import type { IndustryId } from "../industry";
 import { defaultProfile } from "../practice-profile";
 import { runMetaAnalysis } from "./meta-analysis";
 
-const OTHERS: IndustryId[] = ["retail", "restaurant", "professional_services", "general"];
+const OTHERS: IndustryId[] = [
+  "retail",
+  "restaurant",
+  "professional_services",
+  "construction",
+  "nonprofit",
+  "general",
+];
 
 function wording(industry: IndustryId): string {
   const report = runMetaAnalysis(defaultProfile(industry));

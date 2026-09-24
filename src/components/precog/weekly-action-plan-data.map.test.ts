@@ -33,11 +33,11 @@ describe("weekly plan on a starter map nobody has assigned", () => {
     expect(ids).toContain("map-start");
     expect(ids.some((id) => id.startsWith("map-heat-") || id.startsWith("map-owner-"))).toBe(false);
     const start = actions.find((a) => a.id === "map-start")!;
-    expect(start.title).toBe("Assign an owner to each of the 7 starter processes");
+    expect(start.title).toBe("Assign an owner to each of the 8 starter processes");
     expect(start.tab).toBe("map");
     expect(start.effort).toBe("low");
     expect(start.priority).toBe(84);
-    expect(start.why).toContain("dental / medical office example");
+    expect(start.why).toContain("dental / medical / veterinary office example");
     // Just below the register's own start action, so the two read in order.
     const register = actions.find((a) => a.id === "register-start")!;
     expect(register.priority).toBeGreaterThan(start.priority);

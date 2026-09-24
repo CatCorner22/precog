@@ -263,9 +263,17 @@ describe("coverage planner", () => {
 
   it("offers the same conflict-free backups as scanning the whole team, on every sample team and random teams", () => {
     const teams = [
-      ...(["dental", "retail", "restaurant", "professional_services", "general"] as const).map(
-        (id) => buildAssignments(getIndustryTemplate(id)),
-      ),
+      ...(
+        [
+          "dental",
+          "retail",
+          "restaurant",
+          "professional_services",
+          "construction",
+          "nonprofit",
+          "general",
+        ] as const
+      ).map((id) => buildAssignments(getIndustryTemplate(id))),
       ...randomTeams(20260923, 12, 5),
     ];
     for (const team of teams) expect(buildCoveragePlans(team)).toEqual(referencePlans(team));

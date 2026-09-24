@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type SetStateAction,
 } from "react";
-import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
+import { INDUSTRIES, industryHasOwner, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -44,6 +44,8 @@ import {
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
   ownerRow,
+  firstRowForIndustry,
+  isLeaderTitle,
   rowsKeptForAdding,
   type OwnTeamRow,
   type SeatReading,
@@ -61,6 +63,8 @@ import {
   Briefcase,
   ChefHat,
   Building2,
+  HardHat,
+  HeartHandshake,
   Plus,
   ShoppingBag,
   Stethoscope,
@@ -72,6 +76,8 @@ const ICONS: Record<IndustryId, typeof Stethoscope> = {
   retail: ShoppingBag,
   professional_services: Briefcase,
   restaurant: ChefHat,
+  construction: HardHat,
+  nonprofit: HeartHandshake,
   general: Building2,
 };
 
@@ -334,7 +340,7 @@ export function IndustryOnboarding() {
 
   /** Drops the team restored from an earlier setup and starts this one fresh. */
   function startOver() {
-    setRows(freshRows());
+    setRows(firstRowForIndustry(freshRows(), selected));
     setPaste("");
     setPasteNote("");
     setQuickNote("");
@@ -490,6 +496,7 @@ export function IndustryOnboarding() {
     const { kept, ownerRow: owner } = rowsKeptForAdding(
       rows,
       incoming.some((r) => rowOwnsBusiness(r)),
+      incoming.some((r) => isLeaderTitle(r.role)),
     );
     const outcome = addPastedRows(kept, incoming);
     setRows(outcome.rows);
@@ -730,7 +737,14 @@ export function IndustryOnboarding() {
                 })}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button className="w-full" onClick={() => setStep("team")}>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    // A nonprofit's first row is its executive director, not an owner.
+                    setRows((current) => firstRowForIndustry(current, selected));
+                    setStep("team");
+                  }}
+                >
                   Set up my own business
                 </Button>
                 <Button className="w-full" variant="secondary" onClick={loadSample}>
@@ -1035,16 +1049,18 @@ export function IndustryOnboarding() {
                                 {row.department}
                               </p>
                             )}
-                            <label className="mt-1 flex min-h-6 items-center gap-1.5 text-xs text-muted">
-                              <input
-                                type="checkbox"
-                                className="size-4"
-                                aria-label={`${who} owns the business`}
-                                checked={rowOwnsBusiness(row)}
-                                onChange={(e) => updateRow(index, { owner: e.target.checked })}
-                              />
-                              Owns the business
-                            </label>
+                            {industryHasOwner(selected) && (
+                              <label className="mt-1 flex min-h-6 items-center gap-1.5 text-xs text-muted">
+                                <input
+                                  type="checkbox"
+                                  className="size-4"
+                                  aria-label={`${who} owns the business`}
+                                  checked={rowOwnsBusiness(row)}
+                                  onChange={(e) => updateRow(index, { owner: e.target.checked })}
+                                />
+                                Owns the business
+                              </label>
+                            )}
                             {row.onLeave && (
                               <button
                                 type="button"

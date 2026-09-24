@@ -214,6 +214,37 @@ const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     revenueShock: "Client mix / largest client / rate shock",
     revenueProbe: "Add client mix and largest client concentration to the business profile",
   },
+  construction: {
+    system: "job-cost system",
+    payer: "client",
+    pair: "project manager + office manager",
+    partners: "Subcontractor / supplier / equipment rental",
+    partnerFraud: "inflated change orders, bills for work not in place",
+    partnerCheck:
+      "Compare subcontractor pay applications to work in place and lien waivers for 30 days",
+    regulator: "Prevailing-wage and worker-classification enforcement",
+    regulatorDetail:
+      "Certified payroll findings and misclassification penalties are not linked to control failures (e.g. unapproved field-time edits, crews paid off the books).",
+    regulatorProbe: "Add a certified-payroll finding scenario tied to payroll entitlements",
+    hostageData: "Full job-cost system hostage, bid-data extortion",
+    revenueShock: "Backlog / largest client / material price shock",
+    revenueProbe: "Add backlog and largest client concentration to the business profile",
+  },
+  nonprofit: {
+    system: "donor database",
+    payer: "donor",
+    pair: "finance manager + development director",
+    partners: "Funder / fiscal sponsor / online giving platform",
+    partnerFraud: "invented vendors, re-routed online gifts",
+    partnerCheck: "Reconcile online-giving payouts to donor records for 30 days",
+    regulator: "State charity regulator and IRS reporting",
+    regulatorDetail:
+      "Form 990 and state charity findings are not linked to control failures (e.g. restricted gifts spent on operations, unreviewed executive pay).",
+    regulatorProbe: "Add a restricted-fund misuse scenario tied to grant entitlements",
+    hostageData: "Full donor-database hostage, donor-data extortion",
+    revenueShock: "Largest funder / grant cliff / event shortfall",
+    revenueProbe: "Add funding mix and largest funder concentration to the business profile",
+  },
   general: {
     system: "accounting system",
     payer: "customer",

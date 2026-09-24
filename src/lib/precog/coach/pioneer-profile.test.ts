@@ -217,7 +217,7 @@ describe("context pack process map", () => {
     const pack = buildPioneerContextPack(tpl, profile.staff, { mapAssessed: mapAssessed(profile) });
     expect(pack.processMap.assessed).toBe(false);
     expect(pack.processMap.note).toBe(
-      "Not assessed: the map holds 7 starter processes from the dental / medical office example with no owner assigned, so no map figure describes the business. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+      "Not assessed: the map holds 8 starter processes from the dental / medical / veterinary office example with no owner assigned, so no map figure describes the business. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
     );
     // A starter map feeds no ownership, health or hot-process figure.
     expect(pack.processMap.healthScore).toBeNull();

@@ -3,7 +3,14 @@ import type { IndustryId } from "../industry";
 import { ENTITLEMENTS } from "./conflict-rules";
 import { POWER_GUIDANCE, powerGuidance } from "./power-guidance";
 
-const OTHERS: IndustryId[] = ["retail", "restaurant", "professional_services", "general"];
+const OTHERS: IndustryId[] = [
+  "retail",
+  "restaurant",
+  "professional_services",
+  "construction",
+  "nonprofit",
+  "general",
+];
 
 const allText = (industry: IndustryId) =>
   Object.values(powerGuidance(industry))

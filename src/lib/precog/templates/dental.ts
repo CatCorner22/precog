@@ -77,6 +77,15 @@ const knowledge: KnowledgeItem[] = [
     category: "compliance",
     linkedProcessIds: ["proc-ar"],
   },
+  {
+    id: "k8",
+    name: "Controlled-substance records",
+    description:
+      "DEA registration, order forms, the administration and dispensing log, biennial inventory, theft and loss reports. Dental, medical and veterinary offices alike.",
+    criticality: "critical",
+    category: "compliance",
+    linkedProcessIds: ["proc-controlled"],
+  },
 ];
 
 const relations: KnowledgeRelation[] = [
@@ -93,6 +102,8 @@ const relations: KnowledgeRelation[] = [
   { personId: "p2", knowledgeId: "k6", level: "expert" },
   { personId: "p6", knowledgeId: "k7", level: "expert" },
   { personId: "p2", knowledgeId: "k7", level: "proficient" },
+  { personId: "p1", knowledgeId: "k8", level: "expert" },
+  { personId: "p5", knowledgeId: "k8", level: "basic" },
 ];
 
 const processes: ProcessNode[] = [
@@ -193,6 +204,75 @@ const processes: ProcessNode[] = [
         kind: "muda_motion",
         label: "Instrument hunt mid-procedure",
         note: "Tray setup variance between assistants.",
+      },
+    ],
+  },
+  {
+    // DEA registrants keep records of every controlled substance received,
+    // administered, dispensed and destroyed (21 CFR 1304), take an inventory
+    // at least every two years (21 CFR 1304.11), store the drugs locked
+    // (21 CFR 1301.75), and report theft or significant loss within one
+    // business day of discovery (21 CFR 1301.76(b)). The same rules apply to
+    // a veterinary practice's anesthetics and analgesics.
+    id: "proc-controlled",
+    name: "Controlled drugs: log, counts & dispensing",
+    layer: "process",
+    description:
+      "If the office keeps controlled substances: DEA ordering, locked storage, the administration and dispensing log, inventory counts.",
+    dependencies: ["proc-clinical"],
+    controlIds: ["c-controlled"],
+    stage: 1,
+    ownerPersonIds: ["p1", "p5"],
+    inputs: ["DEA order forms and supplier invoices", "Administration and dispensing records"],
+    outputs: ["Controlled-substance log", "Inventory counts", "Theft or loss reports"],
+    risks: [
+      {
+        id: "r-cs-1",
+        title: "One person orders, stores, logs and counts",
+        kind: "fraud",
+        severity: 5,
+        likelihood: 2,
+        note: "Drugs can be removed and the log or the vials altered to hide it, as in the oral surgery fentanyl case in the library; nobody else compares stock with the records.",
+        linkedControlId: "c-controlled",
+        linkedScenarioId: "sc-drug-diversion",
+        linkedKnowledgeId: "k8",
+      },
+      {
+        id: "r-cs-2",
+        title: "Inventory or loss report missed",
+        kind: "compliance",
+        severity: 4,
+        likelihood: 2,
+        note: "A registrant inventories every controlled substance at least every two years and reports theft or significant loss to DEA within one business day of discovery.",
+        linkedKnowledgeId: "k8",
+      },
+    ],
+    ideas: [
+      {
+        id: "i-cs-1",
+        title: "Two people count Schedule II drugs and both sign the log",
+        category: "control",
+        effort: "low",
+        impact: "high",
+        note: "Counts at a set time each week, and whenever the person holding the key changes.",
+        status: "planned",
+      },
+      {
+        id: "i-cs-2",
+        title: "Monthly log reconciliation to purchases and patient records",
+        category: "control",
+        effort: "medium",
+        impact: "high",
+        note: "Someone who does not administer the drugs matches doses logged to procedures charted.",
+        status: "exploring",
+      },
+    ],
+    wastes: [
+      {
+        id: "w-cs-1",
+        kind: "muda_overprocessing",
+        label: "Paper log totalled by hand at every count",
+        note: "Running balances are re-added from the first page because the log keeps none.",
       },
     ],
   },
@@ -573,11 +653,21 @@ const controls: ControlItem[] = [
     compensatingControls: [],
     residualRiskAccepted: false,
   },
+  {
+    id: "c-controlled",
+    name: "Controlled-substance log and counts",
+    description:
+      "Someone who does not administer the drugs counts stock against the log and purchase records; any difference is investigated and theft or significant loss reported to DEA.",
+    duties: ["custody", "recording", "reconciliation"],
+    segregated: false,
+    compensatingControls: ["Owner reads the log at month end"],
+    residualRiskAccepted: false,
+  },
 ];
 
 const staffComposition: StaffComposition = {
   teamSize: 6,
-  soleOwnerKnowledgeCount: 2,
+  soleOwnerKnowledgeCount: 3,
   avgTenureYears: 5.5,
   segregationScore: 42,
   dualControlPayments: false,
@@ -703,6 +793,36 @@ const scenarios: ScenarioTemplate[] = [
         label: "Independent new-vendor review monthly",
         effort: "low",
         riskReduction: 0.5,
+        costAnnual: 0,
+      },
+    ],
+  },
+  {
+    // Timeline and loss reuse the write-off scenario's illustrative model
+    // inputs; they are assumptions, not measurements. The larger harm here is
+    // to patients and to the practice's DEA registration.
+    id: "sc-drug-diversion",
+    title: "Controlled drugs diverted and the log altered",
+    description:
+      "The person who handles controlled drugs also keeps the log and does the counts. Drugs are removed and the log, or the vials, are changed so the count still matches; the office learns of it from a patient harmed, a DEA inspection, or a colleague who speaks up.",
+    controlId: "c-controlled",
+    knowledgeId: "k8",
+    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
+    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
+    cascadeLayers: ["control", "process", "surface", "continuity"],
+    mitigations: [
+      {
+        id: "m11",
+        label: "Two people count and sign for every Schedule II drug",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m12",
+        label: "Monthly log reconciliation by someone who does not administer",
+        effort: "medium",
+        riskReduction: 0.45,
         costAnnual: 0,
       },
     ],

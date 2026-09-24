@@ -1618,6 +1618,14 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
     "A volunteer treasurer co-signs and reviews the reconciliation someone else prepares; tick Reconcile bank only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
   ),
   entry(
+    "program-director",
+    "Program Director",
+    "nonprofit",
+    ["program director", "director of programs", "programs director", "program services director"],
+    ["order_supplies", "approve_invoices", "view_reports_only"],
+    "A program director buys program supplies and approves program bills against the budget or grant; tick Confirm receipt if they also sign for the deliveries.",
+  ),
+  entry(
     "volunteer-coordinator",
     "Volunteer / Program Coordinator",
     "nonprofit",
@@ -1929,6 +1937,8 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "dispatch manager",
       "distribution manager",
       "routing manager",
+      "equipment manager",
+      "equipment coordinator",
     ],
     ["approve_vendor", "order_supplies", "receive_goods", "enter_payroll", "view_reports_only"],
     "A fleet manager approves fuel, repair, and equipment suppliers and submits drivers' hours.",
@@ -2393,6 +2403,8 @@ const DESCRIPTIONS: Record<string, string> = {
     "Finds, writes, and administers grants and bills funders for reimbursable costs.",
   "board-treasurer":
     "Serves on the board, oversees the finances, signs or approves payments, and reviews the reconciliations.",
+  "program-director":
+    "Plans and runs the organization's programs, supervises program staff, and manages the program budget and grant-funded costs.",
   "volunteer-coordinator":
     "Recruits and schedules volunteers and delivers the organization's programs.",
   marketing:
@@ -2790,8 +2802,16 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   assistant: { dental: "dental-assistant" },
   technician: { dental: "dental-assistant" },
   partner: { professional_services: "owner" },
-  "crew lead": { general: "foreman" },
-  "crew leader": { general: "foreman" },
+  "crew lead": { general: "foreman", construction: "foreman" },
+  "crew leader": { general: "foreman", construction: "foreman" },
+  // On a job site a "super" is the superintendent.
+  super: { construction: "foreman" },
+  // A nonprofit's treasurer is a board officer, and its CEO is its executive director.
+  treasurer: { nonprofit: "board-treasurer" },
+  ceo: { nonprofit: "executive-director" },
+  "chief executive officer": { nonprofit: "executive-director" },
+  // A nonprofit's program manager runs a program, not a client project.
+  "program manager": { nonprofit: "program-director" },
   "business assistant": { dental: "receptionist" },
   // A CSR in a dental, medical or veterinary office is the front desk.
   csr: { dental: "receptionist" },
@@ -2807,7 +2827,9 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
  * practice's books, bank reconciliation included. In a store the till records
  * the sales, so the bookkeeper posts the takings as a journal entry rather
  * than recording customer payments. In a law or accounting firm the front
- * desk takes payments and billing records them.
+ * desk takes payments and billing records them. A contractor's project
+ * manager approves subcontractor bills; a nonprofit's development office
+ * records the gifts it receives.
  */
 const INDUSTRY_SEATS: Record<
   string,
@@ -2816,6 +2838,11 @@ const INDUSTRY_SEATS: Record<
   dental: { "office-manager": { add: ["bank_reconcile"] } },
   retail: { bookkeeper: { remove: ["post_payments"] } },
   professional_services: { receptionist: { remove: ["post_payments"] } },
+  // A contractor's project manager approves subcontractor pay applications
+  // and orders materials for the job.
+  construction: { "project-manager": { add: ["approve_invoices", "order_supplies"] } },
+  // Development enters the gifts it receives in the donor database.
+  nonprofit: { "development-director": { add: ["post_payments"] } },
 };
 
 /** A seat's usual duties in this line of business. */
