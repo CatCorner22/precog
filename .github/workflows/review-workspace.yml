@@ -1,0 +1,39 @@
+name: Isolated review workspace
+on:
+  push:
+    branches: [chatgpt/expanded-stabilization-20260925]
+    paths: [.github/workflows/review-workspace.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Archive only tracked source and installed public dependencies
+        run: |
+          mkdir -p review-artifacts
+          git archive --format=tar HEAD > review-artifacts/source.tar
+          tar -czf review-artifacts/dependencies.tar.gz node_modules
+          git rev-parse HEAD > review-artifacts/COMMIT.txt
+          node --version > review-artifacts/NODE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: isolated-review-workspace
+          path: review-artifacts/
+          retention-days: 1
+          compression-level: 0
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          VERCEL_ENV: preview
