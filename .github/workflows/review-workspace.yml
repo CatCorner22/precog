@@ -1,0 +1,34 @@
+name: Review workspace
+on:
+  pull_request:
+    paths:
+      - .github/workflows/review-workspace.yml
+permissions:
+  contents: read
+jobs:
+  workspace:
+    if: github.head_ref == 'fix/expanded-stabilization-20260924'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Package source and locked dependencies without credentials
+        run: |
+          git rev-parse HEAD > review-commit.txt
+          git archive --format=tar.gz HEAD > review-source.tar.gz
+          tar -czf review-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-workspace
+          path: |
+            review-source.tar.gz
+            review-dependencies.tar.gz
+            review-commit.txt
+          retention-days: 1
