@@ -1,17 +1,13 @@
 name: Format stabilization branch
-
 on:
   push:
     branches: [fix/expanded-stabilization-20260924]
     paths: [.github/workflows/format-stabilization.yml]
-
 permissions:
   contents: read
-
 concurrency:
   group: format-expanded-stabilization
   cancel-in-progress: false
-
 jobs:
   format:
     if: github.repository == 'CatCorner22/precog' && github.ref == 'refs/heads/fix/expanded-stabilization-20260924'
@@ -28,17 +24,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install locked formatter dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
-      - name: Format tracked source only
+      - run: npm ci --ignore-scripts > /tmp/formatter-install.log 2>&1 || { tail -n 20 /tmp/formatter-install.log; exit 1; }
+      - name: Checked stabilization source migration
+        run: node scripts/stabilization-upgrade.mjs
+      - name: Apply repository formatting
         run: |
-          ./node_modules/.bin/prettier --write src scripts docs .github package.json vite.config.ts
+          ./node_modules/.bin/prettier --write src scripts docs .github package.json vite.config.ts > /tmp/format.log
           git diff --check
-      - name: Commit formatting to this working branch only
+      - name: Commit only to the approved working branch
         run: |
           if git diff --quiet; then exit 0; fi
           git config user.name 'Precog formatting'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src scripts docs .github package.json vite.config.ts
-          git commit -m 'style: apply repository Prettier configuration'
+          git commit -m 'refactor: share graph analysis and apply checked stabilization formatting'
           git push origin HEAD:refs/heads/fix/expanded-stabilization-20260924
