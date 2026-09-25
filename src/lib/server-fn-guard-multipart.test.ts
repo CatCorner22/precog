@@ -87,7 +87,7 @@ describe("server-function multipart regression", () => {
     const request = new Request(URL_BASE, {
       method: "POST",
       headers: { "content-type": "multipart/form-data; boundary=TruncatedAbC" },
-      body: "--TruncatedAbC\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nincomplete",
+      body: '--TruncatedAbC\r\nContent-Disposition: form-data; name="a"\r\n\r\nincomplete',
     });
     assert.equal(await statusOf(request), 400);
   });
