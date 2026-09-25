@@ -33,8 +33,8 @@ import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
-import { Pool } from "pg";
-import { ensureDbReady, getPglite } from "../db";
+import { PostgresDialect } from "kysely";
+import { ensureDbReady, getPglite, getPgPool } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -138,14 +138,10 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // Real Postgres when `DATABASE_URL` is set (deployed apps), else the app's
 // embedded PGLite (preview) via a Kysely dialect — so Better Auth persists to the
 // SAME DB as app data, including email/password users. Both use the Better Auth
-// schema from `migrations/0001_auth.sql`.
+// schema from `migrations/0001_auth.sql`. The Postgres path shares the app's
+// one pool (`getPgPool`) instead of opening a second per instance.
 const database = databaseUrl
-  ? new Pool({
-      connectionString: databaseUrl,
-      max: 3,
-      idleTimeoutMillis: 10_000,
-      allowExitOnIdle: true,
-    })
+  ? { dialect: new PostgresDialect({ pool: () => getPgPool() }), type: "postgres" as const }
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */
