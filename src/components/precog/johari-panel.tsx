@@ -8,7 +8,7 @@ import {
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
 import { examplesHeading, paneItems } from "@/components/precog/johari-pane";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,7 @@ const Q_META: Record<
 };
 
 export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
-  const { profile } = usePractice();
+  const { profile } = usePracticeState();
   const [activeQ, setActiveQ] = useState<JohariQuadrant>("blind");
   const [domain, setDomain] = useState<JohariDomain>("internal_control");
   const [view, setView] = useState<"matrix" | "domains" | "loop">("matrix");

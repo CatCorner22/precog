@@ -170,7 +170,96 @@ export interface PracticeContextValue {
   switchingBusiness: boolean;
 }
 
-export const PracticeContext = createContext<PracticeContextValue | null>(null);
+/**
+ * The context is published in three parts so a component subscribes only to
+ * what it reads: the working state (changes on every edit), the actions
+ * (stable), and the sync state (changes as saves land). `usePractice()`
+ * merges them for callers that read across all three.
+ */
+type PracticeState = Pick<
+  PracticeContextValue,
+  | "profile"
+  | "ready"
+  | "template"
+  | "mapCustomized"
+  | "setupReturnsTo"
+  | "businesses"
+  | "switchingBusiness"
+  | "canUndoMap"
+  | "canRedoMap"
+>;
+type PracticeSync = Pick<
+  PracticeContextValue,
+  "syncStatus" | "saveConflict" | "resolveSaveConflict"
+>;
+export type PracticeActions = Omit<PracticeContextValue, keyof PracticeState | keyof PracticeSync>;
+
+const PracticeStateContext = createContext<PracticeState | null>(null);
+const PracticeActionsContext = createContext<PracticeActions | null>(null);
+const PracticeSyncContext = createContext<PracticeSync | null>(null);
+
+/** Publishes one value object as the three contexts (also used by the read-only provider). */
+export function PracticeContextPublisher({
+  value,
+  children,
+}: {
+  value: PracticeContextValue;
+  children: ReactNode;
+}) {
+  const {
+    profile,
+    ready,
+    template,
+    mapCustomized,
+    setupReturnsTo,
+    businesses,
+    switchingBusiness,
+    canUndoMap,
+    canRedoMap,
+    syncStatus,
+    saveConflict,
+    resolveSaveConflict,
+    ...actions
+  } = value;
+  const state = useMemo<PracticeState>(
+    () => ({
+      profile,
+      ready,
+      template,
+      mapCustomized,
+      setupReturnsTo,
+      businesses,
+      switchingBusiness,
+      canUndoMap,
+      canRedoMap,
+    }),
+    [
+      profile,
+      ready,
+      template,
+      mapCustomized,
+      setupReturnsTo,
+      businesses,
+      switchingBusiness,
+      canUndoMap,
+      canRedoMap,
+    ],
+  );
+  const sync = useMemo<PracticeSync>(
+    () => ({ syncStatus, saveConflict, resolveSaveConflict }),
+    [syncStatus, saveConflict, resolveSaveConflict],
+  );
+  // Actions are stable callbacks; the object changes only when one of them does.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on each callback's identity
+  const stableActions = useMemo<PracticeActions>(() => actions, Object.values(actions));
+  return (
+    <PracticeStateContext.Provider value={state}>
+      <PracticeActionsContext.Provider value={stableActions}>
+        <PracticeSyncContext.Provider value={sync}>{children}</PracticeSyncContext.Provider>
+      </PracticeActionsContext.Provider>
+    </PracticeStateContext.Provider>
+  );
+}
 
 /**
  * The working state of the open business and every way of changing it. The
@@ -520,11 +609,33 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>;
+  return <PracticeContextPublisher value={value}>{children}</PracticeContextPublisher>;
 }
 
-export function usePractice() {
-  const ctx = useContext(PracticeContext);
-  if (!ctx) throw new Error("usePractice requires PracticeProvider");
-  return ctx;
+function required<T>(value: T | null, hook: string): T {
+  if (!value) throw new Error(`${hook} requires PracticeProvider`);
+  return value;
+}
+
+/** The working state: profile, template and what derives from them. Re-renders on every edit. */
+export function usePracticeState(): PracticeState {
+  return required(useContext(PracticeStateContext), "usePracticeState");
+}
+
+/** Every way of changing the business. Stable, so a control that only edits never re-renders on edits. */
+export function usePracticeActions(): PracticeActions {
+  return required(useContext(PracticeActionsContext), "usePracticeActions");
+}
+
+/** Whether the open business is saved, and the conflict waiting on the owner, if any. */
+export function usePracticeSync(): PracticeSync {
+  return required(useContext(PracticeSyncContext), "usePracticeSync");
+}
+
+/** All three parts in one object, for components that read across them. */
+export function usePractice(): PracticeContextValue {
+  const state = usePracticeState();
+  const actions = usePracticeActions();
+  const sync = usePracticeSync();
+  return useMemo(() => ({ ...state, ...actions, ...sync }), [state, actions, sync]);
 }

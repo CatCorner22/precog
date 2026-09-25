@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { PracticeContext, type PracticeContextValue } from "./practice-context";
+import { PracticeContextPublisher, type PracticeContextValue } from "./practice-context";
 import { resolveTemplate } from "./active-template";
 import { normalizeProfile, summarizeBusiness, type PracticeProfile } from "./practice-profile";
 
@@ -74,5 +74,5 @@ export function ReadOnlyPracticeProvider({
       switchingBusiness: false,
     };
   }, [profile]);
-  return <PracticeContext.Provider value={value}>{children}</PracticeContext.Provider>;
+  return <PracticeContextPublisher value={value}>{children}</PracticeContextPublisher>;
 }

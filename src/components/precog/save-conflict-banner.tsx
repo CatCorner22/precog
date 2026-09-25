@@ -1,10 +1,10 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeSync } from "@/lib/precog/practice-context";
 import { cn } from "@/lib/utils";
 
 export function SaveConflictBanner() {
-  const { saveConflict, resolveSaveConflict } = usePractice();
+  const { saveConflict, resolveSaveConflict } = usePracticeSync();
   if (!saveConflict) return null;
   const signIn = saveConflict.reason === "sign-in";
   const otherTab = saveConflict.reason === "other-tab";

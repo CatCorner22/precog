@@ -18,7 +18,7 @@ import {
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
 import { industryHasOwner } from "@/lib/precog/industry";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeActions } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { parseRoster } from "@/lib/precog/import/roster";
@@ -80,7 +80,7 @@ export function TeamEditor({
   onChange: (next: Person[]) => void;
 }) {
   const tpl = useTemplate();
-  const { setPlannedAbsences } = usePractice();
+  const { setPlannedAbsences } = usePracticeActions();
   const { roleTemplates } = tpl;
   const roleOptions = useMemo(() => Object.keys(roleTemplates), [roleTemplates]);
   const [name, setName] = useState("");

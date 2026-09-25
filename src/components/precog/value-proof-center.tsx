@@ -31,11 +31,11 @@ import {
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
 
 export function ValueProofCenter() {
-  const { profile } = usePractice();
+  const { profile } = usePracticeState();
   const businessId = profile.businessId ?? "biz_default";
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
   // Inputs the owner typed into, so a figure they enter that happens to equal

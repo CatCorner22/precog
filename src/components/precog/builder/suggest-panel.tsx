@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
 import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ export function SuggestPanel({
   onChange: (patch: Partial<ProcessNode>) => void;
 }) {
   const tpl = useTemplate();
-  const { profile } = usePractice();
+  const { profile } = usePracticeState();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SuggestionResult | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
 
 import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ export function ChangesView({
   against?: { processes: ProcessNode[]; people: Person[] };
   label?: string;
 }) {
-  const { industry, customPeople } = usePractice().profile;
+  const { industry, customPeople } = usePracticeState().profile;
   // An owner's own business began from the starter map with its own team, so
   // it is compared with that: never with the sample team or the sample's owners.
   const ownStart = !against && Boolean(customPeople);
