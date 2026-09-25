@@ -2,6 +2,7 @@ import * as model from "./profile-model";
 import type { IndustryId } from "./industry";
 import { browserStorage, type StorageLike } from "./local-data";
 import { browserWorkspace, profileOwner } from "./sync/workspace";
+import { readInsurance, withInsurance } from "./scoring/dynamic-variables";
 
 export * from "./profile-model";
 
@@ -24,7 +25,14 @@ export function normalizeProfile(
   parsed: Partial<PracticeProfile>,
   onboardingCompleteFallback = true,
 ): PracticeProfile {
-  return withProvenance(model.normalizeProfile(parsed, onboardingCompleteFallback), parsed);
+  const normalized = model.normalizeProfile(parsed, onboardingCompleteFallback);
+  // The legacy numeric normalizer intentionally knows no policy metadata.
+  // Preserve only validated v2 facts; never infer provenance from old numbers.
+  const riskVariables = withInsurance(
+    normalized.riskVariables,
+    readInsurance(parsed.riskVariables ?? normalized.riskVariables),
+  );
+  return withProvenance({ ...normalized, riskVariables }, parsed);
 }
 
 export function parseStoredProfile(raw: string | null): PracticeProfile {
