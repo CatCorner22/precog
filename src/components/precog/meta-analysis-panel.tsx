@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   runMetaAnalysis,
   type EpistemicClass,
@@ -9,17 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import {
-  AlertTriangle,
-  Eye,
-  EyeOff,
-  HelpCircle,
-  Radar,
-  RefreshCw,
-  Search,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, HelpCircle, Radar, Search, Sparkles, Zap } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
 
 const CLASS_META: Record<
@@ -51,21 +41,9 @@ const CLASS_META: Record<
 export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile } = usePractice();
   const [filter, setFilter] = useState<EpistemicClass | "all" | "critical">("all");
-  const [tick, setTick] = useState(0);
-  const [live, setLive] = useState(true);
-
-  const report = useMemo(
-    () => runMetaAnalysis(profile),
-    // re-run on profile change and live tick
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profile, tick],
-  );
-
-  useEffect(() => {
-    if (!live) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 4000);
-    return () => window.clearInterval(id);
-  }, [live]);
+  // The report is a pure function of the profile: it changes when the
+  // business does, and re-running it on a timer would only repeat itself.
+  const report = useMemo(() => runMetaAnalysis(profile), [profile]);
 
   const filtered = report.items.filter((i) => {
     if (filter === "all") return true;
@@ -82,7 +60,6 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">What this app can see</Badge>
           <Badge variant="primary">Inventory, not a score</Badge>
-          <Badge variant={live ? "ok" : "default"}>{live ? "Live · 4s pulse" : "Paused"}</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Radar className="size-5 text-primary" />
@@ -95,22 +72,9 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
           it models (unknown unknowns). It is a list to work through, not a score. It re-evaluates
           as your profile, dual release, and decisions change.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setTick((t) => t + 1)}>
-            <RefreshCw className="size-3.5" />
-            Re-evaluate now
-          </Button>
-          <Button
-            size="sm"
-            variant={live ? "default" : "outline"}
-            onClick={() => setLive((v) => !v)}
-          >
-            <Zap className="size-3.5" />
-            {live ? "Live on" : "Live off"}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-subtle">
-          Last run {new Date(report.generatedAt).toLocaleTimeString()} · {report.practiceName}
+        <p className="mt-3 text-xs text-subtle">
+          Evaluated {new Date(report.generatedAt).toLocaleTimeString()} from the current profile ·{" "}
+          {report.practiceName}
         </p>
       </section>
 
