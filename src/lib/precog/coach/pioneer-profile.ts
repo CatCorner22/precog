@@ -1,3 +1,4 @@
+import { normalizeRiskVariables } from "../practice-profile";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
@@ -104,8 +105,7 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     staff,
   );
   const riskVariables: RiskVariableState = {
-    ...base.riskVariables,
-    ...(input.riskVariables ?? {}),
+    ...normalizeRiskVariables(input.riskVariables, base.riskVariables),
     hasDualControl: staff.dualControlPayments,
     hasIndependentBankRec: staff.independentBankRec,
   };

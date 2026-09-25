@@ -203,7 +203,7 @@ export function leverUnavailableReason(
   if (!policyFieldIsDefault(vars, field)) return null;
   const word =
     field === "policyLimit" ? "limit" : field === "basePremiumAnnual" ? "premium" : "deductible";
-  return `Not modelled until you enter your policy: the ${word} in use is the app default. Enter your policy on Dynamic variables.`;
+  return `Not modelled until you confirm your policy: the ${word} has not been confirmed. Review Insurance information status on Dynamic variables.`;
 }
 
 /**
@@ -332,7 +332,7 @@ function snapshot(
   const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0];
   const flags = scenarioFlags(scenario.id);
   const dyn = evaluateDynamicRisk(
-    effectiveRiskVariables(vars, isOwnBusiness(tpl)),
+    effectiveRiskVariables(vars, isOwnBusiness(tpl), scenario.id),
     scenario.baseFinancialImpact,
     flags,
   );

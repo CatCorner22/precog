@@ -1,3 +1,4 @@
+import { setupRowNeedsAttention } from "@/lib/precog/onboarding/review-rows";
 import {
   useCallback,
   useEffect,
@@ -117,6 +118,9 @@ export function IndustryOnboarding() {
   const finishRef = useRef<HTMLButtonElement>(null);
   const gridBoxRef = useRef<HTMLDivElement>(null);
   const [gridOverflows, setGridOverflows] = useState(false);
+  const [reviewOnly, setReviewOnly] = useState(false);
+  const [reviewRowIds, setReviewRowIds] = useState<Set<string>>(() => new Set());
+  const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
   const [pasteIssues, setPasteIssues] = useState<PeopleImportIssue[]>([]);
   const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
@@ -148,7 +152,7 @@ export function IndustryOnboarding() {
   }, [businessId]);
   useEffect(() => {
     if (!restored) return;
-    writeSetupDraft({ step, selected, businessName, rows, paste, businessId });
+    setDraftSaved(writeSetupDraft({ step, selected, businessName, rows, paste, businessId }));
   }, [restored, step, selected, businessName, rows, paste, businessId]);
 
   // Each step opens at its question, with focus on it: the dialog is not
@@ -523,6 +527,10 @@ export function IndustryOnboarding() {
   const wide = step === "team" && rows.length > 10;
   const titleCls = "text-xl font-semibold tracking-tight outline-hidden sm:text-2xl";
 
+  const attentionIndices = new Set(
+    rows.flatMap((row, index) => (setupRowNeedsAttention(row, seatOf(row)) ? [index] : [])),
+  );
+
   return (
     <div
       ref={dialogRef}
@@ -855,6 +863,55 @@ export function IndustryOnboarding() {
                   </Button>
                 )}
               </div>
+              <section
+                className="space-y-2 rounded-xl border border-border bg-panel p-3"
+                aria-label="Setup review progress"
+              >
+                <p className="text-sm font-medium">
+                  {namedRows.length} named people · {attentionIndices.size} incomplete or uncertain
+                  rows
+                </p>
+                <p className="text-xs text-muted">
+                  Review exceptions first, then check suggested duties. Hidden rows stay in your
+                  team. Rows stay visible while you correct them. A recognized title is not proof of
+                  actual access.
+                </p>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={reviewOnly}
+                    onChange={(event) => {
+                      setReviewOnly(event.target.checked);
+                      setReviewRowIds(
+                        new Set(
+                          rows
+                            .filter((_, index) => attentionIndices.has(index))
+                            .map((row) => row.rowId ?? ""),
+                        ),
+                      );
+                    }}
+                  />
+                  Show only incomplete or uncertain rows
+                </label>
+                {reviewOnly && attentionIndices.size === 0 && (
+                  <p role="status" className="text-xs text-muted">
+                    No title or name exceptions remain. Show all rows to review their suggested
+                    duties.
+                  </p>
+                )}
+                {draftSaved === false && (
+                  <p role="alert" className="text-xs text-danger">
+                    This tab cannot save your setup draft. Keep it open and copy your roster before
+                    leaving; a reload may lose these entries.
+                  </p>
+                )}
+                {draftSaved === true && (
+                  <p className="text-xs text-subtle">
+                    Draft saved in this tab for reload recovery, not to your account. Closing the
+                    tab can remove this draft.
+                  </p>
+                )}
+              </section>
               <div
                 ref={gridBoxRef}
                 className="max-h-[min(62dvh,40rem)] overflow-auto rounded-xl border border-border"
@@ -894,6 +951,12 @@ export function IndustryOnboarding() {
                   </thead>
                   <tbody>
                     {rows.map((row, index) => {
+                      if (
+                        reviewOnly &&
+                        !reviewRowIds.has(row.rowId ?? "") &&
+                        !attentionIndices.has(index)
+                      )
+                        return null;
                       const who = whoIs(row, index);
                       const rowKey = row.rowId ?? `row-${index}`;
                       return (

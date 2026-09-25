@@ -137,11 +137,11 @@ export function insuranceCostOfRisk({
   // An own business with the app's default policy figures is priced
   // with no crime policy, and the summary says which basis applies.
   const dyn = evaluateDynamicRisk(
-    effectiveRiskVariables(riskVars, ownBusiness),
+    effectiveRiskVariables(riskVars, ownBusiness, scenarioId),
     scenario.baseFinancialImpact,
     scenarioFlags(scenarioId),
   );
-  const policyNote = insuranceFigureNote(riskVars, ownBusiness);
+  const policyNote = insuranceFigureNote(riskVars, ownBusiness, scenarioId);
   return {
     tool,
     args: { scenarioId },

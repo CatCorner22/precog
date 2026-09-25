@@ -5,6 +5,13 @@
  * Educational model for small businesses, not an insurance quote.
  */
 import { joinWithAnd as joinWords } from "../text";
+import {
+  CORE_POLICY_FIELDS,
+  normalizeInsuranceRecord,
+  type InsuranceRecord,
+  type PolicyField,
+} from "./insurance-record";
+export type { PolicyField } from "./insurance-record";
 
 type VariableCategory =
   | "insurance"
@@ -35,13 +42,15 @@ export interface DynamicVariableDef {
 }
 
 export interface RiskVariableState {
+  /** Explicit policy provenance; absent legacy records are unverified, not uninsured. */
+  insurance?: InsuranceRecord;
   /** Annual crime / employee dishonesty premium before discounts */
   basePremiumAnnual: number;
   /** Policy deductible (retained per claim) */
   deductible: number;
   /** Policy limit (max recovery) */
   policyLimit: number;
-  /** Coinsurance / unreimbursed % above deductible (0–1) — simplified */
+  /** Unreimbursed percentage above deductible (0–100) — simplified */
   coinsurancePct: number;
   /** Carrier discount % for security cameras (0–100) */
   discountCamerasPct: number;
@@ -94,73 +103,38 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   underwritingLoadAnnual: 0,
 };
 
-/**
- * The crime-policy figures an owner reads off their own policy. Until the
- * owner changes one of them, every one is the app's default, not a fact about
- * the business.
- */
-export type PolicyField =
-  | "basePremiumAnnual"
-  | "deductible"
-  | "policyLimit"
-  | "coinsurancePct"
-  | "maxDiscountPct"
-  | "claimsLoadFactor"
-  | "underwritingLoadAnnual"
-  | "discountCamerasPct"
-  | "discountDualControlPct"
-  | "discountBankRecPct"
-  | "discountAlarmPct"
-  | "discountBondedStaffPct";
-
-/** The label every insurance figure carries while an app default is still in force. */
+/** The label demonstration figures carry until explicitly confirmed. */
 export const APP_DEFAULT_POLICY = "app default, enter your policy";
 
-/** Whether one policy figure is still the app's default. */
 export function policyFieldIsDefault(v: RiskVariableState, key: PolicyField): boolean {
-  return v[key] === DEFAULT_RISK_VARIABLES[key];
+  const record = normalizeInsuranceRecord(v.insurance);
+  return record?.status !== "reported" || !record.confirmedFields.includes(key);
 }
 
-/**
- * Whether the owner has entered a crime policy: the premium, the deductible or
- * the limit differs from the app's default. The other terms refine a policy
- * and do not make one on their own.
- */
+/** Policy presence is an explicit assertion, not a comparison with sample values. */
 export function policyEntered(v: RiskVariableState): boolean {
-  return (
-    !policyFieldIsDefault(v, "basePremiumAnnual") ||
-    !policyFieldIsDefault(v, "deductible") ||
-    !policyFieldIsDefault(v, "policyLimit")
-  );
+  return normalizeInsuranceRecord(v.insurance)?.status === "reported";
 }
 
-/** Whether any of the premium, deductible and limit is still the app's default. */
 export function policyDefaultsInForce(v: RiskVariableState): boolean {
+  const record = normalizeInsuranceRecord(v.insurance);
   return (
-    policyFieldIsDefault(v, "basePremiumAnnual") ||
-    policyFieldIsDefault(v, "deductible") ||
-    policyFieldIsDefault(v, "policyLimit")
+    record?.status !== "reported" ||
+    CORE_POLICY_FIELDS.some((key) => !record.confirmedFields.includes(key))
   );
 }
 
-/**
- * Where the insurance figures come from.
- *
- * - "entered": the owner entered their policy (any remaining default figure is
- *   still labelled as one).
- * - "none": the owner's own business with no policy entered, so the app assumes
- *   no crime policy: the business keeps the whole loss, pays no premium and
- *   earns no credit.
- * - "app_default": the sample business, priced on the app's default policy.
- */
-export type InsuranceBasis = "entered" | "none" | "app_default";
+export type InsuranceBasis = "entered" | "incomplete" | "unknown" | "none" | "app_default";
 
 export function insuranceBasis(v: RiskVariableState, ownBusiness: boolean): InsuranceBasis {
-  if (policyEntered(v)) return "entered";
-  return ownBusiness ? "none" : "app_default";
+  const record = normalizeInsuranceRecord(v.insurance);
+  if (!record) return ownBusiness ? "unknown" : "app_default";
+  if (record.status === "none") return "none";
+  if (record.status === "unknown") return "unknown";
+  return policyDefaultsInForce(v) ? "incomplete" : "entered";
 }
 
-/** No crime policy: nothing transfers, nothing is paid, no credit applies. */
+/** A no-transfer calculation, not proof that the business is uninsured. */
 export function withoutPolicy(v: RiskVariableState): RiskVariableState {
   return {
     ...v,
@@ -177,36 +151,72 @@ export function withoutPolicy(v: RiskVariableState): RiskVariableState {
   };
 }
 
-/**
- * The variables the insurance arithmetic runs on. An owner's own business
- * with no policy entered is treated as having no crime policy; the sample
- * business and an entered policy run as stored.
- */
+/** Only confirmed terms and an explicit scenario assumption can transfer a loss. */
 export function effectiveRiskVariables(
   v: RiskVariableState,
   ownBusiness: boolean,
+  scenarioId?: string,
 ): RiskVariableState {
-  return insuranceBasis(v, ownBusiness) === "none" ? withoutPolicy(v) : v;
-}
-
-/**
- * The short note an insurance figure carries, or null once the owner's own
- * premium, deductible and limit are all in.
- */
-export function insuranceFigureNote(v: RiskVariableState, ownBusiness: boolean): string | null {
   const basis = insuranceBasis(v, ownBusiness);
-  if (basis === "none") return `No crime policy entered (${APP_DEFAULT_POLICY})`;
-  if (basis === "app_default") return APP_DEFAULT_POLICY;
-  const left = (["basePremiumAnnual", "deductible", "policyLimit"] as const)
-    .filter((k) => policyFieldIsDefault(v, k))
-    .map((k) => POLICY_FIELD_WORD[k]);
-  return left.length ? `${joinWords(left)} still the ${APP_DEFAULT_POLICY}` : null;
+  if (basis === "app_default") return v;
+  const record = normalizeInsuranceRecord(v.insurance);
+  const none = withoutPolicy(v);
+  if (record?.status !== "reported")
+    return {
+      ...none,
+      insurance: record ?? { status: "unknown", confirmedFields: [], modeledScenarioIds: [] },
+    };
+  const confirmed = (key: PolicyField) => record.confirmedFields.includes(key);
+  const recovery =
+    basis === "entered" && Boolean(scenarioId && record.modeledScenarioIds.includes(scenarioId));
+  return {
+    ...none,
+    basePremiumAnnual: confirmed("basePremiumAnnual") ? v.basePremiumAnnual : 0,
+    underwritingLoadAnnual: confirmed("underwritingLoadAnnual") ? v.underwritingLoadAnnual : 0,
+    claimsLoadFactor: confirmed("claimsLoadFactor") ? v.claimsLoadFactor : 1,
+    maxDiscountPct: confirmed("maxDiscountPct") ? v.maxDiscountPct : 0,
+    discountCamerasPct: confirmed("discountCamerasPct") ? v.discountCamerasPct : 0,
+    discountDualControlPct: confirmed("discountDualControlPct") ? v.discountDualControlPct : 0,
+    discountBankRecPct: confirmed("discountBankRecPct") ? v.discountBankRecPct : 0,
+    discountAlarmPct: confirmed("discountAlarmPct") ? v.discountAlarmPct : 0,
+    discountBondedStaffPct: confirmed("discountBondedStaffPct") ? v.discountBondedStaffPct : 0,
+    ...(recovery
+      ? { deductible: v.deductible, policyLimit: v.policyLimit, coinsurancePct: v.coinsurancePct }
+      : {}),
+  };
 }
 
-const POLICY_FIELD_WORD: Record<"basePremiumAnnual" | "deductible" | "policyLimit", string> = {
+export function insuranceFigureNote(
+  v: RiskVariableState,
+  ownBusiness: boolean,
+  scenarioId?: string,
+): string | null {
+  const basis = insuranceBasis(v, ownBusiness);
+  if (basis === "unknown")
+    return "Insurance not assessed; no recovery modeled. This does not mean you are uninsured.";
+  if (basis === "none")
+    return "You reported no crime policy; the modeled loss stays with the business.";
+  if (basis === "app_default") return APP_DEFAULT_POLICY;
+  const record = normalizeInsuranceRecord(v.insurance)!;
+  const left = CORE_POLICY_FIELDS.filter((key) => !record.confirmedFields.includes(key)).map(
+    (key) => POLICY_FIELD_WORD[key],
+  );
+  if (left.length)
+    return `Policy reported; confirm ${joinWords(left)}. No recovery modeled until terms and this scenario are reviewed.`;
+  if (!scenarioId)
+    return record.modeledScenarioIds.length
+      ? "Policy figures confirmed. Recovery is conditional and modeled only for individually selected scenarios, not established coverage."
+      : "Policy figures confirmed; no scenario recovery assumptions selected. No recovery modeled.";
+  if (!record.modeledScenarioIds.includes(scenarioId))
+    return "Policy figures confirmed; this scenario's coverage is not established. No recovery modeled.";
+  return "Conditional recovery using your scenario assumption, not a coverage or claim determination. Check exclusions, sublimits, dates and aggregate limits with your broker.";
+}
+
+const POLICY_FIELD_WORD = {
   basePremiumAnnual: "premium",
   deductible: "deductible",
   policyLimit: "limit",
+  coinsurancePct: "unreimbursed share",
 };
 
 /**
@@ -238,8 +248,9 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "currency",
     description: "Amount retained per covered loss before insurance responds.",
-    likelihoodEffect: "No direct likelihood change; may change behavior if very high.",
-    severityEffect: "Retained severity floors at least the deductible on covered claims.",
+    likelihoodEffect: "No likelihood change; a deductible finances loss rather than preventing it.",
+    severityEffect:
+      "For an eligible modeled loss, the business retains up to the loss amount before recovery starts.",
     min: 0,
     max: 100000,
     step: 500,
@@ -253,7 +264,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     description: "Maximum recovery per claim / aggregate (simplified single limit).",
     likelihoodEffect: "None.",
     severityEffect: "Caps transferred severity; excess loss stays with the business.",
-    min: 10000,
+    min: 0,
     max: 1000000,
     step: 5000,
     defaultValue: 100000,
@@ -415,9 +426,9 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     label: "Claims / underwriting load factor",
     category: "transfer",
     kind: "number",
-    description: "1.0 = clean history; >1 increases premium (and slightly severity priors).",
-    likelihoodEffect: "Proxy for elevated environment risk if >1.",
-    severityEffect: "Scales premium; mild severity uplift if history is poor.",
+    description: "Premium pricing multiplier only; 1.0 means no additional pricing load.",
+    likelihoodEffect: "No automatic operational likelihood change.",
+    severityEffect: "Scales premium only, not underlying loss severity.",
     min: 0.8,
     max: 2.5,
     step: 0.05,
@@ -671,28 +682,6 @@ function computeLikelihoodSeverity(
     }
   }
 
-  if (v.claimsLoadFactor > 1) {
-    likelihood *= 1 + (v.claimsLoadFactor - 1) * 0.35;
-    grossSeverity *= 1 + (v.claimsLoadFactor - 1) * 0.15;
-    drivers.push({
-      id: "claims-load",
-      label: "Claims load factor",
-      effect: `Assumed uplift from a claims-load factor of ${v.claimsLoadFactor.toFixed(2)}`,
-      on: "likelihood",
-    });
-  }
-
-  // High deductible slight behavioral risk (moral hazard reverse is complex; mild)
-  if (v.deductible >= 25000) {
-    likelihood *= 1.03;
-    drivers.push({
-      id: "ded-hi",
-      label: "High deductible",
-      effect: "Assumed +3% likelihood: a high deductible can let monitoring lag",
-      on: "likelihood",
-    });
-  }
-
   return {
     likelihoodMultiplier: clamp(likelihood, 0.25, 2.5),
     grossSeverityMultiplier: clamp(grossSeverity, 0.35, 3),
@@ -710,15 +699,20 @@ export function retainLoss(
   transferred: number;
 } {
   if (gross <= 0) return { retained: 0, transferred: 0 };
-  const afterDed = Math.max(0, gross - v.deductible);
+  if (
+    !Number.isFinite(gross) ||
+    ![v.deductible, v.policyLimit, v.coinsurancePct].every(Number.isFinite)
+  ) {
+    throw new Error("Insurance calculations require finite amounts");
+  }
+  const afterDed = Math.max(0, gross - Math.max(0, v.deductible));
   const practiceCoins = afterDed * clamp(v.coinsurancePct / 100, 0, 1);
   const insurerLayer = afterDed - practiceCoins;
-  const transferred = Math.min(insurerLayer, v.policyLimit);
-  const retained = gross - transferred;
-  return {
-    retained: Math.round(retained),
-    transferred: Math.round(transferred),
-  };
+  const transferred = Math.min(insurerLayer, Math.max(0, v.policyLimit));
+  // Round once and derive the remainder: rounding two half-dollar layers
+  // independently can otherwise invent a dollar of loss.
+  const roundedTransfer = Math.round(transferred);
+  return { retained: Math.round(gross) - roundedTransfer, transferred: roundedTransfer };
 }
 
 export function applyInsuranceTransfer(
@@ -741,9 +735,12 @@ export function applyInsuranceTransfer(
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
 
   const noPolicy = v.basePremiumAnnual === 0 && v.policyLimit === 0;
+  const recorded = normalizeInsuranceRecord(v.insurance);
   const notes: string[] = noPolicy
     ? [
-        "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
+        recorded && recorded.status !== "none"
+          ? "No recovery or premium modeled from unconfirmed policy terms; this is not a finding that the business is uninsured."
+          : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
         `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss.`,
       ]
     : [
@@ -752,6 +749,10 @@ export function applyInsuranceTransfer(
         `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss, plus the premium.`,
       ];
 
+  if (v.policyLimit === 0 && !noPolicy)
+    notes.push(
+      "No recovery modeled: the full scenario loss remains until coverage assumptions are entered.",
+    );
   if (!noPolicy && grossExpected > v.deductible + v.policyLimit) {
     notes.push(
       "The assumed loss can exceed the deductible plus the limit; the excess stays with the business.",

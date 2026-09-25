@@ -1,3 +1,4 @@
+import { CORE_POLICY_FIELDS } from "./insurance-record";
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { Person } from "../types";
@@ -62,7 +63,7 @@ describe("insurance levers on default policy figures", () => {
     expect(sim.available).toBe(false);
     expect(sim.deltas).toEqual([]);
     expect(sim.overallVerdict).toBe(
-      "Not modelled until you enter your policy: the deductible in use is the app default. Enter your policy on Dynamic variables.",
+      "Not modelled until you confirm your policy: the deductible has not been confirmed. Review Insurance information status on Dynamic variables.",
     );
     const all = simulateAllCascades(dental, DEFAULT_RISK_VARIABLES);
     const ranked = all.rankedByCor.map((s) => s.lever.id);
@@ -72,6 +73,11 @@ describe("insurance levers on default policy figures", () => {
     const entered = simulateCascadeLever(dental, "lower_deductible_1k", {
       ...DEFAULT_RISK_VARIABLES,
       deductible: 7500,
+      insurance: {
+        status: "reported",
+        confirmedFields: [...CORE_POLICY_FIELDS],
+        modeledScenarioIds: dental.scenarios.map((scenario) => scenario.id),
+      },
     });
     expect(entered.available).toBe(true);
     expect(entered.after.retainedExpected).toBeLessThan(entered.before.retainedExpected);
@@ -80,9 +86,17 @@ describe("insurance levers on default policy figures", () => {
   it("drops premium and credit effects from a lever's list while no policy is entered", () => {
     const dual = CASCADE_LEVERS.find((l) => l.id === "enable_dual_control")!;
     expect(leverAffects(dual, DEFAULT_RISK_VARIABLES).join(" ")).not.toMatch(/premium|credit/);
-    expect(leverAffects(dual, { ...DEFAULT_RISK_VARIABLES, basePremiumAnnual: 1800 })).toEqual(
-      dual.affects,
-    );
+    expect(
+      leverAffects(dual, {
+        ...DEFAULT_RISK_VARIABLES,
+        basePremiumAnnual: 1800,
+        insurance: {
+          status: "reported",
+          confirmedFields: [...CORE_POLICY_FIELDS],
+          modeledScenarioIds: [],
+        },
+      }),
+    ).toEqual(dual.affects);
   });
 
   it("prices an own business with no policy as having none", () => {

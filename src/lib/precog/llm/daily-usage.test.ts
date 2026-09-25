@@ -28,19 +28,88 @@ beforeEach(async () => {
 });
 
 describe("daily model-call budget", () => {
-  it("counts per user and globally and denies past either ceiling", async () => {
+  it("reserves capacity only for admitted calls and keeps it available to other users", async () => {
     const limits = { perUser: 2, global: 3 };
-    expect((await takeDailyBudget(sql, "a", limits)).allowed).toBe(true);
-    expect((await takeDailyBudget(sql, "a", limits)).allowed).toBe(true);
-    const third = await takeDailyBudget(sql, "a", limits);
-    expect(third.allowed).toBe(false);
-    expect(third.userCalls).toBe(3);
-    expect(third.globalCalls).toBe(3);
-    // A different user is under their own ceiling but the app is over its total.
-    const other = await takeDailyBudget(sql, "b", limits);
-    expect(other.userCalls).toBe(1);
-    expect(other.globalCalls).toBe(4);
-    expect(other.allowed).toBe(false);
+    expect(await takeDailyBudget(sql, "a", limits)).toEqual({
+      allowed: true,
+      userCalls: 1,
+      globalCalls: 1,
+    });
+    expect(await takeDailyBudget(sql, "a", limits)).toEqual({
+      allowed: true,
+      userCalls: 2,
+      globalCalls: 2,
+    });
+    for (let i = 0; i < 10; i += 1) {
+      expect(await takeDailyBudget(sql, "a", limits)).toEqual({
+        allowed: false,
+        userCalls: 2,
+        globalCalls: 2,
+      });
+    }
+    expect(await takeDailyBudget(sql, "b", limits)).toEqual({
+      allowed: true,
+      userCalls: 1,
+      globalCalls: 3,
+    });
+    expect(await takeDailyBudget(sql, "b", limits)).toEqual({
+      allowed: false,
+      userCalls: 1,
+      globalCalls: 3,
+    });
+  });
+
+  it("does not oversubscribe when requests arrive together", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, i) =>
+        takeDailyBudget(sql, `user-${i % 3}`, { perUser: 3, global: 7 }),
+      ),
+    );
+    expect(results.filter((r) => r.allowed)).toHaveLength(7);
+    const rows = await sql<{
+      scope: string;
+      calls: number;
+    }>`select scope, calls from llm_daily_usage`;
+    expect(rows.find((r) => r.scope === "global")?.calls).toBe(7);
+    expect(rows.filter((r) => r.scope !== "global").reduce((n, r) => n + r.calls, 0)).toBe(7);
+    expect(rows.filter((r) => r.scope !== "global").every((r) => r.calls <= 3)).toBe(true);
+  });
+
+  it("uses a separate budget for today's date", async () => {
+    await pg.exec(
+      "insert into llm_daily_usage values ('global', current_date - 1, 999), ('user:a', current_date - 1, 999)",
+    );
+    expect(await takeDailyBudget(sql, "a", { perUser: 1, global: 1 })).toEqual({
+      allowed: true,
+      userCalls: 1,
+      globalCalls: 1,
+    });
+  });
+
+  it("rejects invalid limits or identity without admitting a call", async () => {
+    await expect(takeDailyBudget(sql, "", { perUser: 1, global: 1 })).rejects.toThrow();
+    await expect(takeDailyBudget(sql, "a", { perUser: 0, global: 1 })).rejects.toThrow();
+    expect(await sql`select * from llm_daily_usage`).toEqual([]);
+  });
+
+  it("rolls back the whole reservation if either counter update fails", async () => {
+    await pg.exec(`
+      create function reject_quota_update() returns trigger language plpgsql as $$
+      begin
+        if new.scope = 'user:a' then raise exception 'injected counter failure'; end if;
+        return new;
+      end; $$;
+      create trigger reject_quota_update before update on llm_daily_usage
+        for each row execute function reject_quota_update();
+    `);
+    try {
+      await expect(takeDailyBudget(sql, "a")).rejects.toThrow("injected counter failure");
+      expect(await sql`select * from llm_daily_usage`).toEqual([]);
+    } finally {
+      await pg.exec(
+        "drop trigger reject_quota_update on llm_daily_usage; drop function reject_quota_update();",
+      );
+    }
   });
 
   it("purges rows older than the retention window and keeps today's", async () => {

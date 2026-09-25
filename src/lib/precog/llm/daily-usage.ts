@@ -30,30 +30,35 @@ export function userScope(userId: string): string {
 }
 
 /**
- * Records one call for the user and for the whole app today, and reports
- * whether either count is now over its ceiling. The row for a denied call is
- * still counted, so a caller who keeps trying stays denied until tomorrow.
- * The day is the database's current date, so every instance agrees on it.
+ * Atomically admits a call only when both budgets have capacity. The database
+ * function locks the shared day before the user and updates both together.
+ * Rejected attempts do not consume capacity; process-local throttles still
+ * limit abusive retries. No transaction remains open during the model call.
  */
 export async function takeDailyBudget(
   sql: Sql,
   userId: string,
   limits: { perUser: number; global: number } = LLM_DAILY_LIMITS,
 ): Promise<DailyBudget> {
-  const rows = await sql<{ scope: string; calls: number | string }>`
-    insert into llm_daily_usage (scope, day, calls)
-    values (${userScope(userId)}, current_date, 1), ('global', current_date, 1)
-    on conflict (scope, day) do update set calls = llm_daily_usage.calls + 1
-    returning scope, calls
+  const rows = await sql<{
+    allowed: boolean;
+    user_calls: number;
+    global_calls: number;
+  }>`
+    select allowed, user_calls, global_calls
+    from precog_take_llm_daily_budget(${userId}, ${limits.perUser}, ${limits.global})
   `;
-  const count = (scope: string) => Number(rows.find((r) => r.scope === scope)?.calls ?? 0);
-  const userCalls = count(userScope(userId));
-  const globalCalls = count("global");
-  return {
-    allowed: userCalls <= limits.perUser && globalCalls <= limits.global,
-    userCalls,
-    globalCalls,
-  };
+  const row = rows[0];
+  if (
+    !row ||
+    typeof row.allowed !== "boolean" ||
+    !Number.isSafeInteger(row.user_calls) ||
+    row.user_calls < 0 ||
+    !Number.isSafeInteger(row.global_calls) ||
+    row.global_calls < 0
+  )
+    throw new Error("Invalid daily budget response");
+  return { allowed: row.allowed, userCalls: row.user_calls, globalCalls: row.global_calls };
 }
 
 /** Removes rows older than the retention window; called opportunistically. */

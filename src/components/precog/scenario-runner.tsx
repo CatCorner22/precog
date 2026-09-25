@@ -103,7 +103,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
   const scenario = tpl.scenarios.find((s) => s.id === scenarioId) ?? tpl.scenarios[0];
   const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
   const basis = insuranceBasis(riskVars, ownBusiness);
-  const policyNote = insuranceFigureNote(riskVars, ownBusiness);
+  const policyNote = insuranceFigureNote(riskVars, ownBusiness, scenario.id);
   const withPolicyNote = (text: string) => (policyNote ? `${text} · ${policyNote}` : text);
 
   function confirmScenario() {

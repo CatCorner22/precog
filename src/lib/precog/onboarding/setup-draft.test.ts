@@ -175,3 +175,34 @@ describe("a tab whose session storage is blocked", () => {
     expect(() => writeSetupDraft(null, blocked)).not.toThrow();
   });
 });
+
+describe("honest draft save status", () => {
+  it("reports successful save and removal", () => {
+    const storage = tabStorage();
+    expect(
+      writeSetupDraft(
+        { step: "team", selected: "dental", businessName: "Test", rows: freshRows(), paste: "" },
+        storage,
+      ),
+    ).toBe(true);
+    expect(writeSetupDraft(null, storage)).toBe(true);
+  });
+  it("reports unavailable or full session storage", () => {
+    expect(writeSetupDraft(null, null)).toBe(false);
+    const storage = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("quota");
+      },
+      removeItem: () => {
+        throw new Error("blocked");
+      },
+    };
+    expect(
+      writeSetupDraft(
+        { step: "team", selected: "dental", businessName: "Test", rows: [], paste: "" },
+        storage,
+      ),
+    ).toBe(false);
+  });
+});

@@ -69,12 +69,15 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
 export function writeSetupDraft(
   draft: SetupDraft | null,
   storage: StorageLike | null = sessionArea(),
-): void {
+): boolean {
+  if (!storage) return false;
   try {
-    if (draft) storage?.setItem(SETUP_DRAFT_KEY, JSON.stringify(draft));
-    else storage?.removeItem(SETUP_DRAFT_KEY);
+    if (draft) storage.setItem(SETUP_DRAFT_KEY, JSON.stringify(draft));
+    else storage.removeItem(SETUP_DRAFT_KEY);
+    return true;
   } catch {
-    // Storage refused (private mode, quota): the draft lives only in memory.
+    // Tell the caller instead of implying a reload can recover this draft.
+    return false;
   }
 }
 

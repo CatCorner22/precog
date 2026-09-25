@@ -33,3 +33,19 @@ describe("compareAssessmentStates net observed value", () => {
     expect(result.netObservedValueDelta).toBeGreaterThan(0);
   });
 });
+
+it("compares insurance content, not object identity, and detects removal of provenance", () => {
+  const before = state();
+  before.profile.riskVariables.insurance = {
+    status: "reported",
+    confirmedFields: ["deductible"],
+    modeledScenarioIds: ["sc-b", "sc-a"],
+  };
+  const same = structuredClone(before);
+  same.profile.riskVariables.insurance!.modeledScenarioIds.reverse();
+  expect(compareAssessmentStates(same, before).riskChanges).toBe(0);
+  const removed = state();
+  const comparison = compareAssessmentStates(removed, before);
+  expect(comparison.riskVariableChanges).toHaveLength(1);
+  expect(comparison.riskVariableChanges[0].key).toBe("insurance");
+});

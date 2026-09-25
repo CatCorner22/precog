@@ -1,3 +1,4 @@
+import { normalizeInsuranceRecord } from "./scoring/insurance-record";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { localDateKey } from "./decisions/follow-through";
 import { isCalendarDate } from "./dates";
@@ -447,16 +448,16 @@ function normalizeStaff(value: unknown, base: StaffComposition): StaffCompositio
 }
 
 /** Each risk variable is bounded by its catalog definition, or falls back to the default. */
-function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
+export function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
   const input = record(value);
-  const normalized = { ...base } as Record<keyof RiskVariableState, number | boolean>;
+  const normalized = { ...base } as unknown as Record<string, unknown>;
   for (const definition of VARIABLE_CATALOG) {
     const key = definition.id as keyof RiskVariableState;
     const fallback = base[key];
     const candidate = input[key];
     if (typeof fallback === "boolean") {
       normalized[key] = typeof candidate === "boolean" ? candidate : fallback;
-    } else {
+    } else if (typeof fallback === "number") {
       normalized[key] = boundedNumber(
         candidate,
         fallback,
@@ -465,7 +466,9 @@ function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVa
       );
     }
   }
-  return normalized as RiskVariableState;
+  const insurance = normalizeInsuranceRecord(input.insurance);
+  if (insurance) normalized.insurance = insurance;
+  return normalized as unknown as RiskVariableState;
 }
 
 export function normalizeProfile(

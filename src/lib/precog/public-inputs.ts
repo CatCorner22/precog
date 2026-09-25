@@ -1,3 +1,4 @@
+import { POLICY_FIELDS } from "./scoring/insurance-record";
 import { z } from "zod";
 import { invalidRequest } from "@/lib/request-errors";
 import type { ReviewInput } from "./builder/review";
@@ -245,7 +246,20 @@ const pioneerProfileSchema = z.looseObject({
   industry: optString,
   practiceName: optString,
   staff: staffSchema.nullish(),
-  riskVariables: z.record(z.string(), z.union([anyNumber, z.boolean()]).nullable()).nullish(),
+  riskVariables: z
+    .object({
+      insurance: z
+        .object({
+          status: z.enum(["unknown", "none", "reported"]),
+          confirmedFields: z.array(z.enum(POLICY_FIELDS)).max(POLICY_FIELDS.length),
+          modeledScenarioIds: z.array(z.string().max(100)).max(500),
+          source: z.string().max(240).optional(),
+          reviewedOn: z.string().max(10).optional(),
+        })
+        .nullish(),
+    })
+    .catchall(z.union([anyNumber, z.boolean()]).nullable())
+    .nullish(),
   dualRelease: z.looseObject({}).nullish(),
   customProcesses: list(processSchema, PIONEER_LIST_CAPS.nodes).nullish(),
   customPeople: list(personSchema, PIONEER_LIST_CAPS.nodes).nullish(),
