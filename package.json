@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
-    "build": "vite build",
+    "build": "vite build && node scripts/migrate-on-production.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

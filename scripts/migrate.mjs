@@ -2,11 +2,13 @@
 /**
  * Deploy-time database migrator (node-postgres, `pg`).
  *
- * Runs during `npm run build` — on every Vercel deploy — applying pending files
- * in ../migrations to DATABASE_URL (see ./migrate-core.mjs for the ledger).
+ * `npm run db:migrate` applies pending files in ../migrations to DATABASE_URL
+ * (see ./migrate-core.mjs for the ledger). `npm run build` invokes it only
+ * when VERCEL_ENV is production (see ./migrate-on-production.mjs), so a
+ * preview or CI build never writes to the database.
  *
- * No DATABASE_URL (local / preview builds) -> skip; the PGLite fallback applies
- * the same files at startup instead (see src/lib/db.ts).
+ * No DATABASE_URL -> skip, except on a production deploy, which refuses to
+ * build. The PGLite fallback applies the same files at startup (src/lib/db.ts).
  */
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
