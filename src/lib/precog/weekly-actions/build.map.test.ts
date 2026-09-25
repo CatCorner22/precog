@@ -4,7 +4,7 @@ import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { buildOwnTeam, ownBusinessProfile } from "@/lib/precog/onboarding/own-team";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { buildWeeklyActions } from "./build";
 
 const people = buildOwnTeam([
   { name: "Ana Ruiz", role: "Owner", duties: ["approve_payroll"] },

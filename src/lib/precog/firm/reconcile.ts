@@ -2,7 +2,7 @@ import { locateTable, stripInvisibleControls } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
-import { daysBetween } from "../continuity/coverage";
+import { daysBetween } from "../dates";
 
 export type AccessSource = "quickbooks" | "xero" | "unknown";
 

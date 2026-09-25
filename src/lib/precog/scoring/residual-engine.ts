@@ -1,5 +1,5 @@
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
-import { documentationState } from "../continuity/coverage";
+import { documentationState } from "../continuity/documentation";
 import { registerAssessed } from "../continuity/register-state";
 import { scenariosInScope, starterScenariosLeftOut } from "./scope";
 import type { IndustryTemplate } from "../templates";

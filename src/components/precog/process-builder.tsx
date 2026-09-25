@@ -49,7 +49,7 @@ import { rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { summarizeEvidence } from "@/lib/precog/builder/evidence";
 
 import { buildSharePayload } from "@/lib/precog/builder/share-payload";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
+import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 
 import { Clock, Link2, UserMinus } from "lucide-react";

@@ -1,12 +1,9 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { localDateKey } from "./decisions/follow-through";
-import {
-  isCalendarDate,
-  soleOwnerCriticalCount,
-  type ContinuityStep,
-  type CoverageStatus,
-  type DocumentationState,
-} from "./continuity/coverage";
+import { isCalendarDate } from "./dates";
+import { soleOwnerCriticalCount, type CoverageStatus } from "./continuity/coverage";
+import { type ContinuityStep } from "./continuity/absence-impact";
+import { type DocumentationState } from "./continuity/documentation";
 import type {
   KnowledgeItem,
   KnowledgeRelation,

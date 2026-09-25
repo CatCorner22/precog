@@ -20,11 +20,8 @@ import {
   slipLabels,
   type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
-import {
-  DOCUMENTATION_LABEL,
-  setRelationLevel,
-  STATUS_LABEL,
-} from "@/lib/precog/continuity/coverage";
+import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
+import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";

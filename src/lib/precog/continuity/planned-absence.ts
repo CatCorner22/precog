@@ -2,15 +2,9 @@ import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
-import {
-  absenceImpact,
-  daysBetween,
-  firstName,
-  isCalendarDate,
-  listOr,
-  type AbsenceImpact,
-  type AbsenceStop,
-} from "./coverage";
+import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
+import { daysBetween, isCalendarDate } from "../dates";
+import { firstName } from "./coverage";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
 export const ABSENCE_LEAD_DAYS = 30;

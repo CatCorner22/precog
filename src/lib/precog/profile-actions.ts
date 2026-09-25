@@ -17,7 +17,8 @@ import { industryHasOwner, industryMeta, isDemoName, type IndustryId } from "./i
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
-import { soleOwnerCriticalCount, type ContinuityStep } from "./continuity/coverage";
+import { soleOwnerCriticalCount } from "./continuity/coverage";
+import { type ContinuityStep } from "./continuity/absence-impact";
 import {
   applyDecisionReview,
   captureDecisionSnapshot,

@@ -14,7 +14,7 @@ import {
   setActiveBusiness,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
-import { resolveClientDate } from "./continuity/coverage";
+import { resolveClientDate } from "./dates";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })

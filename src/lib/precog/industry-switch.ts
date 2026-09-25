@@ -1,4 +1,4 @@
-import { daysBetween } from "./continuity/coverage";
+import { daysBetween } from "./dates";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
 import { joinWithAnd } from "./text";

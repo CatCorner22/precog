@@ -7,7 +7,7 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { localDateKey } from "../decisions/follow-through";
 import { csvCell, parseRows } from "./csv";
 import { slug } from "../text";

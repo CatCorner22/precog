@@ -5,7 +5,7 @@ import { firstName } from "@/lib/precog/continuity/coverage";
 import { markLeft, setLastDay } from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry } from "@/lib/precog/practice-profile";
 import type { Person } from "@/lib/precog/types";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { buildWeeklyActions } from "./build";
 
 const dental = getBaseTemplate("dental");
 const [maya, chris] = dental.people;

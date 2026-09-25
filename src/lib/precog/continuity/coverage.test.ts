@@ -3,24 +3,20 @@ import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
+import { absenceImpact, contingencyCards, ownerlessProcesses } from "./absence-impact";
+import { checkInPlan, staleItems } from "./staleness";
 import {
-  absenceImpact,
-  checkInPlan,
-  contingencyCards,
   coverageDrops,
   coverageReport,
   coverageStatus,
   criticalSinglePoints,
-  documentationDebt,
   firstName,
-  documentationState,
-  ownerlessProcesses,
-  resolveClientDate,
-  staleItems,
   setRelationLevel,
   soleOwnerCriticalCount,
   suggestBackups,
 } from "./coverage";
+import { documentationDebt, documentationState } from "./documentation";
+import { resolveClientDate } from "../dates";
 
 const people: Person[] = [
   { id: "a", name: "Ana", role: "Owner", active: true },

@@ -41,30 +41,36 @@ import {
 } from "@/lib/precog/import/register-csv";
 import {
   absenceImpact,
+  type AbsenceAction,
+  type ContinuityStep,
+} from "@/lib/precog/continuity/absence-impact";
+import {
   checkInPlan,
+  staleItems,
+  CONFIRMATION_MAX_AGE_DAYS,
+} from "@/lib/precog/continuity/staleness";
+import {
   coverageDrops,
   coverageReport,
   criticalSinglePoints,
-  DOCUMENTATION_LABEL,
-  documentationDebt,
-  isCalendarDate,
   LEVEL_LABEL,
   LEVEL_ORDER,
   firstName,
   makeKnowledgeId,
   relationLevel,
   setRelationLevel,
-  staleItems,
   STATUS_LABEL,
-  type AbsenceAction,
-  type ContinuityStep,
   type CoverageReport,
   type CoverageStatus,
   type CrossTrainingMove,
-  type DocumentationGap,
   type ItemCoverage,
-  CONFIRMATION_MAX_AGE_DAYS,
 } from "@/lib/precog/continuity/coverage";
+import {
+  DOCUMENTATION_LABEL,
+  documentationDebt,
+  type DocumentationGap,
+} from "@/lib/precog/continuity/documentation";
+import { isCalendarDate } from "@/lib/precog/dates";
 import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import { industryMeta } from "@/lib/precog/industry";
 import {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
-import { documentationDebt } from "@/lib/precog/continuity/coverage";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { documentationDebt } from "@/lib/precog/continuity/documentation";
+import { buildWeeklyActions } from "./build";
 
 const dental = getBaseTemplate("dental");
 

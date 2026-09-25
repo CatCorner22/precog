@@ -1,13 +1,17 @@
-import type { ContinuityStep, CoverageStatus, DocumentationState } from "../continuity/coverage";
+import type { ContinuityStep } from "../continuity/absence-impact";
+import type { CoverageStatus } from "../continuity/coverage";
+import type { DocumentationState } from "../continuity/documentation";
 import {
   coverageReport,
-  documentationState,
-  DOCUMENTATION_LABEL,
-  DOCUMENTATION_RANK,
   STATUS_LABEL,
   STATUS_URGENCY,
   STRONG_LEVELS,
 } from "../continuity/coverage";
+import {
+  documentationState,
+  DOCUMENTATION_LABEL,
+  DOCUMENTATION_RANK,
+} from "../continuity/documentation";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { IndustryId } from "../industry";
 import type {

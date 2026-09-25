@@ -15,12 +15,11 @@ import { continuitySlips, decisionsDue, localDateKey } from "@/lib/precog/decisi
 import { useToday } from "@/lib/precog/decisions/use-today";
 import {
   checkInPlan,
-  coverageReport,
-  documentationDebt,
-  firstName,
   staleItems,
   CONFIRMATION_MAX_AGE_DAYS,
-} from "@/lib/precog/continuity/coverage";
+} from "@/lib/precog/continuity/staleness";
+import { coverageReport, firstName } from "@/lib/precog/continuity/coverage";
+import { documentationDebt } from "@/lib/precog/continuity/documentation";
 import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";

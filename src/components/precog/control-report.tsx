@@ -14,19 +14,23 @@ import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope"
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { contingencyCards } from "@/lib/precog/continuity/absence-impact";
 import {
-  contingencyCards,
   coverageReport,
+  firstName,
+  LEVEL_LABEL,
+  STATUS_LABEL,
+} from "@/lib/precog/continuity/coverage";
+import {
   DOCUMENTATION_LABEL,
   documentationDebt,
   documentationState,
+} from "@/lib/precog/continuity/documentation";
+import {
   checkInPlan,
-  firstName,
-  LEVEL_LABEL,
   staleItems,
-  STATUS_LABEL,
   CONFIRMATION_MAX_AGE_DAYS,
-} from "@/lib/precog/continuity/coverage";
+} from "@/lib/precog/continuity/staleness";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
@@ -64,7 +68,7 @@ import {
   recommendedStepsForRules,
   isOwnSector,
 } from "@/lib/precog/evidence";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
+import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import {
   buildProcessMapGraph,
   computeMapHealth,

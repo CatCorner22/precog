@@ -8,7 +8,7 @@ import {
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isOwnerRole } from "../sod/owner-role";
 import { industryHasOwner } from "../industry";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";

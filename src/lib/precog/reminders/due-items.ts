@@ -5,7 +5,7 @@ import { handoverDeadline, leavers } from "../continuity/leavers";
 import { latestReview, monthKey, monthlyReviewTasks, reviewDueOn } from "../firm/reviews";
 import { isOwnTeam } from "../firm/engagement";
 import type { PracticeProfile } from "../practice-profile";
-import { daysBetween } from "../continuity/coverage";
+import { daysBetween } from "../dates";
 
 /**
  * What is due on one business, read from the saved profile the same way the

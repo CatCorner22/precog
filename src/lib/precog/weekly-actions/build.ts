@@ -4,15 +4,10 @@ import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import {
-  checkInPlan,
-  coverageReport,
-  documentationDebt,
-  DOCUMENTATION_LABEL,
-  firstName,
-  ownerlessProcesses,
-  STATUS_LABEL,
-} from "@/lib/precog/continuity/coverage";
+import { checkInPlan } from "@/lib/precog/continuity/staleness";
+import { coverageReport, firstName, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { documentationDebt, DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
+import { ownerlessProcesses } from "@/lib/precog/continuity/absence-impact";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { industryMeta } from "@/lib/precog/industry";
 import {

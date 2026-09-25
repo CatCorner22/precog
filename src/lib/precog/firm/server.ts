@@ -10,7 +10,7 @@ import {
   restoreBusinessRow,
 } from "../business-store";
 import { mergeProfile } from "../profile-merge";
-import { resolveClientDate } from "../continuity/coverage";
+import { resolveClientDate } from "../dates";
 import type { PracticeProfile } from "../practice-profile";
 import type { FirmPlan } from "./pricing";
 import { requireBusinessOwner, requireFirm, requireFirmRole } from "./access.server";
@@ -51,7 +51,7 @@ import {
   type ReviewItemKey,
   type ReviewResult,
 } from "./reviews";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 
 const PLANS = new Set<FirmPlan>(["assessment", "monthly"]);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

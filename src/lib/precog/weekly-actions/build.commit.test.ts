@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
 import type { DecisionEntry } from "@/lib/precog/practice-profile";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { buildWeeklyActions } from "./build";
 
 const dental = getBaseTemplate("dental");
 const holder = dental.people[0];

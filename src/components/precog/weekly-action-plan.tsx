@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
+import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";

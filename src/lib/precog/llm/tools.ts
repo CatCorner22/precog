@@ -8,14 +8,9 @@ import { industryMeta } from "../industry";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
-import {
-  CONFIRMATION_MAX_AGE_DAYS,
-  coverageReport,
-  documentationDebt,
-  checkInPlan,
-  staleItems,
-  STRONG_LEVELS,
-} from "../continuity/coverage";
+import { CONFIRMATION_MAX_AGE_DAYS, checkInPlan, staleItems } from "../continuity/staleness";
+import { coverageReport, STRONG_LEVELS } from "../continuity/coverage";
+import { documentationDebt } from "../continuity/documentation";
 import {
   absencesNeedingAttention,
   describeWindow,

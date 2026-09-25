@@ -2,15 +2,9 @@ import type { DecisionEntry } from "../practice-profile";
 import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
-import {
-  absenceImpact,
-  daysBetween,
-  firstName,
-  isCalendarDate,
-  relationLevel,
-  STRONG_LEVELS,
-  type AbsenceAction,
-} from "./coverage";
+import { absenceImpact, type AbsenceAction } from "./absence-impact";
+import { daysBetween, isCalendarDate } from "../dates";
+import { firstName, relationLevel, STRONG_LEVELS } from "./coverage";
 import { formatDateRange } from "./planned-absence";
 
 /** A hand-over with this many days or fewer left is urgent. */

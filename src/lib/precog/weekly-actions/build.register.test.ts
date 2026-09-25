@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { buildOwnTeam, ownBusinessProfile } from "@/lib/precog/onboarding/own-team";
 import { defaultProfile } from "@/lib/precog/practice-profile";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { buildWeeklyActions } from "./build";
 
 const people = buildOwnTeam([
   { name: "Ana Ruiz", role: "Owner", duties: ["approve_payroll"] },

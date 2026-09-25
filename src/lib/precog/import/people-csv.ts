@@ -1,7 +1,7 @@
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "./csv";
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";

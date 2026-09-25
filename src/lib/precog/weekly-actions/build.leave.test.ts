@@ -3,7 +3,7 @@ import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
 import { firstName } from "@/lib/precog/continuity/coverage";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
-import { buildWeeklyActions } from "./weekly-action-plan-data";
+import { buildWeeklyActions } from "./build";
 
 const dental = getBaseTemplate("dental");
 const [maya, chris] = dental.people;
