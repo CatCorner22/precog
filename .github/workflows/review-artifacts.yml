@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   workspace:
-    if: github.head_ref == 'fix/expanded-stabilization-2026-09-24'
+    if: github.head_ref == 'fix/expanded-stabilization-2026-09-25'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
