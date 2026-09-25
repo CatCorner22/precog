@@ -18,42 +18,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUsd } from "@/lib/utils";
-import {
-  CheckCircle2,
-  Clock,
-  Lock,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  XCircle,
-} from "lucide-react";
+import { Clock, Lock, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import { personLabel } from "@/lib/precog/person-label";
-
-const CHANNELS: ReleaseChannel[] = ["ach", "check", "writeoff", "vendor_new", "deposit", "payroll"];
-
-const ACTIONS: { id: ExceptionAction; label: string; hint: string }[] = [
-  {
-    id: "raise_threshold",
-    label: "Raise threshold",
-    hint: "Allow single release up to a higher amount",
-  },
-  {
-    id: "lower_threshold",
-    label: "Lower threshold",
-    hint: "Stricter — dual required sooner",
-  },
-  {
-    id: "force_dual",
-    label: "Force dual",
-    hint: "Always require two signers when match",
-  },
-  {
-    id: "waive_dual",
-    label: "Waive dual",
-    hint: "Skip dual (logs residual — use sparingly)",
-  },
-];
+import {
+  DUAL_RELEASE_CHANNELS,
+  EXCEPTION_ACTIONS,
+} from "@/components/precog/dual-release-constants";
+import { DualReleaseEvalResult, DualReleaseMiniStat } from "@/components/precog/dual-release-parts";
 
 export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
   const tpl = useTemplate();
@@ -266,10 +237,10 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MiniStat label="Raises" value={String(exSummary.raises)} tone="primary" />
-        <MiniStat label="Force dual" value={String(exSummary.forceDual)} tone="warn" />
-        <MiniStat label="Waives" value={String(exSummary.waives)} tone="danger" />
-        <MiniStat
+        <DualReleaseMiniStat label="Raises" value={String(exSummary.raises)} tone="primary" />
+        <DualReleaseMiniStat label="Force dual" value={String(exSummary.forceDual)} tone="warn" />
+        <DualReleaseMiniStat label="Waives" value={String(exSummary.waives)} tone="danger" />
+        <DualReleaseMiniStat
           label="Expiring soon"
           value={String(exSummary.expiringSoon)}
           tone={exSummary.expiringSoon ? "warn" : "ok"}
@@ -315,14 +286,14 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                     onChange={(e) => setExAction(e.target.value as ExceptionAction)}
                     className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                   >
-                    {ACTIONS.map((a) => (
+                    {EXCEPTION_ACTIONS.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.label}
                       </option>
                     ))}
                   </select>
                   <span className="mt-0.5 block text-xs text-subtle">
-                    {ACTIONS.find((a) => a.id === exAction)?.hint}
+                    {EXCEPTION_ACTIONS.find((a) => a.id === exAction)?.hint}
                   </span>
                 </label>
                 {(exAction === "raise_threshold" || exAction === "lower_threshold") && (
@@ -417,7 +388,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               <div>
                 <p className="mb-1 text-xs text-muted">Channels</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {CHANNELS.map((ch) => (
+                  {DUAL_RELEASE_CHANNELS.map((ch) => (
                     <button
                       key={ch}
                       type="button"
@@ -626,7 +597,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
                 onChange={(e) => setChannel(e.target.value as ReleaseChannel)}
                 className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
               >
-                {CHANNELS.map((ch) => (
+                {DUAL_RELEASE_CHANNELS.map((ch) => (
                   <option key={ch} value={ch}>
                     {policy.rules.find((r) => r.channel === ch)?.label ?? ch}
                   </option>
@@ -693,110 +664,10 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
               Evaluate release
             </Button>
 
-            {lastEval && <EvalResult eval={lastEval} />}
+            {lastEval && <DualReleaseEvalResult eval={lastEval} />}
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "danger" | "warn" | "ok" | "primary";
-}) {
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <Badge
-          variant={
-            tone === "danger"
-              ? "danger"
-              : tone === "warn"
-                ? "warn"
-                : tone === "ok"
-                  ? "ok"
-                  : "primary"
-          }
-        >
-          {label}
-        </Badge>
-        <p className="mt-1 text-xl font-semibold tabular">{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function EvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
-  const ok = result.ok;
-  return (
-    <div
-      className={cn(
-        "rounded-xl border px-3 py-3 text-sm",
-        ok ? "border-ok/30 bg-ok/5" : "border-danger/30 bg-danger/5",
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        {ok ? (
-          <CheckCircle2 className="size-4 text-ok" />
-        ) : (
-          <XCircle className="size-4 text-danger" />
-        )}
-        <Badge variant={ok ? "ok" : "danger"}>{result.status}</Badge>
-        <span className="text-xs text-muted">
-          {formatUsd(result.amountUsd)} ·{" "}
-          {/*
-            The weakest state and the strictest state must never render alike.
-            A waiver means one person can move any amount alone; "$0" means two
-            people are needed for every amount. Each is named in words, and the
-            base threshold is shown whenever an exception changed anything —
-            which is exactly what the "Exceptions never hide themselves" note
-            above promises.
-          */}
-          {result.dualWaived ? (
-            <span className="text-danger">
-              dual waived — no second signer required at any amount
-            </span>
-          ) : result.dualForced ? (
-            <span>dual required at every amount</span>
-          ) : (
-            <>
-              effective {formatUsd(result.thresholdUsd)}
-              {result.thresholdUsd === 0 && <span className="text-subtle"> (always dual)</span>}
-            </>
-          )}
-          {(result.dualWaived ||
-            result.dualForced ||
-            result.baseThresholdUsd !== result.thresholdUsd) && (
-            <span className="text-subtle"> (base {formatUsd(result.baseThresholdUsd)})</span>
-          )}
-        </span>
-      </div>
-      {result.appliedException && (
-        <p className="mt-2 rounded-md border border-warn/30 bg-warn/10 px-2 py-1 text-xs text-fg">
-          Exception: <strong>{result.appliedException.label}</strong> (
-          {result.appliedException.action.replace("_", " ")})
-          {result.appliedException.residualNote ? ` — ${result.appliedException.residualNote}` : ""}
-        </p>
-      )}
-      <ul className="mt-2 space-y-1 text-xs text-muted">
-        {result.reasons.map((r) => (
-          <li key={r}>· {r}</li>
-        ))}
-      </ul>
-      {result.nextSteps.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs text-fg">
-          {result.nextSteps.map((r) => (
-            <li key={r}>→ {r}</li>
-          ))}
-        </ul>
-      )}
-      <p className="mt-2 text-xs text-subtle">{result.controlCredit.note}</p>
     </div>
   );
 }
