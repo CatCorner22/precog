@@ -91,7 +91,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pg.exec(`delete from firm_members; delete from firms; delete from businesses; delete from business_profiles; delete from "user";`);
+  await pg.exec(
+    `delete from firm_members; delete from firms; delete from businesses; delete from business_profiles; delete from "user";`,
+  );
   await seedUser("user-a");
   await seedUser("user-b");
 });
@@ -296,7 +298,12 @@ describe("history", () => {
       [2, "v2", "user-b"],
       [1, "v1", "user-a"],
     ]);
-    const v1 = await loadBusinessHistoryVersion<{ practiceName: string }>(sql, "user-a", "biz_1", 1);
+    const v1 = await loadBusinessHistoryVersion<{ practiceName: string }>(
+      sql,
+      "user-a",
+      "biz_1",
+      1,
+    );
     expect(v1?.profile.practiceName).toBe("v1");
   });
 
