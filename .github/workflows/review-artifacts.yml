@@ -1,0 +1,35 @@
+name: Stabilization review workspace
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    if: github.head_ref == 'fix/expanded-stabilization-2026-09-24'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Package source and installed test dependencies, never credentials
+        run: |
+          mkdir -p /tmp/precog-review
+          git archive HEAD | tar -x -C /tmp/precog-review
+          cp -a node_modules /tmp/precog-review/
+          git rev-parse HEAD > /tmp/precog-review/REVIEW_COMMIT.txt
+          tar -C /tmp/precog-review -czf /tmp/precog-review-workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: precog-review-workspace
+          path: /tmp/precog-review-workspace.tar.gz
+          retention-days: 1
+          compression-level: 0
