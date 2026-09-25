@@ -61,7 +61,6 @@ import {
   setRelationLevel,
   STATUS_LABEL,
   type CoverageReport,
-  type CoverageStatus,
   type CrossTrainingMove,
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
@@ -120,31 +119,16 @@ import {
 } from "@/components/precog/continuity/leave-cards";
 import {
   CRITICALITY_LABEL,
+  inputClass,
   isMarked,
+  KIND_LABEL,
   LEVEL_SHORT,
   NOT_ASSESSED_ABSENCE,
   NOT_ASSESSED_HINT,
   NOT_ASSESSED_PLAN,
+  STATUS_VARIANT,
+  UNHELD_VIEW,
 } from "@/lib/precog/continuity/planner-copy";
-
-const KIND_LABEL: Record<KnowledgeKind, string> = {
-  duty: "Duty",
-  task: "Task",
-  knowledge: "Know-how",
-};
-
-const STATUS_VARIANT: Record<CoverageStatus, "danger" | "warn" | "accent" | "ok"> = {
-  uncovered: "danger",
-  single: "danger",
-  thin: "warn",
-  covered: "ok",
-};
-
-/** Check-in tab for stale items nobody on the active team holds. */
-const UNHELD_VIEW = "__unheld__";
-
-const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
-
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const {
     template: tpl,
