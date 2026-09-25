@@ -319,8 +319,8 @@ users. Full guides + snippets: the **`neon` skill** (database) and the
   when signed out). Scope **every** query by that `user_id`. Never trust a
   client-sent id.
 - **Migrations:** `migrations/*.sql` are the single schema source — applied to
-  **Neon on deploy** (`npm run build` runs them, so Vercel ships with the schema
-  ready) and to the **PGLite** preview automatically on startup. `0001_auth.sql`
+  **Neon on a production deploy** (`npm run build` runs them only when
+  `VERCEL_ENV` is `production`, so a preview build never writes the database) and to the **PGLite** preview automatically on startup. `0001_auth.sql`
   is the Better Auth schema (don't edit); add your app's tables as ordered files
   (`migrations/0002_*.sql`), not inline.
 - **Auth:** this app runs its own Better Auth at `/api/auth/*` and federates to
