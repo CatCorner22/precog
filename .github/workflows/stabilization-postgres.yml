@@ -1,0 +1,34 @@
+name: Stabilization PostgreSQL runtime
+on:
+  push:
+    branches: [fix/precog-stabilization-expanded-20260924]
+    paths: [.github/workflows/stabilization-postgres.yml]
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Package PostgreSQL binaries without data or credentials
+        run: |
+          set -eu
+          if [ ! -x /usr/lib/postgresql/16/bin/postgres ]; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-16
+          fi
+          mkdir -p runtime/lib
+          cp -a /usr/lib/postgresql/16 runtime/pg
+          cp -a /usr/share/postgresql/16 runtime/share
+          for f in /usr/lib/postgresql/16/bin/postgres /usr/lib/postgresql/16/bin/initdb /usr/lib/postgresql/16/bin/pg_ctl; do
+            ldd "$f" | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r lib; do
+              case "$lib" in *libc.so*|*libm.so*|*libpthread*|*libdl.so*|*librt.so*|*ld-linux*) ;; *) cp -L "$lib" runtime/lib/ ;; esac
+            done
+          done
+          tar -czf postgres-review-runtime.tar.gz runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: postgres-review-runtime
+          path: postgres-review-runtime.tar.gz
+          compression-level: 0
+          retention-days: 3
