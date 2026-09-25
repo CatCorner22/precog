@@ -93,9 +93,7 @@ export function PlannerStats({
               ? "Add people to see who the business leans on."
               : NOT_ASSESSED_HINT
         }
-        tone={
-          registerReady && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"
-        }
+        tone={registerReady && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"}
       />
     </div>
   );

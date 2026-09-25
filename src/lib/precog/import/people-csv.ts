@@ -13,12 +13,7 @@ import {
   normalizeHeader,
   type ColumnMap,
 } from "./roster-columns";
-import {
-  nameKey,
-  readPerson,
-  type ImportContext,
-  type TitleMapping,
-} from "./roster-row-read";
+import { nameKey, readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
 
 export { looksLikeRosterHeader } from "./roster-columns";
 export type { TitleMapping } from "./roster-row-read";

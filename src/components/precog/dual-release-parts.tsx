@@ -1,7 +1,4 @@
-import {
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ReleaseEvaluation } from "@/lib/precog/controls/dual-release";
@@ -57,7 +54,9 @@ export function DualReleaseEvalResult({ eval: result }: { eval: ReleaseEvaluatio
         <span className="text-xs text-muted">
           {formatUsd(result.amountUsd)} ·{" "}
           {result.dualWaived ? (
-            <span className="text-danger">dual waived — no second signer required at any amount</span>
+            <span className="text-danger">
+              dual waived — no second signer required at any amount
+            </span>
           ) : result.dualForced ? (
             <span>dual required at every amount</span>
           ) : (
