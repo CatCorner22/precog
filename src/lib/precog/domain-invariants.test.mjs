@@ -1,33 +1,37 @@
-// @ts-nocheck -- runtime invariants ported from scripts/domain-tests.mjs; they assert on the
-// shapes the modules return and are not a typing exercise.
+/**
+ * Cross-module invariants, ported from the old scripts/domain-tests.mjs and
+ * kept as JavaScript on purpose: several checks feed the modules malformed
+ * input (a string where a number belongs, an unknown decision kind) to
+ * prove they cope, which is what the types would forbid.
+ */
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { openTestDb } from "@/test/pglite";
-import * as vision from "@/lib/precog/map-vision";
-import * as rag from "@/lib/precog/rag/retrieve";
-import * as corpus from "@/lib/precog/rag/corpus";
-import * as scoring from "@/lib/precog/threat-scoring";
-import * as profile from "@/lib/precog/practice-profile";
-import * as blueprint from "@/lib/precog/operating-blueprint";
-import * as industryModule from "@/lib/precog/industry";
-import * as templatesIndex from "@/lib/precog/templates";
-import * as sodRules from "@/lib/precog/sod/conflict-rules";
-import * as sodDetect from "@/lib/precog/sod/detect";
-import * as roleTemplates from "@/lib/precog/sod/role-templates";
-import * as activeTemplate from "@/lib/precog/active-template";
-import * as powerGuidance from "@/lib/precog/sod/power-guidance";
-import * as controlMeasures from "@/lib/precog/sod/control-measures";
-import * as resolutionPlanner from "@/lib/precog/sod/resolution-planner";
-import * as coverageAnalysis from "@/lib/precog/sod/coverage-analysis";
-import * as modelIo from "@/lib/precog/sod/model-io";
-import * as changeImpact from "@/lib/precog/sod/change-impact";
-import * as coveragePlanner from "@/lib/precog/sod/coverage-planner";
-import * as governanceReport from "@/lib/precog/sod/governance-report";
-import * as assignmentDiff from "@/lib/precog/sod/assignment-diff";
-import * as powerIndex from "@/lib/precog/sod/power-index";
-import * as valueCase from "@/lib/precog/value-case";
-import * as valueEvidence from "@/lib/precog/value-evidence";
-import * as snapshotComparison from "@/lib/precog/snapshot-comparison";
+import { openTestDb } from "../../test/pglite";
+import * as vision from "./map-vision";
+import * as rag from "./rag/retrieve";
+import * as corpus from "./rag/corpus";
+import * as scoring from "./threat-scoring";
+import * as profile from "./practice-profile";
+import * as blueprint from "./operating-blueprint";
+import * as industryModule from "./industry";
+import * as templatesIndex from "./templates";
+import * as sodRules from "./sod/conflict-rules";
+import * as sodDetect from "./sod/detect";
+import * as roleTemplates from "./sod/role-templates";
+import * as activeTemplate from "./active-template";
+import * as powerGuidance from "./sod/power-guidance";
+import * as controlMeasures from "./sod/control-measures";
+import * as resolutionPlanner from "./sod/resolution-planner";
+import * as coverageAnalysis from "./sod/coverage-analysis";
+import * as modelIo from "./sod/model-io";
+import * as changeImpact from "./sod/change-impact";
+import * as coveragePlanner from "./sod/coverage-planner";
+import * as governanceReport from "./sod/governance-report";
+import * as assignmentDiff from "./sod/assignment-diff";
+import * as powerIndex from "./sod/power-index";
+import * as valueCase from "./value-case";
+import * as valueEvidence from "./value-evidence";
+import * as snapshotComparison from "./snapshot-comparison";
 
 /**
  * Cross-module invariants: every duty has control alternatives, every
