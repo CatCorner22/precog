@@ -1,20 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
   Background,
   Controls,
-  Handle,
   MarkerType,
   MiniMap,
   Panel,
-  Position,
   ReactFlow,
-  useStore,
   type Connection,
   type Edge,
   type Node,
   type NodeChange,
-  type NodeProps,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { toast } from "sonner";
@@ -27,13 +23,11 @@ import {
   layoutProcessMap,
   priorityKeyForNode,
   stageLanes,
-  type MapGraphNode,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
 import {
   DEFAULT_LAYERS,
   PRIORITY_BAND_LABEL,
-  predatorGlow,
   predatorThermalColor,
   priorityBand,
   scorePriority,
@@ -58,378 +52,41 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   Crosshair,
   Eye,
   Hammer,
   LayoutGrid,
   Layers,
-  Lightbulb,
   ListOrdered,
-  Network,
-  Recycle,
   Scan,
-  ShieldAlert,
   Thermometer,
-  User,
-  Workflow,
 } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
-
-type ProcessFlowNode = Node<
-  MapGraphNode & {
-    vision: MapVisionMode;
-    interactive: boolean;
-    priority?: number;
-    immediate?: boolean;
-    /** A starter process nobody has assessed: drawn without heat or priority. */
-    unscored?: boolean;
-  } & Record<string, unknown>
->;
-
-function asMapNode(data: unknown): MapGraphNode & {
-  vision?: MapVisionMode;
-  interactive?: boolean;
-  priority?: number;
-  immediate?: boolean;
-  unscored?: boolean;
-} {
-  return data as MapGraphNode & {
-    vision?: MapVisionMode;
-    interactive?: boolean;
-    priority?: number;
-    immediate?: boolean;
-    unscored?: boolean;
-  };
-}
-
-/** Border for a starter process or item nobody has assessed: no heat colour. */
-const UNSCORED_ACCENT = "var(--color-border-strong)";
-
-function heatColorStandard(sev?: number) {
-  const s = sev ?? 0;
-  if (s >= HEAT_BANDS.hot) return "var(--color-danger)";
-  if (s >= HEAT_BANDS.warm) return "var(--color-warn)";
-  if (s >= 25) return "var(--color-primary)";
-  return "var(--color-border-strong)";
-}
-
-function nodeAccent(vision: MapVisionMode, heat: number, priority: number): string {
-  if (vision === "predator") return predatorThermalColor(Math.max(heat, priority));
-  if (vision === "terminator") return terminatorThreatColor(priority);
-  return heatColorStandard(heat);
-}
-
-/** Below this zoom the canvas is an overview: cards drop detail and scale their title up so names stay legible. */
-const COMPACT_ZOOM = 0.6;
-
-function useCanvasZoom(): number {
-  return useStore((s) => s.transform[2]);
-}
-
-/** Title size that reads at any zoom: grows as the viewport zooms out, capped so cards do not explode. */
-function compactTitlePx(zoom: number): number {
-  return Math.min(30, Math.max(14, Math.round(14 / Math.max(zoom, 0.25))));
-}
-
-function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
-  const d = asMapNode(data);
-  const vision = d.vision ?? "standard";
-  const heat = d.severity ?? 0;
-  const priority = d.priority ?? heat;
-  const accent = d.unscored ? UNSCORED_ACCENT : nodeAccent(vision, heat, priority);
-  const interactive = d.interactive !== false;
-  const hot = !d.unscored && vision === "predator" && priority >= 72;
-  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
-  const zoom = useCanvasZoom();
-  const compact = zoom < COMPACT_ZOOM;
-
-  return (
-    <div
-      className={cn(
-        "min-w-[180px] max-w-[220px] rounded-xl border-2 px-3 py-2 shadow-lg transition-all",
-        vision === "predator" ? "bg-black/70 text-white" : "bg-elevated",
-        vision === "terminator" && "bg-black/80",
-        selected && "ring-2 ring-primary/40",
-        // Greyed and dashed while its layer is not interactive; the text stays readable.
-        !interactive && "border-dashed grayscale",
-        hot && "predator-node-hot",
-        locked && "terminator-target",
-      )}
-      style={{
-        borderColor: accent,
-        boxShadow:
-          vision === "predator" && !d.unscored
-            ? predatorGlow(priority)
-            : vision === "terminator" && locked
-              ? undefined
-              : undefined,
-        pointerEvents: interactive ? "auto" : "none",
-      }}
-    >
-      <Handle type="target" position={Position.Left} className="!bg-primary" />
-      {!compact && (
-        <div
-          className={cn(
-            "flex items-center gap-1.5 text-xs tracking-wide uppercase",
-            vision === "terminator" ? "terminator-hud" : "text-subtle",
-            vision === "predator" && "predator-hud text-orange-200/90",
-          )}
-        >
-          <Workflow className="size-3" />
-          {d.unscored
-            ? "starter · not assessed"
-            : vision === "predator"
-              ? `THERMAL ${priority}`
-              : vision === "terminator"
-                ? `THREAT ${priority}`
-                : `process · ${heat}`}
-        </div>
-      )}
-      <p
-        className={cn(
-          "font-semibold leading-tight",
-          compact ? "py-1" : "mt-1 text-sm",
-          vision === "terminator" ? "text-red-300" : "text-fg",
-          vision === "predator" && "text-white",
-        )}
-        style={compact ? { fontSize: compactTitlePx(zoom) } : undefined}
-      >
-        {d.label}
-      </p>
-      {!compact && (
-        <p
-          className={cn(
-            "mt-1 line-clamp-2 text-xs",
-            vision === "terminator" ? "text-red-400/80" : "text-muted",
-            vision === "predator" && "text-white/70",
-          )}
-        >
-          {d.subtitle}
-        </p>
-      )}
-      {!compact && (d.badges ?? []).length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {(d.badges ?? []).slice(0, 3).map((b) => (
-            <span
-              key={b}
-              className={cn(
-                "rounded px-1.5 py-0.5 text-xs",
-                vision === "predator"
-                  ? "bg-white/10 text-white/80"
-                  : vision === "terminator"
-                    ? "bg-red-950 text-red-300"
-                    : "bg-surface text-muted",
-              )}
-            >
-              {b}
-            </span>
-          ))}
-        </div>
-      )}
-      <Handle type="source" position={Position.Right} className="!bg-primary" />
-    </div>
-  );
-}
-
-function SatelliteNode({
-  data,
-  selected,
-  icon,
-  accentDefault,
-}: NodeProps<ProcessFlowNode> & { icon: ReactNode; accentDefault: string }) {
-  const d = asMapNode(data);
-  const vision = d.vision ?? "standard";
-  const heat = d.severity ?? 40;
-  const priority = d.priority ?? heat;
-  const accent = d.unscored
-    ? UNSCORED_ACCENT
-    : vision === "standard"
-      ? accentDefault
-      : nodeAccent(vision, heat, priority);
-  const interactive = d.interactive !== false;
-  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
-  const compact = useCanvasZoom() < COMPACT_ZOOM;
-
-  return (
-    <div
-      className={cn(
-        "min-w-[140px] max-w-[180px] rounded-lg border px-2.5 py-1.5 shadow",
-        vision === "predator" ? "bg-black/65" : "bg-surface",
-        vision === "terminator" && "bg-black/75",
-        selected && "ring-2 ring-primary/40",
-        // Greyed and dashed while its layer is not interactive; the text stays readable.
-        !interactive && "border-dashed grayscale",
-        !d.unscored && priority >= 72 && vision === "predator" && "predator-node-hot",
-        locked && "terminator-target",
-      )}
-      style={{
-        borderColor: accent,
-        boxShadow: vision === "predator" && !d.unscored ? predatorGlow(priority * 0.85) : undefined,
-        pointerEvents: interactive ? "auto" : "none",
-      }}
-    >
-      <Handle type="target" position={Position.Left} className="!bg-muted" />
-      <div
-        className={cn(
-          "flex items-center gap-1 text-xs",
-          vision === "terminator" ? "terminator-hud" : "text-subtle",
-          vision === "predator" && "predator-hud text-orange-100/80",
-        )}
-      >
-        {icon}
-        {d.kind}
-        {vision !== "standard" && !d.unscored && (
-          <span className="ml-auto tabular">{priority}</span>
-        )}
-      </div>
-      <p
-        className={cn(
-          "mt-0.5 text-xs font-medium leading-snug",
-          vision === "terminator" ? "text-red-200" : "text-fg",
-          vision === "predator" && "text-white",
-        )}
-      >
-        {d.label}
-      </p>
-      {d.subtitle && !compact && (
-        <p
-          className={cn(
-            "mt-0.5 line-clamp-2 text-xs",
-            vision === "terminator" ? "text-red-400/70" : "text-muted",
-            vision === "predator" && "text-white/65",
-          )}
-        >
-          {d.subtitle}
-        </p>
-      )}
-      <Handle type="source" position={Position.Right} className="!bg-muted" />
-    </div>
-  );
-}
-
-function RiskNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<AlertTriangle className="size-3 text-danger" />}
-      accentDefault="var(--color-danger)"
-    />
-  );
-}
-function IdeaNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<Lightbulb className="size-3 text-warn" />}
-      accentDefault="var(--color-warn)"
-    />
-  );
-}
-function WasteNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<Recycle className="size-3 text-muted" />}
-      accentDefault="var(--color-border-strong)"
-    />
-  );
-}
-function ControlNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<ShieldAlert className="size-3 text-danger" />}
-      accentDefault="var(--color-danger)"
-    />
-  );
-}
-function KnowledgeNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<Network className="size-3 text-primary" />}
-      accentDefault="var(--color-primary)"
-    />
-  );
-}
-function PersonNode(props: NodeProps<ProcessFlowNode>) {
-  return (
-    <SatelliteNode
-      {...props}
-      icon={<User className="size-3 text-ok" />}
-      accentDefault="var(--color-ok)"
-    />
-  );
-}
-
-const nodeTypes = {
-  process: ProcessNodeView,
-  risk: RiskNode,
-  idea: IdeaNode,
-  waste: WasteNode,
-  control: ControlNode,
-  knowledge: KnowledgeNode,
-  person: PersonNode,
-};
-
-const EDGE_STYLE: Record<string, { stroke: string; dashed?: boolean }> = {
-  depends: { stroke: "var(--color-primary)" },
-  has_risk: { stroke: "var(--color-danger)" },
-  has_idea: { stroke: "var(--color-warn)", dashed: true },
-  has_waste: { stroke: "var(--color-muted)", dashed: true },
-  control: { stroke: "var(--color-danger)" },
-  knowledge: { stroke: "var(--color-primary)", dashed: true },
-  owns: { stroke: "var(--color-ok)" },
-  feeds: { stroke: "var(--color-primary)" },
-};
-
-function layerForKind(kind: string): MapLayerId {
-  if (kind === "depends" || kind === "feeds") return "depends";
-  if (
-    kind === "process" ||
-    kind === "risk" ||
-    kind === "idea" ||
-    kind === "waste" ||
-    kind === "control" ||
-    kind === "knowledge" ||
-    kind === "person"
-  )
-    return kind;
-  return "process";
-}
+import {
+  LaneHeaders,
+  nodeTypes,
+  type ProcessFlowNode,
+} from "@/components/precog/process-map/nodes";
+import {
+  asMapNode,
+  EDGE_STYLE,
+  heatColorStandard,
+  layerForKind,
+} from "@/components/precog/process-map/style";
+import {
+  PredatorLegend,
+  ProcessDetail,
+  StandardLegend,
+  T1000Buddy,
+  TerminatorLegend,
+  VisionChip,
+} from "@/components/precog/process-map/detail";
 
 /**
  * Stable identity matters: React Flow syncs this prop into its store on every
  * render, and a fresh object would overwrite the options queued by focusOn().
  */
 const FIT_ALL_OPTIONS = { padding: 0.15 } as const;
-
-/**
- * Stage headers pinned to the top edge of the canvas, tracking each lane's x as
- * the user pans and zooms. Screen-space so they stay 11px at any zoom.
- */
-function LaneHeaders({ lanes }: { lanes: { stage: number; x: number; count: number }[] }) {
-  const [tx, , zoom] = useStore((s) => s.transform);
-  const width = useStore((s) => s.width);
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-[72px] z-[4] h-8">
-      {lanes.map((lane) => {
-        const left = lane.x * zoom + tx;
-        if (left < -160 || left > width + 20) return null;
-        return (
-          <div
-            key={lane.stage}
-            className="absolute top-1.5 rounded-md border border-border/60 bg-surface/85 px-2 py-0.5 text-xs font-medium tracking-wide text-muted uppercase"
-            style={{ left }}
-          >
-            Stage {lane.stage} · {lane.count}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export function ProcessMap({
   onNavigate,
@@ -1401,240 +1058,5 @@ export function ProcessMap({
         </div>
       </div>
     </div>
-  );
-}
-
-function VisionChip({
-  active,
-  onClick,
-  icon,
-  label,
-  accent,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: ReactNode;
-  label: string;
-  accent?: "predator" | "terminator";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-        active && !accent && "border-primary/40 bg-primary/15 text-fg",
-        active && accent === "predator" && "border-orange-400/40 bg-orange-500/15 text-orange-100",
-        active && accent === "terminator" && "border-red-500/50 bg-red-600/20 text-red-200",
-        !active && "border-border bg-elevated text-muted hover:text-fg",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function T1000Buddy() {
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1">
-      <div className="t1000-buddy relative flex size-16 items-center justify-center">
-        {/* Friendly chrome face */}
-        <div className="absolute inset-2 rounded-[40%] bg-gradient-to-b from-white/40 to-transparent" />
-        <div className="relative z-[1] flex gap-2">
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-        </div>
-        <div className="absolute bottom-4 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-red-400/50" />
-      </div>
-      <span className="text-xs tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
-    </div>
-  );
-}
-
-function StandardLegend() {
-  return (
-    <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-      <p className="font-semibold text-fg">Map legend</p>
-      <p className="mt-1 text-muted">Border heat: cool → hot (danger)</p>
-      <div
-        className="mt-1.5 h-1.5 rounded-full"
-        style={{
-          background:
-            "linear-gradient(90deg, var(--color-border-strong), var(--color-primary), var(--color-warn), var(--color-danger))",
-        }}
-      />
-    </div>
-  );
-}
-
-function PredatorLegend() {
-  return (
-    <div className="max-w-[240px] rounded-xl border border-orange-500/30 bg-black/80 px-3 py-2 text-xs text-orange-100/90 shadow-lg predator-hud">
-      <p className="font-semibold tracking-widest">THERMAL KEY</p>
-      <div className="predator-thermal-bar mt-1.5 h-2 rounded-full" />
-      <p className="mt-1 text-white/50">White-hot = high heat × high impact. Hunt those first.</p>
-    </div>
-  );
-}
-
-/** `immediate` is null while the map is not assessed: there is nothing to count yet. */
-function TerminatorLegend({ immediate }: { immediate: number | null }) {
-  return (
-    <div className="max-w-[240px] rounded-xl border border-red-800/50 bg-black/85 px-3 py-2 text-xs terminator-hud shadow-lg">
-      <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
-      <p className="mt-1 normal-case tracking-normal text-red-300/90">
-        {immediate === null
-          ? "Not assessed yet: nothing to lock on until the map is assessed."
-          : `${immediate} target${immediate === 1 ? " requires" : "s require"} immediate attention. Pulsing lock = act this week.`}
-      </p>
-    </div>
-  );
-}
-
-function ProcessDetail({
-  snapshot,
-  selectedNode,
-  unscored,
-  priority,
-  vision,
-  onNavigate,
-  onSelectProcess,
-}: {
-  snapshot: ProcessMapSnapshot;
-  selectedNode?: MapGraphNode;
-  /** A starter process nobody has assessed: shown without heat or priority. */
-  unscored: boolean;
-  priority?: PriorityTarget;
-  vision: MapVisionMode;
-  onNavigate?: NavFn;
-  onSelectProcess: (id: string) => void;
-}) {
-  const { processes } = useTemplate();
-  const p = snapshot.process;
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="size-3 rounded-full"
-            style={{
-              background: unscored
-                ? UNSCORED_ACCENT
-                : priority
-                  ? predatorThermalColor(priority.priority)
-                  : heatColorStandard(snapshot.heat),
-            }}
-          />
-          {unscored ? (
-            <Badge variant="default">Starter · not assessed</Badge>
-          ) : (
-            <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
-              heat {snapshot.heat}
-            </Badge>
-          )}
-          {priority && (
-            <Badge
-              variant={priority.immediate || priority.band === "white_hot" ? "danger" : "warn"}
-            >
-              {PRIORITY_BAND_LABEL[priority.band]} · P{priority.priority}
-            </Badge>
-          )}
-          {vision !== "standard" && <Badge variant="default">{vision}</Badge>}
-        </div>
-        <CardTitle className="text-base">{p.name}</CardTitle>
-        <CardDescription>{p.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {unscored && (
-          <p className="text-xs text-muted">
-            A starter process from the industry example, as yet untouched. Its risks and notes are
-            what such a process usually carries, not findings about your business; assign an owner
-            or edit it and it is scored.
-          </p>
-        )}
-        {priority && (
-          <div className="rounded-lg border border-border bg-panel px-3 py-2 text-xs">
-            <p className="font-medium text-fg">{priority.impactHint}</p>
-            <p className="mt-1 text-muted">{priority.reasons.join(" · ")}</p>
-          </div>
-        )}
-        {selectedNode && selectedNode.kind !== "process" && (
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-            <p className="text-xs tracking-wide text-subtle uppercase">
-              Selected · {selectedNode.kind}
-            </p>
-            <p className="font-medium">{selectedNode.label}</p>
-          </div>
-        )}
-        <div>
-          <p className="text-xs font-medium text-subtle uppercase">Flow</p>
-          <p className="mt-1 text-xs text-muted">
-            <span className="text-fg">In:</span> {(p.inputs ?? []).join(" · ") || "—"}
-          </p>
-          <p className="text-xs text-muted">
-            <span className="text-fg">Out:</span> {(p.outputs ?? []).join(" · ") || "—"}
-          </p>
-          {p.dependencies.length > 0 && (
-            <p className="mt-1 text-xs text-muted">
-              Depends on:{" "}
-              {p.dependencies.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className="mr-1 text-primary underline-offset-2 hover:underline"
-                  onClick={() => onSelectProcess(d)}
-                >
-                  {processes.find((x) => x.id === d)?.name ?? d}
-                </button>
-              ))}
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="mb-1 flex items-center gap-1 text-xs font-medium text-subtle uppercase">
-            <AlertTriangle className="size-3" /> Risks ({snapshot.risks.length})
-          </p>
-          <ul className="space-y-1.5">
-            {snapshot.risks.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-lg border border-danger/20 bg-danger/5 px-2 py-1.5 text-xs"
-              >
-                <span className="font-medium">{r.title}</span>
-                <Badge variant="danger" className="ml-1">
-                  S{r.severity}×L{r.likelihood}
-                </Badge>
-                <p className="mt-0.5 text-muted">{r.note}</p>
-                {r.linkedScenarioId && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-1 h-7 px-2 text-xs"
-                    onClick={() => onNavigate?.("precog", r.linkedScenarioId)}
-                  >
-                    Precog
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-        {snapshot.ideas.length > 0 && (
-          <div>
-            <p className="mb-1 text-xs font-medium text-subtle uppercase">
-              Ideas ({snapshot.ideas.length})
-            </p>
-            <ul className="space-y-1 text-xs text-muted">
-              {snapshot.ideas.map((i) => (
-                <li key={i.id}>
-                  <span className="text-fg">{i.title}</span> — {i.status}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
