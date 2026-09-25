@@ -1,19 +1,25 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import {
+  ConflictCard,
+  CoverageList,
+  CoveragePlanOption,
+  ImpactMetric,
+  Metric,
+  ResolutionOptions,
+  ResponsibilityMatrix,
+} from "./power-map-parts";
+import { buildGraph, downloadFile, FAMILY_META, withPlaces } from "./power-map-graph";
+import {
   Background,
   Controls,
-  MarkerType,
   MiniMap,
   ReactFlow,
   useEdgesState,
   useNodesState,
-  type Edge,
-  type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   AlertTriangle,
-  ArrowRight,
   Check,
   Download,
   FileText,
@@ -36,7 +42,6 @@ import {
   buildAssignments,
   detectSodConflicts,
   sodDetectionOptions,
-  type DetectedConflict,
   type RoleAssignment,
 } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -46,11 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { powerGuidance } from "@/lib/precog/sod/power-guidance";
-import {
-  applyResolutionPlan,
-  buildResolutionPlans,
-  type ResolutionPlan,
-} from "@/lib/precog/sod/resolution-planner";
+import { applyResolutionPlan } from "@/lib/precog/sod/resolution-planner";
 import { analyzeAbsenceImpact, analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
 import {
   createPowerMapFile,
@@ -63,43 +64,14 @@ import {
   buildCoveragePlans,
   buildCoverageProgram,
   dutyToggleEffects,
-  type CoveragePlan,
   type DutyToggleEffect,
 } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
-import { locationsById, locationText } from "@/lib/precog/person-location";
+import { locationsById } from "@/lib/precog/person-location";
 import { downloadText } from "@/lib/download";
-
-const FAMILY_META: Record<DutyFamily, { label: string; color: string; description: string }> = {
-  authorization: {
-    label: "Authorization",
-    color: "#a78bfa",
-    description: "Approve or direct a transaction",
-  },
-  custody: {
-    label: "Custody",
-    color: "#fb7185",
-    description: "Hold money, data, goods, or release capability",
-  },
-  recording: {
-    label: "Recording",
-    color: "#60a5fa",
-    description: "Enter transactions or alter records",
-  },
-  reconciliation: {
-    label: "Reconciliation",
-    color: "#34d399",
-    description: "Independently verify what occurred",
-  },
-  master_data: {
-    label: "Master data",
-    color: "#fbbf24",
-    description: "Change standing data, users, vendors, or prices",
-  },
-};
 
 export function PowerMapBuilder() {
   const tpl = useTemplate();
@@ -1277,417 +1249,3 @@ const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
     </Card>
   );
 });
-
-function ResponsibilityMatrix({
-  assignments,
-  conflicts,
-  conflictsOnly,
-  processId,
-  placesOf,
-  onToggle,
-}: {
-  assignments: RoleAssignment[];
-  conflicts: DetectedConflict[];
-  conflictsOnly: boolean;
-  processId: string;
-  placesOf: ReadonlyMap<string, string[]>;
-  onToggle: (personId: string, entitlement: EntitlementId) => void;
-}) {
-  const conflictKeys = new Set(
-    conflicts.flatMap((item) => [
-      `${item.personId}:${item.entitlementA}`,
-      `${item.personId}:${item.entitlementB}`,
-    ]),
-  );
-  const conflictedPeople = new Set(conflicts.map((item) => item.personId));
-  const conflictedDuties = new Set(
-    conflicts.flatMap((item) => [item.entitlementA, item.entitlementB]),
-  );
-  const shownPeople = conflictsOnly
-    ? assignments.filter((item) => conflictedPeople.has(item.personId))
-    : assignments;
-  const duties = ENTITLEMENTS.filter(
-    (item) =>
-      item.id !== "view_reports_only" &&
-      (!conflictsOnly || conflictedDuties.has(item.id)) &&
-      (processId === "all" || item.processIds.includes(processId)),
-  );
-  return (
-    <div className="max-h-[720px] overflow-auto rounded-xl border border-border bg-bg">
-      <table className="min-w-max border-separate border-spacing-0 text-xs">
-        <caption className="sr-only">
-          Responsibility assignment matrix. Rows are duties and columns are people. Select a cell to
-          add or remove an assignment.
-        </caption>
-        <thead className="sticky top-0 z-20 bg-surface">
-          <tr>
-            <th
-              scope="col"
-              className="sticky left-0 z-30 min-w-64 border-b border-r border-border bg-surface p-3 text-left"
-            >
-              Power / duty
-            </th>
-            {shownPeople.map((person) => (
-              <th
-                key={person.personId}
-                scope="col"
-                className="h-36 w-16 border-b border-border p-2 align-bottom"
-              >
-                <span
-                  className="block max-w-32 -rotate-45 origin-bottom-left whitespace-nowrap text-left font-medium text-muted"
-                  title={`${person.personName} · ${withPlaces(person.role, placesOf.get(person.personId))}`}
-                >
-                  {person.personName}
-                  {placesOf.has(person.personId) && (
-                    <span className="block text-[10px] font-normal text-subtle">
-                      {locationText(placesOf.get(person.personId) ?? [])}
-                    </span>
-                  )}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {duties.map((duty) => (
-            <tr key={duty.id}>
-              <th
-                scope="row"
-                className="sticky left-0 z-10 border-b border-r border-border bg-surface p-2 text-left"
-              >
-                <span className="block font-medium">{duty.label}</span>
-                <span className="text-xs font-normal text-subtle">
-                  {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
-                </span>
-              </th>
-              {shownPeople.map((person) => {
-                const active = person.entitlements.includes(duty.id);
-                const conflict = conflictKeys.has(`${person.personId}:${duty.id}`);
-                return (
-                  <td key={person.personId} className="border-b border-border p-1 text-center">
-                    <button
-                      type="button"
-                      aria-label={`${active ? "Remove" : "Assign"} ${duty.label} ${active ? "from" : "to"} ${person.personName}${conflict ? "; participates in a conflict" : ""}`}
-                      aria-pressed={active}
-                      onClick={() => onToggle(person.personId, duty.id)}
-                      className={cn(
-                        "mx-auto flex size-8 items-center justify-center rounded-md border text-sm",
-                        conflict
-                          ? "border-danger bg-danger/20 text-danger"
-                          : active
-                            ? "border-primary/50 bg-primary/15 text-primary"
-                            : "border-border text-transparent hover:border-primary/40 hover:text-subtle",
-                      )}
-                      title={`${person.personName} · ${duty.label}${conflict ? " · conflict" : ""}`}
-                    >
-                      {conflict ? "!" : active ? "✓" : "+"}
-                    </button>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const downloadFile = (content: string, type: string, filename: string) =>
-  downloadText(filename, content, type);
-
-function CoverageList({
-  title,
-  empty,
-  items,
-  danger,
-}: {
-  title: string;
-  empty: string;
-  items: Array<{ id: string; label: string; detail: string }>;
-  danger?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-elevated p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{title}</p>
-        <Badge variant={items.length ? (danger ? "danger" : "warn") : "ok"}>{items.length}</Badge>
-      </div>
-      {items.length ? (
-        <div className="max-h-48 space-y-2 overflow-y-auto">
-          {items.map((item) => (
-            <div key={item.id} className="rounded-lg border border-border bg-bg p-2">
-              <p className="text-xs font-medium">{item.label}</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-subtle">{item.detail}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-ok">{empty}</p>
-      )}
-    </div>
-  );
-}
-
-function CoveragePlanOption({ plan, onApply }: { plan: CoveragePlan; onApply: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onApply}
-      className="rounded-lg border border-border bg-bg p-2.5 text-left hover:border-primary/50"
-    >
-      <span className="block text-xs font-medium">{plan.toPersonName}</span>
-      <span className="block text-xs text-subtle">
-        {plan.toRole} · {plan.currentWorkload} current duties
-      </span>
-      <span className="mt-1 block text-xs font-medium text-ok">
-        +{plan.continuityGain} continuity · no new conflicts
-      </span>
-    </button>
-  );
-}
-
-function ImpactMetric({
-  label,
-  value,
-  detail,
-  danger,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  danger?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border bg-elevated p-3",
-        danger ? "border-danger/40" : "border-ok/30",
-      )}
-    >
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-subtle">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular">{value}</p>
-      <p className={cn("text-xs", danger ? "text-danger" : "text-ok")}>{detail}</p>
-    </div>
-  );
-}
-
-function Metric({
-  icon: Icon,
-  label,
-  value,
-  detail,
-  danger,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: number;
-  detail: string;
-  danger?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border bg-surface p-3",
-        danger ? "border-danger/30" : "border-border",
-      )}
-    >
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Icon className={cn("size-3.5", danger ? "text-danger" : "text-primary")} />
-        {label}
-      </div>
-      <p className="mt-1 text-2xl font-semibold tabular">{value}</p>
-      <p className="text-xs text-subtle">{detail}</p>
-    </div>
-  );
-}
-
-function ConflictCard({ conflict }: { conflict: DetectedConflict }) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border p-3",
-        conflict.dualReleaseMitigated
-          ? "border-ok/30 bg-ok/5"
-          : conflict.severity === "critical"
-            ? "border-danger/30 bg-danger/5"
-            : "border-warn/30 bg-warn/5",
-      )}
-    >
-      <div className="flex flex-wrap gap-2">
-        <Badge
-          variant={
-            conflict.dualReleaseMitigated
-              ? "ok"
-              : conflict.severity === "critical"
-                ? "danger"
-                : "warn"
-          }
-        >
-          {conflict.severity} · {conflict.score}
-        </Badge>
-        {conflict.dualReleaseMitigated && <Badge variant="ok">dual-release mitigated</Badge>}
-      </div>
-      <p className="mt-2 text-sm font-medium">{conflict.title}</p>
-      <p className="mt-1 text-xs text-muted">
-        {conflict.labelA} × {conflict.labelB}
-      </p>
-      <p className="mt-1 text-xs text-subtle">{conflict.why}</p>
-      <p className="mt-2 text-xs text-ok">
-        Fallback: {conflict.compensatingControls.slice(0, 2).join("; ")}
-      </p>
-    </div>
-  );
-}
-
-function ResolutionOptions({
-  assignments,
-  conflict,
-  onApply,
-}: {
-  assignments: RoleAssignment[];
-  conflict: DetectedConflict;
-  onApply: (plan: ResolutionPlan) => void;
-}) {
-  const plans = buildResolutionPlans(assignments, conflict);
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle">
-        Clean resolution paths
-      </p>
-      {plans.length ? (
-        plans.slice(0, 3).map((plan, index) => (
-          <div
-            key={plan.id}
-            className="flex items-center gap-3 rounded-lg border border-border bg-bg p-2.5"
-          >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-              {index + 1}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium">{plan.summary}</p>
-              <p className="mt-0.5 text-xs text-subtle">
-                Resolves {plan.conflictsResolved} conflict{plan.conflictsResolved === 1 ? "" : "s"}{" "}
-                · creates no new conflicts
-                {plan.toPersonName
-                  ? " · preserves duty coverage"
-                  : " · verify coverage before implementation"}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant={index === 0 ? "default" : "secondary"}
-              onClick={() => onApply(plan)}
-            >
-              Apply <ArrowRight className="size-3.5" />
-            </Button>
-          </div>
-        ))
-      ) : (
-        <p className="rounded-lg border border-warn/30 bg-warn/5 p-3 text-xs text-muted">
-          No clean reassignment is available. Use an independent reviewer or the compensating
-          control shown for this conflict.
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
-function withPlaces(role: string, places: readonly string[] | undefined): string {
-  return places && places.length > 0 ? `${role} · ${locationText(places)}` : role;
-}
-
-function buildGraph(
-  assignments: RoleAssignment[],
-  conflicts: DetectedConflict[],
-  conflictsOnly: boolean,
-  processId = "all",
-  placesOf: ReadonlyMap<string, string[]> = new Map(),
-): { nodes: Node[]; edges: Edge[] } {
-  const conflictKeys = new Set(
-    conflicts.flatMap((item) => [
-      `${item.personId}:${item.entitlementA}`,
-      `${item.personId}:${item.entitlementB}`,
-    ]),
-  );
-  const conflictedDutyIds = new Set(
-    conflicts.flatMap((item) => [item.entitlementA, item.entitlementB]),
-  );
-  const conflictedPeople = new Set(conflicts.map((item) => item.personId));
-  const families = Object.keys(FAMILY_META) as DutyFamily[];
-  const shownAssignments = conflictsOnly
-    ? assignments.filter((person) => conflictedPeople.has(person.personId))
-    : assignments;
-  const shownDuties = ENTITLEMENTS.filter(
-    (item) =>
-      item.id !== "view_reports_only" &&
-      (!conflictsOnly || conflictedDutyIds.has(item.id)) &&
-      (processId === "all" || item.processIds.includes(processId)),
-  );
-  const nodes: Node[] = shownAssignments.map((person, index) => ({
-    id: `person:${person.personId}`,
-    position: { x: 10, y: 80 + index * 110 },
-    data: {
-      label: [
-        person.personName,
-        person.role,
-        ...(placesOf.has(person.personId)
-          ? [locationText(placesOf.get(person.personId) ?? [])]
-          : []),
-      ].join("\n"),
-    },
-    style: {
-      width: 205,
-      border: `1px solid ${conflictedPeople.has(person.personId) ? "#f87171" : "#3d9cfd"}`,
-      borderColor: conflictedPeople.has(person.personId) ? "#f87171" : "#3d9cfd",
-      background: "#151820",
-      color: "#e8eaef",
-      whiteSpace: "pre-line",
-      borderRadius: 10,
-    },
-  }));
-  for (const [familyIndex, family] of families.entries()) {
-    const duties = shownDuties.filter((item) => item.family === family);
-    for (const [index, entitlement] of duties.entries())
-      nodes.push({
-        id: `duty:${entitlement.id}`,
-        position: { x: 320 + familyIndex * 245, y: 70 + index * 100 },
-        data: {
-          label: `${entitlement.label}\n${FAMILY_META[family].label} · risk ${entitlement.riskWeight}/5`,
-        },
-        style: {
-          width: 215,
-          border: `1px solid ${FAMILY_META[family].color}`,
-          borderColor: FAMILY_META[family].color,
-          background: "#1a1d26",
-          color: "#e8eaef",
-          whiteSpace: "pre-line",
-          fontSize: 12,
-          borderRadius: 9,
-        },
-      });
-  }
-  const visibleNodeIds = new Set(nodes.map((node) => node.id));
-  const edges: Edge[] = shownAssignments.flatMap((person) =>
-    person.entitlements
-      .filter((id) => id !== "view_reports_only")
-      .map((id) => {
-        const conflict = conflictKeys.has(`${person.personId}:${id}`);
-        return {
-          id: `${person.personId}-${id}`,
-          source: `person:${person.personId}`,
-          target: `duty:${id}`,
-          animated: conflict,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: {
-            stroke: conflict ? "#f87171" : "#3d9cfd",
-            strokeWidth: conflict ? 2.4 : 1,
-            opacity: conflict ? 0.95 : 0.3,
-          },
-        };
-      })
-      .filter((edge) => visibleNodeIds.has(edge.target)),
-  );
-  return { nodes, edges };
-}
