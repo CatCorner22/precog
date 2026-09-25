@@ -1,21 +1,5 @@
 import type { IndustryId } from "../industry";
 
-/** The words the meta-analysis inventory uses for each line of business. */
-interface InventoryWords {
-  system: string;
-  payer: string;
-  pair: string;
-  partners: string;
-  partnerFraud: string;
-  partnerCheck: string;
-  regulator: string;
-  regulatorDetail: string;
-  regulatorProbe: string;
-  hostageData: string;
-  revenueShock: string;
-  revenueProbe: string;
-}
-
 export function bandReadiness(n: number): "high" | "solid" | "partial" | "fragile" {
   if (n >= 80) return "high";
   if (n >= 60) return "solid";
@@ -35,7 +19,7 @@ export function clamp(n: number, lo = 0, hi = 100) {
 }
 
 /** The words the inventory uses for this line of business. Wording only: no item is added or dropped. */
-interface InventoryWords {
+export interface InventoryWords {
   /** The system of record: "PMS", "POS", "billing system". */
   system: string;
   /** Who pays: "patient", "customer", "guest", "client". */
@@ -165,7 +149,3 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     revenueProbe: "Add customer mix and largest customer concentration to the business profile",
   },
 };
-
-/**
- * Run epistemic meta-analysis over current practice profile + demo corpus.
- */
