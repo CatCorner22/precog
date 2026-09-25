@@ -8,13 +8,9 @@ import { industryMeta } from "../industry";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "../engine";
-import {
-  CONFIRMATION_MAX_AGE_DAYS,
-  coverageReport,
-  documentationDebt,
-  checkInPlan,
-  staleItems,
-} from "../continuity/coverage";
+import { CONFIRMATION_MAX_AGE_DAYS, checkInPlan, staleItems } from "../continuity/staleness";
+import { coverageReport, STRONG_LEVELS } from "../continuity/coverage";
+import { documentationDebt } from "../continuity/documentation";
 import {
   absencesNeedingAttention,
   describeWindow,
@@ -65,6 +61,7 @@ import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { StaffComposition } from "../types";
 import { CADENCE_LABEL, processRecordReport } from "../process-record";
 import type { ToolName, ToolResult } from "./types";
+import { formatUsd as usd } from "@/lib/utils";
 
 export interface ToolContext {
   /** The business being advised. Every tool is a pure function of this. */
@@ -76,14 +73,6 @@ export interface ToolContext {
 
 function profileOf(ctx: ToolContext): PracticeProfile {
   return ctx.profile ?? defaultProfile();
-}
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 export const TOOL_CATALOG: {
@@ -631,9 +620,8 @@ export function executeTool(
       }
 
       case "get_knowledge_graph": {
-        const STRONG = new Set(["expert", "proficient"]);
         const edges = relations
-          .filter((r) => STRONG.has(r.level))
+          .filter((r) => STRONG_LEVELS.has(r.level))
           .map((r) => {
             const person = people.find((p) => p.id === r.personId);
             const k = knowledge.find((x) => x.id === r.knowledgeId);
@@ -1102,19 +1090,5 @@ export function planTools(question: string): ToolName[] {
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");
   }
-  if (/leading|early|signal|indicator/.test(q)) {
-    tools.add("get_leading_indicators");
-  }
-  if (/coso|guidance|what does|policy|best practice|rag/.test(q)) {
-    tools.add("retrieve_guidance");
-  }
-  if (
-    /unknown|epistemic|meta|blind.?spot|rumsfeld|confidence|readiness|gap|what don.t we know/.test(
-      q,
-    )
-  ) {
-    tools.add("run_meta_analysis");
-  }
-
   return Array.from(tools);
 }

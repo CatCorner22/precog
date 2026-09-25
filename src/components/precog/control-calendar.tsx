@@ -68,11 +68,13 @@ export function ControlCalendarCard({
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  const items = useMemo(
-    () => collectDueItems(tpl.processes, tpl.people, profile),
-    [tpl.processes, tpl.people, profile],
-  );
-  const summary = summarizeDue(items);
+  // Due items read only the decisions, map versions and custom map fields.
+  const { decisions, mapVersions, customProcesses, customPeople } = profile;
+  const { items, summary } = useMemo(() => {
+    const due = collectDueItems(tpl.processes, tpl.people, profile);
+    return { items: due, summary: summarizeDue(due) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the fields collectDueItems reads
+  }, [tpl.processes, tpl.people, decisions, mapVersions, customProcesses, customPeople]);
   const byDay = useMemo(() => groupByDay(items), [items]);
 
   const actionable = items.filter((i) => i.status !== "later");

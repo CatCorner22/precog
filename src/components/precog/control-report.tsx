@@ -7,44 +7,21 @@ import { getFirm } from "@/lib/precog/firm/server";
 import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
-import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
-import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
-import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
-import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
-import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
-import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
-import {
-  contingencyCards,
-  coverageReport,
-  DOCUMENTATION_LABEL,
-  documentationDebt,
-  documentationState,
-  checkInPlan,
-  firstName,
-  LEVEL_LABEL,
-  staleItems,
-  STATUS_LABEL,
-  CONFIRMATION_MAX_AGE_DAYS,
-} from "@/lib/precog/continuity/coverage";
+import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { firstName, LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
+import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   formatDateRange,
   handoffDeadline,
   leadLabel,
-  plannedAbsenceReport,
   procedurePointer,
 } from "@/lib/precog/continuity/planned-absence";
-import { leaveDebriefs, standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
+import { standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
+import { handoverDeadline, leaverLead } from "@/lib/precog/continuity/leavers";
 import {
-  handoverDeadline,
-  leaverLead,
-  leavers as leaversReport,
-} from "@/lib/precog/continuity/leavers";
-import {
-  continuityCommitments,
-  continuitySlips,
   continuityStepKey,
   handoffCommitment,
   isDecisionOpen,
@@ -54,28 +31,16 @@ import {
   localDateKey,
   slipLabels,
 } from "@/lib/precog/decisions/follow-through";
-import { assessCoso } from "@/lib/precog/coso";
-import {
-  METHOD_CAVEATS,
-  casesForSodRules,
-  citingCaseStats,
-  detectionBreakdown,
-  observedLossRange,
-  recommendedStepsForRules,
-  isOwnSector,
-} from "@/lib/precog/evidence";
-import { buildWeeklyActions } from "@/components/precog/weekly-action-plan-data";
-import {
-  buildProcessMapGraph,
-  computeMapHealth,
-  validateProcessMap,
-} from "@/lib/precog/process-graph";
+import { METHOD_CAVEATS } from "@/lib/precog/evidence";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
+import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import { ReportVersionsPanel } from "@/components/precog/report-versions";
+import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -98,8 +63,12 @@ function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
   );
 }
 
-/** Print-friendly control priorities report — File → Print → Save as PDF. */
-export function ControlReport() {
+/**
+ * Print-friendly control priorities report — File → Print → Save as PDF.
+ * With `locked`, it prints a frozen version (rendered under a read-only
+ * provider) and names the preparer and reviewer instead of today's date.
+ */
+export function ControlReport({ locked = null }: { locked?: ReportVersionRow | null }) {
   const { profile, mapCustomized, replaceProfile } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [firmName, setFirmName] = useState<string | null>(null);
@@ -117,7 +86,7 @@ export function ControlReport() {
   }, [isPending, user]);
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
-  const generated = new Date();
+  const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
   const registerReady = registerAssessed(tpl);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
@@ -131,115 +100,19 @@ export function ControlReport() {
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
 
-  const data = useMemo(() => {
-    // Starter scenarios count only once the owner confirms them, on every
-    // figure this report prints, as on the screens it summarises.
-    const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
-    const threat = buildThreatAssessment({
-      tpl,
-      practiceName: businessName,
-      staff: profile.staff,
-      riskVariables: profile.riskVariables,
-      dualRelease: profile.dualRelease,
-      confirmedScenarioIds: confirmed,
-    });
-    const portfolio = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
-      confirmedScenarioIds: confirmed,
-    });
-    const sod = detectSodConflicts(
-      tpl,
-      profile.staff,
-      sodDetectionOptions(tpl, profile.dualRelease),
-    );
-    const continuity = coverageReport(tpl);
-    const staleness = staleItems(tpl, today);
-    const checkIns = checkInPlan(tpl, today);
-    const cards = contingencyCards(tpl);
-    const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
-    const debriefs = leaveDebriefs(
-      tpl,
-      profile.plannedAbsences ?? [],
-      profile.decisions,
-      profile.industry,
-      today,
-    );
-    const leaving = leaversReport(tpl, profile.decisions, today);
-    const slips = continuitySlips(profile.decisions, tpl);
-    const committed = continuityCommitments(profile.decisions, tpl, today);
-    const coso = assessCoso(tpl, profile.staff, {
-      riskVariables: profile.riskVariables,
-      confirmedScenarioIds: confirmed,
-      dualRelease: profile.dualRelease,
-    });
-    const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
-    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
-    const actions = buildWeeklyActions({
-      tpl,
-      staff: profile.staff,
-      dualRelease: profile.dualRelease,
-      mapSnapshots: snapshots,
-      today,
-      trackFreshness,
-      mapAssessed: mapReady,
-      decisions: profile.decisions,
-      plannedAbsences: profile.plannedAbsences,
-    });
-    const issues = validateProcessMap(
-      tpl.processes,
-      tpl.people,
-      new Set(tpl.controls.map((c) => c.id)),
-      profile.mapLayout ?? {},
-    );
-    const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
-    const openRuleIds = [
-      ...new Set(
-        sod.conflicts
-          .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated)
-          .map((c) => c.ruleId),
-      ),
-    ];
-    const matched = casesForSodRules(openRuleIds);
-    // Same line of business first; the reader's own sector is the part they
-    // check, so it should not sit at the end of the list.
-    const evidence = [
-      ...matched.filter((c) => isOwnSector(c, profile.industry)),
-      ...matched.filter((c) => !isOwnSector(c, profile.industry)),
-    ];
-    const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
-    // Count, median and detection routes describe the cases whose records
-    // show these gaps; cases that only share a scheme are listed but not
-    // counted as matches.
-    const citing = citingCaseStats(openRuleIds);
-    const statsFrom = citing.count > 0 ? citing.cases : evidence;
-    const lossRange = observedLossRange(statsFrom);
-    const found = detectionBreakdown(statsFrom);
-    const docs = documentationDebt(tpl);
-    return {
-      threat,
-      portfolio,
-      sod,
-      continuity,
-      staleness,
-      checkIns,
-      docs,
-      cards,
-      leave,
-      debriefs,
-      leaving,
-      slips,
-      committed,
-      coso,
-      actions,
-      mapHealth,
-      issues,
-      evidence,
-      citing,
-      steps,
-      lossRange,
-      found,
-      policyNote,
-    };
-  }, [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName]);
+  const data = useMemo(
+    () =>
+      buildControlReportModel({
+        tpl,
+        profile,
+        mapCustomized,
+        today,
+        trackFreshness,
+        mapReady,
+        businessName,
+      }),
+    [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName],
+  );
 
   const {
     policyNote,
@@ -296,27 +169,37 @@ export function ControlReport() {
             <ArrowLeft className="size-4" /> Back to dashboard
           </Link>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                replaceProfile({
-                  ...profile,
-                  engagement: {
-                    ...profile.engagement,
-                    reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
-                  },
-                });
-              }}
-            >
-              {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
-            </Button>
+            {locked ? (
+              <Link
+                to="/report"
+                className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
+              >
+                Back to the current report
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  replaceProfile({
+                    ...profile,
+                    engagement: {
+                      ...profile.engagement,
+                      reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
+                    },
+                  });
+                }}
+              >
+                {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
+              </Button>
+            )}
             <Button size="sm" onClick={() => window.print()}>
               <Printer className="size-3.5" /> Print / Save as PDF
             </Button>
           </div>
         </div>
       </div>
+      {!locked && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         <header className="border-b-2 border-neutral-900 pb-4">
@@ -325,6 +208,12 @@ export function ControlReport() {
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
           {firmName && <p className="mt-1 text-sm text-neutral-700">Prepared by {firmName}</p>}
+          {locked && (
+            <p className="mt-1 text-sm font-medium text-neutral-800">
+              {versionProvenance(locked)}
+              {locked.scopeNote ? ` · Scope: ${locked.scopeNote}` : ""}
+            </p>
+          )}
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
             {mapFrom === "starter"
@@ -540,11 +429,9 @@ export function ControlReport() {
           {sod.summary.unheldDuties.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
               Nobody active is marked for:{" "}
-              {sod.summary.unheldDuties
-                .map((d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d)
-                .join(", ")}
-              . Somebody does each of these in every business that handles money; until the team
-              records who, these findings cannot see that seat.
+              {sod.summary.unheldDuties.map((d) => entitlementLabel(d)).join(", ")}. Somebody does
+              each of these in every business that handles money; until the team records who, these
+              findings cannot see that seat.
             </p>
           )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">

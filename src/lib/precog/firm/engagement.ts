@@ -1,14 +1,12 @@
-import { INDUSTRIES } from "../industry";
+import { isDemoName } from "../industry";
 import type { Person } from "../types";
-
-const DEMO_PRACTICE_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 /** True when this profile is the owner's team rather than an industry sample. */
 export function isOwnTeam(profile: {
   customPeople?: readonly Person[] | null;
   practiceName: string;
 }): boolean {
-  return Boolean(profile.customPeople?.length) && !DEMO_PRACTICE_NAMES.has(profile.practiceName);
+  return Boolean(profile.customPeople?.length) && !isDemoName(profile.practiceName);
 }
 
 /** Stamps that measure a pilot engagement. Once set, a stamp is not cleared. */
@@ -64,7 +62,7 @@ export function mapIsComplete(people: readonly Person[] | null | undefined): boo
 const ACCEPTED_KINDS = new Set(["accept_residual", "remediate", "monitor", "insure"]);
 
 /** A logged accept, remediate, monitor, or insure decision is a response to a finding. */
-export function acceptedFindingCount(decisions: readonly { kind: string }[]): number {
+function acceptedFindingCount(decisions: readonly { kind: string }[]): number {
   return decisions.filter((d) => ACCEPTED_KINDS.has(d.kind)).length;
 }
 

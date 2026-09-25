@@ -11,6 +11,7 @@ import {
   type ValueEvidence,
   type ValueEvidenceKind,
 } from "@/lib/precog/value-evidence";
+import { downloadText } from "@/lib/download";
 
 export function ValueEvidenceRegister({
   items,
@@ -63,13 +64,11 @@ export function ValueEvidenceRegister({
     setEditSource("");
   };
   const exportEvidence = () => {
-    const blob = new Blob([serializeValueEvidence(items)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `precog-value-evidence-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `precog-value-evidence-${new Date().toISOString().slice(0, 10)}.json`,
+      serializeValueEvidence(items),
+      "application/json",
+    );
   };
   const importEvidence = async (file: File | undefined) => {
     if (!file) return;

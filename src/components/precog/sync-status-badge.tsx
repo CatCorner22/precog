@@ -1,4 +1,4 @@
-import { usePractice, type SyncStatus } from "@/lib/precog/practice-context";
+import { usePracticeSync, type SyncStatus } from "@/lib/precog/practice-context";
 import { Cloud, CloudAlert, CloudOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ const LABEL: Record<SyncStatus, string> = {
 };
 
 export function SyncStatusBadge({ className }: { className?: string }) {
-  const { syncStatus } = usePractice();
+  const { syncStatus } = usePracticeSync();
   const label = LABEL[syncStatus];
   if (!label) return null;
 

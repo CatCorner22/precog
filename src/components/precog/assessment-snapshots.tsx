@@ -25,6 +25,7 @@ import {
 import { formatUsd } from "@/lib/utils";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
+import { downloadText } from "@/lib/download";
 
 export function AssessmentSnapshots() {
   const { profile, replaceProfile } = usePractice();
@@ -198,12 +199,11 @@ export function AssessmentSnapshots() {
       comparison.createdAt,
       comparison.result,
     );
-    const url = URL.createObjectURL(new Blob([report], { type: "text/markdown;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `precog-assessment-comparison-${new Date().toISOString().slice(0, 10)}.md`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `precog-assessment-comparison-${new Date().toISOString().slice(0, 10)}.md`,
+      report,
+      "text/markdown;charset=utf-8",
+    );
   }
 
   return (

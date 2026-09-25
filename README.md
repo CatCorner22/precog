@@ -2,19 +2,19 @@
 
 **Internal controls and residual risk management for small businesses** — segregation-of-duties detection, a library of prosecuted cases showing what each gap has cost real businesses, knowledge continuity maps, scenario modeling, and an AI advisor grounded in your business profile and that case library.
 
-Built for owner-operated teams (2–20 people): dental and medical offices, retail, professional services, restaurants, and general small business.
+Built for owner-operated teams (2–50 people): dental and medical offices, retail, professional services, restaurants, construction, nonprofits, and general small business.
 
-| Module               | Path                          | Role                                                                                                        |
-| -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands  |
-| Tornado sensitivity  | `scoring/residual-engine.ts`  | Highest-leverage control levers                                                                             |
-| COSO heat map        | `coso.ts` + UI                | 5 components, 17 principles, deep links                                                                     |
-| Precog scenarios     | `engine.ts`                   | Assumed days until found and $ loss; an own business has no crime policy until you enter one                |
-| Knowledge SPOF map   | knowledge UI                  | Continuity / single points of failure                                                                       |
-| Pioneer LLM coach    | `coach/`                      | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always                                   |
-| Operating blueprint  | `operating-blueprint.ts` + UI | 10 core practice processes with standard, leading, optimal, and fallback designs                            |
-| Power map builder    | SoD UI                        | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
-| Assessment snapshots | `snapshots.ts` + UI           | Private, versioned practice records with model/corpus provenance                                            |
+| Module               | Path                          | Role                                                                                                           |
+| -------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Residual engine      | `src/lib/precog/scoring/`     | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands     |
+| Tornado sensitivity  | `scoring/residual-engine.ts`  | Highest-leverage control levers                                                                                |
+| COSO heat map        | `coso.ts` + UI                | 5 components, 17 principles, deep links                                                                        |
+| Precog scenarios     | `engine.ts`                   | Assumed days until found and $ loss; an own business has no crime policy until you enter one                   |
+| Knowledge SPOF map   | knowledge UI                  | Continuity / single points of failure                                                                          |
+| Pioneer LLM coach    | `coach/`                      | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always                                      |
+| Operating blueprint  | `operating-blueprint.ts` + UI | 10 money processes per industry (3 of its own, 7 shared) with standard, leading, optimal, and fallback designs |
+| Power map builder    | SoD UI                        | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations    |
+| Assessment snapshots | `snapshots.ts` + UI           | Private, versioned practice records with model/corpus provenance                                               |
 
 ## Fast setup from your HR or payroll system
 
@@ -136,7 +136,7 @@ Cloud saves carry a per-business revision, so edits made in another tab or devic
 identified before they can overwrite local work. The app asks whether to load the remote
 version or keep the local version and overwrite it. The revision check and the write are one
 statement server-side (`src/lib/precog/business-store.ts`), so two clients racing on the same
-revision cannot both succeed. Businesses are keyed per user (`0007_businesses_per_user_key.sql`),
+revision cannot both succeed. Businesses are keyed per user (`0010_businesses_per_user_key.sql`),
 so two accounts that both hold the legacy `biz_default` id no longer collide. Both migrations run
 automatically through the existing migration runner. The same prompt appears when you sign in on a device that already holds edits to the
 business your account has, and work done signed-out under a separate business is added to
@@ -159,7 +159,7 @@ so refresh, back, and shared links keep the view.
 
 Every loss figure in the app resolves to one of two things: a prosecuted case in `src/lib/precog/evidence/cases.ts`, or a published study in `src/lib/precog/evidence/benchmarks.ts`. Each case record carries the facts the source states (how it worked, the control gap, the loss, how long it ran, how it came to light, and, where stated, how long the person had served), the segregation-of-duties rules it demonstrates, the controls that would plausibly have caught it, and a direct link to the U.S. Attorney's Office or other government release. Where a source does not state a fact, the record says "unknown" rather than guess.
 
-`npm run verify:evidence` checks the library's invariants: every rule has at least one real case behind it, every citation is an https URL, every case is tied to a rule, every guidance chunk states its basis, and every stated tenure figure has its source in the record's text. Run it before committing a change to the library.
+The tests in `src/lib/precog/evidence/` (`evidence.test.ts`, `provenance.test.ts`) check the library's invariants: every rule has at least one real case behind it, every citation is an https URL, every case is tied to a rule, every guidance chunk states its basis, and every stated tenure figure has its source in the record's text. They run with `npm test`.
 
 The 0–100 scores elsewhere in the app are this app's own indices, and scenario figures are assumptions written into the scenario; the app says so wherever it shows one.
 
@@ -184,7 +184,7 @@ npm run e2e    # headless builder walk-through against the running dev server (n
 npm run e2e:tabs  # every tab of every industry demo plus /threat, /report, /login, /share; fails on any page error
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests, build, `verify:evidence` and `verify:template` on every pull request, plus the builder end-to-end smoke (`scripts/e2e-builder.mjs`), which loads the demo, adds a process, drives the keyboard shortcuts, imports a CSV and undoes it.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, formatting, the production dependency audit, the unit and domain tests, the build and its bundle budget on every pull request; applies every migration twice to a real Postgres; and runs the two browser smokes (`scripts/e2e-builder.mjs`, which loads the demo, adds a process, drives the keyboard shortcuts, imports a CSV and undoes it; and `scripts/e2e-tabs.mjs`, which opens every tab for every industry and each public route).
 
 Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally. The limiters are in-process memory: on serverless hosting each instance counts separately, so treat them as cost control, not abuse control; put a platform-level limit (Vercel Firewall, Cloudflare) in front for the latter. Every Grok brief is post-checked deterministically: dollar figures and percentages in the answer must appear in the tool results it was given, and any that do not are listed under "Check before quoting" at the end of the brief.
 
@@ -198,12 +198,14 @@ Share links can hide people's names while keeping roles, optionally require a pa
 
 ## Demo data
 
-Five industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
+Seven industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
 
 - **Dental** — Ridgeview Family Dental (default)
 - **Retail** — Harbor Lane Boutique
 - **Restaurant** — Ember & Oak Kitchen
 - **Professional services** — Northgate Advisory Group
+- **Construction** — Summit Ridge Builders
+- **Nonprofit** — Riverbend Community Alliance
 - **General SMB** — Main Street Business Co.
 
 Switch industry in **Business profile** to load the full template (process map, SoD, scenarios, dual-release defaults). A business belongs to one industry: once you have entered your own team, register, leave or processes, the switch spells out what it would discard and offers to keep the business as it is and add the new industry as a second business (the header switcher moves between them) instead of replacing it.

@@ -9,10 +9,12 @@ import {
   deleteBusinessRow,
   listBusinessSummaries,
   loadActiveBusiness,
+  resolveBusinessOwner,
   saveBusinessRevision,
   setActiveBusiness,
 } from "./business-store";
-import { resolveClientDate } from "./continuity/coverage";
+import { loadFirmFor } from "./firm/store";
+import { resolveClientDate } from "./dates";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
@@ -66,16 +68,25 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     const name = data.profile.practiceName.trim().slice(0, 80) || "My Business";
     const { businessId, json: profileJson } = data;
 
+    // A firm member saving a colleague's client writes the colleague's row;
+    // a new business is created under the saver and joins their firm.
+    const [owner, firm] = await Promise.all([
+      resolveBusinessOwner(sql, context.userId, businessId),
+      loadFirmFor(sql, context.userId),
+    ]);
+
     // Revision check and write are a single compare-and-swap statement; see
     // business-store.ts. The table is keyed by (user_id, id), so another
     // user's business with the same client-generated id is a different row.
     const saved = await saveBusinessRevision<PracticeProfile>(sql, {
-      userId: context.userId,
+      userId: owner ?? context.userId,
       businessId,
       name,
       industry: data.industry,
       profileJson,
       baseRevision: data.baseRevision,
+      savedBy: context.userId,
+      firmUserId: firm?.firmUserId ?? null,
     });
     if (!saved.ok) {
       return {
@@ -95,7 +106,6 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       businessId,
       name,
       industry: data.industry,
-      profileJson,
     });
     return {
       ok: true as const,
@@ -114,15 +124,17 @@ type BusinessRow = {
 };
 
 /**
- * Every business in the signed-in user's portfolio (summaries only). No row
- * limit: saves refuse a new business past MAX_BUSINESSES_PER_USER instead, so
- * the list and the limit agree and no business is unreachable.
+ * Every business in the signed-in user's portfolio and their firm's
+ * (summaries only). No row limit: saves refuse a new business past
+ * MAX_BUSINESSES_PER_USER instead, so the list and the limit agree and no
+ * business is unreachable.
  */
 export const listBusinesses = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await listBusinessSummaries(sql, context.userId);
+    const firm = await loadFirmFor(sql, context.userId);
+    const rows = await listBusinessSummaries(sql, context.userId, firm?.firmUserId ?? null);
     return rows.map((r) => ({ ...r, industry: (r.industry as IndustryId) || "general" }));
   });
 
@@ -135,11 +147,14 @@ export const loadBusiness = createServerFn({ method: "GET" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<BusinessRow>`
-      select id, name, industry, profile, updated_at, revision
-      from businesses
-      where user_id = ${context.userId} and id = ${data.id}
-    `;
+    const owner = await resolveBusinessOwner(sql, context.userId, data.id);
+    const rows = owner
+      ? await sql<BusinessRow>`
+          select id, name, industry, profile, updated_at, revision
+          from businesses
+          where user_id = ${owner} and id = ${data.id}
+        `
+      : [];
     const row = rows[0];
     if (!row) return { found: false as const, profile: null, revision: null };
     return {
@@ -158,6 +173,7 @@ export const deleteBusiness = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await deleteBusinessRow(sql, context.userId, data.id);
+    const owner = await resolveBusinessOwner(sql, context.userId, data.id);
+    if (owner) await deleteBusinessRow(sql, owner, data.id, context.userId);
     return { ok: true as const };
   });

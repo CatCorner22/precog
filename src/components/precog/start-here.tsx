@@ -15,12 +15,11 @@ import { continuitySlips, decisionsDue, localDateKey } from "@/lib/precog/decisi
 import { useToday } from "@/lib/precog/decisions/use-today";
 import {
   checkInPlan,
-  coverageReport,
-  documentationDebt,
-  firstName,
   staleItems,
   CONFIRMATION_MAX_AGE_DAYS,
-} from "@/lib/precog/continuity/coverage";
+} from "@/lib/precog/continuity/staleness";
+import { coverageReport, firstName } from "@/lib/precog/continuity/coverage";
+import { documentationDebt } from "@/lib/precog/continuity/documentation";
 import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { todayBrief } from "@/lib/precog/continuity/today";
@@ -50,7 +49,7 @@ import {
 } from "@/lib/precog/coach/first-steps";
 import { CaseCard } from "./case-card";
 import { concentrationHeadline, midSentence, separatedPairs } from "@/lib/precog/sod/verdict";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,9 +175,7 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
   );
   // Findings that rest on duties guessed from job titles say so.
   const titleDuties = isSampleTeam ? "" : titleDutiesSentence(template.people);
-  const unheld = sod.summary.unheldDuties.map(
-    (d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d,
-  );
+  const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
 
   /**
    * Which segregation-of-duties rules the dual-release policy only narrows.

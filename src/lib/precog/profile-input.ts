@@ -1,19 +1,16 @@
-import { INDUSTRIES, type IndustryId } from "./industry";
+import { isIndustryId } from "./industry";
 import type { PracticeProfile } from "./practice-profile";
 import { RequestError } from "@/lib/request-errors";
 
 /** Largest profile document a single save may carry (bytes of JSON). */
 export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
 const BUSINESS_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
 
 export function isBusinessId(value: unknown): value is string {
   return typeof value === "string" && BUSINESS_ID.test(value);
 }
 
-export function isIndustryId(value: unknown): value is IndustryId {
-  return typeof value === "string" && INDUSTRY_IDS.has(value);
-}
+export { isIndustryId };
 
 /**
  * The minimum a profile must satisfy before it is stored verbatim as jsonb:

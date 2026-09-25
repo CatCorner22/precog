@@ -1,18 +1,19 @@
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "./csv";
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
-import { ROLE_TEMPLATES } from "../sod/detect";
+import { ROLE_TEMPLATES } from "../sod/role-templates";
+import { slug } from "../text";
 
 export interface PeopleImportIssue {
   row: number;
   message: string;
 }
 
-export interface TitleMapping {
+interface TitleMapping {
   row: number;
   name: string;
   title: string;
@@ -53,7 +54,7 @@ export interface PeopleImportResult {
 }
 
 /** The fields of a person a file can carry. */
-export type PersonField =
+type PersonField =
   | "role"
   | "department"
   | "tenureYears"
@@ -64,7 +65,7 @@ export type PersonField =
   | "owner"
   | "dutiesFromTitle";
 
-export const PEOPLE_CSV_HEADER = [
+const PEOPLE_CSV_HEADER = [
   "name",
   "employee_id",
   "role",
@@ -485,14 +486,6 @@ function nameKey(value: string): string {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
 }
 
 /** A CSV cell guarded against formula injection (see `csvCell`). */

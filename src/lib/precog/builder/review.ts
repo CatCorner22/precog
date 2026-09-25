@@ -5,8 +5,9 @@
 import { HEAT_BANDS } from "../process-graph";
 import { HEALTH_SCALE } from "../scoring/bands";
 import { personLabel } from "../person-label";
+import type { GrokAccess } from "../llm/types";
 
-export interface ReviewProcessInput {
+interface ReviewProcessInput {
   id: string;
   name: string;
   stage: number;
@@ -34,7 +35,7 @@ export interface ReviewInput {
   unownedProcesses: string[];
 }
 
-export interface ReviewSection {
+interface ReviewSection {
   heading: string;
   points: string[];
 }
@@ -42,7 +43,7 @@ export interface ReviewSection {
 export interface MapReview {
   source: "grok" | "local";
   model?: string;
-  grokStatus?: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+  grokStatus?: GrokAccess;
   headline: string;
   grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];
@@ -67,11 +68,6 @@ export function reviewLocally(input: ReviewInput): MapReview {
     .sort((a, b) => b.heat - a.heat);
   const unowned = input.processes.filter((p) => !p.owners.length);
   const noControls = input.processes.filter((p) => !p.controls.length && p.fraudRisks > 0);
-  const isolated = input.processes.filter(
-    (p) =>
-      p.dependencyCount === 0 &&
-      !input.processes.some((q) => q.id !== p.id && q.dependencyCount > 0 && false),
-  );
   const stages = new Set(input.processes.map((p) => p.stage));
   const focus = new Set<string>();
 
@@ -170,7 +166,6 @@ export function reviewLocally(input: ReviewInput): MapReview {
           ? `Workable but exposed — ${input.health.score}/100. Ownership and controls need tightening.`
           : `Significant gaps at ${input.health.score}/100 — act on the next move before adding detail.`;
 
-  void isolated;
   return {
     source: "local",
     headline,

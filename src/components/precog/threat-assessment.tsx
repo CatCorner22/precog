@@ -18,6 +18,21 @@ function clockString() {
   return new Date().toISOString().replace("T", " ").slice(0, 19) + "Z";
 }
 
+/**
+ * The header clock, alone in its own component so the one-second tick
+ * re-renders this span and not the whole assessment. Starts empty so the
+ * server and the first client render agree; a live timestamp cannot hydrate.
+ */
+function LiveClock() {
+  const [now, setNow] = useState("");
+  useEffect(() => {
+    setNow(clockString());
+    const t = setInterval(() => setNow(clockString()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <span className="tabular text-[#4ade80]">{now || "--:--:--"}</span>;
+}
+
 function bandClass(band: string) {
   if (band === "white_hot" || band === "critical")
     return "text-red-300 border-red-500/50 bg-red-950/40";
@@ -32,9 +47,6 @@ export function ThreatAssessmentPanel() {
   // until a business is set up.
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
-  // Starts empty so the server and the first client render agree; the clock
-  // fills in from the interval below (a live timestamp can never hydrate).
-  const [now, setNow] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(
@@ -57,12 +69,6 @@ export function ThreatAssessmentPanel() {
       profile.industry,
     ],
   );
-
-  useEffect(() => {
-    setNow(clockString());
-    const t = setInterval(() => setNow(clockString()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     if (!selectedId && report.targetDeck[0]) setSelectedId(report.targetDeck[0].id);
@@ -100,7 +106,7 @@ export function ThreatAssessmentPanel() {
             <span className="text-[#5a9a68]">
               AO · <span className="text-[#c8e6c8]">{report.ao}</span>
             </span>
-            <span className="tabular text-[#4ade80]">{now || "--:--:--"}</span>
+            <LiveClock />
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-semibold",
@@ -358,8 +364,4 @@ function Mini({ label, value }: { label: string; value: string }) {
       <p className="mt-0.5 text-sm font-semibold text-[#c8e6c8]">{value}</p>
     </div>
   );
-}
-
-export function ThreatAssessment() {
-  return <ThreatAssessmentPanel />;
 }

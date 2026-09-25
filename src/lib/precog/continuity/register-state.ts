@@ -21,7 +21,7 @@ function itemContent(item: KnowledgeItem): string {
 }
 
 /** True when a list says exactly what the industry's starter list says. */
-export function isStarterList(knowledge: readonly KnowledgeItem[], industry: IndustryId): boolean {
+function isStarterList(knowledge: readonly KnowledgeItem[], industry: IndustryId): boolean {
   const starter = getIndustryTemplate(industry).knowledge;
   if (knowledge === starter) return true;
   if (knowledge.length !== starter.length) return false;

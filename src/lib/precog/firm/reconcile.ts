@@ -1,7 +1,8 @@
-import { locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "../import/csv";
+import { locateTable, stripInvisibleControls } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
+import { daysBetween } from "../dates";
 
 export type AccessSource = "quickbooks" | "xero" | "unknown";
 
@@ -100,7 +101,7 @@ function looksLikeVendors(headers: readonly string[]): boolean {
   return lowered.some((h) => VENDOR_HEADERS.includes(h));
 }
 
-export function detectAccessSource(headers: readonly string[]): AccessSource {
+function detectAccessSource(headers: readonly string[]): AccessSource {
   const joined = headers.map(norm).join(" ");
   if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
   if (joined.includes("contact name") || joined.includes("account number")) return "xero";
@@ -142,14 +143,6 @@ function matchPerson(name: string, people: readonly Person[]): Person | undefine
   const key = personKey(name);
   if (!key) return undefined;
   return people.find((p) => personKey(p.name) === key);
-}
-
-function daysBetween(isoDay: string, asOf: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}/.test(isoDay)) return null;
-  const a = Date.parse(isoDay.slice(0, 10) + "T00:00:00Z");
-  const b = Date.parse(asOf.slice(0, 10) + "T00:00:00Z");
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((b - a) / 86_400_000);
 }
 
 function readDate(value: string): string {
@@ -229,7 +222,7 @@ export function parseAccessExport(
       const name = (nameAt >= 0 ? cells[nameAt] : (cells[0] ?? "")).trim();
       if (!name || norm(name) === "total") return;
       const created = dateAt >= 0 ? readDate(cells[dateAt] ?? "") : "";
-      const age = created ? daysBetween(created, asOf) : null;
+      const age = created ? daysBetween(created, asOf.slice(0, 10)) : null;
       vendors.push({
         id: rowId("vendor", index + 2, name),
         name: name.slice(0, 160),
@@ -252,15 +245,7 @@ export function parseVendorExport(text: string, asOf: string): AccessVendorRow[]
   const parsed = parseAccessExport(text, [], asOf);
   if (parsed.vendors.length > 0) return parsed.vendors;
   // A user-shaped file should not be reread as vendors.
-  if (parsed.users.length > 0) return [];
-  const delimiter = sniffDelimiter(text);
-  const rows = parseRows(text, delimiter);
-  if (rows.length < 2) return [];
   return [];
-}
-
-export function emptyReconciliation(now: string): AccessReconciliation {
-  return { importedAt: now, source: "unknown", users: [], vendors: [] };
 }
 
 function isDuty(value: unknown): value is EntitlementId {

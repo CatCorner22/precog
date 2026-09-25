@@ -1,12 +1,17 @@
-import type { ContinuityStep, CoverageStatus, DocumentationState } from "../continuity/coverage";
+import type { ContinuityStep } from "../continuity/absence-impact";
+import type { CoverageStatus } from "../continuity/coverage";
+import type { DocumentationState } from "../continuity/documentation";
 import {
   coverageReport,
+  STATUS_LABEL,
+  STATUS_URGENCY,
+  STRONG_LEVELS,
+} from "../continuity/coverage";
+import {
   documentationState,
   DOCUMENTATION_LABEL,
   DOCUMENTATION_RANK,
-  STATUS_LABEL,
-  STRONG_LEVELS,
-} from "../continuity/coverage";
+} from "../continuity/documentation";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { IndustryId } from "../industry";
 import type {
@@ -192,13 +197,6 @@ export function isDecisionOpen(d: DecisionEntry): boolean {
   return d.status !== "closed";
 }
 
-const STATUS_RANK: Record<CoverageStatus, number> = {
-  uncovered: 0,
-  single: 1,
-  thin: 2,
-  covered: 3,
-};
-
 export type ContinuitySlip =
   | {
       decision: DecisionEntry;
@@ -237,7 +235,7 @@ export function continuitySlips(
     const step = linkedContinuityStep(decision);
     if (step === "cover" || step === "handoff") {
       const from = last.snapshot.continuity?.itemStatus;
-      if (from && STATUS_RANK[item.status] < STATUS_RANK[from]) {
+      if (from && STATUS_URGENCY[item.status] > STATUS_URGENCY[from]) {
         slips.push({ decision, step, measure: "coverage", from, to: item.status });
       }
       continue;

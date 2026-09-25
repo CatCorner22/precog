@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectSodConflicts, type RoleAssignment } from "./detect";
+import { detectAssignments, type RoleAssignment } from "./detect";
 import { analyzeAbsenceImpact, analyzeDutyCoverage } from "./coverage-analysis";
 
 /** A childcare center: the office administrator enters and pays bills; the director approves them. */
@@ -20,7 +20,7 @@ const childcare = (directorApproves: boolean): RoleAssignment[] => [
 ];
 
 const invoicePay = (team: RoleAssignment[]) =>
-  detectSodConflicts(undefined, { assignments: team }).conflicts.find(
+  detectAssignments({ assignments: team }).conflicts.find(
     (c) => c.personId === "adm" && c.ruleId === "rule-invoice-pay",
   );
 
@@ -41,7 +41,7 @@ describe("approving bills for payment", () => {
         ? { ...p, entitlements: [...p.entitlements, "approve_invoices" as const] }
         : p,
     );
-    const conflicts = detectSodConflicts(undefined, { assignments: team }).conflicts;
+    const conflicts = detectAssignments({ assignments: team }).conflicts;
     const pay = conflicts.find((c) => c.personId === "adm" && c.ruleId === "rule-invoice-pay")!;
     expect(pay.controlsInPlace).toEqual([]);
     // Entering and approving one's own bills is its own finding.
@@ -65,7 +65,7 @@ describe("approving bills for payment", () => {
         entitlements: ["enter_invoices", "bank_reconcile"],
       },
     ];
-    const conflicts = detectSodConflicts(undefined, { assignments: team }).conflicts;
+    const conflicts = detectAssignments({ assignments: team }).conflicts;
     expect(conflicts.filter((c) => c.personId === "own")).toEqual([]);
   });
 });

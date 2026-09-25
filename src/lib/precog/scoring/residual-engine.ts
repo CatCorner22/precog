@@ -1,5 +1,5 @@
 import { findKnowledgeRisks, runPrecogScenario } from "../engine";
-import { documentationState } from "../continuity/coverage";
+import { documentationState } from "../continuity/documentation";
 import { registerAssessed } from "../continuity/register-state";
 import { scenariosInScope, starterScenariosLeftOut } from "./scope";
 import type { IndustryTemplate } from "../templates";
@@ -13,7 +13,7 @@ import {
   type ActionBand,
 } from "./weights";
 
-export interface RiskDriver {
+interface RiskDriver {
   id: string;
   label: string;
   direction: "increases" | "decreases";
@@ -483,7 +483,7 @@ export function portfolioSummary(
 }
 
 /** The segregation score and team size the tornado's two "raise to" levers aim for. */
-export const TORNADO_TARGETS = { segregationScore: 75, teamSize: 10 } as const;
+const TORNADO_TARGETS = { segregationScore: 75, teamSize: 10 } as const;
 
 /**
  * Tornado sensitivity: which staff or control lever lowers the average

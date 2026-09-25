@@ -17,7 +17,7 @@ export type AppUser = {
  * `"dev-user"` — the SAME id `verify.server.ts` returns server-side — so per-user
  * rows written in that mode belong to one consistent owner.
  */
-export const DEV_USER: AppUser = {
+const DEV_USER: AppUser = {
   id: "dev-user",
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
@@ -46,10 +46,9 @@ export type CurrentUserState = {
  * redirecting on `user: null` alone bounces signed-in visitors to sign-in on
  * every hard reload:
  *
- *   import { RedirectToSignIn } from "@/lib/auth/gates";
  *   const { user, isPending } = useCurrentUserState();
- *   if (isPending) return null;              // still resolving — don't redirect yet
- *   if (!user) return <RedirectToSignIn />;  // definitely signed out
+ *   if (isPending) return null;                          // still resolving — don't redirect yet
+ *   if (!user) return <Navigate to="/login" />;          // definitely signed out
  *
  * `authEnabled` is a module-level constant fixed at load, so the guarded hook
  * call keeps a stable hook order across every render of a given component.

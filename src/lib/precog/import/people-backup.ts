@@ -1,5 +1,5 @@
 import { ENTITLEMENTS } from "../sod/conflict-rules";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import type { Person } from "../types";
 import { stripInvisibleControls } from "./csv";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";

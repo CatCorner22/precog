@@ -3,7 +3,6 @@ import { getNodesBounds, getViewportForBounds, useReactFlow } from "@xyflow/reac
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { ImageDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const EXPORT_W = 2400;
 const EXPORT_H = 1500;
@@ -12,11 +11,9 @@ const EXPORT_H = 1500;
 export function ExportMapImageButton({
   fileName,
   background,
-  className,
 }: {
   fileName: string;
   background: string;
-  className?: string;
 }) {
   const { getNodes } = useReactFlow();
   const [busy, setBusy] = useState(false);
@@ -69,10 +66,7 @@ export function ExportMapImageButton({
       onClick={() => void exportPng()}
       disabled={busy}
       title="Export map as PNG"
-      className={cn(
-        "no-export inline-flex items-center gap-1.5 rounded-md border border-border bg-elevated/90 px-2 py-1 text-xs text-fg shadow backdrop-blur hover:border-border-strong disabled:opacity-60",
-        className,
-      )}
+      className="no-export inline-flex items-center gap-1.5 rounded-md border border-border bg-elevated/90 px-2 py-1 text-xs text-fg shadow backdrop-blur hover:border-border-strong disabled:opacity-60"
     >
       {busy ? <Loader2 className="size-3.5 animate-spin" /> : <ImageDown className="size-3.5" />}
       PNG

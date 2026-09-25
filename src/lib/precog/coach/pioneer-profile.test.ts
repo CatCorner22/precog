@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
-import { buildPioneerContextPack } from "./context-pack";
 import { pioneerProfileFrom } from "./pioneer-profile";
-import { mapAssessed } from "../builder/map-state";
-import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
-import { defaultProfile } from "../practice-profile";
 
 const dental = getBaseTemplate("dental");
 const retail = getBaseTemplate("retail");
@@ -185,51 +181,5 @@ describe("Pioneer tools on a Retail profile", () => {
     const graph = executeTool("get_knowledge_graph", {}, { profile: p });
     expect(graph.ok).toBe(true);
     expect(JSON.stringify(graph.data)).not.toContain(retail.people[5].name);
-  });
-
-  it("includes documentation debt in the dental context pack", () => {
-    const pack = buildPioneerContextPack(dental);
-    expect(pack.continuity.documentation.gaps.length).toBeGreaterThan(0);
-    for (const gap of pack.continuity.documentation.gaps) {
-      expect(["none", "unlocated"]).toContain(gap.state);
-    }
-    expect(pack.continuity.documentation.writtenAndFindablePct).toBeGreaterThanOrEqual(0);
-    expect(pack.continuity.documentation.writtenAndFindablePct).toBeLessThanOrEqual(100);
-  });
-});
-
-describe("context pack process map", () => {
-  it("marks the sample business's map as assessed", () => {
-    const pack = buildPioneerContextPack(dental);
-    expect(pack.processMap.assessed).toBe(true);
-    expect(pack.processMap.note).toMatch(/^Map health/);
-  });
-
-  it("carries assessed: false and a do-not-quote note for a starter map", () => {
-    const profile = ownBusinessProfile(defaultProfile(), {
-      practiceName: "Ruiz Dental",
-      people: buildOwnTeam([
-        { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
-        { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
-      ]),
-    });
-    const tpl = resolveTemplate(profile);
-    const pack = buildPioneerContextPack(tpl, profile.staff, { mapAssessed: mapAssessed(profile) });
-    expect(pack.processMap.assessed).toBe(false);
-    expect(pack.processMap.note).toBe(
-      "Not assessed: the map holds 8 starter processes from the dental / medical / veterinary office example with no owner assigned, so no map figure describes the business. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
-    );
-    // A starter map feeds no ownership, health or hot-process figure.
-    expect(pack.processMap.healthScore).toBeNull();
-    expect(pack.processMap.unownedProcesses).toEqual([]);
-    expect(pack.processMap.hotProcesses).toEqual([]);
-    // Judged from the template alone, the same map is not assessed either.
-    expect(buildPioneerContextPack(tpl, profile.staff).processMap.assessed).toBe(false);
-    const empty = buildPioneerContextPack(
-      resolveTemplate({ ...profile, customProcesses: [] }),
-      profile.staff,
-      { mapAssessed: false },
-    );
-    expect(empty.processMap.note).toMatch(/^Not assessed: the map is empty/);
   });
 });

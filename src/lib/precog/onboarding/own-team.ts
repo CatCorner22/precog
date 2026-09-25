@@ -8,7 +8,7 @@ import {
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isOwnerRole } from "../sod/owner-role";
 import { industryHasOwner } from "../industry";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
@@ -16,6 +16,7 @@ import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
 import type { PeopleImportResult } from "../import/people-csv";
 import { stripInvisibleControls } from "../import/csv";
+import { joinWithAnd } from "../text";
 
 /**
  * The eleven money duties the onboarding grid shows as columns. Together they
@@ -139,7 +140,7 @@ export function suggestedDuties(role: string, owns: boolean, industry?: string):
  * the title that ticked them is the row's title now, and nobody has added or
  * removed a duty since. A row with no duties at all has nothing guessed.
  */
-export function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
+function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
   const role = row.role.trim();
   if (!role || row.duties.length === 0) return false;
   if ((row.suggestedFor ?? "").trim() !== role) return false;
@@ -229,7 +230,7 @@ export function ownerRow(): OwnTeamRow {
 }
 
 /** The title of a nonprofit's first row: it has no owner, and its executive director runs it. */
-export const NONPROFIT_LEADER_TITLE = "Executive Director";
+const NONPROFIT_LEADER_TITLE = "Executive Director";
 
 /**
  * The first row of a fresh grid in this line of business: the owner, or in a
@@ -276,7 +277,7 @@ export function firstRowForIndustry(rows: OwnTeamRow[], industry?: string): OwnT
 }
 
 /** True when a title names the owner's seat ("Owner", "Owner/President", "CEO"). */
-export function isOwnerTitle(role: string): boolean {
+function isOwnerTitle(role: string): boolean {
   return matchJobTitle(role)?.entry.id === "owner";
 }
 
@@ -537,8 +538,7 @@ function nameList(names: readonly string[]): string {
   const shown = names.slice(0, 5);
   const more = names.length - shown.length;
   if (more > 0) return `${shown.join(", ")} and ${more} more`;
-  if (shown.length < 2) return shown.join("");
-  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  return joinWithAnd(shown);
 }
 
 /**

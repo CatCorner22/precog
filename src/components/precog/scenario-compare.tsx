@@ -6,7 +6,7 @@ import {
   insuranceFigureNote,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
 import {
   MAKE_SCENARIO_YOURS,
   confirmedScenarioIds,
@@ -42,7 +42,7 @@ export function ScenarioCompare({
   const baseTpl = useTemplate();
   const tpl = withOwnScenarioWording(baseTpl);
   const ownBusiness = isOwnBusiness(baseTpl);
-  const { profile } = usePractice();
+  const { profile } = usePracticeState();
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],

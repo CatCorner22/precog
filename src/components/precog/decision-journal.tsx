@@ -20,11 +20,8 @@ import {
   slipLabels,
   type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
-import {
-  DOCUMENTATION_LABEL,
-  setRelationLevel,
-  STATUS_LABEL,
-} from "@/lib/precog/continuity/coverage";
+import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
+import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
@@ -240,9 +237,11 @@ export function DecisionJournal({
     () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
   );
+  // Only the due decisions show a delta, and each snapshot runs the engines,
+  // so the map is built for those alone.
   const currentSnapshots = useMemo(() => {
     return new Map(
-      profile.decisions.map((d) => [
+      dueDecisions.map((d) => [
         d.id,
         captureDecisionSnapshot(
           template,
@@ -254,7 +253,7 @@ export function DecisionJournal({
         ),
       ]),
     );
-  }, [profile.decisions, profile.industry, template, profile.staff, profile.dualRelease]);
+  }, [dueDecisions, profile.industry, template, profile.staff, profile.dualRelease]);
   const closeOuts = useMemo(
     () => new Map(dueDecisions.map((d) => [d.id, registerCloseOut(d, template)])),
     [dueDecisions, template],

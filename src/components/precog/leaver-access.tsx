@@ -12,7 +12,6 @@ import {
   type LeaverAccessItem,
 } from "@/lib/precog/continuity/access-removal";
 import type { LeaverAccessCheck } from "@/lib/precog/practice-profile";
-import { cn } from "@/lib/utils";
 
 const WHY =
   "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. It is a well-documented way small businesses lose money and data, and it is closed by a few minutes of checking.";
@@ -130,7 +129,7 @@ export function LeaverAccessPrompt() {
  * The leavers whose pay and logins the owner has not confirmed yet, each
  * with its own checklist. Renders nothing when there are none.
  */
-export function LeaverAccessList({ className }: { className?: string }) {
+export function LeaverAccessList() {
   const { profile, template, confirmLeaverAccess } = usePractice();
   const open = useMemo(
     () => openAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
@@ -141,7 +140,7 @@ export function LeaverAccessList({ className }: { className?: string }) {
   return (
     <section
       aria-labelledby="leaver-access-list-title"
-      className={cn("rounded-lg border border-warn/30 bg-warn/5 p-4", className)}
+      className="rounded-lg border border-warn/30 bg-warn/5 p-4"
     >
       <p id="leaver-access-list-title" className="flex items-center gap-2 text-sm font-medium">
         <UserMinus className="size-4 shrink-0" aria-hidden />

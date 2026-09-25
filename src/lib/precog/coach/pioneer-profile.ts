@@ -1,4 +1,4 @@
-import { INDUSTRIES, type IndustryId } from "../industry";
+import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
 import {
@@ -10,7 +10,7 @@ import {
   type PlannedAbsence,
   type PracticeProfile,
 } from "../practice-profile";
-import type { ContinuityStep } from "../continuity/coverage";
+import type { ContinuityStep } from "../continuity/absence-impact";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
@@ -19,6 +19,7 @@ import type {
   ProcessNode,
   StaffComposition,
 } from "../types";
+import { PIONEER_LIST_CAPS } from "../public-inputs";
 
 /** The slice of a PracticeProfile that changes what Pioneer computes. */
 export interface PioneerProfileInput {
@@ -37,17 +38,8 @@ export interface PioneerProfileInput {
   plannedAbsences?: PlannedAbsence[] | null;
 }
 
-const MAX_CUSTOM_NODES = 250;
-const MAX_RELATIONS = 2500;
-const MAX_DECISIONS = 500;
-const MAX_ABSENCES = 200;
-
-function isIndustryId(value: unknown): value is IndustryId {
-  return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
-}
-
 function capList<T>(list: T[] | null | undefined): T[] | null {
-  return Array.isArray(list) ? list.slice(0, MAX_CUSTOM_NODES) : null;
+  return Array.isArray(list) ? list.slice(0, PIONEER_LIST_CAPS.nodes) : null;
 }
 
 const MAX_DECISION_TEXT = 300;
@@ -67,7 +59,7 @@ function isDecisionKind(value: unknown): value is DecisionKind {
  * usable id, date or kind are dropped; snapshots and review history are not
  * needed server-side and are not carried.
  */
-export function sanitizeDecision(value: unknown): DecisionEntry | null {
+function sanitizeDecision(value: unknown): DecisionEntry | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== "string" || typeof raw.createdAt !== "string") return null;
@@ -104,7 +96,7 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
   const customPeople = capList(input.customPeople);
   const customKnowledge = capList(input.customKnowledge);
   const customRelations = Array.isArray(input.customRelations)
-    ? input.customRelations.slice(0, MAX_RELATIONS)
+    ? input.customRelations.slice(0, PIONEER_LIST_CAPS.relations)
     : null;
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({ industry, customProcesses, customPeople, customKnowledge, customRelations }),
@@ -120,11 +112,14 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
   const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
   const decisions = Array.isArray(input.decisions)
     ? input.decisions
-        .slice(0, MAX_DECISIONS)
+        .slice(0, PIONEER_LIST_CAPS.decisions)
         .map(sanitizeDecision)
         .filter((d): d is DecisionEntry => d !== null)
     : base.decisions;
-  const plannedAbsences = normalizePlannedAbsences(input.plannedAbsences).slice(0, MAX_ABSENCES);
+  const plannedAbsences = normalizePlannedAbsences(input.plannedAbsences).slice(
+    0,
+    PIONEER_LIST_CAPS.absences,
+  );
   return {
     ...base,
     practiceName: practiceName || base.practiceName,

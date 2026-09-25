@@ -16,9 +16,14 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiCronDigestRouteImport } from './routes/api/cron/digest'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as ApiIntegrationsQboCallbackRouteImport } from './routes/api/integrations/qbo/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -55,9 +60,19 @@ const ThreatRoute = ThreatRouteImport.update({
   path: '/threat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiErrorsRoute = ApiErrorsRouteImport.update({
+  id: '/api/errors',
+  path: '/api/errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTokenRoute = JoinTokenRouteImport.update({
+  id: '/join/$token',
+  path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
@@ -70,6 +85,22 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronDigestRoute = ApiCronDigestRouteImport.update({
+  id: '/api/cron/digest',
+  path: '/api/cron/digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIntegrationsQboCallbackRoute =
+  ApiIntegrationsQboCallbackRouteImport.update({
+    id: '/api/integrations/qbo/callback',
+    path: '/api/integrations/qbo/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -79,9 +110,14 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,9 +127,14 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,9 +145,14 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -118,9 +164,14 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
+    | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/cron/digest'
+    | '/api/stripe/webhook'
+    | '/api/integrations/qbo/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -130,9 +181,14 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
+    | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/cron/digest'
+    | '/api/stripe/webhook'
+    | '/api/integrations/qbo/callback'
   id:
     | '__root__'
     | '/'
@@ -142,9 +198,14 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
+    | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
+    | '/api/cron/digest'
+    | '/api/stripe/webhook'
+    | '/api/integrations/qbo/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -155,9 +216,14 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
+  ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  JoinTokenRoute: typeof JoinTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiCronDigestRoute: typeof ApiCronDigestRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ApiIntegrationsQboCallbackRoute: typeof ApiIntegrationsQboCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -211,11 +277,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/errors': {
+      id: '/api/errors'
+      path: '/api/errors'
+      fullPath: '/api/errors'
+      preLoaderRoute: typeof ApiErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join/$token': {
+      id: '/join/$token'
+      path: '/join/$token'
+      fullPath: '/join/$token'
+      preLoaderRoute: typeof JoinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share/$token': {
@@ -232,6 +312,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/digest': {
+      id: '/api/cron/digest'
+      path: '/api/cron/digest'
+      fullPath: '/api/cron/digest'
+      preLoaderRoute: typeof ApiCronDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/integrations/qbo/callback': {
+      id: '/api/integrations/qbo/callback'
+      path: '/api/integrations/qbo/callback'
+      fullPath: '/api/integrations/qbo/callback'
+      preLoaderRoute: typeof ApiIntegrationsQboCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -243,9 +344,14 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
+  ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  JoinTokenRoute: JoinTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiCronDigestRoute: ApiCronDigestRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ApiIntegrationsQboCallbackRoute: ApiIntegrationsQboCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

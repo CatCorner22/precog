@@ -14,7 +14,7 @@ export const MAX_SHARE_BYTES = 256 * 1024;
 const str = (max: number) => z.string().max(max);
 const num = z.number().finite();
 
-export const sharedMapPayloadSchema = z.object({
+const sharedMapPayloadSchema = z.object({
   version: z.literal(1),
   businessName: str(80),
   industry: z.enum(INDUSTRIES.map((i) => i.id) as [IndustryId, ...IndustryId[]]),
@@ -66,10 +66,11 @@ export const sharedMapPayloadSchema = z.object({
   note: str(2_000).optional(),
 });
 
-export type ParsedSharedMapPayload = z.infer<typeof sharedMapPayloadSchema>;
+/** Frozen, self-contained view of a map for the public share page. */
+export type SharedMapPayload = z.infer<typeof sharedMapPayloadSchema>;
 
 /** Throws with a readable message when the payload is malformed or too large. */
-export function validateSharePayload(input: unknown): ParsedSharedMapPayload {
+export function validateSharePayload(input: unknown): SharedMapPayload {
   const bytes = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
   if (bytes > MAX_SHARE_BYTES) {
     throw new RequestError(413, `Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
@@ -87,11 +88,11 @@ export function validateSharePayload(input: unknown): ParsedSharedMapPayload {
 }
 
 /** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
-export const SHARE_PASSCODE_MIN = 8;
-export const SHARE_PASSCODE_MAX = 64;
+const SHARE_PASSCODE_MIN = 8;
+const SHARE_PASSCODE_MAX = 64;
 
 export interface CreateShareInput {
-  payload: ParsedSharedMapPayload;
+  payload: SharedMapPayload;
   expiresInDays: number;
   redacted: boolean;
   passcode: string | undefined;

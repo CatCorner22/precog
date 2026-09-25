@@ -3,7 +3,7 @@ import { industryMeta } from "../industry";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "./evidence";
-import type { SharedMapPayload } from "./share-server";
+import type { SharedMapPayload } from "./share-schema";
 
 /** Build the frozen share payload from the profile and its resolved template. */
 export function buildSharePayload(

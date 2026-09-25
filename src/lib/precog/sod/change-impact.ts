@@ -1,6 +1,6 @@
 import type { EntitlementId } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
-import { detectSodConflicts, type DetectedConflict, type RoleAssignment } from "./detect";
+import { detectAssignments, type DetectedConflict, type RoleAssignment } from "./detect";
 import type { StaffComposition } from "../types";
 
 export interface AssignmentChangeImpact {
@@ -32,8 +32,8 @@ export function evaluateAssignmentChange(
             : [...item.entitlements, entitlement],
         },
   );
-  const before = detectSodConflicts(staff, { assignments });
-  const after = detectSodConflicts(staff, { assignments: nextAssignments });
+  const before = detectAssignments({ assignments }, staff);
+  const after = detectAssignments({ assignments: nextAssignments }, staff);
   const beforeIds = new Set(before.conflicts.map((item) => item.id));
   const afterIds = new Set(after.conflicts.map((item) => item.id));
   const beforeCoverage = analyzeDutyCoverage(assignments);

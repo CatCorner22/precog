@@ -10,8 +10,8 @@ export type ValueEvidence = {
   verified: boolean;
 };
 
-export const VALUE_EVIDENCE_VERSION = 1;
-export const MAX_VALUE_EVIDENCE_IMPORT_BYTES = 128_000;
+const VALUE_EVIDENCE_VERSION = 1;
+const MAX_VALUE_EVIDENCE_IMPORT_BYTES = 128_000;
 export const VALUE_EVIDENCE_STORAGE_KEY = "precog-value-evidence-v1";
 
 const KINDS = new Set<ValueEvidenceKind>(["time", "recovery", "control", "exception"]);

@@ -1,24 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { AccountLineage, isStaleSave, LocalProfileStore, storedRevision } from "./save-conflict";
+import { AccountLineage, LocalProfileStore, storedRevision } from "./save-conflict";
 import { ACTIVE_PROFILE_KEY, defaultProfile, type PracticeProfile } from "./practice-profile";
 import type { StorageLike } from "./local-data";
 import type { KnowledgeItem } from "./types";
-
-describe("isStaleSave", () => {
-  it("treats an absent business as fresh", () => {
-    expect(isStaleSave(null, null)).toBe(false);
-    expect(isStaleSave(null, 3)).toBe(false);
-  });
-
-  it("treats a missing or mismatched base revision as stale", () => {
-    expect(isStaleSave(0, null)).toBe(true);
-    expect(isStaleSave(2, 1)).toBe(true);
-  });
-
-  it("accepts a matching revision", () => {
-    expect(isStaleSave(2, 2)).toBe(false);
-  });
-});
 
 /** One browser's local storage, shared by every tab of the app. */
 function browser() {
@@ -167,7 +151,8 @@ function account(first: PracticeProfile) {
   return {
     load: () => ({ ...held }),
     save(profile: PracticeProfile, base: number | null) {
-      if (isStaleSave(held.revision, base)) return { ok: false as const, ...held };
+      // The server's compare-and-swap: a save built on any other revision is refused.
+      if (base === null || base !== held.revision) return { ok: false as const, ...held };
       held = { profile, revision: held.revision + 1 };
       return { ok: true as const, revision: held.revision };
     },

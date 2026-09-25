@@ -13,16 +13,9 @@ import {
 import type { ProcessNode } from "@/lib/precog/types";
 import { slug } from "@/components/precog/builder/form-shared";
 import { processChanges } from "@/lib/precog/builder/diff";
+import { downloadText } from "@/lib/download";
 
-function download(name: string, text: string) {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+const download = (name: string, text: string) => downloadText(name, text, "text/csv;charset=utf-8");
 
 /**
  * Spreadsheet round-trip for the map: export the current processes as CSV,

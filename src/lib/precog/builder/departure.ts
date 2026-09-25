@@ -5,6 +5,7 @@
 import type { IndustryTemplate } from "../templates";
 import { previewMapHealth } from "./what-if";
 import type { Person, ProcessNode, StaffComposition } from "../types";
+import { STRONG_LEVELS } from "../continuity/coverage";
 
 export interface DepartureImpact {
   person: Person;
@@ -24,9 +25,7 @@ export interface DepartureImpact {
   recommendations: string[];
 }
 
-const STRONG = new Set(["expert", "proficient"]);
-
-export function simulateDeparture(
+function simulateDeparture(
   tpl: IndustryTemplate,
   person: Person,
   processes: ProcessNode[],
@@ -48,7 +47,7 @@ export function simulateDeparture(
   );
   const coveredProcesses = owned.filter((p) => !orphanedProcesses.includes(p));
 
-  const held = tpl.relations.filter((r) => r.personId === person.id && STRONG.has(r.level));
+  const held = tpl.relations.filter((r) => r.personId === person.id && STRONG_LEVELS.has(r.level));
   const orphanedKnowledge: DepartureImpact["orphanedKnowledge"] = [];
   const sharedKnowledge: DepartureImpact["sharedKnowledge"] = [];
   for (const rel of held) {
@@ -58,7 +57,7 @@ export function simulateDeparture(
       (r) =>
         r.knowledgeId === k.id &&
         r.personId !== person.id &&
-        STRONG.has(r.level) &&
+        STRONG_LEVELS.has(r.level) &&
         remainingPeople.some((p) => p.id === r.personId && p.active),
     );
     if (others.length === 0)

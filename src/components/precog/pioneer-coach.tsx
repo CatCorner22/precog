@@ -18,6 +18,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
+import type { NavFn } from "@/lib/precog/navigation";
 
 function renderInline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);
@@ -77,7 +78,7 @@ const PIONEER_JOURNAL_TABS = new Set([
   CONTROL_IN_PLACE_TAB,
 ]);
 
-export function PioneerCoach({ onNavigate }: { onNavigate?: (tab: string, id?: string) => void }) {
+export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile, addDecision } = usePractice();
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
   const [question, setQuestion] = useState(prompts[0]);

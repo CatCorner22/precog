@@ -2,20 +2,14 @@ import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
-import {
-  absenceImpact,
-  daysBetween,
-  firstName,
-  isCalendarDate,
-  listOr,
-  type AbsenceImpact,
-  type AbsenceStop,
-} from "./coverage";
+import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
+import { daysBetween, isCalendarDate } from "../dates";
+import { firstName } from "./coverage";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
 export const ABSENCE_LEAD_DAYS = 30;
 
-export interface AbsenceOverlap {
+interface AbsenceOverlap {
   absence: PlannedAbsence;
   person: Person;
   /** First and last shared day, inclusive. */
@@ -24,7 +18,7 @@ export interface AbsenceOverlap {
 }
 
 /** The stretch of a leave window with the most work stopped, and who is away during it. */
-export interface AbsencePeak {
+interface AbsencePeak {
   from: string;
   to: string;
   /** Everyone away on those days: the person on leave plus anyone overlapping then. */
@@ -76,7 +70,7 @@ function overlapsWith(a: PlannedAbsence, b: PlannedAbsence): boolean {
   return a.from <= b.to && b.from <= a.to;
 }
 
-export function shiftDay(day: string, delta: number): string {
+function shiftDay(day: string, delta: number): string {
   const date = new Date(`${day}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + delta);
   return date.toISOString().slice(0, 10);
@@ -307,7 +301,7 @@ export function handoffDeadline(window: AbsenceWindow, today: string): string {
  * "Cy also out 8–10 Nov" for each overlapping coworker; with several of them,
  * names the stretch the stops are taken from: "worst 8–10 Nov, with Cy also out".
  */
-export function describeOverlaps(w: AbsenceWindow): string {
+function describeOverlaps(w: AbsenceWindow): string {
   if (w.overlaps.length === 0) return "";
   const listed = w.overlaps
     .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)

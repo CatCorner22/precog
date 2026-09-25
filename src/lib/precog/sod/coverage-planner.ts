@@ -1,8 +1,7 @@
 import { analyzeDutyCoverage, type DutyCoverage } from "./coverage-analysis";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
-import { detectSodConflicts, type RoleAssignment } from "./detect";
-import { soleOwnerId } from "./owner-role";
-import type { StaffComposition } from "../types";
+import { detectAssignments, type RoleAssignment } from "./detect";
+import { teamOwnerId } from "./owner-role";
 
 export interface CoveragePlan {
   id: string;
@@ -89,7 +88,7 @@ let flaggedPairCache: Set<string> | undefined;
 /** Unordered duty pairs the rulebook flags, by name or by duty family. The rulebook is fixed. */
 function flaggedPairs(): Set<string> {
   flaggedPairCache ??= new Set(
-    detectSodConflicts(undefined, { assignments: [] })
+    detectAssignments({ assignments: [] })
       .matrix.filter((cell) => cell.status === "conflict")
       .map((cell) => pairKey(cell.row, cell.col)),
   );
@@ -121,7 +120,7 @@ function personConflictIds(
   const key = `${role}\u0000${soleOwner ? 1 : 0}\u0000${entitlements.join(",")}`;
   let ids = scanCache.get(key);
   if (!ids) {
-    ids = detectSodConflicts(undefined, {
+    ids = detectAssignments({
       assignments: [{ personId: "person", personName: "person", role, entitlements }],
       soleOwnerId: soleOwner ? "person" : null,
     }).conflicts.map((conflict) => conflict.id);
@@ -129,11 +128,6 @@ function personConflictIds(
     scanCache.set(key, ids);
   }
   return ids;
-}
-
-/** The sole owner's person id on this team, or null (see soleOwnerId). */
-function teamOwnerId(team: readonly RoleAssignment[]): string | null {
-  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
 }
 
 /** Whether granting `entitlement` would give the person a conflict they do not already have. */
@@ -263,14 +257,9 @@ function plansForDuty(
  * Suggest backups for high-risk duties only one person holds: up to three per
  * duty, from people in that duty's process, none adding a detected conflict.
  * A duty nobody holds is not handed to anyone: the business may not do it at
- * all, so it is a question for the owner, not a suggestion. `staff` is
- * accepted for callers' sake; it only ever changed conflict scores, never
- * which conflicts exist, so no plan depends on it.
+ * all, so it is a question for the owner, not a suggestion.
  */
-export function buildCoveragePlans(
-  assignments: RoleAssignment[],
-  _staff?: StaffComposition,
-): CoveragePlan[] {
+export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
   return coverage.singlePoints.flatMap((duty) =>
     plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY),
@@ -283,10 +272,7 @@ export function buildCoveragePlans(
  * `buildCoveragePlans` order, that has one and has not already been handed
  * out twice.
  */
-export function buildCoverageProgram(
-  assignments: RoleAssignment[],
-  _staff?: StaffComposition,
-): CoverageProgram {
+export function buildCoverageProgram(assignments: RoleAssignment[]): CoverageProgram {
   const startingScore = analyzeDutyCoverage(assignments).resilienceScore;
   let current = assignments;
   const steps: CoveragePlan[] = [];

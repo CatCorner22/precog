@@ -4,7 +4,7 @@
  * run. Before that it returns `{ assessed: false, items }`: the starter items
  * with nobody marked, which say nothing yet about who can run what.
  */
-export interface SpofRow {
+interface SpofRow {
   knowledgeId?: string;
   name: string;
   riskScore?: number;

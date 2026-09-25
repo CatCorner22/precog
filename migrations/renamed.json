@@ -1,0 +1,15 @@
+{
+  "_comment": "Files renumbered so every prefix is unique. Keys are the current names; values are the names a deployed `_migrations` ledger may hold for the same file. The migrator treats a ledger row under either name as applied and moves it to the current name.",
+  "0003_business_profiles.sql": "0002_business_profiles.sql",
+  "0004_map_shares.sql": "0003_map_shares.sql",
+  "0005_snapshot_power_maps.sql": "0003_snapshot_power_maps.sql",
+  "0006_businesses.sql": "0004_businesses.sql",
+  "0007_snapshot_value_proof.sql": "0004_snapshot_value_proof.sql",
+  "0008_map_share_privacy.sql": "0005_map_share_privacy.sql",
+  "0009_business_revision.sql": "0006_business_revision.sql",
+  "0010_businesses_per_user_key.sql": "0007_businesses_per_user_key.sql",
+  "0011_map_share_attempts.sql": "0008_map_share_attempts.sql",
+  "0012_llm_daily_usage.sql": "0009_llm_daily_usage.sql",
+  "0013_map_share_passcode_window.sql": "0010_map_share_passcode_window.sql",
+  "0014_firm_workspace.sql": "0011_firm_workspace.sql"
+}

@@ -31,10 +31,11 @@ import {
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeState } from "@/lib/precog/practice-context";
+import { downloadText } from "@/lib/download";
 
 export function ValueProofCenter() {
-  const { profile } = usePractice();
+  const { profile } = usePracticeState();
   const businessId = profile.businessId ?? "biz_default";
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
   // Inputs the owner typed into, so a figure they enter that happens to equal
@@ -87,15 +88,11 @@ export function ValueProofCenter() {
     setInputs((current) => normalizeValueCase({ ...current, [key]: next }));
   };
   const exportMemo = () => {
-    const blob = new Blob([createValueCaseMemo(inputs, new Date(), evidence, typed)], {
-      type: "text/markdown;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `precog-value-case-${new Date().toISOString().slice(0, 10)}.md`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `precog-value-case-${new Date().toISOString().slice(0, 10)}.md`,
+      createValueCaseMemo(inputs, new Date(), evidence, typed),
+      "text/markdown;charset=utf-8",
+    );
   };
 
   return (

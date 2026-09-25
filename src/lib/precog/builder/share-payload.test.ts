@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SharedMapPayload } from "./share-server";
+import type { SharedMapPayload } from "./share-schema";
 import { redactSharePayload } from "./share-payload";
 
 function payload(): SharedMapPayload {

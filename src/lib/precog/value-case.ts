@@ -1,4 +1,5 @@
 import type { ValueEvidence } from "./value-evidence";
+import { joinWithAnd } from "./text";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
 
@@ -75,7 +76,7 @@ export function normalizeValueCase(
 export type ValueInputKey = keyof ValueCaseInputs;
 
 /** The inputs that describe what actually happened, as opposed to the modeled scenario. */
-export const OBSERVED_INPUTS: readonly ValueInputKey[] = [
+const OBSERVED_INPUTS: readonly ValueInputKey[] = [
   "reviewHoursBefore",
   "reviewHoursAfter",
   "hourlyCost",
@@ -85,7 +86,7 @@ export const OBSERVED_INPUTS: readonly ValueInputKey[] = [
 ];
 
 /** Plain names for each input, for "uses the app default for ..." notes. */
-export const VALUE_INPUT_LABEL: Record<ValueInputKey, string> = {
+const VALUE_INPUT_LABEL: Record<ValueInputKey, string> = {
   reviewHoursBefore: "hours per review before",
   reviewHoursAfter: "hours per review with Precog",
   hourlyCost: "loaded hourly cost",
@@ -111,7 +112,7 @@ export function normalizeEnteredInputs(value: unknown): ValueInputKey[] {
  * page) and every one that differs from the app's default. An untouched input
  * is the app default, not the owner's assumption or observation.
  */
-export function enteredValueInputs(
+function enteredValueInputs(
   raw: ValueCaseInputs,
   typed: Iterable<ValueInputKey> = [],
 ): Set<ValueInputKey> {
@@ -243,9 +244,7 @@ export function observedValueStatus(
 
 /** "reviews per year" / "reviews per year and loaded hourly cost" */
 export function inputList(keys: readonly ValueInputKey[]): string {
-  const words = keys.map((k) => VALUE_INPUT_LABEL[k]);
-  if (words.length <= 1) return words.join("");
-  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+  return joinWithAnd(keys.map((k) => VALUE_INPUT_LABEL[k]));
 }
 
 export function calculateValueCase(raw: ValueCaseInputs) {

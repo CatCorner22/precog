@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "../controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
-import { coverageReport, documentationState } from "../continuity/coverage";
+import { coverageReport } from "../continuity/coverage";
+import { documentationState } from "../continuity/documentation";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts } from "../sod/detect";

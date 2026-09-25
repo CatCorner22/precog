@@ -15,8 +15,9 @@ import type { IndustryTemplate } from "../templates/types";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
 import { csvCell, parseRows } from "./csv";
+import { slug } from "../text";
 
-export interface ProcessImportIssue {
+interface ProcessImportIssue {
   /** 1-based data row (0 = whole file). */
   row: number;
   message: string;
@@ -33,7 +34,7 @@ export interface ProcessImportResult {
   removed: ProcessNode[];
 }
 
-export const PROCESS_CSV_HEADER = [
+const PROCESS_CSV_HEADER = [
   "process",
   "stage",
   "description",
@@ -79,14 +80,6 @@ const MAX_ROWS = 200;
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
 }
 
 /** A CSV cell guarded against formula injection (see `csvCell`). */

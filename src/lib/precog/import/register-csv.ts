@@ -7,9 +7,10 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
-import { isCalendarDate } from "../continuity/coverage";
+import { isCalendarDate } from "../dates";
 import { localDateKey } from "../decisions/follow-through";
 import { csvCell, parseRows } from "./csv";
+import { slug } from "../text";
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -31,7 +32,7 @@ export interface RegisterImportResult {
   unknownPeople: string[];
 }
 
-export const REGISTER_CSV_COLUMNS = [
+const REGISTER_CSV_COLUMNS = [
   "item",
   "kind",
   "criticality",
@@ -124,14 +125,6 @@ const LEVEL_CELL: Record<KnowledgeLevel, string> = {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
 }
 
 /** A CSV cell guarded against formula injection (see `csvCell`). */

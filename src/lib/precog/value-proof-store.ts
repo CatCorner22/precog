@@ -14,7 +14,7 @@ import {
  * this, one browser-wide pair of keys held them, so every business showed and
  * overwrote the same figures.
  */
-export function valueProofKeys(businessId: string): { valueCase: string; evidence: string } {
+function valueProofKeys(businessId: string): { valueCase: string; evidence: string } {
   return {
     valueCase: `${VALUE_CASE_STORAGE_KEY}.${businessId}`,
     evidence: `${VALUE_EVIDENCE_STORAGE_KEY}.${businessId}`,

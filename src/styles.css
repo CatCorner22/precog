@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @theme {
   --color-bg: #0a0b0d;
@@ -15,16 +14,11 @@
   --color-primary: #3d9cfd;
   --color-primary-fg: #061018;
   --color-accent: #5eead4;
-  --color-accent-dim: #134e4a;
   --color-danger: #f87171;
-  --color-danger-dim: #450a0a;
   --color-warn: #fbbf24;
-  --color-warn-dim: #422006;
   --color-ok: #34d399;
-  --color-ok-dim: #064e3b;
   --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
@@ -340,42 +334,4 @@
   bottom: -1px;
   right: -1px;
   border-width: 0 2px 2px 0;
-}
-
-.threat-scanlines {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(74, 222, 128, 0.03) 2px,
-    rgba(74, 222, 128, 0.03) 4px
-  );
-}
-
-.threat-scan-sweep {
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(74, 222, 128, 0.06) 48%,
-    rgba(74, 222, 128, 0.18) 50%,
-    rgba(74, 222, 128, 0.06) 52%,
-    transparent 100%
-  );
-  animation: threat-sweep 4.5s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes threat-sweep {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .threat-scan-sweep {
-    animation: none !important;
-  }
 }

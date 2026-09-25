@@ -33,7 +33,7 @@ import { personLabel } from "../person-label";
 const CONFLICT_QUESTION =
   /embezzl|fraud|steal|stole|theft|sod\b|segregat|dut(y|ies)|conflict|fix|this week|protect|cash|money|payment|vendor|gap|brief/i;
 
-export function isConflictQuestion(question: string): boolean {
+function isConflictQuestion(question: string): boolean {
   return CONFLICT_QUESTION.test(question);
 }
 
@@ -110,7 +110,7 @@ function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
 const STATEMENT_THIS_WEEK = "open the bank statement yourself before anyone else handles it";
 
 /** The decision for one person's conflicts: move one duty, and what covers it meanwhile. */
-export function conflictDecision(
+function conflictDecision(
   person: PersonConflicts,
   profile: Pick<PracticeProfile, "dualRelease">,
 ): PioneerDecision {
@@ -138,7 +138,7 @@ export function conflictDecision(
 }
 
 /** The step the owner can take alone this week, from the case library's control catalog. */
-export function ownerStatementDecision(): PioneerDecision {
+function ownerStatementDecision(): PioneerDecision {
   const control = CONTROL_CATALOG["owner-opens-bank-statement"];
   return {
     action: control.label,
@@ -217,7 +217,7 @@ function thisWeek(p: PersonConflicts): string {
  * while the policy figures are defaults. Pure: the same brief and profile give
  * the same result.
  */
-export function ownFirstBrief(
+function ownFirstBrief(
   brief: StructuredBrief,
   profile: PracticeProfile,
   question: string,

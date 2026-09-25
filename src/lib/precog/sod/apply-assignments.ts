@@ -11,7 +11,7 @@ function sameDuties(a: readonly string[] | undefined, b: readonly string[]): boo
 }
 
 /** Simulated hires the power map adds carry this id prefix; they are the only people it may remove. */
-export const SIMULATED_PERSON_PREFIX = "sim-";
+const SIMULATED_PERSON_PREFIX = "sim-";
 
 /**
  * Writes a power-map assignment list back onto the people register, so the

@@ -8,9 +8,9 @@ import {
   detectSodConflicts,
   type SodDetectionOptions,
   dropInactiveAssignments,
-  ROLE_TEMPLATES,
   segregationHealthIndex,
 } from "./detect";
+import { ROLE_TEMPLATES } from "./role-templates";
 
 const dental = getBaseTemplate("dental");
 

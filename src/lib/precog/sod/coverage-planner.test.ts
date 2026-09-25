@@ -10,7 +10,7 @@ import {
   type CoveragePlan,
   type CoverageProgram,
 } from "./coverage-planner";
-import { buildAssignments, detectSodConflicts, type RoleAssignment } from "./detect";
+import { detectAssignments, buildAssignments, type RoleAssignment } from "./detect";
 import { soleOwnerId } from "./owner-role";
 
 /**
@@ -122,7 +122,7 @@ function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
         (entry(held)?.processIds ?? []).some((p) => (entry(duty)?.processIds ?? []).includes(p)),
     );
   const conflicted = new Set(
-    detectSodConflicts(undefined, { assignments })
+    detectAssignments({ assignments })
       .conflicts.filter((c) => !c.ownerHeld)
       .map((c) => c.personId),
   );

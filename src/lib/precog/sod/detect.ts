@@ -18,10 +18,13 @@ import {
   type ConflictRule,
   type DutyFamily,
   type EntitlementId,
+  entitlementById,
+  entitlementLabel,
 } from "./conflict-rules";
 import type { Person, StaffComposition } from "../types";
-import { soleOwnerId } from "./owner-role";
+import { teamOwnerId } from "./owner-role";
 import { personLabel } from "../person-label";
+import { ROLE_TEMPLATES } from "./role-templates";
 
 export { isOwnerRole } from "./owner-role";
 
@@ -66,7 +69,7 @@ export interface DetectedConflict {
   processIds: string[];
 }
 
-export interface SodMatrixCell {
+interface SodMatrixCell {
   row: EntitlementId;
   col: EntitlementId;
   status: "safe" | "conflict" | "self" | "n/a";
@@ -144,97 +147,6 @@ export function sodDetectionOptions(
   };
 }
 
-export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": [
-    "approve_writeoffs",
-    "approve_vendor",
-    "approve_payroll",
-    "bank_reconcile",
-    "view_reports_only",
-    "pms_admin_roles",
-  ],
-  "Office Manager": [
-    "post_payments",
-    "prepare_deposit",
-    "post_adjustments",
-    "create_vendor",
-    "release_payment",
-    "enter_payroll",
-    "approve_writeoffs",
-    "pms_admin_roles",
-    "submit_claims",
-    "view_reports_only",
-  ],
-  "Front Desk Lead": [
-    "collect_cash",
-    "post_payments",
-    "prepare_deposit",
-    "submit_claims",
-    "post_adjustments",
-  ],
-  Hygienist: ["view_reports_only"],
-  "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "approve_writeoffs",
-    "view_reports_only",
-  ],
-  "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
-  "Practice Administrator": [
-    "approve_vendor",
-    "approve_payroll",
-    "approve_writeoffs",
-    "view_reports_only",
-    "review_audit_logs",
-  ],
-  Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
-  "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
-  "Insurance Coordinator": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "view_reports_only",
-  ],
-  Bookkeeper: [
-    "enter_invoices",
-    "post_payments",
-    "bank_reconcile",
-    "enter_payroll",
-    "view_reports_only",
-  ],
-  "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
-  "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
-  "Procurement Coordinator": [
-    "order_supplies",
-    "receive_goods",
-    "enter_invoices",
-    "view_reports_only",
-  ],
-  "IT Administrator": [
-    "pms_admin_roles",
-    "manage_user_access",
-    "manage_backups",
-    "view_reports_only",
-  ],
-  "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
-  "External Billing Service": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "export_bulk_data",
-    "view_reports_only",
-  ],
-  "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
-  "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
-};
-
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
-  role,
-  entitlements,
-}));
-
 /**
  * Plain wording for the duty families.
  *
@@ -296,20 +208,18 @@ const FAMILY_WHY: Record<string, string> = {
     "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
 };
 
-function entLabel(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
-}
+const entLabel = entitlementLabel;
 
 function entFamily(id: EntitlementId): DutyFamily {
-  return ENTITLEMENTS.find((e) => e.id === id)?.family ?? "recording";
+  return entitlementById(id)?.family ?? "recording";
 }
 
 function entWeight(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.riskWeight ?? 3;
+  return entitlementById(id)?.riskWeight ?? 3;
 }
 
 function entProcesses(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.processIds ?? [];
+  return entitlementById(id)?.processIds ?? [];
 }
 
 function directRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined {
@@ -501,32 +411,6 @@ function familyRuleId(a: DutyFamily, b: DutyFamily) {
   return `family-${[a, b].sort().join("-")}`;
 }
 
-function isIndustryTemplate(
-  value: IndustryTemplate | StaffComposition | Partial<Record<string, EntitlementId[]>> | undefined,
-): value is IndustryTemplate {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    "people" in value &&
-    "controls" in value &&
-    "scenarios" in value,
-  );
-}
-
-function isSodDetectionOptions(
-  value: StaffComposition | SodDetectionOptions | undefined,
-): value is SodDetectionOptions {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    ("assignments" in value ||
-      "residualAcceptedControlIds" in value ||
-      "compensatingByControlId" in value ||
-      "dualReleaseMitigatedRuleIds" in value ||
-      "soleOwnerId" in value),
-  );
-}
-
 const SEVERITY_RANK: Record<DetectedConflict["severity"], number> = {
   critical: 0,
   high: 1,
@@ -598,17 +482,27 @@ function rawConflictScore(
   return s;
 }
 
+/**
+ * Conflicts on assignments the caller already holds (a power map, a what-if),
+ * with no template needed.
+ */
+export function detectAssignments(
+  options: SodDetectionOptions & { assignments: RoleAssignment[] },
+  staff?: StaffComposition,
+): SodDetectionReport {
+  return detectSodConflicts(getIndustryTemplate("general"), staff, options);
+}
+
 /** The 0–100 score a finding shows. Sorting uses the unclamped value, so two findings that both show 100 still rank by severity, weight and the business's own staffing. */
 function clampScore(raw: number): number {
   return Math.max(12, Math.min(100, Math.round(raw)));
 }
 
 export function buildAssignments(
-  tpl?: IndustryTemplate,
+  tpl: IndustryTemplate,
   overrides?: Partial<Record<string, EntitlementId[]>>,
 ): RoleAssignment[] {
-  const activeTemplate = tpl ?? getIndustryTemplate("dental");
-  const { people, roleTemplates } = activeTemplate;
+  const { people, roleTemplates } = tpl;
   // People marked as left stay on the list for history but hold no live access.
   return people
     .filter((p) => p.active)
@@ -642,34 +536,16 @@ export function dropInactiveAssignments(
   return assignments.filter((a) => !inactive.has(a.personId));
 }
 
+/**
+ * Conflicts on a team: the template's people with their duties, or the
+ * assignments the caller passes (see `detectAssignments`). The template is
+ * only read for `buildAssignments` when the options carry none.
+ */
 export function detectSodConflicts(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
   options?: SodDetectionOptions,
-): SodDetectionReport;
-export function detectSodConflicts(
-  staff?: StaffComposition,
-  options?: SodDetectionOptions,
-): SodDetectionReport;
-export function detectSodConflicts(
-  tplOrStaff?: IndustryTemplate | StaffComposition,
-  staffOrOptions?: StaffComposition | SodDetectionOptions,
-  maybeOptions?: SodDetectionOptions,
 ): SodDetectionReport {
-  const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
-  const staff = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? undefined
-      : staffOrOptions
-    : tplOrStaff;
-  const options = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions
-    : isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions;
-
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};
@@ -680,9 +556,7 @@ export function detectSodConflicts(
   // Only a business with one owner has a seat that cannot steal from itself;
   // partners and co-owners can each take from the others.
   const ownerId =
-    options?.soleOwnerId !== undefined
-      ? options.soleOwnerId
-      : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
+    options?.soleOwnerId !== undefined ? options.soleOwnerId : teamOwnerId(assignments);
 
   // Who approves bills for payment. Another person's approval of each bill is
   // a control in place on that person's bill entry plus payment release.
@@ -789,7 +663,8 @@ export function detectSodConflicts(
     // The catch-all is for pairs no rule names. For the sole owner, whose
     // named pairs are already listed as owner-held, a vaguer "one pair of
     // hands" finding about their own business says nothing an owner can act on.
-    for (let i = 0; i < (owner ? 0 : ents.length); i++) {
+    if (owner) continue;
+    for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
         const b = ents[j];
@@ -798,60 +673,58 @@ export function detectSodConflicts(
         if (a === "view_reports_only" || b === "view_reports_only") continue;
         if (namedDuties.has(a) || namedDuties.has(b)) continue;
         if (bossPowers(a, b)) continue;
-        // The owner signing, approving and reading the statement is oversight
-        // working as designed, not a gap.
-        if (owner && OVERSIGHT_DUTIES.has(a) && OVERSIGHT_DUTIES.has(b)) continue;
 
-        {
-          const [canonicalA, canonicalB] = canonicalPair(a, b);
-          const canonicalFamilyA = entFamily(canonicalA);
-          const canonicalFamilyB = entFamily(canonicalB);
-          const familyId = `${person.personId}:family:${canonicalA}:${canonicalB}`;
-          const familyRaw =
-            rawConflictScore("family", canonicalA, canonicalB, false, 0, false, staff) -
-            (owner ? 30 : 0);
-          rawScores.set(familyId, familyRaw);
-          conflicts.push({
-            id: familyId,
-            ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
-            personId: person.personId,
-            personName: person.personName,
-            role: person.role,
-            entitlementA: canonicalA,
-            entitlementB: canonicalB,
-            labelA: entLabel(canonicalA),
-            labelB: entLabel(canonicalB),
-            severity: "family",
-            title:
-              canonicalFamilyA === canonicalFamilyB
-                ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
-                : `${FAMILY_LABEL[canonicalFamilyA]} and ${FAMILY_LABEL[canonicalFamilyB]} in one pair of hands`,
-            why:
-              canonicalFamilyA === canonicalFamilyB
-                ? `One person holds both of these ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
-                : (FAMILY_WHY[[canonicalFamilyA, canonicalFamilyB].sort().join("-")] ??
-                  `One person both ${FAMILY_VERB[canonicalFamilyA]} and ${FAMILY_VERB[canonicalFamilyB]}, so no step in that sequence gets a second look.`),
-            fraudPath: owner
-              ? OWNER_HELD_PATH
-              : canonicalFamilyA === canonicalFamilyB
-                ? `Complete both steps alone, with no handover anyone would notice`
-                : `Act, then write or check the record of the act, unobserved`,
-            score: clampScore(familyRaw),
-            compensatingControls: owner
-              ? [...OWNER_HELD_SUGGESTIONS]
-              : [
-                  `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
-                  "Have a second person review this sequence on a set cadence",
-                ],
-            controlsInPlace: [],
-            ownerHeld: owner,
-            residualRiskAccepted: false,
-            dualReleaseMitigated: false,
-            processIds: Array.from(
-              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
-            ),
-          });
-        }
+        const [canonicalA, canonicalB] = canonicalPair(a, b);
+        const canonicalFamilyA = entFamily(canonicalA);
+        const canonicalFamilyB = entFamily(canonicalB);
+        const familyId = `${person.personId}:family:${canonicalA}:${canonicalB}`;
+        const familyRaw = rawConflictScore(
+          "family",
+          canonicalA,
+          canonicalB,
+          false,
+          0,
+          false,
+          staff,
+        );
+        rawScores.set(familyId, familyRaw);
+        conflicts.push({
+          id: familyId,
+          ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
+          personId: person.personId,
+          personName: person.personName,
+          role: person.role,
+          entitlementA: canonicalA,
+          entitlementB: canonicalB,
+          labelA: entLabel(canonicalA),
+          labelB: entLabel(canonicalB),
+          severity: "family",
+          title:
+            canonicalFamilyA === canonicalFamilyB
+              ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
+              : `${FAMILY_LABEL[canonicalFamilyA]} and ${FAMILY_LABEL[canonicalFamilyB]} in one pair of hands`,
+          why:
+            canonicalFamilyA === canonicalFamilyB
+              ? `One person holds both of these ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
+              : (FAMILY_WHY[[canonicalFamilyA, canonicalFamilyB].sort().join("-")] ??
+                `One person both ${FAMILY_VERB[canonicalFamilyA]} and ${FAMILY_VERB[canonicalFamilyB]}, so no step in that sequence gets a second look.`),
+          fraudPath:
+            canonicalFamilyA === canonicalFamilyB
+              ? `Complete both steps alone, with no handover anyone would notice`
+              : `Act, then write or check the record of the act, unobserved`,
+          score: clampScore(familyRaw),
+          compensatingControls: [
+            `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
+            "Have a second person review this sequence on a set cadence",
+          ],
+          controlsInPlace: [],
+          ownerHeld: false,
+          residualRiskAccepted: false,
+          dualReleaseMitigated: false,
+          processIds: Array.from(
+            new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
+          ),
+        });
       }
     }
   }
@@ -1025,7 +898,7 @@ export function detectSodConflicts(
  * conflict never raises the index. This is an index this app defines, not a
  * measurement.
  */
-export function segregationPressure(conflicts: readonly DetectedConflict[]): number {
+function segregationPressure(conflicts: readonly DetectedConflict[]): number {
   const gaps = new Map<string, DetectedConflict[]>();
   for (const c of conflicts) {
     const key = c.severity === "family" ? `family:${c.entitlementA}:${c.entitlementB}` : c.ruleId;
@@ -1065,11 +938,4 @@ export function segregationHealthIndex(pressure: number): number {
   if (pressure <= 0) return 100;
   if (pressure <= 50) return Math.round(100 - pressure);
   return Math.max(1, Math.round(50 * Math.pow(0.5, (pressure - 50) / 35)));
-}
-
-export function conflictMatrixForPerson(
-  personId: string,
-  report: SodDetectionReport,
-): DetectedConflict[] {
-  return report.conflicts.filter((c) => c.personId === personId);
 }

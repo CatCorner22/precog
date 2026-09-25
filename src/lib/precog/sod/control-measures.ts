@@ -1,7 +1,5 @@
 import type { EntitlementId } from "./conflict-rules";
 
-export type ControlMeasureCategory = "directive" | "preventive" | "detective" | "corrective";
-
 export interface DutyControlMeasures {
   directive: string[];
   preventive: string[];

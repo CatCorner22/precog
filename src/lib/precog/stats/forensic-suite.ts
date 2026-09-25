@@ -17,7 +17,7 @@ export interface Transaction {
 
 export type Severity = "info" | "watch" | "review";
 
-export interface ForensicFinding {
+interface ForensicFinding {
   id: string;
   title: string;
   severity: Severity;

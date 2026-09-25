@@ -4,7 +4,7 @@
  * and lognormal-ish expected loss updates from scenario retained EL.
  */
 
-export interface BetaBelief {
+interface BetaBelief {
   /** Successes (control holds / no material loss) */
   alpha: number;
   /** Failures (control fails / material residual event) */

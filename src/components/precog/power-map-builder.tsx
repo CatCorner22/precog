@@ -71,6 +71,7 @@ import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
 import { locationsById, locationText } from "@/lib/precog/person-location";
+import { downloadText } from "@/lib/download";
 
 const FAMILY_META: Record<DutyFamily, { label: string; color: string; description: string }> = {
   authorization: {
@@ -179,14 +180,8 @@ export function PowerMapBuilder() {
     [assignments, profile.dualRelease, profile.staff, tpl],
   );
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
-  const coveragePlans = useMemo(
-    () => buildCoveragePlans(assignments, profile.staff),
-    [assignments, profile.staff],
-  );
-  const coverageProgram = useMemo(
-    () => buildCoverageProgram(assignments, profile.staff),
-    [assignments, profile.staff],
-  );
+  const coveragePlans = useMemo(() => buildCoveragePlans(assignments), [assignments]);
+  const coverageProgram = useMemo(() => buildCoverageProgram(assignments), [assignments]);
   const pendingChanges = useMemo(
     () => diffAssignments(baseline, assignments),
     [assignments, baseline],
@@ -342,15 +337,11 @@ export function PowerMapBuilder() {
   }
 
   function exportModel() {
-    const blob = new Blob([JSON.stringify(createPowerMapFile(assignments), null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `precog-power-map-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `precog-power-map-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(createPowerMapFile(assignments), null, 2),
+      "application/json",
+    );
   }
 
   function exportMatrixCsv() {
@@ -1402,14 +1393,8 @@ function ResponsibilityMatrix({
   );
 }
 
-function downloadFile(content: string, type: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+const downloadFile = (content: string, type: string, filename: string) =>
+  downloadText(filename, content, type);
 
 function CoverageList({
   title,

@@ -13,13 +13,14 @@ import {
   procedurePointer,
   type AbsenceWindow,
 } from "./planned-absence";
+import { joinWithAnd } from "../text";
 
 /** Leave starting within this many days counts as "starting soon" on the dashboard. */
 export const SOON_DAYS = 7;
 /** A last day within this many days puts the leaver on the dashboard. */
 export const LEAVING_SOON_DAYS = 30;
 
-export interface TodayStop {
+interface TodayStop {
   item: KnowledgeItem;
   standIn: Person | null;
   /** True when nobody left has ever touched the item — the stand-in, if any, starts cold. */
@@ -30,14 +31,14 @@ export interface TodayStop {
   handoffLogged: boolean;
 }
 
-export interface TodayOut {
+interface TodayOut {
   window: AbsenceWindow;
   person: Person;
   unplanned: boolean;
   stops: TodayStop[];
 }
 
-export interface TodayUpcoming {
+interface TodayUpcoming {
   window: AbsenceWindow;
   person: Person;
   daysUntil: number;
@@ -133,12 +134,7 @@ export function todayBrief(
 function headline(b: TodayBrief): string | null {
   if (b.out.length > 0) {
     const names = b.out.map((o) => firstName(o.person.name));
-    const who =
-      names.length === 1
-        ? names[0]
-        : names.length === 2
-          ? `${names[0]} and ${names[1]}`
-          : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    const who = joinWithAnd(names);
     const unexpected = b.out.filter((o) => o.unplanned).length;
     const how =
       unexpected === b.out.length

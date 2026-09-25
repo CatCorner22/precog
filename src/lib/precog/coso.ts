@@ -1,4 +1,4 @@
-import { healthLevel, RISK_SCALE } from "./scoring/bands";
+import { healthLevel, RISK_SCALE, type HealthLevel } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { registerAssessed } from "./continuity/register-state";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
@@ -21,10 +21,9 @@ export type CosoComponentId =
   | "information_communication"
   | "monitoring";
 
-export type HealthStatus = "strong" | "adequate" | "weak" | "critical";
+export type HealthStatus = HealthLevel;
 
 export type DeepLinkTarget =
-  | { type: "tab"; tab: "command" | "layers" | "knowledge" | "precog" | "sod" | "coso" }
   | { type: "sod" }
   | { type: "knowledge"; knowledgeId?: string }
   | { type: "precog"; scenarioId?: string }
@@ -38,7 +37,7 @@ export interface CosoFinding {
   link: DeepLinkTarget;
 }
 
-export interface CosoPrincipleScore {
+interface CosoPrincipleScore {
   number: number;
   name: string;
   status: HealthStatus;
@@ -57,10 +56,6 @@ export interface CosoComponentAssessment {
   principles: CosoPrincipleScore[];
   findings: CosoFinding[];
   primaryActions: { label: string; link: DeepLinkTarget }[];
-}
-
-function statusFromScore(score: number): HealthStatus {
-  return healthLevel(score);
 }
 
 /**
@@ -143,7 +138,7 @@ export function assessCoso(
       shortName: "Environment",
       description: "Tone at the top, integrity, structure, competence, and accountability.",
       score: controlEnvScore,
-      status: statusFromScore(controlEnvScore),
+      status: healthLevel(controlEnvScore),
       principles: [
         {
           number: 1,
@@ -209,7 +204,7 @@ export function assessCoso(
       shortName: "Risk",
       description: "Objectives, risk analysis, fraud risk, and response to change.",
       score: riskAssessmentScore,
-      status: statusFromScore(riskAssessmentScore),
+      status: healthLevel(riskAssessmentScore),
       principles: [
         {
           number: 6,
@@ -282,12 +277,12 @@ export function assessCoso(
       shortName: "Activities",
       description: "Authorizations, SoD, reconciliations, access, and technology controls.",
       score: controlActivitiesScore,
-      status: statusFromScore(controlActivitiesScore),
+      status: healthLevel(controlActivitiesScore),
       principles: [
         {
           number: 10,
           name: "Select control activities",
-          status: statusFromScore(controlActivitiesScore),
+          status: healthLevel(controlActivitiesScore),
           note: `Segregation score ${staffComposition.segregationScore}/100 with ${sodGaps.length} active conflicts.`,
         },
         {
@@ -337,7 +332,7 @@ export function assessCoso(
       shortName: "Info & Comm",
       description: "Quality information and clear communication of control responsibilities.",
       score: infoCommScore,
-      status: statusFromScore(infoCommScore),
+      status: healthLevel(infoCommScore),
       principles: [
         {
           number: 13,
@@ -402,7 +397,7 @@ export function assessCoso(
       shortName: "Monitoring",
       description: "Ongoing evaluations and timely remediation of deficiencies.",
       score: monitoringScore,
-      status: statusFromScore(monitoringScore),
+      status: healthLevel(monitoringScore),
       principles: [
         {
           number: 16,
@@ -460,7 +455,7 @@ export function assessCoso(
 
   return {
     overall,
-    overallStatus: statusFromScore(overall),
+    overallStatus: healthLevel(overall),
     components,
     priorityFindings,
   };

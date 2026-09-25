@@ -27,14 +27,21 @@ const serverFnRequestGuard = createMiddleware().server(async ({ request, handler
   }
 });
 
-/** Gives a thrown error that names a 4xx status that HTTP status (see server-fn-status.server.ts). */
+/**
+ * Gives a thrown error that names a 4xx status that HTTP status (see
+ * server-fn-status.server.ts). Anything else is a failure of ours, so it goes
+ * to the error tracker before the client hears about it.
+ */
 const clientErrorStatusMiddleware = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
     try {
       return await next();
     } catch (error) {
       const { applyClientErrorStatus } = await import("@/lib/server-fn-status.server");
-      applyClientErrorStatus(error);
+      if (!applyClientErrorStatus(error)) {
+        const { reportServerError } = await import("@/lib/observability/report.server");
+        reportServerError(error, "server-fn");
+      }
       throw error;
     }
   },

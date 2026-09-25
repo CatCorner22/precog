@@ -29,13 +29,7 @@ import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { CaseCard } from "@/components/precog/case-card";
 import { CheckCircle2, GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
-
-/** Review date for a scenario the owner confirms: ninety days out, as a calendar date. */
-function reviewDateIn(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { dateAfter } from "@/lib/precog/decisions/follow-through";
 
 export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
   const baseTpl = useTemplate();
@@ -117,7 +111,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
       subject: `Scenario: ${scenario.title}`,
       kind: "monitor",
       note: "Confirmed this starter scenario could happen here. Its losses and timelines are still the example's assumptions; review them against your own figures.",
-      reviewBy: reviewDateIn(90),
+      reviewBy: dateAfter(new Date(), 90),
       linkedTab: "precog",
       linkedId: scenario.id,
     });

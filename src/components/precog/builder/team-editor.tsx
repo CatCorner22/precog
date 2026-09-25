@@ -10,7 +10,7 @@ import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { ROLE_TEMPLATES } from "@/lib/precog/sod/detect";
+import { ROLE_TEMPLATES } from "@/lib/precog/sod/role-templates";
 import {
   JOB_CATALOG,
   JOB_FAMILY_LABEL,
@@ -18,7 +18,7 @@ import {
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
 import { industryHasOwner } from "@/lib/precog/industry";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePracticeActions } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { parseRoster } from "@/lib/precog/import/roster";
@@ -36,7 +36,8 @@ import { placeholderNames } from "@/lib/precog/onboarding/own-team";
 import { stripInvisibleControls } from "@/lib/precog/import/csv";
 import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
 import { locationText, personLocations } from "@/lib/precog/person-location";
-export function EntitlementPicker({
+import { downloadText } from "@/lib/download";
+function EntitlementPicker({
   selected,
   onChange,
 }: {
@@ -79,7 +80,7 @@ export function TeamEditor({
   onChange: (next: Person[]) => void;
 }) {
   const tpl = useTemplate();
-  const { setPlannedAbsences } = usePractice();
+  const { setPlannedAbsences } = usePracticeActions();
   const { roleTemplates } = tpl;
   const roleOptions = useMemo(() => Object.keys(roleTemplates), [roleTemplates]);
   const [name, setName] = useState("");
@@ -328,15 +329,7 @@ export function TeamEditor({
   function exportCsv() {
     // Duties are written as the conflict engine reads them, so a person whose
     // duties come from their role re-imports with the same duties.
-    const blob = new Blob([peopleToCsv(people, roleTemplates)], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "precog-team.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText("precog-team.csv", peopleToCsv(people, roleTemplates), "text/csv;charset=utf-8");
   }
 
   return (

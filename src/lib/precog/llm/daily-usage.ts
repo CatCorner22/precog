@@ -6,7 +6,7 @@ import type { Sql } from "@/lib/db";
  * what a day can spend of the app owner's quota. Override with
  * LLM_DAILY_PER_USER and LLM_DAILY_GLOBAL.
  */
-export const LLM_DAILY_LIMITS = {
+const LLM_DAILY_LIMITS = {
   perUser: envInt("LLM_DAILY_PER_USER", 150),
   global: envInt("LLM_DAILY_GLOBAL", 1_500),
 } as const;
@@ -62,7 +62,7 @@ export async function purgeOldDailyUsage(sql: Sql, keepDays = 35): Promise<void>
 }
 
 /** How often, at most, one server instance purges old usage rows. */
-export const DAILY_USAGE_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const DAILY_USAGE_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * A purge that runs at most once per interval in this process, so the table

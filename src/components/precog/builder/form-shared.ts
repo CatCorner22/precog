@@ -27,18 +27,11 @@ export const WASTE_KINDS: { id: LeanWasteKind; label: string }[] = [
   { id: "muri", label: "Overburden (muri)" },
 ];
 
-export function slug(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
-
-export function uid(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-}
+export { slug, uid } from "@/lib/precog/text";
 
 export const inputCls =
   "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50";
 export const labelCls = "block text-xs font-medium tracking-wide text-subtle uppercase";
+/** A regular-size text field on the page background (dialogs, workspace forms). */
+export const fieldCls =
+  "rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-subtle";

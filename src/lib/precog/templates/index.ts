@@ -22,14 +22,4 @@ export function getIndustryTemplate(id: IndustryId): IndustryTemplate {
   return REGISTRY[id] ?? dentalTemplate;
 }
 
-export {
-  dentalTemplate,
-  retailTemplate,
-  professionalServicesTemplate,
-  restaurantTemplate,
-  constructionTemplate,
-  nonprofitTemplate,
-  generalTemplate,
-};
 export type { IndustryTemplate } from "./types";
-export { LAYER_META } from "./layer-meta";

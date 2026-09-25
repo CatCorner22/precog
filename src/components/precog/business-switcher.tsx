@@ -6,9 +6,7 @@ import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
-
-const inputCls =
-  "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50";
+import { inputCls } from "@/components/precog/builder/form-shared";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {

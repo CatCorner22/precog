@@ -1,28 +1,12 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
+import { openTestDb, type TestDb } from "@/test/pglite";
 import { deleteAccountRows, exportAccountRows, purgeOldShareViews } from "./account-store";
 
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
+let db: TestDb;
 let pg: PGlite;
 let sql: Sql;
-
-function pgliteSql(db: PGlite): Sql {
-  const run = async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows;
-  const tagged = (async <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]> => {
-    let text = strings[0];
-    for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
-    return run<T>(text, values);
-  }) as unknown as Sql;
-  tagged.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
-    run<T>(text, params);
-  return tagged;
-}
 
 async function count(table: string, where = "", params: unknown[] = []): Promise<number> {
   const rows = await pg.query<{ n: number | string }>(
@@ -33,15 +17,12 @@ async function count(table: string, where = "", params: unknown[] = []): Promise
 }
 
 beforeAll(async () => {
-  pg = new PGlite();
-  const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql")).sort();
-  for (const name of files) await pg.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
-  sql = pgliteSql(pg);
-});
+  db = await openTestDb();
+  pg = db.pg;
+  sql = db.sql;
+}, 60_000);
 
-afterAll(async () => {
-  await pg.close();
-});
+afterAll(() => db.close());
 
 beforeEach(async () => {
   await pg.exec(

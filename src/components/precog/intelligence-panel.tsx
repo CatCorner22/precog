@@ -21,12 +21,13 @@ import {
   Sigma,
   Sparkles,
 } from "lucide-react";
+import type { NavFn } from "@/lib/precog/navigation";
 
 function rank(status: "ok" | "watch" | "breach"): number {
   return status === "breach" ? 2 : status === "watch" ? 1 : 0;
 }
 
-export function IntelligencePanel({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+export function IntelligencePanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile, template } = usePractice();
   const [view, setView] = useState<"signals" | "reasoning" | "meta" | "johari" | "forensic">(
     "johari",

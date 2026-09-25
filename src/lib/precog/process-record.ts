@@ -33,7 +33,7 @@ export const CADENCE_LABEL: Record<ProcessCadence, string> = {
  * undocumented processes matter first: a daily deposit stops on day one, an
  * annual renewal can wait for the owner to return.
  */
-export const CADENCE_STOP_DAYS: Record<ProcessCadence, number> = {
+const CADENCE_STOP_DAYS: Record<ProcessCadence, number> = {
   continuous: 0,
   daily: 1,
   weekly: 7,
@@ -110,7 +110,7 @@ export function normalizeSystems(values: readonly string[] | undefined, max = 8)
   return out;
 }
 
-export interface ProcessRecordGap {
+interface ProcessRecordGap {
   process: ProcessNode;
   state: Exclude<ProcessDocumentationState, "located">;
   /** Days until the process stops mattering to a stand-in; lower = more urgent. */

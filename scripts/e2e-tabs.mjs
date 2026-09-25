@@ -9,14 +9,10 @@
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
  */
-import { chromium } from "playwright";
+import { e2eOptions, withPage } from "./lib/e2e.mjs";
 
-const baseUrl = (process.argv[2] || process.env.E2E_BASE_URL || "http://127.0.0.1:8080/").replace(
-  /\/$/,
-  "",
-);
-const timeout = Number(process.env.E2E_TIMEOUT_MS || 45000);
-const failureShot = process.env.E2E_SCREENSHOT || "";
+const options = e2eOptions();
+const { baseUrl, timeout, failureShot } = options;
 
 const INDUSTRIES = [
   "Dental",
@@ -27,10 +23,7 @@ const INDUSTRIES = [
   "Nonprofit",
   "General",
 ];
-const IGNORED_CONSOLE = /favicon|net::ERR_|Download the React DevTools/;
-
 const failures = [];
-let page;
 
 function record(where, problems) {
   if (!problems.length) return;
@@ -38,37 +31,17 @@ function record(where, problems) {
   console.log(`  ✗ ${where}: ${problems.join(" | ")}`);
 }
 
-const browser = await chromium.launch({
-  headless: true,
-  args: ["--no-sandbox", "--disable-dev-shm-usage"],
-});
-
-try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  page = await context.newPage();
-  page.setDefaultTimeout(timeout);
-
-  let pageErrors = [];
-  let consoleErrors = [];
-  page.on("pageerror", (err) => pageErrors.push(String(err?.message || err)));
-  page.on("console", (msg) => {
-    const text = msg.text();
-    if (msg.type() === "error" && !IGNORED_CONSOLE.test(text)) consoleErrors.push(text);
-    // React 19 logs hydration mismatches as errors, but keep the regex in case
-    // a future version downgrades them to warnings.
-    if (/hydrat/i.test(text) && !consoleErrors.includes(text)) consoleErrors.push(text);
-  });
-
+await withPage(options, async (page, errors) => {
   async function drain(where) {
     await page.waitForTimeout(400);
     const boundary = await page.getByText(/This view hit an error|failed to download/).count();
     const problems = [
-      ...pageErrors.map((e) => `pageerror: ${e}`),
-      ...consoleErrors.map((e) => `console: ${e.slice(0, 200)}`),
+      ...errors.page.map((e) => `pageerror: ${e}`),
+      ...errors.console.map((e) => `console: ${e.slice(0, 200)}`),
       ...(boundary ? ["error boundary rendered"] : []),
     ];
-    pageErrors = [];
-    consoleErrors = [];
+    errors.page = [];
+    errors.console = [];
     record(where, problems);
   }
 
@@ -85,17 +58,39 @@ try {
     await page.locator("nav button").first().waitFor();
     await drain(`${industry}: load demo`);
 
-    const tabs = await page.locator("nav button").allInnerTexts();
-    for (let i = 0; i < tabs.length; i++) {
-      const label = tabs[i].trim().split("\n")[0];
-      await page.locator("nav button").nth(i).click();
-      // Lazy tabs show a loading state first; wait for it to clear.
-      await page
+    // Lazy tabs show a loading state first; wait for it to clear.
+    const settle = () =>
+      page
         .getByText(/^Loading/)
         .first()
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
+
+    // The six primary tabs sit in the strip; the rest are behind "More".
+    const primary = await page.locator('nav [role="tab"]').allInnerTexts();
+    let lastLabel = "";
+    for (let i = 0; i < primary.length; i++) {
+      const label = primary[i].trim().split("\n")[0];
+      await page.locator('nav [role="tab"]').nth(i).click();
+      await settle();
       await drain(`${industry}: tab "${label}"`);
+      lastLabel = label;
+    }
+    await page.locator("nav [data-more-tabs]").click();
+    const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
+    await page.keyboard.press("Escape");
+    for (const text of advanced) {
+      const label = text.trim().split("\n")[0];
+      await page.locator("nav [data-more-tabs]").click();
+      await page.locator('[role="menu"] [role="menuitem"]', { hasText: label }).first().click();
+      await settle();
+      await drain(`${industry}: tab "${label}"`);
+      lastLabel = label;
+    }
+    if (primary.length + advanced.length < 15) {
+      throw new Error(
+        `${industry}: expected 15 tabs, found ${primary.length} primary and ${advanced.length} advanced`,
+      );
     }
 
     // The open tab lives in the URL: the last tab clicked must survive a reload.
@@ -110,7 +105,7 @@ try {
       .locator('nav [role="tab"][aria-selected="true"]')
       .first()
       .innerText();
-    if (current.trim().split("\n")[0] !== tabs[tabs.length - 1].trim().split("\n")[0]) {
+    if (current.trim().split("\n")[0] !== lastLabel) {
       throw new Error(`${industry}: tab did not survive reload (got "${current}")`);
     }
     await drain(`${industry}: reload on ${new URL(lastUrl).search}`);
@@ -133,11 +128,4 @@ try {
   } else {
     console.log(JSON.stringify({ ok: true, industries: INDUSTRIES.length }));
   }
-} catch (err) {
-  console.error(`FAILED: ${err?.message || err}`);
-  if (failureShot && page)
-    await page.screenshot({ path: failureShot, fullPage: true }).catch(() => {});
-  process.exitCode = 1;
-} finally {
-  await browser.close();
-}
+});

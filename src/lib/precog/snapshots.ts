@@ -8,8 +8,8 @@ import type { RoleAssignment } from "./sod/detect";
 import { normalizeValueCase, type ValueCaseInputs } from "./value-case";
 import { normalizeValueEvidence, type ValueEvidence } from "./value-evidence";
 
-export const ASSESSMENT_MODEL_VERSION = "precog-2026.09";
-export const KNOWLEDGE_CORPUS_VERSION = "controls-2026.09";
+const ASSESSMENT_MODEL_VERSION = "precog-2026.09";
+const KNOWLEDGE_CORPUS_VERSION = "controls-2026.09";
 import { MAX_SNAPSHOTS_PER_USER, enforceSnapshotRetention } from "./snapshot-retention";
 const MAX_POWER_MAP_BYTES = 256 * 1024;
 

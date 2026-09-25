@@ -4,6 +4,7 @@
  * AI suggester and to pad AI output so the builder always returns something.
  */
 import type { ProcessIdea, ProcessRisk } from "../types";
+import type { GrokAccess } from "../llm/types";
 
 export interface SuggestionInput {
   processName: string;
@@ -21,7 +22,7 @@ export type SuggestedIdea = Omit<ProcessIdea, "id">;
 export interface SuggestionResult {
   source: "grok" | "local";
   model?: string;
-  grokStatus?: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+  grokStatus?: GrokAccess;
   risks: SuggestedRisk[];
   ideas: SuggestedIdea[];
   controlIds: string[];

@@ -52,7 +52,7 @@ export type SchemeKind =
  * variable: it is the difference between a four-figure loss and a
  * seven-figure one.
  */
-export type DetectionRoute =
+type DetectionRoute =
   | "tip"
   | "owner-review"
   | "external-audit"
@@ -66,23 +66,11 @@ export type DetectionRoute =
 
 import type { ControlId } from "./controls";
 
-/** Confidence in the facts as recorded. */
-export type SourceGrade =
-  /** Facts taken from the text of a government press release or court filing. */
-  | "primary-document"
-  /**
-   * Facts reported from a primary document that this environment could not
-   * open directly. The citation URL points at the primary document so a reader
-   * can confirm in one click.
-   */
-  | "primary-document-reported";
-
-export interface EvidenceSource {
+interface EvidenceSource {
   /** Publisher, e.g. "U.S. Attorney's Office, District of Massachusetts". */
   publisher: string;
-  /** Direct link to the primary document. */
+  /** Direct link to the primary document, so a reader can confirm in one click. */
   url: string;
-  grade: SourceGrade;
 }
 
 /**
@@ -118,8 +106,6 @@ export interface CaseStudy {
    */
   tenureYearsStated?: number;
   detection: DetectionRoute;
-  /** Approximate headcount of the victim organization, where reported. */
-  victimSize?: string;
   /** Year the case resolved (sentencing or plea), for recency signalling. */
   resolvedYear?: number;
   /**

@@ -1,5 +1,5 @@
-export const GROK_MODEL = "grok-4.5";
-export const GROK_TIMEOUT_MS = 20_000;
+const GROK_MODEL = "grok-4.5";
+const GROK_TIMEOUT_MS = 20_000;
 
 export interface GrokChatOptions {
   messages: {

@@ -5,7 +5,7 @@ import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult } from "../llm/types";
 import { invalidRequest } from "@/lib/request-errors";
-import { resolveClientDate } from "../continuity/coverage";
+import { resolveClientDate } from "../dates";
 import type { PracticeProfile } from "../practice-profile";
 import { parsePioneerInput } from "../public-inputs";
 import { pioneerProfileFrom, type PioneerProfileInput } from "./pioneer-profile";
@@ -135,8 +135,3 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       return { ok: false, error: PIONEER_FAILED_MESSAGE };
     }
   });
-
-export const getLlmToolCatalog = createServerFn({ method: "GET" }).handler(async () => {
-  const { TOOL_CATALOG } = await import("../llm/tools");
-  return TOOL_CATALOG;
-});

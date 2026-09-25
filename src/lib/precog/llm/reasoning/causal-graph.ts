@@ -21,7 +21,7 @@ export type CausalNodeId =
   | "timeline_p50"
   | "owner_decision";
 
-export interface CausalEdge {
+interface CausalEdge {
   from: CausalNodeId;
   to: CausalNodeId;
   weight: number; // signed influence magnitude
@@ -35,7 +35,7 @@ export interface CausalPath {
   narrative: string;
 }
 
-export const CAUSAL_EDGES: CausalEdge[] = [
+const CAUSAL_EDGES: CausalEdge[] = [
   { from: "dual_control", to: "likelihood", weight: -0.9, label: "cuts fraud opportunity" },
   { from: "dual_control", to: "severity", weight: -0.45, label: "limits scheme size" },
   { from: "dual_control", to: "premium", weight: -0.35, label: "unlocks carrier credit" },
@@ -86,7 +86,7 @@ function neighbors(from: CausalNodeId): CausalEdge[] {
 }
 
 /** DFS paths up to maxDepth; score = product of |weights| with sign of product. */
-export function findCausalPaths(
+function findCausalPaths(
   start: CausalNodeId,
   goal: CausalNodeId,
   maxDepth = 4,

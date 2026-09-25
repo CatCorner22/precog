@@ -8,18 +8,13 @@
  * argument from a risk rating.
  */
 import { CASE_LIBRARY } from "./cases";
-import { BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
+import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
 import type { CaseStudy, IndustrySector, SchemeKind } from "./types";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
 
 export * from "./types";
 export * from "./controls";
-export { CASE_LIBRARY, BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS };
-
-/** Cases demonstrating the failure of a given segregation-of-duties rule. */
-export function casesForSodRule(ruleId: string): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.sodRuleIds.includes(ruleId));
-}
+export { CASE_LIBRARY, BENCHMARK_BY_ID, METHOD_CAVEATS };
 
 /**
  * The fraud schemes each segregation-of-duties conflict actually enables.
@@ -29,7 +24,7 @@ export function casesForSodRule(ruleId: string): CaseStudy[] {
  * billing, so the cases worth showing are the shell-vendor cases — not
  * whichever case happens to cite the fewest rules or carry the largest number.
  */
-const RULE_SCHEMES: Record<string, SchemeKind[]> = {
+export const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-cash-rec": ["skimming", "cash-larceny", "check-tampering"],
   // Record the payment and post the write-off that hides its absence.
   "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
@@ -105,7 +100,7 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
  * Keys are unordered pairs joined with a hyphen, alphabetically, matching the
  * `family-<a>-<b>` rule ids the detector produces.
  */
-const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
+export const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
   // Approving a transaction and holding the asset: nothing stands between the
   // decision to pay and the money leaving.
   "authorization-custody": ["check-tampering", "billing-shell-vendor", "corruption"],
@@ -360,10 +355,6 @@ export function casesForControl(controlId: ControlId): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
     byLossDescending,
   );
-}
-
-export function casesForScheme(scheme: SchemeKind): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.schemes.includes(scheme)).sort(byLossDescending);
 }
 
 export function caseById(id: string): CaseStudy | undefined {

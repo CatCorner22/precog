@@ -35,16 +35,8 @@ const DETECTION_LABEL: Record<string, string> = {
  * numbers are what make an abstract control recommendation land. Everything
  * else is collapsed until asked for.
  */
-export function CaseCard({
-  study,
-  className,
-  defaultOpen = false,
-}: {
-  study: CaseStudy;
-  className?: string;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+export function CaseCard({ study }: { study: CaseStudy }) {
+  const [open, setOpen] = useState(false);
   const hasLoss = study.lossUsd > 0;
 
   return (
@@ -52,7 +44,6 @@ export function CaseCard({
       className={cn(
         "rounded-lg border border-border bg-panel/60 transition-colors",
         open && "border-border-strong",
-        className,
       )}
     >
       <button
@@ -167,16 +158,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * is a related scheme, so the page never claims more than the record shows.
  * Renders nothing when the library holds no match at all.
  */
-export function RuleCaseCard({
-  ruleId,
-  industryId,
-  className,
-}: {
-  ruleId: string;
-  industryId?: string;
-  className?: string;
-}) {
-  const pick = caseForRule(ruleId, industryId);
+export function RuleCaseCard({ ruleId, className }: { ruleId: string; className?: string }) {
+  const pick = caseForRule(ruleId);
   if (!pick) return null;
   return (
     <div className={className}>

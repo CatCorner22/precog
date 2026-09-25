@@ -19,6 +19,7 @@ import {
 } from "./dynamic-variables";
 import { isOwnBusiness } from "./scope";
 import type { StaffComposition } from "../types";
+import { formatUsd as usd } from "@/lib/utils";
 
 export type CascadeLeverId =
   | "enable_dual_control"
@@ -175,7 +176,7 @@ export const CASCADE_LEVERS: CascadeLever[] = [
 ];
 
 /** Levers that change the policy itself rather than a control. */
-export const INSURANCE_LEVERS: ReadonlySet<CascadeLeverId> = new Set([
+const INSURANCE_LEVERS: ReadonlySet<CascadeLeverId> = new Set([
   "raise_deductible_10k",
   "lower_deductible_1k",
   "raise_limit_250k",
@@ -230,7 +231,7 @@ export interface MetricSnapshot {
   residualCriticalPath: number;
 }
 
-export interface MetricDelta {
+interface MetricDelta {
   key: keyof MetricSnapshot;
   label: string;
   before: number;
@@ -252,14 +253,6 @@ export interface CascadeSimulation {
   overallVerdict: string;
   variablesAfter: RiskVariableState;
   staffAfter: StaffComposition;
-}
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 function applyLever(
@@ -611,6 +604,42 @@ export function simulateCascadeLever(
   };
 }
 
+/** How one lever moves another, for the cascade panel and the agent's tool output. */
+const CASCADE_DEPENDENCIES = [
+  { from: "dual_control", to: "likelihood", effect: "↓ fraud opportunity" },
+  { from: "dual_control", to: "premium", effect: "unlocks carrier credit" },
+  { from: "dual_control", to: "severity", effect: "↓ scheme size" },
+  { from: "bank_rec", to: "detection_lag", effect: "↓ multi-period loss" },
+  { from: "bank_rec", to: "premium", effect: "unlocks carrier credit" },
+  { from: "bank_rec", to: "days_until_found", effect: "↓ assumed days until found" },
+  { from: "cameras", to: "likelihood", effect: "↓ opportunity + mild detection" },
+  { from: "cameras", to: "premium", effect: "unlocks carrier credit" },
+  { from: "discount_stack", to: "max_discount_cap", effect: "credits capped" },
+  { from: "deductible", to: "retained", effect: "↑ floor retained per claim" },
+  { from: "deductible", to: "transferred", effect: "↓ insurer layer" },
+  { from: "policy_limit", to: "transferred", effect: "caps recovery" },
+  { from: "daily_cash", to: "severity", effect: "scales cash EL" },
+  { from: "claims_load", to: "premium", effect: "multiplies base premium" },
+  { from: "claims_load", to: "likelihood", effect: "mild prior uplift" },
+  { from: "segregation_score", to: "residual_portfolio", effect: "staff uplift on residual" },
+  { from: "segregation_score", to: "scenario_impact", effect: "staff risk multiplier" },
+  {
+    from: "premium_net",
+    to: "annual_cost_of_risk",
+    effect: "CoR ≈ premium + annualized retained",
+  },
+  {
+    from: "retained_el",
+    to: "annual_cost_of_risk",
+    effect: "frequency-weighted retained feeds CoR",
+  },
+  {
+    from: "controls",
+    to: "residual_and_insurance",
+    effect: "same control moves residual band AND premium credits",
+  },
+];
+
 /** Simulate all levers; rank by improvement in annual cost of risk then residual. */
 export function simulateAllCascades(
   tpl: IndustryTemplate,
@@ -622,7 +651,6 @@ export function simulateAllCascades(
   baseline: MetricSnapshot;
   simulations: CascadeSimulation[];
   rankedByCor: CascadeSimulation[];
-  rankedByResidual: CascadeSimulation[];
   dependencyMap: { from: string; to: string; effect: string }[];
 } {
   const { scenarios, staffComposition: demoStaff } = tpl;
@@ -641,53 +669,11 @@ export function simulateAllCascades(
     return da - db; // most negative first
   });
 
-  const rankedByResidual = [...available].sort((a, b) => {
-    const da = a.after.residualAverage - a.before.residualAverage;
-    const db = b.after.residualAverage - b.before.residualAverage;
-    return da - db;
-  });
-
-  const dependencyMap = [
-    { from: "dual_control", to: "likelihood", effect: "↓ fraud opportunity" },
-    { from: "dual_control", to: "premium", effect: "unlocks carrier credit" },
-    { from: "dual_control", to: "severity", effect: "↓ scheme size" },
-    { from: "bank_rec", to: "detection_lag", effect: "↓ multi-period loss" },
-    { from: "bank_rec", to: "premium", effect: "unlocks carrier credit" },
-    { from: "bank_rec", to: "days_until_found", effect: "↓ assumed days until found" },
-    { from: "cameras", to: "likelihood", effect: "↓ opportunity + mild detection" },
-    { from: "cameras", to: "premium", effect: "unlocks carrier credit" },
-    { from: "discount_stack", to: "max_discount_cap", effect: "credits capped" },
-    { from: "deductible", to: "retained", effect: "↑ floor retained per claim" },
-    { from: "deductible", to: "transferred", effect: "↓ insurer layer" },
-    { from: "policy_limit", to: "transferred", effect: "caps recovery" },
-    { from: "daily_cash", to: "severity", effect: "scales cash EL" },
-    { from: "claims_load", to: "premium", effect: "multiplies base premium" },
-    { from: "claims_load", to: "likelihood", effect: "mild prior uplift" },
-    { from: "segregation_score", to: "residual_portfolio", effect: "staff uplift on residual" },
-    { from: "segregation_score", to: "scenario_impact", effect: "staff risk multiplier" },
-    {
-      from: "premium_net",
-      to: "annual_cost_of_risk",
-      effect: "CoR ≈ premium + annualized retained",
-    },
-    {
-      from: "retained_el",
-      to: "annual_cost_of_risk",
-      effect: "frequency-weighted retained feeds CoR",
-    },
-    {
-      from: "controls",
-      to: "residual_and_insurance",
-      effect: "same control moves residual band AND premium credits",
-    },
-  ];
-
   return {
     scenarioId: sid,
     baseline,
     simulations,
     rankedByCor,
-    rankedByResidual,
-    dependencyMap,
+    dependencyMap: CASCADE_DEPENDENCIES,
   };
 }
