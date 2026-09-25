@@ -136,7 +136,7 @@ Cloud saves carry a per-business revision, so edits made in another tab or devic
 identified before they can overwrite local work. The app asks whether to load the remote
 version or keep the local version and overwrite it. The revision check and the write are one
 statement server-side (`src/lib/precog/business-store.ts`), so two clients racing on the same
-revision cannot both succeed. Businesses are keyed per user (`0007_businesses_per_user_key.sql`),
+revision cannot both succeed. Businesses are keyed per user (`0010_businesses_per_user_key.sql`),
 so two accounts that both hold the legacy `biz_default` id no longer collide. Both migrations run
 automatically through the existing migration runner. The same prompt appears when you sign in on a device that already holds edits to the
 business your account has, and work done signed-out under a separate business is added to

@@ -53,6 +53,22 @@ async function main() {
       console.log("[migrate] no migrations/ directory — nothing to do.");
       return;
     }
+    const prefixes = new Set();
+    for (const name of files) {
+      const prefix = name.slice(0, 4);
+      if (prefixes.has(prefix)) throw new Error(`two migrations share the prefix ${prefix}`);
+      prefixes.add(prefix);
+    }
+
+    // A ledger written before a file was renumbered holds the old name: move
+    // the row to the current name rather than applying the file twice.
+    const renamed = JSON.parse(await readFile(join(migrationsDir, "renamed.json"), "utf8"));
+    for (const [current, previous] of Object.entries(renamed)) {
+      if (current.startsWith("_") || applied.has(current) || !applied.has(previous)) continue;
+      await client.query("UPDATE _migrations SET name = $1 WHERE name = $2", [current, previous]);
+      applied.add(current);
+      console.log(`[migrate] ledger: ${previous} -> ${current}`);
+    }
 
     let count = 0;
     for (const name of files) {
