@@ -32,7 +32,7 @@ await withPage(options, async (page, errors) => {
   await page.getByRole("button", { name: /Load Dental/ }).click();
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Dynamic variables", exact: true }).click();
-  const status = page.getByLabel("Insurance information status", { exact: true });
+  const status = page.getByRole("combobox", { name: "Insurance information status", exact: true });
   await status.selectOption("reported");
   const assumption = page.getByRole("checkbox", {
     name: /Model this scenario as potentially covered/,
