@@ -1,0 +1,45 @@
+name: Stabilization regression diagnostics
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: stabilization-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: precog
+          POSTGRES_PASSWORD: precog
+          POSTGRES_DB: precog_stabilization_test
+        ports:
+          - 5432:5432
+        options: --health-cmd 'pg_isready -U precog' --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://precog:precog@127.0.0.1:5432/precog_stabilization_test
+      PRECOG_INTEGRATION_DATABASE_URL: postgresql://precog:precog@127.0.0.1:5432/precog_stabilization_test
+      PRECOG_TEST_DATABASE_CONFIRMED: 'true'
+      PRECOG_RUNTIME_MODE: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts > /tmp/install.log 2>&1 || { tail -n 25 /tmp/install.log; exit 1; }
+      - name: Apply migrations to the isolated test service
+        run: npm run db:migrate
+      - name: Compact regression results
+        run: node scripts/test-diagnostics.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stabilization-test-results
+          path: stabilization-test-results.json
+          if-no-files-found: ignore
