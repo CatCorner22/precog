@@ -6,9 +6,9 @@ import { mapAssessed } from "../builder/map-state";
 import { industryMeta } from "../industry";
 import { assessCoso } from "../coso";
 import { resolveTemplate } from "../active-template";
-import { rankDangerousScenarios, runPrecogScenario } from "../engine";
+import { rankDangerousScenarios } from "../engine";
 import { STRONG_LEVELS } from "../continuity/coverage";
-import { portfolioSummary, tornadoSensitivity } from "../scoring/residual-engine";
+import { portfolioSummary } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import {
   confirmedScenarioIds,
@@ -16,20 +16,7 @@ import {
   scenariosInScope,
   starterScenarioNote,
 } from "../scoring/scope";
-import { compareScenarioFutures } from "../scoring/scenario-compare";
-import {
-  DEFAULT_RISK_VARIABLES,
-  effectiveRiskVariables,
-  evaluateDynamicRisk,
-  insuranceFigureNote,
-  scenarioFlags,
-  type RiskVariableState,
-} from "../scoring/dynamic-variables";
-import {
-  simulateAllCascades,
-  simulateCascadeLever,
-  type CascadeLeverId,
-} from "../scoring/variable-cascade";
+import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "../scoring/dynamic-variables";
 import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { casesForSodRules, detectionBreakdown, observedLossRange } from "../evidence";
@@ -41,6 +28,13 @@ import type { StaffComposition } from "../types";
 import { CADENCE_LABEL, processRecordReport } from "../process-record";
 import type { ToolName, ToolResult } from "./types";
 import { knowledgeSpofs, plannedAbsences, registerCheckins } from "./continuity-tools";
+import {
+  compareScenarioFuturesTool,
+  insuranceCostOfRisk,
+  runPrecogScenarioTool,
+  tornadoLevers,
+  variableCascades,
+} from "./scenario-tools";
 import { formatUsd as usd } from "@/lib/utils";
 
 export interface ToolContext {
@@ -163,7 +157,7 @@ export function executeTool(
 ): ToolResult {
   const profile = profileOf(ctx);
   const tpl = resolveTemplate(profile);
-  const { people, knowledge, relations, scenarios, crimeFraudStats } = tpl;
+  const { people, knowledge, relations, crimeFraudStats } = tpl;
   const staff: StaffComposition = profile.staff;
   const practiceName = profile.practiceName || tpl.businessName;
   const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
@@ -191,6 +185,18 @@ export function executeTool(
       "No scenario is in scope for this business, so no scenario figure applies.",
     data: null,
   });
+
+  const scenarioInput = {
+    tool,
+    args,
+    tpl,
+    staff,
+    riskVars,
+    scope,
+    ownBusiness,
+    scenarioInScope,
+    noScenario,
+  };
 
   try {
     switch (tool) {
@@ -393,103 +399,17 @@ export function executeTool(
         };
       }
 
-      case "run_precog_scenario": {
-        const scenarioId = scenarioInScope(args.scenarioId);
-        if (!scenarioId) return noScenario();
-        const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: riskVars });
-        const scenario = scenarios.find((s) => s.id === scenarioId);
-        if (!result || !scenario) {
-          return { tool, args, ok: false, summary: "Scenario not found", data: null };
-        }
-        return {
-          tool,
-          args: { scenarioId },
-          ok: true,
-          summary: `${scenario.title}: retained ${usd(result.retainedImpact.expected)}, CoR ${usd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
-          data: {
-            scenarioId,
-            title: scenario.title,
-            timelineDays: result.timelineDays,
-            gross: result.financialImpact,
-            retained: result.retainedImpact,
-            dynamic: result.dynamic
-              ? {
-                  likelihoodMultiplier: result.dynamic.likelihoodMultiplier,
-                  grossSeverityMultiplier: result.dynamic.grossSeverityMultiplier,
-                  detectionLagMultiplier: result.dynamic.detectionLagMultiplier,
-                  premiumAnnualNet: result.dynamic.premiumAnnualNet,
-                  discountPctApplied: result.dynamic.discountPctApplied,
-                  expectedAnnualCostOfRisk: result.dynamic.expectedAnnualCostOfRisk,
-                  transferredExpected: result.dynamic.transferredExpected,
-                }
-              : null,
-            cascade: result.cascade,
-          },
-          links: [{ tab: "precog", id: scenarioId, label: scenario.title }],
-        };
-      }
+      case "run_precog_scenario":
+        return runPrecogScenarioTool(scenarioInput);
 
-      case "compare_scenario_futures": {
-        const scenarioId = scenarioInScope(args.scenarioId);
-        if (!scenarioId) return noScenario();
-        const report = compareScenarioFutures(tpl, scenarioId, staff, [], riskVars);
-        return {
-          tool,
-          args: { scenarioId },
-          ok: true,
-          summary: `Compared ${report.columns.length} futures`,
-          data: {
-            scenarioId,
-            winnerByRetained: report.winnerByRetained,
-            winnerByAnnualCor: report.winnerByAnnualCor,
-            columns: report.columns.map((c) => ({
-              id: c.id,
-              label: c.label,
-              retained: c.result.retainedImpact?.expected,
-              annualCor: c.result.dynamic?.expectedAnnualCostOfRisk,
-            })),
-          },
-          links: [{ tab: "precog", id: scenarioId, label: "Compare" }],
-        };
-      }
+      case "compare_scenario_futures":
+        return compareScenarioFuturesTool(scenarioInput);
 
-      case "get_tornado_levers": {
-        const t = tornadoSensitivity(tpl, staff, scope);
-        return {
-          tool,
-          ok: true,
-          summary: `Top lever: ${t.levers[0]?.label ?? "—"}`,
-          data: { baseAverage: t.baseAverage, levers: t.levers },
-          links: [{ tab: "residual", label: "Tornado" }],
-        };
-      }
+      case "get_tornado_levers":
+        return tornadoLevers(scenarioInput);
 
-      case "get_insurance_cost_of_risk": {
-        const scenarioId = scenarioInScope(args.scenarioId);
-        if (!scenarioId) return noScenario();
-        const scenario = scenarios.find((s) => s.id === scenarioId)!;
-        // An own business with the app's default policy figures is priced
-        // with no crime policy, and the summary says which basis applies.
-        const dyn = evaluateDynamicRisk(
-          effectiveRiskVariables(riskVars, ownBusiness),
-          scenario.baseFinancialImpact,
-          scenarioFlags(scenarioId),
-        );
-        const policyNote = insuranceFigureNote(riskVars, ownBusiness);
-        return {
-          tool,
-          args: { scenarioId },
-          ok: true,
-          summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
-          data: {
-            scenarioId,
-            variables: riskVars,
-            likelihoodSeverity: dyn.likelihoodSeverity,
-            transfer: dyn.transfer,
-          },
-          links: [{ tab: "precog", label: "Insurance" }],
-        };
-      }
+      case "get_insurance_cost_of_risk":
+        return insuranceCostOfRisk(scenarioInput);
 
       case "get_sod_conflicts": {
         // The team's own duty conflicts, by person, scored the way Who
@@ -520,63 +440,8 @@ export function executeTool(
         };
       }
 
-      case "simulate_variable_cascades": {
-        const scenarioId = scenarioInScope(args.scenarioId);
-        if (!scenarioId) return noScenario();
-        const leverId = args.leverId as CascadeLeverId | undefined;
-        if (leverId) {
-          const one = simulateCascadeLever(tpl, leverId, riskVars, staff, scenarioId);
-          return {
-            tool,
-            args: { leverId, scenarioId },
-            ok: true,
-            summary: one.overallVerdict,
-            data: {
-              mode: "single",
-              scenarioId,
-              simulation: {
-                lever: one.lever,
-                verdict: one.overallVerdict,
-                secondOrderNotes: one.secondOrderNotes,
-                deltas: one.deltas,
-                before: one.before,
-                after: one.after,
-              },
-            },
-            links: [{ tab: "precog", label: "Cascades" }],
-          };
-        }
-        const all = simulateAllCascades(tpl, riskVars, staff, scenarioId);
-        const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
-          leverId: s.lever.id,
-          label: s.lever.label,
-          affects: s.lever.affects,
-          verdict: s.overallVerdict,
-          secondOrderNotes: s.secondOrderNotes,
-          deltaCor: s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk,
-          deltaRetained: s.after.retainedExpected - s.before.retainedExpected,
-          deltaPremium: s.after.premiumAnnualNet - s.before.premiumAnnualNet,
-          deltaResidual: s.after.residualAverage - s.before.residualAverage,
-          deltaP50: s.after.timelineP50 - s.before.timelineP50,
-          deltaLikelihood: s.after.likelihoodMultiplier - s.before.likelihoodMultiplier,
-          improves: s.deltas.filter((d) => d.direction === "improves").map((d) => d.label),
-          worsens: s.deltas.filter((d) => d.direction === "worsens").map((d) => d.label),
-        }));
-        return {
-          tool,
-          args: { scenarioId },
-          ok: true,
-          summary: `Best CoR lever: ${topCor[0]?.label ?? "—"}`,
-          data: {
-            mode: "portfolio",
-            scenarioId,
-            baseline: all.baseline,
-            dependencyMap: all.dependencyMap,
-            topByCostOfRisk: topCor,
-          },
-          links: [{ tab: "precog", label: "Cascades" }],
-        };
-      }
+      case "simulate_variable_cascades":
+        return variableCascades(scenarioInput);
 
       case "retrieve_guidance": {
         const query =
