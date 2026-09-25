@@ -76,6 +76,8 @@ import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { ArrowLeft, Printer } from "lucide-react";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
+import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import { ReportVersionsPanel } from "@/components/precog/report-versions";
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -98,8 +100,12 @@ function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {
   );
 }
 
-/** Print-friendly control priorities report — File → Print → Save as PDF. */
-export function ControlReport() {
+/**
+ * Print-friendly control priorities report — File → Print → Save as PDF.
+ * With `locked`, it prints a frozen version (rendered under a read-only
+ * provider) and names the preparer and reviewer instead of today's date.
+ */
+export function ControlReport({ locked = null }: { locked?: ReportVersionRow | null }) {
   const { profile, mapCustomized, replaceProfile } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [firmName, setFirmName] = useState<string | null>(null);
@@ -117,7 +123,7 @@ export function ControlReport() {
   }, [isPending, user]);
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
-  const generated = new Date();
+  const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
   const registerReady = registerAssessed(tpl);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
@@ -296,27 +302,37 @@ export function ControlReport() {
             <ArrowLeft className="size-4" /> Back to dashboard
           </Link>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                replaceProfile({
-                  ...profile,
-                  engagement: {
-                    ...profile.engagement,
-                    reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
-                  },
-                });
-              }}
-            >
-              {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
-            </Button>
+            {locked ? (
+              <Link
+                to="/report"
+                className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
+              >
+                Back to the current report
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  replaceProfile({
+                    ...profile,
+                    engagement: {
+                      ...profile.engagement,
+                      reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
+                    },
+                  });
+                }}
+              >
+                {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
+              </Button>
+            )}
             <Button size="sm" onClick={() => window.print()}>
               <Printer className="size-3.5" /> Print / Save as PDF
             </Button>
           </div>
         </div>
       </div>
+      {!locked && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         <header className="border-b-2 border-neutral-900 pb-4">
@@ -325,6 +341,12 @@ export function ControlReport() {
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
           {firmName && <p className="mt-1 text-sm text-neutral-700">Prepared by {firmName}</p>}
+          {locked && (
+            <p className="mt-1 text-sm font-medium text-neutral-800">
+              {versionProvenance(locked)}
+              {locked.scopeNote ? ` · Scope: ${locked.scopeNote}` : ""}
+            </p>
+          )}
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
             {mapFrom === "starter"

@@ -6,9 +6,15 @@ import type { Sql } from "@/lib/db";
 import {
   BusinessLimitError,
   deleteBusinessRow,
+  listBusinessHistory,
   listBusinessSummaries,
+  listDeletedBusinesses,
   loadActiveBusiness,
+  loadBusinessHistoryVersion,
   MAX_BUSINESSES_PER_USER,
+  purgeDeletedBusinesses,
+  resolveBusinessOwner,
+  restoreBusinessRow,
   saveBusinessRevision,
   setActiveBusiness,
 } from "./business-store";
@@ -85,7 +91,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await pg.exec(`delete from businesses; delete from business_profiles; delete from "user";`);
+  await pg.exec(`delete from firm_members; delete from firms; delete from businesses; delete from business_profiles; delete from "user";`);
   await seedUser("user-a");
   await seedUser("user-b");
 });
@@ -253,8 +259,103 @@ describe("loadActiveBusiness", () => {
     await deleteBusinessRow(sql, "user-a", "biz_1");
 
     expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-    expect(await revisionOf("user-a", "biz_1")).toBeNull();
+    // Deleted means marked, not gone: the row waits out its grace period.
+    expect(await revisionOf("user-a", "biz_1")).toBe(1);
+    expect((await listBusinessSummaries(sql, "user-a")).map((b) => b.id)).toEqual(["biz_2"]);
     expect(await revisionOf("user-a", "biz_2")).toBe(1);
+  });
+
+  it("a deleted business can be restored within the grace period, then purged after it", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
+    await deleteBusinessRow(sql, "user-a", "biz_1");
+
+    const deleted = await listDeletedBusinesses(sql, "user-a");
+    expect(deleted.map((d) => d.id)).toEqual(["biz_1"]);
+    expect(new Date(deleted[0].purgeOn).getTime()).toBeGreaterThan(
+      new Date(deleted[0].deletedAt).getTime(),
+    );
+
+    expect(await restoreBusinessRow(sql, "user-a", "biz_1")).toBe(true);
+    expect((await listBusinessSummaries(sql, "user-a")).map((b) => b.id)).toEqual(["biz_1"]);
+
+    await deleteBusinessRow(sql, "user-a", "biz_1");
+    await sql`update businesses set deleted_at = now() - interval '40 days' where id = 'biz_1'`;
+    expect(await purgeDeletedBusinesses(sql)).toBe(1);
+    expect(await revisionOf("user-a", "biz_1")).toBeNull();
+  });
+});
+
+describe("history", () => {
+  it("keeps the replaced version of every save, with who saved it", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
+    await saveBusinessRevision(sql, { ...input("user-a", "biz_1", 1, "v2"), savedBy: "user-b" });
+    await saveBusinessRevision(sql, input("user-a", "biz_1", 2, "v3"));
+
+    const history = await listBusinessHistory(sql, "user-a", "biz_1");
+    expect(history.map((h) => [h.revision, h.name, h.savedBy])).toEqual([
+      [2, "v2", "user-b"],
+      [1, "v1", "user-a"],
+    ]);
+    const v1 = await loadBusinessHistoryVersion<{ practiceName: string }>(sql, "user-a", "biz_1", 1);
+    expect(v1?.profile.practiceName).toBe("v1");
+  });
+
+  it("records nothing for a save the revision check refuses", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
+    const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", 7, "stale"));
+    expect(stale.ok).toBe(false);
+    expect(await listBusinessHistory(sql, "user-a", "biz_1")).toEqual([]);
+  });
+});
+
+describe("firm access", () => {
+  beforeEach(async () => {
+    await pg.exec(`delete from firm_members; delete from firms;`);
+    await sql`insert into firms (user_id, name) values ('user-a', 'A & Co')`;
+    await sql`insert into firm_members (firm_user_id, member_user_id, role) values ('user-a', 'user-a', 'owner')`;
+    await sql`insert into firm_members (firm_user_id, member_user_id, role) values ('user-a', 'user-b', 'reviewer')`;
+  });
+
+  it("a member reaches a colleague's business through the firm, an outsider does not", async () => {
+    await seedUser("user-c");
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "Client"),
+      firmUserId: "user-a",
+    });
+    await saveBusinessRevision(sql, input("user-a", "biz_private", null, "Own"));
+
+    expect(await resolveBusinessOwner(sql, "user-b", "biz_1")).toBe("user-a");
+    expect(await resolveBusinessOwner(sql, "user-b", "biz_private")).toBeNull();
+    expect(await resolveBusinessOwner(sql, "user-c", "biz_1")).toBeNull();
+
+    const shared = await listBusinessSummaries(sql, "user-b", "user-a");
+    expect(shared.map((b) => [b.id, b.shared])).toEqual([["biz_1", true]]);
+  });
+
+  it("a member's save lands on the owner's row and names the member", async () => {
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "Client"),
+      firmUserId: "user-a",
+    });
+    const owner = await resolveBusinessOwner(sql, "user-b", "biz_1");
+    const saved = await saveBusinessRevision(sql, {
+      ...input(owner as string, "biz_1", 1, "Client v2"),
+      savedBy: "user-b",
+    });
+    expect(saved.ok).toBe(true);
+    const rows = await sql<{ saved_by: string; revision: number | string }>`
+      select saved_by, revision from businesses where user_id = 'user-a' and id = 'biz_1'
+    `;
+    expect([rows[0].saved_by, Number(rows[0].revision)]).toEqual(["user-b", 2]);
+  });
+
+  it("prefers the caller's own row when a colleague's business carries the same id", async () => {
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "same", null, "Theirs"),
+      firmUserId: "user-a",
+    });
+    await saveBusinessRevision(sql, input("user-b", "same", null, "Mine"));
+    expect(await resolveBusinessOwner(sql, "user-b", "same")).toBe("user-b");
   });
 
   it("ignores a dangling pointer when the user has other businesses", async () => {

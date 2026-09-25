@@ -107,7 +107,7 @@ interface SaveConflictState {
   updatedAt: string;
 }
 
-interface PracticeContextValue {
+export interface PracticeContextValue {
   profile: PracticeProfile;
   ready: boolean;
   syncStatus: SyncStatus;
@@ -246,7 +246,7 @@ interface MapSnapshot {
 const MAX_UNDO = 50;
 const MAX_HEALTH_POINTS = 90;
 
-const PracticeContext = createContext<PracticeContextValue | null>(null);
+export const PracticeContext = createContext<PracticeContextValue | null>(null);
 
 const SAVE_DEBOUNCE_MS = 1200;
 
