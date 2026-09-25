@@ -101,11 +101,20 @@ await withPage(options, async (page, errors) => {
   const id = await node.getAttribute("data-id");
   assert.ok(id);
   const before = (await readProfile(page)).mapLayout?.[id];
+  await node.scrollIntoViewIfNeeded();
+  await node.hover();
   const box = await node.boundingBox();
   assert.ok(box);
-  await page.mouse.move(box.x + box.width / 2, box.y + 18);
+  const dragPoint = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const hitId = await page.evaluate(
+    ({ x, y }) =>
+      document.elementFromPoint(x, y)?.closest(".react-flow__node")?.getAttribute("data-id"),
+    dragPoint,
+  );
+  assert.equal(hitId, id, "the drag must start on the visible process, not another panel");
+  await page.mouse.move(dragPoint.x, dragPoint.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 70, box.y + 78, { steps: 10 });
+  await page.mouse.move(dragPoint.x + 70, dragPoint.y + 60, { steps: 10 });
   await page.mouse.up();
   const moved = await waitProfile(
     page,
@@ -152,8 +161,8 @@ await withPage(options, async (page, errors) => {
   await owner.pressSequentially("Jordan Owner");
   assert.equal(await owner.inputValue(), "Jordan Owner");
   assert.equal(await owner.evaluate((element) => document.activeElement === element), true);
-  await page.getByRole("textbox", { name: "River Vale role", exact: true }).fill("Cashier");
-  await page.getByRole("textbox", { name: "River Vale role", exact: true }).blur();
+  await page.getByRole("combobox", { name: "River Vale role", exact: true }).fill("Cashier");
+  await page.getByRole("combobox", { name: "River Vale role", exact: true }).blur();
   await filter.uncheck();
   assert.equal(await names.count(), 4);
 
