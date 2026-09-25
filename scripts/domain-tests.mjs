@@ -28,6 +28,7 @@ try {
   const profile = await server.ssrLoadModule("/src/lib/precog/practice-profile.ts");
   const db = await server.ssrLoadModule("/src/lib/db.ts");
   const blueprint = await server.ssrLoadModule("/src/lib/precog/operating-blueprint.ts");
+  const industryModule = await server.ssrLoadModule("/src/lib/precog/industry.ts");
   const sodRules = await server.ssrLoadModule("/src/lib/precog/sod/conflict-rules.ts");
   const sodDetect = await server.ssrLoadModule("/src/lib/precog/sod/detect.ts");
   const powerGuidance = await server.ssrLoadModule("/src/lib/precog/sod/power-guidance.ts");
@@ -483,18 +484,26 @@ try {
     }
   });
 
-  await test("operating blueprint covers complete tiered process guidance", () => {
-    const processes = blueprint.PRACTICE_PROCESS_BLUEPRINTS;
-    assert.ok(processes.length >= 10);
-    assert.equal(new Set(processes.map((process) => process.id)).size, processes.length);
-    for (const process of processes) {
-      assert.ok(process.primaryOwner);
-      assert.ok(process.independentReviewer);
-      assert.ok(process.standard.length > 0);
-      assert.ok(process.leading.length > 0);
-      assert.ok(process.optimal.length > 0);
-      assert.ok(process.fallback.length > 0);
-      assert.ok(process.evidence.length > 0);
+  await test("operating blueprint covers complete tiered process guidance for every industry", () => {
+    for (const industry of industryModule.INDUSTRIES) {
+      const processes = blueprint.blueprintsForIndustry(industry.id);
+      assert.ok(processes.length >= 10, industry.id);
+      assert.equal(new Set(processes.map((process) => process.id)).size, processes.length);
+      for (const process of processes) {
+        assert.ok(process.primaryOwner, `${industry.id}:${process.id}`);
+        assert.ok(process.independentReviewer);
+        assert.ok(process.standard.length > 0);
+        assert.ok(process.leading.length > 0);
+        assert.ok(process.optimal.length > 0);
+        assert.ok(process.fallback.length > 0);
+        assert.ok(process.evidence.length > 0);
+      }
+      // No line of business reads another's vocabulary in the shared processes.
+      const shared = processes
+        .slice(3)
+        .map((p) => `${p.name} ${p.objective}`)
+        .join(" ");
+      if (industry.id !== "dental") assert.ok(!/patient|claim/i.test(shared), industry.id);
     }
   });
 

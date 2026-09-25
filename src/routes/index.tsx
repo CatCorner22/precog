@@ -1033,7 +1033,7 @@ function Home() {
                 <DecisionJournal onOpenLinked={(t, id) => navigateTab(t, id)} />
               )}
               {tab === "snapshots" && <AssessmentSnapshots />}
-              {tab === "blueprint" && <OperatingBlueprint onNavigate={(t) => navigateTab(t)} />}
+              {tab === "blueprint" && <OperatingBlueprint />}
               {tab === "value" && <ValueProofCenter />}
             </Suspense>
           </TabErrorBoundary>
