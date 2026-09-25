@@ -106,7 +106,6 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       businessId,
       name,
       industry: data.industry,
-      profileJson,
     });
     return {
       ok: true as const,

@@ -340,14 +340,15 @@ export async function listBusinessSummaries(
 
 /**
  * `business_profiles` is only the "which business is active" pointer (one row
- * per user, kept for clients that predate the portfolio). The revision-checked
- * `businesses` row is the authoritative copy, so it is written first and read
- * back preferentially: if the pointer write fails or lags, the next load still
- * sees the newest saved profile rather than resurrecting a stale one.
+ * per user). The revision-checked `businesses` row is the authoritative copy,
+ * written first and read back preferentially, so the pointer carries just the
+ * business id: writing the whole profile here again doubled every save. Rows
+ * written by older builds still hold a full copy, which `loadActiveBusiness`
+ * reads only for an account that has no `businesses` row at all.
  */
 export async function setActiveBusiness(
   sql: Sql,
-  input: Omit<BusinessSaveInput, "baseRevision">,
+  input: Omit<BusinessSaveInput, "baseRevision" | "profileJson">,
 ): Promise<void> {
   await sql`
     insert into business_profiles (user_id, name, industry, profile, updated_at)
@@ -355,7 +356,7 @@ export async function setActiveBusiness(
       ${input.userId},
       ${input.name},
       ${input.industry},
-      ${input.profileJson}::jsonb,
+      jsonb_build_object('businessId', ${input.businessId}::text),
       now()
     )
     on conflict (user_id) do update set
@@ -515,6 +516,15 @@ export async function purgeDeletedBusinesses(
   sql: Sql,
   retentionDays = DELETED_RETENTION_DAYS,
 ): Promise<number> {
+  // A pointer left behind would read as a legacy account on the next load.
+  await sql`
+    delete from business_profiles p
+    using businesses b
+    where b.user_id = p.user_id
+      and b.id = coalesce(p.profile->>'businessId', 'biz_default')
+      and b.deleted_at is not null
+      and b.deleted_at < now() - make_interval(days => ${retentionDays}::int)
+  `;
   const rows = await sql<{ id: string }>`
     delete from businesses
     where deleted_at is not null
