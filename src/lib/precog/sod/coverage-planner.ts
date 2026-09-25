@@ -1,6 +1,6 @@
 import { analyzeDutyCoverage, type DutyCoverage } from "./coverage-analysis";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
-import { detectSodConflicts, type RoleAssignment } from "./detect";
+import { detectAssignments, type RoleAssignment } from "./detect";
 import { teamOwnerId } from "./owner-role";
 
 export interface CoveragePlan {
@@ -88,7 +88,7 @@ let flaggedPairCache: Set<string> | undefined;
 /** Unordered duty pairs the rulebook flags, by name or by duty family. The rulebook is fixed. */
 function flaggedPairs(): Set<string> {
   flaggedPairCache ??= new Set(
-    detectSodConflicts(undefined, { assignments: [] })
+    detectAssignments({ assignments: [] })
       .matrix.filter((cell) => cell.status === "conflict")
       .map((cell) => pairKey(cell.row, cell.col)),
   );
@@ -120,7 +120,7 @@ function personConflictIds(
   const key = `${role}\u0000${soleOwner ? 1 : 0}\u0000${entitlements.join(",")}`;
   let ids = scanCache.get(key);
   if (!ids) {
-    ids = detectSodConflicts(undefined, {
+    ids = detectAssignments({
       assignments: [{ personId: "person", personName: "person", role, entitlements }],
       soleOwnerId: soleOwner ? "person" : null,
     }).conflicts.map((conflict) => conflict.id);

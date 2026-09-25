@@ -24,6 +24,7 @@ import {
 import type { Person, StaffComposition } from "../types";
 import { teamOwnerId } from "./owner-role";
 import { personLabel } from "../person-label";
+import { ROLE_TEMPLATES } from "./role-templates";
 
 export { isOwnerRole } from "./owner-role";
 
@@ -145,97 +146,6 @@ export function sodDetectionOptions(
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease, tpl),
   };
 }
-
-export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": [
-    "approve_writeoffs",
-    "approve_vendor",
-    "approve_payroll",
-    "bank_reconcile",
-    "view_reports_only",
-    "pms_admin_roles",
-  ],
-  "Office Manager": [
-    "post_payments",
-    "prepare_deposit",
-    "post_adjustments",
-    "create_vendor",
-    "release_payment",
-    "enter_payroll",
-    "approve_writeoffs",
-    "pms_admin_roles",
-    "submit_claims",
-    "view_reports_only",
-  ],
-  "Front Desk Lead": [
-    "collect_cash",
-    "post_payments",
-    "prepare_deposit",
-    "submit_claims",
-    "post_adjustments",
-  ],
-  Hygienist: ["view_reports_only"],
-  "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "approve_writeoffs",
-    "view_reports_only",
-  ],
-  "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
-  "Practice Administrator": [
-    "approve_vendor",
-    "approve_payroll",
-    "approve_writeoffs",
-    "view_reports_only",
-    "review_audit_logs",
-  ],
-  Receptionist: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
-  "Treatment Coordinator": ["edit_patient_master", "post_adjustments", "view_reports_only"],
-  "Insurance Coordinator": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "view_reports_only",
-  ],
-  Bookkeeper: [
-    "enter_invoices",
-    "post_payments",
-    "bank_reconcile",
-    "enter_payroll",
-    "view_reports_only",
-  ],
-  "CPA / Independent Reviewer": ["bank_reconcile", "review_audit_logs", "view_reports_only"],
-  "Payroll Coordinator": ["enter_payroll", "view_reports_only"],
-  "Procurement Coordinator": [
-    "order_supplies",
-    "receive_goods",
-    "enter_invoices",
-    "view_reports_only",
-  ],
-  "IT Administrator": [
-    "pms_admin_roles",
-    "manage_user_access",
-    "manage_backups",
-    "view_reports_only",
-  ],
-  "Clinical Lead": ["order_supplies", "receive_goods", "view_reports_only"],
-  "External Billing Service": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "export_bulk_data",
-    "view_reports_only",
-  ],
-  "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
-  "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
-};
-
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
-  role,
-  entitlements,
-}));
 
 /**
  * Plain wording for the duty families.
@@ -501,32 +411,6 @@ function familyRuleId(a: DutyFamily, b: DutyFamily) {
   return `family-${[a, b].sort().join("-")}`;
 }
 
-function isIndustryTemplate(
-  value: IndustryTemplate | StaffComposition | Partial<Record<string, EntitlementId[]>> | undefined,
-): value is IndustryTemplate {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    "people" in value &&
-    "controls" in value &&
-    "scenarios" in value,
-  );
-}
-
-function isSodDetectionOptions(
-  value: StaffComposition | SodDetectionOptions | undefined,
-): value is SodDetectionOptions {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    ("assignments" in value ||
-      "residualAcceptedControlIds" in value ||
-      "compensatingByControlId" in value ||
-      "dualReleaseMitigatedRuleIds" in value ||
-      "soleOwnerId" in value),
-  );
-}
-
 const SEVERITY_RANK: Record<DetectedConflict["severity"], number> = {
   critical: 0,
   high: 1,
@@ -598,17 +482,27 @@ function rawConflictScore(
   return s;
 }
 
+/**
+ * Conflicts on assignments the caller already holds (a power map, a what-if),
+ * with no template needed.
+ */
+export function detectAssignments(
+  options: SodDetectionOptions & { assignments: RoleAssignment[] },
+  staff?: StaffComposition,
+): SodDetectionReport {
+  return detectSodConflicts(getIndustryTemplate("general"), staff, options);
+}
+
 /** The 0–100 score a finding shows. Sorting uses the unclamped value, so two findings that both show 100 still rank by severity, weight and the business's own staffing. */
 function clampScore(raw: number): number {
   return Math.max(12, Math.min(100, Math.round(raw)));
 }
 
 export function buildAssignments(
-  tpl?: IndustryTemplate,
+  tpl: IndustryTemplate,
   overrides?: Partial<Record<string, EntitlementId[]>>,
 ): RoleAssignment[] {
-  const activeTemplate = tpl ?? getIndustryTemplate("dental");
-  const { people, roleTemplates } = activeTemplate;
+  const { people, roleTemplates } = tpl;
   // People marked as left stay on the list for history but hold no live access.
   return people
     .filter((p) => p.active)
@@ -642,34 +536,16 @@ export function dropInactiveAssignments(
   return assignments.filter((a) => !inactive.has(a.personId));
 }
 
+/**
+ * Conflicts on a team: the template's people with their duties, or the
+ * assignments the caller passes (see `detectAssignments`). The template is
+ * only read for `buildAssignments` when the options carry none.
+ */
 export function detectSodConflicts(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
   options?: SodDetectionOptions,
-): SodDetectionReport;
-export function detectSodConflicts(
-  staff?: StaffComposition,
-  options?: SodDetectionOptions,
-): SodDetectionReport;
-export function detectSodConflicts(
-  tplOrStaff?: IndustryTemplate | StaffComposition,
-  staffOrOptions?: StaffComposition | SodDetectionOptions,
-  maybeOptions?: SodDetectionOptions,
 ): SodDetectionReport {
-  const tpl = isIndustryTemplate(tplOrStaff) ? tplOrStaff : getIndustryTemplate("dental");
-  const staff = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? undefined
-      : staffOrOptions
-    : tplOrStaff;
-  const options = isIndustryTemplate(tplOrStaff)
-    ? isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions
-    : isSodDetectionOptions(staffOrOptions)
-      ? staffOrOptions
-      : maybeOptions;
-
   const assignments = options?.assignments ?? buildAssignments(tpl);
   const residualAccepted = options?.residualAcceptedControlIds ?? new Set<string>();
   const compensatingByControl = options?.compensatingByControlId ?? {};

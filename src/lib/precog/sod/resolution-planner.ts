@@ -1,5 +1,5 @@
 import { type EntitlementId, entitlementLabel } from "./conflict-rules";
-import { detectSodConflicts, type DetectedConflict, type RoleAssignment } from "./detect";
+import { detectAssignments, type DetectedConflict, type RoleAssignment } from "./detect";
 
 export interface ResolutionPlan {
   id: string;
@@ -24,21 +24,21 @@ export function buildResolutionPlans(
   assignments: RoleAssignment[],
   conflict: DetectedConflict,
 ): ResolutionPlan[] {
-  const baseline = detectSodConflicts(undefined, { assignments }).conflicts;
+  const baseline = detectAssignments({ assignments }).conflicts;
   const baselineIds = new Set(baseline.map((item) => item.id));
   const source = assignments.find((item) => item.personId === conflict.personId);
   if (!source) return [];
 
   const options = [conflict.entitlementA, conflict.entitlementB].flatMap((entitlement) => {
     const without = removeEntitlement(assignments, source.personId, entitlement);
-    const removalReport = detectSodConflicts(undefined, { assignments: without }).conflicts;
+    const removalReport = detectAssignments({ assignments: without }).conflicts;
     const plans: ResolutionPlan[] = [];
 
     for (const candidate of assignments) {
       if (candidate.personId === source.personId || candidate.entitlements.includes(entitlement))
         continue;
       const transferred = addEntitlement(without, candidate.personId, entitlement);
-      const next = detectSodConflicts(undefined, { assignments: transferred }).conflicts;
+      const next = detectAssignments({ assignments: transferred }).conflicts;
       const created = next.filter((item) => !baselineIds.has(item.id)).length;
       if (created > 0) continue;
       plans.push(makePlan(conflict, source, entitlement, baseline, next, candidate));

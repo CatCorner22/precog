@@ -31,6 +31,8 @@ try {
   const industryModule = await server.ssrLoadModule("/src/lib/precog/industry.ts");
   const sodRules = await server.ssrLoadModule("/src/lib/precog/sod/conflict-rules.ts");
   const sodDetect = await server.ssrLoadModule("/src/lib/precog/sod/detect.ts");
+  const roleTemplates = await server.ssrLoadModule("/src/lib/precog/sod/role-templates.ts");
+  const activeTemplate = await server.ssrLoadModule("/src/lib/precog/active-template.ts");
   const powerGuidance = await server.ssrLoadModule("/src/lib/precog/sod/power-guidance.ts");
   const controlMeasures = await server.ssrLoadModule("/src/lib/precog/sod/control-measures.ts");
   const resolutionPlanner = await server.ssrLoadModule("/src/lib/precog/sod/resolution-planner.ts");
@@ -234,7 +236,7 @@ try {
         deductible: archivedProfile.riskVariables.deductible + 1_000,
       },
     });
-    const archivedMap = sodDetect.buildAssignments();
+    const archivedMap = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const currentMap = archivedMap.map((item, index) =>
       index === 0 ? { ...item, entitlements: [...item.entitlements, "manage_backups"] } : item,
     );
@@ -511,10 +513,10 @@ try {
   });
 
   await test("power map covers common jobs and valid duty relationships", () => {
-    assert.ok(sodDetect.COMMON_JOB_TEMPLATES.length >= 18);
+    assert.ok(roleTemplates.COMMON_JOB_TEMPLATES.length >= 18);
     assert.ok(sodRules.ENTITLEMENTS.length >= 25);
     const entitlementIds = new Set(sodRules.ENTITLEMENTS.map((item) => item.id));
-    for (const template of sodDetect.COMMON_JOB_TEMPLATES) {
+    for (const template of roleTemplates.COMMON_JOB_TEMPLATES) {
       assert.ok(template.role);
       assert.ok(template.entitlements.length > 0);
       for (const entitlement of template.entitlements) assert.ok(entitlementIds.has(entitlement));
@@ -545,7 +547,7 @@ try {
         entitlements: ["collect_cash", "manage_backups"],
       },
     ];
-    const report = sodDetect.detectSodConflicts(undefined, { assignments });
+    const report = sodDetect.detectAssignments({ assignments });
     assert.equal(report.conflicts.length, 0);
     const cell = report.matrix.find(
       (item) => item.row === "collect_cash" && item.col === "manage_backups",
@@ -556,7 +558,7 @@ try {
     // posts and reconciles, which the named rules cover. A recording duty and
     // a reconciliation duty on the same process still fall through to a
     // family finding when no named rule describes the pair.
-    const sameProcess = sodDetect.detectSodConflicts(undefined, {
+    const sameProcess = sodDetect.detectAssignments({
       assignments: [
         {
           personId: "same-process",
@@ -567,7 +569,7 @@ try {
       ],
     });
     assert.ok(sameProcess.conflicts.some((item) => item.severity === "family"));
-    const cashChain = sodDetect.detectSodConflicts(undefined, {
+    const cashChain = sodDetect.detectAssignments({
       assignments: [
         {
           personId: "cash-chain",
@@ -590,8 +592,8 @@ try {
       },
     ];
     const reverse = [{ ...forward[0], entitlements: [...forward[0].entitlements].reverse() }];
-    const forwardReport = sodDetect.detectSodConflicts(undefined, { assignments: forward });
-    const reverseReport = sodDetect.detectSodConflicts(undefined, { assignments: reverse });
+    const forwardReport = sodDetect.detectAssignments({ assignments: forward });
+    const reverseReport = sodDetect.detectAssignments({ assignments: reverse });
     assert.deepEqual(forwardReport.conflicts, reverseReport.conflicts);
     const forwardCell = forwardReport.matrix.find(
       (item) => item.row === "collect_cash" && item.col === "prepare_deposit",
@@ -614,15 +616,15 @@ try {
   });
 
   await test("resolution planner only proposes conflict-safe transfers", () => {
-    const assignments = sodDetect.buildAssignments();
-    const before = sodDetect.detectSodConflicts(undefined, { assignments });
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const before = sodDetect.detectAssignments({ assignments });
     const conflict = before.conflicts[0];
     assert.ok(conflict, "demo assignments should exercise at least one conflict");
     const plans = resolutionPlanner.buildResolutionPlans(assignments, conflict);
     assert.ok(plans.length > 0);
     for (const plan of plans) {
       const nextAssignments = resolutionPlanner.applyResolutionPlan(assignments, plan);
-      const after = sodDetect.detectSodConflicts(undefined, { assignments: nextAssignments });
+      const after = sodDetect.detectAssignments({ assignments: nextAssignments });
       assert.ok(after.conflicts.length < before.conflicts.length, plan.summary);
       assert.equal(plan.conflictsCreated, 0);
       assert.ok(!after.conflicts.some((item) => item.id === conflict.id));
@@ -630,7 +632,7 @@ try {
   });
 
   await test("coverage analysis exposes ownership gaps and continuity risk", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const baseline = coverageAnalysis.analyzeDutyCoverage(assignments);
     assert.ok(baseline.resilienceScore >= 0 && baseline.resilienceScore <= 100);
     assert.equal(baseline.duties.length, sodRules.ENTITLEMENTS.length - 1);
@@ -647,7 +649,7 @@ try {
   });
 
   await test("absence stress tests identify work that stops and lost backups", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments.find((item) =>
       item.entitlements.some((id) => {
         const holders = assignments.filter((candidate) => candidate.entitlements.includes(id));
@@ -712,7 +714,7 @@ try {
   });
 
   await test("assignment previews match post-change conflict results", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
       (item) => !person.entitlements.includes(item.id) && item.id !== "view_reports_only",
@@ -723,8 +725,8 @@ try {
       person.personId,
       entitlement.id,
     );
-    const before = sodDetect.detectSodConflicts(undefined, { assignments });
-    const after = sodDetect.detectSodConflicts(undefined, { assignments: impact.nextAssignments });
+    const before = sodDetect.detectAssignments({ assignments });
+    const after = sodDetect.detectAssignments({ assignments: impact.nextAssignments });
     assert.equal(impact.action, "assign");
     assert.equal(
       after.conflicts.length - before.conflicts.length,
@@ -744,7 +746,7 @@ try {
   });
 
   await test("assignment previews honor practice-specific scoring inputs", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
       (item) => !person.entitlements.includes(item.id) && item.id !== "view_reports_only",
@@ -761,8 +763,8 @@ try {
       entitlement.id,
       staff,
     );
-    const before = sodDetect.detectSodConflicts(staff, { assignments });
-    const after = sodDetect.detectSodConflicts(staff, { assignments: impact.nextAssignments });
+    const before = sodDetect.detectAssignments({ assignments }, staff);
+    const after = sodDetect.detectAssignments({ assignments: impact.nextAssignments }, staff);
     assert.equal(
       impact.sodHealthChange,
       after.summary.segregationHealth - before.summary.segregationHealth,
@@ -770,7 +772,7 @@ try {
   });
 
   await test("every matrix duty can be toggled for every modeled person", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     for (const person of assignments) {
       for (const entitlement of sodRules.ENTITLEMENTS.filter(
         (item) => item.id !== "view_reports_only",
@@ -816,11 +818,11 @@ try {
   ];
 
   await test("continuity planner recommends only conflict-free coverage improvements", () => {
-    const dental = sodDetect.buildAssignments();
+    const dental = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const dentalPlans = coveragePlanner.buildCoveragePlans(dental);
     const conflicted = new Set(
       sodDetect
-        .detectSodConflicts(undefined, { assignments: dental })
+        .detectAssignments({ assignments: dental })
         .conflicts.filter((c) => !c.ownerHeld)
         .map((c) => c.personId),
     );
@@ -828,11 +830,10 @@ try {
     assert.ok(coveragePlanner.buildCoveragePlans(plannerRetail).length > 0);
     for (const assignments of [dental, plannerRetail]) {
       const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
-      const beforeConflicts = sodDetect.detectSodConflicts(undefined, { assignments }).conflicts
-        .length;
+      const beforeConflicts = sodDetect.detectAssignments({ assignments }).conflicts.length;
       for (const plan of coveragePlanner.buildCoveragePlans(assignments)) {
         const afterCoverage = coverageAnalysis.analyzeDutyCoverage(plan.nextAssignments);
-        const afterConflicts = sodDetect.detectSodConflicts(undefined, {
+        const afterConflicts = sodDetect.detectAssignments({
           assignments: plan.nextAssignments,
         }).conflicts.length;
         assert.ok(afterCoverage.resilienceScore > beforeCoverage.resilienceScore, plan.id);
@@ -845,11 +846,10 @@ try {
   await test("continuity program safely sequences interacting recommendations", () => {
     const assignments = plannerRetail;
     const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
-    const beforeConflicts = sodDetect.detectSodConflicts(undefined, { assignments }).conflicts
-      .length;
+    const beforeConflicts = sodDetect.detectAssignments({ assignments }).conflicts.length;
     const program = coveragePlanner.buildCoverageProgram(assignments);
     const afterCoverage = coverageAnalysis.analyzeDutyCoverage(program.nextAssignments);
-    const afterConflicts = sodDetect.detectSodConflicts(undefined, {
+    const afterConflicts = sodDetect.detectAssignments({
       assignments: program.nextAssignments,
     }).conflicts.length;
     assert.ok(program.steps.length > 0);
@@ -864,8 +864,8 @@ try {
   });
 
   await test("governance report reconciles to live SoD and continuity results", () => {
-    const assignments = sodDetect.buildAssignments();
-    const sod = sodDetect.detectSodConflicts(undefined, { assignments });
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const sod = sodDetect.detectAssignments({ assignments });
     const coverage = coverageAnalysis.analyzeDutyCoverage(assignments);
     const report = governanceReport.createGovernanceReport(
       assignments,
@@ -913,7 +913,7 @@ try {
   });
 
   await test("authority concentration index is bounded, complete, and deterministic", () => {
-    const assignments = sodDetect.buildAssignments();
+    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const ranked = powerIndex.calculatePowerIndex(assignments);
     assert.equal(ranked.length, assignments.length);
     assert.ok(ranked.every((item) => item.authorityIndex >= 0 && item.authorityIndex <= 100));

@@ -5,7 +5,7 @@ import { isCalendarDate } from "../dates";
 import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "./csv";
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
-import { ROLE_TEMPLATES } from "../sod/detect";
+import { ROLE_TEMPLATES } from "../sod/role-templates";
 import { slug } from "../text";
 
 export interface PeopleImportIssue {

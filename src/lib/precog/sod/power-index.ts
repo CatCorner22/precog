@@ -1,5 +1,5 @@
 import { type DutyFamily, entitlementById } from "./conflict-rules";
-import { detectSodConflicts, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
+import { detectAssignments, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
 import { teamOwnerId } from "./owner-role";
 
 export interface PersonPowerIndex {
@@ -21,7 +21,7 @@ export interface PersonPowerIndex {
  * index; what the owner handles or records still does.
  */
 export function calculatePowerIndex(assignments: RoleAssignment[]): PersonPowerIndex[] {
-  const conflicts = detectSodConflicts(undefined, { assignments }).conflicts;
+  const conflicts = detectAssignments({ assignments }).conflicts;
   const ownerId = teamOwnerId(assignments);
   const raws = new Map<string, number>();
   return assignments

@@ -10,7 +10,7 @@ import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { ROLE_TEMPLATES } from "@/lib/precog/sod/detect";
+import { ROLE_TEMPLATES } from "@/lib/precog/sod/role-templates";
 import {
   JOB_CATALOG,
   JOB_FAMILY_LABEL,
