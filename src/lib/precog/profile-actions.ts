@@ -13,7 +13,7 @@ import {
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { INDUSTRIES, industryHasOwner, industryMeta, type IndustryId } from "./industry";
+import { industryHasOwner, industryMeta, isDemoName, type IndustryId } from "./industry";
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
@@ -54,8 +54,6 @@ const MAX_MAP_VERSIONS = 12;
 const MAX_HEALTH_POINTS = 90;
 const MAX_SAVED_BLOCKS = 24;
 
-const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
-
 /** A React-style update (value or updater) applied to the current value. */
 export function resolveUpdate<T>(update: SetStateAction<T>, current: T): T {
   return typeof update === "function" ? (update as (c: T) => T)(current) : update;
@@ -85,7 +83,7 @@ export function withPracticeName(p: PracticeProfile, name: string): PracticeProf
 export function withIndustry(p: PracticeProfile, industry: IndustryId): PracticeProfile {
   return {
     ...defaultProfile(industry),
-    practiceName: DEMO_NAMES.has(p.practiceName) ? industryMeta(industry).demoName : p.practiceName,
+    practiceName: isDemoName(p.practiceName) ? industryMeta(industry).demoName : p.practiceName,
     decisions: p.decisions,
     businessId: p.businessId,
     onboardingComplete: true,

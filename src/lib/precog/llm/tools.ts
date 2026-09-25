@@ -14,6 +14,7 @@ import {
   documentationDebt,
   checkInPlan,
   staleItems,
+  STRONG_LEVELS,
 } from "../continuity/coverage";
 import {
   absencesNeedingAttention,
@@ -65,6 +66,7 @@ import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { StaffComposition } from "../types";
 import { CADENCE_LABEL, processRecordReport } from "../process-record";
 import type { ToolName, ToolResult } from "./types";
+import { formatUsd as usd } from "@/lib/utils";
 
 export interface ToolContext {
   /** The business being advised. Every tool is a pure function of this. */
@@ -76,14 +78,6 @@ export interface ToolContext {
 
 function profileOf(ctx: ToolContext): PracticeProfile {
   return ctx.profile ?? defaultProfile();
-}
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 export const TOOL_CATALOG: {
@@ -631,9 +625,8 @@ export function executeTool(
       }
 
       case "get_knowledge_graph": {
-        const STRONG = new Set(["expert", "proficient"]);
         const edges = relations
-          .filter((r) => STRONG.has(r.level))
+          .filter((r) => STRONG_LEVELS.has(r.level))
           .map((r) => {
             const person = people.find((p) => p.id === r.personId);
             const k = knowledge.find((x) => x.id === r.knowledgeId);

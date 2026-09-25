@@ -44,16 +44,16 @@ import {
   signOffReportVersion,
 } from "./reports";
 import { loadBillingAccount } from "./billing-store";
-import type { ReviewItemKey, ReviewResult } from "./reviews";
+import {
+  isReviewItemKey,
+  isReviewPeriod,
+  isReviewResult,
+  type ReviewItemKey,
+  type ReviewResult,
+} from "./reviews";
+import { isCalendarDate } from "../continuity/coverage";
 
 const PLANS = new Set<FirmPlan>(["assessment", "monthly"]);
-const RESULTS = new Set<ReviewResult>(["done", "exception", "skipped"]);
-const KEYS = new Set<ReviewItemKey>([
-  "bank_statement",
-  "cleared_checks",
-  "payroll_headcount",
-  "new_vendors",
-]);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function businessInput(input: { businessId: string }) {
@@ -304,24 +304,17 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     }) => {
       const raw = requireObject(input);
       if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
-      if (typeof raw.period !== "string" || !/^\d{4}-\d{2}$/.test(raw.period)) {
-        throw new RequestError(400, "Period must be YYYY-MM");
-      }
-      if (typeof raw.itemKey !== "string" || !KEYS.has(raw.itemKey as ReviewItemKey)) {
-        throw new RequestError(400, "Unknown review item");
-      }
-      if (typeof raw.result !== "string" || !RESULTS.has(raw.result as ReviewResult)) {
-        throw new RequestError(400, "Unknown review result");
-      }
-      const dueOn =
-        typeof raw.dueOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueOn) ? raw.dueOn : null;
+      if (!isReviewPeriod(raw.period)) throw new RequestError(400, "Period must be YYYY-MM");
+      if (!isReviewItemKey(raw.itemKey)) throw new RequestError(400, "Unknown review item");
+      if (!isReviewResult(raw.result)) throw new RequestError(400, "Unknown review result");
+      const dueOn = typeof raw.dueOn === "string" && isCalendarDate(raw.dueOn) ? raw.dueOn : null;
       return {
         businessId: raw.businessId,
         period: raw.period,
-        itemKey: raw.itemKey as ReviewItemKey,
+        itemKey: raw.itemKey,
         ownerName: typeof raw.ownerName === "string" ? raw.ownerName.trim().slice(0, 80) : "",
         dueOn,
-        result: raw.result as ReviewResult,
+        result: raw.result,
         notes: typeof raw.notes === "string" ? raw.notes.trim().slice(0, 500) : "",
       };
     },

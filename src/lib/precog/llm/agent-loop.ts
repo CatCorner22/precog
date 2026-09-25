@@ -14,14 +14,7 @@ import type {
 } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
 import { readSpofData } from "./spof-data";
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
+import { formatUsd as usd } from "@/lib/utils";
 
 function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as

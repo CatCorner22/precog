@@ -23,6 +23,9 @@ export type ToolName =
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
+/** Whether a model call may be made for this request, and if not, why. */
+export type GrokAccess = "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+
 export interface ToolResult {
   tool: ToolName;
   args?: Record<string, unknown>;

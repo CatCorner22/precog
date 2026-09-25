@@ -5,6 +5,7 @@
 import { HEAT_BANDS } from "../process-graph";
 import { HEALTH_SCALE } from "../scoring/bands";
 import { personLabel } from "../person-label";
+import type { GrokAccess } from "../llm/types";
 
 interface ReviewProcessInput {
   id: string;
@@ -42,7 +43,7 @@ interface ReviewSection {
 export interface MapReview {
   source: "grok" | "local";
   model?: string;
-  grokStatus?: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+  grokStatus?: GrokAccess;
   headline: string;
   grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];

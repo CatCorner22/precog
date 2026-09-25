@@ -26,16 +26,12 @@ import {
   mergeDualReleasePolicy,
   type DualReleasePolicy,
 } from "./controls/dual-release";
-import { INDUSTRIES, type IndustryId } from "./industry";
+import { isDemoName, isIndustryId, type IndustryId } from "./industry";
 import { isBusinessId } from "./profile-input";
 import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
 import { normalizeReviewRecords, type ReviewRecord } from "./firm/reviews";
 import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm/reconcile";
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
-
-function isIndustryId(value: unknown): value is IndustryId {
-  return typeof value === "string" && INDUSTRIES.some((i) => i.id === value);
-}
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -338,11 +334,9 @@ export function hasUserWork(profile: PracticeProfile): boolean {
     profile.mapVersions?.length ||
     profile.savedProcessBlocks?.length ||
     Object.keys(profile.mapLayout ?? {}).length ||
-    !DEMO_PRACTICE_NAMES.has(profile.practiceName),
+    !isDemoName(profile.practiceName),
   );
 }
-
-const DEMO_PRACTICE_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 export interface MapVersion {
   id: string;

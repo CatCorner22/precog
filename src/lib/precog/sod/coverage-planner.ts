@@ -1,7 +1,7 @@
 import { analyzeDutyCoverage, type DutyCoverage } from "./coverage-analysis";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import { detectSodConflicts, type RoleAssignment } from "./detect";
-import { soleOwnerId } from "./owner-role";
+import { teamOwnerId } from "./owner-role";
 
 export interface CoveragePlan {
   id: string;
@@ -128,11 +128,6 @@ function personConflictIds(
     scanCache.set(key, ids);
   }
   return ids;
-}
-
-/** The sole owner's person id on this team, or null (see soleOwnerId). */
-function teamOwnerId(team: readonly RoleAssignment[]): string | null {
-  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
 }
 
 /** Whether granting `entitlement` would give the person a conflict they do not already have. */

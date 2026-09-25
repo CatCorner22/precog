@@ -77,3 +77,10 @@ export function soleOwnerId(people: readonly OwnerCandidate[]): string | null {
   const owners = people.filter((p) => ownsBusiness(p, marked));
   return owners.length === 1 ? owners[0].id : null;
 }
+
+/** `soleOwnerId` over a team of role assignments. */
+export function teamOwnerId(
+  team: readonly { personId: string; role: string; owner?: boolean }[],
+): string | null {
+  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
+}

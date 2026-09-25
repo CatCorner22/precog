@@ -1,4 +1,4 @@
-import { ENTITLEMENTS } from "./conflict-rules";
+import { entitlementById } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
 import { detectSodConflicts, type RoleAssignment } from "./detect";
 import { powerGuidance } from "./power-guidance";
@@ -71,7 +71,7 @@ export function createGovernanceReport(
     const duties = person.entitlements.filter((id) => id !== "view_reports_only");
     if (!duties.length) lines.push("- Reporting access only; no operating powers modeled.", "");
     for (const id of duties) {
-      const entitlement = ENTITLEMENTS.find((item) => item.id === id);
+      const entitlement = entitlementById(id);
       const guidance = guidanceFor[id];
       if (!entitlement || !guidance) continue;
       lines.push(

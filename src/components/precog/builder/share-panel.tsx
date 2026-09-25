@@ -20,7 +20,7 @@ export function SharePanel({
   buildPayload: (
     note?: string,
     redactNames?: boolean,
-  ) => import("@/lib/precog/builder/share-server").SharedMapPayload;
+  ) => import("@/lib/precog/builder/share-schema").SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [note, setNote] = useState("");

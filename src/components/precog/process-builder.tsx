@@ -61,6 +61,7 @@ import {
 } from "@/lib/precog/builder/process-blocks";
 import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
 import { peopleFromBackup } from "@/lib/precog/import/people-backup";
+import { downloadText } from "@/lib/download";
 
 export function ProcessBuilder({
   selectedProcessId,
@@ -430,13 +431,11 @@ export function ProcessBuilder({
       people: tpl.people,
       layout: profile.mapLayout ?? {},
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${slug(profile.practiceName) || "process-map"}-map.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `${slug(profile.practiceName) || "process-map"}-map.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json",
+    );
     toast.success("Map exported");
   }
 

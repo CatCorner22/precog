@@ -4,10 +4,11 @@ import { requestIp } from "@/lib/request-ip.server";
 import { getSql } from "@/lib/db";
 import { withinDailyBudget } from "./daily-usage";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
+import type { GrokAccess } from "./types";
 
 export type LlmAccess = {
   userId: string | null;
-  grok: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+  grok: GrokAccess;
 };
 
 class TooManyRequestsError extends Error {

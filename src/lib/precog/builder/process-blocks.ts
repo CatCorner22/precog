@@ -3,6 +3,7 @@
  */
 import type { IndustryId } from "../industry";
 import type { ProcessNode } from "../types";
+import { slug, uid } from "../text";
 
 export interface ProcessBlock {
   id: string;
@@ -20,18 +21,6 @@ export interface SavedProcessBlock {
   category: ProcessBlock["category"];
   template: Omit<ProcessNode, "id">;
   createdAt: string;
-}
-
-function slug(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
-
-function uid(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 }
 
 /** Built-in blocks available in the map builder. */

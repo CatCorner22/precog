@@ -1,6 +1,7 @@
 import { daysBetween } from "./continuity/coverage";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
+import { joinWithAnd } from "./text";
 
 /** What a business has entered on top of its industry template — everything an industry switch discards. */
 export interface EnteredWork {
@@ -110,7 +111,4 @@ export function describeEnteredWork(work: EnteredWork): string[] {
   return parts;
 }
 
-export function listEnteredWork(parts: readonly string[]): string {
-  if (parts.length <= 1) return parts[0] ?? "";
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-}
+export const listEnteredWork = joinWithAnd;

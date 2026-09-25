@@ -527,10 +527,6 @@ function Home() {
   const mapReady = mapAssessed(profile);
 
   function navigateDeepLink(target: DeepLinkTarget) {
-    if (target.type === "tab") {
-      setTab(target.tab as TabId);
-      return;
-    }
     if (target.type === "sod") {
       setTab("sod");
       return;

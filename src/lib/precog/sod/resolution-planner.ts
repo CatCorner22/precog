@@ -1,4 +1,4 @@
-import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
+import { type EntitlementId, entitlementLabel } from "./conflict-rules";
 import { detectSodConflicts, type DetectedConflict, type RoleAssignment } from "./detect";
 
 export interface ResolutionPlan {
@@ -75,7 +75,7 @@ function makePlan(
   nextReport: DetectedConflict[],
   candidate?: RoleAssignment,
 ): ResolutionPlan {
-  const label = ENTITLEMENTS.find((item) => item.id === entitlement)?.label ?? entitlement;
+  const label = entitlementLabel(entitlement);
   const nextIds = new Set(nextReport.map((item) => item.id));
   const resolved = baseline.filter((item) => !nextIds.has(item.id)).length;
   return {

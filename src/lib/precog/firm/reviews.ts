@@ -62,6 +62,19 @@ const KEYS = new Set<string>(REVIEW_ITEMS.map((item) => item.key));
 const RESULTS = new Set<string>(["done", "exception", "skipped"]);
 const PERIOD = /^\d{4}-\d{2}$/;
 
+export function isReviewItemKey(value: unknown): value is ReviewItemKey {
+  return typeof value === "string" && KEYS.has(value);
+}
+
+export function isReviewResult(value: unknown): value is ReviewResult {
+  return typeof value === "string" && RESULTS.has(value);
+}
+
+/** "YYYY-MM". */
+export function isReviewPeriod(value: unknown): value is string {
+  return typeof value === "string" && PERIOD.test(value);
+}
+
 const MAX_REVIEW_RECORDS = 240;
 
 export function monthKey(day: string): string {
@@ -104,9 +117,9 @@ export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
   for (const entry of value.slice(0, MAX_REVIEW_RECORDS)) {
     if (!entry || typeof entry !== "object") continue;
     const raw = entry as Record<string, unknown>;
-    if (typeof raw.key !== "string" || !KEYS.has(raw.key)) continue;
-    if (typeof raw.period !== "string" || !PERIOD.test(raw.period)) continue;
-    if (typeof raw.result !== "string" || !RESULTS.has(raw.result)) continue;
+    if (!isReviewItemKey(raw.key)) continue;
+    if (!isReviewPeriod(raw.period)) continue;
+    if (!isReviewResult(raw.result)) continue;
     if (typeof raw.recordedAt !== "string" || !raw.recordedAt) continue;
     out.push({
       key: raw.key as ReviewItemKey,

@@ -2,45 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
-import type { IndustryId } from "../industry";
-import type { MapHealthReport } from "../process-graph";
-import { parseCreateShareInput } from "./share-schema";
+import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
+
+export type { SharedMapPayload };
 import { parseLoadShareInput } from "../public-inputs";
 import { invalidRequest, requireObject } from "@/lib/request-errors";
 import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
 import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
-
-/** Frozen, self-contained view of a map for the public share page. */
-export interface SharedMapPayload {
-  version: 1;
-  businessName: string;
-  industry: IndustryId;
-  industryLabel: string;
-  teamLabel: string;
-  generatedAt: string;
-  health: Pick<
-    MapHealthReport,
-    "score" | "bandLabel" | "summary" | "dimensions" | "processCount" | "avgHeat" | "hotProcesses"
-  >;
-  processes: {
-    id: string;
-    name: string;
-    description: string;
-    stage: number;
-    heat: number;
-    owners: string[];
-    controls: { name: string; segregated: boolean }[];
-    risks: { title: string; kind: string; severity: number; likelihood: number }[];
-    dependencies: string[];
-    evidence: { label: string; frequency: string; status: string }[];
-  }[];
-  people: { name: string; role: string }[];
-  issues: string[];
-  actions: { title: string; why: string; effort: string }[];
-  /** Optional note from the owner to the reader. */
-  note?: string;
-}
 
 type ShareRow = {
   token: string;

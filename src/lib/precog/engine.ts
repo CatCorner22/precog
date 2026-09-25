@@ -1,7 +1,6 @@
 import type { IndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
 import type {
-  KnowledgeLevel,
   KnowledgeRisk,
   Person,
   PrecogResult,
@@ -20,8 +19,7 @@ import {
 } from "./scoring/dynamic-variables";
 import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
-
-const STRONG: KnowledgeLevel[] = ["expert", "proficient"];
+import { STRONG_LEVELS } from "./continuity/coverage";
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -43,7 +41,7 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
   return knowledge
     .filter((k) => k.criticality === "critical" || k.criticality === "important")
     .map((k) => {
-      const holders = (byK.get(k.id) || []).filter((r) => STRONG.includes(r.level));
+      const holders = (byK.get(k.id) || []).filter((r) => STRONG_LEVELS.has(r.level));
       const owners = holders
         .map((h) => people.find((p) => p.id === h.personId))
         .filter((p): p is Person => Boolean(p?.active));

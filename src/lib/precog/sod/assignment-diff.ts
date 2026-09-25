@@ -1,4 +1,4 @@
-import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
+import { type EntitlementId, entitlementLabel } from "./conflict-rules";
 import type { RoleAssignment } from "./detect";
 
 export interface AssignmentChange {
@@ -71,7 +71,7 @@ function makeDutyChange(
     personName: person.personName,
     role: person.role,
     entitlement,
-    dutyLabel: ENTITLEMENTS.find((item) => item.id === entitlement)?.label ?? entitlement,
+    dutyLabel: entitlementLabel(entitlement),
     kind,
   };
 }

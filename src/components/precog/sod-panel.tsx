@@ -1,7 +1,12 @@
 import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
-import { CONFLICT_RULES, ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import {
+  CONFLICT_RULES,
+  ENTITLEMENTS,
+  entitlementById,
+  entitlementLabel,
+} from "@/lib/precog/sod/conflict-rules";
 import { RuleCaseCard } from "./case-card";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -24,6 +29,7 @@ import {
   worksAt,
 } from "@/lib/precog/person-location";
 import { AlertTriangle, Grid3x3, Network, Shield, ShieldCheck, Users } from "lucide-react";
+import type { NavFn } from "@/lib/precog/navigation";
 
 const FRAMEWORK_DUTIES = [
   { duty: "Authorization", meaning: "Approve before money or adjustments move" },
@@ -31,8 +37,6 @@ const FRAMEWORK_DUTIES = [
   { duty: "Recording", meaning: "Post transactions in books / systems" },
   { duty: "Reconciliation", meaning: "Independent verification" },
 ] as const;
-
-type NavFn = (tab: string, id?: string) => void;
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const tpl = useTemplate();
@@ -86,7 +90,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   }, [report]);
 
   const shortLabel = (id: string) => {
-    const e = ENTITLEMENTS.find((x) => x.id === id);
+    const e = entitlementById(id);
     if (!e) return id;
     return e.label.length > 22 ? e.label.slice(0, 20) + "…" : e.label;
   };
@@ -565,9 +569,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   );
 }
 
-function entLabel(id: string) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
-}
+const entLabel = entitlementLabel;
 
 function Stat({
   label,

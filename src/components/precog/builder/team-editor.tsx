@@ -36,6 +36,7 @@ import { placeholderNames } from "@/lib/precog/onboarding/own-team";
 import { stripInvisibleControls } from "@/lib/precog/import/csv";
 import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
 import { locationText, personLocations } from "@/lib/precog/person-location";
+import { downloadText } from "@/lib/download";
 function EntitlementPicker({
   selected,
   onChange,
@@ -328,15 +329,7 @@ export function TeamEditor({
   function exportCsv() {
     // Duties are written as the conflict engine reads them, so a person whose
     // duties come from their role re-imports with the same duties.
-    const blob = new Blob([peopleToCsv(people, roleTemplates)], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "precog-team.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadText("precog-team.csv", peopleToCsv(people, roleTemplates), "text/csv;charset=utf-8");
   }
 
   return (

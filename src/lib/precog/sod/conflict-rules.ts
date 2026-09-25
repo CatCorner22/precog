@@ -275,6 +275,18 @@ export const ENTITLEMENTS: Entitlement[] = [
   },
 ];
 
+const ENTITLEMENT_BY_ID = new Map(ENTITLEMENTS.map((e) => [e.id, e] as const));
+
+/** The entitlement record for an id, or undefined for an id the rulebook does not know. */
+export function entitlementById(id: string): Entitlement | undefined {
+  return ENTITLEMENT_BY_ID.get(id as EntitlementId);
+}
+
+/** The label for a duty id; the id itself when the rulebook does not know it. */
+export function entitlementLabel(id: string): string {
+  return ENTITLEMENT_BY_ID.get(id as EntitlementId)?.label ?? id;
+}
+
 /**
  * Incompatible pairs — the core of automated conflict detection.
  * Symmetric: engine treats (a,b) same as (b,a).

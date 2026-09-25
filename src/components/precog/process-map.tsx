@@ -74,8 +74,7 @@ import {
   User,
   Workflow,
 } from "lucide-react";
-
-type NavFn = (tab: string, id?: string) => void;
+import type { NavFn } from "@/lib/precog/navigation";
 
 type ProcessFlowNode = Node<
   MapGraphNode & {

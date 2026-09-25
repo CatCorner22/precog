@@ -1,4 +1,4 @@
-import { CONFLICT_RULES, ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
+import { CONFLICT_RULES, type EntitlementId, entitlementLabel } from "./conflict-rules";
 import type { DetectedConflict, RoleAssignment } from "./detect";
 
 /** One person who holds most of the open gaps, and the single move that closes the most of them. */
@@ -22,9 +22,7 @@ export function midSentence(label: string): string {
   return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
 
-function dutyLabel(id: EntitlementId): string {
-  return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
-}
+const dutyLabel = entitlementLabel;
 
 /** Open means a finding the owner still has to act on: not owner-held, not accepted. */
 function openFindings(conflicts: readonly DetectedConflict[]): DetectedConflict[] {

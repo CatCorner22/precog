@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Lightbulb, Search } from "lucide-react";
-
-type NavFn = (tab: string, id?: string) => void;
+import type { NavFn } from "@/lib/precog/navigation";
 
 const Q_META: Record<
   JohariQuadrant,

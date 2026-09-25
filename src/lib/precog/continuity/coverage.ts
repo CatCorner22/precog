@@ -16,6 +16,7 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
+import { joinWithAnd } from "../text";
 
 /** Short form of a name for advice wording: the first given name, skipping an honorific such as "Dr.". */
 export function firstName(name: string): string {
@@ -114,7 +115,8 @@ const CRITICALITY_WEIGHT: Record<Criticality, number> = {
   "nice-to-have": 1,
 };
 
-const STATUS_URGENCY: Record<CoverageStatus, number> = {
+/** How pressing each coverage status is; a slip is a move to a more urgent one. */
+export const STATUS_URGENCY: Record<CoverageStatus, number> = {
   uncovered: 3,
   single: 2,
   thin: 1,
@@ -652,12 +654,7 @@ export function absenceImpact(
     }
   }
   const firstNames = absentPeople.map((p) => firstName(p.name));
-  const names =
-    firstNames.length <= 1
-      ? (firstNames[0] ?? "")
-      : firstNames.length === 2
-        ? firstNames.join(" and ")
-        : `${firstNames.slice(0, -1).join(", ")} and ${firstNames.at(-1)}`;
+  const names = joinWithAnd(firstNames);
 
   const where = (item: KnowledgeItem) =>
     item.documented && item.procedureLocation?.trim()

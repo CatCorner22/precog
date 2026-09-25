@@ -10,15 +10,13 @@ import {
   setFirmMemberRole,
 } from "@/lib/precog/firm/server";
 import type { FirmContext, FirmInvite, FirmMember, FirmRole } from "@/lib/precog/firm/store";
+import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
 
 const ROLE_LABEL: Record<FirmRole, string> = {
   owner: "Owner",
   preparer: "Preparer",
   reviewer: "Reviewer",
 };
-
-const inputCls =
-  "rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-subtle";
 
 /**
  * Who is in the firm and in which role. The owner invites by email (the link

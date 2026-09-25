@@ -1,28 +1,28 @@
 import { createMiddleware } from "@tanstack/react-start";
-
-export const llmMiddleware = createMiddleware({ type: "function" })
-  .client(async ({ next }) => {
-    const { getBearerToken } = await import("@/lib/auth/client");
-    return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
-  })
-  .server(async ({ next, context }) => {
-    const { resolveLlmAccess } = await import("./guard.server");
-    const llm = await resolveLlmAccess(context.bearerToken);
-    return next({ context: { llm } });
-  });
+import type { LlmAccessOptions } from "./guard.server";
 
 /**
- * As llmMiddleware, for a function that does costly work on the server even
- * without a model call: signed-out callers get the tighter allowance in
- * guard.server.ts. Runs before the function's input is parsed.
+ * Resolves who is calling and what the model budget allows, before the
+ * function's input is parsed. The bearer token exists for the live preview,
+ * where the app runs in an iframe with partitioned cookies.
  */
-export const heavyLlmMiddleware = createMiddleware({ type: "function" })
-  .client(async ({ next }) => {
-    const { getBearerToken } = await import("@/lib/auth/client");
-    return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
-  })
-  .server(async ({ next, context }) => {
-    const { resolveLlmAccess } = await import("./guard.server");
-    const llm = await resolveLlmAccess(context.bearerToken, { heavy: true });
-    return next({ context: { llm } });
-  });
+function llmMiddlewareFor(options: LlmAccessOptions) {
+  return createMiddleware({ type: "function" })
+    .client(async ({ next }) => {
+      const { getBearerToken } = await import("@/lib/auth/client");
+      return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
+    })
+    .server(async ({ next, context }) => {
+      const { resolveLlmAccess } = await import("./guard.server");
+      const llm = await resolveLlmAccess(context.bearerToken, options);
+      return next({ context: { llm } });
+    });
+}
+
+export const llmMiddleware = llmMiddlewareFor({});
+
+/**
+ * For a function that does costly work on the server even without a model
+ * call: signed-out callers get the tighter allowance in guard.server.ts.
+ */
+export const heavyLlmMiddleware = llmMiddlewareFor({ heavy: true });

@@ -4,6 +4,7 @@ import { Download, Trash2 } from "lucide-react";
 import { deleteAccount, exportAccountData } from "@/lib/precog/account-server";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
+import { downloadText } from "@/lib/download";
 
 /** Export and delete controls for the signed-in account. */
 export function AccountMenu() {
@@ -13,13 +14,11 @@ export function AccountMenu() {
     setBusy("export");
     try {
       const { json } = await exportAccountData();
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `precog-account-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadText(
+        `precog-account-${new Date().toISOString().slice(0, 10)}.json`,
+        json,
+        "application/json",
+      );
       toast.success("Your data is downloading as one JSON file.");
     } catch {
       toast.error("The export failed. Try again in a moment.");

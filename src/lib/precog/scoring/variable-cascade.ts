@@ -19,6 +19,7 @@ import {
 } from "./dynamic-variables";
 import { isOwnBusiness } from "./scope";
 import type { StaffComposition } from "../types";
+import { formatUsd as usd } from "@/lib/utils";
 
 export type CascadeLeverId =
   | "enable_dual_control"
@@ -252,14 +253,6 @@ export interface CascadeSimulation {
   overallVerdict: string;
   variablesAfter: RiskVariableState;
   staffAfter: StaffComposition;
-}
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 function applyLever(

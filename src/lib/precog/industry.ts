@@ -89,3 +89,15 @@ export function industryHasOwner(id: string | undefined): boolean {
 export function industryMeta(id: IndustryId): IndustryMeta {
   return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES[0];
 }
+
+const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
+const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
+
+export function isIndustryId(value: unknown): value is IndustryId {
+  return typeof value === "string" && INDUSTRY_IDS.has(value);
+}
+
+/** True for the name of one of the industry samples, i.e. not a name the owner typed. */
+export function isDemoName(practiceName: string): boolean {
+  return DEMO_NAMES.has(practiceName);
+}

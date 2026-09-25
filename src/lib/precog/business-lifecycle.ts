@@ -1,5 +1,5 @@
 import { resolveTemplate, type TemplateSource } from "./active-template";
-import { INDUSTRIES, type IndustryId } from "./industry";
+import { isDemoName, type IndustryId } from "./industry";
 import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-team";
 import { defaultDualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-profile";
@@ -41,7 +41,7 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
 
 /** The name the owner typed for a business, or "" while it still has a sample's name. */
 export function ownBusinessName(profile: Pick<PracticeProfile, "practiceName">): string {
-  return SAMPLE_NAMES.has(profile.practiceName) ? "" : profile.practiceName;
+  return isDemoName(profile.practiceName) ? "" : profile.practiceName;
 }
 
 /**
@@ -89,8 +89,6 @@ export function unfinishedBusinessToKeep(previous: PracticeProfile): PracticePro
 export function atBusinessLimit(businessCount: number): boolean {
   return businessCount >= MAX_BUSINESSES_PER_ACCOUNT;
 }
-
-const SAMPLE_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
 /**
  * True when `next` replaces the sample team with the owner's own people (a

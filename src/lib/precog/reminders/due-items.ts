@@ -5,6 +5,7 @@ import { handoverDeadline, leavers } from "../continuity/leavers";
 import { latestReview, monthKey, monthlyReviewTasks, reviewDueOn } from "../firm/reviews";
 import { isOwnTeam } from "../firm/engagement";
 import type { PracticeProfile } from "../practice-profile";
+import { daysBetween } from "../continuity/coverage";
 
 /**
  * What is due on one business, read from the saved profile the same way the
@@ -26,10 +27,6 @@ export interface DueItem {
 const MONTHLY_REVIEW_GRACE_DAY = 5;
 const ABSENCE_LEAD_DAYS = 14;
 const LEAVER_LEAD_DAYS = 7;
-
-function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
-}
 
 export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] {
   if (!isOwnTeam(profile)) return [];
@@ -58,7 +55,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
       title: `Confirm ${check.name} is off payroll and their logins are removed`,
       detail: `Noted as left on ${check.notedOn}. A former employee's working login is a documented path to fraud.`,
       dueOn: check.notedOn,
-      overdue: daysBetween(check.notedOn, today) > 0,
+      overdue: (daysBetween(check.notedOn, today) ?? 0) > 0,
       audience: "both",
     });
   }
@@ -88,7 +85,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
 
   for (const leaver of leavers(tpl, profile.decisions, today)) {
     const deadline = handoverDeadline(leaver, today);
-    if (daysBetween(today, deadline) > LEAVER_LEAD_DAYS) continue;
+    if ((daysBetween(today, deadline) ?? 0) > LEAVER_LEAD_DAYS) continue;
     const open = leaver.handover.filter((item) => !item.training && !item.documenting);
     if (open.length === 0) continue;
     items.push({

@@ -1,4 +1,5 @@
 import type { ValueEvidence } from "./value-evidence";
+import { joinWithAnd } from "./text";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
 
@@ -243,9 +244,7 @@ export function observedValueStatus(
 
 /** "reviews per year" / "reviews per year and loaded hourly cost" */
 export function inputList(keys: readonly ValueInputKey[]): string {
-  const words = keys.map((k) => VALUE_INPUT_LABEL[k]);
-  if (words.length <= 1) return words.join("");
-  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+  return joinWithAnd(keys.map((k) => VALUE_INPUT_LABEL[k]));
 }
 
 export function calculateValueCase(raw: ValueCaseInputs) {

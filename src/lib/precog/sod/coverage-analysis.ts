@@ -1,4 +1,4 @@
-import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
+import { ENTITLEMENTS, type EntitlementId, entitlementById } from "./conflict-rules";
 
 const OPTIONAL_DUTIES: ReadonlySet<EntitlementId> = new Set(
   ENTITLEMENTS.filter((item) => item.optional).map((item) => item.id),
@@ -71,7 +71,7 @@ export function analyzeDutyCoverage(
   const highRiskConcentration = assignments
     .map((person) => {
       const highRisk = person.entitlements
-        .map((id) => ENTITLEMENTS.find((item) => item.id === id))
+        .map((id) => entitlementById(id))
         .filter((item) => item && item.riskWeight >= 4);
       return {
         personId: person.personId,

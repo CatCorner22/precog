@@ -5,6 +5,7 @@
  */
 import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
+import { formatUsd as usd } from "@/lib/utils";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
@@ -12,14 +13,6 @@ export interface SpecialistNote {
   agent: SpecialistId;
   title: string;
   bullets: string[];
-}
-
-function usd(n: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {

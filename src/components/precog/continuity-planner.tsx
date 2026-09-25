@@ -110,6 +110,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { LeaverAccessList } from "@/components/precog/leaver-access";
+import { joinWithAnd as naturalNames } from "@/lib/precog/text";
+import { downloadText } from "@/lib/download";
 
 const KIND_LABEL: Record<KnowledgeKind, string> = {
   duty: "Duty",
@@ -141,12 +143,6 @@ const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
 const UNHELD_VIEW = "__unheld__";
 
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
-
-function naturalNames(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? "";
-  if (names.length === 2) return names.join(" and ");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
 
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const {
@@ -556,15 +552,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
     setCheckInBaseline(null);
   };
 
-  const downloadCsv = (text: string, filename: string) => {
-    const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadCsv = (text: string, filename: string) =>
+    downloadText(filename, text, "text/csv;charset=utf-8");
 
   const importCsv = async (file: File) => {
     setImportIssues([]);

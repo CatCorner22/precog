@@ -1,8 +1,7 @@
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
+import { openTestDb, type TestDb } from "@/test/pglite";
 import {
   BusinessLimitError,
   deleteBusinessRow,
@@ -25,33 +24,9 @@ import {
  * column) rather than a hand-written stand-in.
  */
 
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
-
+let db: TestDb;
 let pg: PGlite;
 let sql: Sql;
-
-/** Same placeholder rewriting as src/lib/db.ts `toSql`, without importing the app's db bootstrap. */
-function pgliteSql(db: PGlite): Sql {
-  const run = async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows;
-  const tagged = (async <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]> => {
-    let text = strings[0];
-    for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
-    return run<T>(text, values);
-  }) as unknown as Sql;
-  tagged.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
-    run<T>(text, params);
-  return tagged;
-}
-
-async function applyMigrations(db: PGlite): Promise<void> {
-  const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql")).sort();
-  for (const name of files) {
-    await db.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
-  }
-}
 
 async function seedUser(id: string): Promise<void> {
   await pg.query(
@@ -80,15 +55,12 @@ async function revisionOf(userId: string, businessId: string): Promise<number | 
 }
 
 beforeAll(async () => {
-  pg = new PGlite();
-  await pg.waitReady;
-  await applyMigrations(pg);
-  sql = pgliteSql(pg);
+  db = await openTestDb();
+  pg = db.pg;
+  sql = db.sql;
 }, 60_000);
 
-afterAll(async () => {
-  await pg.close();
-});
+afterAll(() => db.close());
 
 beforeEach(async () => {
   await pg.exec(

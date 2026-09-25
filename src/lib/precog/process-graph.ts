@@ -8,6 +8,7 @@ import { portfolioSummary } from "./scoring/residual-engine";
 import type { StaffComposition } from "./types";
 import type { Person, ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
 import { processDocumentationState, processRecordReport } from "./process-record";
+import { joinWithAnd } from "./text";
 
 export interface MapValidationIssue {
   id: string;
@@ -827,9 +828,7 @@ export function integrityHint(issues: readonly MapValidationIssue[]): string {
     other ? counted(other, "other warning", "other warnings") : "",
   ].filter(Boolean);
   if (parts.length === 0) return "No broken dependencies or cycles";
-  const list =
-    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
-  return `Lowered by ${list}`;
+  return `Lowered by ${joinWithAnd(parts)}`;
 }
 
 export function computeMapHealth(

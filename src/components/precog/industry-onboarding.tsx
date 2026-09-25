@@ -73,6 +73,7 @@ import {
   Stethoscope,
   Trash2,
 } from "lucide-react";
+import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
 
 const ICONS: Record<IndustryId, typeof Stethoscope> = {
   dental: Stethoscope,
@@ -83,9 +84,6 @@ const ICONS: Record<IndustryId, typeof Stethoscope> = {
   nonprofit: HeartHandshake,
   general: Building2,
 };
-
-const inputCls =
-  "rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-subtle";
 
 let nextRowNumber = 0;
 /** A key for a grid row that stays with it when rows above it are removed. */

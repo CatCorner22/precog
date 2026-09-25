@@ -2,6 +2,7 @@ import type { ControlDefinition, ControlId } from "../evidence/controls";
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { DualReleasePolicy } from "../controls/dual-release";
+import { formatUsd as usd } from "@/lib/utils";
 
 /**
  * The duties each catalog control polices: a control answers an open finding
@@ -126,14 +127,6 @@ const STALE_DUAL_RELEASE = [
   /dual release on payments\s*>\s*\$[\d,]+/i,
   /^dual-release policy active on related channel$/i,
 ];
-
-function usd(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-}
 
 /**
  * The live dual-release policy as it applies to one rule, in one sentence, or

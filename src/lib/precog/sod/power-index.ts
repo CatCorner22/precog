@@ -1,6 +1,6 @@
-import { ENTITLEMENTS, type DutyFamily } from "./conflict-rules";
+import { type DutyFamily, entitlementById } from "./conflict-rules";
 import { detectSodConflicts, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
-import { soleOwnerId } from "./owner-role";
+import { teamOwnerId } from "./owner-role";
 
 export interface PersonPowerIndex {
   personId: string;
@@ -22,15 +22,13 @@ export interface PersonPowerIndex {
  */
 export function calculatePowerIndex(assignments: RoleAssignment[]): PersonPowerIndex[] {
   const conflicts = detectSodConflicts(undefined, { assignments }).conflicts;
-  const ownerId = soleOwnerId(
-    assignments.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })),
-  );
+  const ownerId = teamOwnerId(assignments);
   const raws = new Map<string, number>();
   return assignments
     .map((person) => {
       const duties = person.entitlements
         .filter((id) => person.personId !== ownerId || !OVERSIGHT_DUTIES.has(id))
-        .map((id) => ENTITLEMENTS.find((item) => item.id === id))
+        .map((id) => entitlementById(id))
         .filter((item) => item && item.id !== "view_reports_only");
       const riskWeight = duties.reduce((sum, duty) => sum + duty!.riskWeight, 0);
       const familyCount = new Set(duties.map((duty) => duty!.family as DutyFamily)).size;

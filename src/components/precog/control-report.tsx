@@ -13,7 +13,7 @@ import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import {
   contingencyCards,
   coverageReport,
@@ -562,11 +562,9 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           {sod.summary.unheldDuties.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
               Nobody active is marked for:{" "}
-              {sod.summary.unheldDuties
-                .map((d) => ENTITLEMENTS.find((e) => e.id === d)?.label ?? d)
-                .join(", ")}
-              . Somebody does each of these in every business that handles money; until the team
-              records who, these findings cannot see that seat.
+              {sod.summary.unheldDuties.map((d) => entitlementLabel(d)).join(", ")}. Somebody does
+              each of these in every business that handles money; until the team records who, these
+              findings cannot see that seat.
             </p>
           )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">

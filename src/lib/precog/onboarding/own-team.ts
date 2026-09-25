@@ -16,6 +16,7 @@ import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
 import type { PeopleImportResult } from "../import/people-csv";
 import { stripInvisibleControls } from "../import/csv";
+import { joinWithAnd } from "../text";
 
 /**
  * The eleven money duties the onboarding grid shows as columns. Together they
@@ -537,8 +538,7 @@ function nameList(names: readonly string[]): string {
   const shown = names.slice(0, 5);
   const more = names.length - shown.length;
   if (more > 0) return `${shown.join(", ")} and ${more} more`;
-  if (shown.length < 2) return shown.join("");
-  return `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  return joinWithAnd(shown);
 }
 
 /**

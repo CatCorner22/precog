@@ -20,6 +20,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import type { NavFn } from "@/lib/precog/navigation";
 
 const CLASS_META: Record<
   EpistemicClass,
@@ -47,11 +48,7 @@ const CLASS_META: Record<
   },
 };
 
-export function MetaAnalysisPanel({
-  onNavigate,
-}: {
-  onNavigate?: (tab: string, id?: string) => void;
-}) {
+export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile } = usePractice();
   const [filter, setFilter] = useState<EpistemicClass | "all" | "critical">("all");
   const [tick, setTick] = useState(0);
@@ -337,13 +334,7 @@ function JohariCell({ title, icon, items }: { title: string; icon: ReactNode; it
   );
 }
 
-function ItemCard({
-  item,
-  onNavigate,
-}: {
-  item: EpistemicItem;
-  onNavigate?: (tab: string, id?: string) => void;
-}) {
+function ItemCard({ item, onNavigate }: { item: EpistemicItem; onNavigate?: NavFn }) {
   const meta = CLASS_META[item.classification];
   return (
     <div

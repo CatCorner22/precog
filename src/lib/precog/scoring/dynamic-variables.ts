@@ -4,6 +4,7 @@
  *
  * Educational model for small businesses, not an insurance quote.
  */
+import { joinWithAnd as joinWords } from "../text";
 
 type VariableCategory =
   | "insurance"
@@ -207,11 +208,6 @@ const POLICY_FIELD_WORD: Record<"basePremiumAnnual" | "deductible" | "policyLimi
   deductible: "deductible",
   policyLimit: "limit",
 };
-
-function joinWords(words: string[]): string {
-  if (words.length <= 1) return words.join("");
-  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-}
 
 /**
  * Share of years in which the annual cost-of-risk figure assumes the event

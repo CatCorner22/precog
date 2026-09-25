@@ -4,8 +4,7 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-const STRONG = new Set(["expert", "proficient"]);
+import { STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
 
 export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const tpl = useTemplate();
@@ -39,7 +38,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
   });
 
   const edges = relations
-    .filter((r) => STRONG.has(r.level))
+    .filter((r) => STRONG_LEVELS.has(r.level))
     .map((r) => {
       const from = personNodes.find((p) => p.id === r.personId);
       const to = knowledgeNodes.find((k) => k.id === r.knowledgeId);

@@ -6,6 +6,7 @@ import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls
 import { entitlementsForTitle, matchJobTitle } from "../onboarding/job-catalog";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
 import { ROLE_TEMPLATES } from "../sod/detect";
+import { slug } from "../text";
 
 export interface PeopleImportIssue {
   row: number;
@@ -485,14 +486,6 @@ function nameKey(value: string): string {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function slug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
 }
 
 /** A CSV cell guarded against formula injection (see `csvCell`). */

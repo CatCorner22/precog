@@ -18,9 +18,11 @@ import {
   type ConflictRule,
   type DutyFamily,
   type EntitlementId,
+  entitlementById,
+  entitlementLabel,
 } from "./conflict-rules";
 import type { Person, StaffComposition } from "../types";
-import { soleOwnerId } from "./owner-role";
+import { teamOwnerId } from "./owner-role";
 import { personLabel } from "../person-label";
 
 export { isOwnerRole } from "./owner-role";
@@ -296,20 +298,18 @@ const FAMILY_WHY: Record<string, string> = {
     "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
 };
 
-function entLabel(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
-}
+const entLabel = entitlementLabel;
 
 function entFamily(id: EntitlementId): DutyFamily {
-  return ENTITLEMENTS.find((e) => e.id === id)?.family ?? "recording";
+  return entitlementById(id)?.family ?? "recording";
 }
 
 function entWeight(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.riskWeight ?? 3;
+  return entitlementById(id)?.riskWeight ?? 3;
 }
 
 function entProcesses(id: EntitlementId) {
-  return ENTITLEMENTS.find((e) => e.id === id)?.processIds ?? [];
+  return entitlementById(id)?.processIds ?? [];
 }
 
 function directRule(a: EntitlementId, b: EntitlementId): ConflictRule | undefined {
@@ -680,9 +680,7 @@ export function detectSodConflicts(
   // Only a business with one owner has a seat that cannot steal from itself;
   // partners and co-owners can each take from the others.
   const ownerId =
-    options?.soleOwnerId !== undefined
-      ? options.soleOwnerId
-      : soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
+    options?.soleOwnerId !== undefined ? options.soleOwnerId : teamOwnerId(assignments);
 
   // Who approves bills for payment. Another person's approval of each bill is
   // a control in place on that person's bill entry plus payment release.
