@@ -85,17 +85,39 @@ try {
     await page.locator("nav button").first().waitFor();
     await drain(`${industry}: load demo`);
 
-    const tabs = await page.locator("nav button").allInnerTexts();
-    for (let i = 0; i < tabs.length; i++) {
-      const label = tabs[i].trim().split("\n")[0];
-      await page.locator("nav button").nth(i).click();
-      // Lazy tabs show a loading state first; wait for it to clear.
-      await page
+    // Lazy tabs show a loading state first; wait for it to clear.
+    const settle = () =>
+      page
         .getByText(/^Loading/)
         .first()
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
+
+    // The six primary tabs sit in the strip; the rest are behind "More".
+    const primary = await page.locator('nav [role="tab"]').allInnerTexts();
+    let lastLabel = "";
+    for (let i = 0; i < primary.length; i++) {
+      const label = primary[i].trim().split("\n")[0];
+      await page.locator('nav [role="tab"]').nth(i).click();
+      await settle();
       await drain(`${industry}: tab "${label}"`);
+      lastLabel = label;
+    }
+    await page.locator("nav [data-more-tabs]").click();
+    const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
+    await page.keyboard.press("Escape");
+    for (const text of advanced) {
+      const label = text.trim().split("\n")[0];
+      await page.locator("nav [data-more-tabs]").click();
+      await page.locator('[role="menu"] [role="menuitem"]', { hasText: label }).first().click();
+      await settle();
+      await drain(`${industry}: tab "${label}"`);
+      lastLabel = label;
+    }
+    if (primary.length + advanced.length < 15) {
+      throw new Error(
+        `${industry}: expected 15 tabs, found ${primary.length} primary and ${advanced.length} advanced`,
+      );
     }
 
     // The open tab lives in the URL: the last tab clicked must survive a reload.
@@ -110,7 +132,7 @@ try {
       .locator('nav [role="tab"][aria-selected="true"]')
       .first()
       .innerText();
-    if (current.trim().split("\n")[0] !== tabs[tabs.length - 1].trim().split("\n")[0]) {
+    if (current.trim().split("\n")[0] !== lastLabel) {
       throw new Error(`${industry}: tab did not survive reload (got "${current}")`);
     }
     await drain(`${industry}: reload on ${new URL(lastUrl).search}`);

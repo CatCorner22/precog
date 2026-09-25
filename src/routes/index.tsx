@@ -18,6 +18,7 @@ import {
   Archive,
   BookOpen,
   Brain,
+  ChevronDown,
   Compass,
   Crosshair,
   Eye,
@@ -254,6 +255,104 @@ function TabStrip({
   );
 }
 
+/**
+ * The advanced views behind one control. Rendered inside the tab strip as a
+ * menu, not a tab: the tab it opens then appears in the strip as the active
+ * tab, so the strip always shows where the reader is.
+ */
+function MoreTabsMenu<T extends { id: TabId; icon: typeof Eye }>({
+  tabs,
+  activeId,
+  label,
+  badge,
+  onPick,
+}: {
+  tabs: readonly T[];
+  activeId: TabId;
+  label: (tab: T) => string;
+  badge: (tab: T) => number;
+  onPick: (id: TabId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const totalBadge = tabs.reduce((n, t) => n + badge(t), 0);
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-more-tabs
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          tabs.some((t) => t.id === activeId)
+            ? "text-fg hover:bg-elevated/60"
+            : "text-muted hover:bg-elevated/60 hover:text-fg",
+        )}
+      >
+        More
+        <ChevronDown
+          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+        {totalBadge > 0 && (
+          <span className="rounded-full bg-warn/20 px-1.5 text-xs text-warn">{totalBadge}</span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="More views"
+          className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
+        >
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const n = badge(t);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="menuitem"
+                data-tab-id={t.id}
+                onClick={() => {
+                  setOpen(false);
+                  onPick(t.id);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated",
+                  activeId === t.id ? "text-fg" : "text-muted hover:text-fg",
+                )}
+              >
+                <Icon className="size-4" aria-hidden />
+                <span className="flex-1">{label(t)}</span>
+                {n > 0 && (
+                  <span className="rounded-full bg-warn/20 px-1.5 text-xs text-warn">{n}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabLoading() {
   return (
     <Card>
@@ -325,11 +424,22 @@ const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] =
   { id: "snapshots", label: "Assessment snapshots", tactical: "Snapshots", icon: Archive },
 ];
 
+/**
+ * Six tabs carry the product: where you stand, how work flows, who controls
+ * what, who knows what, what could happen, and the advisor. The rest are
+ * other views of the same inputs and sit behind "More", so a first visit
+ * meets six choices, not fifteen. Every tab keeps its id and deep link.
+ */
+const PRIMARY_TAB_IDS: readonly TabId[] = ["start", "map", "sod", "knowledge", "precog", "pioneer"];
+const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
+const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
+
 function Home() {
   const tpl = useTemplate();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const tab: TabId = search.tab ?? "start";
+  const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
   const setTab = useCallback(
     (next: TabId) => {
       void navigate({
@@ -443,15 +553,19 @@ function Home() {
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    const index = TABS.findIndex((t) => t.id === tab);
+    // The visible strip: the six primary tabs plus the open advanced tab, if any.
+    const visible = PRIMARY_TAB_IDS.includes(tab)
+      ? PRIMARY_TABS
+      : [...PRIMARY_TABS, activeAdvanced!];
+    const index = visible.findIndex((t) => t.id === tab);
     let next = index;
-    if (event.key === "ArrowRight") next = (index + 1) % TABS.length;
-    else if (event.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
+    if (event.key === "ArrowRight") next = (index + 1) % visible.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + visible.length) % visible.length;
     else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = TABS.length - 1;
+    else if (event.key === "End") next = visible.length - 1;
     else return;
     event.preventDefault();
-    const id = TABS[next].id;
+    const id = visible[next].id;
     setTab(id);
     requestAnimationFrame(() => document.getElementById(`tab-${id}`)?.focus());
   }
@@ -553,7 +667,7 @@ function Home() {
             </div>
           </div>
           <TabStrip activeId={tab} onKeyDown={onTabKeyDown}>
-            {TABS.map((t) => {
+            {[...PRIMARY_TABS, ...(activeAdvanced ? [activeAdvanced] : [])].map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
               return (
@@ -585,6 +699,13 @@ function Home() {
                 </button>
               );
             })}
+            <MoreTabsMenu
+              tabs={ADVANCED_TABS}
+              activeId={tab}
+              label={(t) => say(t.label, t.tactical)}
+              badge={(t) => (t.id === "journal" && overdueDecisions > 0 ? overdueDecisions : 0)}
+              onPick={setTab}
+            />
           </TabStrip>
         </header>
         <SaveConflictBanner />
