@@ -90,8 +90,12 @@ export async function checkServerFnRequest(
   maxBodyBytes = MAX_SERVER_FN_BODY_BYTES,
 ): Promise<Response | null> {
   const method = request.method.toUpperCase();
-  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
-  const isForm = FORM_TYPES.some((type) => contentType.includes(type));
+  // Media types are case-insensitive, but parameter values such as a multipart
+  // boundary are not. Keep the original header for the form parser so its
+  // boundary still matches the unchanged request body (RFC 2045 section 5.1).
+  const contentType = request.headers.get("content-type") ?? "";
+  const mediaType = contentType.split(";", 1)[0].trim().toLowerCase();
+  const isForm = FORM_TYPES.includes(mediaType);
 
   if (method === "GET" || method === "HEAD") {
     if (isForm) return invalid();
@@ -114,7 +118,7 @@ export async function checkServerFnRequest(
       return invalid();
     }
   }
-  if (contentType.includes("application/json")) {
+  if (mediaType === "application/json") {
     const text = new TextDecoder().decode(body);
     return parsesAsSerializedDocument(text) ? null : invalid();
   }
