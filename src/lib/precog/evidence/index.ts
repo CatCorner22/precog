@@ -24,7 +24,7 @@ export { CASE_LIBRARY, BENCHMARK_BY_ID, METHOD_CAVEATS };
  * billing, so the cases worth showing are the shell-vendor cases — not
  * whichever case happens to cite the fewest rules or carry the largest number.
  */
-const RULE_SCHEMES: Record<string, SchemeKind[]> = {
+export const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-cash-rec": ["skimming", "cash-larceny", "check-tampering"],
   // Record the payment and post the write-off that hides its absence.
   "rule-payments-adjust": ["skimming", "receivables-diversion", "cash-larceny"],
@@ -100,7 +100,7 @@ const RULE_SCHEMES: Record<string, SchemeKind[]> = {
  * Keys are unordered pairs joined with a hyphen, alphabetically, matching the
  * `family-<a>-<b>` rule ids the detector produces.
  */
-const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
+export const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
   // Approving a transaction and holding the asset: nothing stands between the
   // decision to pay and the money leaving.
   "authorization-custody": ["check-tampering", "billing-shell-vendor", "corruption"],

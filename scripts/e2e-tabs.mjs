@@ -9,14 +9,10 @@
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
  */
-import { chromium } from "playwright";
+import { e2eOptions, withPage } from "./lib/e2e.mjs";
 
-const baseUrl = (process.argv[2] || process.env.E2E_BASE_URL || "http://127.0.0.1:8080/").replace(
-  /\/$/,
-  "",
-);
-const timeout = Number(process.env.E2E_TIMEOUT_MS || 45000);
-const failureShot = process.env.E2E_SCREENSHOT || "";
+const options = e2eOptions();
+const { baseUrl, timeout, failureShot } = options;
 
 const INDUSTRIES = [
   "Dental",
@@ -27,10 +23,7 @@ const INDUSTRIES = [
   "Nonprofit",
   "General",
 ];
-const IGNORED_CONSOLE = /favicon|net::ERR_|Download the React DevTools/;
-
 const failures = [];
-let page;
 
 function record(where, problems) {
   if (!problems.length) return;
@@ -38,37 +31,17 @@ function record(where, problems) {
   console.log(`  ✗ ${where}: ${problems.join(" | ")}`);
 }
 
-const browser = await chromium.launch({
-  headless: true,
-  args: ["--no-sandbox", "--disable-dev-shm-usage"],
-});
-
-try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  page = await context.newPage();
-  page.setDefaultTimeout(timeout);
-
-  let pageErrors = [];
-  let consoleErrors = [];
-  page.on("pageerror", (err) => pageErrors.push(String(err?.message || err)));
-  page.on("console", (msg) => {
-    const text = msg.text();
-    if (msg.type() === "error" && !IGNORED_CONSOLE.test(text)) consoleErrors.push(text);
-    // React 19 logs hydration mismatches as errors, but keep the regex in case
-    // a future version downgrades them to warnings.
-    if (/hydrat/i.test(text) && !consoleErrors.includes(text)) consoleErrors.push(text);
-  });
-
+await withPage(options, async (page, errors) => {
   async function drain(where) {
     await page.waitForTimeout(400);
     const boundary = await page.getByText(/This view hit an error|failed to download/).count();
     const problems = [
-      ...pageErrors.map((e) => `pageerror: ${e}`),
-      ...consoleErrors.map((e) => `console: ${e.slice(0, 200)}`),
+      ...errors.page.map((e) => `pageerror: ${e}`),
+      ...errors.console.map((e) => `console: ${e.slice(0, 200)}`),
       ...(boundary ? ["error boundary rendered"] : []),
     ];
-    pageErrors = [];
-    consoleErrors = [];
+    errors.page = [];
+    errors.console = [];
     record(where, problems);
   }
 
@@ -155,11 +128,4 @@ try {
   } else {
     console.log(JSON.stringify({ ok: true, industries: INDUSTRIES.length }));
   }
-} catch (err) {
-  console.error(`FAILED: ${err?.message || err}`);
-  if (failureShot && page)
-    await page.screenshot({ path: failureShot, fullPage: true }).catch(() => {});
-  process.exitCode = 1;
-} finally {
-  await browser.close();
-}
+});

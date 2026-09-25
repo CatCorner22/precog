@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   checks:
-    name: Typecheck, lint, test, build, verify
+    name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,8 +34,6 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:bundle
-      - run: npm run verify:evidence
-      - run: npm run verify:template
 
   migrations:
     name: Migrations against real Postgres, applied twice
@@ -73,17 +71,22 @@ jobs:
       - name: Apply again; the ledger must skip every file
         run: node scripts/migrate.mjs | tee second-run.log && grep -q "up to date" second-run.log
 
-      - name: The schema the app expects exists
+      - name: Every table the migrations create exists
         run: |
           node -e '
+            const fs = require("fs");
             const pg = require("pg");
+            const need = new Set();
+            for (const file of fs.readdirSync("migrations").filter((f) => f.endsWith(".sql"))) {
+              for (const m of fs.readFileSync(`migrations/${file}`, "utf8").matchAll(/create table if not exists "?(\w+)"?/gi)) need.add(m[1]);
+            }
+            need.add("_migrations");
             const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-            const need = ["user","session","business_profiles","businesses","assessment_snapshots","map_shares","map_share_attempts","llm_daily_usage","firms","engagement_marks","review_events","firm_members","firm_invites","business_history","report_versions","notification_settings","reminder_log","billing_accounts","billing_events","integration_connections","integration_snapshots","_migrations"];
             pool.query("select table_name from information_schema.tables where table_schema = $1", ["public"]).then(({ rows }) => {
               const have = new Set(rows.map((r) => r.table_name));
-              const missing = need.filter((t) => !have.has(t));
+              const missing = [...need].filter((t) => !have.has(t));
               if (missing.length) { console.error("missing tables:", missing); process.exit(1); }
-              console.log("all expected tables present:", need.join(", "));
+              console.log(`all ${need.size} expected tables present`);
               return pool.end();
             });
           '

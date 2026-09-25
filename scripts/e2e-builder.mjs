@@ -17,14 +17,11 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright";
+import { e2eOptions, withPage } from "./lib/e2e.mjs";
 
-const baseUrl = process.argv[2] || process.env.E2E_BASE_URL || "http://127.0.0.1:8080/";
-const timeout = Number(process.env.E2E_TIMEOUT_MS || 45000);
-const failureShot = process.env.E2E_SCREENSHOT || "";
+const options = e2eOptions();
+const { baseUrl, timeout } = options;
 
-const pageErrors = [];
-const consoleErrors = [];
 const steps = [];
 let page;
 
@@ -51,21 +48,10 @@ async function selectedNodeIds() {
   );
 }
 
-const browser = await chromium.launch({
-  headless: true,
-  args: ["--no-sandbox", "--disable-dev-shm-usage"],
-});
-
-try {
-  page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  page.setDefaultTimeout(timeout);
-  page.on("pageerror", (err) => pageErrors.push(String(err?.message || err)));
-  page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
-  });
-
+await withPage(options, async (p, errors) => {
+  page = p;
   step("load app");
-  await page.goto(baseUrl, { waitUntil: "networkidle", timeout });
+  await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
 
   step("load dental demo");
   await page.getByRole("button", { name: /Load Dental/ }).click();
@@ -158,19 +144,9 @@ try {
     .first()
     .waitFor({ state: "detached" });
 
-  assert(pageErrors.length === 0, `page errors: ${pageErrors.join(" | ")}`);
-  const realConsoleErrors = consoleErrors.filter((t) => !/favicon|net::ERR_/.test(t));
-  assert(realConsoleErrors.length === 0, `console errors: ${realConsoleErrors.join(" | ")}`);
+  assert(errors.page.length === 0, `page errors: ${errors.page.join(" | ")}`);
+  assert(errors.console.length === 0, `console errors: ${errors.console.join(" | ")}`);
 
   console.log(JSON.stringify({ ok: true, baseUrl, steps: steps.length }));
-} catch (err) {
-  console.error(`FAILED at step "${steps.at(-1)}": ${err?.message || err}`);
-  if (pageErrors.length) console.error("page errors:", pageErrors);
-  if (failureShot && page) {
-    await page.screenshot({ path: failureShot, fullPage: true }).catch(() => {});
-    console.error(`screenshot: ${failureShot}`);
-  }
-  process.exitCode = 1;
-} finally {
-  await browser.close();
-}
+}).catch(() => undefined);
+if (process.exitCode) console.error(`last step: "${steps.at(-1)}"`);

@@ -1,53 +1,42 @@
+// @ts-nocheck -- runtime invariants ported from scripts/domain-tests.mjs; they assert on the
+// shapes the modules return and are not a typing exercise.
 import assert from "node:assert/strict";
-import { createServer } from "vite";
+import { describe, it } from "vitest";
+import { openTestDb } from "@/test/pglite";
+import * as vision from "@/lib/precog/map-vision";
+import * as rag from "@/lib/precog/rag/retrieve";
+import * as corpus from "@/lib/precog/rag/corpus";
+import * as scoring from "@/lib/precog/threat-scoring";
+import * as profile from "@/lib/precog/practice-profile";
+import * as blueprint from "@/lib/precog/operating-blueprint";
+import * as industryModule from "@/lib/precog/industry";
+import * as templatesIndex from "@/lib/precog/templates";
+import * as sodRules from "@/lib/precog/sod/conflict-rules";
+import * as sodDetect from "@/lib/precog/sod/detect";
+import * as roleTemplates from "@/lib/precog/sod/role-templates";
+import * as activeTemplate from "@/lib/precog/active-template";
+import * as powerGuidance from "@/lib/precog/sod/power-guidance";
+import * as controlMeasures from "@/lib/precog/sod/control-measures";
+import * as resolutionPlanner from "@/lib/precog/sod/resolution-planner";
+import * as coverageAnalysis from "@/lib/precog/sod/coverage-analysis";
+import * as modelIo from "@/lib/precog/sod/model-io";
+import * as changeImpact from "@/lib/precog/sod/change-impact";
+import * as coveragePlanner from "@/lib/precog/sod/coverage-planner";
+import * as governanceReport from "@/lib/precog/sod/governance-report";
+import * as assignmentDiff from "@/lib/precog/sod/assignment-diff";
+import * as powerIndex from "@/lib/precog/sod/power-index";
+import * as valueCase from "@/lib/precog/value-case";
+import * as valueEvidence from "@/lib/precog/value-evidence";
+import * as snapshotComparison from "@/lib/precog/snapshot-comparison";
 
-const server = await createServer({
-  appType: "custom",
-  logLevel: "error",
-  server: { middlewareMode: true },
-});
-
-let passed = 0;
-
-async function test(name, run) {
-  try {
-    await run();
-    passed += 1;
-    console.log(`✓ ${name}`);
-  } catch (error) {
-    console.error(`✗ ${name}`);
-    throw error;
-  }
-}
-
-try {
-  const vision = await server.ssrLoadModule("/src/lib/precog/map-vision.ts");
-  const rag = await server.ssrLoadModule("/src/lib/precog/rag/retrieve.ts");
-  const corpus = await server.ssrLoadModule("/src/lib/precog/rag/corpus.ts");
-  const scoring = await server.ssrLoadModule("/src/lib/precog/threat-scoring.ts");
-  const profile = await server.ssrLoadModule("/src/lib/precog/practice-profile.ts");
-  const db = await server.ssrLoadModule("/src/lib/db.ts");
-  const blueprint = await server.ssrLoadModule("/src/lib/precog/operating-blueprint.ts");
-  const industryModule = await server.ssrLoadModule("/src/lib/precog/industry.ts");
-  const sodRules = await server.ssrLoadModule("/src/lib/precog/sod/conflict-rules.ts");
-  const sodDetect = await server.ssrLoadModule("/src/lib/precog/sod/detect.ts");
-  const roleTemplates = await server.ssrLoadModule("/src/lib/precog/sod/role-templates.ts");
-  const activeTemplate = await server.ssrLoadModule("/src/lib/precog/active-template.ts");
-  const powerGuidance = await server.ssrLoadModule("/src/lib/precog/sod/power-guidance.ts");
-  const controlMeasures = await server.ssrLoadModule("/src/lib/precog/sod/control-measures.ts");
-  const resolutionPlanner = await server.ssrLoadModule("/src/lib/precog/sod/resolution-planner.ts");
-  const coverageAnalysis = await server.ssrLoadModule("/src/lib/precog/sod/coverage-analysis.ts");
-  const modelIo = await server.ssrLoadModule("/src/lib/precog/sod/model-io.ts");
-  const changeImpact = await server.ssrLoadModule("/src/lib/precog/sod/change-impact.ts");
-  const coveragePlanner = await server.ssrLoadModule("/src/lib/precog/sod/coverage-planner.ts");
-  const governanceReport = await server.ssrLoadModule("/src/lib/precog/sod/governance-report.ts");
-  const assignmentDiff = await server.ssrLoadModule("/src/lib/precog/sod/assignment-diff.ts");
-  const powerIndex = await server.ssrLoadModule("/src/lib/precog/sod/power-index.ts");
-  const valueCase = await server.ssrLoadModule("/src/lib/precog/value-case.ts");
-  const valueEvidence = await server.ssrLoadModule("/src/lib/precog/value-evidence.ts");
-  const snapshotComparison = await server.ssrLoadModule("/src/lib/precog/snapshot-comparison.ts");
-
-  await test("every duty has complete four-category control alternatives", () => {
+/**
+ * Cross-module invariants: every duty has control alternatives, every
+ * template resolves, the power map round-trips, the SoD engine is
+ * deterministic, and so on. One file, so a change to a shared table is
+ * checked against every consumer at once.
+ */
+describe("domain invariants", () => {
+  it("every duty has complete four-category control alternatives", () => {
     const categories = ["directive", "preventive", "detective", "corrective"];
     assert.deepEqual(
       Object.keys(controlMeasures.DUTY_CONTROL_MEASURES).sort(),
@@ -65,7 +54,7 @@ try {
     }
   });
 
-  await test("value evidence is bounded, deduplicated, and summarized from verified records", () => {
+  it("value evidence is bounded, deduplicated, and summarized from verified records", () => {
     const records = valueEvidence.normalizeValueEvidence([
       {
         id: "one",
@@ -159,7 +148,7 @@ try {
     assert.throws(() => valueEvidence.parseValueEvidence("x".repeat(128_001)), /exceeds 128 KB/);
   });
 
-  await test("value cases separate observed value from modeled avoided loss", () => {
+  it("value cases separate observed value from modeled avoided loss", () => {
     const result = valueCase.calculateValueCase({
       reviewHoursBefore: 30,
       reviewHoursAfter: 10,
@@ -212,7 +201,7 @@ try {
     );
   });
 
-  await test("value case inputs are finite and conservatively bounded", () => {
+  it("value case inputs are finite and conservatively bounded", () => {
     const normalized = valueCase.normalizeValueCase({
       reviewHoursBefore: -10,
       reviewHoursAfter: Number.NaN,
@@ -226,7 +215,7 @@ try {
     assert.ok(Object.values(normalized).every(Number.isFinite));
   });
 
-  await test("snapshot comparison reports profile, assignment, and observed-value movement", () => {
+  it("snapshot comparison reports profile, assignment, and observed-value movement", () => {
     const archivedProfile = profile.defaultProfile();
     const currentProfile = profile.normalizeProfile({
       ...archivedProfile,
@@ -339,7 +328,7 @@ try {
     assert.match(comparisonReport, /deductible:/);
   });
 
-  await test("priority bands preserve their documented boundaries", () => {
+  it("priority bands preserve their documented boundaries", () => {
     assert.equal(vision.priorityBand(34), "cold");
     assert.equal(vision.priorityBand(35), "watch");
     assert.equal(vision.priorityBand(55), "elevated");
@@ -347,7 +336,7 @@ try {
     assert.equal(vision.priorityBand(88), "white_hot");
   });
 
-  await test("priority scores stay bounded and flag high-impact open controls", () => {
+  it("priority scores stay bounded and flag high-impact open controls", () => {
     const samples = [-1_000, -20, 0, 50, 100, 140, 1_000].map((heat) =>
       vision.scorePriority({ heat, kind: "control", controlOpen: true }),
     );
@@ -357,7 +346,7 @@ try {
     assert.ok(high.reasons.includes("Open control / SoD gap"));
   });
 
-  await test("control guidance retrieval returns authoritative guidance", () => {
+  it("control guidance retrieval returns authoritative guidance", () => {
     const hits = rag.retrieveKnowledge("weekly owner bank reconciliation ongoing monitoring", {
       topK: 2,
     });
@@ -371,7 +360,7 @@ try {
     assert.equal(cadence?.basis.kind, "practice");
   });
 
-  await test("control guidance retrieval returns authoritative access guidance", () => {
+  it("control guidance retrieval returns authoritative access guidance", () => {
     const [hit] = rag.retrieveKnowledge("least privilege MFA termination access review", {
       topK: 1,
     });
@@ -380,18 +369,18 @@ try {
     assert.match(hit.chunk.basis.url, /^https:\/\//);
   });
 
-  await test("every authoritative corpus URL uses HTTPS", () => {
+  it("every authoritative corpus URL uses HTTPS", () => {
     const sourced = corpus.KNOWLEDGE_CORPUS.filter((chunk) => chunk.basis.kind === "cited");
     assert.ok(sourced.length >= 4);
     for (const chunk of sourced) assert.match(chunk.basis.url, /^https:\/\//);
   });
 
-  await test("knowledge chunk identifiers are unique", () => {
+  it("knowledge chunk identifiers are unique", () => {
     const ids = corpus.KNOWLEDGE_CORPUS.map((chunk) => chunk.id);
     assert.equal(new Set(ids).size, ids.length);
   });
 
-  await test("core control domains return targeted guidance", () => {
+  it("core control domains return targeted guidance", () => {
     const cases = [
       ["payroll direct deposit rate change", "payroll-change-controls"],
       ["patient refund credit balance", "refund-controls"],
@@ -406,12 +395,10 @@ try {
     }
   });
 
-  await test("threat assessment supports a missing risk-variable override", async () => {
+  it("threat assessment supports a missing risk-variable override", async () => {
     const defaults = profile.defaultProfile();
     const report = scoring.buildThreatAssessment({
-      tpl: (await server.ssrLoadModule("/src/lib/precog/templates/index.ts")).getIndustryTemplate(
-        defaults.industry,
-      ),
+      tpl: templatesIndex.getIndustryTemplate(defaults.industry),
       practiceName: defaults.practiceName,
       staff: defaults.staff,
       dualRelease: defaults.dualRelease,
@@ -421,7 +408,7 @@ try {
     assert.ok(report.targetDeck.every((target) => Number.isFinite(target.priority)));
   });
 
-  await test("restored profiles merge current model defaults", () => {
+  it("restored profiles merge current model defaults", () => {
     const restored = profile.normalizeProfile({
       practiceName: "Archived Practice",
       staff: { teamSize: 9 },
@@ -434,7 +421,7 @@ try {
     assert.ok(Array.isArray(restored.decisions));
   });
 
-  await test("profile normalization constrains untrusted decision content", () => {
+  it("profile normalization constrains untrusted decision content", () => {
     const restored = profile.normalizeProfile({
       practiceName: "A".repeat(200),
       staff: { teamSize: "many", segregationScore: 900, dualControlPayments: "false" },
@@ -467,8 +454,9 @@ try {
     assert.equal("injected" in restored, false);
   });
 
-  await test("snapshot migration provides ownership and provenance columns", async () => {
-    const sql = await db.getSql();
+  it("snapshot migration provides ownership and provenance columns", async () => {
+    const testDb = await openTestDb();
+    const sql = testDb.sql;
     const rows = await sql.query(
       `select column_name from information_schema.columns
        where table_name = 'assessment_snapshots'`,
@@ -487,9 +475,10 @@ try {
     ]) {
       assert.ok(columns.has(required), required);
     }
+    await testDb.close();
   });
 
-  await test("operating blueprint covers complete tiered process guidance for every industry", () => {
+  it("operating blueprint covers complete tiered process guidance for every industry", () => {
     for (const industry of industryModule.INDUSTRIES) {
       const processes = blueprint.blueprintsForIndustry(industry.id);
       assert.ok(processes.length >= 10, industry.id);
@@ -512,7 +501,7 @@ try {
     }
   });
 
-  await test("power map covers common jobs and valid duty relationships", () => {
+  it("power map covers common jobs and valid duty relationships", () => {
     assert.ok(roleTemplates.COMMON_JOB_TEMPLATES.length >= 18);
     assert.ok(sodRules.ENTITLEMENTS.length >= 25);
     const entitlementIds = new Set(sodRules.ENTITLEMENTS.map((item) => item.id));
@@ -538,7 +527,7 @@ try {
     }
   });
 
-  await test("family heuristics do not create cross-process false positives", () => {
+  it("family heuristics do not create cross-process false positives", () => {
     const assignments = [
       {
         personId: "cross-process",
@@ -582,7 +571,7 @@ try {
     assert.equal(cashChain.conflicts.length, 0);
   });
 
-  await test("conflict identity is invariant to entitlement order", () => {
+  it("conflict identity is invariant to entitlement order", () => {
     const forward = [
       {
         personId: "ordered",
@@ -604,10 +593,9 @@ try {
     assert.deepEqual(forwardCell.ruleIds, reverseCell.ruleIds);
   });
 
-  await test("every duty process lens resolves to a known process", async () => {
-    const templates = await server.ssrLoadModule("/src/lib/precog/active-template.ts");
+  it("every duty process lens resolves to a known process", async () => {
     const processIds = new Set(
-      templates.getBaseTemplate("dental").processes.map((process) => process.id),
+      activeTemplate.getBaseTemplate("dental").processes.map((process) => process.id),
     );
     for (const entitlement of sodRules.ENTITLEMENTS) {
       for (const processId of entitlement.processIds)
@@ -615,7 +603,7 @@ try {
     }
   });
 
-  await test("resolution planner only proposes conflict-safe transfers", () => {
+  it("resolution planner only proposes conflict-safe transfers", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const before = sodDetect.detectAssignments({ assignments });
     const conflict = before.conflicts[0];
@@ -631,7 +619,7 @@ try {
     }
   });
 
-  await test("coverage analysis exposes ownership gaps and continuity risk", () => {
+  it("coverage analysis exposes ownership gaps and continuity risk", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const baseline = coverageAnalysis.analyzeDutyCoverage(assignments);
     assert.ok(baseline.resilienceScore >= 0 && baseline.resilienceScore <= 100);
@@ -648,7 +636,7 @@ try {
     );
   });
 
-  await test("absence stress tests identify work that stops and lost backups", () => {
+  it("absence stress tests identify work that stops and lost backups", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments.find((item) =>
       item.entitlements.some((id) => {
@@ -667,7 +655,7 @@ try {
     assert.equal(coverageAnalysis.analyzeAbsenceImpact(assignments, "missing"), undefined);
   });
 
-  await test("power-map imports are bounded and allow-listed", () => {
+  it("power-map imports are bounded and allow-listed", () => {
     const normalized = modelIo.normalizeRoleAssignments({
       assignments: [
         {
@@ -694,7 +682,7 @@ try {
     );
   });
 
-  await test("responsibility CSV is complete and formula-safe", () => {
+  it("responsibility CSV is complete and formula-safe", () => {
     const assignments = [
       {
         personId: "csv",
@@ -713,7 +701,7 @@ try {
     assert.equal(csv.split("\r\n").length, sodRules.ENTITLEMENTS.length);
   });
 
-  await test("assignment previews match post-change conflict results", () => {
+  it("assignment previews match post-change conflict results", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
@@ -745,7 +733,7 @@ try {
     );
   });
 
-  await test("assignment previews honor practice-specific scoring inputs", () => {
+  it("assignment previews honor practice-specific scoring inputs", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
@@ -771,7 +759,7 @@ try {
     );
   });
 
-  await test("every matrix duty can be toggled for every modeled person", () => {
+  it("every matrix duty can be toggled for every modeled person", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     for (const person of assignments) {
       for (const entitlement of sodRules.ENTITLEMENTS.filter(
@@ -817,7 +805,7 @@ try {
     },
   ];
 
-  await test("continuity planner recommends only conflict-free coverage improvements", () => {
+  it("continuity planner recommends only conflict-free coverage improvements", () => {
     const dental = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const dentalPlans = coveragePlanner.buildCoveragePlans(dental);
     const conflicted = new Set(
@@ -843,7 +831,7 @@ try {
     }
   });
 
-  await test("continuity program safely sequences interacting recommendations", () => {
+  it("continuity program safely sequences interacting recommendations", () => {
     const assignments = plannerRetail;
     const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
     const beforeConflicts = sodDetect.detectAssignments({ assignments }).conflicts.length;
@@ -863,7 +851,7 @@ try {
     assert.ok([...counts.values()].every((count) => count <= 2));
   });
 
-  await test("governance report reconciles to live SoD and continuity results", () => {
+  it("governance report reconciles to live SoD and continuity results", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const sod = sodDetect.detectAssignments({ assignments });
     const coverage = coverageAnalysis.analyzeDutyCoverage(assignments);
@@ -880,7 +868,7 @@ try {
     assert.match(report, /Planning analysis only/);
   });
 
-  await test("assignment change review detects grants, revocations, hires, and removals", () => {
+  it("assignment change review detects grants, revocations, hires, and removals", () => {
     const baseline = [
       {
         personId: "a",
@@ -912,7 +900,7 @@ try {
     assert.deepEqual(assignmentDiff.diffAssignments(baseline, baseline), []);
   });
 
-  await test("authority concentration index is bounded, complete, and deterministic", () => {
+  it("authority concentration index is bounded, complete, and deterministic", () => {
     const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
     const ranked = powerIndex.calculatePowerIndex(assignments);
     assert.equal(ranked.length, assignments.length);
@@ -928,8 +916,4 @@ try {
     ]);
     assert.equal(exclusive[0].exclusiveDutyCount, 1);
   });
-
-  console.log(`\n${passed} domain checks passed.`);
-} finally {
-  await server.close();
-}
+});
