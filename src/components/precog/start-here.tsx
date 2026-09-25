@@ -1,4 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { EvidenceFooter, SectionHeading, StatTile } from "./start-here-parts";
+import {
+  BADGE_VARIANT,
+  DETECTION_PHRASE,
+  effortPhrase,
+  joinClauses,
+  LONG_SERVICE_YEARS,
+  lower,
+  ROUTE_CLAUSE,
+} from "./start-here-copy";
 import {
   ArrowRight,
   Clock,
@@ -28,24 +38,19 @@ import { findKnowledgeRisks } from "@/lib/precog/engine";
 import {
   BENCHMARK_BY_ID,
   CASE_LIBRARY,
-  detectionBreakdown,
   METHOD_CAVEATS,
   casesForSodRules,
   caseForRule,
   citingCaseStats,
   durationPhrase,
   recommendedStepsForRules,
-  isOwnSector,
   tenureExamples,
-  type CaseStudy,
-  type SchemeKind,
 } from "@/lib/precog/evidence";
 import {
   closingSteps,
   gapBadge,
   ownerHeldPairs,
   rankFirstSteps,
-  type GapBadge,
 } from "@/lib/precog/coach/first-steps";
 import { CaseCard } from "./case-card";
 import { concentrationHeadline, midSentence, separatedPairs } from "@/lib/precog/sod/verdict";
@@ -1132,206 +1137,4 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
       <EvidenceFooter cases={evidence} industryId={industryId} />
     </div>
   );
-}
-
-function EvidenceFooter({ cases, industryId }: { cases: CaseStudy[]; industryId: string }) {
-  /**
-   * Filter by the shape of the scheme. A case can carry more than one shape
-   * (a forged check hidden by a doctored statement), so the counts on the
-   * chips can add to more than the number of cases; each chip counts the
-   * cases that carry that shape.
-   */
-  const [scheme, setScheme] = useState<SchemeKind | "all">("all");
-  if (cases.length === 0) return null;
-  const shapes = SCHEME_ORDER.map((k) => ({
-    kind: k,
-    count: cases.filter((c) => c.schemes.includes(k)).length,
-  })).filter((s) => s.count > 0);
-  const shown = scheme === "all" ? cases : cases.filter((c) => c.schemes.includes(scheme));
-  // Cases from the reader's own trade lead, because they land harder. The rest
-  // stay, because the mechanism of a scheme does not change between industries
-  // and the mechanism is the part worth learning.
-  const ordered = [
-    ...shown.filter((c) => isOwnSector(c, industryId)),
-    ...shown.filter((c) => !isOwnSector(c, industryId)),
-  ];
-  const chipClass = (active: boolean) =>
-    `rounded-full border px-2.5 py-1 text-xs transition-colors ${
-      active
-        ? "border-primary bg-primary/10 text-primary"
-        : "border-border text-muted hover:border-border-strong"
-    }`;
-  return (
-    <section className="space-y-3">
-      <SectionHeading
-        title="Every case behind this page"
-        subtitle="Open any one to read what happened and confirm it at the source. Filter by how the money was taken."
-      />
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter cases by scheme">
-        <button
-          type="button"
-          aria-pressed={scheme === "all"}
-          className={chipClass(scheme === "all")}
-          onClick={() => setScheme("all")}
-        >
-          All ({cases.length})
-        </button>
-        {shapes.map((s) => (
-          <button
-            key={s.kind}
-            type="button"
-            aria-pressed={scheme === s.kind}
-            className={chipClass(scheme === s.kind)}
-            onClick={() => setScheme(s.kind)}
-          >
-            {SCHEME_PHRASE[s.kind]} ({s.count})
-          </button>
-        ))}
-      </div>
-      <p className="text-xs text-subtle">
-        {(() => {
-          // Counted over the cases listed here, so the footer matches the list.
-          const found = detectionBreakdown(ordered);
-          return `Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`;
-        })()}
-      </p>
-      <div className="space-y-2">
-        {ordered.map((c) => (
-          <CaseCard key={c.id} study={c} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-const BADGE_VARIANT: Record<GapBadge, "danger" | "warn" | "default" | "primary" | "ok"> = {
-  "Fix first": "danger",
-  "Fix soon": "warn",
-  "Worth doing": "default",
-  "Reduced, not closed": "primary",
-  "Covered by dual release": "ok",
-};
-
-/** Plain wording for each scheme shape, in the order the chips appear. */
-const SCHEME_ORDER: SchemeKind[] = [
-  "check-tampering",
-  "billing-shell-vendor",
-  "expense-reimbursement",
-  "payroll",
-  "receivables-diversion",
-  "skimming",
-  "cash-larceny",
-  "refund-fraud",
-  "inventory-theft",
-  "data-theft",
-  "data-destruction",
-  "financial-statement",
-  "corruption",
-];
-
-const SCHEME_PHRASE: Record<SchemeKind, string> = {
-  "check-tampering": "Forged, altered, or self-written payments",
-  "billing-shell-vendor": "Fake suppliers and invoices",
-  "expense-reimbursement": "Company card and expenses",
-  payroll: "Payroll",
-  "receivables-diversion": "Customer payments diverted",
-  skimming: "Cash taken before it was recorded",
-  "cash-larceny": "Cash taken after it was recorded",
-  "financial-statement": "Doctored books and statements",
-  corruption: "Kickbacks and conflicts of interest",
-  "refund-fraud": "Refunds and voids with no sale behind them",
-  "inventory-theft": "Stock, equipment, and drugs taken",
-  "data-theft": "Customer and pricing data taken",
-  "data-destruction": "Company data deleted or wiped by an insider",
-};
-
-/** Plain wording for each detection route, matching the case card. */
-/** Years of service at which the departure model calls a person long-serving. */
-const LONG_SERVICE_YEARS = 5;
-
-const DETECTION_PHRASE: Record<string, string> = {
-  tip: "Someone spoke up",
-  "owner-review": "The owner looked",
-  "external-audit": "An outside audit",
-  "bank-or-insurer": "A bank or insurer flagged it",
-  "law-enforcement": "Law enforcement",
-  "by-accident": "By accident, when the money ran out",
-  cover: "Someone else covered the desk and saw the records",
-  reconciliation: "A reconciliation caught it",
-};
-
-/** The same routes as a clause in a sentence: "it was the owner looking". */
-const ROUTE_CLAUSE: Record<string, string> = {
-  "owner-review": "the owner looking",
-  "bank-or-insurer": "a bank or insurer noticing",
-  "by-accident": "the money running out",
-  cover: "someone else covering the desk",
-  "law-enforcement": "law enforcement arriving",
-};
-
-function joinClauses(parts: string[]): string {
-  if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
-}
-
-function effortPhrase(effort: string): string {
-  return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;
-}
-
-function SectionHeading({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon?: React.ReactNode;
-  title: string;
-  subtitle?: string;
-}) {
-  return (
-    <div className="space-y-0.5">
-      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">
-        {icon}
-        {title}
-      </h2>
-      {subtitle && <p className="text-xs text-subtle">{subtitle}</p>}
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  detail,
-  href,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  href?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-panel/60 p-4">
-      <p className="text-xs text-subtle">{label}</p>
-      <p className="mt-1 font-mono text-lg font-semibold tracking-tight">{value}</p>
-      {detail &&
-        (href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            {detail}
-            <ExternalLink className="size-2.5" aria-hidden />
-          </a>
-        ) : (
-          <p className="mt-1 text-xs text-subtle">{detail}</p>
-        ))}
-    </div>
-  );
-}
-
-/** Lower-cases an entitlement label for mid-sentence use, keeping acronyms. */
-function lower(label: string): string {
-  return label.replace(/^([A-Z])(?=[a-z])/, (m) => m.toLowerCase());
 }

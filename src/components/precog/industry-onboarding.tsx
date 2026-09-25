@@ -29,7 +29,6 @@ import {
   OWN_TEAM_MAX,
   addPastedRows,
   addRowsByTitle,
-  addableDuties,
   buildOwnTeam,
   coreDutyLabel,
   extraDuties,
@@ -43,7 +42,6 @@ import {
   untickDutyForTitle,
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
-  ownerRow,
   firstRowForIndustry,
   isLeaderTitle,
   rowsKeptForAdding,
@@ -62,162 +60,22 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { cn } from "@/lib/utils";
 import { personLocations } from "@/lib/precog/person-location";
 import type { Departure } from "@/lib/precog/continuity/access-removal";
-import {
-  Briefcase,
-  ChefHat,
-  Building2,
-  HardHat,
-  HeartHandshake,
-  Plus,
-  ShoppingBag,
-  Stethoscope,
-  Trash2,
-} from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
 
-const ICONS: Record<IndustryId, typeof Stethoscope> = {
-  dental: Stethoscope,
-  retail: ShoppingBag,
-  professional_services: Briefcase,
-  restaurant: ChefHat,
-  construction: HardHat,
-  nonprofit: HeartHandshake,
-  general: Building2,
-};
-
-let nextRowNumber = 0;
-/** A key for a grid row that stays with it when rows above it are removed. */
-const newRowId = () => `row-${Date.now().toString(36)}-${(nextRowNumber += 1)}`;
-/** Gives every row a stable key; returns the same array when all have one. */
-function withRowIds(rows: OwnTeamRow[]): OwnTeamRow[] {
-  const seen = new Set<string>();
-  let changed = false;
-  const next = rows.map((row) => {
-    if (row.rowId && !seen.has(row.rowId)) {
-      seen.add(row.rowId);
-      return row;
-    }
-    changed = true;
-    const rowId = newRowId();
-    seen.add(rowId);
-    return { ...row, rowId };
-  });
-  return changed ? next : rows;
-}
-
-const EMPTY_ROW = (role = ""): OwnTeamRow => ({ name: "", role, duties: [], rowId: newRowId() });
-/** A fresh grid: the Owner row and two empty rows. */
-const freshRows = (): OwnTeamRow[] => [
-  { ...ownerRow(), rowId: newRowId() },
-  EMPTY_ROW(""),
-  EMPTY_ROW(""),
-];
-
-const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
-  a.length === b.length && a.every((d) => b.includes(d));
-
-const nameInputId = (index: number) => `onboarding-person-${index + 1}-name`;
-
-/** Everything in `root` a keyboard can reach, in order, skipping what is hidden. */
-function focusableIn(root: HTMLElement | null): HTMLElement[] {
-  if (!root) return [];
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((el) => el.getClientRects().length > 0 && !el.closest("[inert]"));
-}
-
-/** Moves focus once React has drawn the change. */
-function focusSoon(find: () => HTMLElement | null | undefined) {
-  requestAnimationFrame(() => find()?.focus());
-}
-
-/** Who a row names, for labels: the name, or its place in the table. */
-const whoIs = (row: OwnTeamRow, index: number) => row.name.trim() || `Person ${index + 1}`;
-
-/** How typed titles read, remembered per line of business so typing stays quick. */
-const SEAT_CACHE = new Map<string, SeatReading | undefined>();
-function typedSeat(role: string, industry: string): SeatReading | undefined {
-  const key = `${industry}|${role.trim()}`;
-  if (!SEAT_CACHE.has(key)) {
-    if (SEAT_CACHE.size > 500) SEAT_CACHE.clear();
-    SEAT_CACHE.set(key, rowSeat({ role }, industry));
-  }
-  return SEAT_CACHE.get(key);
-}
-
-/** The short note under a row's role: which catalog seat ticked its duties. */
-function SeatNote({ seat }: { seat: SeatReading | undefined }) {
-  if (!seat) return null;
-  if (!seat.title) {
-    return (
-      <p className="mt-1 max-w-[11rem] text-xs text-muted">Not in the catalog: tick by hand</p>
-    );
-  }
-  return (
-    <p className={cn("mt-1 max-w-[11rem] text-xs", seat.partial ? "text-warn" : "text-muted")}>
-      {seat.partial ? `Partly read as ${seat.title}: check the ticks` : `Read as ${seat.title}`}
-    </p>
-  );
-}
-
-/**
- * Adds a duty that is not a grid column to one row: pick it, then press Add.
- * A select alone would add a duty on every arrow key in some browsers.
- */
-function AddDutyControl({
-  who,
-  duties,
-  onAdd,
-}: {
-  who: string;
-  duties: readonly EntitlementId[];
-  onAdd: (duty: EntitlementId) => void;
-}) {
-  const options = addableDuties(duties);
-  const [pick, setPick] = useState<EntitlementId | "">("");
-  if (options.length === 0) return null;
-  const chosen = pick && options.includes(pick) ? pick : "";
-  return (
-    <div className="mt-1 flex max-w-[11rem] items-center gap-1">
-      <select
-        className={cn(inputCls, "min-h-7 min-w-0 flex-1 px-1 py-0.5 text-xs")}
-        aria-label={`Other duty for ${who}`}
-        data-add-duty
-        value={chosen}
-        onChange={(e) => setPick(e.target.value as EntitlementId | "")}
-      >
-        <option value="">Add a duty…</option>
-        {options.map((duty) => (
-          <option key={duty} value={duty}>
-            {coreDutyLabel(duty)}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="min-h-7 rounded-md border border-border bg-panel px-2 py-0.5 text-xs text-muted hover:border-border-strong hover:text-fg disabled:opacity-50"
-        aria-label={`Add the chosen duty to ${who}`}
-        disabled={!chosen}
-        onClick={() => {
-          if (!chosen) return;
-          onAdd(chosen);
-          setPick("");
-        }}
-      >
-        Add
-      </button>
-    </div>
-  );
-}
-
-/**
- * First visit. Step one picks the line of business; step two takes the
- * owner's own business name, people, and who does the money duties,
- * so the first screen they see is about their team. "Explore a sample"
- * stays as the second path.
- */
+import {
+  EMPTY_ROW,
+  freshRows,
+  focusableIn,
+  focusSoon,
+  ICONS,
+  nameInputId,
+  sameDuties,
+  typedSeat,
+  whoIs,
+  withRowIds,
+} from "./industry-onboarding-helpers";
+import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
 export function IndustryOnboarding() {
   const {
     profile,

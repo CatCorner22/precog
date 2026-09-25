@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
   if (band === "critical_path") return "danger";
@@ -257,33 +256,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   your team.
                 </p>
               ) : (
-                <div className="h-56 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={tornadoData} layout="vertical" margin={{ left: 8, right: 12 }}>
-                      <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 3" />
-                      <XAxis type="number" tick={{ fill: "var(--color-muted)", fontSize: 12 }} />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={120}
-                        tick={{ fill: "var(--color-muted)", fontSize: 12 }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "var(--color-elevated)",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 8,
-                          fontSize: 12,
-                        }}
-                        formatter={(v: number) => [`${Math.abs(v)} pts lower`, "Average residual"]}
-                        labelFormatter={(_, payload) =>
-                          (payload?.[0]?.payload as { full?: string })?.full ?? ""
-                        }
-                      />
-                      <Bar dataKey="delta" fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <TornadoBars rows={tornadoData} />
               )}
               <p className="mt-2 text-xs text-subtle">
                 Base average residual {tornado.baseAverage}.
@@ -294,6 +267,30 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         </div>
       </div>
       <ScoringBasis template={template} staff={profile.staff} sensitivity={sensitivity} />
+    </div>
+  );
+}
+
+function TornadoBars({ rows }: { rows: { name: string; full: string; delta: number }[] }) {
+  const max = Math.max(...rows.map((row) => Math.abs(row.delta)), 0.1);
+  return (
+    <div className="space-y-2" role="img" aria-label="Drop in average residual for each lever">
+      {rows.map((row) => (
+        <div
+          key={row.full}
+          className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-2 text-xs"
+          title={`${row.full}: ${Math.abs(row.delta)} points lower`}
+        >
+          <span className="truncate text-muted">{row.name}</span>
+          <div className="h-3 overflow-hidden rounded bg-border/40">
+            <div
+              className="h-3 rounded bg-primary"
+              style={{ width: `${(Math.abs(row.delta) / max) * 100}%` }}
+            />
+          </div>
+          <span className="tabular text-muted">{Math.abs(row.delta)}</span>
+        </div>
+      ))}
     </div>
   );
 }
