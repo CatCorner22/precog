@@ -23,7 +23,6 @@ import {
   listClientEngagements,
   listInvites,
   listMembers,
-  listReviewEvents,
   loadFirmFor,
   loadNotificationSettings,
   peekInvite,
@@ -332,15 +331,6 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     await insertReviewEvent(sql, owner, data, context.userId);
     return { ok: true as const };
-  });
-
-export const listMonthlyReviews = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .validator(businessInput)
-  .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    return { events: await listReviewEvents(sql, owner, data.businessId) };
   });
 
 // ── Locked report versions ──────────────────────────────────────────────────

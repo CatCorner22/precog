@@ -1,4 +1,4 @@
-import { locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "../import/csv";
+import { locateTable, stripInvisibleControls } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
@@ -100,7 +100,7 @@ function looksLikeVendors(headers: readonly string[]): boolean {
   return lowered.some((h) => VENDOR_HEADERS.includes(h));
 }
 
-export function detectAccessSource(headers: readonly string[]): AccessSource {
+function detectAccessSource(headers: readonly string[]): AccessSource {
   const joined = headers.map(norm).join(" ");
   if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
   if (joined.includes("contact name") || joined.includes("account number")) return "xero";
@@ -252,15 +252,7 @@ export function parseVendorExport(text: string, asOf: string): AccessVendorRow[]
   const parsed = parseAccessExport(text, [], asOf);
   if (parsed.vendors.length > 0) return parsed.vendors;
   // A user-shaped file should not be reread as vendors.
-  if (parsed.users.length > 0) return [];
-  const delimiter = sniffDelimiter(text);
-  const rows = parseRows(text, delimiter);
-  if (rows.length < 2) return [];
   return [];
-}
-
-export function emptyReconciliation(now: string): AccessReconciliation {
-  return { importedAt: now, source: "unknown", users: [], vendors: [] };
 }
 
 function isDuty(value: unknown): value is EntitlementId {

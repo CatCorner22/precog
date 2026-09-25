@@ -12,7 +12,7 @@ import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { runPrecogScenario } from "../../engine";
 import { rankDangerousScenarios } from "../../engine";
 
-export interface TwinWorld {
+interface TwinWorld {
   label: string;
   residual: number;
   annualCor: number;

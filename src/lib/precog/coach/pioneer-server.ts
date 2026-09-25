@@ -135,8 +135,3 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       return { ok: false, error: PIONEER_FAILED_MESSAGE };
     }
   });
-
-export const getLlmToolCatalog = createServerFn({ method: "GET" }).handler(async () => {
-  const { TOOL_CATALOG } = await import("../llm/tools");
-  return TOOL_CATALOG;
-});

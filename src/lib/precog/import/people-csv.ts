@@ -12,7 +12,7 @@ export interface PeopleImportIssue {
   message: string;
 }
 
-export interface TitleMapping {
+interface TitleMapping {
   row: number;
   name: string;
   title: string;
@@ -53,7 +53,7 @@ export interface PeopleImportResult {
 }
 
 /** The fields of a person a file can carry. */
-export type PersonField =
+type PersonField =
   | "role"
   | "department"
   | "tenureYears"
@@ -64,7 +64,7 @@ export type PersonField =
   | "owner"
   | "dutiesFromTitle";
 
-export const PEOPLE_CSV_HEADER = [
+const PEOPLE_CSV_HEADER = [
   "name",
   "employee_id",
   "role",

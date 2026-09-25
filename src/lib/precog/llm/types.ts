@@ -23,11 +23,6 @@ export type ToolName =
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
-export interface ToolCall {
-  tool: ToolName;
-  args?: Record<string, unknown>;
-}
-
 export interface ToolResult {
   tool: ToolName;
   args?: Record<string, unknown>;
@@ -37,7 +32,7 @@ export interface ToolResult {
   links?: { tab: string; id?: string; label: string }[];
 }
 
-export type ReasoningPhase =
+type ReasoningPhase =
   "plan" | "retrieve" | "analyze" | "reason" | "critique" | "specialize" | "synthesize" | "meta";
 
 export interface ReasoningStep {
@@ -101,9 +96,4 @@ export interface AgentRunResult {
   brief: StructuredBrief;
   contextFingerprint: string;
   latencyMs: number;
-}
-
-export interface AgentRunError {
-  ok: false;
-  error: string;
 }

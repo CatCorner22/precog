@@ -9,8 +9,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
  * revision N and save at the same moment cannot both succeed — Postgres
  * evaluates the predicate against the row it has just locked, and the loser's
  * update matches nothing. The earlier read-then-write version let the second
- * writer silently overwrite the first; `isStaleSave` in ./save-conflict still
- * documents the intended semantics, but the database now enforces them.
+ * writer silently overwrite the first; the database now enforces the rule.
  *
  * A business row is keyed by its owner's user id. Members of the owner's firm
  * reach the same row (see `resolveBusinessOwner`), so `userId` here is always
@@ -34,7 +33,7 @@ export interface BusinessSaveInput {
   firmUserId?: string | null;
 }
 
-export interface BusinessRowSnapshot<TProfile = unknown> {
+interface BusinessRowSnapshot<TProfile = unknown> {
   revision: number;
   profile: TProfile;
   industry: string;
@@ -49,9 +48,9 @@ export type BusinessSaveResult<TProfile = unknown> =
 /** Businesses one account may keep in the cloud. Saves to existing ones always go through. */
 export const MAX_BUSINESSES_PER_USER = 50;
 /** Versions kept per business before the oldest are dropped. */
-export const MAX_HISTORY_PER_BUSINESS = 200;
+const MAX_HISTORY_PER_BUSINESS = 200;
 /** Days a deleted business stays restorable before the purge job removes it. */
-export const DELETED_RETENTION_DAYS = 30;
+const DELETED_RETENTION_DAYS = 30;
 
 export class BusinessLimitError extends Error {
   readonly status = 409;

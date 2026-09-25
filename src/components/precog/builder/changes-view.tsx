@@ -96,7 +96,7 @@ export function ChangesView({
   );
 }
 
-export function ChangeGroup({
+function ChangeGroup({
   label,
   tone,
   children,
@@ -113,7 +113,7 @@ export function ChangeGroup({
   );
 }
 
-export function ChangeRow({
+function ChangeRow({
   label,
   detail,
   onClick,

@@ -35,7 +35,7 @@ function uid(prefix: string) {
 }
 
 /** Built-in blocks available in the map builder. */
-export const PROCESS_BLOCKS: ProcessBlock[] = [
+const PROCESS_BLOCKS: ProcessBlock[] = [
   {
     id: "block-dual-payment",
     name: "Dual-control payment release",

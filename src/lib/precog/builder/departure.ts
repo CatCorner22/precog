@@ -26,7 +26,7 @@ export interface DepartureImpact {
 
 const STRONG = new Set(["expert", "proficient"]);
 
-export function simulateDeparture(
+function simulateDeparture(
   tpl: IndustryTemplate,
   person: Person,
   processes: ProcessNode[],

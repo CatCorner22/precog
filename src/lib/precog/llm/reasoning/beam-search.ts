@@ -12,7 +12,7 @@ import {
   type CascadeSimulation,
 } from "../../scoring/variable-cascade";
 
-export interface BeamNode {
+interface BeamNode {
   sequence: CascadeLeverId[];
   labels: string[];
   staff: StaffComposition;

@@ -6,12 +6,6 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 
-/** current = revision stored server-side (null when no row); base = revision the client last loaded (null when it never loaded this business). */
-export function isStaleSave(current: number | null, base: number | null): boolean {
-  if (current === null) return false;
-  return base === null || base !== current;
-}
-
 /**
  * Each copy of the open business a tab writes carries its own revision and
  * the revision it was built on, first in the JSON so another tab can read

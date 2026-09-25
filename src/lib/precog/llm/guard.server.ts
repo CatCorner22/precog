@@ -10,7 +10,7 @@ export type LlmAccess = {
   grok: "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
 };
 
-export class TooManyRequestsError extends Error {
+class TooManyRequestsError extends Error {
   readonly status = 429;
   readonly retryAfterMs: number;
 

@@ -6,7 +6,7 @@
 import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
 
-export type SpecialistId = "operator" | "shield" | "precog" | "critic";
+type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
 export interface SpecialistNote {
   agent: SpecialistId;

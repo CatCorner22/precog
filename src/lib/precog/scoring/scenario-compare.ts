@@ -3,7 +3,7 @@ import type { IndustryTemplate } from "../templates";
 import type { PrecogResult, StaffComposition } from "../types";
 import type { RiskVariableState } from "./dynamic-variables";
 
-export interface CompareColumn {
+interface CompareColumn {
   id: string;
   label: string;
   scenarioId: string;
@@ -19,15 +19,12 @@ export interface CompareColumn {
   annualMitigationCost: number;
 }
 
-export interface CompareDelta {
+interface CompareDelta {
   columnId: string;
   vsBaseline: {
     expectedLossDelta: number;
     retainedDelta: number;
     p50DaysDelta: number;
-    p95HighDelta: number;
-    priorityIndexDelta: number;
-    expectedLossPct: number;
     annualCorDelta: number;
   };
 }
@@ -44,10 +41,7 @@ export interface CompareReport {
   baselineId: string;
   columns: CompareColumn[];
   deltas: CompareDelta[];
-  winnerByLoss: string;
   winnerByRetained: string;
-  /** Fewest assumed days until found. */
-  winnerBySpeed: string;
   winnerByPriority: string;
   winnerByAnnualCor: string;
   staff: StaffComposition;
@@ -69,7 +63,7 @@ function priorityIndex(result: PrecogResult, authoredDays: number): number {
   return lossMetric(result) * (1 / Math.max(14, authoredDays));
 }
 
-export function buildCompareColumn(
+function buildCompareColumn(
   tpl: IndustryTemplate,
   scenarioId: string,
   mitigationIds: string[],
@@ -203,9 +197,7 @@ function finalizeReport(
       baselineId: "",
       columns: [],
       deltas: [],
-      winnerByLoss: "",
       winnerByRetained: "",
-      winnerBySpeed: "",
       winnerByPriority: "",
       winnerByAnnualCor: "",
       staff,
@@ -219,22 +211,13 @@ function finalizeReport(
     const el = c.result.financialImpact.expected - baseline.result.financialImpact.expected;
     const ret = lossMetric(c.result) - lossMetric(baseline.result);
     const p50 = c.result.timelineDays.p50 - baseline.result.timelineDays.p50;
-    const p95 = c.result.timelineDays.p95High - baseline.result.timelineDays.p95High;
-    const pri = c.priorityIndex - baseline.priorityIndex;
     const cor = annualCor(c.result) - annualCor(baseline.result);
-    const pct =
-      baseline.result.financialImpact.expected === 0
-        ? 0
-        : (el / baseline.result.financialImpact.expected) * 100;
     return {
       columnId: c.id,
       vsBaseline: {
         expectedLossDelta: el,
         retainedDelta: ret,
         p50DaysDelta: p50,
-        p95HighDelta: p95,
-        priorityIndexDelta: pri,
-        expectedLossPct: pct,
         annualCorDelta: cor,
       },
     };
@@ -245,9 +228,7 @@ function finalizeReport(
     baselineId,
     columns,
     deltas,
-    winnerByLoss: pickWinner(columns, mode, (c) => grossMetric(c.result)),
     winnerByRetained: pickWinner(columns, mode, (c) => lossMetric(c.result)),
-    winnerBySpeed: pickWinner(columns, mode, (c) => c.result.timelineDays.p50),
     winnerByPriority: pickWinner(columns, mode, (c) => c.priorityIndex),
     winnerByAnnualCor: pickWinner(columns, mode, (c) => annualCor(c.result)),
     staff,

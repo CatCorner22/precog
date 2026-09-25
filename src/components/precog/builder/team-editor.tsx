@@ -36,7 +36,7 @@ import { placeholderNames } from "@/lib/precog/onboarding/own-team";
 import { stripInvisibleControls } from "@/lib/precog/import/csv";
 import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
 import { locationText, personLocations } from "@/lib/precog/person-location";
-export function EntitlementPicker({
+function EntitlementPicker({
   selected,
   onChange,
 }: {

@@ -4,9 +4,9 @@
  * so the callback needs no session of its own. HMAC via WebCrypto, so the
  * same code runs in a test without Node-only modules.
  */
-export const QBO_SCOPE = "com.intuit.quickbooks.accounting";
-export const QBO_AUTHORIZE_URL = "https://appcenter.intuit.com/connect/oauth2";
-export const STATE_TTL_MS = 10 * 60 * 1000;
+const QBO_SCOPE = "com.intuit.quickbooks.accounting";
+const QBO_AUTHORIZE_URL = "https://appcenter.intuit.com/connect/oauth2";
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 export interface ConnectState {
   userId: string;

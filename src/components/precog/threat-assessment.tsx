@@ -359,7 +359,3 @@ function Mini({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-export function ThreatAssessment() {
-  return <ThreatAssessmentPanel />;
-}

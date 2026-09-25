@@ -14,7 +14,7 @@ export const MAX_SHARE_BYTES = 256 * 1024;
 const str = (max: number) => z.string().max(max);
 const num = z.number().finite();
 
-export const sharedMapPayloadSchema = z.object({
+const sharedMapPayloadSchema = z.object({
   version: z.literal(1),
   businessName: str(80),
   industry: z.enum(INDUSTRIES.map((i) => i.id) as [IndustryId, ...IndustryId[]]),
@@ -87,8 +87,8 @@ export function validateSharePayload(input: unknown): ParsedSharedMapPayload {
 }
 
 /** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
-export const SHARE_PASSCODE_MIN = 8;
-export const SHARE_PASSCODE_MAX = 64;
+const SHARE_PASSCODE_MIN = 8;
+const SHARE_PASSCODE_MAX = 64;
 
 export interface CreateShareInput {
   payload: ParsedSharedMapPayload;

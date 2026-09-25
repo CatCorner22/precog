@@ -12,7 +12,7 @@ import type { PracticeProfile } from "../practice-profile";
  * show. Each item carries a stable key and due date; the reminder log keeps
  * one row per (item, due date, recipient), so an item is announced once.
  */
-export type DueAudience = "advisor" | "owner" | "both";
+type DueAudience = "advisor" | "owner" | "both";
 
 export interface DueItem {
   key: string;

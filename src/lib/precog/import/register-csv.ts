@@ -31,7 +31,7 @@ export interface RegisterImportResult {
   unknownPeople: string[];
 }
 
-export const REGISTER_CSV_COLUMNS = [
+const REGISTER_CSV_COLUMNS = [
   "item",
   "kind",
   "criticality",

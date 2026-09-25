@@ -66,7 +66,7 @@ export interface DetectedConflict {
   processIds: string[];
 }
 
-export interface SodMatrixCell {
+interface SodMatrixCell {
   row: EntitlementId;
   col: EntitlementId;
   status: "safe" | "conflict" | "self" | "n/a";
@@ -789,7 +789,8 @@ export function detectSodConflicts(
     // The catch-all is for pairs no rule names. For the sole owner, whose
     // named pairs are already listed as owner-held, a vaguer "one pair of
     // hands" finding about their own business says nothing an owner can act on.
-    for (let i = 0; i < (owner ? 0 : ents.length); i++) {
+    if (owner) continue;
+    for (let i = 0; i < ents.length; i++) {
       for (let j = i + 1; j < ents.length; j++) {
         const a = ents[i];
         const b = ents[j];
@@ -798,60 +799,58 @@ export function detectSodConflicts(
         if (a === "view_reports_only" || b === "view_reports_only") continue;
         if (namedDuties.has(a) || namedDuties.has(b)) continue;
         if (bossPowers(a, b)) continue;
-        // The owner signing, approving and reading the statement is oversight
-        // working as designed, not a gap.
-        if (owner && OVERSIGHT_DUTIES.has(a) && OVERSIGHT_DUTIES.has(b)) continue;
 
-        {
-          const [canonicalA, canonicalB] = canonicalPair(a, b);
-          const canonicalFamilyA = entFamily(canonicalA);
-          const canonicalFamilyB = entFamily(canonicalB);
-          const familyId = `${person.personId}:family:${canonicalA}:${canonicalB}`;
-          const familyRaw =
-            rawConflictScore("family", canonicalA, canonicalB, false, 0, false, staff) -
-            (owner ? 30 : 0);
-          rawScores.set(familyId, familyRaw);
-          conflicts.push({
-            id: familyId,
-            ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
-            personId: person.personId,
-            personName: person.personName,
-            role: person.role,
-            entitlementA: canonicalA,
-            entitlementB: canonicalB,
-            labelA: entLabel(canonicalA),
-            labelB: entLabel(canonicalB),
-            severity: "family",
-            title:
-              canonicalFamilyA === canonicalFamilyB
-                ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
-                : `${FAMILY_LABEL[canonicalFamilyA]} and ${FAMILY_LABEL[canonicalFamilyB]} in one pair of hands`,
-            why:
-              canonicalFamilyA === canonicalFamilyB
-                ? `One person holds both of these ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
-                : (FAMILY_WHY[[canonicalFamilyA, canonicalFamilyB].sort().join("-")] ??
-                  `One person both ${FAMILY_VERB[canonicalFamilyA]} and ${FAMILY_VERB[canonicalFamilyB]}, so no step in that sequence gets a second look.`),
-            fraudPath: owner
-              ? OWNER_HELD_PATH
-              : canonicalFamilyA === canonicalFamilyB
-                ? `Complete both steps alone, with no handover anyone would notice`
-                : `Act, then write or check the record of the act, unobserved`,
-            score: clampScore(familyRaw),
-            compensatingControls: owner
-              ? [...OWNER_HELD_SUGGESTIONS]
-              : [
-                  `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
-                  "Have a second person review this sequence on a set cadence",
-                ],
-            controlsInPlace: [],
-            ownerHeld: owner,
-            residualRiskAccepted: false,
-            dualReleaseMitigated: false,
-            processIds: Array.from(
-              new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
-            ),
-          });
-        }
+        const [canonicalA, canonicalB] = canonicalPair(a, b);
+        const canonicalFamilyA = entFamily(canonicalA);
+        const canonicalFamilyB = entFamily(canonicalB);
+        const familyId = `${person.personId}:family:${canonicalA}:${canonicalB}`;
+        const familyRaw = rawConflictScore(
+          "family",
+          canonicalA,
+          canonicalB,
+          false,
+          0,
+          false,
+          staff,
+        );
+        rawScores.set(familyId, familyRaw);
+        conflicts.push({
+          id: familyId,
+          ruleId: familyRuleId(canonicalFamilyA, canonicalFamilyB),
+          personId: person.personId,
+          personName: person.personName,
+          role: person.role,
+          entitlementA: canonicalA,
+          entitlementB: canonicalB,
+          labelA: entLabel(canonicalA),
+          labelB: entLabel(canonicalB),
+          severity: "family",
+          title:
+            canonicalFamilyA === canonicalFamilyB
+              ? `Two ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties held by one person`
+              : `${FAMILY_LABEL[canonicalFamilyA]} and ${FAMILY_LABEL[canonicalFamilyB]} in one pair of hands`,
+          why:
+            canonicalFamilyA === canonicalFamilyB
+              ? `One person holds both of these ${SAME_FAMILY_NOUN[canonicalFamilyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`
+              : (FAMILY_WHY[[canonicalFamilyA, canonicalFamilyB].sort().join("-")] ??
+                `One person both ${FAMILY_VERB[canonicalFamilyA]} and ${FAMILY_VERB[canonicalFamilyB]}, so no step in that sequence gets a second look.`),
+          fraudPath:
+            canonicalFamilyA === canonicalFamilyB
+              ? `Complete both steps alone, with no handover anyone would notice`
+              : `Act, then write or check the record of the act, unobserved`,
+          score: clampScore(familyRaw),
+          compensatingControls: [
+            `Move either "${entLabel(canonicalA)}" or "${entLabel(canonicalB)}" to someone else`,
+            "Have a second person review this sequence on a set cadence",
+          ],
+          controlsInPlace: [],
+          ownerHeld: false,
+          residualRiskAccepted: false,
+          dualReleaseMitigated: false,
+          processIds: Array.from(
+            new Set([...entProcesses(canonicalA), ...entProcesses(canonicalB)]),
+          ),
+        });
       }
     }
   }
@@ -1025,7 +1024,7 @@ export function detectSodConflicts(
  * conflict never raises the index. This is an index this app defines, not a
  * measurement.
  */
-export function segregationPressure(conflicts: readonly DetectedConflict[]): number {
+function segregationPressure(conflicts: readonly DetectedConflict[]): number {
   const gaps = new Map<string, DetectedConflict[]>();
   for (const c of conflicts) {
     const key = c.severity === "family" ? `family:${c.entitlementA}:${c.entitlementB}` : c.ruleId;
@@ -1065,11 +1064,4 @@ export function segregationHealthIndex(pressure: number): number {
   if (pressure <= 0) return 100;
   if (pressure <= 50) return Math.round(100 - pressure);
   return Math.max(1, Math.round(50 * Math.pow(0.5, (pressure - 50) / 35)));
-}
-
-export function conflictMatrixForPerson(
-  personId: string,
-  report: SodDetectionReport,
-): DetectedConflict[] {
-  return report.conflicts.filter((c) => c.personId === personId);
 }

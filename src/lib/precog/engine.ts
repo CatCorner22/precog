@@ -104,21 +104,19 @@ function staffRiskMultiplier(staff: StaffComposition): number {
   return m;
 }
 
-function fraudMultiplier(tpl: IndustryTemplate, scenario: ScenarioTemplate): number {
-  const { crimeFraudStats } = tpl;
-  const fraudRelated =
+/**
+ * Whether a scenario is a fraud scenario, for the reference figures shown
+ * beside it. The ACFE medians are medians of two sub-populations of
+ * investigated frauds; the ratio between them is not a multiplier for any one
+ * business's assumed loss, so nothing here scales the arithmetic.
+ */
+function isFraudScenario(scenario: ScenarioTemplate): boolean {
+  return (
     scenario.id.includes("cash") ||
     scenario.id.includes("writeoff") ||
     scenario.id.includes("vendor") ||
-    scenario.controlId?.includes("sod");
-  if (!fraudRelated) return 1;
-  // The ACFE medians are shown beside a fraud scenario as reference figures
-  // (see crimeModifiers below). They are medians of two sub-populations of
-  // investigated frauds, and the ratio between them is not a multiplier for
-  // any one business's assumed loss, so no scaling is applied. Returning a
-  // value above 1 only marks the scenario as fraud-related for the caller.
-  void crimeFraudStats;
-  return 1;
+    Boolean(scenario.controlId?.includes("sod"))
+  );
 }
 
 export function runPrecogScenario(
@@ -147,11 +145,10 @@ export function runPrecogScenario(
   const vars = effectiveRiskVariables(entered, ownBusiness);
 
   const sMult = staffRiskMultiplier(staff);
-  const fMult = fraudMultiplier(tpl, scenario);
   const flags = scenarioFlags(scenarioId);
 
-  let timelineMult = sMult * Math.sqrt(fMult);
-  let impactMult = sMult * fMult;
+  let timelineMult = sMult;
+  let impactMult = sMult;
 
   const selected = new Set(options?.mitigationIds ?? []);
   let reduction = 0;
@@ -216,12 +213,7 @@ export function runPrecogScenario(
   }
 
   const crimeModifiers: string[] = [];
-  const isFraudScenario =
-    scenario.id.includes("cash") ||
-    scenario.id.includes("writeoff") ||
-    scenario.id.includes("vendor") ||
-    Boolean(scenario.controlId?.includes("sod"));
-  if (isFraudScenario) {
+  if (isFraudScenario(scenario)) {
     crimeModifiers.push(
       `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
     );
@@ -311,10 +303,6 @@ export function runPrecogScenario(
       notes: dynamic.transfer.notes,
     },
   };
-}
-
-export function getScenario(tpl: IndustryTemplate, id: string): ScenarioTemplate | undefined {
-  return tpl.scenarios.find((s) => s.id === id);
 }
 
 /**

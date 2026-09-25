@@ -133,7 +133,7 @@ function dependenceFor(items: readonly KnowledgeItem[], stopped: readonly Knowle
 
 export const CONFIRMATION_MAX_AGE_DAYS = 90;
 
-export interface StaleItem {
+interface StaleItem {
   item: KnowledgeItem;
   coverage: CoverageStatus;
   confirmedAt: string | null;
@@ -244,12 +244,12 @@ export function staleItems(
   };
 }
 
-export interface CheckInItem extends StaleItem {
+interface CheckInItem extends StaleItem {
   /** What the register currently says this person can do. */
   level: KnowledgeLevel;
 }
 
-export interface PersonCheckIn {
+interface PersonCheckIn {
   person: Person;
   /** Stale items this person holds at any level, most critical first. */
   items: CheckInItem[];

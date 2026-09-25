@@ -62,7 +62,7 @@ export interface WeeklyAction {
   evidence?: ActionEvidence;
 }
 
-export interface ActionEvidence {
+interface ActionEvidence {
   caseCount: number;
   /** The largest recorded loss among those cases. */
   worst: { title: string; lossUsd: number; lossIsFloor: boolean } | null;

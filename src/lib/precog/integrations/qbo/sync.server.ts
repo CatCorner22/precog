@@ -19,7 +19,7 @@ import {
 } from "./store";
 
 /** How old a reading may get before the scheduled run re-reads the books. */
-export const SYNC_STALE_DAYS = 28;
+const SYNC_STALE_DAYS = 28;
 
 /**
  * One reading of a connected company: refresh the access token when it is

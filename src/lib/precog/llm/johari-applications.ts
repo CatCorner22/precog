@@ -35,7 +35,7 @@ export interface JohariMove {
   precogTab?: string;
 }
 
-export interface JohariQuadrantGuide {
+interface JohariQuadrantGuide {
   id: JohariQuadrant;
   classicName: string;
   classicMeaning: string;
@@ -48,7 +48,7 @@ export interface JohariQuadrantGuide {
   color: "ok" | "warn" | "primary" | "danger";
 }
 
-export interface JohariDomainApp {
+interface JohariDomainApp {
   domain: JohariDomain;
   title: string;
   summary: string;

@@ -130,7 +130,7 @@ export function withOwnScenarioWording(tpl: IndustryTemplate): IndustryTemplate 
 }
 
 /** One scenario's narrative with the sample team's names replaced by role words. */
-export function ownScenarioWording(
+function ownScenarioWording(
   s: ScenarioTemplate,
   sample: Pick<IndustryTemplate, "people" | "relations">,
 ): ScenarioTemplate {

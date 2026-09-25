@@ -6,7 +6,7 @@ import { FREQUENCY_DAYS, FREQUENCY_LABEL, evidenceStatus } from "./evidence";
 import type { PracticeProfile } from "../practice-profile";
 import type { EvidenceItem, Person, ProcessNode } from "../types";
 
-export type DueKind = "evidence" | "decision" | "snapshot";
+type DueKind = "evidence" | "decision" | "snapshot";
 
 export interface DueItem {
   id: string;
@@ -31,7 +31,7 @@ function startOfDay(d: Date) {
   return x;
 }
 
-export function nextDueDate(item: EvidenceItem): Date | null {
+function nextDueDate(item: EvidenceItem): Date | null {
   if (!item.lastDoneAt) return null;
   return new Date(
     new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * 86_400_000,

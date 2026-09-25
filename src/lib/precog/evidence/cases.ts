@@ -58,7 +58,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Illinois",
       url: "https://www.justice.gov/usao-sdil/pr/former-small-business-office-manager-sentenced-4-years-federal-prison-embezzlement",
-      grade: "primary-document-reported",
     },
     caveat:
       "Restitution was ordered at $168,536.12, which exceeds the $158,658.41 embezzled because it also covers a separate credit-card identity theft against a coworker.",
@@ -97,7 +96,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/former-office-manager-boston-dental-practice-sentenced-bank-fraud-identity-theft-and-tax",
-      grade: "primary-document-reported",
     },
     caveat:
       "The scheme ran from 2009 through December 2014. The figure is stated in the source as more than $348,000. Yuliya Vaysglus was terminated in February 2015 and pled guilty in June 2020 to bank fraud, aggravated identity theft, and filing false tax returns; 41 months.",
@@ -135,7 +133,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Texas",
       url: "https://www.justice.gov/usao-sdtx/pr/local-woman-sentenced-embezzling-funds-dental-office",
-      grade: "primary-document-reported",
     },
     caveat:
       "The $243,597 figure is the loss the practice's own outside auditor identified; the charged conduct is described as more than $200,000. Sentence was 41 months. This is the clearest case in the library for how these schemes usually end: not through a control, but because an owner finally looked. An owner who only looks at retirement is choosing a detection window measured in decades. Jennifer Thornton pled guilty to wire fraud on 20 July 2023.",
@@ -173,7 +170,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Connecticut",
       url: "https://www.justice.gov/usao-ct/pr/stamford-dental-office-manager-sentenced-prison-defrauding-insurance-companies",
-      grade: "primary-document-reported",
     },
     caveat:
       "This case runs the other direction from embezzlement: the money flowed into the practice, and the practice carried the repayment and reputational exposure. Billing ran from 2005 to 2016; the $581,729 reflects insurer payments between 2011 and 2015. The 132 months recorded is the full 2005 to 2016 billing period, which is how long the scheme ran; the $581,729 is what insurers paid during the 2011 to 2015 window within it, so it is recorded as a floor for the full period. The provider whose identity was used was a retired dentist. Sentenced 2017 to twelve months and one day.",
@@ -213,7 +209,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
       url: "https://www.justice.gov/usao-mn/pr/kenyon-bookkeeper-sentenced-more-9-years-prison-881000-employer-embezzlement-and-tax",
-      grade: "primary-document-reported",
     },
     caveat:
       "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. Both components are approximate, so the sum is an estimate, not a floor. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
@@ -259,7 +254,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
       url: "https://www.justice.gov/usao-mn/pr/hutchinson-woman-sentenced-prison-embezzling-more-2-million-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Scheme ran August 2013 through December 2019. The employer was R&R Excavating, a family-owned highway construction company. Jennifer Rath pled guilty in September 2023 and was sentenced in June 2024 to nearly three and a half years, with restitution of the full $2,061,328.67. The loss was not only the money: the company could not pay vendors on time, its credit suffered, and employees lost their jobs.",
@@ -298,7 +292,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Middle District of Florida",
       url: "https://www.justice.gov/usao-mdfl/pr/long-time-employee-local-construction-firm-sentenced-prison-embezzlement",
-      grade: "primary-document-reported",
     },
     caveat:
       "The source describes the credit-card payments as dating back to at least 2008 without giving an end date, so no duration is recorded. The escalation pattern — starting small, growing when nothing happens — is the part worth noticing. Pamela Smith, 60, of Winter Park, was sentenced in December 2022 to three years.",
@@ -343,7 +336,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/attleboro-woman-sentenced-18-months-prison-embezzling-more-400000",
-      grade: "primary-document-reported",
     },
     caveat:
       "Marie Hobson, 55, was sentenced in January 2026 to 18 months, with $511,119 in restitution and $429,980 forfeited. Scheme ran December 2019 through March 2025.",
@@ -388,7 +380,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Idaho",
       url: "https://www.justice.gov/usao-id/pr/mountain-home-man-sentenced-27-months-embezzlement",
-      grade: "primary-document-reported",
     },
     caveat: "Sentenced in December 2025 to 27 months, with $685,376 in restitution.",
   },
@@ -426,7 +417,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
       url: "https://www.justice.gov/usao-edny/pr/former-executive-director-long-island-charity-sentenced-over-two-years-prison",
-      grade: "primary-document-reported",
     },
     caveat:
       "Wafa Abboud was sentenced in January 2023 to 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution to Human First. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization, so it is the loss recorded here; the release's headline says over $1 million. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016 and acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
@@ -465,7 +455,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of New York",
       url: "https://www.justice.gov/usao-sdny/pr/founder-and-former-ceo-charity-pleads-guilty-multimillion-dollar-charity-fraud-and-tax",
-      grade: "primary-document-reported",
     },
     caveat:
       "Pled guilty in 2025 to wire fraud and to evading more than $1 million in federal income tax; sentencing was scheduled for 10 December 2025. The $2.5 million is stated as a floor.",
@@ -505,7 +494,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Columbia",
       url: "https://www.justice.gov/usao-dc/pr/former-office-manager-sentenced-prison-term-theft-nearly-280000-dc-architecture-firm",
-      grade: "primary-document-reported",
     },
     caveat:
       'Restitution and forfeiture were each ordered at $279,611, which is the figure recorded here; the charging office\'s headline of "nearly $280,000" is that number rounded up, so it is not a floor. Pled guilty November 2016 and was sentenced in February 2017 to six months in prison.',
@@ -543,7 +531,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
       url: "https://www.justice.gov/usao-wdwa/pr/former-assistant-office-manager-bellingham-business-sentenced-two-years-prison-14",
-      grade: "primary-document-reported",
     },
     caveat:
       "Sentenced November 2025 to two years for wire fraud and filing a false tax return. Nine years is worth sitting with: nothing in the ordinary course of business surfaced it for nearly a decade. The employer was Hardware Sales in Bellingham. Amy Siniscarco was sentenced 6 November 2025. On 12 August 2022 a bank representative told the owners that an electronic check had moved from the business account to her personal account; the owners' review of past transactions then found nine more, and they reported the theft to Bellingham police that month (Cascadia Daily News, from the charging papers). That account comes from the newspaper, not from the cited release, which does not say how the theft was found, so the detection route is recorded as unknown. The release puts the scheme at 2013 to 2022.",
@@ -582,7 +569,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of New Jersey",
       url: "https://www.justice.gov/usao-nj/pr/medical-office-receptionist-sentenced-34-months-prison-embezzlement-credit-card-fraud-and",
-      grade: "primary-document-reported",
     },
     caveat:
       "Gwendolyn Muller was sentenced in March 2015 to 34 months and ordered to pay $556,000 in restitution.",
@@ -621,7 +607,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Missouri",
       url: "https://www.justice.gov/usao-wdmo/pr/former-postal-worker-pleads-guilty-stealing",
-      grade: "primary-document-reported",
     },
     caveat:
       "The employer here was the U.S. Postal Service, not a small business, and no reliable loss total is recorded. It is included because the mechanism — void and no-sale entries used to suppress recorded cash — is exactly what a small retail counter, restaurant till, or practice front desk faces, and because no comparable small-business case surfaced with the mechanism described this plainly. Conduct ran June 2013 to February 2014.",
@@ -662,7 +647,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of Wisconsin",
       url: "https://www.justice.gov/usao-edwi/pr/former-bookkeeper-sentenced-federal-prison-embezzlement-and-fraud",
-      grade: "primary-document-reported",
     },
     caveat:
       "Emilee K. Rueda, 42, was sentenced on 9 February 2024 to 33 months for wire fraud and tax offenses. The release describes the victim only as a small business. IRS Criminal Investigation published a matching release. The purchases were made with company funds; the release does not say by what instrument.",
@@ -702,7 +686,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
       url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-charged-wire-fraud-embezzling-more-140000-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "The linked release is the charging document (February 2024). Timothy Michael Hill Jr. pleaded guilty in June 2024 (release: justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer, which names the employer only as Company A and puts the loss at about $144,000) and, per press reports of the sentencing hearing, was sentenced in October 2024 to one year in prison with restitution of about $145,000. The loss figure is the amount charged.",
@@ -742,7 +725,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Texas",
       url: "https://www.justice.gov/usao-wdtx/pr/former-office-manager-sentenced-fraud-charges",
-      grade: "primary-document-reported",
     },
     caveat:
       "Patricia Ann Doucet, 74, pleaded guilty in August 2021 to ten counts of wire fraud and was sentenced in November 2021 to 46 months with restitution of $345,254.44, which is the figure recorded here; the release rounds it to nearly $350,000.",
@@ -782,7 +764,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of North Carolina",
       url: "https://www.justice.gov/usao-wdnc/pr/bookkeeper-sentenced-federal-prison-embezzlment-scheme",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jeraldine Agnes Geldner was sentenced in January 2026 to 57 months. The loss is stated as $975,670.94; restitution of $1,131,293.94 also covers tax. IRS Criminal Investigation published a matching release. Three businesses were victims; the record treats them together because the release does.",
@@ -824,7 +805,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Indiana",
       url: "https://www.justice.gov/usao-sdin/pr/bookkeeper-sentenced-defrauding-small-franklin-indiana-business",
-      grade: "primary-document-reported",
     },
     caveat:
       "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. Her prior convictions are stated in the release.",
@@ -865,7 +845,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
       publisher:
         "IRS Criminal Investigation, reporting the U.S. Attorney's Office, District of Maryland",
       url: "https://www.irs.gov/compliance/criminal-investigation/former-office-manager-sentenced-for-embezzling-more-than-1-point-7-million-from-ocean-city-home-builder",
-      grade: "primary-document-reported",
     },
     caveat:
       "Tammy Barcus of Berlin, Maryland pleaded guilty in October 2025 and was sentenced in March 2026 to 48 months, with restitution of $1,793,688.87 to the builder and $562,883 to the IRS. The loss recorded is the restitution to the employer. The U.S. Attorney's Office published the plea release; the sentencing release cited here is IRS-CI's.",
@@ -906,7 +885,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
       url: "https://www.justice.gov/usao-wdwa/pr/former-flooring-company-bookkeeper-sentenced-three-years-prison-scheme-steal-company",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jodi Hamrick was sentenced in April 2024 to three years after a jury trial; co-owner David M. Gluth was sentenced separately. The release states the loss as more than $400,000. This is a collusion case: two people, one of them an owner, defeated every control that depended on one person checking another. The investing partner learned what had happened only by taking the company to court; the business went bankrupt in 2016. Gluth pleaded guilty in 2021 and was sentenced to two years.",
@@ -951,7 +929,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Indiana",
       url: "https://www.justice.gov/usao-sdin/pr/former-office-manager-sentenced-two-and-half-years-federal-prison-embezzling-over-1",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jennifer Lynn Horton, 49, was sentenced in January 2025 to 30 months after pleading guilty to two counts of wire fraud, with a $1 million judgment and forfeiture of four vehicles. The release states the loss as more than $1 million; the salary and payroll figures are the release's. The owner went to investigators in February 2023 after working out that money was missing; court filings reported in the press put the total at $1,116,258.",
@@ -993,7 +970,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
       url: "https://www.justice.gov/usao-mn/pr/fairfax-bookkeeper-sentenced-prison-540000-embezzlement-scheme",
-      grade: "primary-document-reported",
     },
     caveat:
       "Theresa Ernestine Linsmeier pleaded guilty on 7 June 2018 to one count of wire fraud and one count of filing a false tax return and was sentenced in October 2018 to 27 months by Senior Judge Donovan W. Frank in St. Paul. IRS Criminal Investigation investigated. The release does not say how the store discovered the theft, so the detection route is recorded as unknown. The five-year duration is the span the release gives (about 2011 through 2016), not a court finding to the month.",
@@ -1034,7 +1010,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Iowa",
       url: "https://www.justice.gov/usao-sdia/pr/former-auto-dealership-office-manager-sentenced-41-months-federal-prison-14-million",
-      grade: "primary-document-reported",
     },
     caveat:
       "Ralph L. Schippers pleaded guilty on 17 September 2012 to wire fraud and was sentenced in January 2013 to 41 months in prison, three years of supervised release, and restitution of $1,433,825.37, the loss figure used here. The release says the scheme was not discovered until May 2012 but not how, so the detection route is recorded as unknown. A later published opinion, United States v. Schippers, 982 F. Supp. 2d 948 (S.D. Iowa 2013), concerns collection of that restitution for Granger Motors and its insurer. This is the oldest case in the library; the mechanics have not changed.",
@@ -1085,7 +1060,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Northern District of Iowa",
       url: "https://www.justice.gov/usao-ndia/pr/springville-woman-sent-federal-prison-embezzlement-scheme",
-      grade: "primary-document-reported",
     },
     caveat:
       "Debra Ann Vaughn, 67, of Springville, Iowa, pleaded guilty on 1 December 2025 to one count of bank fraud and was sentenced on 19 May 2026 to 41 months in prison and five years of supervised release. Restitution was set at $158,135.77 after credit for the $373,732.27 the company had already recovered in the civil case, so the loss recorded here is the release's figure of more than $500,000, not the restitution figure. The release does not say how the company discovered the theft, so the detection route is recorded as unknown. The eight-year duration is the span the release gives (2013 to 2021).",
@@ -1133,7 +1107,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Indiana",
       url: "https://www.justice.gov/usao-sdin/pr/anderson-accountant-sentenced-over-three-years-federal-prison-embezzling-nearly-one",
-      grade: "primary-document-reported",
     },
     caveat:
       'Nathaniel Wills, 34, of Anderson, Indiana, pleaded guilty to wire fraud and was sentenced in October 2024 by U.S. District Judge James P. Hanlon to 41 months in prison, three years of supervised release, and $877,507 in restitution; the loss recorded here is the $952,237 the release says he took. The release names the employer only as an Indiana business; local reporting identifies it as a flooring company, which the release does not, so the sector is recorded as any. Five years of tenure is the release\'s "nearly six years" rounded down. The release does not say how the theft was discovered, so the detection route is recorded as unknown.',
@@ -1175,7 +1148,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Middle District of Georgia",
       url: "https://www.justice.gov/usao-mdga/pr/former-georgia-bookkeeper-sentenced-embezzling-columbus-real-estate-brokerage-firm",
-      grade: "primary-document-reported",
     },
     caveat:
       "Lauren Williams Eldridge, 38, of Pine Mountain, Georgia, pleaded guilty on 29 January 2025 to five counts of wire fraud and was sentenced on 18 June 2025 by U.S. District Judge Clay Land to 27 months in prison, three years of supervised release, and restitution of $453,876.64; the loss recorded here is the $453,876.68 in payments the release states. The release says the firm's representatives noticed the discrepancies, which is recorded as the owner-review route: the business's own people looked, not an outside party. The employer is a franchise office of a national brokerage, not a national company; the release names it and describes her as its office manager and bookkeeper for nine years.",
@@ -1221,7 +1193,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Illinois",
       url: "https://www.justice.gov/usao-sdil/pr/embezzlement-doctors-office-sends-former-office-manager-federal-prison-nearly-three",
-      grade: "primary-document-reported",
     },
     caveat:
       'Cassandra D. Eberhart, 49, of Moro, Illinois, pleaded guilty in October 2018 to wire fraud and filing a false federal income tax return and was sentenced in February 2019 to 33 months in prison, three years of supervised release, and restitution of $368,308.99, the loss figure recorded here; the release\'s headline figure is "over $350,000". The six-year duration is the span the release gives (2011 through 2017). The release does not say how the practice discovered the theft, so the detection route is recorded as unknown.',
@@ -1262,7 +1233,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/former-medical-office-manager-sentenced-prison-embezzling-15-million-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Roxanne Tubolino, 56, of Belchertown, Massachusetts, pleaded guilty in January 2015 to one count of wire fraud and six counts of tax evasion and was sentenced in August 2015 in Springfield to 39 months in prison, 36 months of supervised release, and restitution of $1,342,256 to the practice, $25,000 to its insurer, and $506,447 to the IRS; the loss recorded here is the $1,562,206 the release says she took, and the insurer's share shows a fidelity claim was paid. The release gives the start only as 2008, so the 68-month duration counts from January 2008 and may overstate by up to eleven months. It does not say how the theft was discovered, so the detection route is recorded as unknown.",
@@ -1308,7 +1278,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of South Carolina",
       url: "https://www.justice.gov/usao-sc/pr/greer-woman-sentenced-federal-prison-ordered-pay-2m-restitution",
-      grade: "primary-document-reported",
     },
     caveat:
       'Jennifer L. Bengston Cook, 56, of Greer, South Carolina, pleaded guilty to wire fraud and was sentenced in June 2025 by U.S. District Judge Jacquelin D. Austin to 36 months in prison and restitution of $2,276,830.09, the loss figure recorded here; the release\'s headline rounds it to $2 million. The release says she was employed for more than a decade and does not date the scheme, so no duration is recorded; ten years of tenure is recorded as a floor. The detection route is recorded as "someone else covered the desk": the release says the conduct was discovered when she was on vacation and her supervisor needed to find the record of a vendor payment. The release does not name the business or its trade, so the sector is recorded as any.',
@@ -1345,7 +1314,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Indiana",
       url: "https://www.justice.gov/usao-sdin/pr/evansville-parts-manager-sentenced-three-and-half-years-federal-prison-5-year-scheme",
-      grade: "primary-document-reported",
     },
     caveat:
       "James H. Cox, 45, of Kentucky was sentenced in May 2023 by U.S. District Judge Richard L. Young to 3.5 years in prison after pleading guilty to wire fraud and tax counts. The release puts the employer's loss at $431,557.61 and splits restitution into $82,482.11 to the employer and $349,075.50 to its insurer, which is why the total rather than either restitution line is recorded here. He worked there from March 2015 to November 2020, the source of the five years of tenure; the release dates the fraudulent orders to 2018 through 2020, so 24 months is recorded as a floor. It does not say how the scheme was discovered or how large the business was.",
@@ -1384,7 +1352,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Montana",
       url: "https://www.justice.gov/usao-mt/pr/utah-man-sentenced-21-months-prison-defrauding-montana-employer-700000-restitution",
-      grade: "primary-document-reported",
     },
     caveat:
       "Thomas Lynn Syddall, 50, of American Fork, Utah was sentenced in May 2024 to 21 months in prison and ordered to pay $700,000 in restitution after pleading guilty to wire fraud and money-laundering concealment. The release gives the loss only as the approximately $700,000 restitution figure, which is recorded here. The release names the victim and its owner; it does not state the company's size, the salesman's length of service, or how the scheme came to light.",
@@ -1418,7 +1385,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Colorado",
       url: "https://www.justice.gov/usao-co/pr/former-dental-assistant-sentenced-tampering-fentanyl-vials-littleton-oral-surgery",
-      grade: "primary-document-reported",
     },
     caveat:
       "Amber June Hyatt, 47, of Evergreen, Colorado pleaded guilty to one count of tampering with a consumer product and was sentenced in January 2026 to a year and a day in prison and two years of supervised release. The release states no dollar loss — the harm is to patients, who may have received a replacement liquid in place of an anesthetic — so the loss is recorded as zero and this case is excluded from loss arithmetic. It does not state when the tampering began or the assistant's length of service. The detection route is recorded as a tip because the release says the roommate reported the vials to the practice.",
@@ -1458,7 +1424,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Vermont",
       url: "https://www.justice.gov/usao-vt/pr/swanton-woman-sentenced-prescription-fraud-and-embezzlement-scheme-and-ordered-pay",
-      grade: "primary-document-reported",
     },
     caveat:
       "Lindsey Cox, 37, of Swanton, Vermont was sentenced in December 2021 to five years of probation and ordered to pay $71,942.60 in restitution, the figure recorded here, after pleading guilty to conspiring to acquire controlled substances by fraud and to theft in connection with health care. The release says only that payment records were manipulated and falsified, not how the money left the practice, so the scheme is recorded as receivables diversion. The detection route is recorded as law enforcement because the release credits the St. Albans Police Department, working alongside the DEA's drug-diversion investigation, with uncovering the embezzlement. The practice's size and the employee's role and length of service are not stated.",
@@ -1493,7 +1458,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
       url: "https://www.justice.gov/archive/usao/waw/press/2012/September/bowman.html",
-      grade: "primary-document-reported",
     },
     caveat:
       "Lori Elizabeth Bowman, 38, of Bothell, Washington was sentenced in September 2012 to 30 months in prison and $174,336 in restitution for acquiring a controlled substance by fraud, access-device fraud, and aggravated identity theft. The release gives the card loss as approximately $174,336 and the monthly average as about $7,924 but no start date for the charges, so no duration is recorded. It describes detection as a pharmacy notifying the DEA about the dentist's prescribing, which led investigators to the employee; the card fraud surfaced from that investigation. The practice's size and her job title and tenure are not stated.",
@@ -1539,7 +1503,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/former-controller-small-business-sentenced-stealing-over-229000",
-      grade: "primary-document-reported",
     },
     caveat:
       "Kelly A. Lynch, 40, was sentenced in October 2018 to 18 months in prison and $229,088 in restitution after pleading guilty to bank fraud. The release gives the two components as approximately $141,845 in checks and $87,243 in transfers; their sum is recorded as the loss. She was hired in April 2017 and the scheme ran until her termination in January 2018, so tenure is recorded as under a year and duration as nine months. The release does not say how the theft was found or how large the company was.",
@@ -1584,7 +1547,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of Missouri",
       url: "https://www.justice.gov/usao-edmo/pr/former-employee-sentenced-3-years-prison-embezzling-339000-st-louis-county-company",
-      grade: "primary-document-reported",
     },
     caveat:
       "Ronald Scott Miller of Waterloo, Illinois was sentenced in March 2023 by U.S. District Judge Stephen R. Clark to three years and five months in prison after pleading guilty to wire fraud; the release states the loss as $339,844 and says he was ordered to repay it. The 25 years of tenure and the six-and-a-half-year duration are stated in the release. It does not say how the scheme was discovered or give the company's headcount.",
@@ -1631,7 +1593,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Nebraska",
       url: "https://www.justice.gov/usao-ne/pr/former-omaha-restaurant-manager-sentenced-wire-fraud",
-      grade: "primary-document-reported",
     },
     caveat:
       "Robert Giardina, 39, was sentenced in September 2020 by Senior U.S. District Judge Laurie Smith Camp to 30 months in prison and $30,075.16 in restitution for wire fraud, the figure recorded here. The release names neither the management company nor the brand. The refunds ran from October 24, 2017 to June 5, 2018; he was hired on July 24, 2017, so tenure is recorded as under one year. The release does not say how the refunds were detected.",
@@ -1680,7 +1641,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Vermont",
       url: "https://www.justice.gov/usao-vt/pr/jennifer-labonte-imprisoned-embezzling-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jennifer LaBonte, 45, of Essex Junction, Vermont was sentenced in March 2025 to four months in prison, a $7,500 fine, and $192,675 in restitution, which she had paid in full before sentencing; the release gives the loss as about $192,000 and the restitution figure is recorded here. It says the theft began 'no later than 2013' and was uncovered in January 2024, so 132 months is a floor. The 23 years of tenure come from the stated employment dates of 2001 through January 2024. The detection route is recorded as owner review because the release says an officer of the dealerships uncovered the fraud; the dealerships are not named or sized.",
@@ -1721,7 +1681,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Southern District of Alabama",
       url: "https://www.justice.gov/usao-sdal/pr/kentucky-man-sentenced-conspiracy-intrude-protected-computer-system-competitor-business",
-      grade: "primary-document-reported",
     },
     caveat:
       "Daniel Bruck LaCour, 33, of Lexington, Kentucky — the competitor, not the former employee — was sentenced in June 2022 to two years of probation, a $3,500 fine, and $40,000 in restitution to the victim company for conspiring to intrude into a protected computer. The release does not quantify the business lost; the $40,000 restitution is recorded as a floor. It describes the victim only as a printing company based in New York and Tennessee, does not state its size, and does not say how the intrusion was discovered. The insider is the former employee who supplied the credentials; the release does not describe any charge against that person.",
@@ -1761,7 +1720,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of North Carolina",
       url: "https://www.justice.gov/usao-wdnc/pr/office-manager-sentenced-four-years-embezzling-more-1-million-his-former-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Richard Allen Clark, 55, of Lenoir, North Carolina was sentenced in October 2021 to 48 months in prison, $980,000 in restitution to the businesses, and $194,750 to the IRS after pleading guilty to mail fraud, money laundering, and filing a false tax return. The release says more than $1 million, recorded as a floor. The six years of tenure come from the stated employment dates of 2013 to 2019; the release does not date the scheme itself within that span, so no duration is recorded. The businesses are not named and their size is not stated; the release does not say how the scheme was discovered.",
@@ -1809,7 +1767,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/dartmouth-woman-sentenced-prison-embezzling-multiple-employers",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jasmyne Botelho, 42, of Dartmouth, Massachusetts was sentenced in March 2025 to 20 months in prison and ordered to pay $443,122.59 in restitution and forfeiture after pleading guilty to two counts of wire fraud. The release gives the two losses as 'at least $280,000' and 'more than $160,000'; the restitution total is recorded as the loss and marked as a floor. Neither employer is named or sized, no job title is given — 'bookkeeper' in the title describes the duties, not a stated title — and the release does not say how either scheme was discovered. The two schemes ran 32 and 20 months and are not combined into a single duration.",
@@ -1850,7 +1807,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of New Jersey",
       url: "https://www.justice.gov/usao-nj/pr/lead-property-manager-admits-conspiracy-committ-wire-fraud-470000-kickback-scheme",
-      grade: "primary-document-reported",
     },
     caveat:
       "The lead property manager, 56, of Jersey City pleaded guilty in April 2024 to conspiracy to commit wire fraud, with sentencing scheduled for August 2024; this record has not been updated with the sentence and does not name him for that reason. The release states the loss to the complex's owner as $470,000, the sum of the kickbacks. It does not name the complex or its owner, or say how the scheme was discovered. The victim is a property owner rather than an operating business, so the sector is recorded as any.",
@@ -1897,7 +1853,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Central District of California",
       url: "https://www.justice.gov/usao-cdca/pr/former-it-administrator-sentenced-more-2-years-prison-hacking-his-ex-employer-s",
-      grade: "primary-document-reported",
     },
     caveat:
       "Nikishna Polequaptewa, 37, of Avondale, Arizona was found guilty by a federal jury in November 2018 of one count of unauthorized impairment of the integrity and availability of data and was sentenced in July 2019 to 27 months in prison and $53,305 in restitution. The loss recorded here is the restitution figure and is a floor: the release describes eight years of website and marketing work destroyed but puts no price on it. He was hired in April 2014, so tenure is recorded as under one year. The deletions ran over days in November 2014, recorded as one month. The release does not say how the firm discovered the deletions, so the detection route is unknown.",
@@ -1936,7 +1891,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Texas",
       url: "https://www.justice.gov/usao-wdtx/pr/san-antonio-bookkeeper-sentenced-fraud",
-      grade: "primary-document-reported",
     },
     caveat:
       "Alicia Henderson pleaded guilty in 2020 and was sentenced on 5 August 2022 to 33 months in prison and $356,104.23 in restitution, which covers the $291,385.23 taken plus $64,719 in unpaid federal tax on it; the loss recorded here is the amount taken. The nonprofit's name, Centro San Antonio, and the fake-audit detail come from San Antonio Report and KSAT coverage of the case: to keep the board satisfied she arranged an elaborate fake audit, with fabricated emails and websites and at least one other person who posed as the auditor. The release identifies the victim only as a nonprofit serving the Downtown Public Improvement District and does not describe the audit, so neither detail appears in the account above. The release does not say how the theft was discovered or how long she had worked there.",
@@ -1978,7 +1932,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Columbia",
       url: "https://www.justice.gov/usao-dc/pr/former-finance-director-district-non-profit-sentenced-embezzlement",
-      grade: "primary-document-reported",
     },
     caveat:
       "Jarrett Robert Lewis, 44, pleaded guilty on 13 February 2025 to one count of wire fraud and was sentenced on 17 June 2025 to 27 months in prison, three years of supervised release, $318,000 in restitution, and $53,335 for the organization's legal fees. The loss recorded here is the restitution figure; the release describes the total as nearly $320,000. He was hired in June 2021 and the scheme ran to October 2022, so tenure is recorded as one year. The release does not name the organization or say how the transfers were found.",
@@ -2019,7 +1972,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Washington",
       url: "https://www.justice.gov/usao-wdwa/pr/former-finance-director-two-non-profits-sentenced-41-months-prison-embezzling-over-3",
-      grade: "primary-document-reported",
     },
     caveat:
       "Susana Tantico, 63, of Renton, Washington pleaded guilty in May 2023 to two counts of wire fraud and was sentenced in September 2023 to 41 months in prison, three years of supervised release, and $3,121,572 in restitution, the figure recorded here. The release describes the thefts as running over an eleven-year period, but the dated spans it gives (December 2016 to May 2022) cover 66 months, which is what is recorded. One nonprofit spent $132,000 on a forensic audit and repairs to its records afterward. The release does not say how the thefts came to light; the bank inquiry it describes was deflected, not acted on. These employers are larger than most businesses this app serves.",
@@ -2070,7 +2022,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of New York",
       url: "https://www.justice.gov/usao-edny/pr/former-fiscal-officer-brooklyn-charity-sentenced-21-months-imprisonment-embezzlement",
-      grade: "primary-document-reported",
     },
     caveat:
       "Marcia Joseph pleaded guilty to wire fraud in January 2024 and was sentenced in September 2025 by U.S. District Judge Eric N. Vitaliano to 21 months in prison, with restitution and forfeiture of about $2.3 million; the loss recorded here is the $2,339,700 the release states she took. The release describes the span as nearly 17 years, recorded as 200 months. It does not name the nonprofit, state her hire date, or say how the invoices were discovered.",
@@ -2115,7 +2066,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Middle District of Louisiana",
       url: "https://www.justice.gov/usao-mdla/pr/former-office-manager-sentenced-federal-prison-embezzling-over-one-million-dollars",
-      grade: "primary-document-reported",
     },
     caveat:
       "Katherine Dyson of Denham Springs, Louisiana was sentenced in December 2019 to 42 months in prison after pleading guilty; the release states the loss as more than $1.2 million across more than 300 transactions, so the figure is recorded as a floor. The employer's name comes from the release and from The Advocate's coverage. The release does not say how the checks were discovered, give her hire date, or state the company's headcount.",
@@ -2157,7 +2107,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, District of Massachusetts",
       url: "https://www.justice.gov/usao-ma/pr/lowell-woman-sentenced-stealing-approximately-182000-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Sasha A. Saulnier of Lowell, Massachusetts pleaded guilty in January 2020 to six counts of wire fraud and was sentenced by U.S. District Judge Nathaniel M. Gorton to one year and one day in prison and restitution of $182,827.68, the figure recorded here. The resolved year is the year of the plea; the sentencing date could not be confirmed from here. The six years of tenure are the whole years from October 2011 to September 2018. The releases do not name the hospital, give its size, or say how the refunds were found; the sector is recorded as any because a veterinary hospital is neither a dental nor a medical practice, though its front desk works the same way.",
@@ -2191,7 +2140,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Eastern District of Virginia",
       url: "https://www.justice.gov/usao-edva/pr/norfolk-woman-sentenced-over-year-prison-embezzling-her-employer-pay-gambling-debts",
-      grade: "primary-document-reported",
     },
     caveat:
       "Katherine Louise Henderson, 55, of Norfolk was sentenced in June 2026 to a year and six months in prison for wire fraud; the release gives the total taken as $123,104.42, the figure recorded here, which includes the diverted vendor payments. The release does not name the company, give its size, say when the scheme began or how long it ran, or say how it was found.",
@@ -2233,7 +2181,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     source: {
       publisher: "U.S. Attorney's Office, Western District of Pennsylvania",
       url: "https://www.justice.gov/usao-wdpa/pr/former-foundation-it-manager-sentenced-prison-embezzling-nearly-1-million-employer",
-      grade: "primary-document-reported",
     },
     caveat:
       "Charles A. Richardson, 45, of Pittsburgh pleaded guilty to one count of wire fraud and was sentenced in 2026 by U.S. District Judge Christy Criswell Wiegand to one year and one day in prison. The release gives the loss as nearly $1 million; the $977,977 recorded here is the restitution ordered, as reported by Hoodline. That he was required to approve vendor invoices and submitted the shell company's invoices comes from press coverage of the sentencing, which attributes it to prosecutors; the release itself says he embezzled the money by authorizing payment of the fraudulent invoices. The 96 months are the eight years of billing, 2016 to 2024, and the ten years of tenure are 2014 to 2024. The foundation's headcount is not stated.",

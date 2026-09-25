@@ -5,7 +5,7 @@
  * Educational model for small businesses, not an insurance quote.
  */
 
-export type VariableCategory =
+type VariableCategory =
   | "insurance"
   | "transfer"
   | "physical_security"
@@ -13,7 +13,7 @@ export type VariableCategory =
   | "monitoring"
   | "continuity";
 
-export type VariableKind = "currency" | "percent" | "boolean" | "number";
+type VariableKind = "currency" | "percent" | "boolean" | "number";
 
 export interface DynamicVariableDef {
   id: string;
@@ -98,22 +98,19 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
  * owner changes one of them, every one is the app's default, not a fact about
  * the business.
  */
-export const POLICY_FIELDS = [
-  "basePremiumAnnual",
-  "deductible",
-  "policyLimit",
-  "coinsurancePct",
-  "maxDiscountPct",
-  "claimsLoadFactor",
-  "underwritingLoadAnnual",
-  "discountCamerasPct",
-  "discountDualControlPct",
-  "discountBankRecPct",
-  "discountAlarmPct",
-  "discountBondedStaffPct",
-] as const satisfies readonly (keyof RiskVariableState)[];
-
-export type PolicyField = (typeof POLICY_FIELDS)[number];
+export type PolicyField =
+  | "basePremiumAnnual"
+  | "deductible"
+  | "policyLimit"
+  | "coinsurancePct"
+  | "maxDiscountPct"
+  | "claimsLoadFactor"
+  | "underwritingLoadAnnual"
+  | "discountCamerasPct"
+  | "discountDualControlPct"
+  | "discountBankRecPct"
+  | "discountAlarmPct"
+  | "discountBondedStaffPct";
 
 /** The label every insurance figure carries while an app default is still in force. */
 export const APP_DEFAULT_POLICY = "app default, enter your policy";
@@ -466,7 +463,7 @@ export interface AppliedDiscount {
   reason: string;
 }
 
-export interface LikelihoodSeverityBreakdown {
+interface LikelihoodSeverityBreakdown {
   /** Relative likelihood multiplier vs base scenario (1 = unchanged) */
   likelihoodMultiplier: number;
   /** Relative severity multiplier on gross loss before insurance (1 = unchanged) */
@@ -585,7 +582,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
   return items;
 }
 
-export function computeNetPremium(v: RiskVariableState): {
+function computeNetPremium(v: RiskVariableState): {
   premiumAnnualNet: number;
   discountPctApplied: number;
   discounts: AppliedDiscount[];
@@ -600,7 +597,7 @@ export function computeNetPremium(v: RiskVariableState): {
   return { premiumAnnualNet, discountPctApplied, discounts };
 }
 
-export function computeLikelihoodSeverity(
+function computeLikelihoodSeverity(
   v: RiskVariableState,
   opts?: { fraudRelated?: boolean; cashRelated?: boolean },
 ): LikelihoodSeverityBreakdown {

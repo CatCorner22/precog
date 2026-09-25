@@ -10,7 +10,7 @@ import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
 
-export interface EvoiItem {
+interface EvoiItem {
   id: string;
   observation: string;
   /** Expected reduction in Bayesian EAL if observation resolves uncertainty */

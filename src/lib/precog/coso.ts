@@ -38,7 +38,7 @@ export interface CosoFinding {
   link: DeepLinkTarget;
 }
 
-export interface CosoPrincipleScore {
+interface CosoPrincipleScore {
   number: number;
   name: string;
   status: HealthStatus;

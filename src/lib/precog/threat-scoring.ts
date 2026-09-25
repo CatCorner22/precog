@@ -12,7 +12,6 @@
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
-import { getIndustryTemplate } from "./templates";
 import { industryMeta } from "./industry";
 import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
@@ -30,7 +29,6 @@ import {
   PRIORITY_BAND_LABEL,
   priorityBand,
   scorePriority,
-  type PriorityBand,
   type PriorityTarget,
 } from "./map-vision";
 import type { StaffComposition } from "./types";
@@ -41,22 +39,20 @@ import {
 } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 
-export type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
+type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
 
-export interface ThreatTarget extends PriorityTarget {
+interface ThreatTarget extends PriorityTarget {
   domain: ThreatDomain;
   residual?: number;
   expectedLoss?: number;
   p50Days?: number;
   roe: string[];
-  classification: "WHITE HOT" | "CRITICAL" | "ELEVATED" | "WATCH" | "COLD";
 }
 
 export interface ThreatAssessmentReport {
   generatedAt: string;
   ao: string;
   overallThreatIndex: number;
-  overallBand: PriorityBand;
   classificationLabel: string;
   leadingPressure: number;
   leadingBand: string;
@@ -67,12 +63,8 @@ export interface ThreatAssessmentReport {
   caveats: string[];
 }
 
-function bandToClassification(band: PriorityBand): ThreatTarget["classification"] {
-  return PRIORITY_BAND_LABEL[band] as ThreatTarget["classification"];
-}
-
 export function buildThreatAssessment(input: {
-  tpl?: IndustryTemplate;
+  tpl: IndustryTemplate;
   practiceName: string;
   staff: StaffComposition;
   riskVariables?: RiskVariableState;
@@ -80,8 +72,7 @@ export function buildThreatAssessment(input: {
   /** Starter scenarios the owner confirmed as their own (see scoring/scope). */
   confirmedScenarioIds?: ReadonlySet<string>;
 }): ThreatAssessmentReport {
-  const tpl = input.tpl ?? getIndustryTemplate("dental");
-  const { practiceName, staff, riskVariables, dualRelease, confirmedScenarioIds } = input;
+  const { tpl, practiceName, staff, riskVariables, dualRelease, confirmedScenarioIds } = input;
   const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, { confirmedScenarioIds });
   // The same reading as every other screen: the business's own control
   // records, and a dual-release channel only when the team can operate it.
@@ -143,7 +134,6 @@ export function buildThreatAssessment(input: {
       residual: item.residual,
       expectedLoss: item.expectedLoss,
       p50Days: item.p50Days,
-      classification: bandToClassification(band),
       roe: deriveRoe(item.category, item.name, item.residual),
     });
   }
@@ -176,7 +166,6 @@ export function buildThreatAssessment(input: {
       immediate: scored.immediate || c.severity === "critical",
       domain: "sod",
       residual: heat,
-      classification: bandToClassification(band),
       roe: [
         "Apply dual-release threshold on the conflicting duty pair",
         "Owner weekly sample of the high-risk transaction class",
@@ -206,7 +195,6 @@ export function buildThreatAssessment(input: {
       immediate: scored.immediate,
       domain: "knowledge",
       residual: heat,
-      classification: bandToClassification(band),
       roe: [
         "Cross-train a backup within 30 days",
         "Document the procedure in the practice playbook",
@@ -249,7 +237,6 @@ export function buildThreatAssessment(input: {
       residual: residualProxy,
       expectedLoss: row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
       p50Days: row.result.timelineDays.p50,
-      classification: bandToClassification(band),
       roe: [
         "Run Precog scenario compare (do-nothing vs controls)",
         "Pull highest tornado lever for this path",
@@ -272,7 +259,7 @@ export function buildThreatAssessment(input: {
   const overallThreatIndex = Math.round(
     deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) / Math.max(1, Math.min(5, deck.length)),
   );
-  const overallBand = priorityBand(overallThreatIndex);
+  const classificationLabel = PRIORITY_BAND_LABEL[priorityBand(overallThreatIndex)];
 
   const matrix = deck.slice(0, 8).map((t) => ({
     id: t.id,
@@ -290,8 +277,7 @@ export function buildThreatAssessment(input: {
     generatedAt: new Date().toISOString(),
     ao: practiceName,
     overallThreatIndex,
-    overallBand,
-    classificationLabel: bandToClassification(overallBand),
+    classificationLabel,
     leadingPressure: leading.pressureIndex,
     leadingBand: leading.band,
     targetDeck: deck,

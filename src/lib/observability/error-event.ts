@@ -16,9 +16,9 @@ export interface ErrorEvent {
   release: string | null;
 }
 
-export const MAX_MESSAGE_CHARS = 500;
-export const MAX_STACK_CHARS = 4000;
-export const MAX_AT_CHARS = 200;
+const MAX_MESSAGE_CHARS = 500;
+const MAX_STACK_CHARS = 4000;
+const MAX_AT_CHARS = 200;
 
 const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
 const BEARER = /bearer\s+[\w.~+/=-]+/gi;

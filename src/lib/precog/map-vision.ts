@@ -217,7 +217,3 @@ export function scorePriority(input: {
 
   return { priority, reasons, impactHint, immediate };
 }
-
-export function terminatorScanLines(): string {
-  return "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,0,0.04) 2px, rgba(255,0,0,0.04) 4px)";
-}

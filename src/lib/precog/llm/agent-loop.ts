@@ -985,7 +985,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
   };
 }
 
-export function buildGrokAgentMessages(
+function buildGrokAgentMessages(
   question: string,
   toolResults: ToolResult[],
   warnings: string[],

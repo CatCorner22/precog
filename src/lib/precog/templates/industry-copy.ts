@@ -13,7 +13,7 @@ export interface IndustryCopyBundle {
   pioneerPrompts: string[];
 }
 
-export const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
+const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
   dental: {
     sodExamples: [
       "Owner approves write-offs, large AP, payroll",

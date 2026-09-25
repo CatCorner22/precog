@@ -242,8 +242,7 @@ export function priorityKeyForNode(n: MapGraphNode): string {
   return String(d.id ?? n.id);
 }
 
-export type MapNodeKind =
-  "process" | "risk" | "idea" | "waste" | "control" | "knowledge" | "person";
+type MapNodeKind = "process" | "risk" | "idea" | "waste" | "control" | "knowledge" | "person";
 
 export interface MapGraphNode {
   id: string;
@@ -737,7 +736,7 @@ export function stageLanes(
 
 export type MapHealthBand = "healthy" | "fair" | "at_risk" | "critical";
 
-export interface MapHealthDimension {
+interface MapHealthDimension {
   id: string;
   label: string;
   score: number;

@@ -75,7 +75,7 @@ export function normalizeValueCase(
 export type ValueInputKey = keyof ValueCaseInputs;
 
 /** The inputs that describe what actually happened, as opposed to the modeled scenario. */
-export const OBSERVED_INPUTS: readonly ValueInputKey[] = [
+const OBSERVED_INPUTS: readonly ValueInputKey[] = [
   "reviewHoursBefore",
   "reviewHoursAfter",
   "hourlyCost",
@@ -85,7 +85,7 @@ export const OBSERVED_INPUTS: readonly ValueInputKey[] = [
 ];
 
 /** Plain names for each input, for "uses the app default for ..." notes. */
-export const VALUE_INPUT_LABEL: Record<ValueInputKey, string> = {
+const VALUE_INPUT_LABEL: Record<ValueInputKey, string> = {
   reviewHoursBefore: "hours per review before",
   reviewHoursAfter: "hours per review with Precog",
   hourlyCost: "loaded hourly cost",
@@ -111,7 +111,7 @@ export function normalizeEnteredInputs(value: unknown): ValueInputKey[] {
  * page) and every one that differs from the app's default. An untouched input
  * is the app default, not the owner's assumption or observation.
  */
-export function enteredValueInputs(
+function enteredValueInputs(
   raw: ValueCaseInputs,
   typed: Iterable<ValueInputKey> = [],
 ): Set<ValueInputKey> {

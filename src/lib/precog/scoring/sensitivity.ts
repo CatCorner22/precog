@@ -3,7 +3,7 @@ import type { StaffComposition } from "../types";
 import { bandForScore, DEFAULT_WEIGHTS, type ActionBand, type ScoringWeights } from "./weights";
 import { scoreAllResidualRisks, type ResidualScope } from "./residual-engine";
 
-export interface WeightPerturbation {
+interface WeightPerturbation {
   group: keyof ScoringWeights;
   key: string;
   direction: "up" | "down";
@@ -11,7 +11,7 @@ export interface WeightPerturbation {
   delta: number;
 }
 
-export interface ItemSensitivity {
+interface ItemSensitivity {
   id: string;
   name: string;
   residual: number;

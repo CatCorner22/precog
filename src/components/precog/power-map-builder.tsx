@@ -179,14 +179,8 @@ export function PowerMapBuilder() {
     [assignments, profile.dualRelease, profile.staff, tpl],
   );
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
-  const coveragePlans = useMemo(
-    () => buildCoveragePlans(assignments, profile.staff),
-    [assignments, profile.staff],
-  );
-  const coverageProgram = useMemo(
-    () => buildCoverageProgram(assignments, profile.staff),
-    [assignments, profile.staff],
-  );
+  const coveragePlans = useMemo(() => buildCoveragePlans(assignments), [assignments]);
+  const coverageProgram = useMemo(() => buildCoverageProgram(assignments), [assignments]);
   const pendingChanges = useMemo(
     () => diffAssignments(baseline, assignments),
     [assignments, baseline],

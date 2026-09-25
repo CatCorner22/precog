@@ -2,7 +2,6 @@ import { analyzeDutyCoverage, type DutyCoverage } from "./coverage-analysis";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import { detectSodConflicts, type RoleAssignment } from "./detect";
 import { soleOwnerId } from "./owner-role";
-import type { StaffComposition } from "../types";
 
 export interface CoveragePlan {
   id: string;
@@ -263,14 +262,9 @@ function plansForDuty(
  * Suggest backups for high-risk duties only one person holds: up to three per
  * duty, from people in that duty's process, none adding a detected conflict.
  * A duty nobody holds is not handed to anyone: the business may not do it at
- * all, so it is a question for the owner, not a suggestion. `staff` is
- * accepted for callers' sake; it only ever changed conflict scores, never
- * which conflicts exist, so no plan depends on it.
+ * all, so it is a question for the owner, not a suggestion.
  */
-export function buildCoveragePlans(
-  assignments: RoleAssignment[],
-  _staff?: StaffComposition,
-): CoveragePlan[] {
+export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
   return coverage.singlePoints.flatMap((duty) =>
     plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY),
@@ -283,10 +277,7 @@ export function buildCoveragePlans(
  * `buildCoveragePlans` order, that has one and has not already been handed
  * out twice.
  */
-export function buildCoverageProgram(
-  assignments: RoleAssignment[],
-  _staff?: StaffComposition,
-): CoverageProgram {
+export function buildCoverageProgram(assignments: RoleAssignment[]): CoverageProgram {
   const startingScore = analyzeDutyCoverage(assignments).resilienceScore;
   let current = assignments;
   const steps: CoveragePlan[] = [];

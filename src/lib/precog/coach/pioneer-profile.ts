@@ -67,7 +67,7 @@ function isDecisionKind(value: unknown): value is DecisionKind {
  * usable id, date or kind are dropped; snapshots and review history are not
  * needed server-side and are not carried.
  */
-export function sanitizeDecision(value: unknown): DecisionEntry | null {
+function sanitizeDecision(value: unknown): DecisionEntry | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== "string" || typeof raw.createdAt !== "string") return null;

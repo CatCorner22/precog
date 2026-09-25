@@ -58,7 +58,7 @@ function matches(stated: number, statedRaw: string, known: number): boolean {
 }
 
 /** Every number in the tool payloads, plus percent forms of any fraction. */
-export function numbersInTools(toolResults: ToolResult[]): number[] {
+function numbersInTools(toolResults: ToolResult[]): number[] {
   const text = JSON.stringify(toolResults.map((t) => ({ summary: t.summary, data: t.data })));
   const out = new Set<number>();
   for (const m of text.matchAll(NUMBER)) {

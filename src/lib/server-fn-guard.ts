@@ -10,7 +10,7 @@
 /** Largest request body a server function accepts. Vercel's own limit is the same. */
 export const MAX_SERVER_FN_BODY_BYTES = 4.5 * 1024 * 1024;
 /** Largest GET `payload` parameter, the framework's own cap. */
-export const MAX_SERVER_FN_QUERY_CHARS = 1_000_000;
+const MAX_SERVER_FN_QUERY_CHARS = 1_000_000;
 
 const FORM_TYPES = ["multipart/form-data", "application/x-www-form-urlencoded"];
 

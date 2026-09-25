@@ -267,7 +267,7 @@ export function normalizeCustomKnowledge(value: unknown, today: string): Knowled
 }
 
 /** Every business this device knows about, in full, keyed by id. */
-export const PORTFOLIO_KEY = "precog.portfolio.v1";
+const PORTFOLIO_KEY = "precog.portfolio.v1";
 /** The business open in this browser: what a reload comes back to. */
 export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
 const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
@@ -304,15 +304,15 @@ export function loadPortfolio(storage = browserStorage()): Record<string, Practi
 /**
  * Keeps one business in the portfolio. A business whose setup is not
  * finished is not a business yet (it is the sample behind the setup dialog),
- * so it is never listed. Returns false when the browser refuses the write.
+ * so it is never listed. The portfolio is a convenience cache (the active
+ * business is saved separately), so a refused write is not reported.
  */
-export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {
-  if (profile.onboardingComplete === false) return true;
+export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): void {
+  if (profile.onboardingComplete === false) return;
   const id = profile.businessId ?? "biz_default";
   const all = loadPortfolio(storage);
   all[id] = { ...profile, businessId: id };
-  // Quota: the portfolio is a convenience cache; the active business is saved separately.
-  return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
+  writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
 }
 
 export function removePortfolioEntry(id: string, storage = browserStorage()): void {
@@ -354,7 +354,7 @@ export interface MapVersion {
   layout: Record<string, { x: number; y: number }>;
 }
 
-export interface MapHealthPoint {
+interface MapHealthPoint {
   at: string;
   score: number;
 }
@@ -412,10 +412,6 @@ export function parseStoredProfile(raw: string | null): PracticeProfile {
   } catch {
     return defaultProfile();
   }
-}
-
-export function loadProfile(storage: StorageLike | null = browserStorage()): PracticeProfile {
-  return parseStoredProfile(readStoredActiveProfile(storage));
 }
 
 function record(value: unknown): Record<string, unknown> {

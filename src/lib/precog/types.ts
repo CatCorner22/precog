@@ -3,8 +3,7 @@ export type MatrixLayerId =
 
 export type Criticality = "critical" | "important" | "nice-to-have";
 export type KnowledgeLevel = "expert" | "proficient" | "basic" | "aware";
-export type KnowledgeCategory =
-  "process" | "system" | "clinical" | "compliance" | "vendor" | "tribal";
+type KnowledgeCategory = "process" | "system" | "clinical" | "compliance" | "vendor" | "tribal";
 
 export type ProcessRiskKind =
   "control" | "fraud" | "continuity" | "quality" | "compliance" | "revenue" | "safety";
@@ -229,7 +228,7 @@ export interface ScenarioTemplate {
   mitigations: MitigationOption[];
 }
 
-export interface MitigationOption {
+interface MitigationOption {
   id: string;
   label: string;
   effort: "low" | "medium" | "high";
@@ -237,7 +236,7 @@ export interface MitigationOption {
   costAnnual: number;
 }
 
-export interface DynamicRiskSlice {
+interface DynamicRiskSlice {
   likelihoodMultiplier: number;
   grossSeverityMultiplier: number;
   detectionLagMultiplier: number;

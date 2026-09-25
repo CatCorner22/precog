@@ -26,8 +26,6 @@ describe("compareScenarioFutures", () => {
       report.winnerByRetained,
       report.winnerByAnnualCor,
       report.winnerByPriority,
-      report.winnerBySpeed,
-      report.winnerByLoss,
     ]) {
       expect(winner).not.toBe(report.baselineId);
       expect(winner).not.toBe("");
@@ -61,15 +59,6 @@ describe("compareScenarioFutures", () => {
       (a, b) => a.result.retainedImpact.expected - b.result.retainedImpact.expected,
     )[0];
     expect(report.winnerByRetained).toBe(best.id);
-  });
-
-  it("counts fewer assumed days until found as better", () => {
-    const dental = getBaseTemplate("dental");
-    const report = compareScenarioFutures(dental, "sc-cash-sod-failure");
-    const fewest = [...report.columns]
-      .slice(1)
-      .sort((a, b) => a.result.timelineDays.p50 - b.result.timelineDays.p50)[0];
-    expect(report.winnerBySpeed).toBe(fewest.id);
   });
 
   it("has no winner when no option beats doing nothing", () => {

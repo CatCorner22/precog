@@ -79,7 +79,8 @@ const APP_KEY_PREFIXES = ["precog.", "precog-"];
  * leaves nothing behind on the device. Safe to call when storage is unavailable.
  */
 export function clearLocalCopies(
-  storage: (StorageLike & StorageKeys) | null = keyedStorage(),
+  storage: (StorageLike & StorageKeys) | null = browserStorage() as
+    (StorageLike & StorageKeys) | null,
 ): void {
   if (!storage) return;
   try {
@@ -97,12 +98,4 @@ export function clearLocalCopies(
 interface StorageKeys {
   readonly length: number;
   key(index: number): string | null;
-}
-
-function keyedStorage(): (StorageLike & StorageKeys) | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
 }

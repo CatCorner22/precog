@@ -22,7 +22,7 @@ import { getRequest } from "@tanstack/react-start/server";
  * closes the sibling-tenant attack surface. Enforced at the `authMiddleware`
  * chokepoint (see `middleware.ts`).
  */
-export class CrossSiteRequestError extends Error {
+class CrossSiteRequestError extends Error {
   readonly status = 403;
   constructor() {
     super("Forbidden: cross-site request blocked");

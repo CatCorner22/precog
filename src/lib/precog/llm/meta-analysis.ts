@@ -28,9 +28,9 @@ import { scoreLeadingIndicators } from "../ml/leading-indicators";
 
 export type EpistemicClass = "known_known" | "known_unknown" | "unknown_unknown" | "unknown_known"; // tacit knowledge we fail to encode
 
-export type UnknownSeverity = "critical" | "high" | "medium" | "low";
+type UnknownSeverity = "critical" | "high" | "medium" | "low";
 
-export type ProbeKind =
+type ProbeKind =
   | "data_capture"
   | "interview"
   | "sample_test"
@@ -61,7 +61,7 @@ export interface EpistemicItem {
   metric?: string;
 }
 
-export interface RealtimeCapability {
+interface RealtimeCapability {
   id: string;
   label: string;
   ready: boolean;
@@ -70,7 +70,7 @@ export interface RealtimeCapability {
   dependency: string;
 }
 
-export interface CoverageSlice {
+interface CoverageSlice {
   domain: string;
   coveredPct: number;
   knownKnowns: number;
@@ -943,22 +943,6 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     johari,
     narrative,
     recommendations,
-  };
-}
-
-/** Lightweight real-time tick — recompute only scores for HMR-friendly UI polls */
-export function quickReadiness(profile: PracticeProfile): {
-  evaluationReadiness: number;
-  epistemicConfidence: number;
-  realtimeScore: number;
-  criticalUnknowns: number;
-} {
-  const full = runMetaAnalysis(profile);
-  return {
-    evaluationReadiness: full.evaluationReadiness,
-    epistemicConfidence: full.epistemicConfidence,
-    realtimeScore: full.realtimeScore,
-    criticalUnknowns: full.summary.criticalUnknowns,
   };
 }
 

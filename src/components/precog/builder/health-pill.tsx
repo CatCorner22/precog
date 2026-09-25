@@ -43,16 +43,15 @@ export function HealthPill({
 }
 
 /** Compact "+4" / "−2" badge for what-if previews. */
-export function DeltaBadge({ delta, title }: { delta: HealthDelta | null; title?: string }) {
+export function DeltaBadge({ delta }: { delta: HealthDelta | null }) {
   if (!delta || delta.delta === 0) return null;
   const up = delta.delta > 0;
   return (
     <span
       title={
-        title ??
-        (delta.driver
+        delta.driver
           ? `Health ${delta.before} → ${delta.after} · ${delta.driver.label} ${delta.driver.delta > 0 ? "+" : ""}${delta.driver.delta}`
-          : `Health ${delta.before} → ${delta.after}`)
+          : `Health ${delta.before} → ${delta.after}`
       }
       className={cn(
         "inline-flex items-center gap-0.5 rounded px-1 py-px text-xs font-semibold tabular",

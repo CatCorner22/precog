@@ -404,9 +404,12 @@ try {
     }
   });
 
-  await test("threat assessment supports a missing risk-variable override", () => {
+  await test("threat assessment supports a missing risk-variable override", async () => {
     const defaults = profile.defaultProfile();
     const report = scoring.buildThreatAssessment({
+      tpl: (await server.ssrLoadModule("/src/lib/precog/templates/index.ts")).getIndustryTemplate(
+        defaults.industry,
+      ),
       practiceName: defaults.practiceName,
       staff: defaults.staff,
       dualRelease: defaults.dualRelease,

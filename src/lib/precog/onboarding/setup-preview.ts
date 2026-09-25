@@ -26,7 +26,7 @@ export interface SetupPreview {
   } | null;
 }
 
-export function formatLoss(study: CaseStudy): string {
+function formatLoss(study: CaseStudy): string {
   const amount = `$${Math.round(study.lossUsd).toLocaleString("en-US")}`;
   return study.lossIsFloor ? `more than ${amount}` : amount;
 }

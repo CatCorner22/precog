@@ -19,7 +19,7 @@ export const SOON_DAYS = 7;
 /** A last day within this many days puts the leaver on the dashboard. */
 export const LEAVING_SOON_DAYS = 30;
 
-export interface TodayStop {
+interface TodayStop {
   item: KnowledgeItem;
   standIn: Person | null;
   /** True when nobody left has ever touched the item — the stand-in, if any, starts cold. */
@@ -30,14 +30,14 @@ export interface TodayStop {
   handoffLogged: boolean;
 }
 
-export interface TodayOut {
+interface TodayOut {
   window: AbsenceWindow;
   person: Person;
   unplanned: boolean;
   stops: TodayStop[];
 }
 
-export interface TodayUpcoming {
+interface TodayUpcoming {
   window: AbsenceWindow;
   person: Person;
   daysUntil: number;

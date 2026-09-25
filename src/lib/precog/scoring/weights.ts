@@ -9,7 +9,7 @@ import { RISK_SCALE } from "./bands";
 export const SCORING_VERSION = "precog-residual-v1.1.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
-export const INHERENT_WEIGHTS = {
+const INHERENT_WEIGHTS = {
   assetExposure: 0.28,
   processCriticality: 0.22,
   fraudOpportunityClass: 0.25,
@@ -18,7 +18,7 @@ export const INHERENT_WEIGHTS = {
 } as const;
 
 /** Control effectiveness factors (higher = stronger control) */
-export const CONTROL_EFFECTIVENESS_WEIGHTS = {
+const CONTROL_EFFECTIVENESS_WEIGHTS = {
   segregationQuality: 0.3,
   dualAuthorization: 0.15,
   independentReconciliation: 0.15,
@@ -28,7 +28,7 @@ export const CONTROL_EFFECTIVENESS_WEIGHTS = {
 } as const;
 
 /** Staff composition modifiers applied after residual */
-export const STAFF_MODIFIERS = {
+const STAFF_MODIFIERS = {
   smallTeamUplift: 0.12, // teamSize <= 6
   soleOwnerUpliftPerItem: 0.06, // capped
   weakSegregationUplift: 0.15, // segregationScore < 50
@@ -40,7 +40,7 @@ export const STAFF_MODIFIERS = {
 // The normalizers and weights below are this app's choices: $125,000 and 240
 // days are the points at which the index saturates, and effectiveness is
 // credited at half strength. None of it is calibrated against loss data.
-export const SCENARIO_WEIGHTS = {
+const SCENARIO_WEIGHTS = {
   lossSaturationUsd: 125_000,
   daysSaturation: 240,
   lossShare: 0.55,
@@ -53,7 +53,7 @@ export const SCENARIO_WEIGHTS = {
 } as const;
 
 /** Knowledge-item control credit for a written procedure (0–1 effectiveness added). */
-export const KNOWLEDGE_WEIGHTS = {
+const KNOWLEDGE_WEIGHTS = {
   documentedLocatedCredit: 0.15, // written AND location recorded
   documentedUnlocatedCredit: 0.07, // written, nobody recorded where
 } as const;

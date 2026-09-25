@@ -8,18 +8,13 @@
  * argument from a risk rating.
  */
 import { CASE_LIBRARY } from "./cases";
-import { BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
+import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
 import type { CaseStudy, IndustrySector, SchemeKind } from "./types";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
 
 export * from "./types";
 export * from "./controls";
-export { CASE_LIBRARY, BENCHMARKS, BENCHMARK_BY_ID, METHOD_CAVEATS };
-
-/** Cases demonstrating the failure of a given segregation-of-duties rule. */
-export function casesForSodRule(ruleId: string): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.sodRuleIds.includes(ruleId));
-}
+export { CASE_LIBRARY, BENCHMARK_BY_ID, METHOD_CAVEATS };
 
 /**
  * The fraud schemes each segregation-of-duties conflict actually enables.
@@ -360,10 +355,6 @@ export function casesForControl(controlId: ControlId): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
     byLossDescending,
   );
-}
-
-export function casesForScheme(scheme: SchemeKind): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.schemes.includes(scheme)).sort(byLossDescending);
 }
 
 export function caseById(id: string): CaseStudy | undefined {

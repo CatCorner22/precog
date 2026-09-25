@@ -3,7 +3,6 @@ import type { Benchmark } from "./types";
 const ACFE_2026_RTTN = {
   publisher: "Association of Certified Fraud Examiners",
   url: "https://www.acfe.com/fraud-resources/report-to-the-nations",
-  grade: "primary-document-reported" as const,
 };
 
 /**

@@ -15,7 +15,7 @@ export function requestOrigin(): string {
   return `${proto}://${host}`;
 }
 
-export const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";
+const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";
 
 export function qboCallbackUrl(): string {
   return `${requestOrigin()}${QBO_CALLBACK_PATH}`;

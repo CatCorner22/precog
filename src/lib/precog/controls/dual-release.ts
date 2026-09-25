@@ -27,8 +27,6 @@ export type ExceptionAction =
   /** Cap / lower threshold (stricter than base) */
   | "lower_threshold";
 
-export type ExceptionScope = "payee" | "person" | "role" | "channel" | "amount_band";
-
 export interface ThresholdException {
   id: string;
   label: string;
@@ -57,7 +55,7 @@ export interface ThresholdException {
   sample?: boolean;
 }
 
-export interface DualReleaseRule {
+interface DualReleaseRule {
   channel: ReleaseChannel;
   label: string;
   enabled: boolean;
@@ -92,7 +90,7 @@ export interface ReleaseRequest {
   asOfDate?: string;
 }
 
-export type ReleaseStatus =
+type ReleaseStatus =
   | "below_threshold"
   | "needs_second"
   | "approved_dual"
@@ -111,7 +109,7 @@ export interface EligibleApprover {
   canSecond: boolean;
 }
 
-export interface AppliedException {
+interface AppliedException {
   id: string;
   label: string;
   action: ExceptionAction;
@@ -172,7 +170,7 @@ export interface DualReleaseCoverage {
   activeExceptions: number;
 }
 
-export const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
+const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
   {
     channel: "ach",
     label: "ACH / vendor electronic pay",
@@ -346,7 +344,7 @@ function localizeDualReleaseRules(
 }
 
 /** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
-export function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
+function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
   const copy = getIndustryCopy(tpl.id);
   const today = new Date();
   const in90 = new Date(today.getTime() + 90 * 86400000);
@@ -456,7 +454,7 @@ const roleList = (value: unknown, fallback: string[]): string[] =>
  * unknown action), so a corrupt or crafted snapshot never reaches the
  * evaluator with, say, `channels: null`.
  */
-export function normalizeThresholdException(value: unknown): ThresholdException | null {
+function normalizeThresholdException(value: unknown): ThresholdException | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   const id = str(v.id, 80);
@@ -584,7 +582,7 @@ function exceptionSpecificity(ex: ThresholdException): number {
   return s;
 }
 
-export function matchExceptions(
+function matchExceptions(
   tpl: IndustryTemplate,
   policy: DualReleasePolicy,
   request: Pick<
@@ -619,7 +617,7 @@ export function matchExceptions(
   return matched.sort((a, b) => exceptionSpecificity(b) - exceptionSpecificity(a));
 }
 
-export function resolveEffectiveThreshold(
+function resolveEffectiveThreshold(
   baseThresholdUsd: number,
   exception: ThresholdException | undefined,
 ): {

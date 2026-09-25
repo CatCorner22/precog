@@ -9,7 +9,7 @@ import { findKnowledgeRisks } from "../engine";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { assessCoso } from "../coso";
 
-export interface LeadingIndicator {
+interface LeadingIndicator {
   id: string;
   label: string;
   value: number;

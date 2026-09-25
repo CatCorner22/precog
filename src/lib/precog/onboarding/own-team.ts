@@ -139,7 +139,7 @@ export function suggestedDuties(role: string, owns: boolean, industry?: string):
  * the title that ticked them is the row's title now, and nobody has added or
  * removed a duty since. A row with no duties at all has nothing guessed.
  */
-export function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
+function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
   const role = row.role.trim();
   if (!role || row.duties.length === 0) return false;
   if ((row.suggestedFor ?? "").trim() !== role) return false;
@@ -229,7 +229,7 @@ export function ownerRow(): OwnTeamRow {
 }
 
 /** The title of a nonprofit's first row: it has no owner, and its executive director runs it. */
-export const NONPROFIT_LEADER_TITLE = "Executive Director";
+const NONPROFIT_LEADER_TITLE = "Executive Director";
 
 /**
  * The first row of a fresh grid in this line of business: the owner, or in a
@@ -276,7 +276,7 @@ export function firstRowForIndustry(rows: OwnTeamRow[], industry?: string): OwnT
 }
 
 /** True when a title names the owner's seat ("Owner", "Owner/President", "CEO"). */
-export function isOwnerTitle(role: string): boolean {
+function isOwnerTitle(role: string): boolean {
   return matchJobTitle(role)?.entry.id === "owner";
 }
 

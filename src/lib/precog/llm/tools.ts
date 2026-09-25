@@ -1102,19 +1102,5 @@ export function planTools(question: string): ToolName[] {
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");
   }
-  if (/leading|early|signal|indicator/.test(q)) {
-    tools.add("get_leading_indicators");
-  }
-  if (/coso|guidance|what does|policy|best practice|rag/.test(q)) {
-    tools.add("retrieve_guidance");
-  }
-  if (
-    /unknown|epistemic|meta|blind.?spot|rumsfeld|confidence|readiness|gap|what don.t we know/.test(
-      q,
-    )
-  ) {
-    tools.add("run_meta_analysis");
-  }
-
   return Array.from(tools);
 }

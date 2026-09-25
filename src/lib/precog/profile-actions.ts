@@ -50,9 +50,9 @@ import {
  * reducer does that for every edit that produces a new object.
  */
 export const MAX_DECISIONS = 100;
-export const MAX_MAP_VERSIONS = 12;
-export const MAX_HEALTH_POINTS = 90;
-export const MAX_SAVED_BLOCKS = 24;
+const MAX_MAP_VERSIONS = 12;
+const MAX_HEALTH_POINTS = 90;
+const MAX_SAVED_BLOCKS = 24;
 
 const DEMO_NAMES = new Set(INDUSTRIES.map((i) => i.demoName));
 
@@ -67,7 +67,7 @@ export function resolveUpdate<T>(update: SetStateAction<T>, current: T): T {
  * count moves, read from the register in use (the sample's own register
  * included), so every screen shows the same figure.
  */
-export function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
+function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
   const tpl = resolveTemplate(p);
   if (p.customPeople) {
     return deriveStaffFromTeam(tpl, p.staff, {

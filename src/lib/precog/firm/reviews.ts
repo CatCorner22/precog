@@ -61,9 +61,8 @@ export const REVIEW_ITEMS: readonly {
 const KEYS = new Set<string>(REVIEW_ITEMS.map((item) => item.key));
 const RESULTS = new Set<string>(["done", "exception", "skipped"]);
 const PERIOD = /^\d{4}-\d{2}$/;
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-export const MAX_REVIEW_RECORDS = 240;
+const MAX_REVIEW_RECORDS = 240;
 
 export function monthKey(day: string): string {
   return day.slice(0, 7);
@@ -144,8 +143,4 @@ export function recordReview(
     recordedAt: input.recordedAt ?? new Date().toISOString(),
   };
   return [next, ...records].slice(0, MAX_REVIEW_RECORDS);
-}
-
-export function isReviewDay(value: string): boolean {
-  return DAY.test(value);
 }

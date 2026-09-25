@@ -32,7 +32,7 @@ const env = (key: string): string | undefined => {
   return value || undefined;
 };
 
-export function currentRelease(): string | null {
+function currentRelease(): string | null {
   return env("VERCEL_GIT_COMMIT_SHA")?.slice(0, 12) ?? null;
 }
 

@@ -64,7 +64,7 @@ export function mapIsComplete(people: readonly Person[] | null | undefined): boo
 const ACCEPTED_KINDS = new Set(["accept_residual", "remediate", "monitor", "insure"]);
 
 /** A logged accept, remediate, monitor, or insure decision is a response to a finding. */
-export function acceptedFindingCount(decisions: readonly { kind: string }[]): number {
+function acceptedFindingCount(decisions: readonly { kind: string }[]): number {
   return decisions.filter((d) => ACCEPTED_KINDS.has(d.kind)).length;
 }
 

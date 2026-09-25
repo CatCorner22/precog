@@ -11,7 +11,7 @@
 
 import type { IndustryId } from "../industry";
 
-export type ChunkBasis =
+type ChunkBasis =
   | {
       kind: "cited";
       publisher: string;

@@ -3,7 +3,7 @@ import type { Sql } from "@/lib/db";
 /** Passcode guesses allowed per share within one window before the link locks. */
 export const PASSCODE_ATTEMPT_LIMIT = 10;
 /** Length, in minutes, of the window the guesses are counted over. */
-export const PASSCODE_ATTEMPT_WINDOW_MINUTES = 15;
+const PASSCODE_ATTEMPT_WINDOW_MINUTES = 15;
 /** Failed-guess log rows (which carry an IP hash) are kept this many days. */
 export const PASSCODE_ATTEMPT_RETENTION_DAYS = 30;
 
@@ -46,7 +46,7 @@ export async function reservePasscodeGuess(sql: Sql, token: string): Promise<boo
 }
 
 /** Gives a reserved guess back: a correct passcode must not count toward the lock. */
-export async function releasePasscodeGuess(sql: Sql, token: string): Promise<void> {
+async function releasePasscodeGuess(sql: Sql, token: string): Promise<void> {
   await sql`
     update map_shares
     set passcode_attempts = greatest(passcode_attempts - 1, 0)

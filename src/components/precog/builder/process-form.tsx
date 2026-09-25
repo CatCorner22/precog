@@ -289,7 +289,7 @@ export function ProcessForm({
   );
 }
 
-export function RiskList({
+function RiskList({
   risks,
   onChange,
   knowledgeOptions,
@@ -508,7 +508,7 @@ export function RiskList({
   );
 }
 
-export function IdeaList({
+function IdeaList({
   ideas,
   onChange,
 }: {
@@ -659,7 +659,7 @@ export function IdeaList({
   );
 }
 
-export function WasteList({
+function WasteList({
   wastes,
   onChange,
 }: {

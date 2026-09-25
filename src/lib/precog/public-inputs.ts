@@ -162,7 +162,7 @@ export function parseReviewInput(input: unknown): ReviewInput {
 // ------------------------------------------------------------- runPioneerCoach
 
 /** Largest lists Pioneer reads; pioneerProfileFrom applies the same caps. */
-export const PIONEER_LIST_CAPS = {
+const PIONEER_LIST_CAPS = {
   nodes: 250,
   relations: 2_500,
   decisions: 500,

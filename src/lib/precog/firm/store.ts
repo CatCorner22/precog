@@ -10,10 +10,10 @@ import type { ReviewItemKey, ReviewResult } from "./reviews";
  * firm on their row (`businesses.firm_user_id`).
  */
 export type FirmRole = "owner" | "preparer" | "reviewer";
-export const FIRM_ROLES: readonly FirmRole[] = ["owner", "preparer", "reviewer"];
+const FIRM_ROLES: readonly FirmRole[] = ["owner", "preparer", "reviewer"];
 export const INVITE_ROLES: readonly Exclude<FirmRole, "owner">[] = ["preparer", "reviewer"];
-export const INVITE_TTL_DAYS = 14;
-export const MAX_MEMBERS_PER_FIRM = 25;
+const INVITE_TTL_DAYS = 14;
+const MAX_MEMBERS_PER_FIRM = 25;
 
 export interface FirmContext {
   /** The owner's user id, which is the firm's id. */

@@ -45,13 +45,7 @@ const STATUS_META: Record<
   },
 };
 
-export function CosoHeatmap({
-  onNavigate,
-  initialComponentId,
-}: {
-  onNavigate: (target: DeepLinkTarget) => void;
-  initialComponentId?: CosoComponentId;
-}) {
+export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { template, profile } = usePractice();
   const assessment = useMemo(
     () =>
@@ -70,9 +64,7 @@ export function CosoHeatmap({
     ],
   );
   const [activeId, setActiveId] = useState<CosoComponentId>(
-    initialComponentId ??
-      assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??
-      "control_activities",
+    assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ?? "control_activities",
   );
 
   const active = assessment.components.find((c) => c.id === activeId) ?? assessment.components[0];

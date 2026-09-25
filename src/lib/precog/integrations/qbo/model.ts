@@ -28,7 +28,7 @@ export interface QboSnapshot {
   employees: QboEmployee[];
 }
 
-export interface VendorChange {
+interface VendorChange {
   vendor: QboVendor;
   fields: Array<"name" | "address" | "email" | "accountNumber" | "active">;
 }

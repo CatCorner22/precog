@@ -16,7 +16,7 @@ import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
 import { csvCell, parseRows } from "./csv";
 
-export interface ProcessImportIssue {
+interface ProcessImportIssue {
   /** 1-based data row (0 = whole file). */
   row: number;
   message: string;
@@ -33,7 +33,7 @@ export interface ProcessImportResult {
   removed: ProcessNode[];
 }
 
-export const PROCESS_CSV_HEADER = [
+const PROCESS_CSV_HEADER = [
   "process",
   "stage",
   "description",

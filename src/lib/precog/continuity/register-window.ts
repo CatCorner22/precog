@@ -26,10 +26,6 @@ export function pageSlice<T>(items: readonly T[], page: number, size: number): T
   return items.slice(start, start + size);
 }
 
-export function registerNeedsPaging(people: number, items: number): boolean {
-  return people > REGISTER_PEOPLE_PAGE || items > REGISTER_ITEM_PAGE;
-}
-
 export function registerOverResponsiveLimit(people: number, items: number): boolean {
   return people > REGISTER_RESPONSIVE_PEOPLE || items > REGISTER_RESPONSIVE_ITEMS;
 }
