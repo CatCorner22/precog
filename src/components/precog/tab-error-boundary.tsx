@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { reportClientError } from "@/lib/observability/report.client";
+import { reportClientError } from "@/lib/observability/report-browser";
 
 interface TabErrorBoundaryProps {
   resetKey: string;

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { clearLocalCopies } from "@/lib/precog/local-data";
-import { reportClientError } from "@/lib/observability/report.client";
+import { reportClientError } from "@/lib/observability/report-browser";
 
 /**
  * The screen shown when a route crashes. It keeps the real error message

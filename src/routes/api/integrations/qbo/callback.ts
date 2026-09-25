@@ -34,8 +34,8 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         if (!owner) return back("invalid");
 
         try {
-          const { callbackUrl } = await import("@/lib/precog/integrations/qbo/server");
-          const tokens = await client.exchangeCode(code, callbackUrl());
+          const { qboCallbackUrl } = await import("@/lib/request-origin.server");
+          const tokens = await client.exchangeCode(code, qboCallbackUrl());
           await store.saveConnection(sql, {
             ownerUserId: owner,
             businessId: state.businessId,

@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
@@ -24,16 +23,6 @@ function businessInput(input: { businessId: string }) {
   const raw = requireObject(input);
   if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
   return { businessId: raw.businessId };
-}
-
-export function callbackUrl(): string {
-  const configured = process.env.PUBLIC_APP_URL?.trim();
-  if (configured) return `${configured.replace(/\/+$/, "")}/api/integrations/qbo/callback`;
-  const request = getRequest();
-  const url = new URL(request.url);
-  const proto = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host;
-  return `${proto}://${host}/api/integrations/qbo/callback`;
 }
 
 /** The connection's state and the newest drift, for the firm workspace. */
@@ -76,7 +65,8 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
       { userId: context.userId, businessId: data.businessId, issuedAt: Date.now() },
       stateSecret(),
     );
-    return { url: authorizeUrl({ clientId: qboClientId(), redirectUri: callbackUrl(), state }) };
+    const { qboCallbackUrl } = await import("@/lib/request-origin.server");
+    return { url: authorizeUrl({ clientId: qboClientId(), redirectUri: qboCallbackUrl(), state }) };
   });
 
 export const syncQuickBooksNow = createServerFn({ method: "POST" })

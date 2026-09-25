@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
-import { installGlobalErrorReporting } from "@/lib/observability/report.client";
+import { installGlobalErrorReporting } from "@/lib/observability/report-browser";
 import { PracticeProvider } from "@/lib/precog/practice-context";
 import { PresentationProvider } from "@/lib/precog/presentation";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
