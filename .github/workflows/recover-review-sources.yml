@@ -1,0 +1,44 @@
+name: Recover review sources
+on:
+  push:
+    branches: [chatgpt/expanded-stabilization-20260925]
+    paths: [.github/workflows/recover-review-sources.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Archive prior source without executing it
+        run: |
+          mkdir -p recovered
+          git fetch origin refs/pull/98/head
+          git archive --format=tar 0f9d1d2c2945d623d0fc76c53a3d43404a7f7315 > recovered/pr98.tar
+          git diff 8a1d3e8604c7a2d4ff4a525b3f920d3f871b8c1f 0f9d1d2c2945d623d0fc76c53a3d43404a7f7315 > recovered/pr98.patch
+      - name: Package database binaries only, never databases or credentials
+        run: |
+          PG_BIN=$(find /usr/lib/postgresql -path '*/bin/postgres' | sort | tail -1)
+          test -n "$PG_BIN"
+          PG_DIR=$(dirname "$(dirname "$PG_BIN")")
+          PG_VERSION=$(basename "$PG_DIR")
+          mkdir -p recovered/runtime/lib
+          cp -a "$PG_DIR" recovered/runtime/pg
+          cp -a "/usr/share/postgresql/$PG_VERSION" recovered/runtime/share
+          for f in "$PG_DIR"/bin/postgres "$PG_DIR"/bin/initdb "$PG_DIR"/bin/pg_ctl "$PG_DIR"/bin/psql; do
+            ldd "$f" | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r lib; do
+              case "$lib" in *libc.so*|*libm.so*|*libpthread*|*libdl.so*|*librt.so*|*ld-linux*) ;; *) cp -L "$lib" recovered/runtime/lib/ ;; esac
+            done
+          done
+          tar -czf recovered/runtime.tar.gz -C recovered runtime
+          rm -rf recovered/runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovered-review-source
+          path: recovered/
+          retention-days: 1
+          compression-level: 1
