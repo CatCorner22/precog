@@ -16,6 +16,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -55,6 +56,11 @@ const ThreatRoute = ThreatRouteImport.update({
   path: '/threat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiErrorsRoute = ApiErrorsRouteImport.update({
+  id: '/api/errors',
+  path: '/api/errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
     | '/share/$token'
     | '/api/auth/$'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
     | '/share/$token'
     | '/api/auth/$'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/errors'
     | '/api/health'
     | '/share/$token'
     | '/api/auth/$'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
+  ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ThreatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/errors': {
+      id: '/api/errors'
+      path: '/api/errors'
+      fullPath: '/api/errors'
+      preLoaderRoute: typeof ApiErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
+  ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

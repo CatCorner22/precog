@@ -99,7 +99,9 @@ function toSql(run: Run): Sql {
  */
 export function getPgPool(): Promise<import("pg").Pool> {
   if (dbSource !== "neon") {
-    return Promise.reject(new Error("getPgPool() needs DATABASE_URL (the PGLite fallback has no pool)"));
+    return Promise.reject(
+      new Error("getPgPool() needs DATABASE_URL (the PGLite fallback has no pool)"),
+    );
   }
   globalRef.__pgPoolPromise__ ??= (async () => {
     // Regular Postgres driver: node-postgres (`pg`) — works directly with Neon's

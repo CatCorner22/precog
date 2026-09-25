@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { clearLocalCopies } from "@/lib/precog/local-data";
+import { reportClientError } from "@/lib/observability/report.client";
 
 /**
  * The screen shown when a route crashes. It keeps the real error message
@@ -9,6 +11,9 @@ import { clearLocalCopies } from "@/lib/precog/local-data";
  * Cloud copies are untouched; a signed-in owner's business reloads from them.
  */
 export function AppErrorComponent({ error }: ErrorComponentProps) {
+  useEffect(() => {
+    reportClientError(error);
+  }, [error]);
   function reload() {
     window.location.reload();
   }
