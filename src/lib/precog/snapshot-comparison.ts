@@ -1,3 +1,4 @@
+import { normalizeInsuranceRecord } from "./scoring/insurance-record";
 import type { PracticeProfile } from "./practice-profile";
 import { diffAssignments } from "./sod/assignment-diff";
 import type { RoleAssignment } from "./sod/detect";
@@ -24,12 +25,17 @@ export function compareAssessmentStates(
     asOf?: Date;
   },
 ) {
-  const riskKeys = Object.keys(
-    current.profile.riskVariables,
-  ) as (keyof PracticeProfile["riskVariables"])[];
+  const riskKeys = [
+    ...new Set([
+      ...Object.keys(current.profile.riskVariables),
+      ...Object.keys(archived.profile.riskVariables),
+    ]),
+  ] as (keyof PracticeProfile["riskVariables"])[];
   const riskVariableChanges = riskKeys.flatMap((key) => {
-    const before = archived.profile.riskVariables[key];
-    const after = current.profile.riskVariables[key];
+    const comparable = (value: unknown) =>
+      key === "insurance" ? JSON.stringify(normalizeInsuranceRecord(value) ?? null) : value;
+    const before = comparable(archived.profile.riskVariables[key]);
+    const after = comparable(current.profile.riskVariables[key]);
     return before === after ? [] : [{ key, before, after }];
   });
   const assignmentChanges = diffAssignments(archived.powerMap, current.powerMap);

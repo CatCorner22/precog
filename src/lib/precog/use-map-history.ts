@@ -1,17 +1,16 @@
 import { useCallback, useRef, useState, type Dispatch, type MutableRefObject } from "react";
-import type { Person, ProcessNode } from "./types";
 import type { PracticeProfile } from "./practice-profile";
+import {
+  applyMapSnapshot,
+  captureMapSnapshot as snapshot,
+  type MapSnapshot,
+} from "./builder/map-history";
 
 /**
- * Undo and redo for the map builder, over the two fields it edits. The
+ * Undo and redo for the map builder, including saved canvas positions. The
  * stacks live in refs (they never render); `historyVersion` ticks so the
  * provider re-publishes `canUndoMap` / `canRedoMap` when they change.
  */
-interface MapSnapshot {
-  customProcesses: ProcessNode[] | null | undefined;
-  customPeople: Person[] | null | undefined;
-}
-
 const MAX_UNDO = 50;
 
 export function useMapHistory(
@@ -22,11 +21,6 @@ export function useMapHistory(
   const redoStack = useRef<MapSnapshot[]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
 
-  const snapshot = (p: PracticeProfile): MapSnapshot => ({
-    customProcesses: p.customProcesses,
-    customPeople: p.customPeople,
-  });
-
   const pushUndo = useCallback(() => {
     undoStack.current.push(snapshot(profileRef.current));
     if (undoStack.current.length > MAX_UNDO) undoStack.current.shift();
@@ -36,11 +30,7 @@ export function useMapHistory(
 
   const applySnapshot = useCallback(
     (snap: MapSnapshot) => {
-      setProfile((p) => ({
-        ...p,
-        customProcesses: snap.customProcesses ?? null,
-        customPeople: snap.customPeople ?? null,
-      }));
+      setProfile((p) => applyMapSnapshot(p, snap));
     },
     [setProfile],
   );

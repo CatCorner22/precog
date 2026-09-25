@@ -8,11 +8,10 @@ import type {
   StaffComposition,
 } from "./types";
 import {
-  APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
   effectiveRiskVariables,
   evaluateDynamicRisk,
-  insuranceBasis,
+  insuranceFigureNote,
   mergeStaffIntoVariables,
   scenarioFlags,
   type RiskVariableState,
@@ -139,8 +138,7 @@ export function runPrecogScenario(
   // An owner's own business with no policy entered has no crime policy in the
   // arithmetic; the sample business keeps the app's default policy.
   const ownBusiness = isOwnBusiness(tpl);
-  const basis = insuranceBasis(entered, ownBusiness);
-  const vars = effectiveRiskVariables(entered, ownBusiness);
+  const vars = effectiveRiskVariables(entered, ownBusiness, scenarioId);
 
   const sMult = staffRiskMultiplier(staff);
   const flags = scenarioFlags(scenarioId);
@@ -230,11 +228,7 @@ export function runPrecogScenario(
   const usd = (n: number) =>
     n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   crimeModifiers.push(
-    basis === "none"
-      ? `Insurance: no crime policy entered, so the app assumes none (${APP_DEFAULT_POLICY}). The business keeps the whole assumed loss of ${usd(dynamic.transfer.retainedExpected)} and pays no premium; annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`
-      : basis === "app_default"
-        ? `Insurance arithmetic on the app's default policy (${APP_DEFAULT_POLICY}): premium ${usd(dynamic.transfer.premiumAnnualNet)} net (−${dynamic.transfer.discountPctApplied}% credits) · assumed retained loss ${usd(dynamic.transfer.retainedExpected)} · annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`
-        : `Insurance arithmetic on the policy you entered and the assumed loss: premium ${usd(dynamic.transfer.premiumAnnualNet)} net (−${dynamic.transfer.discountPctApplied}% credits you entered) · assumed retained loss ${usd(dynamic.transfer.retainedExpected)} · annual cost-of-risk figure ~${usd(dynamic.transfer.expectedAnnualCostOfRisk)}.`,
+    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${usd(dynamic.transfer.retainedExpected)}; modeled annual premium ${usd(dynamic.transfer.premiumAnnualNet)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;

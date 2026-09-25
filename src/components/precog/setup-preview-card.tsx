@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { ShieldAlert } from "lucide-react";
 import type { IndustryId } from "@/lib/precog/industry";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
@@ -17,7 +17,15 @@ export function SetupPreviewCard({
   rows: readonly OwnTeamRow[];
   industry: IndustryId;
 }) {
-  const preview = useMemo(() => previewSetup(rows, industry), [rows, industry]);
+  // Keep typing urgent; expensive conflict/case matching may render later.
+  const deferredRows = useDeferredValue(rows);
+  const preview = useMemo(() => previewSetup(deferredRows, industry), [deferredRows, industry]);
+  if (deferredRows !== rows)
+    return (
+      <p role="status" className="text-xs text-muted">
+        Updating provisional findings…
+      </p>
+    );
   if (preview.peopleWithDuties === 0) return null;
 
   if (!preview.first) {
@@ -26,8 +34,8 @@ export function SetupPreviewCard({
         className="rounded-lg border border-border bg-elevated px-3 py-2 text-xs text-muted"
         role="status"
       >
-        No conflict yet among the duties ticked. The first finding appears here the moment one
-        person holds two duties that let them move money and hide it.
+        No conflict found among the duties entered so far. This is a provisional check, not a
+        completed assessment; review title-based suggestions and any missing duties.
       </p>
     );
   }
@@ -42,7 +50,7 @@ export function SetupPreviewCard({
       data-setup-preview
     >
       <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-warn uppercase">
-        <ShieldAlert className="size-3.5" aria-hidden /> First finding
+        <ShieldAlert className="size-3.5" aria-hidden /> Provisional first finding
         {more > 0 && (
           <span className="font-normal normal-case text-muted">· {more} more after setup</span>
         )}

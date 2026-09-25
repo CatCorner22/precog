@@ -71,6 +71,11 @@ jobs:
       - name: Apply again; the ledger must skip every file
         run: node scripts/migrate.mjs | tee second-run.log && grep -q "up to date" second-run.log
 
+      - name: Atomic model budget with concurrent PostgreSQL connections
+        run: node --experimental-strip-types scripts/test-quota-postgres.mjs
+        env:
+          PRECOG_QUOTA_TEST: "1"
+
       - name: Every table the migrations create exists
         run: |
           node -e '
@@ -122,6 +127,11 @@ jobs:
         env:
           E2E_SCREENSHOT: e2e-failure.png
 
+      - name: Insurance, map history, and setup recovery
+        run: node scripts/e2e-enhancements.mjs http://127.0.0.1:8080/
+        env:
+          E2E_SCREENSHOT: e2e-enhancements-failure.png
+
       - name: Every tab, every industry, plus /threat, /report, /login, /share
         run: npm run e2e:tabs -- http://127.0.0.1:8080/
         env:
@@ -134,5 +144,22 @@ jobs:
           path: |
             e2e-failure.png
             e2e-tabs-failure.png
+            e2e-enhancements-failure.png
             dev.log
           if-no-files-found: ignore
+
+  release-gate:
+    name: Release gate
+    if: always()
+    needs: [checks, migrations, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all mandatory jobs to succeed
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          MIGRATIONS: ${{ needs.migrations.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          test "$CHECKS" = success
+          test "$MIGRATIONS" = success
+          test "$E2E" = success

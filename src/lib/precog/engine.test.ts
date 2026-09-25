@@ -1,3 +1,4 @@
+import { CORE_POLICY_FIELDS } from "./scoring/insurance-record";
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "./active-template";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "./engine";
@@ -171,27 +172,36 @@ describe("insurance on an own business", () => {
     expect(r.dynamic?.transferredExpected).toBe(0);
     expect(r.dynamic?.discountPctApplied).toBe(0);
     const line = r.crimeModifiers.find((m) => m.startsWith("Insurance"))!;
-    expect(line).toContain("no crime policy entered");
-    expect(line).toContain("app default, enter your policy");
+    expect(line).toContain("Insurance not assessed");
+    expect(line).toContain("does not mean you are uninsured");
     expect(r.crimeModifiers.join(" ")).not.toMatch(/your premium/);
   });
 
   it("prices the policy the owner entered", () => {
     const r = runPrecogScenario(ownDental, fraud, {
-      riskVariables: { ...DEFAULT_RISK_VARIABLES, basePremiumAnnual: 1800, deductible: 2500 },
+      riskVariables: {
+        ...DEFAULT_RISK_VARIABLES,
+        basePremiumAnnual: 1800,
+        deductible: 2500,
+        insurance: {
+          status: "reported",
+          confirmedFields: [...CORE_POLICY_FIELDS],
+          modeledScenarioIds: [fraud],
+        },
+      },
     })!;
     expect(r.dynamic?.premiumAnnualNet).toBe(1800);
     expect(r.retainedImpact.expected).toBeLessThan(r.financialImpact.expected);
-    expect(r.crimeModifiers.join(" ")).toContain("the policy you entered");
+    expect(r.crimeModifiers.join(" ")).toContain(
+      "Conditional recovery using your scenario assumption",
+    );
   });
 
   it("keeps the sample business on the app's default policy, labelled as such", () => {
     const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
     expect(r.dynamic?.premiumAnnualNet).toBe(4200);
     expect(r.retainedImpact.expected).toBe(5000);
-    expect(r.crimeModifiers.join(" ")).toContain(
-      "Insurance arithmetic on the app's default policy (app default, enter your policy)",
-    );
+    expect(r.crimeModifiers.join(" ")).toContain("Insurance: app default, enter your policy");
   });
 });
 

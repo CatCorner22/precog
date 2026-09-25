@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { InsuranceRecordPanel } from "./insurance-record-panel";
+import { POLICY_FIELDS, normalizeInsuranceRecord } from "@/lib/precog/scoring/insurance-record";
 import {
   APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
@@ -25,11 +28,25 @@ export function DynamicVariablesPanel({
   value: RiskVariableState;
   onChange: (next: RiskVariableState) => void;
   result?: PrecogResult | null;
-  /** The owner's own business: with no policy entered it is treated as having none. */
+  /** Real business versus demonstration; unknown coverage is never labeled uninsured. */
   ownBusiness?: boolean;
 }) {
   function setNum<K extends keyof RiskVariableState>(key: K, n: number) {
-    onChange({ ...value, [key]: n });
+    if (!Number.isFinite(n) || value[key] === n) return;
+    const insurance = normalizeInsuranceRecord(value.insurance);
+    onChange({
+      ...value,
+      [key]: n,
+      ...(insurance && (POLICY_FIELDS as readonly string[]).includes(key)
+        ? {
+            insurance: {
+              ...insurance,
+              confirmedFields: insurance.confirmedFields.filter((field) => field !== key),
+              modeledScenarioIds: [],
+            },
+          }
+        : {}),
+    });
   }
   function setBool<K extends keyof RiskVariableState>(key: K, b: boolean) {
     onChange({ ...value, [key]: b });
@@ -37,7 +54,7 @@ export function DynamicVariablesPanel({
 
   const d = result?.dynamic;
   const basis = insuranceBasis(value, ownBusiness);
-  const note = insuranceFigureNote(value, ownBusiness);
+  const note = insuranceFigureNote(value, ownBusiness, result?.scenarioId);
   const hint = (text: string) => (note ? `${text} · ${note}` : text);
   const isDefault = (key: PolicyField) => policyFieldIsDefault(value, key);
   const frequency = d
@@ -52,8 +69,8 @@ export function DynamicVariablesPanel({
             <div>
               <CardTitle>Dynamic risk variables</CardTitle>
               <CardDescription>
-                Change premium, deductible, discounts, or controls — likelihood and severity
-                recompute live (educational model, not a quote).
+                Change policy terms or operational controls. Insurance finances a loss; it does not
+                automatically change its likelihood (educational model, not a quote).
               </CardDescription>
             </div>
             <Button
@@ -85,9 +102,13 @@ export function DynamicVariablesPanel({
                 hint="timeline pressure"
               />
               <Mini
-                label="Net premium / yr"
+                label="Modeled premium / yr"
                 value={formatUsd(d.premiumAnnualNet)}
-                hint={hint(basis === "none" ? "no premium" : `−${d.discountPctApplied}% credits`)}
+                hint={hint(
+                  basis === "none"
+                    ? "reported no policy"
+                    : `modeled from confirmed terms; −${d.discountPctApplied}% credits`,
+                )}
               />
               <Mini
                 label="Assumed loss if it happens"
@@ -120,14 +141,11 @@ export function DynamicVariablesPanel({
             </div>
           )}
 
+          <InsuranceRecordPanel value={value} onChange={onChange} scenarioId={result?.scenarioId} />
           <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
-            {basis === "none"
-              ? `No crime policy entered, so the app assumes none: the business keeps the whole assumed loss, pays no premium and earns no credit. The premium, deductible and limit below are app defaults; enter your own policy's figures to price it.`
-              : basis === "app_default"
-                ? `The sample business is priced on the app's default policy (${APP_DEFAULT_POLICY}).`
-                : note
-                  ? `Priced on the policy you entered; ${note}.`
-                  : "Priced on the policy you entered."}
+            {basis === "app_default"
+              ? `The sample uses an illustrative policy (${APP_DEFAULT_POLICY}).`
+              : note}
           </p>
           <Section title="Insurance transfer">
             <CurrencyField
@@ -152,7 +170,7 @@ export function DynamicVariablesPanel({
               label="Policy limit"
               value={value.policyLimit}
               onChange={(n) => setNum("policyLimit", n)}
-              min={10000}
+              min={0}
               max={1000000}
               step={5000}
               appDefault={isDefault("policyLimit")}
@@ -377,7 +395,7 @@ function CurrencyField({
         {label}
         {appDefault && (
           <span className="rounded border border-border px-1.5 py-0.5 text-xs text-subtle">
-            app default
+            not confirmed
           </span>
         )}
       </span>
@@ -388,12 +406,11 @@ function CurrencyField({
           max={max}
           step={step}
           value={value}
+          aria-label={`Adjust ${label.toLowerCase()}`}
           onChange={(e) => onChange(Number(e.target.value))}
           className="min-w-0 flex-1 accent-[var(--color-primary)]"
         />
-        <span className="w-20 shrink-0 text-right tabular text-xs font-medium">
-          {formatUsd(value)}
-        </span>
+        <ExactAmount label={label} value={value} min={min} max={max} onChange={onChange} />
       </div>
     </label>
   );
@@ -489,5 +506,63 @@ function BoolRow({
         <span className="mt-0.5 block text-xs text-muted">{effect}</span>
       </span>
     </label>
+  );
+}
+
+/** Preserve an unfinished edit until blur/Enter; never convert an empty field to zero. */
+function ExactAmount({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setDraft(String(value));
+    setError("");
+  }, [value]);
+  function commit() {
+    const number = draft.trim() ? Number(draft) : NaN;
+    if (!Number.isFinite(number) || number < min || number > max) {
+      setError(`Enter an amount from ${min} to ${max}.`);
+      return;
+    }
+    const rounded = Math.round(number * 100) / 100;
+    setError("");
+    setDraft(String(rounded));
+    onChange(rounded);
+  }
+  return (
+    <span className="w-28 shrink-0">
+      <input
+        type="number"
+        inputMode="decimal"
+        aria-label={label}
+        aria-invalid={Boolean(error)}
+        min={min}
+        max={max}
+        step="0.01"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        className="w-full rounded border border-border bg-bg px-2 py-1 text-right text-xs tabular"
+      />
+      {error && (
+        <span className="mt-1 block text-xs text-danger" role="alert">
+          {error}
+        </span>
+      )}
+    </span>
   );
 }

@@ -30,7 +30,11 @@ export function CascadePanel() {
     [template, leverId, profile.riskVariables, profile.staff, all.scenarioId],
   );
   const waiting = CASCADE_LEVERS.filter((l) => leverUnavailableReason(l.id, profile.riskVariables));
-  const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(template));
+  const policyNote = insuranceFigureNote(
+    profile.riskVariables,
+    isOwnBusiness(template),
+    all.scenarioId,
+  );
 
   return (
     <div className="space-y-4">

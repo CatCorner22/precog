@@ -451,9 +451,10 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
 
   const setMapLayout = useCallback(
     (v: SetStateAction<Record<string, { x: number; y: number }>>) => {
+      pushUndo();
       setProfile((p) => withMapLayout(p, resolveUpdate(v, p.mapLayout ?? {})));
     },
-    [],
+    [pushUndo],
   );
 
   const setSavedProcessBlocks = useCallback((v: SetStateAction<SavedProcessBlock[]>) => {

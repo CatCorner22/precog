@@ -1,3 +1,8 @@
+import {
+  connectProcessDependency,
+  edgesWithinNodes,
+  removeProcessDependencies,
+} from "@/lib/precog/builder/map-editing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
@@ -494,74 +499,72 @@ export function ProcessMap({
   }, []);
 
   const onNodeDragStop = useCallback(
-    (_: unknown, node: ProcessFlowNode) => {
-      setMapLayout((l) => ({ ...l, [node.id]: node.position }));
-      setLiveLayout((l) => {
-        const next = { ...l };
-        delete next[node.id];
+    (_: unknown, node: ProcessFlowNode, dragged: ProcessFlowNode[] = []) => {
+      const moved = (dragged.length ? dragged : [node]).filter(
+        (n) => asMapNode(n.data).kind === "process",
+      );
+      if (!moved.length) return;
+      setMapLayout((layout) => ({
+        ...layout,
+        ...Object.fromEntries(moved.map((n) => [n.id, n.position])),
+      }));
+      setLiveLayout((layout) => {
+        const next = { ...layout };
+        for (const n of moved) delete next[n.id];
         return next;
       });
     },
     [setMapLayout],
   );
 
+  const processIds = useMemo(() => new Set(processes.map((p) => p.id)), [processes]);
   const isValidConnection = useCallback(
-    (connection: Connection | Edge) => {
-      if (!build || !connection.source || !connection.target) return false;
-      if (connection.source === connection.target) return false;
-      const source = graph.nodes.find((n) => n.id === connection.source);
-      const target = graph.nodes.find((n) => n.id === connection.target);
-      return source?.kind === "process" && target?.kind === "process";
-    },
-    [build, graph.nodes],
+    (connection: Connection | Edge) =>
+      Boolean(
+        build &&
+        connection.source &&
+        connection.target &&
+        connection.source !== connection.target &&
+        processIds.has(connection.source) &&
+        processIds.has(connection.target),
+      ),
+    [build, processIds],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
+      if (!isValidConnection(connection)) return;
       const source = connection.source;
       const target = connection.target;
-      setCustomProcesses((cur) => {
-        const next = cur.map((p) => {
-          if (p.id !== target) return p;
-          if (p.dependencies.includes(source)) return p;
-          return { ...p, dependencies: [...p.dependencies, source] };
-        });
-        const targetProc = next.find((p) => p.id === target);
-        const sourceProc = next.find((p) => p.id === source);
-        if (targetProc && sourceProc) {
-          toast.success("Dependency linked", {
-            description: `${targetProc.name} now depends on ${sourceProc.name}`,
-          });
-        }
-        return next;
+      if (connectProcessDependency(processes, source, target) === processes) return;
+      setCustomProcesses((current) => connectProcessDependency(current, source, target));
+      toast.success("Dependency linked", {
+        description: `${processes.find((p) => p.id === target)?.name} now depends on ${processes.find((p) => p.id === source)?.name}`,
       });
     },
-    [setCustomProcesses],
+    [isValidConnection, processes, setCustomProcesses],
   );
 
   const onEdgesDelete = useCallback(
     (deleted: Edge[]) => {
       if (!build) return;
-      for (const edge of deleted) {
-        const ge = graph.edges.find((e) => e.id === edge.id);
-        if (ge?.kind !== "depends") continue;
-        setCustomProcesses((cur) =>
-          cur.map((p) =>
-            p.id === ge.target
-              ? { ...p, dependencies: p.dependencies.filter((d) => d !== ge.source) }
-              : p,
-          ),
-        );
-      }
+      const ids = new Set(deleted.map((edge) => edge.id));
+      const links = graph.edges.filter((edge) => edge.kind === "depends" && ids.has(edge.id));
+      if (!links.length) return;
+      setCustomProcesses((current) => removeProcessDependencies(current, links));
     },
     [build, graph.edges, setCustomProcesses],
+  );
+
+  const visibleEdges = useMemo(
+    () => edgesWithinNodes(graph.edges, visibleNodes),
+    [graph.edges, visibleNodes],
   );
 
   const rfEdges: Edge[] = useMemo(() => {
     const depInteractive = layerMap.get("depends")?.interactive !== false;
     const depVisible = layerMap.get("depends")?.visible !== false;
-    return graph.edges
+    return visibleEdges
       .filter((e) => {
         if (e.kind === "depends" || e.kind === "feeds") return depVisible;
         if (e.kind === "has_idea") return layerMap.get("idea")?.visible !== false;
@@ -576,11 +579,6 @@ export function ProcessMap({
             layerMap.get("person")?.visible !== false
           );
         return true;
-      })
-      .filter((e) => {
-        // hide edges to filtered nodes
-        const ids = new Set(rfNodes.map((n) => n.id));
-        return ids.has(e.source) && ids.has(e.target);
       })
       .map((e) => {
         const style = EDGE_STYLE[e.kind] ?? EDGE_STYLE.depends;
@@ -618,7 +616,7 @@ export function ProcessMap({
           interactionWidth: passiveDep ? 1 : 12,
         };
       });
-  }, [graph.edges, vision, layerMap, rfNodes, build]);
+  }, [visibleEdges, vision, layerMap, build]);
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId);
   const processId =

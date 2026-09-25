@@ -6,7 +6,7 @@
  * the shared cutoffs and the sentence every index surface shows.
  */
 import { RISK_SCALE } from "./bands";
-export const SCORING_VERSION = "precog-residual-v1.1.0";
+export const SCORING_VERSION = "precog-residual-v1.2.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 const INHERENT_WEIGHTS = {
