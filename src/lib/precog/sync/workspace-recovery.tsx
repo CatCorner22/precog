@@ -135,7 +135,9 @@ export function WorkspaceRecovery({ token }: { token: WorkspaceToken }) {
       }
       finishExit(true);
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : "Save failed. No local work was discarded.");
+      setError(
+        problem instanceof Error ? problem.message : "Save failed. No local work was discarded.",
+      );
     } finally {
       setBusy(false);
     }
@@ -150,7 +152,8 @@ export function WorkspaceRecovery({ token }: { token: WorkspaceToken }) {
       !window.confirm(
         "Import the active guest business into this account as a new business? The guest copy remains on this device. Continue only if this is your data.",
       )
-    ) return;
+    )
+      return;
     try {
       const guest = normalizeProfile(JSON.parse(stored));
       const imported: PracticeProfile = {
@@ -170,7 +173,9 @@ export function WorkspaceRecovery({ token }: { token: WorkspaceToken }) {
       {hasGuest && ready && (
         <aside className="flex items-center gap-3 border-b border-border bg-panel px-4 py-2 text-xs">
           <span>Guest work is separate from this account.</span>
-          <button type="button" className="underline" onClick={importGuest}>Import guest work</button>
+          <button type="button" className="underline" onClick={importGuest}>
+            Import guest work
+          </button>
         </aside>
       )}
       <dialog
@@ -182,21 +187,76 @@ export function WorkspaceRecovery({ token }: { token: WorkspaceToken }) {
         className="max-w-xl rounded-xl border border-border bg-panel p-6 text-fg backdrop:bg-black/60"
         aria-labelledby="workspace-exit-title"
       >
-        <h2 id="workspace-exit-title" className="text-lg font-semibold">Protect your unsaved work</h2>
-        <p className="my-3">Some work is not acknowledged by the server. Save it, export a recovery copy, or remain signed in.</p>
-        {error && <p role="alert" className="my-3 text-danger">{error}</p>}
+        <h2 id="workspace-exit-title" className="text-lg font-semibold">
+          Protect your unsaved work
+        </h2>
+        <p className="my-3">
+          Some work is not acknowledged by the server. Save it, export a recovery copy, or remain
+          signed in.
+        </p>
+        {error && (
+          <p role="alert" className="my-3 text-danger">
+            {error}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={busy} className="rounded border px-3 py-2" onClick={() => void saveAndExit()}>Save and sign out</button>
-          <button type="button" disabled={busy} className="rounded border px-3 py-2" onClick={() => {
-            browserWorkspace.assertCurrent(token);
-            downloadRecovery({ version: 1, records: exportWorkspace(token.owner), active: current.current });
-            setExported(true);
-          }}>Export recovery copy</button>
-          {exported && <button type="button" disabled={busy} className="rounded border px-3 py-2" onClick={() => finishExit(true)}>I saved my export; sign out</button>}
-          <button type="button" disabled={busy} className="rounded border px-3 py-2" onClick={() => {
-            if (window.confirm("Discard unsynced work in this account's local workspace? This cannot be undone.")) finishExit(true);
-          }}>Discard and sign out</button>
-          <button type="button" disabled={busy} className="rounded border px-3 py-2" onClick={() => finishExit(false)}>Stay signed in</button>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border px-3 py-2"
+            onClick={() => void saveAndExit()}
+          >
+            Save and sign out
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border px-3 py-2"
+            onClick={() => {
+              browserWorkspace.assertCurrent(token);
+              downloadRecovery({
+                version: 1,
+                records: exportWorkspace(token.owner),
+                active: current.current,
+              });
+              setExported(true);
+            }}
+          >
+            Export recovery copy
+          </button>
+          {exported && (
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded border px-3 py-2"
+              onClick={() => finishExit(true)}
+            >
+              I saved my export; sign out
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border px-3 py-2"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Discard unsynced work in this account's local workspace? This cannot be undone.",
+                )
+              )
+                finishExit(true);
+            }}
+          >
+            Discard and sign out
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border px-3 py-2"
+            onClick={() => finishExit(false)}
+          >
+            Stay signed in
+          </button>
         </div>
       </dialog>
     </>

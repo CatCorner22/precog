@@ -30,7 +30,8 @@ export class WorkspaceSession {
   }
 
   assertCurrent(token: WorkspaceToken): void {
-    if (!this.isCurrent(token)) throw new Error("Account changed. Old workspace operation cancelled.");
+    if (!this.isCurrent(token))
+      throw new Error("Account changed. Old workspace operation cancelled.");
   }
 }
 
@@ -51,7 +52,9 @@ export function profileOwner(value: unknown): WorkspaceOwner | undefined {
 /** A provenance check, never a source of server authorization. */
 export function assertProfileOwner(value: unknown, owner: WorkspaceOwner): void {
   if (profileOwner(value) !== owner) {
-    throw new Error("This profile belongs to a different or unassigned workspace. It was not saved.");
+    throw new Error(
+      "This profile belongs to a different or unassigned workspace. It was not saved.",
+    );
   }
 }
 

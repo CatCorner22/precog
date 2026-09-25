@@ -30,7 +30,10 @@ export const authMiddleware = createMiddleware({ type: "function" })
       (typeof expected === "string" && expected !== userId) ||
       (getRequest()?.method === "POST" && typeof expected !== "string")
     ) {
-      throw new RequestError(409, "Your account changed. Refresh before saving; local work is retained.");
+      throw new RequestError(
+        409,
+        "Your account changed. Refresh before saving; local work is retained.",
+      );
     }
     return next({ context: { userId } });
   });

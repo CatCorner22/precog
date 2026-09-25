@@ -134,7 +134,9 @@ describe("withinDailyBudget", () => {
     await pg.exec(
       "insert into llm_daily_usage (scope, day, calls) values ('user:old', current_date - 40, 9)",
     );
-    expect(await withinDailyBudget(async () => sql, "a", undefined, createDailyUsagePurger())).toBe(true);
+    expect(await withinDailyBudget(async () => sql, "a", undefined, createDailyUsagePurger())).toBe(
+      true,
+    );
     const rows = await sql<{ scope: string }>`select scope from llm_daily_usage order by scope`;
     expect(rows.map((r) => r.scope)).toEqual(["global", "user:a"]);
   });

@@ -67,9 +67,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
     throw new Error("Invalid business revision or limit");
   }
   type Stored =
-    | BusinessSaveResult<TProfile>
-    | { ok: false; deleted: true }
-    | { ok: false; limit: true };
+    BusinessSaveResult<TProfile> | { ok: false; deleted: true } | { ok: false; limit: true };
   const rows = await sql<{ result: Stored }>`
     select precog_save_business(
       ${input.userId}::text, ${input.businessId}::text, ${input.name}::text,

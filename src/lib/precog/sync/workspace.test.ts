@@ -10,11 +10,17 @@ import {
 function memory(): KeyedStorage {
   const values = new Map<string, string>();
   return {
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
     key: (i) => [...values.keys()][i] ?? null,
     getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => { values.set(key, value); },
-    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
   };
 }
 

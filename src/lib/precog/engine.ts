@@ -24,7 +24,10 @@ export function runPrecogScenario(
     withInsuranceScenario(options?.riskVariables ?? { ...DEFAULT_RISK_VARIABLES }, scenarioId),
     own,
   );
-  const result = core.runPrecogScenario(template, scenarioId, { ...options, riskVariables: variables });
+  const result = core.runPrecogScenario(template, scenarioId, {
+    ...options,
+    riskVariables: variables,
+  });
   if (!result) return null;
   const transfer = applyInsuranceTransfer(
     result.financialImpact.expected,
@@ -33,7 +36,11 @@ export function runPrecogScenario(
     variables,
     result.dynamic?.likelihoodMultiplier ?? 1,
   );
-  const insurance = modelInsuranceScenario(readInsurance(variables), scenarioId, result.financialImpact.expected);
+  const insurance = modelInsuranceScenario(
+    readInsurance(variables),
+    scenarioId,
+    result.financialImpact.expected,
+  );
   return {
     ...result,
     insurance,
@@ -42,23 +49,26 @@ export function runPrecogScenario(
       low: transfer.retainedLow,
       high: transfer.retainedHigh,
     },
-    dynamic: result.dynamic ? {
-      ...result.dynamic,
-      grossExpected: result.financialImpact.expected,
-      retainedExpected: transfer.retainedExpected,
-      transferredExpected: transfer.transferredExpected,
-      premiumAnnualNet: transfer.premiumAnnualNet,
-      discountPctApplied: transfer.discountPctApplied,
-      expectedAnnualCostOfRisk: transfer.expectedAnnualCostOfRisk,
-      eventPlusPremiumExpected: transfer.eventPlusPremiumExpected,
-      discountLines: transfer.discounts,
-      notes: transfer.notes,
-    } : undefined,
+    dynamic: result.dynamic
+      ? {
+          ...result.dynamic,
+          grossExpected: result.financialImpact.expected,
+          retainedExpected: transfer.retainedExpected,
+          transferredExpected: transfer.transferredExpected,
+          premiumAnnualNet: transfer.premiumAnnualNet,
+          discountPctApplied: transfer.discountPctApplied,
+          expectedAnnualCostOfRisk: transfer.expectedAnnualCostOfRisk,
+          eventPlusPremiumExpected: transfer.eventPlusPremiumExpected,
+          discountLines: transfer.discounts,
+          notes: transfer.notes,
+        }
+      : undefined,
     crimeModifiers: [
       ...result.crimeModifiers.filter((line) => !line.startsWith("Insurance")),
       insuranceFigureNote(variables, own) ?? "Conditional insurance illustration.",
     ],
-    residualIfNothing: "Insurance can finance part of an eligible loss; it does not repair the underlying operational or control gap.",
+    residualIfNothing:
+      "Insurance can finance part of an eligible loss; it does not repair the underlying operational or control gap.",
     assumptions: [...result.assumptions, ...transfer.notes],
   };
 }
@@ -72,7 +82,8 @@ export function rankDangerousScenarios(
     .map((scenario) => {
       const result = runPrecogScenario(template, scenario.id, options)!;
       const gross = result.financialImpact.expected;
-      const score = gross / Math.max(14, result.timelineDays.p50) *
+      const score =
+        (gross / Math.max(14, result.timelineDays.p50)) *
         ((options?.staff ?? template.staffComposition).segregationScore < 50 ? 1.3 : 1);
       return { scenario, score, result };
     })

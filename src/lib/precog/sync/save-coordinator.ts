@@ -18,12 +18,14 @@ export async function serialWorkspaceWrite<T>(
 ): Promise<T> {
   const key = JSON.stringify([token.owner, token.epoch, businessId]);
   const previous = queues.get(key) ?? Promise.resolve();
-  const pending = previous.catch(() => undefined).then(async () => {
-    browserWorkspace.assertCurrent(token);
-    const result = await work();
-    browserWorkspace.assertCurrent(token);
-    return result;
-  });
+  const pending = previous
+    .catch(() => undefined)
+    .then(async () => {
+      browserWorkspace.assertCurrent(token);
+      const result = await work();
+      browserWorkspace.assertCurrent(token);
+      return result;
+    });
   queues.set(key, pending);
   try {
     return await pending;

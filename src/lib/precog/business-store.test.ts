@@ -138,7 +138,10 @@ describe("active pointer and atomic saves", () => {
   });
   it("still loads a genuine legacy pointer-only account", async () => {
     await setActiveBusiness(sql, input("user-a", "biz_default", null, "legacy"));
-    expect(await loadActiveBusiness(sql, "user-a")).toMatchObject({ name: "legacy", revision: null });
+    expect(await loadActiveBusiness(sql, "user-a")).toMatchObject({
+      name: "legacy",
+      revision: null,
+    });
   });
   it("sets the active business within the successful save transaction", async () => {
     await saveBusinessRevision(sql, { ...input("user-a", "one", null, "atomic"), activate: true });
@@ -162,7 +165,9 @@ describe("active pointer and atomic saves", () => {
       expect(await revisionOf("user-a", "one")).toBeNull();
       expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
     } finally {
-      await pg.exec("drop trigger test_pointer on business_profiles; drop function test_fail_pointer();");
+      await pg.exec(
+        "drop trigger test_pointer on business_profiles; drop function test_fail_pointer();",
+      );
     }
   });
   it("ignores a dangling pointer when the account has revision-tracked businesses", async () => {
@@ -217,11 +222,15 @@ describe("deletion and tombstones", () => {
       for each row execute function test_fail_delete();
     `);
     try {
-      await expect(deleteBusinessRow(sql, "user-a", "one")).rejects.toThrow("injected delete failure");
+      await expect(deleteBusinessRow(sql, "user-a", "one")).rejects.toThrow(
+        "injected delete failure",
+      );
       expect(await revisionOf("user-a", "one")).toBe(1);
       expect(await sql`select * from business_tombstones`).toEqual([]);
     } finally {
-      await pg.exec("drop trigger test_delete on business_profiles; drop function test_fail_delete();");
+      await pg.exec(
+        "drop trigger test_delete on business_profiles; drop function test_fail_delete();",
+      );
     }
   });
   it("removes tombstones on full account deletion", async () => {
@@ -235,10 +244,14 @@ describe("deletion and tombstones", () => {
 describe("limits, summaries, and timestamps", () => {
   it("enforces limits atomically while permitting updates and other accounts", async () => {
     const results = await Promise.allSettled(
-      ["one", "two", "three", "four"].map((id) => saveBusinessRevision(sql, input("user-a", id, null), 3)),
+      ["one", "two", "three", "four"].map((id) =>
+        saveBusinessRevision(sql, input("user-a", id, null), 3),
+      ),
     );
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
-    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toBeInstanceOf(BusinessLimitError);
+    expect(
+      (results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason,
+    ).toBeInstanceOf(BusinessLimitError);
     expect((await saveBusinessRevision(sql, input("user-a", "one", 1), 3)).ok).toBe(true);
     expect((await saveBusinessRevision(sql, input("user-b", "one", null), 3)).ok).toBe(true);
     await deleteBusinessRow(sql, "user-a", "one");
@@ -268,7 +281,10 @@ describe("limits, summaries, and timestamps", () => {
   it("reads process counts and latest health without trusting malformed shapes", async () => {
     await saveBusinessRevision(sql, {
       ...input("user-a", "one", null),
-      profileJson: JSON.stringify({ customProcesses: [{}, {}], mapHealthHistory: [{ score: 40 }, { score: 72 }] }),
+      profileJson: JSON.stringify({
+        customProcesses: [{}, {}],
+        mapHealthHistory: [{ score: 40 }, { score: 72 }],
+      }),
     });
     await saveBusinessRevision(sql, {
       ...input("user-a", "two", null),
@@ -280,7 +296,10 @@ describe("limits, summaries, and timestamps", () => {
   });
   it("normalizes save, conflict, and load timestamps to ISO milliseconds", async () => {
     const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-    const saved = await saveBusinessRevision(sql, { ...input("user-a", "one", null), activate: true });
+    const saved = await saveBusinessRevision(sql, {
+      ...input("user-a", "one", null),
+      activate: true,
+    });
     if (!saved.ok) throw new Error("save failed");
     expect(saved.updatedAt).toMatch(iso);
     const conflict = await saveBusinessRevision(sql, input("user-a", "one", null));

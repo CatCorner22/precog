@@ -43,7 +43,10 @@ describe("multipart request guard", () => {
     expect((await checkServerFnRequest(multipart("Boundary"), 10))?.status).toBe(413);
   });
   it("still accepts supported JSON and refuses malformed serialized envelopes", async () => {
-    for (const [body, status] of [["null", null], ['{"data":{}}', 400]] as const) {
+    for (const [body, status] of [
+      ["null", null],
+      ['{"data":{}}', 400],
+    ] as const) {
       const request = new Request("https://example.test/_serverFn/test", {
         method: "POST",
         headers: { "content-type": "Application/JSON; charset=UTF-8" },

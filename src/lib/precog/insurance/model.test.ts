@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
-  emptyInsurance, enteredFact, modelInsuranceScenario, newPolicy, normalizeInsurance, policyPremium,
+  emptyInsurance,
+  enteredFact,
+  modelInsuranceScenario,
+  newPolicy,
+  normalizeInsurance,
+  policyPremium,
   type InsuranceWorkspace,
 } from "./model";
 import {
-  computeLikelihoodSeverity, DEFAULT_RISK_VARIABLES, policyEntered, policyFieldIsDefault, readInsurance, withInsurance,
+  computeLikelihoodSeverity,
+  DEFAULT_RISK_VARIABLES,
+  policyEntered,
+  policyFieldIsDefault,
+  readInsurance,
+  withInsurance,
 } from "../scoring/dynamic-variables";
 import { normalizeProfile, defaultProfile } from "../practice-profile";
 
@@ -16,21 +26,34 @@ function fixture(): InsuranceWorkspace {
   policy.terms.insurerPaymentLimit = enteredFact(30000);
   policy.terms.unreimbursedPct = enteredFact(0);
   policy.terms.premiumAnnual = enteredFact(1000);
-  return { ...emptyInsurance(), status: "terms_entered", policies: [policy], selectedPolicyId: policy.id };
+  return {
+    ...emptyInsurance(),
+    status: "terms_entered",
+    policies: [policy],
+    selectedPolicyId: policy.id,
+  };
 }
 
 describe("conditional insurance model", () => {
   it("keeps unknown coverage distinct from owner-reported absence", () => {
     expect(modelInsuranceScenario(emptyInsurance(), "theft", 50000)).toMatchObject({
-      status: "not_assessed", potentialRecovery: null, retainedIfAssumptionsHold: null,
+      status: "not_assessed",
+      potentialRecovery: null,
+      retainedIfAssumptionsHold: null,
     });
-    expect(modelInsuranceScenario({ ...emptyInsurance(), status: "none_reported" }, "theft", 50000)).toMatchObject({
-      status: "none_reported", potentialRecovery: 0, retainedIfAssumptionsHold: 50000,
+    expect(
+      modelInsuranceScenario({ ...emptyInsurance(), status: "none_reported" }, "theft", 50000),
+    ).toMatchObject({
+      status: "none_reported",
+      potentialRecovery: 0,
+      retainedIfAssumptionsHold: 50000,
     });
   });
   it("calculates the approved 50000 loss / 5000 deductible / 30000 limit example", () => {
     expect(modelInsuranceScenario(fixture(), "theft", 50000)).toMatchObject({
-      status: "conditional", potentialRecovery: 30000, retainedIfAssumptionsHold: 20000,
+      status: "conditional",
+      potentialRecovery: 30000,
+      retainedIfAssumptionsHold: 20000,
       annualCostOfRisk: null,
     });
   });
@@ -76,7 +99,9 @@ describe("conditional insurance model", () => {
     const state = fixture();
     state.policies[0].effectiveFrom = "2026-01-01";
     state.policies[0].effectiveTo = "2026-12-31";
-    expect(modelInsuranceScenario(state, "theft", 50000, "2027-01-01").status).toBe("not_established");
+    expect(modelInsuranceScenario(state, "theft", 50000, "2027-01-01").status).toBe(
+      "not_established",
+    );
     expect(modelInsuranceScenario(state, "theft", 50000, "2026-06-01").status).toBe("conditional");
   });
   it("does not add overlapping policy recoveries", () => {
@@ -102,7 +127,13 @@ describe("conditional insurance model", () => {
   });
   it("does not let insurance financing or bonding mechanically change operating likelihood", () => {
     const base = computeLikelihoodSeverity(DEFAULT_RISK_VARIABLES);
-    const changed = computeLikelihoodSeverity({ ...DEFAULT_RISK_VARIABLES, deductible: 50000, policyLimit: 500000, claimsLoadFactor: 2, hasBondedCashHandlers: true });
+    const changed = computeLikelihoodSeverity({
+      ...DEFAULT_RISK_VARIABLES,
+      deductible: 50000,
+      policyLimit: 500000,
+      claimsLoadFactor: 2,
+      hasBondedCashHandlers: true,
+    });
     expect(changed).toEqual(base);
   });
   it("preserves policy provenance through profile normalization and JSON reload", () => {
@@ -117,6 +148,7 @@ describe("conditional insurance model", () => {
     state.policies[0].terms.unreimbursedPct = enteredFact(33.33);
     const result = modelInsuranceScenario(state, "theft", 100.07);
     expect(result.potentialRecovery! + result.retainedIfAssumptionsHold!).toBeCloseTo(100.07, 8);
-    for (const amount of [-1, NaN, Infinity]) expect(() => modelInsuranceScenario(state, "theft", amount)).toThrow();
+    for (const amount of [-1, NaN, Infinity])
+      expect(() => modelInsuranceScenario(state, "theft", amount)).toThrow();
   });
 });

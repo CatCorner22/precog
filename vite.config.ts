@@ -43,7 +43,9 @@ function authPopupPlugin(): Plugin {
             res.end("Method Not Allowed");
             return;
           }
-          const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080");
+          const host = String(
+            req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:8080",
+          );
           const proto = String(
             req.headers["x-forwarded-proto"] ??
               ((req.socket as { encrypted?: boolean } | undefined)?.encrypted ? "https" : "http"),
@@ -58,13 +60,19 @@ function authPopupPlugin(): Plugin {
             }
           }
           if (!requestHeaders.has("host")) requestHeaders.set("host", host);
-          const request = new Request(`${proto}://${host}${rawUrl}`, { method: "GET", headers: requestHeaders });
+          const request = new Request(`${proto}://${host}${rawUrl}`, {
+            method: "GET",
+            headers: requestHeaders,
+          });
           const mod = (await server.ssrLoadModule("/src/lib/auth/popup.server.ts")) as {
             handleAuthPopupRequest: (request: Request) => Promise<Response>;
           };
           const response = await mod.handleAuthPopupRequest(request);
           res.statusCode = response.status;
-          const setCookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+          const setCookies =
+            typeof response.headers.getSetCookie === "function"
+              ? response.headers.getSetCookie()
+              : [];
           response.headers.forEach((value, key) => {
             if (key.toLowerCase() !== "set-cookie") res.setHeader(key, value);
           });
@@ -88,7 +96,10 @@ export default defineConfig(({ command }) => {
   if (command === "build") {
     const errors = productionConfigurationErrors(process.env);
     if (errors.length) throw new Error(`Refusing production build: ${errors.join("; ")}`);
-    if (process.env.PRECOG_BUILD_TARGET && !["vercel", "node-server"].includes(process.env.PRECOG_BUILD_TARGET)) {
+    if (
+      process.env.PRECOG_BUILD_TARGET &&
+      !["vercel", "node-server"].includes(process.env.PRECOG_BUILD_TARGET)
+    ) {
       throw new Error("PRECOG_BUILD_TARGET must be vercel or node-server");
     }
   }
@@ -117,20 +128,22 @@ export default defineConfig(({ command }) => {
       tailwindcss(),
       tanstackStart(),
       ...(command === "build"
-        ? [nitro({
-            preset: process.env.PRECOG_BUILD_TARGET === "node-server" ? "node-server" : "vercel",
-            routeRules: {
-              "/**": {
-                headers: {
-                  "content-security-policy": "frame-ancestors 'self'",
-                  "referrer-policy": "strict-origin-when-cross-origin",
-                  "x-content-type-options": "nosniff",
-                  "permissions-policy": "camera=(), microphone=(), geolocation=()",
-                  "strict-transport-security": "max-age=31536000; includeSubDomains",
+        ? [
+            nitro({
+              preset: process.env.PRECOG_BUILD_TARGET === "node-server" ? "node-server" : "vercel",
+              routeRules: {
+                "/**": {
+                  headers: {
+                    "content-security-policy": "frame-ancestors 'self'",
+                    "referrer-policy": "strict-origin-when-cross-origin",
+                    "x-content-type-options": "nosniff",
+                    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+                    "strict-transport-security": "max-age=31536000; includeSubDomains",
+                  },
                 },
               },
-            },
-          })]
+            }),
+          ]
         : []),
       viteReact(),
     ],

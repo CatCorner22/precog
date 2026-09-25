@@ -194,6 +194,7 @@ const deleteBusinessRequest = createServerFn({ method: "POST" })
 export async function deleteBusiness(options: { data: { id: string } }) {
   const token = browserWorkspace.snapshot();
   if (typeof window === "undefined") return deleteBusinessRequest(options);
-  if (!token || token.owner === null) throw new Error("Sign in before deleting an account business.");
+  if (!token || token.owner === null)
+    throw new Error("Sign in before deleting an account business.");
   return serialWorkspaceWrite(token, options.data.id, () => deleteBusinessRequest(options));
 }

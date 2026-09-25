@@ -54,10 +54,14 @@ integration("isolated real PostgreSQL stabilization", () => {
       !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) ||
       !target.pathname.includes("precog")
     ) {
-      throw new Error("Integration tests require an explicitly confirmed, loopback-only Precog test database");
+      throw new Error(
+        "Integration tests require an explicitly confirmed, loopback-only Precog test database",
+      );
     }
     pool = new Pool({ connectionString: url, max: 12 });
-    await pool.query("select 'precog_save_business(text,text,text,text,jsonb,bigint,integer,boolean)'::regprocedure");
+    await pool.query(
+      "select 'precog_save_business(text,text,text,text,jsonb,bigint,integer,boolean)'::regprocedure",
+    );
   });
 
   beforeEach(async () => {
@@ -100,7 +104,9 @@ integration("isolated real PostgreSQL stabilization", () => {
     const rows = await pool.query("select id from businesses where user_id=$1", [prefix]);
     expect(rows.rowCount).toBe(0);
     expect(await connection((sql) => loadActiveBusiness(sql, prefix))).toBeNull();
-    await expect(connection((sql) => saveBusinessRevision(sql, saveInput(null)))).rejects.toThrow("deleted");
+    await expect(connection((sql) => saveBusinessRevision(sql, saveInput(null)))).rejects.toThrow(
+      "deleted",
+    );
   });
 
   it("rolls back both the business and its active pointer after an injected failure", async () => {
@@ -115,11 +121,20 @@ integration("isolated real PostgreSQL stabilization", () => {
         create trigger precog_integration_pointer before insert or update on business_profiles
         for each row execute function precog_integration_fail_pointer();
       `);
-      await expect(saveBusinessRevision(clientSql(client), saveInput(null, "INJECTED FAILURE"))).rejects.toThrow("injected pointer failure");
-      expect((await client.query("select id from businesses where user_id=$1", [prefix])).rowCount).toBe(0);
-      expect((await client.query("select user_id from business_profiles where user_id=$1", [prefix])).rowCount).toBe(0);
+      await expect(
+        saveBusinessRevision(clientSql(client), saveInput(null, "INJECTED FAILURE")),
+      ).rejects.toThrow("injected pointer failure");
+      expect(
+        (await client.query("select id from businesses where user_id=$1", [prefix])).rowCount,
+      ).toBe(0);
+      expect(
+        (await client.query("select user_id from business_profiles where user_id=$1", [prefix]))
+          .rowCount,
+      ).toBe(0);
     } finally {
-      await client.query("drop trigger if exists precog_integration_pointer on business_profiles; drop function if exists precog_integration_fail_pointer();");
+      await client.query(
+        "drop trigger if exists precog_integration_pointer on business_profiles; drop function if exists precog_integration_fail_pointer();",
+      );
       client.release();
     }
   });
@@ -127,9 +142,11 @@ integration("isolated real PostgreSQL stabilization", () => {
   it("does not spend global capacity on denied requests, including concurrent connections", async () => {
     // This job owns the explicitly confirmed disposable database.
     await pool.query("delete from llm_daily_usage; delete from llm_daily_rejections;");
-    const outcomes = await Promise.all(Array.from({ length: 30 }, (_, i) =>
-      connection((sql) => takeDailyBudget(sql, `${prefix}-${i % 4}`, { perUser: 3, global: 7 })),
-    ));
+    const outcomes = await Promise.all(
+      Array.from({ length: 30 }, (_, i) =>
+        connection((sql) => takeDailyBudget(sql, `${prefix}-${i % 4}`, { perUser: 3, global: 7 })),
+      ),
+    );
     expect(outcomes.filter((result) => result.allowed)).toHaveLength(7);
     expect(outcomes.every((result) => result.userCalls <= 3 && result.globalCalls <= 7)).toBe(true);
     const global = await pool.query("select calls from llm_daily_usage where scope='global'");
@@ -140,25 +157,43 @@ integration("isolated real PostgreSQL stabilization", () => {
     temporary = await mkdtemp(join(process.cwd(), ".precog-migration-test-"));
     await mkdir(join(temporary, "scripts"));
     await mkdir(join(temporary, "migrations"));
-    await writeFile(join(temporary, "scripts/migrate.mjs"), await readFile("scripts/migrate.mjs", "utf8"));
+    await writeFile(
+      join(temporary, "scripts/migrate.mjs"),
+      await readFile("scripts/migrate.mjs", "utf8"),
+    );
     return {
       directory: join(temporary, "migrations"),
-      start: () => run(process.execPath, [join(temporary!, "scripts/migrate.mjs")], {
-        env: { ...process.env, DATABASE_URL: url!, DATABASE_MIGRATION_URL: url!, VERCEL_ENV: "preview", PRECOG_RUNTIME_MODE: "test" },
-        timeout: 20_000,
-      }),
+      start: () =>
+        run(process.execPath, [join(temporary!, "scripts/migrate.mjs")], {
+          env: {
+            ...process.env,
+            DATABASE_URL: url!,
+            DATABASE_MIGRATION_URL: url!,
+            VERCEL_ENV: "preview",
+            PRECOG_RUNTIME_MODE: "test",
+          },
+          timeout: 20_000,
+        }),
     };
   }
 
   it("serializes two migration processes before they read the ledger", async () => {
     const fixture = await migrationFixture();
     const name = "9998_precog_lock_fixture.sql";
-    await writeFile(join(fixture.directory, name), "select pg_sleep(0.2); create table precog_lock_fixture (id integer); insert into precog_lock_fixture values (1);");
+    await writeFile(
+      join(fixture.directory, name),
+      "select pg_sleep(0.2); create table precog_lock_fixture (id integer); insert into precog_lock_fixture values (1);",
+    );
     try {
       const outcomes = await Promise.all([fixture.start(), fixture.start()]);
       expect(outcomes.every((result) => !result.stderr)).toBe(true);
-      expect((await pool.query("select count(*)::int as n from precog_lock_fixture")).rows[0].n).toBe(1);
-      expect((await pool.query("select count(*)::int as n from _migrations where name=$1", [name])).rows[0].n).toBe(1);
+      expect(
+        (await pool.query("select count(*)::int as n from precog_lock_fixture")).rows[0].n,
+      ).toBe(1);
+      expect(
+        (await pool.query("select count(*)::int as n from _migrations where name=$1", [name]))
+          .rows[0].n,
+      ).toBe(1);
     } finally {
       await pool.query("drop table if exists precog_lock_fixture");
       await pool.query("delete from _migrations where name=$1", [name]);
@@ -172,11 +207,18 @@ integration("isolated real PostgreSQL stabilization", () => {
     await writeFile(path, "create table precog_failure_fixture (id integer); select 1/0;");
     try {
       await expect(fixture.start()).rejects.toThrow();
-      expect((await pool.query("select to_regclass('precog_failure_fixture') as table_name")).rows[0].table_name).toBeNull();
-      expect((await pool.query("select name from _migrations where name=$1", [name])).rowCount).toBe(0);
+      expect(
+        (await pool.query("select to_regclass('precog_failure_fixture') as table_name")).rows[0]
+          .table_name,
+      ).toBeNull();
+      expect(
+        (await pool.query("select name from _migrations where name=$1", [name])).rowCount,
+      ).toBe(0);
       await writeFile(path, "create table precog_failure_fixture (id integer);");
       await fixture.start();
-      expect((await pool.query("select name from _migrations where name=$1", [name])).rowCount).toBe(1);
+      expect(
+        (await pool.query("select name from _migrations where name=$1", [name])).rowCount,
+      ).toBe(1);
     } finally {
       await pool.query("drop table if exists precog_failure_fixture");
       await pool.query("delete from _migrations where name=$1", [name]);

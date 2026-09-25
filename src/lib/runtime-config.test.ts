@@ -6,7 +6,10 @@ describe("production configuration", () => {
     expect(productionConfigurationErrors({})).toEqual([]);
   });
   it("refuses production fallback and disabled authentication", () => {
-    const errors = productionConfigurationErrors({ VERCEL_ENV: "production", VITE_AUTH_ENABLED: "false" });
+    const errors = productionConfigurationErrors({
+      VERCEL_ENV: "production",
+      VITE_AUTH_ENABLED: "false",
+    });
     expect(errors).toContain("DATABASE_URL is required");
     expect(errors).toContain("Authentication cannot be disabled in production");
   });
@@ -20,8 +23,8 @@ describe("production configuration", () => {
       GROK_AUTH_CLIENT_SECRET: "fixture-secret",
     };
     expect(productionConfigurationErrors(env)).toEqual([]);
-    expect(productionConfigurationErrors({ ...env, BETTER_AUTH_URL: "http://example.test" })).toEqual([
-      "BETTER_AUTH_URL must use HTTPS in production",
-    ]);
+    expect(
+      productionConfigurationErrors({ ...env, BETTER_AUTH_URL: "http://example.test" }),
+    ).toEqual(["BETTER_AUTH_URL must use HTTPS in production"]);
   });
 });

@@ -63,15 +63,26 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     return (
       <main className="mx-auto max-w-xl p-8" role="alert">
         <h1 className="text-xl font-semibold">The account changed in another tab</h1>
-        <p className="my-4">This workspace has stopped saving. Its local recovery copy stays with its original account.</p>
-        <button type="button" onClick={() => window.location.reload()} className="rounded border px-4 py-2">
+        <p className="my-4">
+          This workspace has stopped saving. Its local recovery copy stays with its original
+          account.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded border px-4 py-2"
+        >
           Reload the current account
         </button>
       </main>
     );
   }
   if (isPending || !token || token.owner !== owner || !browserWorkspace.isCurrent(token)) {
-    return <div className="p-8" role="status">Opening your workspace…</div>;
+    return (
+      <div className="p-8" role="status">
+        Opening your workspace…
+      </div>
+    );
   }
   return (
     <DomainProvider key={token.epoch}>
