@@ -1,5 +1,7 @@
 import * as core from "./scenario-core";
 import type { IndustryTemplate } from "./templates";
+import type { PrecogResult } from "./types";
+import type { InsuranceScenarioResult } from "./insurance/model";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -13,12 +15,17 @@ import { modelInsuranceScenario } from "./insurance/model";
 
 export * from "./scenario-core";
 
+/** Optional on historical snapshots; never infer policy provenance during replay. */
+export interface InsuranceAwareResult extends PrecogResult {
+  insurance?: InsuranceScenarioResult;
+}
+
 /** Keep operating assumptions separate from conditional insurance financing. */
 export function runPrecogScenario(
   template: IndustryTemplate,
   scenarioId: string,
   options?: Parameters<typeof core.runPrecogScenario>[2],
-) {
+): InsuranceAwareResult | null {
   const own = isOwnBusiness(template);
   const variables = effectiveRiskVariables(
     withInsuranceScenario(options?.riskVariables ?? { ...DEFAULT_RISK_VARIABLES }, scenarioId),
