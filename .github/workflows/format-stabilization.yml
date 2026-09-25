@@ -1,0 +1,44 @@
+name: Format stabilization branch
+
+on:
+  push:
+    branches: [fix/expanded-stabilization-20260924]
+    paths: [.github/workflows/format-stabilization.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: format-expanded-stabilization
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.repository == 'CatCorner22/precog' && github.ref == 'refs/heads/fix/expanded-stabilization-20260924'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/expanded-stabilization-20260924
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked formatter dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Format tracked source only
+        run: |
+          ./node_modules/.bin/prettier --write src scripts docs .github package.json vite.config.ts
+          git diff --check
+      - name: Commit formatting to this working branch only
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'Precog formatting'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts docs .github package.json vite.config.ts
+          git commit -m 'style: apply repository Prettier configuration'
+          git push origin HEAD:refs/heads/fix/expanded-stabilization-20260924
