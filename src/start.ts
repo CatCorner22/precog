@@ -1,18 +1,33 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
 
-/**
- * The framework's default protection, restated: declaring a start instance
- * replaces the default request middleware, so CSRF must be listed here.
- */
-const csrfMiddleware = createCsrfMiddleware({
-  filter: (ctx) => ctx.handlerType === "serverFn",
+const csrfMiddleware = createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" });
+
+const runtimeGuard = createMiddleware().server(async ({ handlerType, request, next }) => {
+  const { productionConfigurationErrors } = await import("@/lib/runtime-config");
+  const errors = productionConfigurationErrors(process.env);
+  if (errors.length) {
+    console.error("[runtime] Invalid production configuration:", errors.join("; "));
+    return new Response("Service configuration is incomplete. Contact the operator.", {
+      status: 503,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    process.env.PRECOG_READ_ONLY === "true" &&
+    handlerType === "serverFn" &&
+    request.method === "POST"
+  ) {
+    return new Response(
+      "Maintenance is in progress. Local work is retained; try saving after maintenance.",
+      {
+        status: 503,
+        headers: { "cache-control": "no-store", "retry-after": "60" },
+      },
+    );
+  }
+  return next();
 });
 
-/**
- * Server-function requests: refuse oversized bodies (413) and bodies the
- * framework cannot parse (400) before any function, auth check included,
- * does work, and answer an unknown function id with 404 rather than 500.
- */
 const serverFnRequestGuard = createMiddleware().server(async ({ request, handlerType, next }) => {
   if (handlerType !== "serverFn") return next();
   const { checkServerFnRequest, isUnknownServerFnError, plainResponse } =
@@ -27,7 +42,6 @@ const serverFnRequestGuard = createMiddleware().server(async ({ request, handler
   }
 });
 
-/** Gives a thrown error that names a 4xx status that HTTP status (see server-fn-status.server.ts). */
 const clientErrorStatusMiddleware = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
     try {
@@ -41,6 +55,6 @@ const clientErrorStatusMiddleware = createMiddleware({ type: "function" }).serve
 );
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [csrfMiddleware, serverFnRequestGuard],
+  requestMiddleware: [runtimeGuard, csrfMiddleware, serverFnRequestGuard],
   functionMiddleware: [clientErrorStatusMiddleware],
 }));
