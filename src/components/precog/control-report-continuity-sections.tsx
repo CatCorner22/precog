@@ -1,8 +1,4 @@
-import {
-  firstName,
-  LEVEL_LABEL,
-  STATUS_LABEL,
-} from "@/lib/precog/continuity/coverage";
+import { firstName, LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
 import {
   formatDateRange,
@@ -93,15 +89,16 @@ export function ControlReportContinuitySections({
         ) : (
           <>
             <p className="text-sm text-neutral-700">
-              <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has
-              two or more people who can run it alone. {continuity.counts.uncovered} item
+              <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two
+              or more people who can run it alone. {continuity.counts.uncovered} item
               {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
               {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
               person plus a learner.
             </p>
             {continuity.singlePoints.length === 0 ? (
               <p className="mt-2 text-sm text-neutral-600">
-                No critical or important item is uncovered or relies on one person without a learner.
+                No critical or important item is uncovered or relies on one person without a
+                learner.
               </p>
             ) : (
               <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
@@ -182,8 +179,8 @@ export function ControlReportContinuitySections({
                 {checkIns.unheld.length > 0 && (
                   <li>
                     <strong>Nobody active holds</strong> —{" "}
-                    {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they
-                    still matter or assign someone.
+                    {checkIns.unheld.map((entry) => entry.item.name).join(", ")}: confirm they still
+                    matter or assign someone.
                   </li>
                 )}
               </ul>
@@ -213,9 +210,7 @@ export function ControlReportContinuitySections({
 
       {debriefs.length > 0 && <ControlReportDebriefSection debriefs={debriefs} />}
 
-      {leaving.length > 0 && (
-        <ControlReportLeavingSection leaving={leaving} today={today} />
-      )}
+      {leaving.length > 0 && <ControlReportLeavingSection leaving={leaving} today={today} />}
 
       {cards.length > 0 && <ControlReportCardsSection cards={cards} />}
 
@@ -252,9 +247,9 @@ function ControlReportLeaveSection({
       }
     >
       <p className="text-xs text-neutral-500">
-        Absences on the register, soonest first — leave booked ahead and anyone recorded out on
-        the day (sick, emergency). Hand-offs already logged in the Journal are marked; everything
-        else needs a named stand-in before the leave starts, or today for anyone already out.
+        Absences on the register, soonest first — leave booked ahead and anyone recorded out on the
+        day (sick, emergency). Hand-offs already logged in the Journal are marked; everything else
+        needs a named stand-in before the leave starts, or today for anyone already out.
       </p>
       <ul className="mt-2 space-y-3">
         {leave.windows.slice(0, 8).map((w) => {
@@ -298,9 +293,7 @@ function ControlReportLeaveSection({
                     <tr className="text-left text-neutral-500">
                       <th className="py-0.5 font-normal">Stops</th>
                       <th className="py-0.5 font-normal">Stand-in</th>
-                      {w.status === "current" && (
-                        <th className="py-0.5 font-normal">Procedure</th>
-                      )}
+                      {w.status === "current" && <th className="py-0.5 font-normal">Procedure</th>}
                       <th className="py-0.5 font-normal">Hand-off</th>
                     </tr>
                   </thead>
@@ -359,11 +352,7 @@ function ControlReportLeaveSection({
   );
 }
 
-function ControlReportDebriefSection({
-  debriefs,
-}: {
-  debriefs: ControlReportModel["debriefs"];
-}) {
+function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportModel["debriefs"] }) {
   return (
     <Section title="Absence just ended — debrief the stand-ins">
       <p className="text-xs text-neutral-500">
@@ -530,11 +519,7 @@ function ControlReportLeavingSection({
   );
 }
 
-function ControlReportCardsSection({
-  cards,
-}: {
-  cards: ControlReportModel["cards"];
-}) {
+function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards"] }) {
   return (
     <Section title="Contingency cards — if someone is out tomorrow">
       <p className="text-xs text-neutral-500">
@@ -572,8 +557,7 @@ function ControlReportCardsSection({
                       <td className="py-1 text-neutral-600">
                         {!s.item.documented
                           ? "None written"
-                          : s.item.procedureLocation?.trim() ||
-                            "Exists; location not recorded"}
+                          : s.item.procedureLocation?.trim() || "Exists; location not recorded"}
                       </td>
                     </tr>
                   ))}

@@ -35,9 +35,7 @@ export function ControlReportEvidenceSection({
           : ""}
         {found.known > 0
           ? ` How they came to light, where the source says: ${found.byRoute
-              .map(
-                (r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`,
-              )
+              .map((r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`)
               .join(", ")}.`
           : ""}
         {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
