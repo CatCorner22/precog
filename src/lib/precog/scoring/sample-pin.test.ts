@@ -38,7 +38,8 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   (professional-services threat index 90 to 91).
  * - Each sample's sole-owner count is read from its own register, as an
  *   owner's is, instead of a preset. Only the restaurant preset disagreed
- *   with its register (2 against 1), so only the restaurant figures move. * - Content added to three samples moves their figures, and only theirs:
+ *   with its register (2 against 1), so only the restaurant figures move.
+ * - Content added to three samples moves their figures, and only theirs:
  *   the dental and medical sample gains a controlled-drugs process, control,
  *   register item and scenario; the professional-services sample a
  *   three-way trust reconciliation process, two trust controls, a register
@@ -49,6 +50,13 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   restaurant's from 1 to 2. Retail and general are unchanged.
  * - The construction and nonprofit samples are new; their figures are
  *   pinned as first computed.
+ * - A scenario card in the threat deck takes its heat from the scenario's
+ *   residual-risk row (the index the Residual radar shows) instead of an
+ *   unlabelled blend of retained dollars and days (S08-models-processes-013).
+ *   In the construction, nonprofit and general samples the key-person-leaves
+ *   card (and in construction the field-time-padding card) enters the top
+ *   ten, displacing a register item or the vendor-fraud card. No threat
+ *   index moves.
  */
 const PINNED: Record<
   string,
@@ -327,10 +335,10 @@ const PINNED: Record<
       "sod-rule-release-rec:91:92",
       "ctrl-c-sod-cash:85:81",
       "ctrl-c-sod-ap:85:81",
+      "scen-sc-key-person-leaves:79:88",
+      "scen-sc-field-time-padding:79:88",
       "know-k3:78:88",
       "know-k4:78:88",
-      "know-k5:78:88",
-      "scen-sc-vendor-fraud:75:82",
     ],
     coso: 32,
     cosoComponents: [
@@ -391,9 +399,9 @@ const PINNED: Record<
       "ctrl-c-sod-cash:83:78",
       "ctrl-c-sod-ap:83:78",
       "ctrl-c-cash:82:75",
+      "scen-sc-key-person-leaves:76:84",
       "know-k2:75:84",
       "know-k3:75:84",
-      "scen-sc-vendor-fraud:73:78",
     ],
     coso: 32,
     cosoComponents: [
@@ -446,8 +454,8 @@ const PINNED: Record<
       "ctrl-c-cash:86:82",
       "sod-rule-payroll-release:83:78",
       "scen-sc-vendor-fraud:80:90",
+      "scen-sc-key-person-leaves:80:91",
       "know-k1:79:91",
-      "know-k3:79:91",
     ],
     coso: 37,
     cosoComponents: [

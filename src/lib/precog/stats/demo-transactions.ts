@@ -1,27 +1,29 @@
 import type { Transaction } from "./forensic-suite";
 import { utcDateKey } from "../dates";
 
-function mulberry32(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state += 0x6d2b79f5;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
+/**
+ * What the demo day sheet plants, for the line that tells the owner what the
+ * screen should find in it.
+ */
+export const DEMO_PLANTED = [
+  "the last two days' deposits missing (payment-to-deposit timing)",
+  "three refunds entered twice on the same day (repeated transactions)",
+  "a $2,400 adjustment among small ones (magnitude outliers)",
+  "most adjustments and refunds posted by the front desk (adjustment concentration)",
+];
 
-function normal(random: () => number): number {
-  const u = Math.max(random(), Number.MIN_VALUE);
-  const v = random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
-
+/**
+ * A deterministic 60-day day sheet: each charge settled by a payment of the
+ * same amount on most visits, one deposit per weekday summing the day's
+ * payments, and the anomalies in DEMO_PLANTED. Payment amounts are spread
+ * evenly on a log scale from $20 to $2,000 (a golden-ratio sequence, so even a
+ * few hundred of them follow the shape closely), the shape Benford's law
+ * expects of amounts that arise from many independent sales.
+ */
 export function demoTransactions(seed = 42, days = 60): Transaction[] {
   const random = mulberry32(seed);
   const transactions: Transaction[] = [];
-  let chargeNumber = 0;
+  let visit = 0;
   const start = new Date(Date.UTC(2025, 0, 1));
   const weekdayOffsets: number[] = [];
   for (let offset = 0; offset < days; offset++) {
@@ -30,6 +32,7 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
     if (date.getUTCDay() !== 0 && date.getUTCDay() !== 6) weekdayOffsets.push(offset);
   }
   const missingDepositOffsets = new Set(weekdayOffsets.slice(-2));
+  const duplicatedRefundDays = new Set(weekdayOffsets.filter((_, i) => i % 13 === 5).slice(0, 3));
 
   for (let offset = 0; offset < days; offset++) {
     const date = new Date(start);
@@ -39,23 +42,23 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
     const dateText = utcDateKey(date);
     const chargeCount = 6 + Math.floor(random() * 9);
     let payments = 0;
+    let refundedToday = false;
     for (let index = 0; index < chargeCount; index++) {
-      let amount = Math.exp(5.2 + 0.9 * normal(random));
-      if (chargeNumber < 6) amount = [100, 200, 100, 200, 100, 200][chargeNumber];
-      amount = Math.round(amount * 100) / 100;
-      const personId =
-        random() < 0.65 ? "p-front-desk" : random() < 0.5 ? "p-hygienist" : "p-dentist";
+      const n = visit++;
+      const spread = (n * GOLDEN_RATIO_FRACTION + seed * 0.1) % 1;
+      const amount = Math.round(10 ** (1.3 + 2 * spread) * 100) / 100;
+      const personId = random() < 0.65 ? "p-front-desk" : random() < 0.5 ? "p-staff" : "p-owner";
       transactions.push({
-        id: `tx-charge-${chargeNumber++}`,
+        id: `tx-charge-${n}`,
         date: dateText,
         amount,
         kind: "charge",
-        memo: "Dental day-sheet charge",
+        memo: "Day-sheet charge",
         personId,
       });
       if (random() < 0.8) {
         transactions.push({
-          id: `tx-payment-${chargeNumber}`,
+          id: `tx-payment-${n}`,
           date: dateText,
           amount,
           kind: "payment",
@@ -64,23 +67,27 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
         });
         payments += amount;
       }
-      if (random() < 0.03) {
-        transactions.push({
-          id: `tx-refund-${chargeNumber}`,
+      if (random() < 0.03 || (duplicatedRefundDays.has(offset) && !refundedToday)) {
+        const refund: Transaction = {
+          id: `tx-refund-${n}`,
           date: dateText,
           amount: -Math.round(amount * 0.1 * 100) / 100,
           kind: "refund",
           memo: "Refund recorded",
           personId: "p-front-desk",
-        });
+        };
+        transactions.push(refund);
+        if (duplicatedRefundDays.has(offset) && !refundedToday) {
+          transactions.push({ ...refund, id: `tx-refund-${n}-again` });
+        }
+        refundedToday = true;
       }
     }
     if (!missingDepositOffsets.has(offset)) {
-      const skim = offset === 7 || offset === 35 ? 1.25 : 0;
       transactions.push({
         id: `tx-deposit-${dateText}`,
         date: dateText,
-        amount: Math.round((payments - skim) * 100) / 100,
+        amount: Math.round(payments * 100) / 100,
         kind: "deposit",
         memo: "Daily deposit",
         personId: "p-front-desk",
@@ -94,12 +101,25 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
     transactions.push({
       id: `tx-adjustment-${index}`,
       date: utcDateKey(date),
-      amount: index % 2 === 0 ? 25 : -15,
+      amount: index === 9 ? -2400 : index % 2 === 0 ? 25 : -15,
       kind: "adjustment",
-      memo: "Adjustment review sample",
-      personId: "p-front-desk",
+      memo: index === 9 ? "Balance write-off" : "Adjustment review sample",
+      personId: index % 7 === 3 ? "p-owner" : "p-front-desk",
     });
   }
 
   return transactions;
 }
+
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+const GOLDEN_RATIO_FRACTION = 0.6180339887498949;

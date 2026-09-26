@@ -36,10 +36,14 @@ export function firstDigit(amount: number): number | null {
   return digits ? Number(digits[0]) : null;
 }
 
+/**
+ * The second significant digit, or null for an amount with only one (7, 0.4).
+ * A round amount has a second digit of 0 (700 → 0), and counting those zeros
+ * is what lets the test see an excess of round amounts.
+ */
 export function secondDigit(amount: number): number | null {
   const digits = significantDigits(amount);
   if (!digits || digits.length < 2) return null;
-  if ([...digits].filter((digit) => digit !== "0").length === 1) return null;
   return Number(digits[1]);
 }
 
@@ -47,14 +51,12 @@ export interface DigitTest {
   digits: number[];
   observed: number[];
   expected: number[];
-  counts: number[];
   n: number;
   chiSquare: number;
   df: number;
   pValueBand: "<0.01" | "<0.05" | ">=0.05";
   mad: number;
   conformity: "close" | "acceptable" | "marginal" | "nonconformity";
-  zScores: number[];
 }
 
 function testDigits(
@@ -89,13 +91,6 @@ function testDigits(
         : mad <= thresholds[2]
           ? "marginal"
           : "nonconformity";
-  const zScores =
-    n === 0
-      ? expected.map(() => 0)
-      : expected.map((probability, index) => {
-          const numerator = Math.max(0, Math.abs(observed[index] - probability) - 1 / (2 * n));
-          return numerator / Math.sqrt((probability * (1 - probability)) / n);
-        });
   const [critical05, critical01] = df === 8 ? [15.507, 20.09] : [16.919, 21.666];
   const pValueBand =
     chiSquare >= critical01 ? "<0.01" : chiSquare >= critical05 ? "<0.05" : ">=0.05";
@@ -107,14 +102,12 @@ function testDigits(
     ),
     observed,
     expected,
-    counts,
     n,
     chiSquare,
     df,
     pValueBand,
     mad,
     conformity,
-    zScores,
   };
 }
 
