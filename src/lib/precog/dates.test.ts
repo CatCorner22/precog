@@ -51,7 +51,9 @@ describe("formatters", () => {
     expect(formatDay("2026-11-03")).toBe("Nov 3, 2026");
     expect(formatDayShort("2026-11-03")).toBe("Nov 3");
     expect(formatDay(new Date(2026, 10, 3, 15, 0))).toBe("Nov 3, 2026");
-    expect(formatDayTime(new Date(2026, 10, 3, 16, 5))).toBe("Nov 3, 2026, 4:05 PM");
+    expect(formatDayTime(new Date(2026, 10, 3, 16, 5)).replace(/\s/g, " ")).toBe(
+      "Nov 3, 2026, 4:05 PM",
+    );
   });
 
   it("prints a stored day as that day, not the day before", () => {
