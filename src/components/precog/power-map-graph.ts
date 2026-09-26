@@ -1,5 +1,9 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
-import { ENTITLEMENTS, type DutyFamily } from "@/lib/precog/sod/conflict-rules";
+import {
+  OPERATING_DUTIES,
+  isOperatingDuty,
+  type DutyFamily,
+} from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { joinWithAnd } from "@/lib/precog/text";
 
@@ -60,9 +64,8 @@ export function buildGraph(
   const shownAssignments = conflictsOnly
     ? assignments.filter((person) => conflictedPeople.has(person.personId))
     : assignments;
-  const shownDuties = ENTITLEMENTS.filter(
+  const shownDuties = OPERATING_DUTIES.filter(
     (item) =>
-      item.id !== "view_reports_only" &&
       (!conflictsOnly || conflictedDutyIds.has(item.id)) &&
       (processId === "all" || item.processIds.includes(processId)),
   );
@@ -112,7 +115,7 @@ export function buildGraph(
   const visibleNodeIds = new Set(nodes.map((node) => node.id));
   const edges: Edge[] = shownAssignments.flatMap((person) =>
     person.entitlements
-      .filter((id) => id !== "view_reports_only")
+      .filter(isOperatingDuty)
       .map((id) => {
         const conflict = conflictKeys.has(`${person.personId}:${id}`);
         return {

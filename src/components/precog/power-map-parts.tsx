@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { ArrowRight, Users } from "lucide-react";
-import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { type DetectedConflict, type RoleAssignment } from "@/lib/precog/sod/detect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,9 +38,8 @@ export function ResponsibilityMatrix({
   const shownPeople = conflictsOnly
     ? assignments.filter((item) => conflictedPeople.has(item.personId))
     : assignments;
-  const duties = ENTITLEMENTS.filter(
+  const duties = OPERATING_DUTIES.filter(
     (item) =>
-      item.id !== "view_reports_only" &&
       (!conflictsOnly || conflictedDuties.has(item.id)) &&
       (processId === "all" || item.processIds.includes(processId)),
   );
@@ -277,7 +277,8 @@ export function ResolutionOptions({
   conflict: DetectedConflict;
   onApply: (plan: ResolutionPlan) => void;
 }) {
-  const plans = buildResolutionPlans(assignments, conflict);
+  // Each plan rescans the people it touches; the search box and hover must not redo that.
+  const plans = useMemo(() => buildResolutionPlans(assignments, conflict), [assignments, conflict]);
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle">

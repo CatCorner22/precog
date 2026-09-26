@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
   CONFLICT_RULES,
-  ENTITLEMENTS,
+  OPERATING_DUTIES,
   entitlementById,
   entitlementLabel,
 } from "@/lib/precog/sod/conflict-rules";
@@ -74,7 +74,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
     );
 
   const matrixIds = useMemo(() => {
-    return ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => e.id);
+    return OPERATING_DUTIES.map((e) => e.id);
   }, []);
 
   const cellMap = useMemo(() => {

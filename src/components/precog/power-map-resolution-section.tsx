@@ -1,6 +1,6 @@
 import { ConflictCard, ResolutionOptions } from "./power-map-parts";
 import { FAMILY_META } from "./power-map-graph";
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { ENTITLEMENTS, isOperatingDuty } from "@/lib/precog/sod/conflict-rules";
 import { applyResolutionPlan } from "@/lib/precog/sod/resolution-planner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +40,7 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
         </Card>
       )}
 
-      <ControlMeasuresMatrix duties={visibleEntitlements} />
+      <ControlMeasuresMatrix duties={visibleEntitlements} industry={model.profile.industry} />
 
       {selected && (
         <Card>
@@ -54,27 +54,25 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 lg:grid-cols-2">
-            {selected.entitlements
-              .filter((id) => id !== "view_reports_only")
-              .map((id) => {
-                const entitlement = ENTITLEMENTS.find((item) => item.id === id);
-                const guidance = guidanceByDuty[id];
-                return (
-                  <div key={id} className="rounded-xl border border-border bg-elevated p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium">{entitlement?.label}</p>
-                      <Badge>{entitlement ? FAMILY_META[entitlement.family].label : "Duty"}</Badge>
-                    </div>
-                    <p className="mt-2 text-xs text-muted">{guidance.purpose}</p>
-                    <p className="mt-2 text-xs text-subtle">
-                      <strong className="text-muted">Evidence:</strong> {guidance.evidence}
-                    </p>
-                    <p className="mt-1 text-xs text-subtle">
-                      <strong className="text-muted">Boundary:</strong> {guidance.boundary}
-                    </p>
+            {selected.entitlements.filter(isOperatingDuty).map((id) => {
+              const entitlement = ENTITLEMENTS.find((item) => item.id === id);
+              const guidance = guidanceByDuty[id];
+              return (
+                <div key={id} className="rounded-xl border border-border bg-elevated p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium">{entitlement?.label}</p>
+                    <Badge>{entitlement ? FAMILY_META[entitlement.family].label : "Duty"}</Badge>
                   </div>
-                );
-              })}
+                  <p className="mt-2 text-xs text-muted">{guidance.purpose}</p>
+                  <p className="mt-2 text-xs text-subtle">
+                    <strong className="text-muted">Evidence:</strong> {guidance.evidence}
+                  </p>
+                  <p className="mt-1 text-xs text-subtle">
+                    <strong className="text-muted">Boundary:</strong> {guidance.boundary}
+                  </p>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

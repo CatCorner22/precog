@@ -2,8 +2,17 @@ import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useEffect, useMemo, useState } from "react";
 import { buildGraph } from "./power-map-graph";
 import { useEdgesState, useNodesState } from "@xyflow/react";
-import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
+import {
+  OPERATING_DUTIES,
+  type DutyFamily,
+  type EntitlementId,
+} from "@/lib/precog/sod/conflict-rules";
+import {
+  applyAssignmentsToPeople,
+  isSimulatedPersonId,
+  newSimulatedPersonId,
+} from "@/lib/precog/sod/apply-assignments";
+import { withEntitlement } from "@/lib/precog/sod/assignments";
 import { JOB_CATALOG, jobCatalogEntry, seatDuties } from "@/lib/precog/onboarding/job-catalog";
 import {
   buildAssignments,
@@ -19,9 +28,8 @@ import {
   createPowerMapFile,
   createResponsibilityMatrixCsv,
   normalizeRoleAssignments,
-  POWER_MAP_STORAGE_KEY,
+  readRoleAssignments,
 } from "@/lib/precog/sod/model-io";
-import { evaluateAssignmentChange } from "@/lib/precog/sod/change-impact";
 import {
   buildCoveragePlans,
   buildCoverageProgram,
@@ -34,6 +42,7 @@ import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
 import { downloadText, downloadCsv } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
+import { count } from "@/lib/precog/text";
 
 export function usePowerMapBuilder() {
   const workspace = useWorkspace();
@@ -96,16 +105,6 @@ export function usePowerMapBuilder() {
     }
   }
 
-  useEffect(() => {
-    // Earlier builds kept a separate sandbox copy of the map in this browser.
-    // The profile is the only copy now, so drop the orphaned key.
-    try {
-      workspace.local?.removeItem(POWER_MAP_STORAGE_KEY);
-    } catch {
-      /* storage unavailable */
-    }
-  }, [workspace.local]);
-
   const report = useMemo(
     () =>
       detectSodConflicts(tpl, profile.staff, {
@@ -155,8 +154,7 @@ export function usePowerMapBuilder() {
 
   const visibleEntitlements = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return ENTITLEMENTS.filter((item) => item.id !== "view_reports_only")
-      .filter((item) => family === "all" || item.family === family)
+    return OPERATING_DUTIES.filter((item) => family === "all" || item.family === family)
       .filter((item) => processId === "all" || item.processIds.includes(processId))
       .filter(
         (item) =>
@@ -169,7 +167,7 @@ export function usePowerMapBuilder() {
       selected
         ? dutyToggleEffects(
             selected,
-            ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map((item) => item.id),
+            OPERATING_DUTIES.map((item) => item.id),
             assignments,
           )
         : new Map<EntitlementId, DutyToggleEffect>(),
@@ -177,27 +175,21 @@ export function usePowerMapBuilder() {
   );
 
   function toggle(entitlement: EntitlementId) {
-    if (!selected) return;
-    const impact = evaluateAssignmentChange(
-      assignments,
-      selected.personId,
-      entitlement,
-      profile.staff,
-    );
-    if (impact) commit(impact.nextAssignments);
+    if (selected) toggleForPerson(selected.personId, entitlement);
   }
 
   function toggleForPerson(personId: string, entitlement: EntitlementId) {
-    const impact = evaluateAssignmentChange(assignments, personId, entitlement, profile.staff);
-    if (!impact) return;
+    const person = assignments.find((item) => item.personId === personId);
+    if (!person) return;
     setSelectedId(personId);
-    commit(impact.nextAssignments);
+    const holds = person.entitlements.includes(entitlement);
+    commit(withEntitlement(assignments, personId, entitlement, !holds));
   }
 
   function addSimulationRole() {
     const job = jobCatalogEntry(newJobId);
     if (!job) return;
-    const id = `sim-${Date.now().toString(36)}`;
+    const id = newSimulatedPersonId();
     commit([
       ...assignments,
       {
@@ -212,21 +204,24 @@ export function usePowerMapBuilder() {
   }
 
   function reset() {
-    // An owner's own team goes back to the baseline they last accepted; its
-    // people carry the duties the owner entered, and a job's usual duties
-    // would overwrite them. The sample goes back to its role defaults.
+    // An owner's own team goes back to the baseline; its people carry the
+    // duties the owner entered, and a job's usual duties would overwrite them.
+    // The sample goes back to its role defaults. A sample's people carry
+    // duties of their own once the map writes any change, so the wording
+    // cannot promise a baseline the owner accepted: the first one is stored
+    // when the map is first opened.
     const ownTeam = tpl.people.some((person) => (person.entitlements?.length ?? 0) > 0);
     if (
       !window.confirm(
         ownTeam
-          ? "Put every person's duties back to the baseline you last accepted, and remove simulated hires? Changes since then are undone."
-          : "Put every person back to the duties their role implies, and remove simulated hires?",
+          ? "Put every person's duties back to the ones recorded when you first opened this map (or last accepted them), and remove simulated hires? Changes since then are undone."
+          : "Put every person back to the duties their job title implies, and remove simulated hires?",
       )
     ) {
       return;
     }
     if (ownTeam) {
-      const accepted = baseline.filter((person) => !person.personId.startsWith("sim-"));
+      const accepted = baseline.filter((person) => !isSimulatedPersonId(person.personId));
       commit(accepted);
       setSelectedId(accepted[0]?.personId ?? "");
       setConflictsOnly(false);
@@ -235,7 +230,7 @@ export function usePowerMapBuilder() {
     const defaults = buildAssignments({
       ...tpl,
       people: tpl.people
-        .filter((person) => !person.id.startsWith("sim-"))
+        .filter((person) => !isSimulatedPersonId(person.id))
         .map((person) => ({ ...person, entitlements: undefined })),
     });
     commit(defaults);
@@ -244,10 +239,10 @@ export function usePowerMapBuilder() {
   }
 
   function removeSelected() {
-    if (!selected?.personId.startsWith("sim-")) return;
+    if (!selected || !isSimulatedPersonId(selected.personId)) return;
     commit(assignments.filter((person) => person.personId !== selected.personId));
     setSelectedId(
-      assignments.find((person) => !person.personId.startsWith("sim-"))?.personId ?? "",
+      assignments.find((person) => !isSimulatedPersonId(person.personId))?.personId ?? "",
     );
   }
 
@@ -294,19 +289,37 @@ export function usePowerMapBuilder() {
     );
   }
 
+  /**
+   * Replaces the map with a downloaded map file. The accepted baseline stays,
+   * so the change review shows what the file changed until the owner accepts
+   * it. Rows the file cannot supply are left out and named.
+   */
   async function importModel(file: File | undefined) {
     if (!file) return;
-    try {
-      if (file.size > 256_000) throw new Error("File exceeds 256 KB");
-      const restored = normalizeRoleAssignments(JSON.parse(await file.text()));
-      if (!restored) throw new Error("No valid assignment model found");
-      commit(restored);
-      setSelectedId(restored[0]?.personId ?? "");
-      acceptBaseline(restored);
-      setImportMessage(`Imported ${restored.length} people`);
-    } catch (error) {
-      setImportMessage(error instanceof Error ? error.message : "Import failed");
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportMessage("That file is larger than a power map can be (256 KB).");
+      return;
     }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setImportMessage("That file is not a Precog power map.");
+      return;
+    }
+    const read = readRoleAssignments(parsed);
+    if (read.problem || read.assignments.length === 0) {
+      setImportMessage(read.problem ?? "No row in that file names a person with a job title.");
+      return;
+    }
+    commit(read.assignments);
+    setSelectedId(read.assignments[0].personId);
+    const leftOut = read.issues.map((issue) => `row ${issue.row} (${issue.reason})`).join("; ");
+    setImportMessage(
+      `Imported ${count(read.assignments.length, "person", "people")}. Review the changes, then accept them.${
+        leftOut ? ` Left out ${leftOut}.` : ""
+      }`,
+    );
   }
 
   return {
@@ -370,3 +383,6 @@ export function usePowerMapBuilder() {
 }
 
 export type PowerMapBuilderModel = ReturnType<typeof usePowerMapBuilder>;
+
+/** The largest power-map file an import reads. */
+const MAX_IMPORT_BYTES = 256_000;
