@@ -43,6 +43,7 @@ import type { SavedProcessBlock } from "./builder/process-blocks";
 import { processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import type { Departure } from "./continuity/access-removal";
+import type { ReviewRecord } from "./firm/reviews";
 import { profileReducer } from "./profile-reducer";
 import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
@@ -140,6 +141,8 @@ export interface PracticeContextValue {
   ) => void;
   /** Continuity planner: known leave (who, from, to). */
   setPlannedAbsences: (v: SetStateAction<PlannedAbsence[]>) => void;
+  /** Monthly review: the append-only log of results on this business. */
+  setMonthlyReviews: (v: SetStateAction<ReviewRecord[]>) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
@@ -470,6 +473,10 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withPlannedAbsences(p, resolveUpdate(v, p.plannedAbsences ?? [])));
   }, []);
 
+  const setMonthlyReviews = useCallback((v: SetStateAction<ReviewRecord[]>) => {
+    setProfile((p) => ({ ...p, monthlyReviews: resolveUpdate(v, p.monthlyReviews ?? []) }));
+  }, []);
+
   const resetSegregationToDerived = useCallback(() => {
     setProfile((p) => withDerivedSegregation(p));
   }, []);
@@ -582,6 +589,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setMonthlyReviews,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
@@ -626,6 +634,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setMonthlyReviews,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,

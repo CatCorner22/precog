@@ -25,7 +25,7 @@ import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person, StaffComposition } from "../types";
-import { localDateKey, dateAfter } from "../dates";
+import { dateAfter, shiftDay } from "../dates";
 
 /**
  * Whether a linked decision belongs to the template currently loaded. Industry
@@ -299,13 +299,17 @@ export function slipLabels(s: ContinuitySlip): { from: string; to: string } {
   };
 }
 
+/**
+ * Open decisions whose review day has passed, and those due within
+ * `withinDays` of `today` (a "YYYY-MM-DD" day: the browser passes its local
+ * day, the server the day it is working for).
+ */
 export function decisionsDue(
   decisions: readonly DecisionEntry[],
-  now: Date,
+  today: string,
   withinDays = 7,
 ): { overdue: DecisionEntry[]; dueSoon: DecisionEntry[] } {
-  const today = localDateKey(now);
-  const soonThrough = dateAfter(now, withinDays);
+  const soonThrough = shiftDay(today, withinDays);
   const overdue: DecisionEntry[] = [];
   const dueSoon: DecisionEntry[] = [];
   for (const decision of decisions) {

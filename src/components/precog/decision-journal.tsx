@@ -231,7 +231,10 @@ export function DecisionJournal({
   }, [kind, subject, portfolio.top]);
 
   const today = useToday();
-  const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
+  const due = useMemo(
+    () => decisionsDue(profile.decisions, localDateKey(today)),
+    [profile.decisions, today],
+  );
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
   const slips = useMemo(
     () => continuitySlips(profile.decisions, template),

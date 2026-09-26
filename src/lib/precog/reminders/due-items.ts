@@ -32,9 +32,8 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
   if (!isOwnTeam(profile)) return [];
   const items: DueItem[] = [];
   const tpl = resolveTemplate(profile);
-  const now = new Date(`${today}T12:00:00Z`);
 
-  const { overdue, dueSoon } = decisionsDue(profile.decisions, now, 7);
+  const { overdue, dueSoon } = decisionsDue(profile.decisions, today, 7);
   for (const decision of [...overdue, ...dueSoon]) {
     items.push({
       key: `decision:${decision.id}`,

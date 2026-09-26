@@ -33,7 +33,7 @@ export function useStartHere() {
   const industryId = profile.industry;
   const today = useToday();
   const { overdue } = useMemo(
-    () => decisionsDue(profile.decisions, today),
+    () => decisionsDue(profile.decisions, localDateKey(today)),
     [profile.decisions, today],
   );
   const slipped = useMemo(

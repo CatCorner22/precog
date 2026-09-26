@@ -294,7 +294,7 @@ export function buildWeeklyActions(input: {
           : m.trainee
             ? `Cross-train ${firstName(m.trainee.name)} on ${m.item.name}`
             : `Cross-train a backup for ${m.item.name}`,
-      why: `${m.action} One person holding critical work is both a continuity gap and a fraud-detection blind spot.`,
+      why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare what they do with what should be done.`,
       effort: m.item.documented ? "low" : "medium",
       tab: "knowledge",
       priority,
@@ -481,7 +481,7 @@ export function buildWeeklyActions(input: {
         g.state === "none"
           ? `Write down ${g.item.name}`
           : `Record where ${g.item.name}'s procedure lives`,
-      why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and an unwritten process is one nobody else can check.`,
+      why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and nobody else can compare unwritten steps with what was done.`,
       effort: g.state === "none" ? "medium" : "low",
       tab: "knowledge",
       priority,
@@ -635,15 +635,15 @@ export function buildWeeklyActions(input: {
     }
   }
 
+  // Each source keys its ids by the item, absence or person it is about, so
+  // the id alone says whether two actions are the same advice.
   const seen = new Set<string>();
-  const unique = actions
+  return actions
     .filter((a) => {
-      const key = a.title.toLowerCase().slice(0, 40);
-      if (seen.has(key)) return false;
-      seen.add(key);
+      if (seen.has(a.id)) return false;
+      seen.add(a.id);
       return true;
     })
     .sort((a, b) => b.priority - a.priority)
     .slice(0, 5);
-  return unique;
 }

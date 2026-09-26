@@ -49,6 +49,7 @@ import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
+import { localDateKey } from "@/lib/precog/dates";
 import { usePractice } from "@/lib/precog/practice-context";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -505,7 +506,7 @@ function Home() {
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const overdueDecisions = useMemo(
-    () => decisionsDue(profile.decisions, today).overdue.length,
+    () => decisionsDue(profile.decisions, localDateKey(today)).overdue.length,
     [profile.decisions, today],
   );
   const slippedDecisions = useMemo(

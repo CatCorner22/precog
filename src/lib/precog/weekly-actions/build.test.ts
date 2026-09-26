@@ -123,3 +123,30 @@ describe("buildWeeklyActions documentation advice", () => {
     );
   });
 });
+
+describe("buildWeeklyActions de-duplication", () => {
+  it("keeps two actions whose titles share a 40-character prefix", () => {
+    const base = { ...dental.knowledge[0], criticality: "critical" as const, documented: false };
+    const knowledge = [
+      { ...base, id: "kb-submit", name: "Insurance claims and follow-up: submit" },
+      { ...base, id: "kb-appeal", name: "Insurance claims and follow-up: appeal" },
+    ];
+    const [first, second] = dental.people;
+    const tpl = resolveTemplate({
+      industry: "dental",
+      customKnowledge: knowledge,
+      customRelations: knowledge.flatMap((k) => [
+        { personId: first.id, knowledgeId: k.id, level: "expert" as const },
+        { personId: second.id, knowledgeId: k.id, level: "proficient" as const },
+      ]),
+    });
+    const actions = buildWeeklyActions({
+      tpl,
+      staff: { ...tpl.staffComposition, independentBankRec: true, dualControlPayments: true },
+      dualRelease: defaultDualReleasePolicy(tpl),
+      mapAssessed: true,
+    });
+    const docs = actions.filter((action) => action.id.startsWith("docs-")).map((a) => a.id);
+    expect(docs.sort()).toEqual(["docs-kb-appeal", "docs-kb-submit"]);
+  });
+});

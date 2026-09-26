@@ -76,6 +76,40 @@ describe("the owner marks a keyholder as left", () => {
     expect(openAccessChecks(checks, "retail", team)).toHaveLength(0);
   });
 
+  it("opens a second check when a rehired person leaves again", () => {
+    const after = team.map((p) => (p.id === "p-jordan" ? { ...p, active: false } : p));
+    const first = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
+    const { checks } = confirmAccessRemoved(first, [first[0].id], TODAY);
+    // Back at work in the spring, then marked as left again in the autumn.
+    const again = noteDepartures(
+      checks,
+      departuresBetween(team, after),
+      "marked",
+      "retail",
+      "2027-03-01",
+    );
+    expect(again).toHaveLength(2);
+    expect(openAccessChecks(again, "retail", after)).toMatchObject([
+      { personId: "p-jordan", notedOn: "2027-03-01", source: "marked" },
+    ]);
+  });
+
+  it("dates an unconfirmed check to the second departure after a rehire", () => {
+    const after = team.map((p) => (p.id === "p-jordan" ? { ...p, active: false } : p));
+    const first = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
+    const prompted = markPrompted(first, [first[0].id]);
+    const again = noteDepartures(
+      prompted,
+      departuresBetween(team, after),
+      "marked",
+      "retail",
+      "2027-03-01",
+    );
+    expect(again).toHaveLength(1);
+    expect(again[0]).toMatchObject({ notedOn: "2027-03-01", source: "marked" });
+    expect(unpromptedAccessChecks(again, "retail", after)).toHaveLength(1);
+  });
+
   it("marking left from the register (past last day) opens the check too", () => {
     const withNotice = team.map((p) => (p.id === "p-pat" ? { ...p, lastDay: "2026-09-20" } : p));
     const after = markLeft(withNotice, "p-pat", TODAY);
@@ -177,5 +211,11 @@ describe("one person under two spellings", () => {
       "2026-09-26",
     );
     expect(checks).toHaveLength(1);
+  });
+
+  it("treats Díaz and Diaz as one person on a re-paste after the owner confirmed", () => {
+    const first = noteDepartures([], [{ name: "Nora Díaz" }], "roster", "retail", TODAY);
+    const { checks } = confirmAccessRemoved(first, [first[0].id], TODAY);
+    expect(noteDepartures(checks, [{ name: "Nora Diaz" }], "roster", "retail", TODAY)).toBe(checks);
   });
 });

@@ -49,6 +49,7 @@ export function ReadOnlyPracticeProvider({
       setCustomKnowledge: noop,
       setCustomRelations: noop,
       setPlannedAbsences: noop,
+      setMonthlyReviews: noop,
       resetSegregationToDerived: noop,
       setMapLayout: noop,
       mapCustomized: Boolean(

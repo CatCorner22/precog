@@ -14,7 +14,7 @@ import type { LeaverAccessCheck } from "@/lib/precog/practice-profile";
 import { joinWithAnd } from "@/lib/precog/text";
 
 const WHY =
-  "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. It is a well-documented way small businesses lose money and data, and it is closed by a few minutes of checking.";
+  "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. Checking each one takes a few minutes.";
 
 /** The logins and pay to check for someone who has left, ticked one by one before confirming. */
 function AccessChecklist({
