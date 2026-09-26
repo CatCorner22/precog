@@ -333,11 +333,7 @@ export function assessCoso(
           g.compensatingControls.length > 0
             ? `Compensating: ${g.compensatingControls
                 .map((c) =>
-                  withLiveThreshold(
-                    c,
-                    opts.dualRelease,
-                    CONFLICT_RULES.filter((r) => r.linkedControlId === g.id).map((r) => r.id),
-                  ),
+                  withLiveThreshold(c, opts.dualRelease, RULE_IDS_BY_CONTROL.get(g.id) ?? []),
                 )
                 .join("; ")}`
             : "No compensating control documented.",
@@ -497,3 +493,11 @@ const PRIORITY_RANK: Record<HealthLevel, number> = {
   adequate: 2,
   strong: 3,
 };
+
+/** The conflict rules each control is linked to, looked up once rather than per compensating control. */
+const RULE_IDS_BY_CONTROL = CONFLICT_RULES.reduce((byControl, r) => {
+  if (r.linkedControlId) {
+    byControl.set(r.linkedControlId, [...(byControl.get(r.linkedControlId) ?? []), r.id]);
+  }
+  return byControl;
+}, new Map<string, string[]>());
