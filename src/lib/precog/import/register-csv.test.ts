@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { coverageReport } from "../continuity/coverage";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
 import { parseRegisterCsv, registerTemplateCsv, registerToCsv } from "./register-csv";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 const people: Person[] = [
   { id: "p-ana", name: "Ana Ruiz", role: "Owner", active: true },
@@ -82,7 +82,7 @@ describe("registerToCsv", () => {
 
   it("round-trips every industry template", () => {
     for (const id of ["dental", "retail"] as const) {
-      const base = getBaseTemplate(id);
+      const base = getIndustryTemplate(id);
       const result = parseRegisterCsv(registerToCsv(base), base);
       expect(result.issues, id).toEqual([]);
       expect(

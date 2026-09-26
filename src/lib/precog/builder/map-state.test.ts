@@ -8,7 +8,8 @@ import {
   untouchedStarterProcessIds,
 } from "./map-state";
 import { diffMaps } from "./diff";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
@@ -47,7 +48,7 @@ describe("mapSource", () => {
     expect(mapSource({ ...profile, customProcesses: [] })).toBe("own");
     // The sample team edited in the builder keeps its ids, so the starter
     // map's owner references still resolve and the map counts as owned.
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     expect(mapSource({ industry: "dental", customPeople: dental.people.slice(0, 3) })).toBe("own");
   });
 });
@@ -181,14 +182,19 @@ describe("starterProcesses", () => {
 
   it("keeps the starter's processes and leaves every owner off", () => {
     const starter = starterProcesses({ industry: "retail" });
-    expect(starter.map((p) => p.id)).toEqual(getBaseTemplate("retail").processes.map((p) => p.id));
+    expect(starter.map((p) => p.id)).toEqual(
+      getIndustryTemplate("retail").processes.map((p) => p.id),
+    );
     expect(starter.every((p) => p.ownerPersonIds?.length === 0)).toBe(true);
   });
 });
 
 describe("a starter map the owner only renamed", () => {
   const people = [{ id: "own-1", name: "Ana", role: "Owner", active: true }];
-  const starter = getBaseTemplate("retail").processes.map((p) => ({ ...p, ownerPersonIds: [] }));
+  const starter = getIndustryTemplate("retail").processes.map((p) => ({
+    ...p,
+    ownerPersonIds: [],
+  }));
 
   it("stays a starter map, not assessed, when a process is renamed with nobody assigned", () => {
     const renamed = starter.map((p, i) => (i === 0 ? { ...p, name: "Our sales desk" } : p));

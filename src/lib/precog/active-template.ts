@@ -5,7 +5,7 @@ import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { detectSodConflicts, type DetectedConflict } from "./sod/detect";
 
 /** A journal entry's link to what it is about (see DecisionEntry in practice-profile). */
-export interface DecisionLink {
+interface DecisionLink {
   linkedTab?: string;
   linkedId?: string;
   linkedIndustry?: IndustryId;
@@ -191,9 +191,4 @@ function describeOwnControl(open: readonly DetectedConflict[], ownerHolds: boole
     .join("; ");
   const more = open.length - 3;
   return `Open on your team: ${shown}${more > 0 ? `; and ${more} more` : ""}.`;
-}
-
-/** The unmodified industry template (before any user overrides). */
-export function getBaseTemplate(industry: IndustryId): IndustryTemplate {
-  return getIndustryTemplate(industry);
 }

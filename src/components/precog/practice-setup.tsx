@@ -1,10 +1,9 @@
 import { toast } from "sonner";
 import { useState, type ReactNode } from "react";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { useTemplate } from "@/lib/precog/use-template";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
@@ -20,7 +19,6 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     setPracticeName,
     setIndustry,
     setStaff,
-    setDualRelease,
     resetSegregationToDerived,
     resetProfile,
     createBusiness,
@@ -224,12 +222,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={s.dualControlPayments || profile.dualRelease.enabled}
-            onChange={(e) => {
-              const on = e.target.checked;
-              setStaff({ ...s, dualControlPayments: on });
-              setDualRelease({ ...profile.dualRelease, enabled: on });
-            }}
+            checked={s.dualControlPayments}
+            onChange={(e) => setStaff({ ...s, dualControlPayments: e.target.checked })}
             className="size-4 accent-[var(--color-primary)]"
           />
           Dual control / dual release (master)

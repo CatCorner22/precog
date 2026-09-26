@@ -1,7 +1,6 @@
 import { useState } from "react";
 
-import { usePracticeState } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
+import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

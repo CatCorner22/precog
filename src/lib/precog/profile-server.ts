@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import type { IndustryId } from "./industry";
-import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
+import { isIndustryId, type IndustryId } from "./industry";
+import { isBusinessId, validateProfileInput } from "./profile-input";
 import type { PracticeProfile } from "./practice-profile";
 import { mergeProfile } from "./profile-merge";
 import {

@@ -4,7 +4,6 @@ import {
   removeProcessDependencies,
 } from "@/lib/precog/builder/map-editing";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   Background,
   Controls,
@@ -42,7 +41,7 @@ import {
   type MapVisionMode,
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import {
   mapAssessed,
   mapNotAssessedNote,

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parseProcessCsv, processesToCsv, processTemplateCsv } from "./process-csv";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const tpl = { processes: dental.processes, people: dental.people, controls: dental.controls };
 
 describe("parseProcessCsv", () => {

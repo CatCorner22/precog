@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
-import { useTemplate } from "@/lib/precog/use-template";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
 import {
@@ -17,7 +16,7 @@ import {
   withOwnScenarioWording,
 } from "@/lib/precog/scoring/scope";
 import { industryMeta } from "@/lib/precog/industry";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { CascadePanel } from "@/components/precog/cascade-panel";
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";

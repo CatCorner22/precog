@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { findKnowledgeRisks } from "../engine";
 import { INDUSTRIES } from "../industry";
 import type { StaffComposition } from "../types";
 import { portfolioSummary, scoreAllResidualRisks, tornadoSensitivity } from "./residual-engine";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 const weak: StaffComposition = {
   teamSize: 3,
@@ -27,7 +28,7 @@ const strong: StaffComposition = {
 describe("scoreAllResidualRisks", () => {
   it("scores every control, knowledge risk and scenario once, on a 0-100 index, sorted high to low", () => {
     for (const { id } of INDUSTRIES) {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       const scores = scoreAllResidualRisks(tpl);
       const byCat = (c: string) => scores.filter((s) => s.category === c);
       expect(byCat("control").length, id).toBe(tpl.controls.length);
@@ -232,7 +233,7 @@ describe("scenario row formula", () => {
 });
 
 describe("starter controls on an owner's own business", () => {
-  const base = getBaseTemplate("retail");
+  const base = getIndustryTemplate("retail");
   const people = base.people.slice(0, 2);
 
   it("leaves out controls nobody has confirmed run here, and says which", () => {

@@ -15,8 +15,7 @@ import { WorkloadView } from "@/components/precog/builder/workload-view";
 
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parsePeopleCsv } from "../import/people-csv";
 import { normalizeProfile, defaultProfile, type LeaverAccessCheck } from "../practice-profile";
 import type { Person } from "../types";
@@ -36,7 +36,7 @@ describe("a roster that leaves someone out as terminated", () => {
   ].join("\n");
 
   it("opens one pay-and-logins check for the person who left", () => {
-    const { people } = parsePeopleCsv(roster, getBaseTemplate("retail"));
+    const { people } = parsePeopleCsv(roster, getIndustryTemplate("retail"));
     const left = people.filter((p) => !p.active).map((p) => ({ name: p.name, role: p.role }));
     const checks = noteDepartures([], left, "roster", "retail", TODAY);
     expect(checks).toHaveLength(1);
@@ -89,7 +89,7 @@ describe("the owner marks a keyholder as left", () => {
   });
 
   it("the sample team's people never open a check", () => {
-    const sample = getBaseTemplate("retail").people;
+    const sample = getIndustryTemplate("retail").people;
     const after = sample.map((p, i) => (i === 1 ? { ...p, active: false } : p));
     expect(departuresBetween(sample, after, sample)).toEqual([]);
   });

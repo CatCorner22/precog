@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
   dualReleaseCoverage,
@@ -12,7 +11,7 @@ import {
   type ReleaseEvaluation,
   type ThresholdException,
 } from "@/lib/precog/controls/dual-release";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { personLabel } from "@/lib/precog/person-label";
 import { dateAfter, localDateKey } from "@/lib/precog/dates";
 import { useToday } from "@/lib/precog/decisions/use-today";

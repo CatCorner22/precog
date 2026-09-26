@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -24,7 +24,7 @@ function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
 }
 
 function tpl(relations: KnowledgeRelation[], knowledge: KnowledgeItem[]): IndustryTemplate {
-  return { ...getBaseTemplate("general"), people, knowledge, relations, processes: [] };
+  return { ...getIndustryTemplate("general"), people, knowledge, relations, processes: [] };
 }
 
 // pms: Maya alone, Chris learning, written at Drive. payroll: Maya alone, nothing written.
@@ -298,7 +298,7 @@ describe("todayBrief", () => {
 describe("today's brief over a starter register nobody has marked", () => {
   it("says it cannot tell what stops when someone calls in sick", () => {
     const starter: IndustryTemplate = {
-      ...getBaseTemplate("general"),
+      ...getIndustryTemplate("general"),
       people,
       relations: [],
       processes: [],

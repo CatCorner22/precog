@@ -11,8 +11,6 @@ export function isBusinessId(value: unknown): value is string {
   return typeof value === "string" && BUSINESS_ID.test(value);
 }
 
-export { isIndustryId };
-
 /**
  * What a profile must satisfy before it is stored as jsonb: an object with a
  * string name, a known industry, lists whose every entry passes the checks

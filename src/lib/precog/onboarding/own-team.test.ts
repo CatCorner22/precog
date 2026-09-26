@@ -2,7 +2,8 @@ import { jobCatalogEntry } from "./job-catalog";
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parseRoster } from "../import/roster";
 import {
   CORE_DUTIES,
@@ -337,7 +338,7 @@ describe("own team from a pasted roster, round three", () => {
   });
 
   it("fills the grid from the same roster pasted twice without doubling anyone", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const first = parseRoster(
       "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Cashier",
       tpl,
@@ -381,7 +382,7 @@ describe("own team from a pasted roster, round three", () => {
   });
 
   it("keeps a Workday employee id and a notice-period last day from the paste on the saved person", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const result = parseRoster(
       "Employee ID\tWorker\tBusiness Title\tTermination Date\n1001\tAna Ruiz\tOffice Manager\t12/31/2026",
       tpl,
@@ -403,7 +404,7 @@ describe("own team from a pasted roster, round three", () => {
 });
 
 describe("setup grid: pasting, adding and reading titles", () => {
-  const tpl = getBaseTemplate("general");
+  const tpl = getIndustryTemplate("general");
   const paste = (text: string, today = new Date("2026-09-22T00:00:00Z")) =>
     pastedRows(parseRoster(text, tpl, { today }), "general");
 

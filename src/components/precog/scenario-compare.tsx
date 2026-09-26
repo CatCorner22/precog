@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
 import type { StaffComposition } from "@/lib/precog/types";
 import {
   insuranceBasis,
   insuranceFigureNote,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
-import { usePracticeState } from "@/lib/precog/practice-context";
+import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import {
   MAKE_SCENARIO_YOURS,
   confirmedScenarioIds,

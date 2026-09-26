@@ -1,8 +1,7 @@
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
-import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { INDUSTRIES } from "./industry";
 import {
@@ -9,7 +10,7 @@ import {
   parseStoredProfile,
 } from "./practice-profile";
 
-const [first, second] = getBaseTemplate("dental").knowledge;
+const [first, second] = getIndustryTemplate("dental").knowledge;
 
 describe("normalizeCustomKnowledge", () => {
   it("keeps confirmations on or before the supplied calendar day and drops later ones", () => {

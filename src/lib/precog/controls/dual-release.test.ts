@@ -1,6 +1,5 @@
 import { getIndustryTemplate } from "../templates";
 import { describe, expect, it, vi } from "vitest";
-import { getBaseTemplate } from "../active-template";
 import {
   activeExceptionSummary,
   defaultDualReleasePolicy,
@@ -12,7 +11,7 @@ import {
   type DualReleasePolicy,
 } from "./dual-release";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const owner = "p1"; // Dr. Elena Vargas, Owner / Dentist
 const officeManager = "p2"; // Maya Chen, Office Manager
 const hygienist = "p4"; // Sam Ortiz, cannot initiate payments
@@ -39,7 +38,7 @@ describe("defaultDualReleasePolicy", () => {
       "nonprofit",
       "general",
     ] as const) {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       const roles = new Set(tpl.people.map((p) => p.role));
       const processes = new Set(tpl.processes.map((p) => p.id));
       for (const rule of defaultDualReleasePolicy(tpl).rules) {

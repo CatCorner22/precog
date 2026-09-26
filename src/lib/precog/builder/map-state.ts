@@ -2,6 +2,7 @@ import { getIndustryTemplate } from "../templates";
 import { industryMeta } from "../industry";
 import type { PracticeProfile } from "../practice-profile";
 import type { ProcessNode } from "../types";
+import { stableStringify } from "../text";
 
 /**
  * Where the process map came from.
@@ -63,11 +64,7 @@ export function mapAssessed(profile: MapProfile): boolean {
 /** A process with its owners left out, keys sorted, for comparing content alone. */
 function contentKey(process: ProcessNode): string {
   const { ownerPersonIds: _owners, ...rest } = process;
-  return JSON.stringify(rest, (_key, value: unknown) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
-      : value,
-  );
+  return stableStringify(rest);
 }
 
 /**

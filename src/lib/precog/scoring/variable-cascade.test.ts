@@ -1,6 +1,7 @@
 import { CORE_POLICY_FIELDS } from "./insurance-record";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
 import {
@@ -12,7 +13,7 @@ import {
   simulateCascadeLever,
 } from "./variable-cascade";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("assumed days until found", () => {
   it("counts fewer days as better, so detection improves them", () => {

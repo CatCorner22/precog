@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { executeTool, planTools } from "./tools";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
@@ -8,7 +8,7 @@ import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("get_knowledge_spofs freshness", () => {
   it("does not flag freshness before a custom register exists", () => {

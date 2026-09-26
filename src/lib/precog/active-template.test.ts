@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  CONTROL_IN_PLACE_TAB,
-  controlsInPlace,
-  getBaseTemplate,
-  resolveTemplate,
-} from "./active-template";
+import { CONTROL_IN_PLACE_TAB, controlsInPlace, resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { INDUSTRIES, type IndustryId } from "./industry";
 import { controlOptions, detectSodConflicts } from "./sod/detect";
 
@@ -12,7 +8,7 @@ describe("resolveTemplate", () => {
   it("returns each industry's own template, unchanged", () => {
     for (const { id } of INDUSTRIES) {
       const tpl = resolveTemplate({ industry: id });
-      const base = getBaseTemplate(id);
+      const base = getIndustryTemplate(id);
       expect(tpl.id).toBe(id);
       expect(tpl.people).toBe(base.people);
       expect(tpl.knowledge).toBe(base.knowledge);
@@ -25,14 +21,14 @@ describe("resolveTemplate", () => {
 
   it("does not default to dental when the industry differs", () => {
     const retail = resolveTemplate({ industry: "retail" });
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     expect(retail.id).toBe("retail");
     expect(retail.people.map((p) => p.name)).not.toContain("Maya Chen");
     expect(retail.knowledge.map((k) => k.id)).not.toEqual(dental.knowledge.map((k) => k.id));
   });
 
   it("replaces people and drops relations and process owners that point at removed people", () => {
-    const base = getBaseTemplate("dental");
+    const base = getIndustryTemplate("dental");
     const keep = base.people.slice(0, 2);
     const tpl = resolveTemplate({ industry: "dental", customPeople: keep });
     const ids = new Set(keep.map((p) => p.id));
@@ -46,7 +42,7 @@ describe("resolveTemplate", () => {
   });
 
   it("clears the sample business's accepted residual risk for a business with its own people", () => {
-    const base = getBaseTemplate("dental");
+    const base = getIndustryTemplate("dental");
     expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(true);
     const own = resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 2) });
     expect(own.controls.some((c) => c.residualRiskAccepted)).toBe(false);
@@ -128,7 +124,7 @@ describe("resolveTemplate", () => {
   });
 
   it("marks controls no conflict rule covers as starters the owner has not confirmed", () => {
-    const base = getBaseTemplate("retail");
+    const base = getIndustryTemplate("retail");
     const own = resolveTemplate({ industry: "retail", customPeople: base.people.slice(0, 2) });
     for (const id of ["c-sod-ar", "c-ap", "c-ar"]) {
       expect(own.controls.find((c) => c.id === id)?.starter).toBe(true);
@@ -140,7 +136,7 @@ describe("resolveTemplate", () => {
   });
 
   it("stops marking a starter control once the owner logs that it runs here", () => {
-    const base = getBaseTemplate("retail");
+    const base = getIndustryTemplate("retail");
     const people = base.people.slice(0, 2);
     const confirmed = resolveTemplate({
       industry: "retail",
@@ -159,7 +155,7 @@ describe("resolveTemplate", () => {
   });
 
   it("does not leak overrides into later calls", () => {
-    const base = getBaseTemplate("dental");
+    const base = getIndustryTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });
     const again = resolveTemplate({ industry: "dental" });
     expect(again.people).toBe(base.people);
@@ -167,7 +163,7 @@ describe("resolveTemplate", () => {
   });
 
   it("uses custom processes verbatim when provided", () => {
-    const base = getBaseTemplate("retail");
+    const base = getIndustryTemplate("retail");
     const custom = [{ ...base.processes[0], id: "proc-custom", name: "Custom step" }];
     const tpl = resolveTemplate({ industry: "retail", customProcesses: custom });
     expect(tpl.processes.map((p) => p.id)).toEqual(["proc-custom"]);
@@ -229,6 +225,6 @@ describe("controls the owner already has", () => {
 
   it("leaves the sample business's own records alone", () => {
     const sample = resolveTemplate({ industry: "general", decisions: [inPlace("Anything")] });
-    expect(sample.controls).toBe(getBaseTemplate("general").controls);
+    expect(sample.controls).toBe(getIndustryTemplate("general").controls);
   });
 });

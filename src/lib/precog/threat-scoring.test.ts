@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { defaultProfile } from "./practice-profile";
 import { buildThreatAssessment } from "./threat-scoring";
 import type { Person } from "./types";
@@ -67,7 +68,7 @@ describe("buildThreatAssessment for an own business", () => {
 
 describe("buildThreatAssessment for the sample", () => {
   it("counts sole and unowned knowledge separately", () => {
-    const tpl = getBaseTemplate("dental");
+    const tpl = getIndustryTemplate("dental");
     const p = defaultProfile("dental");
     const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
     expect(report.missionBrief).toContain("Knowledge: 5 item(s) one person holds, 0 nobody holds.");

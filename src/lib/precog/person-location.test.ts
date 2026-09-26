@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { parsePeopleCsv } from "./import/people-csv";
 import { defaultProfile } from "./practice-profile";
 import { businessLocations, locationsById, personLocations, worksAt } from "./person-location";
@@ -20,7 +21,7 @@ const TWO_STORES = [
 ].join("\n");
 
 function twoStoreShop() {
-  const { people } = parsePeopleCsv(TWO_STORES, getBaseTemplate("retail"));
+  const { people } = parsePeopleCsv(TWO_STORES, getIndustryTemplate("retail"));
   const profile = defaultProfile("retail");
   const tpl = resolveTemplate({ ...profile, customPeople: people });
   return { people, tpl, profile };

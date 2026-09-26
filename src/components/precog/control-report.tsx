@@ -1,11 +1,10 @@
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getFirm } from "@/lib/precog/firm/server";
 import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
-import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";

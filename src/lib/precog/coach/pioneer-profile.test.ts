@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
 import { pioneerProfileFrom } from "./pioneer-profile";
 
-const dental = getBaseTemplate("dental");
-const retail = getBaseTemplate("retail");
+const dental = getIndustryTemplate("dental");
+const retail = getIndustryTemplate("retail");
 
 describe("pioneerProfileFrom", () => {
   it("keeps the industry it is given", () => {
@@ -28,7 +29,7 @@ describe("pioneerProfileFrom", () => {
     expect(p.staff.dualControlPayments).toBe(true);
     expect(p.riskVariables.hasDualControl).toBe(true);
     expect(p.riskVariables.hasIndependentBankRec).toBe(false);
-    expect(p.staff.teamSize).toBe(getBaseTemplate("restaurant").staffComposition.teamSize);
+    expect(p.staff.teamSize).toBe(getIndustryTemplate("restaurant").staffComposition.teamSize);
   });
 
   it("keeps the journal links that confirm a starter control and a scenario", () => {

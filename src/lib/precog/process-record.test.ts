@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "./process-graph";
 import {
   normalizeSystems,
@@ -145,7 +145,7 @@ describe("validateProcessMap record checks", () => {
 });
 
 describe("computeMapHealth documentation dimension", () => {
-  const tpl = getBaseTemplate("dental");
+  const tpl = getIndustryTemplate("dental");
 
   it("weights sum to one and the dimension is present", () => {
     const graph = buildProcessMapGraph(tpl, undefined);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import {
   effectiveDuties,
   looksLikeRosterHeader,
@@ -11,7 +12,7 @@ import {
 import { parseRoster } from "./roster";
 import type { Person } from "../types";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const BOM = String.fromCharCode(0xfeff);
 
 describe("parsePeopleCsv", () => {
@@ -283,7 +284,7 @@ describe("looksLikeRosterHeader", () => {
 
 describe("team export opened in a spreadsheet", () => {
   it("writes a name that starts a formula as text and reads it back unchanged", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const people = [
       {
         id: "x1",
@@ -302,7 +303,7 @@ describe("team export opened in a spreadsheet", () => {
 });
 
 describe("the team editor's own export and imports", () => {
-  const general = getBaseTemplate("general");
+  const general = getIndustryTemplate("general");
 
   it("re-imports the team's own export with every person's duties unchanged, role-derived ones included", () => {
     // "Owner" and "Operations Manager" take their duties from the role; the

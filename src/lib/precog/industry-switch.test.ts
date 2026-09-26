@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getBaseTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "./practice-profile";
 import { withPeople, withStaff } from "./profile-actions";
 import type { Person } from "./types";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "./industry-switch";
 import { joinWithAnd } from "./text";
 
-const tpl = getBaseTemplate("dental");
+const tpl = getIndustryTemplate("dental");
 
 describe("enteredWork", () => {
   afterEach(() => vi.useRealTimers());

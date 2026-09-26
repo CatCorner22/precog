@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
 import { compareScenarioFutures, compareScenarios } from "./scenario-compare";
@@ -12,7 +13,7 @@ const people: Person[] = [
 describe("compareScenarioFutures", () => {
   it("never crowns Do nothing, and breaks a retained-loss tie on the gross loss", () => {
     // The sample's default $5,000 deductible makes every retained figure the same.
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const report = compareScenarioFutures(
       dental,
       "sc-cash-sod-failure",
@@ -62,7 +63,7 @@ describe("compareScenarioFutures", () => {
   });
 
   it("has no winner when no option beats doing nothing", () => {
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const noOptions = {
       ...dental,
       scenarios: dental.scenarios.map((s) => ({ ...s, mitigations: [] })),
@@ -75,7 +76,7 @@ describe("compareScenarioFutures", () => {
 
 describe("compareScenarios", () => {
   it("ranks across scenarios, breaking retained ties on the gross loss", () => {
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const ids = ["sc-front-desk-leaves", "sc-cash-sod-failure", "sc-writeoff-abuse"];
     const report = compareScenarios(
       dental,

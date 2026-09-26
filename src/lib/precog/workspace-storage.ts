@@ -1,4 +1,5 @@
 import type { StorageLike } from "./local-data";
+import { stableStringify } from "./text";
 
 export interface KeyedStorage extends StorageLike {
   readonly length: number;
@@ -92,18 +93,6 @@ export class BusinessSaveQueue {
   }
 }
 
-/** Compare contents, not clock timestamps, before removing a synchronized copy. */
-function canonical(value: unknown): string {
-  return JSON.stringify(value, (_key, entry) => {
-    if (entry && typeof entry === "object" && !Array.isArray(entry))
-      return Object.fromEntries(
-        Object.keys(entry)
-          .sort()
-          .map((key) => [key, entry[key]]),
-      );
-    return entry;
-  });
-}
 export function removeAcknowledgedCopies(
   storage: ScopedStorage | null,
   acknowledged: ReadonlyMap<string, unknown>,
@@ -114,9 +103,9 @@ export function removeAcknowledgedCopies(
     const { localRev: _rev, localBase: _base, ...profile } = value as Record<string, unknown>;
     const id = typeof profile.businessId === "string" ? profile.businessId : "biz_default";
     const saved = acknowledged.get(id);
-    return saved !== undefined && canonical(profile) === canonical(saved);
+    return saved !== undefined && stableStringify(profile) === stableStringify(saved);
   };
-  // Errors or unfamiliar formats are kept, never guessed clean.
+  // Contents, not clock timestamps, decide; errors or unfamiliar formats are kept, never guessed clean.
   try {
     const active = storage.getItem("precog.practiceProfile.v2");
     if (active && matches(JSON.parse(active))) storage.removeItem("precog.practiceProfile.v2");

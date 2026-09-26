@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { assessCoso } from "./coso";
 import { defaultProfile } from "./practice-profile";
 import type { Person, StaffComposition } from "./types";
@@ -32,7 +33,7 @@ describe("assessCoso", () => {
   });
 
   it("never lists a key-person finding with a zero count", () => {
-    for (const a of [assessCoso(own, clean), assessCoso(getBaseTemplate("general"))]) {
+    for (const a of [assessCoso(own, clean), assessCoso(getIndustryTemplate("general"))]) {
       const spof = a.priorityFindings.find((f) => f.id === "ce-spof");
       if (spof) expect(spof.detail).not.toMatch(/^0 /);
     }
@@ -70,7 +71,7 @@ describe("assessCoso", () => {
 describe("compensating controls in COSO findings", () => {
   it("quote the live dual-release policy, never the sample record's own figure", () => {
     const p = defaultProfile("dental");
-    const tpl = getBaseTemplate("dental");
+    const tpl = getIndustryTemplate("dental");
     const detail = (a: ReturnType<typeof assessCoso>) =>
       a.components
         .find((c) => c.id === "control_activities")!

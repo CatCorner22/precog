@@ -3,6 +3,7 @@ import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/r
 import { AuthProvider } from "@/lib/auth/provider";
 import { installGlobalErrorReporting } from "@/lib/observability/report-browser";
 import { PracticeProvider } from "@/lib/precog/practice-context";
+import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
 import { PresentationProvider } from "@/lib/precog/presentation";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { Toaster } from "sonner";
@@ -86,6 +87,7 @@ function RootDocument() {
         <AuthProvider>
           <PresentationProvider>
             <PracticeProvider>
+              <WorkspaceRecovery />
               <Outlet />
             </PracticeProvider>
           </PresentationProvider>

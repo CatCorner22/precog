@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { Person, StaffComposition } from "../types";
 import { controlOptions, detectSodConflicts } from "./detect";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "./derive-staff";
 
-const retail = getBaseTemplate("retail");
+const retail = getIndustryTemplate("retail");
 
 function staff(overrides: Partial<StaffComposition> = {}): StaffComposition {
   return { ...retail.staffComposition, ...overrides };

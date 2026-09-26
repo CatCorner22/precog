@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import type { DecisionEntry } from "@/lib/precog/practice-profile";
 import { buildWeeklyActions } from "./build";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const holder = dental.people[0];
 const trainee = dental.people[1];
 const item = {

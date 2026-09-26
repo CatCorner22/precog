@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { IndustryTemplate } from "../templates/types";
 import { buildAssignments, detectSodConflicts } from "./detect";
 import { concentrationHeadline, separatedPairs } from "./verdict";
 
-const general = getBaseTemplate("general");
+const general = getIndustryTemplate("general");
 
 function team(people: { name: string; role: string; duties: string[] }[]): IndustryTemplate {
   return {

@@ -1,19 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { defaultProfile } from "./practice-profile";
+import {
+  defaultProfile,
+  MAX_DECISION_NOTE,
+  MAX_DECISION_SUBJECT,
+  MAX_DECISIONS,
+  normalizeProfile,
+} from "./practice-profile";
 import { industryMeta } from "./industry";
 import {
   isMapCustomized,
   makeMapVersion,
-  MAX_DECISIONS,
   withDecision,
+  withDualRelease,
   withRosterLeavers,
   withIndustry,
   withMapHealth,
   withMapSnapshot,
   withPeople,
   withPracticeName,
+  withProcesses,
   withReportSent,
   withRestoredVersion,
+  withRiskVariables,
   withStaff,
 } from "./profile-actions";
 import { captureMapSnapshot } from "./builder/map-history";
@@ -177,5 +185,79 @@ describe("small edits", () => {
       "2026-09-26",
     );
     expect(next.leaverAccessChecks ?? []).toHaveLength(0);
+  });
+});
+
+describe("the control flags stay in step", () => {
+  const team: Person[] = [
+    { id: "a", name: "Ana", role: "Owner", active: true, owner: true, entitlements: [] },
+    { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
+    { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
+  ];
+  const copies = (p: ReturnType<typeof defaultProfile>) => ({
+    staffBankRec: p.staff.independentBankRec,
+    riskBankRec: p.riskVariables.hasIndependentBankRec,
+    staffDual: p.staff.dualControlPayments,
+    riskDual: p.riskVariables.hasDualControl,
+  });
+
+  it("carries a re-derived bank reconciliation flag into the risk variables", () => {
+    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
+    expect(own.staff.independentBankRec).toBe(true);
+    expect(own.riskVariables.hasIndependentBankRec).toBe(true);
+    // Cy leaves: nobody independent reconciles the bank any more.
+    const left = withProcesses(
+      withPeople(own, [team[0], team[1], { ...team[2], active: false }], "2026-09-26"),
+      null,
+    );
+    const c = copies(left);
+    expect(c.staffBankRec).toBe(false);
+    expect(c.riskBankRec).toBe(false);
+  });
+
+  it("writes all copies from the staff figures, the risk variables or the dual-release policy", () => {
+    const p = defaultProfile("general");
+    const viaStaff = withStaff(p, {
+      ...p.staff,
+      dualControlPayments: !p.staff.dualControlPayments,
+    });
+    expect(copies(viaStaff).riskDual).toBe(viaStaff.staff.dualControlPayments);
+    expect(viaStaff.dualRelease.enabled).toBe(viaStaff.staff.dualControlPayments);
+
+    const viaRisk = withRiskVariables(p, {
+      ...p.riskVariables,
+      hasIndependentBankRec: !p.riskVariables.hasIndependentBankRec,
+    });
+    expect(copies(viaRisk).staffBankRec).toBe(viaRisk.riskVariables.hasIndependentBankRec);
+
+    const viaPolicy = withDualRelease(p, { ...p.dualRelease, enabled: false }, NOW);
+    expect(copies(viaPolicy).staffDual).toBe(false);
+    expect(copies(viaPolicy).riskDual).toBe(false);
+  });
+
+  it("moving another slider leaves the dual-release master switch alone", () => {
+    const p = defaultProfile("general");
+    const out = { ...p, dualRelease: { ...p.dualRelease, enabled: !p.staff.dualControlPayments } };
+    const moved = withStaff(out, { ...out.staff, teamSize: out.staff.teamSize + 1 });
+    expect(moved.dualRelease.enabled).toBe(out.dualRelease.enabled);
+  });
+});
+
+describe("the journal caps", () => {
+  it("are the same for a new entry and a stored one", () => {
+    const p = withDecision(
+      defaultProfile("general"),
+      { subject: "s".repeat(500), kind: "monitor", note: "n".repeat(5_000) },
+      "d1",
+      NOW,
+    );
+    const stored = normalizeProfile({
+      ...p,
+      decisions: [{ ...p.decisions[0], subject: "s".repeat(500), note: "n".repeat(5_000) }],
+    });
+    expect(p.decisions[0].subject).toHaveLength(MAX_DECISION_SUBJECT);
+    expect(p.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
+    expect(stored.decisions[0].subject).toHaveLength(MAX_DECISION_SUBJECT);
+    expect(stored.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
   });
 });

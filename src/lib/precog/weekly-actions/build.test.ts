@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import { documentationDebt } from "@/lib/precog/continuity/documentation";
 import { buildWeeklyActions } from "./build";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("buildWeeklyActions documentation advice", () => {
   it("adds critical documentation gaps to the action plan", () => {

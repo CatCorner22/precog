@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "../controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { coverageReport } from "../continuity/coverage";
 import { documentationState } from "../continuity/documentation";
 import { portfolioSummary } from "../scoring/residual-engine";
@@ -25,7 +26,7 @@ import {
 } from "./follow-through";
 import { localDateKey } from "../dates";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const dualRelease = defaultDualReleasePolicy(dental);
 
 function decision(overrides: Partial<DecisionEntry> = {}): DecisionEntry {
@@ -439,7 +440,7 @@ describe("continuitySlips", () => {
   });
 
   it("does not judge a dental decision against a retail item that happens to share its id", () => {
-    const retail = getBaseTemplate("retail");
+    const retail = getIndustryTemplate("retail");
     const sharesId = retail.knowledge.some((k) => k.id === covered.item.id);
     expect(sharesId).toBe(true);
     expect(continuitySlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);

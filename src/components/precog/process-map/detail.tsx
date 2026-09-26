@@ -2,7 +2,7 @@
  * The side panel for a selected process, the vision-mode chips and the legends of the process map.
  */
 import { type ReactNode } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import "@xyflow/react/dist/style.css";
 import { HEAT_BANDS, type MapGraphNode, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
