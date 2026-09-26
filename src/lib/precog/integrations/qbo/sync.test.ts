@@ -234,4 +234,31 @@ describe("QuickBooks reading", () => {
     expect(await loadConnection(db.sql, "own", "biz_1")).not.toBeNull();
     expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toHaveLength(1);
   });
+
+  it("scopes each connection to its account, even when business ids match", async () => {
+    await db.seedUser("two");
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_1', 'two', 'Other Shop', 'general', '{}'::jsonb, 1)`,
+    );
+    await saveConnection(db.sql, {
+      ownerUserId: "two",
+      businessId: "biz_1",
+      realmId: "456",
+      accessTokenEnc: encryptSecret("access-two"),
+      refreshTokenEnc: encryptSecret("refresh-two"),
+      accessExpiresAt: "2020-01-01T00:00:00.000Z",
+      refreshExpiresAt: "2099-01-01T00:00:00.000Z",
+    });
+    expect(await loadConnection(db.sql, "own", "biz_1")).toBeNull();
+    vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
+    await syncConnection(
+      db.sql,
+      await connect(db.sql, { accessExpiresAt: "2020-01-01T00:00:00.000Z" }),
+    );
+    const other = (await loadConnection(db.sql, "two", "biz_1"))!;
+    expect(decryptSecret(other.refreshTokenEnc)).toBe("refresh-two");
+    expect(other.realmId).toBe("456");
+    expect(await listSnapshots(db.sql, "two", "biz_1")).toEqual([]);
+  });
 });
