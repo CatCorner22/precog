@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "@/lib/auth/email-password";
+import { signInErrorMessage } from "@/lib/auth/sign-in-error";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 
@@ -21,23 +22,11 @@ function Login() {
         <p className="mt-1 text-sm text-muted">
           Sync your business profile, decision journal, and control settings across devices.
         </p>
-        <div className="mt-6 space-y-2">
-          {authEnabled ? (
-            GROK_PROVIDERS.map((p) => (
-              <Button
-                key={p.providerId}
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/" })}
-              >
-                Continue with {p.label}
-              </Button>
-            ))
-          ) : (
-            <p className="text-sm text-muted">Sign-in is disabled in this environment.</p>
-          )}
-        </div>
+        {authEnabled ? (
+          <ProviderButtons />
+        ) : (
+          <p className="mt-6 text-sm text-muted">Sign-in is disabled in this environment.</p>
+        )}
         {authEnabled && emailAndPasswordEnabled && <EmailPasswordForm />}
         <Link
           to="/"
@@ -48,6 +37,49 @@ function Login() {
         <LegalFooter className="mt-4 justify-center" />
       </div>
     </main>
+  );
+}
+
+/**
+ * Google and X sign-in. A blocked or cancelled pop-up and a broker error each
+ * show a message, and the buttons wait while a sign-in is under way.
+ */
+function ProviderButtons() {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function start(providerId: string) {
+    setError(null);
+    setBusy(true);
+    try {
+      await signIn(providerId, { callbackURL: "/" });
+    } catch (err) {
+      setError(signInErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-2">
+      {GROK_PROVIDERS.map((p) => (
+        <Button
+          key={p.providerId}
+          type="button"
+          variant="secondary"
+          className="w-full"
+          disabled={busy}
+          onClick={() => void start(p.providerId)}
+        >
+          Continue with {p.label}
+        </Button>
+      ))}
+      {error && (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

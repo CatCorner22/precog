@@ -38,10 +38,28 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What is synced when you sign in</h2>
         <p>
-          Sign-in uses Google or X through the app’s auth broker. The session cookie stays on this
-          app. A signed-in save stores the business profile, assessment snapshots, and firm
-          workspace (firm name, client list, engagement stamps, and the monthly review log) in the
-          database, tied to your account. Another customer’s account cannot read them.
+          Sign-in uses Google or X through the app’s auth broker, or an email and password kept by
+          this app. For an email account the database holds your name, your email address, and a
+          hash of the password, never the password itself. The session cookie stays on this app. A
+          signed-in save stores the business profile, assessment snapshots, and firm workspace (firm
+          name, client list, engagement stamps, and the monthly review log) in the database, tied to
+          your account. Another customer’s account cannot read them.
+        </p>
+        <p>
+          When you connect QuickBooks Online, the database keeps the connection tokens, encrypted,
+          and the last twelve readings of the vendor and employee lists. Disconnecting deletes the
+          tokens and those readings.
+        </p>
+        <p>
+          When a firm pays through Stripe, the database keeps the Stripe customer and subscription
+          ids, the plan status, and the date the assessment was paid. The card itself goes to
+          Stripe; Precog never sees the card number.
+        </p>
+        <p>
+          A signed-in account with a business gets a weekly reminder email at its sign-in address,
+          sent through Resend, listing what is due. Turn it off under Reminders in the firm
+          workspace. If you turn on reminders for client owners, each owner gets a short note at the
+          address on their client card.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it

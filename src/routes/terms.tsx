@@ -30,15 +30,22 @@ function TermsPage() {
         </p>
         <p>
           The duty map is what you enter or what a job title suggested. An access import compares a
-          file you upload with that map. It does not connect to QuickBooks, Xero, a bank, or a
-          payroll system, and it does not prove the file is complete. Unmatched rows stay in a queue
-          until a person maps or dismisses them.
+          file you upload with that map, and it does not prove the file is complete. Unmatched rows
+          stay in a queue until a person maps or dismisses them.
+        </p>
+        <p>
+          When you connect QuickBooks Online, Precog asks Intuit for its accounting permission
+          (com.intuit.quickbooks.accounting) and reads the vendor list and the employee list to
+          compare them with your map. It does not write to QuickBooks. It keeps the connection
+          tokens, encrypted, until you disconnect. Precog does not connect to Xero, a bank, or a
+          payroll system.
         </p>
         <p>
           The firm workspace records a pilot offer (a fixed assessment that can convert to a monthly
           firm plan), time to a complete map, how many findings received a decision, and whether a
-          report was marked sent. Marking a plan or an invoice is your record. The app does not
-          collect payment.
+          report was marked sent. A firm can pay for the assessment or the firm plan through
+          Stripe’s checkout. Stripe takes the card; Precog never sees a card number. An invoice you
+          mark by hand is your own record.
         </p>
         <p>
           You are responsible for the accuracy of what you enter, for who you share a link with, and
