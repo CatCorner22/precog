@@ -5,7 +5,7 @@ import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
 import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
-import { firstName } from "../text";
+import { firstName, joinWithAnd, quoted } from "../text";
 
 /** A hand-over with this many days or fewer left is urgent. */
 export const HANDOVER_URGENT_DAYS = 7;
@@ -82,7 +82,7 @@ export function leavers(
       tpl,
       goneByThen.map((o) => o.id),
     );
-    const own = absenceImpact(tpl, person.id);
+    const own = absenceImpact(tpl, [person.id]);
     if (!impact || !own) continue;
     const holdsAlone = (itemId: string) =>
       STRONG_LEVELS.has(relationLevel(tpl.relations, person.id, itemId) ?? "aware");
@@ -145,19 +145,19 @@ function handoverActions(
       knowledgeIds: [],
     });
   const ids = (list: HandoverItem[]) => list.map((h) => h.item.id);
-  const quoted = (list: HandoverItem[], max: number) =>
-    `${list
-      .slice(0, max)
-      .map((h) => `"${h.item.name}"`)
-      .join(", ")}${list.length > max ? ` and ${list.length - max} more` : ""}`;
+  const names = (list: HandoverItem[], max: number) =>
+    joinWithAnd(
+      list.map((h) => quoted(h.item.name)),
+      max,
+    );
 
   const trainable = handover.filter((h) => h.successor);
   if (trainable.length)
     actions.push({
-      text: `Train the successor before ${first} goes: ${trainable
-        .slice(0, 3)
-        .map((h) => `${h.successor?.name} on "${h.item.name}"`)
-        .join(", ")}${trainable.length > 3 ? ` and ${trainable.length - 3} more` : ""}.`,
+      text: `Train the successor before ${first} goes: ${joinWithAnd(
+        trainable.map((h) => `${h.successor?.name} on ${quoted(h.item.name)}`),
+        3,
+      )}.`,
       step: "cover",
       knowledgeIds: ids(trainable),
     });
@@ -166,33 +166,28 @@ function handoverActions(
     actions.push({
       text:
         remaining.length === 0
-          ? `Nobody else is on the team to take ${quoted(nobody, 2)} — hire or line up an outside provider before ${first} goes.`
-          : `Nobody left has touched ${quoted(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
+          ? `Nobody else is on the team to take ${names(nobody, 2)} — hire or line up an outside provider before ${first} goes.`
+          : `Nobody left has touched ${names(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
       step: "cover",
       knowledgeIds: ids(nobody),
     });
   const undocumented = handover.filter((h) => !h.item.documented);
   if (undocumented.length)
     actions.push({
-      text: `Have ${first} write down ${quoted(undocumented, 3)} while ${first} is still here.`,
+      text: `Have ${first} write down ${names(undocumented, 3)} while ${first} is still here.`,
       step: "document",
       knowledgeIds: ids(undocumented),
     });
   const unlocated = handover.filter((h) => h.item.documented && !h.item.procedureLocation?.trim());
   if (unlocated.length)
     actions.push({
-      text: `Record where the written procedure for ${quoted(unlocated, 3)} lives — after ${first} goes, nobody can ask.`,
+      text: `Record where the written procedure for ${names(unlocated, 3)} lives — after ${first} goes, nobody can ask.`,
       step: "locate",
       knowledgeIds: ids(unlocated),
     });
   if (orphanedProcesses.length)
     actions.push({
-      text: `Name a new owner on ${orphanedProcesses
-        .slice(0, 3)
-        .map((n) => `"${n}"`)
-        .join(
-          ", ",
-        )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+      text: `Name a new owner on ${joinWithAnd(orphanedProcesses.map(quoted), 3)}.`,
       step: "cover",
       knowledgeIds: [],
     });

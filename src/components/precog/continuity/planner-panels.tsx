@@ -16,11 +16,8 @@ import type { AbsenceAction, AbsenceImpact } from "@/lib/precog/continuity/absen
 import { type CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DebriefItem, LeaveDebrief } from "@/lib/precog/continuity/leave-debrief";
 import { handoverDeadline, type Leaver } from "@/lib/precog/continuity/leavers";
-import {
-  CRITICALITY_LABEL,
-  inputClass,
-  NOT_ASSESSED_ABSENCE,
-} from "@/lib/precog/continuity/planner-copy";
+import { CRITICALITY_LABEL, NOT_ASSESSED_ABSENCE } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
 import {
   handoffDeadline,
   type PlannedAbsenceReport,

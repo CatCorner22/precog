@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { teamTemplate } from "@/test/fixtures";
 import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
@@ -420,7 +421,7 @@ describe("unheld duties", () => {
 
   it("says nobody sets up suppliers when a bookkeeper pays them and nobody is recorded adding them", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
         { role: "Bookkeeper", duties: ["enter_invoices", "release_payment", "prepare_deposit"] },
       ]),
@@ -428,21 +429,6 @@ describe("unheld duties", () => {
     expect(report.summary.unheldDuties).toEqual(["create_vendor"]);
   });
 });
-
-function team(people: { role: string; duties: string[] }[]): IndustryTemplate {
-  return {
-    ...dental,
-    people: people.map((p, i) => ({
-      id: `t${i + 1}`,
-      name: `Person ${i + 1}`,
-      role: p.role,
-      active: true,
-      entitlements: p.duties,
-    })),
-    relations: [],
-    roleTemplates: {},
-  };
-}
 
 describe("owner-held pairs belong to the one owner only", () => {
   it.each([
@@ -452,7 +438,7 @@ describe("owner-held pairs belong to the one owner only", () => {
     "Office Manager (Owner's wife)",
   ])("keeps a %s's critical pair open", (role) => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["sign_checks"] },
         { role, duties: ["release_payment", "bank_reconcile"] },
       ]),
@@ -465,7 +451,7 @@ describe("owner-held pairs belong to the one owner only", () => {
 
   it("treats no partner as the owner who cannot steal from themselves", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Partner", duties: ["release_payment", "bank_reconcile"] },
         { role: "Partner", duties: ["sign_checks"] },
       ]),
@@ -476,7 +462,9 @@ describe("owner-held pairs belong to the one owner only", () => {
 
   it("still ranks a sole owner's own pair last and at half weight", () => {
     const report = detectSodConflicts(
-      team([{ role: "Owner", duties: ["collect_cash", "post_payments", "bank_reconcile"] }]),
+      teamTemplate(dental, [
+        { role: "Owner", duties: ["collect_cash", "post_payments", "bank_reconcile"] },
+      ]),
     );
     expect(report.conflicts.every((c) => c.ownerHeld)).toBe(true);
     expect(report.summary.critical).toBe(0);
@@ -539,14 +527,16 @@ describe("deposit preparation with reconciliation", () => {
 describe("money duties nobody holds", () => {
   it("counts check signing and ACH initiation as releasing payments", () => {
     const signs = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["sign_checks", "approve_payroll"] },
         { role: "Bookkeeper", duties: ["prepare_deposit", "bank_reconcile"] },
       ]),
     );
     expect(signs.summary.unheldDuties).not.toContain("release_payment");
     const ach = detectSodConflicts(
-      team([{ role: "Treasurer", duties: ["initiate_ach", "prepare_deposit", "approve_payroll"] }]),
+      teamTemplate(dental, [
+        { role: "Treasurer", duties: ["initiate_ach", "prepare_deposit", "approve_payroll"] },
+      ]),
     );
     expect(ach.summary.unheldDuties).not.toContain("release_payment");
   });
@@ -555,7 +545,7 @@ describe("money duties nobody holds", () => {
 describe("recommendations", () => {
   it("does not tell a one-person business to have two people count the deposit", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         {
           role: "Owner",
           duties: ["collect_cash", "post_payments", "release_payment", "bank_reconcile"],
@@ -571,7 +561,7 @@ describe("recommendations", () => {
 
   it("names an employee who holds most of the money cycle", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["sign_checks"] },
         {
           role: "Office Manager",
@@ -598,7 +588,7 @@ describe("recommendations", () => {
     // custody (weight 5) + reconciliation for the second. Both clamp to 100
     // under weak staffing; the heavier pair must still come first.
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Clerk", duties: ["post_payments", "bank_reconcile"] },
         { role: "Cashier", duties: ["collect_cash", "bank_reconcile"] },
       ]),
@@ -715,7 +705,7 @@ describe("company card and expense duties", () => {
       detectSodConflicts(oneClerk(["review_card_statement", "approve_expenses"])).conflicts,
     ).toEqual([]);
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["approve_expenses", "approve_payroll"] },
         { role: "Bookkeeper", duties: ["review_card_statement", "enter_invoices"] },
       ]),
@@ -727,7 +717,7 @@ describe("company card and expense duties", () => {
 
   it("reads the owner's own card and approval as an owner-held pair, not a theft finding", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["hold_company_card", "approve_expenses"] },
         { role: "Bookkeeper", duties: ["review_card_statement"] },
       ]),
@@ -741,14 +731,16 @@ describe("company card and expense duties", () => {
 describe("the owner's findings", () => {
   it("gives the sole owner no vaguer catch-all about their own business", () => {
     const report = detectSodConflicts(
-      team([{ role: "Owner", duties: ["release_payment", "sign_checks", "order_supplies"] }]),
+      teamTemplate(dental, [
+        { role: "Owner", duties: ["release_payment", "sign_checks", "order_supplies"] },
+      ]),
     );
     expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
   });
 
   it("lists every employee finding before an owner-held critical pair", () => {
     const report = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["collect_cash", "bank_reconcile"] },
         { role: "Bookkeeper", duties: ["prepare_deposit", "post_payments"] },
       ]),
@@ -767,7 +759,7 @@ describe("segregation health counts distinct gaps", () => {
 
   it("scores a large clinic with one repeated front-desk gap above a shop whose bookkeeper holds everything", () => {
     const clinic = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["approve_payroll", "bank_reconcile"] },
         ...frontDesk(8),
         { role: "Billing", duties: ["post_adjustments"] },
@@ -776,7 +768,7 @@ describe("segregation health counts distinct gaps", () => {
       ]),
     ).summary.segregationHealth;
     const shop = detectSodConflicts(
-      team([
+      teamTemplate(dental, [
         { role: "Owner", duties: ["approve_payroll"] },
         {
           role: "Bookkeeper",
@@ -795,8 +787,8 @@ describe("segregation health counts distinct gaps", () => {
   });
 
   it("lowers the index only slowly as more people hold the same flagged seat", () => {
-    const one = detectSodConflicts(team(frontDesk(1))).summary.segregationHealth;
-    const eight = detectSodConflicts(team(frontDesk(8))).summary.segregationHealth;
+    const one = detectSodConflicts(teamTemplate(dental, frontDesk(1))).summary.segregationHealth;
+    const eight = detectSodConflicts(teamTemplate(dental, frontDesk(8))).summary.segregationHealth;
     expect(eight).toBeLessThan(one);
     expect(one - eight).toBeLessThan(10);
   });
@@ -804,7 +796,8 @@ describe("segregation health counts distinct gaps", () => {
   it("never rises when a conflict is added", () => {
     let previous = 101;
     for (let n = 1; n <= 12; n++) {
-      const health = detectSodConflicts(team(frontDesk(n))).summary.segregationHealth;
+      const health = detectSodConflicts(teamTemplate(dental, frontDesk(n))).summary
+        .segregationHealth;
       expect(health).toBeLessThanOrEqual(previous);
       previous = health;
     }

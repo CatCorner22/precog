@@ -156,11 +156,6 @@ export function markPrompted(
   );
 }
 
-/** "Jordan Lee (Keyholder)", or the name alone. */
-function who(check: LeaverAccessCheck): string {
-  return check.role ? `${check.name} (${check.role})` : check.name;
-}
-
 /**
  * The owner confirmed, on `today`, that these people are off payroll and
  * their logins are removed. Closes their checks and returns one decisions-log
@@ -181,7 +176,7 @@ export function confirmAccessRemoved(
       createdAt: now.toISOString(),
       subject: `${check.name} has left: pay and logins stopped`.slice(0, 120),
       kind: "remediate",
-      note: `On ${today} you confirmed that ${who(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
+      note: `On ${today} you confirmed that ${leaverLabel(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
         check.source === "roster"
           ? `Noted as left from a roster on ${check.notedOn}.`
           : `Marked as left on ${check.notedOn}.`
@@ -193,4 +188,9 @@ export function confirmAccessRemoved(
     return { ...check, prompted: true as const, confirmedOn: today };
   });
   return { checks: next, decisions };
+}
+
+/** How a leaver is named to the owner: "Jordan Lee (Keyholder)", or the name alone. */
+export function leaverLabel(check: Pick<LeaverAccessCheck, "name" | "role">): string {
+  return check.role ? `${check.name} (${check.role})` : check.name;
 }

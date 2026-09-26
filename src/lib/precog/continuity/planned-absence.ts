@@ -2,9 +2,10 @@ import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
-import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
+import { absenceImpact, type AbsenceImpact } from "./absence-impact";
+import { procedurePointer } from "./documentation";
 import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";
-import { joinWithAnd, firstName } from "../text";
+import { joinWithAnd, joinWithOr, firstName } from "../text";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
 export const ABSENCE_LEAD_DAYS = 30;
@@ -100,16 +101,6 @@ export function endAbsence(absence: PlannedAbsence, today: string): PlannedAbsen
 /** "is out", or "is out unexpectedly" when the absence was recorded on the day rather than planned. */
 export function outPhrase(absence: PlannedAbsence): string {
   return absence.unplanned ? "is out unexpectedly" : "is out";
-}
-
-/**
- * Where the stand-in finds the written procedure for a stopped entry — the one
- * thing worth telling them on the morning someone calls in sick.
- */
-export function procedurePointer(stop: AbsenceStop): string {
-  if (!stop.item.documented) return "nothing written down";
-  const where = stop.item.procedureLocation?.trim();
-  return where ? `procedure at ${where}` : "written down, location not recorded";
 }
 
 /** Stops, then critical share, then orphaned processes; ties keep the earlier stretch. */
@@ -289,8 +280,9 @@ export function describeWindow(w: AbsenceWindow): string {
   if (stops.length === 0 && w.impact.orphanedProcesses.length === 0) {
     const waiting = w.impact.alreadyStopped.filter((k) => k.criticality !== "nice-to-have");
     return waiting.length
-      ? `${first} ${out} ${when}${overlap}: nothing more stops, but nobody can run ${listOr(
+      ? `${first} ${out} ${when}${overlap}: nothing more stops, but nobody can run ${joinWithOr(
           waiting.map((k) => k.name),
+          2,
         )} alone even with ${first} in.`
       : `${first} ${out} ${when}${overlap}: nothing stops.`;
   }
@@ -300,7 +292,7 @@ export function describeWindow(w: AbsenceWindow): string {
     .map((s) =>
       s.standIn
         ? w.status === "current"
-          ? `${s.item.name} — ${firstName(s.standIn.name)} covers (${procedurePointer(s)})`
+          ? `${s.item.name} — ${firstName(s.standIn.name)} covers (${procedurePointer(s.item)})`
           : `${s.item.name} — hand off to ${firstName(s.standIn.name)}`
         : `${s.item.name} has no one`,
     )

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { getBaseTemplate } from "../active-template";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
@@ -11,20 +12,8 @@ const people: Person[] = [
   { id: "sam", name: "Sam Roy", role: "Hygienist", active: true },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(relations: KnowledgeRelation[], knowledge: KnowledgeItem[]): IndustryTemplate {
-  return { ...getBaseTemplate("general"), people, knowledge, relations, processes: [] };
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 // pms: Maya alone, Chris learning, written at Drive. payroll: Maya alone, nothing written.
@@ -38,9 +27,9 @@ const register = tpl(
     { personId: "sam", knowledgeId: "billing", level: "proficient" },
   ],
   [
-    item("pms", { documented: true, procedureLocation: "Drive/PMS" }),
-    item("payroll"),
-    item("billing", { documented: true }),
+    knowledgeItem("pms", { documented: true, procedureLocation: "Drive/PMS" }),
+    knowledgeItem("payroll"),
+    knowledgeItem("billing", { documented: true }),
   ],
 );
 
@@ -337,7 +326,7 @@ describe("today's brief when register items wait on nobody", () => {
   it("does not say nothing stops while must-do items have nobody who can run them", () => {
     const gaps = tpl(
       [{ personId: "sam", knowledgeId: "payroll", level: "expert" }],
-      [item("payroll"), item("deposit")],
+      [knowledgeItem("payroll"), knowledgeItem("deposit")],
     );
     const brief = todayBrief(gaps, [absence()], [], "general", TODAY);
     expect(brief.headline).toBe(

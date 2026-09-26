@@ -6,7 +6,8 @@ import { continuityCommitments, handoffCommitment } from "../decisions/follow-th
 import { leaveDebriefs } from "./leave-debrief";
 import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
-import { plannedAbsenceReport, procedurePointer, type AbsenceWindow } from "./planned-absence";
+import { plannedAbsenceReport, type AbsenceWindow } from "./planned-absence";
+import { procedurePointer } from "./documentation";
 import { joinWithAnd, firstName, count, verb } from "../text";
 import { formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
@@ -100,7 +101,7 @@ export function todayBrief(
           item: s.item,
           standIn: s.standIn,
           cold: !s.standIn || !touched.has(`${s.standIn.id}\u0000${s.item.id}`),
-          procedure: procedurePointer(s),
+          procedure: procedurePointer(s.item),
           handoffLogged: Boolean(handoffCommitment(committed, s.item.id, w.absence.id)),
         })),
     }))

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -25,21 +26,8 @@ const people: Person[] = [
   { id: "d", name: "Dee", role: "Former staff", active: false },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): IndustryTemplate {
-  return {
-    ...getBaseTemplate("general"),
+  return continuityTemplate({
     people,
     knowledge,
     relations,
@@ -54,7 +42,7 @@ function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): Indust
         ownerPersonIds: ["b", "c"],
       },
     ],
-  };
+  });
 }
 
 describe("coverageStatus", () => {
@@ -72,10 +60,10 @@ describe("staleItems", () => {
     const today = "2025-04-01";
     const t = tpl(
       [
-        item("never"),
-        item("fresh", { confirmedAt: "2025-03-22" }),
-        item("stale", { confirmedAt: "2024-12-31" }),
-        item("boundary", { confirmedAt: "2025-01-01" }),
+        knowledgeItem("never"),
+        knowledgeItem("fresh", { confirmedAt: "2025-03-22" }),
+        knowledgeItem("stale", { confirmedAt: "2024-12-31" }),
+        knowledgeItem("boundary", { confirmedAt: "2025-01-01" }),
       ],
       [],
     );
@@ -90,9 +78,9 @@ describe("staleItems", () => {
 
   it("orders stale items by criticality before coverage urgency and does not mutate input", () => {
     const knowledge = [
-      item("important", { criticality: "important" }),
-      item("critical-covered", { name: "A critical" }),
-      item("critical-uncovered", { name: "Z critical" }),
+      knowledgeItem("important", { criticality: "important" }),
+      knowledgeItem("critical-covered", { name: "A critical" }),
+      knowledgeItem("critical-uncovered", { name: "Z critical" }),
     ];
     const relations = [
       { personId: "a", knowledgeId: "critical-covered", level: "expert" as const },
@@ -112,9 +100,9 @@ describe("staleItems", () => {
   it("computes a criticality-weighted confirmed index", () => {
     const t = tpl(
       [
-        item("critical", { confirmedAt: "2025-03-01" }),
-        item("important", { criticality: "important" }),
-        item("nice", { criticality: "nice-to-have", confirmedAt: "2025-03-01" }),
+        knowledgeItem("critical", { confirmedAt: "2025-03-01" }),
+        knowledgeItem("important", { criticality: "important" }),
+        knowledgeItem("nice", { criticality: "nice-to-have", confirmedAt: "2025-03-01" }),
       ],
       [],
     );
@@ -124,10 +112,10 @@ describe("staleItems", () => {
   it("treats invalid and future confirmation dates as never confirmed", () => {
     const t = tpl(
       [
-        item("bad-month", { confirmedAt: "2025-99-99" }),
-        item("bad-day", { confirmedAt: "2025-02-30" }),
-        item("future", { confirmedAt: "2025-04-02" }),
-        item("valid", { confirmedAt: "2025-03-22" }),
+        knowledgeItem("bad-month", { confirmedAt: "2025-99-99" }),
+        knowledgeItem("bad-day", { confirmedAt: "2025-02-30" }),
+        knowledgeItem("future", { confirmedAt: "2025-04-02" }),
+        knowledgeItem("valid", { confirmedAt: "2025-03-22" }),
       ],
       [],
     );
@@ -143,9 +131,9 @@ describe("staleItems", () => {
 
 describe("coverageDrops", () => {
   const knowledge = [
-    item("payroll"),
-    item("deposits"),
-    item("filing", { criticality: "nice-to-have" }),
+    knowledgeItem("payroll"),
+    knowledgeItem("deposits"),
+    knowledgeItem("filing", { criticality: "nice-to-have" }),
   ];
   const relations: KnowledgeRelation[] = [
     { personId: "a", knowledgeId: "payroll", level: "expert" },
@@ -185,10 +173,10 @@ describe("coverageDrops", () => {
 describe("checkInPlan", () => {
   const today = "2025-04-01";
   const knowledge = [
-    item("fresh", { confirmedAt: "2025-03-30" }),
-    item("payroll"),
-    item("deposits", { criticality: "important" }),
-    item("orphan"),
+    knowledgeItem("fresh", { confirmedAt: "2025-03-30" }),
+    knowledgeItem("payroll"),
+    knowledgeItem("deposits", { criticality: "important" }),
+    knowledgeItem("orphan"),
   ];
   const relations: KnowledgeRelation[] = [
     { personId: "a", knowledgeId: "fresh", level: "expert" },
@@ -228,7 +216,10 @@ describe("checkInPlan", () => {
   });
 
   it("is empty when everything is confirmed", () => {
-    const plan = checkInPlan(tpl([item("fresh", { confirmedAt: today })], relations), today);
+    const plan = checkInPlan(
+      tpl([knowledgeItem("fresh", { confirmedAt: today })], relations),
+      today,
+    );
     expect(plan.checkIns).toEqual([]);
     expect(plan.unheld).toEqual([]);
   });
@@ -237,7 +228,11 @@ describe("checkInPlan", () => {
 describe("coverageReport", () => {
   it("lets one person hold many items and many people hold one item", () => {
     const t = tpl(
-      [item("payroll"), item("bank-rec"), item("ordering", { criticality: "important" })],
+      [
+        knowledgeItem("payroll"),
+        knowledgeItem("bank-rec"),
+        knowledgeItem("ordering", { criticality: "important" }),
+      ],
       [
         { personId: "a", knowledgeId: "payroll", level: "expert" },
         { personId: "b", knowledgeId: "payroll", level: "proficient" },
@@ -262,7 +257,7 @@ describe("coverageReport", () => {
 
   it("does not count basic or aware holders as backups", () => {
     const t = tpl(
-      [item("k")],
+      [knowledgeItem("k")],
       [
         { personId: "a", knowledgeId: "k", level: "expert" },
         { personId: "b", knowledgeId: "k", level: "aware" },
@@ -275,7 +270,7 @@ describe("coverageReport", () => {
   });
 
   it("flags uncovered items and ignores relations to people who are not on the team", () => {
-    const t = tpl([item("k")], [{ personId: "ghost", knowledgeId: "k", level: "expert" }]);
+    const t = tpl([knowledgeItem("k")], [{ personId: "ghost", knowledgeId: "k", level: "expert" }]);
     const r = coverageReport(t);
     expect(r.items[0].status).toBe("uncovered");
     expect(r.items[0].primaries).toEqual([]);
@@ -284,7 +279,7 @@ describe("coverageReport", () => {
 
   it("weights the coverage index by criticality and ignores nice-to-have single points", () => {
     const t = tpl(
-      [item("crit"), item("nice", { criticality: "nice-to-have" })],
+      [knowledgeItem("crit"), knowledgeItem("nice", { criticality: "nice-to-have" })],
       [
         { personId: "a", knowledgeId: "crit", level: "expert" },
         { personId: "b", knowledgeId: "crit", level: "expert" },
@@ -299,7 +294,11 @@ describe("coverageReport", () => {
 
   it("orders the cross-training plan by criticality × urgency and names trainer and trainee", () => {
     const t = tpl(
-      [item("crit-single"), item("imp-uncovered", { criticality: "important" }), item("crit-thin")],
+      [
+        knowledgeItem("crit-single"),
+        knowledgeItem("imp-uncovered", { criticality: "important" }),
+        knowledgeItem("crit-thin"),
+      ],
       [
         { personId: "a", knowledgeId: "crit-single", level: "expert" },
         { personId: "a", knowledgeId: "crit-thin", level: "expert" },
@@ -320,7 +319,7 @@ describe("coverageReport", () => {
 describe("suggestBackups", () => {
   it("prefers learners, linked-process owners, and people who are not already single points", () => {
     const t = tpl(
-      [item("payroll", { linkedProcessIds: ["proc-pay"] })],
+      [knowledgeItem("payroll", { linkedProcessIds: ["proc-pay"] })],
       [
         { personId: "a", knowledgeId: "payroll", level: "expert" },
         { personId: "c", knowledgeId: "payroll", level: "basic" },
@@ -377,10 +376,10 @@ describe("ownerlessProcesses", () => {
 describe("absenceImpact", () => {
   const t = tpl(
     [
-      item("payroll", { documented: true }),
-      item("bank-rec"),
-      item("ordering", { criticality: "important" }),
-      item("filing", { criticality: "nice-to-have" }),
+      knowledgeItem("payroll", { documented: true }),
+      knowledgeItem("bank-rec"),
+      knowledgeItem("ordering", { criticality: "important" }),
+      knowledgeItem("filing", { criticality: "nice-to-have" }),
     ],
     [
       { personId: "a", knowledgeId: "payroll", level: "expert" },
@@ -393,7 +392,7 @@ describe("absenceImpact", () => {
   );
 
   it("separates what stops from what continues and names a stand-in per stopped item", () => {
-    const a = absenceImpact(t, "a")!;
+    const a = absenceImpact(t, ["a"])!;
     expect(a.stops.map((s) => s.item.id)).toEqual(["bank-rec", "payroll"]);
     expect(a.continues.map((k) => k.id)).toEqual(["ordering"]);
     const payroll = a.stops.find((s) => s.item.id === "payroll")!;
@@ -416,7 +415,7 @@ describe("absenceImpact", () => {
   });
 
   it("reports nothing more stopping for a fully backed-up person and flags sole-owned processes", () => {
-    const b = absenceImpact(t, "b")!;
+    const b = absenceImpact(t, ["b"])!;
     expect(b.stops).toEqual([]);
     expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
     expect(b.alreadyStopped.map((k) => k.id)).toEqual(["filing"]);
@@ -428,12 +427,12 @@ describe("absenceImpact", () => {
       },
     ]);
     const covered = tpl(t.knowledge.slice(0, 3), t.relations);
-    expect(absenceImpact(covered, "b")!.actions[0].text).toBe(
+    expect(absenceImpact(covered, ["b"])!.actions[0].text).toBe(
       "Nothing stops if Ben is out. Keep it that way as duties change.",
     );
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
-    expect(absenceImpact(solo, "b")!.orphanedProcesses).toEqual(["Payroll run"]);
+    expect(absenceImpact(solo, ["b"])!.orphanedProcesses).toEqual(["Payroll run"]);
   });
 
   it("names a cold stand-in for a backed-up item when every holder is out at once", () => {
@@ -444,15 +443,15 @@ describe("absenceImpact", () => {
   });
 
   it("returns null for an unknown person and says so when nobody else is left", () => {
-    expect(absenceImpact(t, "zz")).toBeNull();
+    expect(absenceImpact(t, ["zz"])).toBeNull();
     const alone = { ...t, people: [people[0]] };
-    const a = absenceImpact(alone, "a")!;
+    const a = absenceImpact(alone, ["a"])!;
     expect(a.stops.every((s) => s.standIn === null)).toBe(true);
     expect(a.stops[0].note).toBe("Nobody else is on the team.");
   });
 
   it("tells the stand-in where the written procedure lives, or asks for it to be recorded", () => {
-    const a = absenceImpact(t, "a")!;
+    const a = absenceImpact(t, ["a"])!;
     expect(a.stops.find((s) => s.item.id === "payroll")!.note).not.toMatch(/procedure:/);
     expect(
       a.actions.some((x) => x.text.startsWith('Record where the written procedure for "payroll"')),
@@ -464,9 +463,9 @@ describe("absenceImpact", () => {
         k.id === "payroll" ? { ...k, procedureLocation: " Binder B, front desk " } : k,
       ),
     };
-    const b = absenceImpact(located, "a")!;
+    const b = absenceImpact(located, ["a"])!;
     expect(b.stops.find((s) => s.item.id === "payroll")!.note).toMatch(
-      /written procedure to follow \(procedure: Binder B, front desk\)\./,
+      /written procedure to follow \(procedure at Binder B, front desk\)\./,
     );
     expect(b.actions.some((x) => x.text.startsWith("Record where"))).toBe(false);
 
@@ -476,13 +475,13 @@ describe("absenceImpact", () => {
         k.id === "bank-rec" ? { ...k, documented: false, procedureLocation: "Drive" } : k,
       ),
     };
-    const c = absenceImpact(undocumentedWithLocation, "a")!;
+    const c = absenceImpact(undocumentedWithLocation, ["a"])!;
     expect(c.stops.find((s) => s.item.id === "bank-rec")!.note).not.toMatch(/procedure:/);
   });
 
   it("handles overlapping absences, shared holders, and natural group wording", () => {
     const group = tpl(
-      [item("x"), item("y"), item("z")],
+      [knowledgeItem("x"), knowledgeItem("y"), knowledgeItem("z")],
       [
         { personId: "a", knowledgeId: "x", level: "expert" },
         { personId: "b", knowledgeId: "x", level: "proficient" },
@@ -512,11 +511,15 @@ describe("absenceImpact", () => {
 describe("documentationDebt", () => {
   const t = tpl(
     [
-      item("payroll", { documented: true, procedureLocation: "Binder B" }),
-      item("bank-rec"),
-      item("ordering", { criticality: "important" }),
-      item("filing", { criticality: "nice-to-have", documented: true, procedureLocation: "  " }),
-      item("deposits", { documented: true }),
+      knowledgeItem("payroll", { documented: true, procedureLocation: "Binder B" }),
+      knowledgeItem("bank-rec"),
+      knowledgeItem("ordering", { criticality: "important" }),
+      knowledgeItem("filing", {
+        criticality: "nice-to-have",
+        documented: true,
+        procedureLocation: "  ",
+      }),
+      knowledgeItem("deposits", { documented: true }),
     ],
     [
       { personId: "a", knowledgeId: "payroll", level: "expert" },
@@ -531,17 +534,17 @@ describe("documentationDebt", () => {
   );
 
   it("classifies each item as nothing written, written but unlocated, or findable", () => {
-    expect(documentationState(item("x"))).toBe("none");
-    expect(documentationState(item("x", { documented: false, procedureLocation: "Drive" }))).toBe(
-      "none",
-    );
-    expect(documentationState(item("x", { documented: true }))).toBe("unlocated");
-    expect(documentationState(item("x", { documented: true, procedureLocation: " " }))).toBe(
-      "unlocated",
-    );
-    expect(documentationState(item("x", { documented: true, procedureLocation: "Drive" }))).toBe(
-      "located",
-    );
+    expect(documentationState(knowledgeItem("x"))).toBe("none");
+    expect(
+      documentationState(knowledgeItem("x", { documented: false, procedureLocation: "Drive" })),
+    ).toBe("none");
+    expect(documentationState(knowledgeItem("x", { documented: true }))).toBe("unlocated");
+    expect(
+      documentationState(knowledgeItem("x", { documented: true, procedureLocation: " " })),
+    ).toBe("unlocated");
+    expect(
+      documentationState(knowledgeItem("x", { documented: true, procedureLocation: "Drive" })),
+    ).toBe("located");
   });
 
   it("lists only the gaps, most urgent first, and names who should write it", () => {
@@ -564,7 +567,7 @@ describe("documentationDebt", () => {
   it("ranks a critical single-owner gap above a critical covered gap, and breaks ties by name", () => {
     const d = documentationDebt(
       tpl(
-        [item("zeta"), item("alpha"), item("solo")],
+        [knowledgeItem("zeta"), knowledgeItem("alpha"), knowledgeItem("solo")],
         [
           { personId: "a", knowledgeId: "zeta", level: "expert" },
           { personId: "b", knowledgeId: "zeta", level: "expert" },
@@ -580,13 +583,13 @@ describe("documentationDebt", () => {
   });
 
   it("asks for an outside source when nobody can run an unwritten item, and is empty when all is findable", () => {
-    const nobody = documentationDebt(tpl([item("orphan")], []));
+    const nobody = documentationDebt(tpl([knowledgeItem("orphan")], []));
     expect(nobody.gaps[0].author).toBeNull();
     expect(nobody.gaps[0].action).toMatch(/^Nobody can run "orphan"/);
     expect(nobody.documentedIndex).toBe(0);
 
     const done = documentationDebt(
-      tpl([item("payroll", { documented: true, procedureLocation: "Binder" })], []),
+      tpl([knowledgeItem("payroll", { documented: true, procedureLocation: "Binder" })], []),
     );
     expect(done.gaps).toEqual([]);
     expect(done.documentedIndex).toBe(100);
@@ -606,7 +609,11 @@ describe("documentationDebt", () => {
 describe("contingencyCards", () => {
   it("lists active people whose absence stops work, most depended-on first", () => {
     const t = tpl(
-      [item("payroll"), item("bank-rec"), item("ordering", { criticality: "important" })],
+      [
+        knowledgeItem("payroll"),
+        knowledgeItem("bank-rec"),
+        knowledgeItem("ordering", { criticality: "important" }),
+      ],
       [
         { personId: "a", knowledgeId: "payroll", level: "expert" },
         { personId: "a", knowledgeId: "bank-rec", level: "expert" },
@@ -622,7 +629,7 @@ describe("contingencyCards", () => {
 
   it("includes a person who is the sole process owner even if nothing they know stops", () => {
     const t = tpl(
-      [item("payroll")],
+      [knowledgeItem("payroll")],
       [
         { personId: "a", knowledgeId: "payroll", level: "expert" },
         { personId: "b", knowledgeId: "payroll", level: "expert" },
@@ -655,7 +662,7 @@ describe("soleOwnerCriticalCount", () => {
 describe("resolveTemplate with a custom register", () => {
   it("uses custom knowledge and relations and drops relations to missing people or items", () => {
     const base = getBaseTemplate("dental");
-    const knowledge = [item("custom-1")];
+    const knowledge = [knowledgeItem("custom-1")];
     const relations: KnowledgeRelation[] = [
       { personId: base.people[0].id, knowledgeId: "custom-1", level: "expert" },
       { personId: "nobody", knowledgeId: "custom-1", level: "expert" },
@@ -787,7 +794,11 @@ describe("criticalSinglePoints", () => {
 
   it("counts a learner as no cover: one person plus a learner is still a single point", () => {
     const t = tpl(
-      [item("thin"), item("covered"), item("imp", { criticality: "important" })],
+      [
+        knowledgeItem("thin"),
+        knowledgeItem("covered"),
+        knowledgeItem("imp", { criticality: "important" }),
+      ],
       [
         { personId: "a", knowledgeId: "thin", level: "expert" },
         { personId: "b", knowledgeId: "thin", level: "basic" },
@@ -801,12 +812,16 @@ describe("criticalSinglePoints", () => {
 
 describe("absence simulator on a register with gaps", () => {
   const t = tpl(
-    [item("payroll"), item("deposit"), item("orders", { criticality: "important" })],
+    [
+      knowledgeItem("payroll"),
+      knowledgeItem("deposit"),
+      knowledgeItem("orders", { criticality: "important" }),
+    ],
     [{ personId: "a", knowledgeId: "payroll", level: "expert" }],
   );
 
   it("lists items nobody can run as already stopped and never says nothing stops", () => {
-    const c = absenceImpact(t, "c")!;
+    const c = absenceImpact(t, ["c"])!;
     expect(c.stops).toEqual([]);
     expect(c.alreadyStopped.map((k) => k.id)).toEqual(["deposit", "orders"]);
     expect(c.actions.map((a) => a.text)).toEqual([
@@ -827,7 +842,7 @@ describe("absence simulator on a register with gaps", () => {
 
   it("with the whole team out and every item backed up, still never says nothing stops", () => {
     const covered = tpl(
-      [item("payroll")],
+      [knowledgeItem("payroll")],
       [
         { personId: "a", knowledgeId: "payroll", level: "expert" },
         { personId: "b", knowledgeId: "payroll", level: "expert" },

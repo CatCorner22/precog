@@ -6,7 +6,11 @@ import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { checkInPlan } from "@/lib/precog/continuity/staleness";
 import { coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
-import { documentationDebt, DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
+import {
+  documentationDebt,
+  DOCUMENTATION_LABEL,
+  procedurePointer,
+} from "@/lib/precog/continuity/documentation";
 import { ownerlessProcesses } from "@/lib/precog/continuity/absence-impact";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { industryMeta } from "@/lib/precog/industry";
@@ -22,7 +26,6 @@ import {
   leadLabel,
   outPhrase,
   plannedAbsenceReport,
-  procedurePointer,
 } from "@/lib/precog/continuity/planned-absence";
 import { describeDebriefItem, leaveDebriefs } from "@/lib/precog/continuity/leave-debrief";
 import {
@@ -345,7 +348,7 @@ export function buildWeeklyActions(input: {
     const standInFirst = lead.standIn ? firstName(lead.standIn.name) : "";
     const coverToday =
       w.status === "current" && lead.standIn
-        ? ` Tell ${standInFirst} today that ${lead.item.name} is theirs while ${first} is out (${procedurePointer(lead)}).`
+        ? ` Tell ${standInFirst} today that ${lead.item.name} is theirs while ${first} is out (${procedurePointer(lead.item)}).`
         : "";
     actions.push({
       id: `leave-${w.absence.id}`,
@@ -520,12 +523,10 @@ export function buildWeeklyActions(input: {
       actions.push({
         id: `check-in-${first.person.id}`,
         title: `Check in with ${firstName(first.person.name)}: ${count(first.items.length, "register entry", "register entries")}`,
-        why: `The register says ${first.person.name} can do ${first.items
-          .slice(0, 3)
-          .map((entry) => entry.item.name)
-          .join(
-            ", ",
-          )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
+        why: `The register says ${first.person.name} can do ${joinWithAnd(
+          first.items.map((entry) => entry.item.name),
+          3,
+        )}, but nobody has confirmed it in 90+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
           others > 0
             ? ` ${others} more ${verb(others, "person", "people")} to check in with after that.`
             : ""

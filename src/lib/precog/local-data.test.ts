@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { memoryStorage } from "@/test/fixtures";
 import {
   canKeepLocalData,
   clearLocalCopies,
@@ -21,20 +22,6 @@ const blocked: StorageLike = {
     throw new DOMException("blocked", "SecurityError");
   },
 };
-
-function memoryStorage(seed: Record<string, string> = {}) {
-  const data = new Map(Object.entries(seed));
-  return {
-    get length() {
-      return data.size;
-    },
-    key: (i: number) => [...data.keys()][i] ?? null,
-    getItem: (k: string) => data.get(k) ?? null,
-    setItem: (k: string, v: string) => void data.set(k, v),
-    removeItem: (k: string) => void data.delete(k),
-    data,
-  };
-}
 
 describe("value proof when the browser blocks or fills storage", () => {
   it("reads nothing and reports the write as not kept instead of throwing", () => {

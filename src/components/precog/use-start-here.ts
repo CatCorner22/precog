@@ -3,7 +3,7 @@ import { LONG_SERVICE_YEARS } from "./start-here-copy";
 import { usePractice } from "@/lib/precog/practice-context";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { checkInPlan, staleItems } from "@/lib/precog/continuity/staleness";
 import { coverageReport } from "@/lib/precog/continuity/coverage";
 import { documentationDebt } from "@/lib/precog/continuity/documentation";

@@ -1,10 +1,10 @@
 import { LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
-import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
 import {
-  handoffDeadline,
-  leadLabel,
+  DOCUMENTATION_LABEL,
+  documentationState,
   procedurePointer,
-} from "@/lib/precog/continuity/planned-absence";
+} from "@/lib/precog/continuity/documentation";
+import { handoffDeadline, leadLabel } from "@/lib/precog/continuity/planned-absence";
 import { standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import { handoverDeadline, leaverLead } from "@/lib/precog/continuity/leavers";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
@@ -307,7 +307,9 @@ function ControlReportLeaveSection({
                             {s.standIn?.name ?? "Nobody — outside provider or it waits"}
                           </td>
                           {w.status === "current" && (
-                            <td className="py-1 pr-2 text-neutral-600">{procedurePointer(s)}</td>
+                            <td className="py-1 pr-2 text-neutral-600">
+                              {procedurePointer(s.item)}
+                            </td>
                           )}
                           <td className="py-1 text-neutral-600">
                             {c

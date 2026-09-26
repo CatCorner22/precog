@@ -3,9 +3,10 @@ import { PeopleLine } from "@/components/precog/continuity/leave-cards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ContinuityStep } from "@/lib/precog/continuity/absence-impact";
+import type { ContinuityStep } from "@/lib/precog/decisions/follow-through";
 import {
   LEVEL_LABEL,
+  isMarked,
   LEVEL_ORDER,
   STATUS_LABEL,
   type CoverageDrop,
@@ -20,12 +21,11 @@ import {
 } from "@/lib/precog/continuity/documentation";
 import {
   CRITICALITY_LABEL,
-  inputClass,
-  isMarked,
   NOT_ASSESSED_PLAN,
   STATUS_VARIANT,
   UNHELD_VIEW,
 } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
 import { CONFIRMATION_MAX_AGE_DAYS, type CheckInPlan } from "@/lib/precog/continuity/staleness";
 import type { Criticality, KnowledgeLevel } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";

@@ -20,7 +20,7 @@ import {
 } from "@/lib/precog/decisions/follow-through";
 import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange, lossPhrase } from "@/lib/precog/evidence";
 import { formatUsd } from "@/lib/utils";

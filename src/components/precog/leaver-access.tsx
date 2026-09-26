@@ -6,11 +6,11 @@ import { Card } from "@/components/ui/card";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   LEAVER_ACCESS_ITEMS,
+  leaverLabel,
   openAccessChecks,
   unpromptedAccessChecks,
   type LeaverAccessItem,
 } from "@/lib/precog/continuity/access-removal";
-import type { LeaverAccessCheck } from "@/lib/precog/practice-profile";
 import { joinWithAnd } from "@/lib/precog/text";
 
 const WHY =
@@ -71,10 +71,6 @@ function AccessChecklist({
   );
 }
 
-/** "Jordan Lee (Keyholder)" */
-const label = (check: LeaverAccessCheck) =>
-  check.role ? `${check.name} (${check.role})` : check.name;
-
 /**
  * Asked once, under the header, as soon as someone is known to have left:
  * are they off payroll, and are their logins gone? Either answer ends the
@@ -91,7 +87,7 @@ export function LeaverAccessPrompt() {
   const ids = pending.map((check) => check.id);
   const one = pending.length === 1;
   const names = one
-    ? label(pending[0])
+    ? leaverLabel(pending[0])
     : joinWithAnd(
         pending.map((check) => check.name),
         2,
@@ -159,7 +155,7 @@ export function LeaverAccessList() {
           <li key={check.id} className="rounded-md border border-border bg-surface px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm">
-                <span className="font-medium">{label(check)}</span>
+                <span className="font-medium">{leaverLabel(check)}</span>
                 <span className="text-muted">
                   {" "}
                   ·{" "}

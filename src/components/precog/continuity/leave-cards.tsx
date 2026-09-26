@@ -8,9 +8,9 @@ import { type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
 import {
   handoffDeadline,
   leadLabel,
-  procedurePointer,
   type AbsenceWindow,
 } from "@/lib/precog/continuity/planned-absence";
+import { procedurePointer } from "@/lib/precog/continuity/documentation";
 import {
   describeDebriefItem,
   standInAlreadyStrong,
@@ -34,10 +34,9 @@ import {
   LEVEL_SHORT,
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
 import { formatDayRange } from "@/lib/precog/dates";
 import { joinWithAnd, verb, firstName } from "@/lib/precog/text";
-
-const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
 /** Register items nobody can run alone: stopped whoever is in, listed apart from what the absence stops. */
 export function AlreadyStopped({
@@ -233,7 +232,7 @@ export function LeaveWindow({
                       <span
                         className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}
                       >
-                        · {procedurePointer(s)}
+                        · {procedurePointer(s.item)}
                       </span>
                     )}
                   </div>

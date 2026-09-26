@@ -8,11 +8,11 @@ import {
 } from "@/lib/precog/continuity/coverage";
 import {
   CRITICALITY_LABEL,
-  inputClass,
   KIND_LABEL,
   LEVEL_SHORT,
   STATUS_VARIANT,
 } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
 import {
   REGISTER_ITEM_PAGE,
   REGISTER_PEOPLE_PAGE,

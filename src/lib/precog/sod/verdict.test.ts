@@ -1,29 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { teamTemplate } from "@/test/fixtures";
 import { getBaseTemplate } from "../active-template";
-import type { IndustryTemplate } from "../templates/types";
 import { buildAssignments, detectSodConflicts } from "./detect";
 import { concentrationHeadline, separatedPairs } from "./verdict";
 
 const general = getBaseTemplate("general");
 
-function team(people: { name: string; role: string; duties: string[] }[]): IndustryTemplate {
-  return {
-    ...general,
-    people: people.map((p, i) => ({
-      id: `t${i + 1}`,
-      name: p.name,
-      role: p.role,
-      active: true,
-      entitlements: p.duties,
-    })),
-    relations: [],
-    roleTemplates: {},
-  };
-}
-
 describe("concentrationHeadline", () => {
   it("names the bookkeeper who holds most gaps and the one move that closes the most", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "Ana", role: "Owner", duties: ["approve_payroll"] },
       {
         name: "Denise Holmgren",
@@ -46,7 +31,7 @@ describe("concentrationHeadline", () => {
   });
 
   it("names nobody when the gaps are spread across the team", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "A", role: "Front Desk", duties: ["collect_cash", "post_payments"] },
       { name: "B", role: "AP Clerk", duties: ["enter_invoices", "release_payment"] },
       { name: "C", role: "Payroll", duties: ["enter_payroll", "approve_payroll"] },
@@ -57,7 +42,7 @@ describe("concentrationHeadline", () => {
 
 describe("separatedPairs", () => {
   it("lists the rules whose two duties sit with different people", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "A", role: "AP Clerk", duties: ["enter_invoices"] },
       { name: "B", role: "Owner", duties: ["release_payment", "approve_payroll"] },
       { name: "C", role: "Payroll", duties: ["enter_payroll"] },
