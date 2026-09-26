@@ -43,6 +43,8 @@ import type { SavedProcessBlock } from "./builder/process-blocks";
 import { processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import type { Departure } from "./continuity/access-removal";
+import type { ReviewRecord } from "./firm/reviews";
+import type { AccessReconciliation } from "./firm/reconcile";
 import { profileReducer } from "./profile-reducer";
 import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
@@ -60,7 +62,10 @@ import {
   withKnowledge,
   withLeaversConfirmed,
   withLeaversPrompted,
+  withAccessReconciliation,
   withMapHealth,
+  withMonthlyReviews,
+  withReportSent,
   withMapLayout,
   withMapVersion,
   withoutDecision,
@@ -95,7 +100,17 @@ export interface PracticeContextValue {
   setDualRelease: (v: SetStateAction<DualReleasePolicy>) => void;
   addDecision: (input: DecisionInput) => void;
   removeDecision: (id: string) => void;
+  /**
+   * Swaps in a whole business (a restored snapshot, a past version) and
+   * clears map undo. Never for changing one field: use the narrow action.
+   */
   replaceProfile: (profile: PracticeProfile) => void;
+  /** Monthly close: replace the list of results (value or updater). */
+  setMonthlyReviews: (v: SetStateAction<ReviewRecord[]>) => void;
+  /** The user and vendor export compared with the duty map. */
+  setAccessReconciliation: (next: AccessReconciliation) => void;
+  /** The owner sent the report; the first stamp is kept. */
+  markReportSent: () => void;
   reviewDecision: (
     id: string,
     outcome: DecisionReviewOutcome,
@@ -482,6 +497,18 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     [clearHistory],
   );
 
+  const setMonthlyReviews = useCallback((v: SetStateAction<ReviewRecord[]>) => {
+    setProfile((p) => withMonthlyReviews(p, resolveUpdate(v, p.monthlyReviews ?? [])));
+  }, []);
+
+  const setAccessReconciliation = useCallback((next: AccessReconciliation) => {
+    setProfile((p) => withAccessReconciliation(p, next));
+  }, []);
+
+  const markReportSent = useCallback(() => {
+    setProfile((p) => withReportSent(p, new Date()));
+  }, []);
+
   const setMapLayout = useCallback(
     (v: SetStateAction<Record<string, { x: number; y: number }>>) => {
       pushUndo();
@@ -495,7 +522,8 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const recordMapHealth = useCallback((score: number) => {
-    setProfile((p) => withMapHealth(p, score, new Date()));
+    // Derived from the map, not an owner's edit: it must not stamp updatedAt.
+    setProfile({ derive: (p) => withMapHealth(p, score, new Date()) });
   }, []);
 
   const saveMapVersion = useCallback((name: string, healthScore: number): MapVersion => {
@@ -569,6 +597,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       replaceProfile,
+      setMonthlyReviews,
+      setAccessReconciliation,
+      markReportSent,
       reviewDecision,
       resetProfile,
       completeOnboarding: portfolio.completeOnboarding,
@@ -616,6 +647,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       addDecision,
       removeDecision,
       replaceProfile,
+      setMonthlyReviews,
+      setAccessReconciliation,
+      markReportSent,
       reviewDecision,
       resetProfile,
       portfolio,

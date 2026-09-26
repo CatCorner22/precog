@@ -31,6 +31,17 @@ import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 import { uid } from "./text";
 import { boundedNumber } from "./number";
+import {
+  healthPointEntries,
+  isRecord,
+  knowledgeEntries,
+  mapLayoutEntries,
+  mapVersionEntries,
+  peopleEntries,
+  processEntries,
+  relationEntries,
+  savedBlockEntries,
+} from "./profile-entries";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -299,15 +310,15 @@ export function loadPortfolio(storage = browserStorage()): Record<string, Practi
 /**
  * Keeps one business in the portfolio. A business whose setup is not
  * finished is not a business yet (it is the sample behind the setup dialog),
- * so it is never listed. The portfolio is a convenience cache (the active
- * business is saved separately), so a refused write is not reported.
+ * so it is never listed. False when the browser refused the write (storage
+ * full or blocked), so a caller can say the copy on this device is stale.
  */
-export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): void {
-  if (profile.onboardingComplete === false) return;
+export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {
+  if (profile.onboardingComplete === false) return true;
   const id = profile.businessId ?? "biz_default";
   const all = loadPortfolio(storage);
   all[id] = { ...profile, businessId: id };
-  writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
+  return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
 }
 
 export function removePortfolioEntry(id: string, storage = browserStorage()): void {
@@ -347,7 +358,7 @@ export interface MapVersion {
   layout: Record<string, { x: number; y: number }>;
 }
 
-interface MapHealthPoint {
+export interface MapHealthPoint {
   at: string;
   score: number;
 }
@@ -395,22 +406,25 @@ export function readStoredActiveProfile(
 }
 
 /**
- * A stored profile, normalised. Nothing stored means a first visit: the
- * sample behind the setup dialog. Unreadable text falls back to the sample.
+ * A stored profile, normalised. Nothing stored, or text that is not a
+ * profile at all, means the sample behind the setup dialog: never a finished
+ * sample business standing in for the owner's.
  */
 export function parseStoredProfile(raw: string | null): PracticeProfile {
-  if (!raw) return { ...defaultProfile(), onboardingComplete: false };
+  const setup = () => ({ ...defaultProfile(), onboardingComplete: false });
+  if (!raw) return setup();
   try {
-    return normalizeProfile(JSON.parse(raw) as Partial<PracticeProfile>, false);
+    const parsed: unknown = JSON.parse(raw);
+    return isRecord(parsed)
+      ? normalizeProfile(parsed, { onboardingCompleteFallback: false })
+      : setup();
   } catch {
-    return defaultProfile();
+    return setup();
   }
 }
 
 function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return isRecord(value) ? value : {};
 }
 
 /** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
@@ -479,20 +493,28 @@ export function normalizeRiskVariables(value: unknown, base: RiskVariableState):
   return normalized as unknown as RiskVariableState;
 }
 
+/**
+ * A stored business made safe to open: every field typed and bounded, every
+ * list entry checked (see profile-entries), anything missing or malformed
+ * replaced by the industry's default. `today` is the calendar day register
+ * confirmations may not be later than: the owner's local day by default,
+ * the day the client sent when a server normalises.
+ */
 export function normalizeProfile(
-  parsed: Partial<PracticeProfile>,
-  onboardingCompleteFallback = true,
+  input: Partial<PracticeProfile>,
+  options: { onboardingCompleteFallback?: boolean; today?: string } = {},
 ): PracticeProfile {
+  const parsed = record(input) as Partial<PracticeProfile>;
   const industry = isIndustryId(parsed.industry) ? parsed.industry : "dental";
   const base = defaultProfile(industry);
   const staff = normalizeStaff(parsed.staff, base.staff);
-  const customProcesses = Array.isArray(parsed.customProcesses) ? parsed.customProcesses : null;
-  const customPeople = Array.isArray(parsed.customPeople) ? parsed.customPeople : null;
+  const customProcesses = processEntries(parsed.customProcesses);
+  const customPeople = peopleEntries(parsed.customPeople);
   const customKnowledge = normalizeCustomKnowledge(
-    parsed.customKnowledge,
-    localDateKey(new Date()),
+    knowledgeEntries(parsed.customKnowledge),
+    options.today ?? localDateKey(new Date()),
   );
-  const customRelations = Array.isArray(parsed.customRelations) ? parsed.customRelations : null;
+  const customRelations = relationEntries(parsed.customRelations);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
       industry,
@@ -547,17 +569,20 @@ export function normalizeProfile(
     },
     dualRelease,
     decisions,
-    onboardingComplete: parsed.onboardingComplete ?? onboardingCompleteFallback,
+    onboardingComplete:
+      typeof parsed.onboardingComplete === "boolean"
+        ? parsed.onboardingComplete
+        : (options.onboardingCompleteFallback ?? true),
     customProcesses,
     customPeople,
     customKnowledge,
     customRelations,
     plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
     leaverAccessChecks: normalizeLeaverAccessChecks(parsed.leaverAccessChecks),
-    mapLayout: parsed.mapLayout && typeof parsed.mapLayout === "object" ? parsed.mapLayout : {},
-    savedProcessBlocks: Array.isArray(parsed.savedProcessBlocks) ? parsed.savedProcessBlocks : [],
-    mapHealthHistory: Array.isArray(parsed.mapHealthHistory) ? parsed.mapHealthHistory : [],
-    mapVersions: Array.isArray(parsed.mapVersions) ? parsed.mapVersions : [],
+    mapLayout: mapLayoutEntries(parsed.mapLayout),
+    savedProcessBlocks: savedBlockEntries(parsed.savedProcessBlocks),
+    mapHealthHistory: healthPointEntries(parsed.mapHealthHistory),
+    mapVersions: mapVersionEntries(parsed.mapVersions),
     businessId: isBusinessId(parsed.businessId) ? parsed.businessId : base.businessId,
     engagement: normalizeEngagement(parsed.engagement),
     monthlyReviews: normalizeReviewRecords(parsed.monthlyReviews),

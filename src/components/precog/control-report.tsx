@@ -32,7 +32,7 @@ import { firstName } from "@/lib/precog/text";
  * provider) and names the preparer and reviewer instead of today's date.
  */
 export function ControlReport({ locked = null }: { locked?: ReportVersionRow | null }) {
-  const { profile, mapCustomized, replaceProfile } = usePractice();
+  const { profile, mapCustomized, markReportSent } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [firmName, setFirmName] = useState<string | null>(null);
   useEffect(() => {
@@ -135,19 +135,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                 Back to the current report
               </Link>
             ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  replaceProfile({
-                    ...profile,
-                    engagement: {
-                      ...profile.engagement,
-                      reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
-                    },
-                  });
-                }}
-              >
+              <Button size="sm" variant="secondary" onClick={markReportSent}>
                 {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
               </Button>
             )}

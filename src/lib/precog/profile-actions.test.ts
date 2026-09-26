@@ -12,6 +12,7 @@ import {
   withMapSnapshot,
   withPeople,
   withPracticeName,
+  withReportSent,
   withRestoredVersion,
   withStaff,
 } from "./profile-actions";
@@ -148,5 +149,33 @@ describe("undo, redo and restoring a saved version", () => {
     const version = { ...makeMapVersion(nonprofit, "v", 50), people: teamA };
     const restored = withRestoredVersion(nonprofit, version, "2026-09-25");
     expect(restored.customPeople?.some((p) => p.owner)).toBe(false);
+  });
+});
+
+describe("small edits", () => {
+  it("writes leaverAccessChecks only when a departure added one", () => {
+    const p = defaultProfile("general");
+    delete p.leaverAccessChecks;
+    const team: Person[] = [
+      { id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] },
+    ];
+    expect("leaverAccessChecks" in withPeople(p, team, "2026-09-25")).toBe(false);
+  });
+
+  it("keeps the first report-sent stamp", () => {
+    const sent = withReportSent(defaultProfile("general"), NOW);
+    expect(sent.engagement?.reportSentAt).toBe(NOW.toISOString());
+    expect(withReportSent(sent, new Date("2026-10-01T00:00:00Z"))).toBe(sent);
+  });
+
+  it("does not treat someone on the team as a leaver when the roster spaces the name differently", () => {
+    const people = [{ id: "p1", name: "Jordan  Lee", role: "Cook" }] as unknown as Person[];
+    const next = withRosterLeavers(
+      defaultProfile("general"),
+      people,
+      [{ name: "Jordan Lee" }],
+      "2026-09-26",
+    );
+    expect(next.leaverAccessChecks ?? []).toHaveLength(0);
   });
 });

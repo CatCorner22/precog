@@ -43,6 +43,8 @@ import {
   noteDepartures,
   type Departure,
 } from "./continuity/access-removal";
+import type { ReviewRecord } from "./firm/reviews";
+import type { AccessReconciliation } from "./firm/reconcile";
 import { localDateKey, formatDay } from "./dates";
 import { nameKey, uid } from "./text";
 
@@ -276,9 +278,9 @@ export function withPeople(
   const sample = getIndustryTemplate(p.industry).people;
   const known = new Set(current.map((person) => person.id));
   const left = departuresBetween(current, next, sample);
-  let checks = base.leaverAccessChecks ?? [];
-  checks = noteDepartures(
-    checks,
+  const before = base.leaverAccessChecks ?? [];
+  let checks = noteDepartures(
+    before,
     left.filter((who) => who.personId && known.has(who.personId)),
     "marked",
     p.industry,
@@ -295,7 +297,7 @@ export function withPeople(
     ...base,
     customPeople: next,
     staff,
-    ...(checks !== (base.leaverAccessChecks ?? []) ? { leaverAccessChecks: checks } : {}),
+    ...(checks !== before ? { leaverAccessChecks: checks } : {}),
   };
 }
 
@@ -336,6 +338,24 @@ export function withDerivedSegregation(p: PracticeProfile): PracticeProfile {
       { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
     ),
   };
+}
+
+/** Monthly close results, replaced as a list: a later result is appended by `recordReview`. */
+export function withMonthlyReviews(p: PracticeProfile, next: ReviewRecord[]): PracticeProfile {
+  return { ...p, monthlyReviews: next };
+}
+
+export function withAccessReconciliation(
+  p: PracticeProfile,
+  next: AccessReconciliation,
+): PracticeProfile {
+  return { ...p, accessReconciliation: next };
+}
+
+/** Stamps the day the report first went to the owner's advisor; a later click keeps the first stamp. */
+export function withReportSent(p: PracticeProfile, now: Date): PracticeProfile {
+  if (p.engagement?.reportSentAt) return p;
+  return { ...p, engagement: { ...p.engagement, reportSentAt: now.toISOString() } };
 }
 
 export function withMapLayout(

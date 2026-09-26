@@ -2,6 +2,14 @@ import { requireObject } from "../request-errors";
 import { resolveTemplate } from "./active-template";
 import { isBusinessId, MAX_PROFILE_BYTES } from "./profile-input";
 import { normalizeProfile, type PracticeProfile } from "./practice-profile";
+import {
+  isRecord,
+  knowledgeEntries,
+  mapLayoutEntries,
+  peopleEntries,
+  processEntries,
+  relationEntries,
+} from "./profile-entries";
 import { applyAssignmentsToPeople } from "./sod/apply-assignments";
 import { buildAssignments, type RoleAssignment } from "./sod/detect";
 
@@ -42,43 +50,6 @@ const MAX_SNAPSHOT_INPUT_BYTES = 4 * MAX_PROFILE_BYTES;
 
 const bytes = (json: string) => new TextEncoder().encode(json).byteLength;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-/**
- * Entries of a stored list that carry the string fields every engine relies
- * on; anything else is dropped. Null when the value is not a list, which
- * means "the template's", as it does for a business.
- */
-function entries<T>(value: unknown, required: readonly string[], max: number): T[] | null {
-  if (!Array.isArray(value)) return null;
-  return value
-    .slice(0, max)
-    .filter(
-      (entry): entry is T =>
-        isRecord(entry) && required.every((key) => typeof entry[key] === "string"),
-    );
-}
-
-function mapLayout(value: unknown): PracticeProfile["mapLayout"] {
-  if (!isRecord(value)) return {};
-  const out: Record<string, { x: number; y: number }> = {};
-  for (const [id, point] of Object.entries(value).slice(0, 2_000)) {
-    if (!isRecord(point)) continue;
-    const { x, y } = point;
-    if (
-      typeof x === "number" &&
-      Number.isFinite(x) &&
-      typeof y === "number" &&
-      Number.isFinite(y)
-    ) {
-      out[id.slice(0, 120)] = { x, y };
-    }
-  }
-  return out;
-}
-
 /**
  * Treat every client-supplied profile as untrusted structured input: only
  * the fields a snapshot keeps are read, each list keeps only well-formed
@@ -113,14 +84,14 @@ export function sanitizeSnapshotProfile(value: unknown): {
         ? (value.dualRelease as unknown as PracticeProfile["dualRelease"])
         : undefined,
     decisions: Array.isArray(value.decisions) ? value.decisions : undefined,
-    customPeople: entries(value.customPeople, ["id", "name", "role"], 1_000),
-    customProcesses: entries(value.customProcesses, ["id", "name"], 500),
-    customKnowledge: entries(value.customKnowledge, ["id", "name"], 2_000),
-    customRelations: entries(value.customRelations, ["personId", "knowledgeId", "level"], 20_000),
+    customPeople: peopleEntries(value.customPeople),
+    customProcesses: processEntries(value.customProcesses),
+    customKnowledge: knowledgeEntries(value.customKnowledge),
+    customRelations: relationEntries(value.customRelations),
     plannedAbsences: Array.isArray(value.plannedAbsences)
       ? (value.plannedAbsences as PracticeProfile["plannedAbsences"])
       : undefined,
-    mapLayout: mapLayout(value.mapLayout),
+    mapLayout: mapLayoutEntries(value.mapLayout),
     businessId: isBusinessId(value.businessId) ? value.businessId : undefined,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
   };
