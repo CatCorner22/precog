@@ -56,30 +56,49 @@ export async function recordAssessmentPayment(
   `;
 }
 
+/**
+ * Records a subscription change and returns the status now stored. A null
+ * `status` (a checkout completion, which knows only the ids) keeps the status
+ * and renewal date a subscription event already stored for the same
+ * subscription, since Stripe does not deliver events in order; with nothing
+ * stored yet, a completed checkout counts as active.
+ */
 export async function recordSubscription(
   sql: Sql,
   input: {
     userId: string;
     stripeCustomerId: string | null;
     subscriptionId: string;
-    status: string;
+    status: string | null;
     currentPeriodEnd: string | null;
   },
-): Promise<void> {
-  await sql`
+): Promise<string> {
+  const rows = await sql<{ subscription_status: string }>`
     insert into billing_accounts
       (user_id, stripe_customer_id, subscription_id, subscription_status, current_period_end, updated_at)
     values (
-      ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId}, ${input.status},
-      ${input.currentPeriodEnd}, now()
+      ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
+      coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz, now()
     )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
       subscription_id = excluded.subscription_id,
-      subscription_status = excluded.subscription_status,
-      current_period_end = excluded.current_period_end,
+      subscription_status = case
+        when ${input.status}::text is null
+          and billing_accounts.subscription_id = excluded.subscription_id
+          and billing_accounts.subscription_status is not null
+        then billing_accounts.subscription_status
+        else excluded.subscription_status
+      end,
+      current_period_end = case
+        when billing_accounts.subscription_id = excluded.subscription_id
+        then coalesce(excluded.current_period_end, billing_accounts.current_period_end)
+        else excluded.current_period_end
+      end,
       updated_at = now()
+    returning subscription_status
   `;
+  return rows[0].subscription_status;
 }
 
 /** The account a Stripe customer id belongs to, or null. */

@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 
@@ -78,6 +79,11 @@ function toRow(r: RawVersion): ReportVersionRow {
   };
 }
 
+/**
+ * Freezes the saved business as the next version. The business row is locked
+ * while the number is chosen, so two simultaneous locks get consecutive
+ * numbers instead of one failing on the unique constraint.
+ */
 export async function lockReportVersion(
   sql: Sql,
   input: {
@@ -88,27 +94,33 @@ export async function lockReportVersion(
     id: string;
   },
 ): Promise<ReportVersionRow> {
-  const inserted = await sql<{ id: string }>`
-    insert into report_versions
-      (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by)
-    select
-      ${input.id},
-      b.user_id,
-      b.id,
-      coalesce((
-        select max(version_no) from report_versions
-        where user_id = b.user_id and business_id = b.id
-      ), 0) + 1,
-      b.revision,
-      b.profile,
-      ${input.scopeNote},
-      ${input.preparedBy}
-    from businesses b
-    where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId} and b.deleted_at is null
-    returning id
-  `;
-  if (!inserted[0]) throw new ReportVersionError(404, "That client is not on this account");
-  const row = await loadReportVersion(sql, input.ownerUserId, input.id);
+  const row = await inTransaction(sql, async (tx) => {
+    const business = await tx<{ id: string }>`
+      select id from businesses
+      where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
+      for update
+    `;
+    if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
+    await tx`
+      insert into report_versions
+        (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by)
+      select
+        ${input.id},
+        b.user_id,
+        b.id,
+        coalesce((
+          select max(version_no) from report_versions
+          where user_id = b.user_id and business_id = b.id
+        ), 0) + 1,
+        b.revision,
+        b.profile,
+        ${input.scopeNote},
+        ${input.preparedBy}
+      from businesses b
+      where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
+    `;
+    return loadReportVersion(tx, input.ownerUserId, input.id);
+  });
   if (!row) throw new Error("Unable to lock the report");
   return row.version;
 }
@@ -142,16 +154,31 @@ export async function loadReportVersion<TProfile = unknown>(
   return row ? { version: toRow(row), profile: row.profile } : null;
 }
 
-/** The owner of the business a version belongs to, or null. */
-export async function reportVersionOwner(
+/**
+ * The business a version belongs to, when `userId` may open it: the version's
+ * owner, or a member of the firm that owns the business row. Null otherwise,
+ * including for a caller whose own business merely shares the id.
+ */
+export async function reportVersionFor(
   sql: Sql,
+  userId: string,
   id: string,
-): Promise<{
-  ownerUserId: string;
-  businessId: string;
-} | null> {
+): Promise<{ ownerUserId: string; businessId: string } | null> {
   const rows = await sql<{ user_id: string; business_id: string }>`
-    select user_id, business_id from report_versions where id = ${id}
+    select v.user_id, v.business_id
+    from report_versions v
+    join businesses b on b.user_id = v.user_id and b.id = v.business_id
+    where v.id = ${id}
+      and b.deleted_at is null
+      and (
+        v.user_id = ${userId}
+        or (
+          b.firm_user_id is not null
+          and b.firm_user_id in (
+            select firm_user_id from firm_members where member_user_id = ${userId}
+          )
+        )
+      )
   `;
   return rows[0] ? { ownerUserId: rows[0].user_id, businessId: rows[0].business_id } : null;
 }
@@ -178,14 +205,25 @@ export async function signOffReportVersion(
   return updated.version;
 }
 
+/**
+ * Stamps a version as sent, and the client's engagement with the first sent
+ * report, so the client list and the pilot figures read the same fact.
+ */
 export async function markReportVersionSent(
   sql: Sql,
   ownerUserId: string,
   id: string,
 ): Promise<void> {
   await sql`
-    update report_versions set sent_at = coalesce(sent_at, now())
-    where user_id = ${ownerUserId} and id = ${id}
+    with sent as (
+      update report_versions set sent_at = coalesce(sent_at, now())
+      where user_id = ${ownerUserId} and id = ${id}
+      returning user_id, business_id, sent_at
+    )
+    insert into engagement_marks (user_id, business_id, report_sent_at)
+    select user_id, business_id, sent_at from sent
+    on conflict (user_id, business_id) do update set
+      report_sent_at = coalesce(engagement_marks.report_sent_at, excluded.report_sent_at)
   `;
 }
 

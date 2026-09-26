@@ -5,7 +5,12 @@ import { RequestError, requireObject } from "@/lib/request-errors";
 import { loadBillingAccount } from "../firm/billing-store";
 import { requireFirmRole } from "../firm/access.server";
 import type { CheckoutPlan } from "./stripe";
-import { createCheckoutSession, createPortalSession, stripeConfigured } from "./stripe.server";
+import {
+  createCheckoutSession,
+  createPortalSession,
+  loadPlanPrices,
+  stripeConfigured,
+} from "./stripe.server";
 
 export const getBillingStatus = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -16,6 +21,11 @@ export const getBillingStatus = createServerFn({ method: "GET" })
       account: await loadBillingAccount(sql, context.userId),
     };
   });
+
+/** What the checkout buttons charge, read from Stripe; null when billing is not connected. */
+export const getPlanPrices = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => ({ prices: await loadPlanPrices() }));
 
 /** Starts Stripe Checkout for the firm owner; the webhook records the result. */
 export const startCheckout = createServerFn({ method: "POST" })

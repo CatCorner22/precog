@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
+import { randomHex } from "@/lib/web-crypto";
 import { isBusinessId } from "../profile-input";
 import {
   listBusinessHistory,
@@ -10,15 +11,19 @@ import {
   restoreBusinessRow,
 } from "../business-store";
 import { mergeProfile } from "../profile-merge";
-import { resolveClientDate } from "../dates";
+import { isCalendarDate, resolveClientDate } from "../dates";
 import type { PracticeProfile } from "../practice-profile";
 import type { FirmPlan } from "./pricing";
-import { requireBusinessOwner, requireFirm, requireFirmRole } from "./access.server";
+import {
+  requireBusinessOwner,
+  requireFirm,
+  requireFirmRole,
+  requireReportVersion,
+} from "./access.server";
 import {
   acceptInvite,
   createInvite,
   insertReviewEvent,
-  INVITE_ROLES,
   leaveFirm as leaveFirmRow,
   listClientEngagements,
   listInvites,
@@ -33,17 +38,25 @@ import {
   setMemberRole,
   setOwnerEmail,
   upsertEngagementMark,
-  type FirmRole,
+  type InviteRole,
 } from "./store";
 import {
   listReportVersions,
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
-  reportVersionOwner,
   signOffReportVersion,
 } from "./reports";
 import { loadBillingAccount } from "./billing-store";
+import {
+  businessInput,
+  EMAIL,
+  idInput,
+  instantInput,
+  inviteRoleInput,
+  PLANS,
+  tokenInput,
+} from "./server-inputs";
 import {
   isReviewItemKey,
   isReviewPeriod,
@@ -51,30 +64,6 @@ import {
   type ReviewItemKey,
   type ReviewResult,
 } from "./reviews";
-import { isCalendarDate } from "../dates";
-
-const PLANS = new Set<FirmPlan>(["assessment", "monthly"]);
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function businessInput(input: { businessId: string }) {
-  const raw = requireObject(input);
-  if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
-  return { businessId: raw.businessId };
-}
-
-function idInput(input: { id: string }) {
-  const raw = requireObject(input);
-  if (typeof raw.id !== "string" || !/^[\w-]{4,64}$/.test(raw.id)) {
-    throw new RequestError(400, "Unknown id");
-  }
-  return { id: raw.id };
-}
-
-function randomToken(bytes = 24): string {
-  const buf = new Uint8Array(bytes);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 // ── Firm and members ────────────────────────────────────────────────────────
 
@@ -109,25 +98,21 @@ export const saveFirmProfile = createServerFn({ method: "POST" })
     const sql = await getSql();
     // Once billing is connected the plan follows the payment provider.
     const billing = await loadBillingAccount(sql, context.userId);
-    const current = await loadFirmFor(sql, context.userId);
-    const plan = billing ? (current?.plan ?? data.plan) : data.plan;
-    return { firm: await saveFirm(sql, context.userId, data.name, plan) };
+    return { firm: await saveFirm(sql, context.userId, data.name, billing ? null : data.plan) };
   });
 
+/**
+ * Creates an invitation and, when email is connected, sends the link to the
+ * colleague. `emailed` says whether it went; the owner can always copy it.
+ */
 export const inviteFirmMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { email: string; role: Exclude<FirmRole, "owner"> }) => {
+  .validator((input: { email: string; role: InviteRole }) => {
     const raw = requireObject(input);
     if (typeof raw.email !== "string" || !EMAIL.test(raw.email.trim())) {
       throw new RequestError(400, "Enter the colleague's email address");
     }
-    if (!INVITE_ROLES.includes(raw.role as Exclude<FirmRole, "owner">)) {
-      throw new RequestError(400, "Unknown role");
-    }
-    return {
-      email: raw.email.trim().slice(0, 200),
-      role: raw.role as Exclude<FirmRole, "owner">,
-    };
+    return { email: raw.email.trim().slice(0, 200), role: inviteRoleInput(raw.role) };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -136,20 +121,15 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       firmUserId: firm.firmUserId,
       email: data.email,
       role: data.role,
-      token: randomToken(),
+      token: randomHex(24),
     });
-    return { invite };
+    const emailed = await emailInvitation(sql, context.userId, firm.name, invite);
+    return { invite, emailed };
   });
 
 export const revokeFirmInvite = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string }) => {
-    const raw = requireObject(input);
-    if (typeof raw.token !== "string" || !/^[a-f0-9]{48}$/.test(raw.token)) {
-      throw new RequestError(400, "Unknown invitation");
-    }
-    return { token: raw.token };
-  })
+  .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
@@ -159,13 +139,7 @@ export const revokeFirmInvite = createServerFn({ method: "POST" })
 
 /** What an invitation link shows before the visitor signs in or accepts. */
 export const peekFirmInvite = createServerFn({ method: "GET" })
-  .validator((input: { token: string }) => {
-    const raw = requireObject(input);
-    if (typeof raw.token !== "string" || !/^[a-f0-9]{48}$/.test(raw.token)) {
-      throw new RequestError(400, "Unknown invitation");
-    }
-    return { token: raw.token };
-  })
+  .validator(tokenInput)
   .handler(async ({ data }) => {
     const sql = await getSql();
     return { invite: await peekInvite(sql, data.token) };
@@ -173,13 +147,7 @@ export const peekFirmInvite = createServerFn({ method: "GET" })
 
 export const acceptFirmInvite = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string }) => {
-    const raw = requireObject(input);
-    if (typeof raw.token !== "string" || !/^[a-f0-9]{48}$/.test(raw.token)) {
-      throw new RequestError(400, "Unknown invitation");
-    }
-    return { token: raw.token };
-  })
+  .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     return { firm: await acceptInvite(sql, data.token, context.userId) };
@@ -187,14 +155,11 @@ export const acceptFirmInvite = createServerFn({ method: "POST" })
 
 export const setFirmMemberRole = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { userId: string; role: Exclude<FirmRole, "owner"> }) => {
+  .validator((input: { userId: string; role: InviteRole }) => {
     const raw = requireObject(input);
     if (typeof raw.userId !== "string" || !raw.userId)
       throw new RequestError(400, "Unknown member");
-    if (!INVITE_ROLES.includes(raw.role as Exclude<FirmRole, "owner">)) {
-      throw new RequestError(400, "Unknown role");
-    }
-    return { userId: raw.userId.slice(0, 120), role: raw.role as Exclude<FirmRole, "owner"> };
+    return { userId: raw.userId.slice(0, 120), role: inviteRoleInput(raw.role) };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -259,9 +224,9 @@ export const recordEngagement = createServerFn({ method: "POST" })
       }
       return {
         businessId: raw.businessId,
-        startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null,
-        mapCompletedAt: typeof raw.mapCompletedAt === "string" ? raw.mapCompletedAt : null,
-        reportSentAt: typeof raw.reportSentAt === "string" ? raw.reportSentAt : null,
+        startedAt: instantInput(raw.startedAt),
+        mapCompletedAt: instantInput(raw.mapCompletedAt),
+        reportSentAt: instantInput(raw.reportSentAt),
         openFindings: Math.max(0, Math.round(openFindings)),
         acceptedFindings: Math.max(0, Math.round(acceptedFindings)),
       };
@@ -346,7 +311,7 @@ export const lockReport = createServerFn({ method: "POST" })
       businessId: data.businessId,
       preparedBy: context.userId,
       scopeNote: data.scopeNote,
-      id: `rv_${randomToken(12)}`,
+      id: `rv_${randomHex(12)}`,
     });
     return { version };
   });
@@ -364,13 +329,11 @@ export const getReport = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input: { id: string; today?: string }) => ({
     ...idInput(input),
-    today: resolveClientDate(requireObject(input).today as string | undefined),
+    today: resolveClientDate(input.today),
   }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const where = await reportVersionOwner(sql, data.id);
-    if (!where) throw new RequestError(404, "That report version does not exist");
-    await requireBusinessOwner(sql, context.userId, where.businessId);
+    const where = await requireReportVersion(sql, context.userId, data.id);
     const loaded = await loadReportVersion<PracticeProfile>(sql, where.ownerUserId, data.id);
     if (!loaded) throw new RequestError(404, "That report version does not exist");
     return {
@@ -393,16 +356,11 @@ export const signOffReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { id: string; note?: string }) => ({
     ...idInput(input),
-    note:
-      typeof requireObject(input).note === "string"
-        ? (requireObject(input).note as string).trim().slice(0, 600)
-        : "",
+    note: typeof input.note === "string" ? input.note.trim().slice(0, 600) : "",
   }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const where = await reportVersionOwner(sql, data.id);
-    if (!where) throw new RequestError(404, "That report version does not exist");
-    await requireBusinessOwner(sql, context.userId, where.businessId);
+    const where = await requireReportVersion(sql, context.userId, data.id);
     await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
     const version = await signOffReportVersion(sql, {
       ownerUserId: where.ownerUserId,
@@ -413,14 +371,13 @@ export const signOffReport = createServerFn({ method: "POST" })
     return { version };
   });
 
+/** Stamps a locked version as sent; the client's engagement takes the same stamp. */
 export const markReportSent = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(idInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const where = await reportVersionOwner(sql, data.id);
-    if (!where) throw new RequestError(404, "That report version does not exist");
-    await requireBusinessOwner(sql, context.userId, where.businessId);
+    const where = await requireReportVersion(sql, context.userId, data.id);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
     return { ok: true as const };
   });
@@ -458,7 +415,7 @@ export const getHistoryVersion = createServerFn({ method: "GET" })
       data.businessId,
       data.revision,
     );
-    if (!version) throw new RequestError(404, "That version is no longer kept");
+    if (!version) throw new RequestError(404, "That snapshot is no longer kept");
     return {
       savedAt: version.savedAt,
       profile: {
@@ -486,26 +443,26 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     const sql = await getSql();
     const firm = await loadFirmFor(sql, context.userId);
     const candidates = await listDeletedBusinesses(sql, context.userId, firm?.firmUserId ?? null);
-    const target = candidates.find((b) => b.id === data.businessId);
+    const matches = candidates.filter((b) => b.id === data.businessId);
+    const target = matches.find((b) => b.ownerUserId === context.userId) ?? matches[0];
     if (!target) throw new RequestError(404, "That business is not in the deleted list");
-    const owners = await sql<{ user_id: string }>`
-      select user_id from businesses where id = ${data.businessId} and deleted_at is not null
-        and (user_id = ${context.userId}
-          or (${firm?.firmUserId ?? null}::text is not null and firm_user_id = ${firm?.firmUserId ?? null}))
-      order by (user_id = ${context.userId}) desc limit 1
-    `;
-    const owner = owners[0]?.user_id;
-    if (!owner) throw new RequestError(404, "That business is not in the deleted list");
-    return { restored: await restoreBusinessRow(sql, owner, data.businessId, context.userId) };
+    return {
+      restored: await restoreBusinessRow(sql, target.ownerUserId, data.businessId, context.userId),
+    };
   });
 
 // ── Reminders ───────────────────────────────────────────────────────────────
 
+/** The caller's reminder switches, and whether this deployment can send email at all. */
 export const getNotificationSettings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    return { settings: await loadNotificationSettings(sql, context.userId) };
+    const { mailConfigured } = await import("../reminders/mailer.server");
+    return {
+      settings: await loadNotificationSettings(sql, context.userId),
+      mailConfigured: mailConfigured(),
+    };
   });
 
 export const updateNotificationSettings = createServerFn({ method: "POST" })
@@ -519,3 +476,38 @@ export const updateNotificationSettings = createServerFn({ method: "POST" })
     await saveNotificationSettings(sql, context.userId, data);
     return { settings: data };
   });
+
+/** Sends the invitation when email is connected; true when it went. */
+async function emailInvitation(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  inviterId: string,
+  firmName: string,
+  invite: { email: string; role: InviteRole; token: string },
+): Promise<boolean> {
+  const [{ mailConfigured, sendEmail }, { requestOrigin }, { renderFirmInvitation }] =
+    await Promise.all([
+      import("../reminders/mailer.server"),
+      import("@/lib/request-origin.server"),
+      import("./invite-email"),
+    ]);
+  if (!mailConfigured()) return false;
+  const inviter = await sql<{ name: string | null }>`
+    select name from "user" where id = ${inviterId}
+  `;
+  try {
+    await sendEmail(
+      invite.email,
+      renderFirmInvitation({
+        firmName,
+        inviterName: inviter[0]?.name || null,
+        role: invite.role,
+        link: `${requestOrigin()}/join/${invite.token}`,
+      }),
+    );
+    return true;
+  } catch (err) {
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    reportServerError(err, "firm-invite-email");
+    return false;
+  }
+}

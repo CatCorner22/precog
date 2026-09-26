@@ -23,10 +23,7 @@ export function MonthlyReview() {
   const { profile, template, replaceProfile } = usePractice();
   const user = useCurrentUser();
   const today = localDateKey(useToday());
-  const tasks = monthlyReviewTasks(
-    today,
-    template.people.filter((p) => p.active),
-  );
+  const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates);
   const records = profile.monthlyReviews ?? [];
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);

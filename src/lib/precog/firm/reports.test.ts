@@ -5,6 +5,7 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  reportVersionFor,
   ReportVersionError,
   signOffReportVersion,
 } from "./reports";
@@ -20,7 +21,14 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await db.clear("report_versions", "businesses", '"user"');
+  await db.clear(
+    "report_versions",
+    "engagement_marks",
+    "firm_members",
+    "firms",
+    "businesses",
+    '"user"',
+  );
   await db.seedUser("owner");
   await db.seedUser("reviewer");
   await db.pg.query(
@@ -106,5 +114,66 @@ describe("report versions", () => {
         id: "rv_x",
       }),
     ).rejects.toBeInstanceOf(ReportVersionError);
+  });
+});
+
+describe("report version access", () => {
+  const lock = (id: string) =>
+    lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id,
+    });
+
+  it("is refused to an account whose own business merely shares the id", async () => {
+    await lock("rv_1");
+    await db.seedUser("stranger");
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_1', 'stranger', 'Mine', 'general', '{}'::jsonb, 1)`,
+    );
+    expect(await reportVersionFor(db.sql, "stranger", "rv_1")).toBeNull();
+    expect(await reportVersionFor(db.sql, "owner", "rv_1")).toEqual({
+      ownerUserId: "owner",
+      businessId: "biz_1",
+    });
+  });
+
+  it("is open to a member of the firm that holds the business", async () => {
+    await lock("rv_1");
+    await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North')`);
+    await db.pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role)
+       values ('owner', 'owner', 'owner'), ('owner', 'reviewer', 'reviewer')`,
+    );
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toBeNull();
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toEqual({
+      ownerUserId: "owner",
+      businessId: "biz_1",
+    });
+  });
+
+  it("marking a version sent stamps the client's engagement once", async () => {
+    await lock("rv_1");
+    await lock("rv_2");
+    await markReportVersionSent(db.sql, "owner", "rv_1");
+    const first = await db.pg.query<{ report_sent_at: string; open_findings: number | null }>(
+      "select report_sent_at, open_findings from engagement_marks",
+    );
+    expect(first.rows).toHaveLength(1);
+    expect(first.rows[0].open_findings).toBeNull();
+    await markReportVersionSent(db.sql, "owner", "rv_2");
+    const second = await db.pg.query<{ report_sent_at: string }>(
+      "select report_sent_at from engagement_marks",
+    );
+    expect(second.rows[0].report_sent_at).toEqual(first.rows[0].report_sent_at);
+  });
+
+  it("two locks at once get consecutive numbers", async () => {
+    const [a, b] = await Promise.all([lock("rv_a"), lock("rv_b")]);
+    expect([a.versionNo, b.versionNo].sort()).toEqual([1, 2]);
   });
 });

@@ -1,6 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
 import { resolveBusinessOwner } from "../business-store";
+import { reportVersionFor } from "./reports";
 import { loadFirmFor, type FirmContext, type FirmRole } from "./store";
 
 /**
@@ -16,6 +17,21 @@ export async function requireBusinessOwner(
   const owner = await resolveBusinessOwner(sql, userId, businessId);
   if (!owner) throw new RequestError(404, "That client is not on this account");
   return owner;
+}
+
+/**
+ * The business a locked report version belongs to, checked against the
+ * version's own owner: a caller whose own business merely shares the id gets
+ * the same 404 as an outsider.
+ */
+export async function requireReportVersion(
+  sql: Sql,
+  userId: string,
+  id: string,
+): Promise<{ ownerUserId: string; businessId: string }> {
+  const where = await reportVersionFor(sql, userId, id);
+  if (!where) throw new RequestError(404, "That report version does not exist");
+  return where;
 }
 
 export async function requireFirm(sql: Sql, userId: string): Promise<FirmContext> {
