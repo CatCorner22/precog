@@ -1,4 +1,4 @@
-import { type DutyFamily, entitlementById } from "./conflict-rules";
+import { type DutyFamily, entitlementById, isOperatingDuty } from "./conflict-rules";
 import { detectAssignments, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
 import { teamOwnerId } from "./owner-role";
 
@@ -29,7 +29,7 @@ export function calculatePowerIndex(assignments: RoleAssignment[]): PersonPowerI
       const duties = person.entitlements
         .filter((id) => person.personId !== ownerId || !OVERSIGHT_DUTIES.has(id))
         .map((id) => entitlementById(id))
-        .filter((item) => item && item.id !== "view_reports_only");
+        .filter((item) => item && isOperatingDuty(item.id));
       const riskWeight = duties.reduce((sum, duty) => sum + duty!.riskWeight, 0);
       const familyCount = new Set(duties.map((duty) => duty!.family as DutyFamily)).size;
       const exclusiveDutyCount = duties.filter(

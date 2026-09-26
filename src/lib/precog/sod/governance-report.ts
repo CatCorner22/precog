@@ -1,16 +1,10 @@
-import { entitlementById } from "./conflict-rules";
+import type { RoleAssignment } from "./assignments";
+import { entitlementById, isOperatingDuty } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
-import { detectAssignments, type RoleAssignment } from "./detect";
+import { detectAssignments } from "./detect";
 import { powerGuidance } from "./power-guidance";
 import type { IndustryId } from "../industry";
 import type { StaffComposition } from "../types";
-
-function clean(value: string) {
-  return value
-    .replaceAll("|", "\\|")
-    .replace(/[\r\n]+/g, " ")
-    .trim();
-}
 
 /** Produce a portable, review-ready record of the current control design. */
 export function createGovernanceReport(
@@ -20,27 +14,35 @@ export function createGovernanceReport(
   /** The line of business, so each power's guidance uses its own words. */
   industry: IndustryId = "general",
 ): string {
-  const report = detectAssignments({ assignments }, staff);
+  const report = detectAssignments({ assignments, industry }, staff);
   const coverage = analyzeDutyCoverage(assignments);
+  const { summary } = report;
+  const open = summary.critical + summary.high + summary.medium + summary.family;
   const lines = [
-    "# Power, Duty & Responsibility Governance Report",
+    "# Duty Conflict and Coverage Report",
     "",
     `Generated: ${generatedAt.toISOString()}`,
     "",
-    "> Planning analysis only. Validate actual access, approvals, evidence, and compensating controls with accountable management.",
+    "> This report describes the duties as recorded here; confirm them against real system access.",
     "",
-    "## Executive summary",
+    "## Summary",
     "",
-    `- SoD health: **${report.summary.segregationHealth}/100**`,
+    `- Duty-conflict health: **${summary.segregationHealth}/100**`,
     `- Continuity resilience: **${coverage.resilienceScore}/100**`,
-    `- Open conflicts: **${report.conflicts.length}** (${report.summary.critical} critical, ${report.summary.high} high)`,
-    `- Unassigned duties: **${coverage.unassigned.length}**`,
-    `- Critical single points: **${coverage.singlePoints.length}**`,
-    `- People / modeled jobs: **${assignments.length}**`,
+    `- Open conflicts: **${open}** (${summary.critical} critical, ${summary.high} high)`,
+    ...(summary.ownerHeld
+      ? [`- Pairs the owner holds (not theft findings): **${summary.ownerHeld}**`]
+      : []),
+    ...(summary.dualReleaseMitigated
+      ? [`- Pairs a dual-release rule narrows: **${summary.dualReleaseMitigated}**`]
+      : []),
+    `- Duties nobody holds: **${coverage.unassigned.length}**`,
+    `- High-risk duties with one holder: **${coverage.singlePoints.length}**`,
+    `- People on the map: **${assignments.length}**`,
     "",
     "## Conflict register",
     "",
-    "| Person | Severity | Conflict | Why it matters | Recommended fallback |",
+    "| Person | Severity | Conflict | Why it matters | Controls that narrow it |",
     "|---|---|---|---|---|",
     ...report.conflicts.map(
       (item) =>
@@ -51,7 +53,7 @@ export function createGovernanceReport(
     "## Continuity register",
     "",
     ...coverage.unassigned.map(
-      (item) => `- **Owner required:** ${clean(item.label)} (risk ${item.riskWeight}/5)`,
+      (item) => `- **Nobody holds:** ${clean(item.label)} (risk ${item.riskWeight}/5)`,
     ),
     ...coverage.singlePoints.map(
       (item) =>
@@ -59,7 +61,7 @@ export function createGovernanceReport(
     ),
     ...(coverage.unassigned.length || coverage.singlePoints.length
       ? []
-      : ["- No material ownership or backup gaps detected."]),
+      : ["- Every high-risk duty has a holder and a backup."]),
     "",
     "## Responsibility charters",
     "",
@@ -68,8 +70,8 @@ export function createGovernanceReport(
   const guidanceFor = powerGuidance(industry);
   for (const person of assignments) {
     lines.push(`### ${clean(person.personName)} — ${clean(person.role)}`, "");
-    const duties = person.entitlements.filter((id) => id !== "view_reports_only");
-    if (!duties.length) lines.push("- Reporting access only; no operating powers modeled.", "");
+    const duties = person.entitlements.filter(isOperatingDuty);
+    if (!duties.length) lines.push("- Reads reports only; holds no operating duties.", "");
     for (const id of duties) {
       const entitlement = entitlementById(id);
       const guidance = guidanceFor[id];
@@ -84,4 +86,12 @@ export function createGovernanceReport(
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** A value safe inside a Markdown table cell: pipes escaped, line breaks flattened. */
+function clean(value: string) {
+  return value
+    .replaceAll("|", "\\|")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
 }

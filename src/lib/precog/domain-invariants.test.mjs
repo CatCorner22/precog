@@ -43,11 +43,11 @@ describe("domain invariants", () => {
   it("every duty has complete four-category control alternatives", () => {
     const categories = ["directive", "preventive", "detective", "corrective"];
     assert.deepEqual(
-      Object.keys(controlMeasures.DUTY_CONTROL_MEASURES).sort(),
+      Object.keys(controlMeasures.controlMeasures("general")).sort(),
       sodRules.ENTITLEMENTS.map((item) => item.id).sort(),
     );
     for (const entitlement of sodRules.ENTITLEMENTS) {
-      const catalog = controlMeasures.DUTY_CONTROL_MEASURES[entitlement.id];
+      const catalog = controlMeasures.controlMeasures("general")[entitlement.id];
       for (const category of categories) {
         assert.ok(
           catalog[category].length >= 2,
@@ -506,10 +506,16 @@ describe("domain invariants", () => {
   });
 
   it("power map covers common jobs and valid duty relationships", () => {
-    assert.ok(roleTemplates.COMMON_JOB_TEMPLATES.length >= 18);
+    const jobTemplates = Object.entries(roleTemplates.ROLE_TEMPLATES).map(
+      ([role, entitlements]) => ({
+        role,
+        entitlements,
+      }),
+    );
+    assert.ok(jobTemplates.length >= 18);
     assert.ok(sodRules.ENTITLEMENTS.length >= 25);
     const entitlementIds = new Set(sodRules.ENTITLEMENTS.map((item) => item.id));
-    for (const template of roleTemplates.COMMON_JOB_TEMPLATES) {
+    for (const template of jobTemplates) {
       assert.ok(template.role);
       assert.ok(template.entitlements.length > 0);
       for (const entitlement of template.entitlements) assert.ok(entitlementIds.has(entitlement));
@@ -518,16 +524,11 @@ describe("domain invariants", () => {
       assert.ok(entitlementIds.has(rule.a), `${rule.id}:a`);
       assert.ok(entitlementIds.has(rule.b), `${rule.id}:b`);
     }
+    const generalGuidance = powerGuidance.powerGuidance("general");
     for (const entitlement of sodRules.ENTITLEMENTS) {
-      assert.ok(powerGuidance.POWER_GUIDANCE[entitlement.id]?.purpose, `${entitlement.id}:purpose`);
-      assert.ok(
-        powerGuidance.POWER_GUIDANCE[entitlement.id]?.evidence,
-        `${entitlement.id}:evidence`,
-      );
-      assert.ok(
-        powerGuidance.POWER_GUIDANCE[entitlement.id]?.boundary,
-        `${entitlement.id}:boundary`,
-      );
+      assert.ok(generalGuidance[entitlement.id]?.purpose, `${entitlement.id}:purpose`);
+      assert.ok(generalGuidance[entitlement.id]?.evidence, `${entitlement.id}:evidence`);
+      assert.ok(generalGuidance[entitlement.id]?.boundary, `${entitlement.id}:boundary`);
     }
   });
 
@@ -865,11 +866,13 @@ describe("domain invariants", () => {
       new Date("2026-09-19T00:00:00Z"),
     );
     assert.match(report, /Generated: 2026-09-19T00:00:00.000Z/);
-    assert.ok(report.includes(`SoD health: **${sod.summary.segregationHealth}/100**`));
+    const { summary } = sod;
+    const open = summary.critical + summary.high + summary.medium + summary.family;
+    assert.ok(report.includes(`Duty-conflict health: **${summary.segregationHealth}/100**`));
     assert.ok(report.includes(`Continuity resilience: **${coverage.resilienceScore}/100**`));
-    assert.ok(report.includes(`Open conflicts: **${sod.conflicts.length}**`));
+    assert.ok(report.includes(`Open conflicts: **${open}**`));
     for (const person of assignments) assert.ok(report.includes(person.personName));
-    assert.match(report, /Planning analysis only/);
+    assert.match(report, /confirm them against real system access/);
   });
 
   it("assignment change review detects grants, revocations, hires, and removals", () => {

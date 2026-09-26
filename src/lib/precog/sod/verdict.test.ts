@@ -71,3 +71,30 @@ describe("separatedPairs", () => {
     expect(ids).not.toContain("rule-vendor-create-pay");
   });
 });
+
+describe("separatedPairs reads pairs the way the detector does", () => {
+  it("does not call check signing and reconciliation kept apart when one person holds both under a covering finding", () => {
+    const tpl = team([
+      { name: "Ana", role: "Owner", duties: ["approve_payroll"] },
+      {
+        name: "Cy",
+        role: "Controller",
+        duties: ["release_payment", "sign_checks", "bank_reconcile"],
+      },
+    ]);
+    const report = detectSodConflicts(tpl);
+    expect(report.conflicts.map((c) => c.ruleId)).toEqual(["rule-release-rec"]);
+    const ids = separatedPairs(report.conflicts, buildAssignments(tpl)).map((p) => p.ruleId);
+    expect(ids).not.toContain("rule-sign-rec");
+  });
+
+  it("lists payment release and reconciliation as kept apart when payments go out by ACH", () => {
+    const tpl = team([
+      { name: "Ana", role: "Owner", duties: ["bank_reconcile"] },
+      { name: "Bo", role: "AP Clerk", duties: ["initiate_ach"] },
+    ]);
+    const report = detectSodConflicts(tpl);
+    const ids = separatedPairs(report.conflicts, buildAssignments(tpl)).map((p) => p.ruleId);
+    expect(ids).toContain("rule-release-rec");
+  });
+});

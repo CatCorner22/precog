@@ -3,6 +3,7 @@
  * the template's controls/people, so alternates can be scored side by side.
  */
 import type { IndustryTemplate } from "../templates";
+import { isOperatingDuty } from "../sod/conflict-rules";
 import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import { findKnowledgeRisks } from "../engine";
@@ -107,9 +108,7 @@ export function analyzeWorkload(
           )
         : 0;
       const assignment = sod.assignments.find((a) => a.personId === person.id);
-      const entitlementCount = (assignment?.entitlements ?? []).filter(
-        (e) => e !== "view_reports_only",
-      ).length;
+      const entitlementCount = (assignment?.entitlements ?? []).filter(isOperatingDuty).length;
       const conflicts = sod.conflicts.filter((c) => c.personId === person.id);
       const criticalConflicts = conflicts.filter((c) => c.severity === "critical").length;
       const expertRels = tpl.relations.filter(

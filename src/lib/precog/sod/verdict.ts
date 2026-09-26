@@ -1,5 +1,8 @@
+import type { RoleAssignment } from "./assignments";
 import { CONFLICT_RULES, type EntitlementId, entitlementLabel } from "./conflict-rules";
-import type { DetectedConflict, RoleAssignment } from "./detect";
+import type { DetectedConflict } from "./detect";
+import { rulesHeldTogether, teamHeldDuties } from "./rule-match";
+import { gapKey } from "./score";
 
 /** One person who holds most of the open gaps, and the single move that closes the most of them. */
 export interface ConcentrationHeadline {
@@ -22,8 +25,6 @@ export function midSentence(label: string): string {
   return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
 
-const dutyLabel = entitlementLabel;
-
 /** Open means a finding the owner still has to act on: not owner-held, not accepted. */
 function openFindings(conflicts: readonly DetectedConflict[]): DetectedConflict[] {
   return conflicts.filter((c) => !c.ownerHeld && !c.residualRiskAccepted);
@@ -38,8 +39,6 @@ export function concentrationHeadline(
   conflicts: readonly DetectedConflict[],
 ): ConcentrationHeadline | null {
   const open = openFindings(conflicts);
-  const gapKey = (c: DetectedConflict) =>
-    c.severity === "family" ? `family:${c.entitlementA}:${c.entitlementB}` : c.ruleId;
   const totalGaps = new Set(open.map(gapKey)).size;
   const byPerson = new Map<string, DetectedConflict[]>();
   for (const c of open) byPerson.set(c.personId, [...(byPerson.get(c.personId) ?? []), c]);
@@ -69,7 +68,7 @@ export function concentrationHeadline(
         gaps,
         totalGaps,
         duty,
-        dutyLabel: dutyLabel(duty),
+        dutyLabel: entitlementLabel(duty),
         closes: closed.size,
       };
     }
@@ -84,18 +83,22 @@ export interface SeparatedPair {
 }
 
 /**
- * The rules the team gets right: both duties are held by someone, and no one
- * holds both (no finding of any kind for the rule, owner-held included). The
- * owner reads what is working as well as what is not.
+ * The rules the team gets right: both duties are held by someone (counting
+ * ACH initiation and check signing as sending money out), and no one holds
+ * both, whether or not a finding says so: a pair another finding covers, or
+ * an owner's own oversight pair, is still held together.
+ * The owner reads what is working as well as what is not.
  */
 export function separatedPairs(
   conflicts: readonly DetectedConflict[],
   assignments: readonly RoleAssignment[],
 ): SeparatedPair[] {
-  const flagged = new Set(conflicts.map((c) => c.ruleId));
-  const held = (duty: EntitlementId) => assignments.some((a) => a.entitlements.includes(duty));
-  return CONFLICT_RULES.filter((r) => !flagged.has(r.id) && held(r.a) && held(r.b)).map((r) => ({
-    ruleId: r.id,
-    title: r.title,
-  }));
+  const together = new Set(conflicts.map((c) => c.ruleId));
+  for (const person of assignments) {
+    for (const ruleId of rulesHeldTogether(person.entitlements)) together.add(ruleId);
+  }
+  const held = teamHeldDuties(assignments);
+  return CONFLICT_RULES.filter((r) => !together.has(r.id) && held.has(r.a) && held.has(r.b)).map(
+    (r) => ({ ruleId: r.id, title: r.title }),
+  );
 }

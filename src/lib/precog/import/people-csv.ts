@@ -4,7 +4,7 @@ import { csvCell, locateTable, parseRows, sniffDelimiter, normalizeHeader } from
 import { datesAreDayFirst } from "./hire-date";
 
 export { parseHireDate, readHireDate, tenureFromHireDate, type HireDateOptions } from "./hire-date";
-import { ROLE_TEMPLATES } from "../sod/role-templates";
+import { personDuties } from "../sod/assignments";
 
 export { splitListLine } from "./roster-lines";
 import { looksLikeRosterHeader, mapColumns, type ColumnMap } from "./roster-columns";
@@ -331,17 +331,12 @@ function samePerson(a: Person, b: Person): boolean {
   });
 }
 
-/**
- * The duties the conflict engine reads for a person: their own list, else
- * their role's duties in this line of business, else the shared role list.
- * Mirrors `buildAssignments` in the duty-conflict engine.
- */
+/** The duties the conflict engine reads for a person (see `personDuties`). */
 export function effectiveDuties(
   person: Pick<Person, "role" | "entitlements">,
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): string[] {
-  if (person.entitlements?.length) return [...person.entitlements];
-  return [...(roleTemplates[person.role] ?? ROLE_TEMPLATES[person.role] ?? ["view_reports_only"])];
+  return personDuties(person, roleTemplates);
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */

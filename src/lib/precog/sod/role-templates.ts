@@ -1,48 +1,16 @@
+import { dentalTemplate } from "../templates/dental";
 import type { EntitlementId } from "./conflict-rules";
 
 /**
  * The duties a job title usually carries when a template names no
  * `roleTemplates` entry for it and the person carries no duties of their own.
- * These titles are the dental sample's; a business's own template and the job
- * catalog (onboarding/) come first, so this is the fallback of last resort.
+ * A business's own template and the job catalog (onboarding/) come first, so
+ * this is the fallback of last resort. The dental sample's titles come from
+ * the dental template itself, so one title never means two duty lists; the
+ * rest are common office seats no sample names.
  */
 export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
-  "Owner / Dentist": [
-    "approve_writeoffs",
-    "approve_vendor",
-    "approve_payroll",
-    "bank_reconcile",
-    "view_reports_only",
-    "pms_admin_roles",
-  ],
-  "Office Manager": [
-    "post_payments",
-    "prepare_deposit",
-    "post_adjustments",
-    "create_vendor",
-    "release_payment",
-    "enter_payroll",
-    "approve_writeoffs",
-    "pms_admin_roles",
-    "submit_claims",
-    "view_reports_only",
-  ],
-  "Front Desk Lead": [
-    "collect_cash",
-    "post_payments",
-    "prepare_deposit",
-    "submit_claims",
-    "post_adjustments",
-  ],
-  Hygienist: ["view_reports_only"],
-  "Dental Assistant": ["view_reports_only"],
-  "Billing Specialist": [
-    "submit_claims",
-    "post_adjustments",
-    "post_payments",
-    "approve_writeoffs",
-    "view_reports_only",
-  ],
+  ...dentalTemplate.roleTemplates,
   "Associate Dentist": ["approve_writeoffs", "view_reports_only"],
   "Practice Administrator": [
     "approve_vendor",
@@ -91,9 +59,3 @@ export const ROLE_TEMPLATES: Record<string, EntitlementId[]> = {
   "AP Specialist": ["create_vendor", "enter_invoices", "initiate_ach", "view_reports_only"],
   "Payment Approver": ["approve_vendor", "release_payment", "sign_checks", "view_reports_only"],
 };
-
-/** The same table as a list, for tests and tooling that walk every seat. */
-export const COMMON_JOB_TEMPLATES = Object.entries(ROLE_TEMPLATES).map(([role, entitlements]) => ({
-  role,
-  entitlements,
-}));
