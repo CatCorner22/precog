@@ -534,3 +534,117 @@ describe("channel cards and the exception summary", () => {
     expect(activeExceptionSummary(policy, today).total).toBe(0);
   });
 });
+
+describe("force_dual and lower_threshold exceptions", () => {
+  const today = "2026-01-15";
+
+  it("force_dual blocks a $1 release that has no second signer and reports a $0 threshold", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "force_dual", channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 1,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("blocked_missing_second");
+    expect(r.dualForced).toBe(true);
+    expect(r.dualWaived).toBe(false);
+    expect(r.thresholdUsd).toBe(0);
+  });
+
+  it("force_dual still approves once a distinct second signs", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "force_dual", channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 1,
+      initiatorPersonId: officeManager,
+      secondPersonId: owner,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("approved_dual");
+  });
+
+  it("lower_threshold requires a second above the lowered figure and reports it", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "lower_threshold", thresholdUsd: 100, channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 250,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.dualRequired).toBe(true);
+    expect(r.thresholdUsd).toBe(100);
+    expect(r.baseThresholdUsd).toBe(500);
+  });
+
+  it("lower_threshold never raises the base threshold", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "lower_threshold", thresholdUsd: 9000, channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 600,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.dualRequired).toBe(true);
+    expect(r.thresholdUsd).toBe(500);
+  });
+
+  it("a scoped exception outranks a broader one", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [
+        exception({ id: "broad", action: "raise_threshold", thresholdUsd: 5000 }),
+        exception({
+          id: "scoped",
+          action: "force_dual",
+          channels: ["ach"],
+          personId: officeManager,
+        }),
+      ],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 50,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.appliedException?.id).toBe("scoped");
+    expect(r.dualForced).toBe(true);
+  });
+
+  it("the summary counts each action among the exceptions in force", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [
+        exception({ id: "a", action: "force_dual" }),
+        exception({ id: "b", action: "waive_dual", payeeContains: "Rent" }),
+        exception({
+          id: "c",
+          action: "raise_threshold",
+          thresholdUsd: 900,
+          effectiveTo: "2026-02-01",
+        }),
+        exception({ id: "d", action: "raise_threshold", thresholdUsd: 900, enabled: false }),
+      ],
+    };
+    expect(activeExceptionSummary(policy, today)).toEqual({
+      total: 3,
+      raises: 1,
+      forceDual: 1,
+      waives: 1,
+      expiringSoon: 1,
+    });
+  });
+});
