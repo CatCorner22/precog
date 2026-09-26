@@ -228,12 +228,12 @@ export function runPrecogScenario(
   const served = industryMeta(tpl.id).customerLabel;
   const cascade = scenario.cascadeLayers.map((layer) => {
     const effects: Record<string, string> = {
-      knowledge: "Critical know-how concentrated or lost; training lag begins.",
-      process: "Workflow throughput drops; workarounds and errors rise.",
-      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays; schedule and cash flow noise increase.`,
-      control: "Control design fails open; residual risk becomes default state.",
-      source: "System access or vendor configuration becomes single-threaded.",
-      continuity: "Exit or failure path exposes uninsured fragility.",
+      knowledge: "The know-how sits with one person; training lag begins.",
+      process: "Work slows; workarounds and errors rise.",
+      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays, and cash flow gets less predictable.`,
+      control: "The control stops working and nobody notices, so the exposure becomes normal.",
+      source: "Only one person can change system access or vendor settings.",
+      continuity: "If that person leaves or the system fails, the loss is uninsured.",
     };
     return { layer, effect: effects[layer] ?? "Downstream impact." };
   });
@@ -260,7 +260,7 @@ export function runPrecogScenario(
     cascade,
     mitigations: scenario.mitigations,
     residualIfNothing:
-      "If you accept residual risk, Continuity layer fragility remains elevated until staff composition, insurance transfer terms, or controls change. Re-run Precog after any variable change.",
+      "If you accept this risk as it is, the exposure stays until your staffing, your insurance terms, or your controls change. The figures update when you change any setting.",
     sources: [crimeFraudStats.source],
     assumptions: [
       "The base timeline and loss figures are assumptions the scenario author wrote; they were not drawn from a study or from any business.",

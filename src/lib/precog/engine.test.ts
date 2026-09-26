@@ -150,6 +150,21 @@ describe("runPrecogScenario", () => {
   });
 });
 
+describe("what the scenario page says", () => {
+  it("describes the cascade and accepting the risk in plain words", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getBaseTemplate(id);
+      for (const scenario of tpl.scenarios) {
+        const r = runPrecogScenario(tpl, scenario.id)!;
+        const text = [...r.cascade.map((c) => c.effect), r.residualIfNothing].join(" ");
+        expect(text, `${id}/${scenario.id}`).not.toMatch(
+          /fails open|default state|single-threaded|fragility|Continuity layer|Re-run Precog/,
+        );
+      }
+    }
+  });
+});
+
 describe("staffing uplift sentences", () => {
   const base: StaffComposition = {
     teamSize: 12,

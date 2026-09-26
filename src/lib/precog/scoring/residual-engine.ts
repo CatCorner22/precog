@@ -21,6 +21,7 @@ import {
 } from "./weights";
 import { formatUsd } from "../../utils";
 import { clamp, wholePercent } from "../number";
+import { count } from "../text";
 
 export interface ResidualRiskScore {
   id: string;
@@ -273,7 +274,7 @@ function scoreKnowledge(
           : "Redundant ownership",
       direction: soleOwner || ownerCount === 0 ? "increases" : "decreases",
       weight: ownership,
-      detail: `${ownerCount} proficient/expert holder(s).`,
+      detail: `${count(ownerCount, "proficient or expert holder")}.`,
     },
     {
       id: `k-${knowledgeId}-crit`,
@@ -426,7 +427,7 @@ function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUpl
       label: "Sole-owner knowledge",
       direction: "increases",
       weight: u,
-      detail: `${staff.soleOwnerKnowledgeCount} critical item(s) with sole strong owner.`,
+      detail: `${count(staff.soleOwnerKnowledgeCount, "critical item")} with one strong holder.`,
     });
   }
   if (staff.segregationScore < 50) {
