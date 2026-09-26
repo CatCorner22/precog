@@ -63,7 +63,8 @@ export interface CosoComponentAssessment {
  * The COSO index for this business.
  *
  * `staff` is the profile's staff composition (the owner's team, derived or
- * edited); it defaults to the template's only for callers without a profile.
+ * edited). It is required: the template's own staff composition describes
+ * the industry sample, not the owner's team.
  * Knowledge and scenario inputs count only when they describe the business: a
  * register nobody has marked contributes nothing (and the principles it feeds
  * say "not assessed"), and an owner's starter scenarios count only once
@@ -71,7 +72,7 @@ export interface CosoComponentAssessment {
  */
 export function assessCoso(
   tpl: IndustryTemplate,
-  staff: StaffComposition = tpl.staffComposition,
+  staff: StaffComposition,
   opts: {
     riskVariables?: RiskVariableState;
     confirmedScenarioIds?: ReadonlySet<string>;

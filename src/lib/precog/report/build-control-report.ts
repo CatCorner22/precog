@@ -67,6 +67,7 @@ export function buildControlReportModel({
   });
   const portfolio = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
     confirmedScenarioIds: confirmed,
+    riskVariables: profile.riskVariables,
   });
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const continuity = coverageReport(tpl);

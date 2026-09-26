@@ -150,6 +150,25 @@ describe("runPrecogScenario", () => {
   });
 });
 
+describe("fraud scenarios outside the shared ids", () => {
+  it("prices skimmed donations as fraud and shows the fraud reference figures", () => {
+    const nonprofit = getBaseTemplate("nonprofit");
+    const staff = { ...nonprofit.staffComposition, dualControlPayments: true };
+    const skim = runPrecogScenario(nonprofit, "sc-skimmed-donations", { staff })!;
+    const cash = runPrecogScenario(nonprofit, "sc-cash-sod-failure", { staff })!;
+    expect(skim.crimeModifiers[0]).toMatch(/^For reference only/);
+    expect(skim.crimeModifiers.join(" ")).not.toContain("Not a fraud scenario");
+    expect(skim.dynamic!.likelihoodMultiplier).toBe(cash.dynamic!.likelihoodMultiplier);
+  });
+
+  it("keeps a departure out of the fraud figures", () => {
+    const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    expect(r.crimeModifiers[0]).toBe(
+      "Not a fraud scenario, so the fraud figures are not applied to it.",
+    );
+  });
+});
+
 describe("rankDangerousScenarios", () => {
   it("ranks every scenario once, highest score first", () => {
     const ranked = rankDangerousScenarios(dental);

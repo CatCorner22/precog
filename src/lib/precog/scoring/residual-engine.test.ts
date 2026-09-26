@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
-import { findKnowledgeRisks } from "../engine";
+import { findKnowledgeRisks, runPrecogScenario } from "../engine";
 import { INDUSTRIES } from "../industry";
 import type { StaffComposition } from "../types";
+import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
 import { portfolioSummary, scoreAllResidualRisks, tornadoSensitivity } from "./residual-engine";
 
 const dental = getBaseTemplate("dental");
@@ -228,6 +229,27 @@ describe("scenario row formula", () => {
     const days = row.drivers.find((d) => d.id.endsWith("-time"))!;
     expect(days.label).toBe("Assumed days until found");
     expect(days.detail).not.toMatch(/p50/);
+  });
+});
+
+describe("scenario rows and the owner's risk variables", () => {
+  it("price the loss and days the Scenario tab shows for the same settings", () => {
+    const riskVariables = {
+      ...DEFAULT_RISK_VARIABLES,
+      hasSecurityCameras: true,
+      dailyCashExposure: 1000,
+    };
+    const staff = dental.staffComposition;
+    const row = scoreAllResidualRisks(dental, staff, undefined, { riskVariables }).find(
+      (r) => r.id === "scen-sc-cash-sod-failure",
+    )!;
+    const tab = runPrecogScenario(dental, "sc-cash-sod-failure", { staff, riskVariables })!;
+    expect(row.expectedLoss).toBe(tab.financialImpact.expected);
+    expect(row.p50Days).toBe(tab.timelineDays.p50);
+    const defaults = scoreAllResidualRisks(dental, staff).find(
+      (r) => r.id === "scen-sc-cash-sod-failure",
+    )!;
+    expect(row.expectedLoss).not.toBe(defaults.expectedLoss);
   });
 });
 

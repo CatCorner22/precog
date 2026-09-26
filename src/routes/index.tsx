@@ -41,6 +41,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { pluralTeamLabel } from "@/lib/precog/templates/industry-copy";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
@@ -485,7 +486,23 @@ function Home() {
       }),
     [tpl, profile.staff, profile.riskVariables],
   );
-  const coso = useMemo(() => assessCoso(tpl), [tpl]);
+  // The same inputs as the COSO tab, so the tile and the tab show one score.
+  const coso = useMemo(
+    () =>
+      assessCoso(tpl, profile.staff, {
+        riskVariables: profile.riskVariables,
+        confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+        dualRelease: profile.dualRelease,
+      }),
+    [
+      tpl,
+      profile.staff,
+      profile.riskVariables,
+      profile.decisions,
+      profile.industry,
+      profile.dualRelease,
+    ],
+  );
   const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
   const today = useToday();
   const leading = useMemo(

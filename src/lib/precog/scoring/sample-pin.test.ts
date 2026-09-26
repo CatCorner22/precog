@@ -49,6 +49,11 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   restaurant's from 1 to 2. Retail and general are unchanged.
  * - The construction and nonprofit samples are new; their figures are
  *   pinned as first computed.
+ * - Each scenario's kind is written down per scenario instead of read from
+ *   words in its id. Payments to a fictitious subcontractor and skimmed
+ *   donations are cash schemes like vendor fraud and the cash failure, so the
+ *   daily cash figure scales them and they price like their shared
+ *   counterparts; the construction and nonprofit figures move.
  */
 const PINNED: Record<
   string,
@@ -288,19 +293,19 @@ const PINNED: Record<
     tornado: ["seg:10", "dual:7", "bank:6", "spof:6", "team:6"],
   },
   construction: {
-    averageResidual: 60,
+    averageResidual: 61,
     rows: [
       "know-k3:88/25/88",
       "know-k4:88/25/88",
       "know-k5:88/25/88",
       "scen-sc-vendor-fraud:72/29/82",
+      "scen-sc-fictitious-sub:72/29/82",
       "ctrl-c-sod-cash:82/26/81",
       "ctrl-c-sod-ap:82/26/81",
       "ctrl-c-cash:79/26/78",
       "ctrl-c-sod-billing:73/26/72",
       "know-k7:71/25/71",
       "scen-sc-cash-sod-failure:61/29/69",
-      "scen-sc-fictitious-sub:59/29/67",
       "scen-sc-change-order-kickback:59/29/67",
       "ctrl-c-change-orders:60/26/59",
       "ctrl-c-sub-verify:60/26/59",
@@ -326,11 +331,11 @@ const PINNED: Record<
       "sod-rule-invoice-pay:91:92",
       "sod-rule-release-rec:91:92",
       "ctrl-c-sod-cash:85:81",
-      "ctrl-c-sod-ap:85:81",
       "know-k3:78:88",
       "know-k4:78:88",
       "know-k5:78:88",
       "scen-sc-vendor-fraud:75:82",
+      "scen-sc-fictitious-sub:75:82",
     ],
     coso: 32,
     cosoComponents: [
@@ -345,15 +350,15 @@ const PINNED: Record<
       "sc-cash-sod-failure:67314:5000:147:4867",
       "sc-field-time-padding:48082:5000:157:4782",
       "sc-vendor-fraud:96163:5000:163:4867",
-      "sc-fictitious-sub:68688:5000:174:4782",
+      "sc-fictitious-sub:96163:5000:163:4867",
       "sc-change-order-kickback:68688:5000:174:4782",
       "sc-writeoff-abuse:37778:5000:209:4782",
       "sc-material-theft:37778:5000:209:4782",
     ],
-    tornado: ["seg:9", "spof:8", "dual:6", "bank:6"],
+    tornado: ["seg:10", "spof:9", "dual:7", "bank:7"],
   },
   nonprofit: {
-    averageResidual: 57,
+    averageResidual: 58,
     rows: [
       "know-k2:88/25/84",
       "know-k3:88/25/84",
@@ -366,11 +371,11 @@ const PINNED: Record<
       "know-k6:71/25/68",
       "ctrl-c-board-review:70/25/66",
       "scen-sc-cash-sod-failure:61/29/66",
+      "scen-sc-skimmed-donations:61/29/66",
       "ctrl-c-cards:63/25/60",
       "ctrl-c-ap:73/40/56",
       "ctrl-c-gift-log:60/25/56",
       "ctrl-c-restricted:60/25/56",
-      "scen-sc-skimmed-donations:51/29/56",
       "scen-sc-card-abuse:51/29/56",
       "scen-sc-key-person-leaves:50/29/55",
       "ctrl-c-sod-ar:67/40/50",
@@ -406,13 +411,13 @@ const PINNED: Record<
     ranked: [
       "sc-key-person-leaves:28334:5000:78:4782",
       "sc-cash-sod-failure:67314:5000:147:4867",
-      "sc-skimmed-donations:48082:5000:157:4782",
+      "sc-skimmed-donations:67314:5000:147:4867",
       "sc-card-abuse:48082:5000:157:4782",
       "sc-vendor-fraud:96163:5000:163:4867",
       "sc-writeoff-abuse:37778:5000:209:4782",
       "sc-restricted-diverted:37778:5000:209:4782",
     ],
-    tornado: ["seg:9", "dual:5", "bank:5", "spof:5"],
+    tornado: ["seg:10", "dual:6", "bank:6", "spof:6"],
   },
   general: {
     averageResidual: 66,

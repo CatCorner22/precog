@@ -75,7 +75,10 @@ export function buildThreatAssessment(input: {
   confirmedScenarioIds?: ReadonlySet<string>;
 }): ThreatAssessmentReport {
   const { tpl, practiceName, staff, riskVariables, dualRelease, confirmedScenarioIds } = input;
-  const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, { confirmedScenarioIds });
+  const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, {
+    confirmedScenarioIds,
+    riskVariables,
+  });
   // The same reading as every other screen: the business's own control
   // records, and a dual-release channel only when the team can operate it.
   const sod = detectSodConflicts(

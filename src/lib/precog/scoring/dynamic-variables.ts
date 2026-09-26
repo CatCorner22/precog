@@ -14,6 +14,7 @@ import {
 import { formatUsd, formatPct } from "../../utils";
 import { clamp } from "../number";
 export type { PolicyField } from "./insurance-record";
+export { scenarioFlags, type ScenarioKind } from "./scenario-kind";
 
 type VariableCategory =
   | "insurance"
@@ -816,17 +817,4 @@ export function mergeStaffIntoVariables(
     hasDualControl: staff.dualControlPayments,
     hasIndependentBankRec: staff.independentBankRec,
   };
-}
-
-export function scenarioFlags(scenarioId: string): {
-  fraudRelated: boolean;
-  cashRelated: boolean;
-} {
-  const fraudRelated =
-    scenarioId.includes("cash") ||
-    scenarioId.includes("writeoff") ||
-    scenarioId.includes("vendor") ||
-    scenarioId.includes("sod");
-  const cashRelated = scenarioId.includes("cash") || scenarioId.includes("vendor");
-  return { fraudRelated, cashRelated };
 }

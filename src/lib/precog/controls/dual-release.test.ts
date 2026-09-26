@@ -9,7 +9,9 @@ import {
   listEligibleApprovers,
   mergeDualReleasePolicy,
   mitigatedSodRuleIds,
+  staffFlagsFromDualRelease,
   type DualReleasePolicy,
+  type ThresholdException,
 } from "./dual-release";
 
 const dental = getBaseTemplate("dental");
@@ -362,6 +364,68 @@ describe("exceptions on the owner's calendar day", () => {
       expect(activeExceptionSummary(policy, "2026-10-01").total).toBe(0);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+function exception(fields: Partial<ThresholdException>): ThresholdException {
+  return {
+    id: "ex-test",
+    label: "Test exception",
+    channels: [],
+    action: "waive_dual",
+    enabled: true,
+    reason: "Test",
+    createdAt: "2026-01-01",
+    ...fields,
+  };
+}
+
+describe("a blanket waive_dual exception", () => {
+  const today = "2026-01-15";
+  const waived = (fields: Partial<ThresholdException> = {}): DualReleasePolicy => ({
+    ...policyOn(),
+    exceptions: [exception(fields)],
+  });
+
+  it("lets one person release any amount, and the evaluator says the control is not evidence-ready", () => {
+    const r = evaluateRelease(dental, waived(), {
+      channel: "ach",
+      amountUsd: 50_000,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("approved_exception");
+    expect(r.controlCredit.evidenceReady).toBe(false);
+  });
+
+  it("narrows no conflict and earns no dual-control credit on the channels it covers", () => {
+    expect(mitigatedSodRuleIds(waived(), dental, today).size).toBe(0);
+    expect(staffFlagsFromDualRelease(waived(), dental, today).dualControlPayments).toBe(false);
+    expect(dualReleaseCoverage(waived(), today).every((c) => !c.covered)).toBe(true);
+  });
+
+  it("empties only its own channels", () => {
+    const ids = mitigatedSodRuleIds(waived({ channels: ["deposit"] }), dental, today);
+    expect(ids.has("rule-deposit-post")).toBe(false);
+    expect(ids.has("rule-vendor-create-pay")).toBe(true);
+    const coverage = dualReleaseCoverage(waived({ channels: ["deposit"] }), today);
+    expect(coverage.find((c) => c.channel === "deposit")!.covered).toBe(false);
+    expect(coverage.find((c) => c.channel === "ach")!.covered).toBe(true);
+  });
+
+  it("leaves the credit in place when the waiver is scoped, disabled or out of date", () => {
+    for (const policy of [
+      waived({ payeeContains: "Patterson" }),
+      waived({ amountMaxUsd: 200 }),
+      waived({ enabled: false }),
+      waived({ effectiveTo: "2025-12-31" }),
+      waived({ effectiveFrom: "2026-02-01" }),
+    ]) {
+      expect(mitigatedSodRuleIds(policy, dental, today)).toEqual(
+        mitigatedSodRuleIds(policyOn(), dental, today),
+      );
+      expect(staffFlagsFromDualRelease(policy, dental, today).dualControlPayments).toBe(true);
     }
   });
 });

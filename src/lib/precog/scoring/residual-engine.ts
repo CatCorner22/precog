@@ -4,6 +4,7 @@ import { registerAssessed } from "../continuity/register-state";
 import { scenariosInScope, starterScenariosLeftOut } from "./scope";
 import type { IndustryTemplate } from "../templates";
 import type { ControlItem, KnowledgeItem, StaffComposition } from "../types";
+import type { RiskVariableState } from "./dynamic-variables";
 import {
   ACTION_BANDS,
   bandForScore,
@@ -50,9 +51,16 @@ export interface ResidualRiskScore {
   scoringVersion: string;
 }
 
-/** Which of the template's scenarios the owner has confirmed as their own (see scoring/scope). */
+/** What the business's own records say beyond the template and staff. */
 export interface ResidualScope {
+  /** Which of the template's scenarios the owner has confirmed as their own (see scoring/scope). */
   confirmedScenarioIds?: ReadonlySet<string>;
+  /**
+   * The profile's risk variables (cameras, daily cash, insurance), so a
+   * scenario row prices the loss and timeline the Scenario tab shows. Without
+   * them the scenario engine uses the app's defaults.
+   */
+  riskVariables?: RiskVariableState;
 }
 
 function staffUplift(
@@ -386,7 +394,10 @@ export function scoreAllResidualRisks(
   });
 
   const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) => {
-    const result = runPrecogScenario(tpl, s.id, { staff: staffResolved })!;
+    const result = runPrecogScenario(tpl, s.id, {
+      staff: staffResolved,
+      riskVariables: scope.riskVariables,
+    })!;
     const lossNorm = clamp(
       result.financialImpact.expected / weights.scenario.lossSaturationUsd,
       0,

@@ -136,8 +136,10 @@ export function withDualRelease(
   raw: DualReleasePolicy,
   now: Date,
 ): PracticeProfile {
-  const dualRelease = mergeDualReleasePolicy(resolveTemplate(p), raw, p.staff);
-  const flags = staffFlagsFromDualRelease(dualRelease);
+  const tpl = resolveTemplate(p);
+  const dualRelease = mergeDualReleasePolicy(tpl, raw, p.staff);
+  // The same reading as the SoD engine: payment channels someone can operate, no blanket waiver.
+  const flags = staffFlagsFromDualRelease(dualRelease, tpl, localDateKey(now));
   return {
     ...p,
     dualRelease: { ...dualRelease, updatedAt: now.toISOString() },

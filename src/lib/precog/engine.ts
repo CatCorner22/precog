@@ -13,9 +13,9 @@ import {
   evaluateDynamicRisk,
   insuranceFigureNote,
   mergeStaffIntoVariables,
-  scenarioFlags,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
+import { scenarioFlags } from "./scoring/scenario-kind";
 import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
@@ -100,21 +100,6 @@ function staffRiskMultiplier(staff: StaffComposition): number {
   if (!staff.independentBankRec) m *= ASSUMED_STAFF_UPLIFT.noIndependentBankRec;
   if (staff.avgTenureYears < 3) m *= ASSUMED_STAFF_UPLIFT.lowTenure;
   return m;
-}
-
-/**
- * Whether a scenario is a fraud scenario, for the reference figures shown
- * beside it. The ACFE medians are medians of two sub-populations of
- * investigated frauds; the ratio between them is not a multiplier for any one
- * business's assumed loss, so nothing here scales the arithmetic.
- */
-function isFraudScenario(scenario: ScenarioTemplate): boolean {
-  return (
-    scenario.id.includes("cash") ||
-    scenario.id.includes("writeoff") ||
-    scenario.id.includes("vendor") ||
-    Boolean(scenario.controlId?.includes("sod"))
-  );
 }
 
 export function runPrecogScenario(
@@ -209,8 +194,11 @@ export function runPrecogScenario(
     staffModifiers.push(`${d.label}: ${d.effect}`);
   }
 
+  // The ACFE medians describe two sub-populations of investigated frauds; the
+  // ratio between them is not a multiplier for any one business's assumed
+  // loss, so they are shown for reference and never scale the arithmetic.
   const crimeModifiers: string[] = [];
-  if (isFraudScenario(scenario)) {
+  if (flags.fraudRelated) {
     crimeModifiers.push(
       `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(crimeFraudStats.medianLossSmallOrgUsd)} against ${formatUsd(crimeFraudStats.medianLossAllUsd)} across all cases studied.`,
     );
