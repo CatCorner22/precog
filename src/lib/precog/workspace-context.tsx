@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { displayAccount } from "@/lib/auth/identity-change";
+import { setDisplayedAccount } from "@/lib/auth/identity-change";
 import { scopedBrowserStorage, type ScopedStorage } from "./workspace-storage";
 
 export interface Workspace {
@@ -31,7 +31,7 @@ export function WorkspaceProvider({
     session: scopedBrowserStorage(accountId, true),
   }));
   useBrowserLayoutEffect(() => {
-    displayAccount(accountId);
+    setDisplayedAccount(accountId);
   }, [accountId]);
   return <Context.Provider value={workspace}>{children}</Context.Provider>;
 }

@@ -10,8 +10,8 @@ import { toast } from "sonner";
 import {
   identitySnapshot,
   identityUnchanged,
-  registerAccountExit,
-  registerAccountCleanup,
+  registerExitCheck,
+  registerExitCleanup,
 } from "@/lib/auth/identity-change";
 import { downloadText } from "@/lib/download";
 import { BusinessSaveQueue, removeAcknowledgedCopies } from "./workspace-storage";
@@ -124,7 +124,7 @@ export function useCloudSync(input: {
   const acknowledged = useRef(new Map<string, PracticeProfile>());
   useEffect(
     () =>
-      registerAccountCleanup(() => {
+      registerExitCleanup(() => {
         if (workspace.accountId) removeAcknowledgedCopies(workspace.local, acknowledged.current);
       }),
     [workspace],
@@ -615,13 +615,14 @@ export function useCloudSync(input: {
 
   useEffect(
     () =>
-      registerAccountExit(async () => {
+      registerExitCheck(async (transition) => {
         if (!mounted.current) return true;
         const saved = await flushActive();
         if (saved) return true;
+        const next = transition === "sign-in" ? "continue signing in" : "sign out";
         if (
           !window.confirm(
-            "Some work is not synced. Export a local recovery copy and sign out? Cancel keeps this workspace open.",
+            `Some work is not synced. Export a local recovery copy and ${next}? Cancel keeps this workspace open.`,
           )
         )
           return false;

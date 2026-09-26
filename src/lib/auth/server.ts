@@ -81,6 +81,21 @@ const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
 const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET;
 
+// Production must run on its own per-app client: the broker accepts the shared
+// preview client only for `*.grok-sandbox.com` callbacks, so every Google and
+// X sign-in would fail with an opaque broker error. Say so in the log.
+if (
+  process.env.VERCEL_ENV === "production" &&
+  !authDisabled &&
+  !(env("GROK_AUTH_CLIENT_ID") && env("GROK_AUTH_CLIENT_SECRET"))
+) {
+  console.error(
+    "[auth] GROK_AUTH_CLIENT_ID and GROK_AUTH_CLIENT_SECRET are not set in production, so " +
+      "Google and X sign-in fall back to the preview client and fail. Set both in the " +
+      "project's environment variables and redeploy.",
+  );
+}
+
 /** True when federated sign-in is active (real auth is enforced). */
 export const authConfigured = !authDisabled && Boolean(grokClientId && grokClientSecret);
 
@@ -113,9 +128,13 @@ const baseURL = explicitBaseURL ?? {
 };
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
-// Missing entries here surface as FORBIDDEN "Invalid origin".
+// Missing entries here surface as FORBIDDEN "Invalid origin". A deployed app
+// trusts only its own public URL; the loopback variants join only when that
+// URL is itself a local one.
 const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+  ? LOCAL_DEV_ORIGINS.includes(explicitBaseURL.replace(/\/+$/, ""))
+    ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+    : [explicitBaseURL]
   : [
       // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
@@ -209,6 +228,16 @@ export const auth = betterAuth({
   // window and reduces auth flicker. See the `auth` skill for the full
   // flicker-prevention guidance (gate on `isPending`; SSR the session).
   session: { cookieCache: { enabled: true, maxAge: 300 } },
+
+  // Password guessing: at most five email sign-in or sign-up attempts per
+  // minute from one network address. Better Auth keeps the counter in memory,
+  // so each serverless instance counts on its own.
+  rateLimit: {
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 5 },
+    },
+  },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled
