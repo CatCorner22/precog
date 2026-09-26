@@ -262,10 +262,12 @@ export function normalizeCustomKnowledge(value: unknown, today: string): Knowled
 }
 
 /** Every business this device knows about, in full, keyed by id. */
-const PORTFOLIO_KEY = "precog.portfolio.v1";
+export const PORTFOLIO_KEY = "precog.portfolio.v1";
 /** The business open in this browser: what a reload comes back to. */
 export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
 const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
+/** The id a profile saved before businesses had ids is filed under. */
+export const DEFAULT_BUSINESS_ID = "biz_default";
 
 export function makeBusinessId(): string {
   return uid("biz");
@@ -275,7 +277,7 @@ export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
   const tpl = getIndustryTemplate(p.industry);
   const history = p.mapHealthHistory ?? [];
   return {
-    id: p.businessId ?? "biz_default",
+    id: p.businessId ?? DEFAULT_BUSINESS_ID,
     name: p.practiceName,
     industry: p.industry,
     updatedAt: p.updatedAt,
@@ -304,7 +306,7 @@ export function loadPortfolio(storage = browserStorage()): Record<string, Practi
  */
 export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): void {
   if (profile.onboardingComplete === false) return;
-  const id = profile.businessId ?? "biz_default";
+  const id = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const all = loadPortfolio(storage);
   all[id] = { ...profile, businessId: id };
   writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);

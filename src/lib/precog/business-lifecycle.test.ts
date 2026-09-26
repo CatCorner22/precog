@@ -14,7 +14,7 @@ import {
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
 import { getIndustryTemplate } from "./templates";
-import type { StorageLike } from "./local-data";
+import { memoryStorage } from "@/test/memory-storage";
 import { ownBusinessProfile } from "./onboarding/own-team";
 import {
   defaultProfile,
@@ -65,15 +65,6 @@ describe("the first edit to an owner's starter map", () => {
     expect(processesToEdit({ ...own, customProcesses: custom })).toBe(custom);
   });
 });
-
-function memoryStorage(): StorageLike {
-  const data = new Map<string, string>();
-  return {
-    getItem: (k) => data.get(k) ?? null,
-    setItem: (k, v) => void data.set(k, v),
-    removeItem: (k) => void data.delete(k),
-  };
-}
 
 const sampleNames = (p: PracticeProfile) => {
   const sample = new Set(getIndustryTemplate(p.industry).people.map((x) => x.name));

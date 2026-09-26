@@ -1,4 +1,4 @@
-import { toSql, postgresTransaction, transactionScope } from "./sql-transaction";
+import { DB_TYPE_PARSERS, toSql, postgresTransaction, transactionScope } from "./sql-transaction";
 
 /** Which database backend is active. */
 type DbSource = "neon" | "pglite";
@@ -61,23 +61,6 @@ const globalRef = globalThis as typeof globalThis & {
 };
 
 /**
- * Result-type parity: Postgres sends every value as text plus a type OID — the
- * JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
- * int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
- * JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
- * production return identical, JSON-safe shapes:
- *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
- *                                   `::text` if you ever need huge integers)
- *   date                         -> 'YYYY-MM-DD' string
- *   interval                     -> Postgres interval text
- * numeric already comes back as a string on both (arbitrary precision).
- */
-const OID_INT8 = 20;
-const OID_DATE = 1082;
-const OID_INTERVAL = 1186;
-const identity = (v: string) => v;
-
-/**
  * The one node-postgres pool of this process, shared by app queries and Better
  * Auth (see `@/lib/auth/server`). Small and short-lived: each warm serverless
  * instance keeps its own pool, so a large default (10) multiplied by instances
@@ -93,9 +76,9 @@ export function getPgPool(): Promise<import("pg").Pool> {
     // Regular Postgres driver: node-postgres (`pg`) — works directly with Neon's
     // pooled endpoint. Imported on demand so it never loads on the PGLite path.
     const { Pool, types } = await import("pg");
-    types.setTypeParser(OID_INT8, Number);
-    types.setTypeParser(OID_DATE, identity);
-    types.setTypeParser(OID_INTERVAL, identity);
+    for (const [oid, parse] of Object.entries(DB_TYPE_PARSERS)) {
+      types.setTypeParser(Number(oid), parse);
+    }
     return new Pool({
       connectionString: databaseUrl,
       max: 4,
@@ -131,13 +114,7 @@ async function createPgliteSql(): Promise<Sql> {
   // data survives source edits (it resets on dev-server restart).
   globalRef.__pgliteInstance__ ??= (async () => {
     const { PGlite } = await import("@electric-sql/pglite");
-    const pg = new PGlite({
-      parsers: {
-        [OID_INT8]: Number,
-        [OID_DATE]: identity,
-        [OID_INTERVAL]: identity,
-      },
-    });
+    const pg = new PGlite({ parsers: DB_TYPE_PARSERS });
     await pg.waitReady;
     await pg.exec(
       "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",

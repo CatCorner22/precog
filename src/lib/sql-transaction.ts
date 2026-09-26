@@ -2,6 +2,26 @@ import type { Sql } from "./db";
 
 export type QueryRunner = <T>(text: string, params: unknown[]) => Promise<T[]>;
 
+/**
+ * Result-type parity: Postgres sends every value as text plus a type OID — the
+ * JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
+ * int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
+ * JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
+ * production return identical, JSON-safe shapes:
+ *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
+ *                                   `::text` if you ever need huge integers)
+ *   date                         -> 'YYYY-MM-DD' string
+ *   interval                     -> Postgres interval text
+ * numeric already comes back as a string on both (arbitrary precision).
+ * Every database the app and its tests open uses this table; it lives here,
+ * not in db.ts, because importing db.ts starts the app's database bootstrap.
+ */
+export const DB_TYPE_PARSERS: Record<number, (value: string) => unknown> = {
+  20: Number, // int8
+  1082: (value) => value, // date
+  1186: (value) => value, // interval
+};
+
 /** Shared parameterization for pooled, reserved-connection and embedded SQL. */
 export function toSql(run: QueryRunner): Sql {
   const sql = (async <T>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]> => {

@@ -1,9 +1,6 @@
-import type { StorageLike } from "./local-data";
+import type { KeyedStorage } from "./local-data";
+import { ACTIVE_PROFILE_KEY, DEFAULT_BUSINESS_ID, PORTFOLIO_KEY } from "./practice-profile";
 
-export interface KeyedStorage extends StorageLike {
-  readonly length: number;
-  key(index: number): string | null;
-}
 export const WORKSPACE_PREFIX = "precog.workspace.v2:";
 export function workspacePrefix(accountId: string | null): string {
   return `${WORKSPACE_PREFIX}${accountId === null ? "guest" : `account:${encodeURIComponent(accountId)}`}:`;
@@ -112,22 +109,21 @@ export function removeAcknowledgedCopies(
   const matches = (value: unknown) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     const { localRev: _rev, localBase: _base, ...profile } = value as Record<string, unknown>;
-    const id = typeof profile.businessId === "string" ? profile.businessId : "biz_default";
+    const id = typeof profile.businessId === "string" ? profile.businessId : DEFAULT_BUSINESS_ID;
     const saved = acknowledged.get(id);
     return saved !== undefined && canonical(profile) === canonical(saved);
   };
   // Errors or unfamiliar formats are kept, never guessed clean.
   try {
-    const active = storage.getItem("precog.practiceProfile.v2");
-    if (active && matches(JSON.parse(active))) storage.removeItem("precog.practiceProfile.v2");
-    const raw = storage.getItem("precog.portfolio.v1");
+    const active = storage.getItem(ACTIVE_PROFILE_KEY);
+    if (active && matches(JSON.parse(active))) storage.removeItem(ACTIVE_PROFILE_KEY);
+    const raw = storage.getItem(PORTFOLIO_KEY);
     if (!raw) return;
     const portfolio = JSON.parse(raw);
     if (!portfolio || typeof portfolio !== "object" || Array.isArray(portfolio)) return;
     const remaining = Object.fromEntries(Object.entries(portfolio).filter(([, p]) => !matches(p)));
-    if (Object.keys(remaining).length)
-      storage.setItem("precog.portfolio.v1", JSON.stringify(remaining));
-    else storage.removeItem("precog.portfolio.v1");
+    if (Object.keys(remaining).length) storage.setItem(PORTFOLIO_KEY, JSON.stringify(remaining));
+    else storage.removeItem(PORTFOLIO_KEY);
   } catch {
     /* Preserve copies whose persistence or contents cannot be verified. */
   }

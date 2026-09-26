@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error -- shared plain ESM deploy script, tested against the real runner.
 import { runMigrations } from "../../scripts/migrate-core.mjs";
+import { pgliteExec } from "@/test/pglite";
 
 type Exec = (sql: string, params?: unknown[]) => Promise<unknown[]>;
 const cleanups: Array<() => Promise<unknown>> = [];
@@ -21,8 +22,7 @@ async function database() {
   const pg = new PGlite();
   await pg.waitReady;
   cleanups.push(() => pg.close());
-  const exec: Exec = async (sql, params) =>
-    params ? (await pg.query(sql, params)).rows : ((await pg.exec(sql)).at(-1)?.rows ?? []);
+  const exec: Exec = pgliteExec(pg);
   return { pg, exec };
 }
 

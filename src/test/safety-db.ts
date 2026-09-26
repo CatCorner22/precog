@@ -1,10 +1,10 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 import type { Sql } from "@/lib/db";
-import { postgresTransaction, toSql } from "@/lib/sql-transaction";
-import { openTestDb } from "./pglite";
+import { DB_TYPE_PARSERS, postgresTransaction, toSql } from "@/lib/sql-transaction";
+import { migrationFiles, MIGRATIONS_DIR, openTestDb } from "./pglite";
 
 export interface SafetyDb {
   sql: Sql;
@@ -22,7 +22,12 @@ export async function openSafetyDb(): Promise<SafetyDb> {
   const schema = `precog_lifecycle_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString, max: 1 });
   await admin.query(`create schema ${schema}`);
-  const pool = new Pool({ connectionString, max: 8, options: `-c search_path=${schema}` });
+  const pool = new Pool({
+    connectionString,
+    max: 8,
+    options: `-c search_path=${schema}`,
+    types: { getTypeParser: typeParser },
+  });
   const sql = toSql(
     async <T>(text: string, params: unknown[]) => (await pool.query(text, params)).rows as T[],
   );
@@ -36,8 +41,8 @@ export async function openSafetyDb(): Promise<SafetyDb> {
     }
   };
   try {
-    for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
-      await pool.query(await readFile(join("migrations", file), "utf8"));
+    for (const file of await migrationFiles())
+      await pool.query(await readFile(join(MIGRATIONS_DIR, file), "utf8"));
   } catch (error) {
     await close();
     throw error;
@@ -54,3 +59,7 @@ export async function openSafetyDb(): Promise<SafetyDb> {
     },
   };
 }
+
+/** The app's result-type parsers (DB_TYPE_PARSERS) on this pool alone, pg's defaults otherwise. */
+const typeParser = ((oid: number, format?: "text" | "binary") =>
+  DB_TYPE_PARSERS[oid] ?? types.getTypeParser(oid, format)) as typeof types.getTypeParser;

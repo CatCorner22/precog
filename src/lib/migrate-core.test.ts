@@ -1,10 +1,8 @@
-import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error -- plain ESM script shared with the deploy-time migrator.
 import { runMigrations } from "../../scripts/migrate-core.mjs";
-
-const MIGRATIONS_DIR = join(process.cwd(), "migrations");
+import { MIGRATIONS_DIR, pgliteExec } from "@/test/pglite";
 
 /**
  * The deploy migrator's ledger against an embedded Postgres: every file
@@ -23,8 +21,7 @@ describe("migration ledger", () => {
     return () =>
       runMigrations({
         migrationsDir: MIGRATIONS_DIR,
-        exec: async (sql: string, params?: unknown[]) =>
-          params ? (await pg.query(sql, params)).rows : ((await pg.exec(sql)).at(-1)?.rows ?? []),
+        exec: pgliteExec(pg),
       }) as Promise<{ applied: string[]; moved: [string, string][] }>;
   }
 
