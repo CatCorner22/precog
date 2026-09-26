@@ -151,7 +151,7 @@ export function AdvancedReasoningPanel() {
                 <span className="font-medium">{i.observation}</span>
                 <span className="mt-0.5 block text-xs text-muted">{i.rationale}</span>
               </span>
-              <Badge variant="ok">{i.effort}</Badge>
+              <Badge variant="default">{i.effort} effort</Badge>
             </div>
           ))}
         </CardContent>
