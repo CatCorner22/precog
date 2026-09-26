@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampPage,
+  pageCount,
   pageSlice,
   REGISTER_ITEM_PAGE,
   REGISTER_PEOPLE_PAGE,
@@ -15,5 +17,20 @@ describe("continuity register window", () => {
     expect(pageSlice(items, 0, REGISTER_ITEM_PAGE)).toHaveLength(REGISTER_ITEM_PAGE);
     expect(registerOverResponsiveLimit(people.length, items.length)).toBe(true);
     expect(registerOverResponsiveLimit(8, 20)).toBe(false);
+  });
+
+  it("keeps any requested page inside the list", () => {
+    expect(clampPage(-1, 40, 8)).toBe(0);
+    expect(clampPage(Number.NaN, 40, 8)).toBe(0);
+    expect(clampPage(Number.POSITIVE_INFINITY, 40, 8)).toBe(0);
+    expect(clampPage(2.7, 40, 8)).toBe(2);
+    expect(clampPage(99, 40, 8)).toBe(4);
+    expect(clampPage(3, 0, 8)).toBe(0);
+  });
+
+  it("counts one page for an empty list and rounds a partial page up", () => {
+    expect(pageCount(0, 8)).toBe(1);
+    expect(pageCount(8, 8)).toBe(1);
+    expect(pageCount(9, 8)).toBe(2);
   });
 });
