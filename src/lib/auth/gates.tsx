@@ -53,7 +53,7 @@ export function UserButton() {
           type="button"
           onClick={() =>
             void signOut().catch(() =>
-              toast.error("Sign-out failed. Your local work was kept; try again."),
+              toast.error("Sign-out failed. Your work is still on this device; try again."),
             )
           }
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline"

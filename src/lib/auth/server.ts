@@ -31,10 +31,9 @@
 import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { PostgresDialect } from "kysely";
-import { ensureDbReady, getPglite, getPgPool } from "../db";
+import { databaseConfigured, getPglite, getPgPool } from "../db";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "./email-password";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -44,11 +43,6 @@ import {
   PREVIEW_CLIENT_ID,
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
-
-// Kick (and share) PGLite bootstrap as soon as the auth server module loads.
-// The failure is logged by src/lib/db.ts; it must not become an unhandled
-// rejection that ends the process.
-void ensureDbReady().catch(() => undefined);
 
 /**
  * Preview secret must outlive module reloads: PGLite (and its session rows) is
@@ -143,8 +137,6 @@ const trustedOrigins: string[] = explicitBaseURL
       ...LOCAL_DEV_ORIGINS,
     ];
 
-const databaseUrl = env("DATABASE_URL");
-
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
 // even redirect to Google/X — the live-preview popup felt stuck on the app for
@@ -159,7 +151,7 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // SAME DB as app data, including email/password users. Both use the Better Auth
 // schema from `migrations/0001_auth.sql`. The Postgres path shares the app's
 // one pool (`getPgPool`) instead of opening a second per instance.
-const database = databaseUrl
+const database = databaseConfigured
   ? { dialect: new PostgresDialect({ pool: () => getPgPool() }), type: "postgres" as const }
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
@@ -280,11 +272,3 @@ export const auth = betterAuth({
     tanstackStartCookies(),
   ],
 });
-
-export function readSessionToken(): string | null {
-  return getCookie(SESSION_TOKEN_COOKIE) ?? null;
-}
-
-// Re-exported for convenience; the array lives in the dependency-free
-// `providers.ts` so the client can import it too.
-export { GROK_PROVIDERS } from "./providers";

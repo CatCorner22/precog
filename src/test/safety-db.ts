@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { Sql } from "@/lib/db";
 import { postgresTransaction, toSql } from "@/lib/sql-transaction";
-import { openTestDb } from "./pglite";
+import { openTestDb, SEED_USER_SQL } from "./pglite";
 
 export interface SafetyDb {
   sql: Sql;
@@ -47,10 +47,7 @@ export async function openSafetyDb(): Promise<SafetyDb> {
     pg: { exec: (text) => pool.query(text) },
     close,
     seedUser: async (id) => {
-      await pool.query(
-        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") values ($1,$1,$2,true,now(),now())`,
-        [id, `${id}@example.test`],
-      );
+      await pool.query(SEED_USER_SQL, [id, `${id}@example.test`]);
     },
   };
 }

@@ -1,7 +1,102 @@
-import { toSql, postgresTransaction, transactionScope } from "./sql-transaction";
+import { toSql, postgresTransaction } from "./sql-transaction";
+import { pgliteSql } from "./pglite-sql";
+import { validateMigrationManifest } from "../../scripts/migration-manifest.mjs";
+
+/**
+ * The app's one database, **server-only**. A real Postgres (node-postgres,
+ * `pg`) when `DATABASE_URL` is set — a deployed app or a configured sandbox,
+ * Neon or any other Postgres — otherwise an embedded PGlite (Postgres compiled
+ * to WASM) so the live preview has a working database with nothing
+ * configured. Schema comes from `migrations/*.sql` on both.
+ *
+ * Sections: the `Sql` surface and the public functions; backend selection and
+ * the production guard; the two backends; state kept across HMR; the eager
+ * bootstrap.
+ */
+
+/**
+ * Minimal shared SQL surface, satisfied by both backends. Both the
+ * tagged-template and `.query()` forms resolve to an array of row objects:
+ *
+ *   const sql = await getSql();
+ *   const rows = await sql`select * from todos where id = ${id}`; // parameterized
+ *   const rows2 = await sql.query("select * from todos where id = $1", [id]);
+ */
+export interface Sql {
+  <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
+  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
+  /** Runs all statements on one connection. Nested calls join the transaction. */
+  transaction?<T>(work: (sql: Sql) => Promise<T>): Promise<T>;
+}
+
+/**
+ * Get the shared SQL client. Memoized per module instance — safe to call per
+ * request; a failed init is not memoized, so the next call retries. Schema
+ * comes from `migrations/*.sql`, applied before the first query on the PGlite
+ * backend (production applies it at build) — define tables there, never inline
+ * in server functions.
+ */
+export function getSql(): Promise<Sql> {
+  sqlPromise ??= createSql().catch((err) => {
+    sqlPromise = null;
+    throw err;
+  });
+  return sqlPromise;
+}
+
+/**
+ * Finish the database bootstrap before the server handles traffic.
+ *
+ * - **PGlite** (preview / no `DATABASE_URL`): open the in-memory database and
+ *   apply `migrations/*.sql`. Idempotent — concurrent callers share one promise.
+ * - **Postgres**: no-op (the pool is created lazily on first query).
+ *
+ * Vite `configureServer` awaits this at dev startup; importing this module
+ * starts it in production (see the bottom of the file).
+ */
+export function ensureDbReady(): Promise<void> {
+  if (dbSource !== "pglite" || PRODUCTION_WITHOUT_DATABASE) return Promise.resolve();
+  return getSql().then(() => undefined);
+}
+
+/**
+ * The one node-postgres pool of this process, shared by app queries and Better
+ * Auth (see `@/lib/auth/server`). Small and short-lived: each warm serverless
+ * instance keeps its own pool, so a large default (10) multiplied by instances
+ * and by two pools exhausts the database.
+ */
+export function getPgPool(): Promise<import("pg").Pool> {
+  if (dbSource !== "postgres") {
+    return Promise.reject(
+      new Error("getPgPool() needs DATABASE_URL (the PGLite fallback has no pool)"),
+    );
+  }
+  state.__pgPoolPromise__ ??= createPool().catch((err) => {
+    state.__pgPoolPromise__ = undefined;
+    throw err;
+  });
+  return state.__pgPoolPromise__;
+}
+
+/**
+ * The shared PGlite instance (preview only), with `migrations/*.sql` applied.
+ * Lets Better Auth persist to the SAME embedded database as app data (via a
+ * Kysely dialect). Throws when `DATABASE_URL` is set.
+ */
+export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite> {
+  if (dbSource !== "pglite") {
+    throw new Error("getPglite() is only available on the PGLite fallback (no DATABASE_URL)");
+  }
+  await getSql();
+  const pg = await state.__pgliteInstance__;
+  if (!pg) throw new Error("PGLite instance failed to initialize");
+  return pg;
+}
+
+// ── Backend selection and the production guard ───────────────────────────────
 
 /** Which database backend is active. */
-type DbSource = "neon" | "pglite";
+type DbSource = "postgres" | "pglite";
 
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
@@ -9,12 +104,12 @@ const rawDatabaseUrl = typeof process !== "undefined" ? process.env.DATABASE_URL
 const databaseUrl = rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 
 /**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
- * the app has a working database even with nothing configured — the live preview
- * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
+ * True when a real database is configured (`DATABASE_URL` set and not blank).
+ * The one place that decides it: auth and the coach guard import this.
  */
-const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
+export const databaseConfigured = databaseUrl !== undefined;
+
+const dbSource: DbSource = databaseConfigured ? "postgres" : "pglite";
 
 /**
  * Production never falls back to the in-memory database: every cold start
@@ -31,41 +126,27 @@ const PRODUCTION_WITHOUT_DATABASE_MESSAGE =
 
 if (PRODUCTION_WITHOUT_DATABASE) console.error(`[db] ${PRODUCTION_WITHOUT_DATABASE_MESSAGE}`);
 
-/**
- * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
- * tagged-template and `.query()` forms resolve to an array of row objects:
- *
- *   const sql = await getSql();
- *   const rows = await sql`select * from todos where id = ${id}`; // parameterized
- *   const rows2 = await sql.query("select * from todos where id = $1", [id]);
- */
-export interface Sql {
-  <T = Record<string, unknown>>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
-  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
-  /** Runs all statements on one connection. Nested calls join the transaction. */
-  transaction?<T>(work: (sql: Sql) => Promise<T>): Promise<T>;
+let sqlPromise: Promise<Sql> | null = null;
+
+async function createSql(): Promise<Sql> {
+  if (typeof window !== "undefined") {
+    throw new Error(
+      "@/lib/db is server-only — call getSql() from a createServerFn handler " +
+        "or a server route loader, never from client code.",
+    );
+  }
+  if (PRODUCTION_WITHOUT_DATABASE) throw new Error(PRODUCTION_WITHOUT_DATABASE_MESSAGE);
+  return dbSource === "postgres" ? createPostgresSql() : createPgliteSql();
 }
 
-/**
- * Init state lives on globalThis as promises: dev HMR creates new instances of
- * this module, and two instances racing module-level state would open a second
- * pool or run two concurrent PGLite migration passes (whose duplicate
- * `_migrations` insert rejects — and would get memoized, poisoning every later
- * `getSql()`). A failed init clears its slot so the next call retries.
- */
-const globalRef = globalThis as typeof globalThis & {
-  __pgPoolPromise__?: Promise<import("pg").Pool>;
-  __pgSqlPromise__?: Promise<Sql>;
-  __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
-  __pgliteMigrateChain__?: Promise<void>;
-};
+// ── The two backends ─────────────────────────────────────────────────────────
 
 /**
- * Result-type parity: Postgres sends every value as text plus a type OID — the
- * JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
- * int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
- * JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
- * production return identical, JSON-safe shapes:
+ * Result-type parity: Postgres sends every value as text plus a type OID, and
+ * the JS value is the driver's parsing choice. pg returns int8 as a string and
+ * date as a local-midnight Date; PGlite 0.5 returns int8 as a number and date
+ * as a UTC Date. Both backends are pinned here so preview and production
+ * return identical shapes whatever the driver defaults:
  *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
  *                                   `::text` if you ever need huge integers)
  *   date                         -> 'YYYY-MM-DD' string
@@ -77,58 +158,40 @@ const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
 const identity = (v: string) => v;
 
+/** Fail fast instead of holding a request until the platform kills it. */
 const CONNECT_TIMEOUT_MS = 10_000;
 const STATEMENT_TIMEOUT_MS = 30_000;
 
-/**
- * The one node-postgres pool of this process, shared by app queries and Better
- * Auth (see `@/lib/auth/server`). Small and short-lived: each warm serverless
- * instance keeps its own pool, so a large default (10) multiplied by instances
- * and by two pools exhausts the database.
- */
-export function getPgPool(): Promise<import("pg").Pool> {
-  if (dbSource !== "neon") {
-    return Promise.reject(
-      new Error("getPgPool() needs DATABASE_URL (the PGLite fallback has no pool)"),
-    );
-  }
-  globalRef.__pgPoolPromise__ ??= (async () => {
-    // Regular Postgres driver: node-postgres (`pg`) — works directly with Neon's
-    // pooled endpoint. Imported on demand so it never loads on the PGLite path.
-    const { Pool, types } = await import("pg");
-    types.setTypeParser(OID_INT8, Number);
-    types.setTypeParser(OID_DATE, identity);
-    types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({
-      connectionString: databaseUrl,
-      max: 4,
-      idleTimeoutMillis: 10_000,
-      allowExitOnIdle: true,
-      // Fail fast instead of holding the request until the platform kills it:
-      // a connect (or a wait for a free slot) that takes longer than this, or a
-      // statement that runs longer than that, rejects with a clear error.
-      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
-      statement_timeout: STATEMENT_TIMEOUT_MS,
-    });
-    // The database closes idle connections (compute suspend, pooler restart).
-    // pg-pool reports that as an 'error' event on the pool; with no listener
-    // Node throws it as an uncaught exception and the whole process dies.
-    pool.on("error", (err) => {
-      console.error("[db] idle connection error:", err.message);
-      void import("./observability/report.server")
-        .then(({ reportServerError }) => reportServerError(err, "pg-pool"))
-        .catch(() => undefined);
-    });
-    return pool;
-  })().catch((err) => {
-    globalRef.__pgPoolPromise__ = undefined;
-    throw err;
+async function createPool(): Promise<import("pg").Pool> {
+  // Imported on demand so `pg` never loads on the PGLite path.
+  const { Pool, types } = await import("pg");
+  types.setTypeParser(OID_INT8, Number);
+  types.setTypeParser(OID_DATE, identity);
+  types.setTypeParser(OID_INTERVAL, identity);
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 4,
+    idleTimeoutMillis: 10_000,
+    allowExitOnIdle: true,
+    // A connect (or a wait for a free slot) longer than this, or a statement
+    // that runs longer than that, rejects with a clear error.
+    connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+    statement_timeout: STATEMENT_TIMEOUT_MS,
   });
-  return globalRef.__pgPoolPromise__;
+  // The database closes idle connections (compute suspend, pooler restart).
+  // pg-pool reports that as an 'error' event on the pool; with no listener
+  // Node throws it as an uncaught exception and the whole process dies.
+  pool.on("error", (err) => {
+    console.error("[db] idle connection error:", err.message);
+    void import("./observability/report.server")
+      .then(({ reportServerError }) => reportServerError(err, "pg-pool"))
+      .catch(() => undefined);
+  });
+  return pool;
 }
 
-function createNeonSql(): Promise<Sql> {
-  globalRef.__pgSqlPromise__ ??= (async () => {
+function createPostgresSql(): Promise<Sql> {
+  state.__pgSqlPromise__ ??= (async () => {
     const pool = await getPgPool();
     const sql = toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
@@ -137,149 +200,112 @@ function createNeonSql(): Promise<Sql> {
     sql.transaction = (work) => postgresTransaction(pool, work);
     return sql;
   })().catch((err) => {
-    globalRef.__pgSqlPromise__ = undefined;
+    state.__pgSqlPromise__ = undefined;
     throw err;
   });
-  return globalRef.__pgSqlPromise__;
+  return state.__pgSqlPromise__;
 }
 
 async function createPgliteSql(): Promise<Sql> {
-  // Embedded Postgres, imported on demand so it never loads on the Neon path.
   // One in-memory instance per process, shared across HMR module instances, so
   // data survives source edits (it resets on dev-server restart).
-  globalRef.__pgliteInstance__ ??= (async () => {
-    const { PGlite } = await import("@electric-sql/pglite");
-    const pg = new PGlite({
-      parsers: {
-        [OID_INT8]: Number,
-        [OID_DATE]: identity,
-        [OID_INTERVAL]: identity,
-      },
-    });
-    await pg.waitReady;
-    await pg.exec(
-      "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
-    );
-    return pg;
-  })().catch((err) => {
-    globalRef.__pgliteInstance__ = undefined;
+  state.__pgliteInstance__ ??= openPglite().catch((err) => {
+    state.__pgliteInstance__ = undefined;
     throw err;
   });
-  const pg = await globalRef.__pgliteInstance__;
-
-  // Apply migrations/ (the single schema source) so preview matches production.
-  // SQL is inlined by the bundler via import.meta.glob (no runtime fs); applied
-  // files are tracked in _migrations. Runs once per module instance — so an HMR
-  // reload after adding a migration file applies it live — with passes
-  // serialized on a global chain so concurrent callers never double-apply.
-  const migrate = async (): Promise<void> => {
-    const migrations = import.meta.glob("/migrations/*.sql", {
-      query: "?raw",
-      import: "default",
-      eager: true,
-    }) as Record<string, string>;
-    const doneRows = await pg.query<{ name: string }>("select name from _migrations");
-    const done = new Set(doneRows.rows.map((r) => r.name));
-    for (const [path, text] of Object.entries(migrations).sort(([a], [b]) => a.localeCompare(b))) {
-      const name = path.split("/").pop() as string;
-      if (done.has(name)) continue;
-      // Apply + record atomically (parity with scripts/migrate.mjs) so a failed
-      // statement can't leave a file half-applied but untracked.
-      await pg.transaction(async (tx) => {
-        await tx.exec(text);
-        await tx.query("insert into _migrations (name) values ($1)", [name]);
-      });
-    }
-  };
-  const pass = (globalRef.__pgliteMigrateChain__ ?? Promise.resolve())
+  const pg = await state.__pgliteInstance__;
+  // Runs once per module instance — so an HMR reload after adding a migration
+  // file applies it live — with passes serialized on a global chain so
+  // concurrent callers never double-apply.
+  const pass = (state.__pgliteMigrateChain__ ?? Promise.resolve())
     .catch(() => undefined) // an earlier failed pass must not wedge the chain
-    .then(migrate);
-  globalRef.__pgliteMigrateChain__ = pass;
+    .then(() => applyMigrations(pg));
+  state.__pgliteMigrateChain__ = pass;
   await pass;
+  return pgliteSql(pg);
+}
 
-  const sql = toSql(async <T>(text: string, params: unknown[]) => {
-    const result = await pg.query<T>(text, params);
-    return result.rows;
+async function openPglite(): Promise<import("@electric-sql/pglite").PGlite> {
+  // Imported on demand so PGlite never loads on the Postgres path.
+  const { PGlite } = await import("@electric-sql/pglite");
+  const pg = new PGlite({
+    parsers: {
+      [OID_INT8]: Number,
+      [OID_DATE]: identity,
+      [OID_INTERVAL]: identity,
+    },
   });
-  sql.transaction = (work) =>
-    pg.transaction((tx) =>
-      transactionScope(
-        async <T>(text: string, params: unknown[]) => (await tx.query<T>(text, params)).rows,
-        work,
-      ),
-    );
-  return sql;
-}
-
-let sqlPromise: Promise<Sql> | null = null;
-
-async function createSql(): Promise<Sql> {
-  if (typeof window !== "undefined") {
-    throw new Error(
-      "@/lib/db is server-only — call getSql() from a createServerFn handler " +
-        "or a server route loader, never from client code.",
-    );
-  }
-  if (PRODUCTION_WITHOUT_DATABASE) throw new Error(PRODUCTION_WITHOUT_DATABASE_MESSAGE);
-  return dbSource === "neon" ? createNeonSql() : createPgliteSql();
-}
-
-/**
- * Get the shared, **server-only** SQL client. Neon when `DATABASE_URL` is set,
- * otherwise the local PGLite fallback. Memoized — safe to call per request.
- *
- * Schema comes from `migrations/*.sql`, auto-applied before the first query on
- * both backends — define tables there, never inline in server functions.
- */
-export function getSql(): Promise<Sql> {
-  sqlPromise ??= createSql().catch((err) => {
-    sqlPromise = null; // don't memoize failures — let the next call retry
-    throw err;
-  });
-  return sqlPromise;
-}
-
-/**
- * The shared PGLite instance (preview only), with `migrations/*.sql` applied.
- * Lets Better Auth persist to the SAME embedded DB as app data in preview (via a
- * Kysely dialect). Throws when `DATABASE_URL` is set (that path uses Neon).
- */
-export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite> {
-  if (dbSource !== "pglite") {
-    throw new Error("getPglite() is only available on the PGLite fallback (no DATABASE_URL)");
-  }
-  await getSql();
-  const pg = await globalRef.__pgliteInstance__;
-  if (!pg) throw new Error("PGLite instance failed to initialize");
+  await pg.waitReady;
+  await pg.exec(
+    "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
+  );
   return pg;
 }
 
 /**
- * Finish DB bootstrap before the server handles traffic.
- *
- * - **PGLite** (preview / no `DATABASE_URL`): open the in-memory DB and apply
- *   `migrations/*.sql`. Idempotent — concurrent callers share one promise.
- * - **Neon**: no-op (pool is created lazily on first query).
- *
- * Vite `configureServer` awaits this at dev startup; production imports of this
- * module kick it off immediately (see bottom of file).
+ * Apply migrations/ (the single schema source) so the preview matches
+ * production. The SQL is inlined by the bundler via import.meta.glob (no
+ * runtime fs) and checked against the same manifest rules the production
+ * runner enforces; applied files are tracked in `_migrations`.
  */
-export function ensureDbReady(): Promise<void> {
-  if (dbSource !== "pglite" || PRODUCTION_WITHOUT_DATABASE) return Promise.resolve();
-  return getSql().then(() => undefined);
+async function applyMigrations(pg: import("@electric-sql/pglite").PGlite): Promise<void> {
+  const files = import.meta.glob("/migrations/*.sql", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }) as Record<string, string>;
+  const renamed = import.meta.glob("/migrations/renamed.json", {
+    import: "default",
+    eager: true,
+  }) as Record<string, unknown>;
+  const sources = new Map(
+    Object.entries(files).map(([path, text]) => [path.split("/").pop() as string, text]),
+  );
+  const names = [...sources.keys()].sort();
+  validateMigrationManifest(names, Object.values(renamed)[0] ?? {});
+
+  const doneRows = await pg.query<{ name: string }>("select name from _migrations");
+  const done = new Set(doneRows.rows.map((r) => r.name));
+  for (const name of names) {
+    if (done.has(name)) continue;
+    // Apply + record atomically (parity with scripts/migrate-core.mjs) so a
+    // failed statement can't leave a file half-applied but untracked.
+    await pg.transaction(async (tx) => {
+      await tx.exec(sources.get(name) as string);
+      await tx.query("insert into _migrations (name) values ($1)", [name]);
+    });
+  }
 }
 
-// Server-only eager start: kick PGLite bootstrap as soon as this module loads in
-// Node. Client bundles never hit this path (`getSql` throws in the browser).
-const globalBoot = globalThis as typeof globalThis & {
+// ── State kept across HMR ────────────────────────────────────────────────────
+
+/**
+ * Init state lives on globalThis as promises: dev HMR creates new instances of
+ * this module, and two instances racing module-level state would open a second
+ * pool or run two concurrent PGLite migration passes (whose duplicate
+ * `_migrations` insert rejects — and would get memoized, poisoning every later
+ * `getSql()`). A failed init clears its slot so the next call retries. The
+ * slot names are stable so a running dev server keeps its database across an
+ * edit of this file.
+ */
+const state = globalThis as typeof globalThis & {
+  __pgPoolPromise__?: Promise<import("pg").Pool>;
+  __pgSqlPromise__?: Promise<Sql>;
+  __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
+  __pgliteMigrateChain__?: Promise<void>;
   __pgBootstrapPromise__?: Promise<void>;
 };
+
+// ── Eager bootstrap ──────────────────────────────────────────────────────────
+
+// Importing this module in Node is what starts the PGlite bootstrap in
+// production and for every server module that imports it (auth included).
+// Client bundles never hit this path (`getSql` throws in the browser). Logged,
+// not rethrown: an unhandled rejection here would end the whole process. The
+// next getSql() call retries and surfaces the error to that request alone.
 if (typeof window === "undefined" && dbSource === "pglite" && !PRODUCTION_WITHOUT_DATABASE) {
-  // Logged, not rethrown: an unhandled rejection here would end the whole
-  // process, taking every request with it. The next getSql() call retries the
-  // bootstrap and surfaces the error to that request alone.
-  globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
-    globalBoot.__pgBootstrapPromise__ = undefined;
+  state.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
+    state.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);
   });
 }

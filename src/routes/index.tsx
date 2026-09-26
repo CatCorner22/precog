@@ -36,7 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
-import { AccountMenu } from "@/components/precog/account-menu";
+import { AccountDataControls } from "@/components/precog/account-menu";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
@@ -656,7 +656,7 @@ function Home() {
                   </SignedOut>
                   <SignedIn>
                     <UserButton />
-                    <AccountMenu />
+                    <AccountDataControls />
                   </SignedIn>
                 </>
               )}
