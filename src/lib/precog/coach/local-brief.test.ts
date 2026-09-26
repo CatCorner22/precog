@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { runLocalAgentLoop } from "../llm/agent-loop";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
+import { withDecision } from "../profile-actions";
+import { journalEntry } from "@/components/precog/pioneer-coach-parts";
 import {
   DEFAULT_COACH_QUESTION,
   fallbackBrief,
@@ -96,7 +98,24 @@ describe("local advisor brief", () => {
     expect(asked.markdown).toContain("## Your question");
     expect(asked.markdown).toMatch(/If Jordan Blake \(Front Desk Lead\) is away or leaves/);
     expect(asked.frontierNextMove).not.toBe(generic.frontierNextMove);
-    expect(asked.decisions[0].link?.tab).toBe("knowledge");
+    // The move carries its register link, so a Journal entry logged from it is
+    // followed up next time instead of recommended again.
+    expect(asked.decisions[0].link).toMatchObject({ tab: "knowledge", step: "cover" });
+    expect(asked.decisions[0].link?.id).toBeTruthy();
+    expect(asked.decisions[0].link?.personId).toBeTruthy();
+  });
+
+  it("follows up a cross-training move logged from the brief instead of recommending it again", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const q = "If my front desk lead leaves, what breaks first?";
+    const first = localBrief(q, { profile: sample, question: q }, sample).brief.decisions[0];
+    expect(first.action).toMatch(/^Cross-train /);
+    const now = new Date();
+    const logged = withDecision(sample, journalEntry(first, now), "d-coach", now);
+    const next = localBrief(q, { profile: logged, question: q }, logged).brief;
+    const actions = next.decisions.map((d) => d.action);
+    expect(actions).not.toContain(first.action);
+    expect(actions.some((a) => a.startsWith("In progress:"))).toBe(true);
   });
 
   it("matches conflict questions on whole words, and the default question on purpose", () => {

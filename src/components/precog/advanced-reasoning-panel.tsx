@@ -29,7 +29,7 @@ export function AdvancedReasoningPanel() {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Lever ordering</Badge>
+          <Badge variant="accent">Order of fixes</Badge>
           <Badge variant="primary">This app&rsquo;s model</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
