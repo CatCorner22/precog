@@ -47,13 +47,18 @@ describe("scheme maps", () => {
     for (const rule of Object.keys(RULE_SCHEMES)) expect(RULE_IDS.has(rule), rule).toBe(true);
   });
 
-  it("map every duty-family pairing the detector can emit", () => {
+  it("map exactly the duty-family pairings the detector can emit", () => {
+    const emitted = new Set<string>();
     for (const [from, row] of Object.entries(FAMILY_CONFLICT_MATRIX)) {
       for (const [to, conflicts] of Object.entries(row)) {
         if (!conflicts) continue;
         const key = [from, to].sort().join("-");
+        emitted.add(key);
         expect(FAMILY_SCHEMES[key]?.length ?? 0, `family pairing ${key}`).toBeGreaterThan(0);
       }
+    }
+    for (const key of Object.keys(FAMILY_SCHEMES)) {
+      expect(emitted.has(key), `${key} is never emitted`).toBe(true);
     }
   });
 });

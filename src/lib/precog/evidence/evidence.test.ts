@@ -10,26 +10,24 @@ import {
   sectorPhrase,
   CASE_LIBRARY,
   CONTROL_CATALOG,
-  caseById,
   caseDurationPhrase,
   caseForRule,
-  casesCitingSodRules,
-  casesForSector,
   casesForControl,
   casesForSodRules,
   citingCaseStats,
   detectionBreakdown,
   durationPhrase,
   isOwnSector,
-  observedDurationMonths,
   observedLossRange,
+  RULE_SCHEMES,
   recommendedStepsForRules,
-  schemesForSodRules,
   tenureExamples,
-  sectorForIndustry,
   sectorsForIndustry,
 } from "./index";
 import type { CaseStudy } from "./types";
+
+const caseById = (id: string) => CASE_LIBRARY.find((c) => c.id === id);
+const casesCitingSodRules = (ruleIds: readonly string[]) => citingCaseStats(ruleIds).cases;
 
 describe("case library integrity", () => {
   const ruleIds = new Set(CONFLICT_RULES.map((r) => r.id));
@@ -73,13 +71,16 @@ describe("case library integrity", () => {
 
   it("gives every industry a sector with real cases", () => {
     for (const { id } of INDUSTRIES) {
-      expect(casesForSector(sectorForIndustry(id)).length, id).toBeGreaterThan(0);
+      const sectors = sectorsForIndustry(id);
+      expect(
+        CASE_LIBRARY.some((c) => sectors.includes(c.sector)),
+        id,
+      ).toBe(true);
     }
   });
 
   it("counts medical cases as the dental template's own line of business", () => {
     expect(sectorsForIndustry("dental")).toEqual(["dental", "medical", "veterinary"]);
-    expect(sectorForIndustry("dental")).toBe("dental");
     const medical = CASE_LIBRARY.find((c) => c.sector === "medical");
     const retail = CASE_LIBRARY.find((c) => c.sector === "retail");
     expect(medical && isOwnSector(medical, "dental")).toBe(true);
@@ -164,6 +165,19 @@ describe("observedLossRange", () => {
     const mk = (n: number) => ({ ...CASE_LIBRARY[0], id: `c${n}`, lossUsd: n });
     expect(observedLossRange([mk(30), mk(10), mk(20)])!.median).toBe(20);
     expect(observedLossRange([mk(40), mk(10), mk(20), mk(30)])!.median).toBe(25);
+  });
+
+  it("flags the range when any counted amount is a floor", () => {
+    const mk = (n: number, lossIsFloor: boolean) => ({
+      ...CASE_LIBRARY[0],
+      id: `f${n}`,
+      lossUsd: n,
+      lossIsFloor,
+    });
+    expect(observedLossRange([mk(10, false), mk(20, false)])!.anyFloor).toBe(false);
+    expect(observedLossRange([mk(10, false), mk(20, true)])!.anyFloor).toBe(true);
+    // A zero placeholder is not counted, so it cannot make the range a floor.
+    expect(observedLossRange([mk(10, false), mk(0, true)])!.anyFloor).toBe(false);
   });
 });
 
@@ -378,13 +392,14 @@ describe("casesCitingSodRules", () => {
 
 describe("citingCaseStats", () => {
   it("counts and takes the median over citing cases only, never over related schemes", () => {
-    const rules = ["rule-writeoff", "family-custody-recording"];
+    const rules = ["rule-collect-post", "family-custody-recording"];
     const stats = citingCaseStats(rules);
     const citing = casesCitingSodRules(rules);
     expect(stats.count).toBe(citing.length);
     expect(stats.cases.map((c) => c.id)).toEqual(citing.map((c) => c.id));
+    expect(stats.count).toBeGreaterThan(0);
     expect(stats.loss).toEqual(observedLossRange(citing));
-    expect(stats.duration).toEqual(observedDurationMonths(citing));
+    expect(stats.duration?.n ?? 0).toBe(citing.filter((c) => (c.durationMonths ?? 0) > 0).length);
     expect(stats.detection).toEqual(detectionBreakdown(citing));
     // The broader match carries scheme-only cases that must not enter the count.
     expect(casesForSodRules(rules).length).toBeGreaterThan(stats.count);
@@ -431,6 +446,12 @@ describe("durationPhrase", () => {
     expect(durationPhrase(18)).toBe("1.5 years");
     expect(durationPhrase(132)).toBe("11 years");
     expect(durationPhrase(200)).toBe("16.7 years");
+  });
+
+  it("rounds months before choosing between months and years", () => {
+    expect(durationPhrase(11.6)).toBe("1 year");
+    expect(durationPhrase(11.4)).toBe("11 months");
+    expect(durationPhrase(0.4)).toBe("under a month");
   });
 });
 
@@ -502,7 +523,7 @@ describe("rule attachments", () => {
       "case-st-albans-dental-billing",
       "case-void-no-sale-counter",
     ]);
-    expect(schemesForSodRules(["rule-collect-adjust"])).toContain("skimming");
+    expect(RULE_SCHEMES["rule-collect-adjust"]).toContain("skimming");
     // No record shows a collector approving write-offs or issuing refunds.
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-writeoff")).toBe(false);
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-refund")).toBe(false);
@@ -524,7 +545,7 @@ describe("rule attachments", () => {
       "case-bellingham-assistant-manager",
       "case-hutchinson-controller",
     ]);
-    expect(schemesForSodRules(["rule-card-review"])).toEqual(["expense-reimbursement"]);
+    expect(RULE_SCHEMES["rule-card-review"]).toEqual(["expense-reimbursement"]);
     // A dentist reads the Bellevue practice card case as their own line of business.
     const pick = caseForRule("rule-card-review", "dental")!;
     expect(pick.citesRule).toBe(true);
