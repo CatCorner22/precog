@@ -152,12 +152,30 @@ export function IndustryOnboarding() {
     // Once per setup: later edits are the owner's.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, workspace.local]);
+  // The draft is written a moment after the owner stops typing, not on every
+  // keystroke; a draft still waiting is written when setup closes.
+  const pendingDraft = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!restored) return;
-    setDraftSaved(
-      writeSetupDraft({ step, selected, businessName, rows, paste, businessId }, workspace.session),
-    );
+    const write = () => {
+      pendingDraft.current = null;
+      setDraftSaved(
+        writeSetupDraft(
+          { step, selected, businessName, rows, paste, businessId },
+          workspace.session,
+        ),
+      );
+    };
+    pendingDraft.current = write;
+    const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
+    return () => window.clearTimeout(timer);
   }, [restored, step, selected, businessName, rows, paste, businessId, workspace.session]);
+  useEffect(() => () => pendingDraft.current?.(), []);
+  /** Clears the draft now, and any write still waiting, when setup ends. */
+  function clearDraft() {
+    pendingDraft.current = null;
+    writeSetupDraft(null, workspace.session);
+  }
 
   // Each step opens at its question, with focus on it: the dialog is not
   // scrolled to a button further down, and a screen reader starts with the
@@ -253,7 +271,7 @@ export function IndustryOnboarding() {
         return;
       }
     } else {
-      writeSetupDraft(null, workspace.session);
+      clearDraft();
     }
     completeOnboarding(selected);
   }
@@ -267,7 +285,7 @@ export function IndustryOnboarding() {
 
   // Rows that count toward the limit: named, or with duties ticked. Blank
   // rows give way when people are added.
-  const rowsInUse = rowsKeptForAdding(rows, false).kept.length;
+  const rowsInUse = useMemo(() => rowsKeptForAdding(rows, false).kept.length, [rows]);
   const tableFull = rowsInUse >= OWN_TEAM_MAX;
 
   /**
@@ -478,7 +496,7 @@ export function IndustryOnboarding() {
     const people = buildOwnTeam(rows, selected);
     if (people.length === 0) return;
     const onLeave = onLeavePersonIds(rows);
-    writeSetupDraft(null, workspace.session);
+    clearDraft();
     startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
@@ -525,10 +543,14 @@ export function IndustryOnboarding() {
 
   const titleCls = "text-xl font-semibold tracking-tight outline-hidden sm:text-2xl";
 
-  const attentionIndices = new Set(
-    rows.flatMap((row, index) =>
-      setupRowNeedsAttention(row, typedSeat(row, selected)) ? [index] : [],
-    ),
+  const attentionIndices = useMemo(
+    () =>
+      new Set(
+        rows.flatMap((row, index) =>
+          setupRowNeedsAttention(row, typedSeat(row, selected)) ? [index] : [],
+        ),
+      ),
+    [rows, selected],
   );
 
   /** Arrow keys, Home and End move the choice between lines of business, as in any radio group. */
@@ -1180,6 +1202,9 @@ export function IndustryOnboarding() {
     </div>
   );
 }
+
+/** How long the draft waits after the last edit before it is written to this tab. */
+const DRAFT_WRITE_DELAY_MS = 250;
 
 /** How many prosecuted cases the library holds for each line of business; the general template counts the whole library. */
 const CASE_PHRASE = Object.fromEntries(
