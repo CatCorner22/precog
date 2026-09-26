@@ -8,8 +8,8 @@ import type {
   Person,
 } from "../types";
 import { isCalendarDate, localDateKey } from "../dates";
-import { csvCell, parseRows, normalizeHeader } from "./csv";
-import { slug, nameKey } from "../text";
+import { csvCell, normalizeHeader, parseRows, sniffDelimiter } from "./csv";
+import { nameKey, slug, stripInvisibleControls } from "../text";
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -128,7 +128,7 @@ export function parseRegisterCsv(
   opts: { maxRows?: number; today?: string } = {},
 ): RegisterImportResult {
   const today = opts.today ?? localDateKey(new Date());
-  const rows = parseRows(text);
+  const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
   const issues: RegisterImportIssue[] = [];
   const header = rows[0] ?? [];
   const columns = new Map<(typeof REGISTER_CSV_COLUMNS)[number], number>();

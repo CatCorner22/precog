@@ -131,6 +131,13 @@ describe("parsePeopleCsv", () => {
     expect(removedPeopleImpact(dental, [])).toEqual({ assignments: 0, processOwnerships: 0 });
   });
 
+  it("refuses a file far larger than a team list before reading it", () => {
+    const huge = `name,role\n${"Ana Ruiz,Owner\n".repeat(400_000)}`;
+    const result = parsePeopleCsv(huge, dental);
+    expect(result.people).toEqual([]);
+    expect(result.issues[0].message).toMatch(/far more than a team list/);
+  });
+
   it("truncates rows over maxRows and counts the dropped rows", () => {
     const result = parsePeopleCsv("name\nOne\nTwo\nThree", dental, { maxRows: 2 });
 

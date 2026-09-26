@@ -210,14 +210,25 @@ export function IndustryOnboarding() {
     }
   }
 
-  /** Drops the team restored from an earlier setup and starts this one fresh. */
+  /**
+   * Drops the team restored from an earlier setup and starts this one fresh:
+   * every per-setup state goes, including the people an earlier paste left
+   * out, so none of them becomes a leaver check for this team.
+   */
   function startOver() {
     setRows(firstRowForIndustry(freshRows(), selected));
     setPaste("");
+    setPasteOpen(false);
     setPasteNote("");
+    setPasteIssues([]);
+    setLeftOut([]);
     setQuickNote("");
     setGridStatus(null);
-    setPasteIssues([]);
+    setBulkTitle("");
+    setBulkDuty("");
+    setReviewOnly(false);
+    setReviewRowIds(new Set());
+    setFinishNote("");
     setBusinessName(typedName);
     setRestoredEarlier(false);
   }

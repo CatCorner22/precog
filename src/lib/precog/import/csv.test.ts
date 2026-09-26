@@ -9,6 +9,7 @@ describe("sniffDelimiter", () => {
     expect(sniffDelimiter("Name | Title | Department")).toBe("|");
     expect(sniffDelimiter("Name|Title|Department")).toBe("|");
     expect(sniffDelimiter("Nom;Prénom;Poste")).toBe(";");
+    expect(sniffDelimiter("Name|Title\nAna Ruiz|Owner")).toBe("|");
     expect(sniffDelimiter("Name,Title")).toBe(",");
     expect(sniffDelimiter("Name")).toBe(",");
     expect(sniffDelimiter("Worker Report - as of 09/01/2026\n\nEmployee ID\tWorker")).toBe(",");
@@ -24,6 +25,13 @@ describe("parseRows", () => {
     expect(parseRows('"Ruiz, Ana",Owner\n"Ochoa, Ben",Bookkeeper')).toEqual([
       ["Ruiz, Ana", "Owner"],
       ["Ochoa, Ben", "Bookkeeper"],
+    ]);
+  });
+
+  it("reads a quoted cell typed after a space as quoted", () => {
+    expect(parseRows(' "Ruiz, Ana",Owner\nAna Ruiz, "Front Desk, Evenings"')).toEqual([
+      ["Ruiz, Ana", "Owner"],
+      ["Ana Ruiz", "Front Desk, Evenings"],
     ]);
   });
 });

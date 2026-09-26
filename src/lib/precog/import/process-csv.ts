@@ -14,8 +14,8 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
-import { csvCell, parseRows, normalizeHeader } from "./csv";
-import { slug, nameKey } from "../text";
+import { csvCell, normalizeHeader, parseRows, sniffDelimiter } from "./csv";
+import { nameKey, slug, stripInvisibleControls } from "../text";
 
 interface ProcessImportIssue {
   /** 1-based data row (0 = whole file). */
@@ -121,7 +121,7 @@ export function parseProcessCsv(
   tpl: Pick<IndustryTemplate, "processes" | "people" | "controls">,
   opts: { mode?: "merge" | "replace"; maxRows?: number } = {},
 ): ProcessImportResult {
-  const rows = parseRows(text);
+  const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
   const issues: ProcessImportIssue[] = [];
   const empty = (msg: string): ProcessImportResult => ({
     processes: tpl.processes,
@@ -172,7 +172,11 @@ export function parseProcessCsv(
   }
 
   // First pass: names and ids, so dependencies can point at rows further down.
+  // A row updates the process its name matches and no other: a new row
+  // whose id would repeat an existing process's id gets a suffix instead.
+  const existingIds = new Set(tpl.processes.map((p) => p.id));
   const usedIds = new Set<string>();
+  const rowExisting: (ProcessNode | undefined)[] = [];
   const rowIds: (string | null)[] = rowsToImport.map((cells, index) => {
     const rowNumber = index + 1;
     const name = cell(cells, "process").slice(0, 60);
@@ -180,17 +184,23 @@ export function parseProcessCsv(
       issues.push({ row: rowNumber, message: "Process name is required" });
       return null;
     }
-    const existing = existingByName.get(nameKey(name));
-    const baseId = existing && !usedIds.has(existing.id) ? existing.id : `proc-${slug(name)}`;
-    if (existing && usedIds.has(existing.id)) {
+    const match = existingByName.get(nameKey(name));
+    const existing = match && !usedIds.has(match.id) ? match : undefined;
+    if (match && !existing) {
       issues.push({
         row: rowNumber,
         message: `"${name}" appears more than once; later rows were imported as separate processes`,
       });
     }
+    rowExisting[index] = existing;
+    if (existing) {
+      usedIds.add(existing.id);
+      return existing.id;
+    }
+    const baseId = `proc-${slug(name) || "process"}`;
     let id = baseId;
     let suffix = 2;
-    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+    while (usedIds.has(id) || existingIds.has(id)) id = `${baseId}-${suffix++}`;
     usedIds.add(id);
     return id;
   });
@@ -216,7 +226,7 @@ export function parseProcessCsv(
     if (!id) return;
     const rowNumber = index + 1;
     const name = cell(cells, "process").slice(0, 60);
-    const existing = tpl.processes.find((p) => p.id === id);
+    const existing = rowExisting[index];
 
     let stage = existing?.stage;
     const stageValue = cell(cells, "stage");

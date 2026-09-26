@@ -29,7 +29,11 @@ function stripTime(value: string): string {
   );
 }
 
-/** A two-digit year above next year's two digits is last century, as Excel reads it. */
+/**
+ * A two-digit year later than next year is last century: a hire date is
+ * never further ahead than that. (Excel itself pivots at 30, reading "28" as
+ * 2028; this rule reads it as 1928 until 2027.)
+ */
 function fullYear(text: string, today: Date): number {
   if (text.length === 4) return Number(text);
   const short = Number(text);

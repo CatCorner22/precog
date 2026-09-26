@@ -219,6 +219,28 @@ describe("parseRegisterCsv", () => {
   });
 });
 
+describe("parseRegisterCsv: invisible characters and delimiters", () => {
+  const tpl = { ...dental, people, knowledge, relations: [] } as IndustryTemplate;
+
+  it("strips a right-to-left override and a zero-width space from an item name", () => {
+    const r = parseRegisterCsv("item\n\u202ERun payroll\u200B", tpl);
+    expect(r.knowledge.map((k) => [k.id, k.name])).toEqual([["k-payroll", "Run payroll"]]);
+  });
+
+  it("reads a semicolon file and a tab file", () => {
+    for (const text of [
+      "item;kind;Ana Ruiz\nRun payroll;duty;expert",
+      "item\tkind\tAna Ruiz\nRun payroll\tduty\texpert",
+    ]) {
+      const r = parseRegisterCsv(text, tpl);
+      expect(r.issues).toEqual([]);
+      expect(r.relations).toEqual([
+        { personId: "p-ana", knowledgeId: "k-payroll", level: "expert" },
+      ]);
+    }
+  });
+});
+
 describe("procedure location column", () => {
   it("reads aliases, keeps the existing location when the column is absent, and omits blanks", () => {
     const withAlias = parseRegisterCsv(

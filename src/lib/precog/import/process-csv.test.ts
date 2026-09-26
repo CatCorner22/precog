@@ -160,6 +160,45 @@ describe("parseProcessCsv", () => {
   });
 });
 
+describe("parseProcessCsv: new rows, invisible characters and delimiters", () => {
+  it("adds a new row whose name slugs to an existing id as a new process, not a rename", () => {
+    const r = parseProcessCsv("process,description\nCash,Count the drawer", tpl);
+    expect(r.updated).toEqual([]);
+    expect(r.added.map((p) => [p.id, p.name])).toEqual([["proc-cash-2", "Cash"]]);
+    const cash = r.processes.find((p) => p.id === "proc-cash");
+    expect(cash?.name).toBe("Cash handling & deposits");
+    expect(r.removed.map((p) => p.id)).toContain("proc-cash");
+    expect(r.issues).toEqual([]);
+  });
+
+  it("strips a right-to-left override and a zero-width space from a process name", () => {
+    const r = parseProcessCsv("process\n\u202EDaily deposit\u200B", tpl);
+    expect(r.added[0].name).toBe("Daily deposit");
+  });
+
+  it("reads a semicolon file and a tab file", () => {
+    for (const text of [
+      "process;description\nDaily deposit;Count the drawer",
+      "process\tdescription\nDaily deposit\tCount the drawer",
+    ]) {
+      const r = parseProcessCsv(text, tpl);
+      expect(r.issues).toEqual([]);
+      expect(r.added.map((p) => [p.name, p.description])).toEqual([
+        ["Daily deposit", "Count the drawer"],
+      ]);
+    }
+  });
+
+  it("matches an owner written with accents to the same name without them", () => {
+    const r = parseProcessCsv("process,owners\nDaily deposit,José Ruiz", {
+      ...tpl,
+      people: [{ id: "pj", name: "Jose Ruiz", role: "Front desk", active: true }],
+    });
+    expect(r.issues).toEqual([]);
+    expect(r.added[0].ownerPersonIds).toEqual(["pj"]);
+  });
+});
+
 describe("processesToCsv", () => {
   it("writes names instead of ids and escapes commas", () => {
     const csv = processesToCsv(tpl.processes, tpl.people, tpl.controls);

@@ -367,7 +367,15 @@ function repeatOf(
 function addPosition(
   context: ImportContext,
   seat: EmployeeSeat,
-  position: { title: string; role: string; duties: readonly string[]; active: boolean },
+  position: {
+    title: string;
+    role: string;
+    duties: readonly string[];
+    active: boolean;
+    lastDay?: string;
+    tenureYears?: number;
+    department: string;
+  },
   employeeId: string,
   row: number,
 ): void {
@@ -383,9 +391,24 @@ function addPosition(
   }
   const earlierDuties = person.entitlements ?? context.tpl.roleTemplates[person.role] ?? [];
   if (!person.active) {
+    // The active position replaces the inactive one, with its own last day,
+    // tenure and department: the inactive position's termination date is
+    // not this person's last day.
+    const endedRole = person.role;
+    const endedDay = person.lastDay;
     person.active = true;
     person.role = tidyCut(position.role, MAX_ROLE_LENGTH);
     person.entitlements = position.duties.length ? [...position.duties] : undefined;
+    if (position.lastDay) person.lastDay = position.lastDay;
+    else delete person.lastDay;
+    if (position.tenureYears !== undefined) person.tenureYears = position.tenureYears;
+    if (position.department) person.department = position.department;
+    if (endedDay && endedDay !== position.lastDay) {
+      context.issues.push({
+        row,
+        message: `${who}: the ${position.role} position is active, so the last day ${endedDay} of the inactive ${endedRole} position was not kept`,
+      });
+    }
     return;
   }
   const union = Array.from(new Set([...earlierDuties, ...position.duties]));
@@ -486,7 +509,15 @@ export function readPerson(
     addPosition(
       context,
       repeat,
-      { title: roleValue, role, duties: positionDuties, active: status.active },
+      {
+        title: roleValue,
+        role,
+        duties: positionDuties,
+        active: status.active,
+        lastDay,
+        tenureYears,
+        department,
+      },
       employeeId,
       row,
     );

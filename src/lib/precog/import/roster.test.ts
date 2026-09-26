@@ -619,6 +619,33 @@ describe("parseRoster", () => {
     );
   });
 
+  it("clears an inactive first position's termination date when an active second position replaces it", () => {
+    const result = parseRoster(
+      "Employee ID,Employee Name,Job Title,Status,Termination Date\n8,Dee Park,Cashier,Terminated,2020-01-10\n8,Dee Park,Server,Active,",
+      general,
+      { today },
+    );
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]).toMatchObject({ name: "Dee Park", role: "Server", active: true });
+    expect(result.people[0].lastDay).toBeUndefined();
+    expect(result.issues.map((issue) => issue.message)).toContain(
+      '"Dee Park" (employee ID 8): the Server position is active, so the last day 2020-01-10 of the inactive Cashier position was not kept',
+    );
+  });
+
+  it("reads a two-column pipe table with no spaces around the pipes", () => {
+    for (const text of [
+      "Name|Title\nAna Ruiz|Owner\nBen Cole|Bookkeeper",
+      "|Name|Title|\n|---|---|\n|Ana Ruiz|Owner|\n|Ben Cole|Bookkeeper|",
+    ]) {
+      const result = parseRoster(text, general, { today });
+      expect(result.people.map((p) => [p.name, p.role])).toEqual([
+        ["Ana Ruiz", "Owner"],
+        ["Ben Cole", "Bookkeeper"],
+      ]);
+    }
+  });
+
   it("ranks title columns by specificity, skips numeric position codes, and reads duties from the standard job profile before the business title", () => {
     const sap = parseRoster(
       "Person ID External,User ID,First Name,Last Name,Position,Job Title,Department,Employment Status\n10001,aruiz,Ana,Ruiz,30001234,Owner,Leadership,Active\n10002,bochoa,Ben,Ochoa,30001235,Bookkeeper,Finance,Active\n10003,cdiaz,Cal,Diaz,30001236,Cashier,Store,Active",

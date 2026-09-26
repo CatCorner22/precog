@@ -127,11 +127,30 @@ export function addSkippedLines(
   return result;
 }
 
+/**
+ * A team file larger than this is the wrong file (a year of payroll detail,
+ * a ledger): reading it would hold the page for seconds only to keep the
+ * first 250 rows.
+ */
+const MAX_FILE_CHARACTERS = 5_000_000;
+
 export function parsePeopleCsv(
   text: string,
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: Date } = {},
 ): PeopleImportResult {
+  if (text.length > MAX_FILE_CHARACTERS) {
+    const megabytes = Math.round(text.length / 100_000) / 10;
+    return emptyResult(
+      [
+        {
+          row: 0,
+          message: `This file holds ${megabytes} MB of text, far more than a team list. Check that you picked the right file.`,
+        },
+      ],
+      [],
+    );
+  }
   const source = stripInvisibleControls(text);
   const table = locateTable(source, looksLikeRosterHeader);
   if (table) return addSkippedLines(parsePeopleRows(table.rows, tpl, opts), table.skipped);

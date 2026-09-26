@@ -33,8 +33,11 @@ export function parseRows(text: string, delimiter: Delimiter = ","): string[][] 
       }
       continue;
     }
-    if (char === '"' && field.length === 0) {
+    // A quote opens a quoted cell at its start, even after spaces typed by
+    // hand: ` "Ruiz, Ana",Owner`.
+    if (char === '"' && field.trim().length === 0) {
       quoted = true;
+      field = "";
     } else if (char === delimiter) {
       row.push(field);
       field = "";
@@ -80,11 +83,13 @@ function unguardCsvCell(value: string): string {
 
 /**
  * The delimiter the first line uses: a tab when pasted from a spreadsheet, a
- * pipe for a pipe-separated table, else a comma or semicolon.
+ * pipe for a pipe-separated table ("Name|Title", or pipes between spaces or
+ * between three or more cells even beside commas), else a comma or semicolon.
  */
 export function sniffDelimiter(text: string): Delimiter {
   const first = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
   if (first.includes("\t")) return "\t";
+  if (first.includes("|") && !first.includes(",")) return "|";
   if (/\s\|\s/.test(first) || first.split("|").length > 2) return "|";
   if (!first.includes(",") && first.includes(";")) return ";";
   return ",";
