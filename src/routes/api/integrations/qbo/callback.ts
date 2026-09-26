@@ -3,8 +3,10 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 /**
  * Intuit sends the browser back here with `code`, `state` and `realmId`. The
  * signed state names the account and business that started the connection,
- * so no session is needed; the tokens are exchanged, encrypted and stored,
- * and the browser lands on the firm workspace.
+ * and the browser finishing the flow must be signed in as that same account:
+ * otherwise anyone could hand their own connect link to a QuickBooks user
+ * and receive that user's books. The tokens are exchanged, encrypted and
+ * stored, and the browser lands on the firm workspace.
  */
 export const Route = createFileRoute("/api/integrations/qbo/callback")({
   server: {
@@ -13,14 +15,21 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         const url = new URL(request.url);
         const back = (outcome: string) =>
           redirect({ href: `/firm?quickbooks=${outcome}`, throw: false });
-        const [{ verifyState }, client, store, { getSql }, { resolveBusinessOwner }] =
-          await Promise.all([
-            import("@/lib/precog/integrations/qbo/oauth"),
-            import("@/lib/precog/integrations/qbo/client.server"),
-            import("@/lib/precog/integrations/qbo/store"),
-            import("@/lib/db"),
-            import("@/lib/precog/business-store"),
-          ]);
+        const [
+          { verifyState },
+          client,
+          store,
+          { getSql },
+          { resolveBusinessOwner },
+          { requireUserId },
+        ] = await Promise.all([
+          import("@/lib/precog/integrations/qbo/oauth"),
+          import("@/lib/precog/integrations/qbo/client.server"),
+          import("@/lib/precog/integrations/qbo/store"),
+          import("@/lib/db"),
+          import("@/lib/precog/business-store"),
+          import("@/lib/auth/verify.server"),
+        ]);
         if (!client.qboConfigured()) return back("not-configured");
         if (url.searchParams.get("error")) return back("declined");
 
@@ -28,6 +37,10 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         const code = url.searchParams.get("code");
         const realmId = url.searchParams.get("realmId");
         if (!state || !code || !realmId) return back("invalid");
+
+        const signedInAs = await requireUserId().catch(() => null);
+        if (!signedInAs) return back("signed-out");
+        if (signedInAs !== state.userId) return back("wrong-account");
 
         const sql = await getSql();
         const owner = await resolveBusinessOwner(sql, state.userId, state.businessId);
@@ -44,7 +57,6 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
             refreshTokenEnc: client.encryptSecret(tokens.refreshToken),
             accessExpiresAt: tokens.accessExpiresAt,
             refreshExpiresAt: tokens.refreshExpiresAt,
-            connectedBy: state.userId,
           });
         } catch (err) {
           const { reportServerError } = await import("@/lib/observability/report.server");

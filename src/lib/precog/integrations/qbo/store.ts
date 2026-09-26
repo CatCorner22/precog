@@ -72,18 +72,17 @@ export async function saveConnection(
     refreshTokenEnc: string;
     accessExpiresAt: string;
     refreshExpiresAt: string;
-    connectedBy: string;
   },
 ): Promise<void> {
   await sql`
     insert into integration_connections (
       user_id, business_id, provider, realm_id, access_token_enc, refresh_token_enc,
-      access_expires_at, refresh_expires_at, connected_by, connected_at, last_error
+      access_expires_at, refresh_expires_at, connected_at, last_error
     )
     values (
       ${input.ownerUserId}, ${input.businessId}, 'qbo', ${input.realmId},
       ${input.accessTokenEnc}, ${input.refreshTokenEnc},
-      ${input.accessExpiresAt}, ${input.refreshExpiresAt}, ${input.connectedBy}, now(), null
+      ${input.accessExpiresAt}, ${input.refreshExpiresAt}, now(), null
     )
     on conflict (user_id, business_id, provider) do update set
       realm_id = excluded.realm_id,
@@ -91,7 +90,6 @@ export async function saveConnection(
       refresh_token_enc = excluded.refresh_token_enc,
       access_expires_at = excluded.access_expires_at,
       refresh_expires_at = excluded.refresh_expires_at,
-      connected_by = excluded.connected_by,
       connected_at = now(),
       last_error = null
   `;

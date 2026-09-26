@@ -43,8 +43,8 @@ export async function syncConnection(
   }
 
   const [vendorBody, employeeBody] = await Promise.all([
-    query(connection.realmId, accessToken, "select * from Vendor maxresults 1000"),
-    query(connection.realmId, accessToken, "select * from Employee maxresults 1000"),
+    readList(connection.realmId, accessToken, "Vendor"),
+    readList(connection.realmId, accessToken, "Employee"),
   ]);
   const [previous] = await listSnapshots(sql, connection.ownerUserId, connection.businessId, 1);
   const current = await insertSnapshot(sql, connection.ownerUserId, connection.businessId, {
@@ -58,6 +58,36 @@ export async function syncConnection(
   const people = rows[0] ? resolveTemplate(normalizeProfile(rows[0].profile)).people : [];
   await markSynced(sql, connection.ownerUserId, connection.businessId, null);
   return diffSnapshots(previous ?? null, current, people);
+}
+
+/** Intuit's largest page. */
+const PAGE_SIZE = 1000;
+/** A safety stop: 20 pages is 20,000 names, far past a 2-50 person business. */
+const MAX_PAGES = 20;
+
+/**
+ * Every vendor or employee, active or not, page by page. QuickBooks returns
+ * only active name-list rows unless the query asks for both, and a person
+ * made inactive is exactly the release the drift has to see.
+ */
+async function readList(
+  realmId: string,
+  accessToken: string,
+  entity: "Vendor" | "Employee",
+): Promise<{ QueryResponse: Record<string, unknown[]> }> {
+  const rows: unknown[] = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const body = (await query(
+      realmId,
+      accessToken,
+      `select * from ${entity} where Active in (true, false) startposition ${page * PAGE_SIZE + 1} maxresults ${PAGE_SIZE}`,
+    )) as { QueryResponse?: Record<string, unknown> } | null;
+    const found = body?.QueryResponse?.[entity];
+    const batch = Array.isArray(found) ? found : [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return { QueryResponse: { [entity]: rows } };
 }
 
 /** The scheduled pass: every connection whose reading is stale. Errors are recorded per connection. */

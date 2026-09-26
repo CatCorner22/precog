@@ -12,7 +12,7 @@ import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
 import { NotificationSettingsPanel } from "@/components/precog/firm/notification-settings";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
@@ -55,6 +55,9 @@ const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
   declined: "The QuickBooks connection was declined.",
   invalid: "The QuickBooks connection link was not valid. Start again from this page.",
+  "signed-out": "Sign in, then connect QuickBooks again from this page.",
+  "wrong-account":
+    "Another Precog account started this QuickBooks connection, so it was not saved. Connect again from this page while signed in to your own account.",
   failed: "QuickBooks did not complete the connection. Try again.",
   "not-configured": "QuickBooks is not available on this deployment.",
 };
@@ -76,13 +79,28 @@ function FirmPage() {
 
   const own = isOwnTeam(profile);
   const metrics = useMemo(() => {
-    const openFindings = own ? detectSodConflicts(template, profile.staff).conflicts.length : 0;
+    const conflicts = own
+      ? detectSodConflicts(
+          template,
+          profile.staff,
+          sodDetectionOptions(template, profile.dualRelease),
+        ).conflicts
+      : [];
     return pilotMetrics({
       engagement: profile.engagement,
-      openFindings,
+      conflicts,
       decisions: profile.decisions,
+      industry: profile.industry,
     });
-  }, [own, template, profile.staff, profile.engagement, profile.decisions]);
+  }, [
+    own,
+    template,
+    profile.staff,
+    profile.dualRelease,
+    profile.engagement,
+    profile.decisions,
+    profile.industry,
+  ]);
 
   useEffect(() => {
     const next = advanceEngagement(profile.engagement, {
