@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useEffect, useMemo, useState } from "react";
 import {
   Calculator,
@@ -35,6 +36,7 @@ import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
 
 export function ValueProofCenter() {
+  const workspace = useWorkspace();
   const { profile } = usePracticeState();
   const businessId = profile.businessId ?? "biz_default";
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
@@ -51,7 +53,7 @@ export function ValueProofCenter() {
   useEffect(() => {
     // Each business has its own figures; a business with none starts from the
     // defaults. A stored value that is unreadable or malformed is ignored.
-    const stored = readValueProof(businessId);
+    const stored = readValueProof(businessId, workspace.local);
     const storedCase =
       stored.valueCase && typeof stored.valueCase === "object"
         ? (stored.valueCase as Partial<ValueCaseInputs> & { entered?: unknown })
@@ -60,7 +62,7 @@ export function ValueProofCenter() {
     setTyped(normalizeEnteredInputs(storedCase?.entered));
     setEvidence(normalizeValueEvidence(stored.evidence));
     setLoadedFor(businessId);
-  }, [businessId]);
+  }, [businessId, workspace.local]);
   useEffect(() => {
     const restore = (event: Event) => {
       const detail = (event as CustomEvent<{ valueCase?: unknown; evidence?: unknown }>).detail;
@@ -77,8 +79,14 @@ export function ValueProofCenter() {
   }, []);
   useEffect(() => {
     if (loadedFor !== businessId) return;
-    setKept(writeValueProof(businessId, { valueCase: { ...inputs, entered: typed }, evidence }));
-  }, [inputs, typed, evidence, loadedFor, businessId]);
+    setKept(
+      writeValueProof(
+        businessId,
+        { valueCase: { ...inputs, entered: typed }, evidence },
+        workspace.local,
+      ),
+    );
+  }, [inputs, typed, evidence, loadedFor, businessId, workspace.local]);
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
   const isDefault = (key: ValueInputKey) => !status.entered.has(key);

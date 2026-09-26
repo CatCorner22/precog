@@ -1,4 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
+import { identitySnapshot, identityUnchanged } from "./identity-change";
+import { assertExpectedAccount } from "./expected-account";
 
 /**
  * Auth middleware for server functions — the standard way to get the caller's
@@ -29,8 +31,21 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // Live preview (partitioned iframe): the session rides a bearer token, not a
     // cookie, so forward it to the server. Null when deployed (cookie auth), so
     // this is a no-op there.
+    const identity = identitySnapshot();
+    if (identity.locked) throw new Error("The account changed. Reload before continuing.");
     const { getBearerToken } = await import("./client");
-    return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
+    if (!identityUnchanged(identity))
+      throw new Error("The account changed. Reload before continuing.");
+    const result = await next({
+      sendContext: {
+        bearerToken: getBearerToken() ?? undefined,
+        expectedAccountId: identity.accountId,
+        checkAccount: true,
+      },
+    });
+    if (!identityUnchanged(identity))
+      throw new Error("The account changed. The old response was discarded.");
+    return result;
   })
   .server(async ({ next, context }) => {
     // ONLY import `*.server` modules here. This file is dual client/server
@@ -42,5 +57,6 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // Reject scripted cross-site/sibling requests before touching per-user data.
     assertSameSiteRequest();
     const userId = await requireUserId(context.bearerToken);
+    if (context.checkAccount) assertExpectedAccount(context.expectedAccountId, userId);
     return next({ context: { userId } });
   });

@@ -1,3 +1,9 @@
+import {
+  accountExitCleanup,
+  beginIdentityChange,
+  finishIdentityChange,
+  prepareAccountExit,
+} from "./identity-change";
 import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { GROK_PROVIDERS } from "./providers";
@@ -98,9 +104,14 @@ export async function signIn(
   // browsers when the opener is a cross-origin live-preview iframe.
   const popup = inLivePreview() ? openSignInPopup(providerId) : null;
 
+  if (!(await prepareAccountExit())) {
+    popup?.close();
+    return;
+  }
   // Clear any prior session so switching providers actually switches identity.
   // In the live preview the iframe has no session cookie — only a bearer token —
   // so skip the network signOut when there's nothing to clear.
+  beginIdentityChange();
   const hadBearer = Boolean(getBearerToken());
   if (hadBearer || !inLivePreview()) {
     try {
@@ -112,9 +123,15 @@ export async function signIn(
   setBearerToken(null);
 
   if (inLivePreview()) {
-    if (!popup) throw new Error("Pop-up blocked — allow pop-ups for sign-in");
+    if (!popup) {
+      finishIdentityChange();
+      throw new Error("Pop-up blocked — allow pop-ups for sign-in");
+    }
     const token = await waitForPopupToken(popup);
-    if (!token) throw new Error("Sign-in was cancelled or failed");
+    if (!token) {
+      finishIdentityChange();
+      throw new Error("Sign-in was cancelled or failed");
+    }
     setBearerToken(token);
     // Refresh the client session store with the bearer attached (onRequest).
     // Avoid a full iframe reload when we're already on the destination — that
@@ -135,6 +152,7 @@ export async function signIn(
         window.location.href = callbackURL;
       }
     }
+    finishIdentityChange();
     return;
   }
 
@@ -143,8 +161,12 @@ export async function signIn(
     callbackURL,
     errorCallbackURL,
   });
-  if (error) throw new Error(error.message ?? "Sign-in failed");
+  if (error) {
+    finishIdentityChange();
+    throw new Error(error.message ?? "Sign-in failed");
+  }
   if (data?.url) window.location.href = data.url;
+  else finishIdentityChange();
 }
 
 /**
@@ -202,11 +224,25 @@ function waitForPopupToken(popup: Window): Promise<string | null> {
 }
 
 /** Sign out of THIS app's local session, clear the preview token, then redirect. */
-export async function signOut(redirectTo = "/"): Promise<void> {
+export async function signOut(
+  redirectTo = "/",
+  options: { skipRecovery?: boolean } = {},
+): Promise<void> {
+  if (!options.skipRecovery && !(await prepareAccountExit())) return;
+  const cleanup = accountExitCleanup();
+  beginIdentityChange();
   try {
-    await authClient.signOut();
-  } finally {
+    const result = await authClient.signOut();
+    if (result.error) throw new Error(result.error.message ?? "Sign-out failed");
     setBearerToken(null);
+    try {
+      cleanup?.();
+    } catch {
+      /* Failed storage cleanup must not restore a ended session. */
+    }
+    window.location.href = redirectTo;
+  } catch (error) {
+    finishIdentityChange();
+    throw error;
   }
-  window.location.href = redirectTo;
 }

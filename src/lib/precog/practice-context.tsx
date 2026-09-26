@@ -1,3 +1,4 @@
+import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
 /* eslint-disable react-refresh/only-export-components */
 
 import {
@@ -8,10 +9,13 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
+import { identityLocked, subscribeIdentity } from "@/lib/auth/identity-change";
+import { WorkspaceProvider, useWorkspace } from "./workspace-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type {
   KnowledgeItem,
@@ -269,6 +273,33 @@ export function PracticeContextPublisher({
  */
 export function PracticeProvider({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
+  const locked = useSyncExternalStore(subscribeIdentity, identityLocked, () => false);
+  if (isPending || locked)
+    return (
+      <main className="p-6" role="status">
+        {locked ? (
+          <>
+            The account changed. Reload to open the current account.{" "}
+            <button type="button" onClick={() => window.location.reload()}>
+              Reload securely
+            </button>
+          </>
+        ) : (
+          "Checking your account…"
+        )}
+      </main>
+    );
+  const accountId = user?.id ?? null;
+  return (
+    <WorkspaceProvider key={accountId ?? "guest"} accountId={accountId}>
+      <AccountPracticeProvider>{children}</AccountPracticeProvider>
+    </WorkspaceProvider>
+  );
+}
+
+function AccountPracticeProvider({ children }: { children: ReactNode }) {
+  const { user, isPending } = useCurrentUserState();
+  const workspace = useWorkspace();
   const userId = user?.id;
   const userIsDevFallback = user?.isDevFallback;
   const [profile, setProfile] = useReducer(profileReducer, undefined, defaultProfile);
@@ -277,7 +308,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   // This browser's copy of the open business, shared by every tab.
-  const [localStore] = useState(() => new LocalProfileStore());
+  const [localStore] = useState(() => new LocalProfileStore(() => workspace.local));
   // The versions this tab builds on, so an account save made from another
   // tab of the same version is not mistaken for a change on another device.
   const [lineage] = useState(() => new AccountLineage());
@@ -296,6 +327,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const sync = useCloudSync({
+    workspace,
     profile,
     profileRef,
     setProfile,
@@ -311,6 +343,7 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   });
 
   const portfolio = usePortfolio({
+    workspace,
     profile,
     profileRef,
     setProfile,
@@ -610,7 +643,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <PracticeContextPublisher value={value}>{children}</PracticeContextPublisher>;
+  return (
+    <PracticeContextPublisher value={value}>
+      <WorkspaceRecovery />
+      {children}
+    </PracticeContextPublisher>
+  );
 }
 
 function required<T>(value: T | null, hook: string): T {

@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "@/lib/db";
+import { toSql, transactionScope } from "@/lib/sql-transaction";
 
 /**
  * An embedded Postgres with every file in migrations/ applied, for store
@@ -21,18 +22,17 @@ export interface TestDb {
 const MIGRATIONS_DIR = join(process.cwd(), "migrations");
 
 export function pgliteSql(db: PGlite): Sql {
-  const run = async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows;
-  const tagged = (async <T = Record<string, unknown>>(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
-  ): Promise<T[]> => {
-    let text = strings[0];
-    for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
-    return run<T>(text, values);
-  }) as unknown as Sql;
-  tagged.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
-    run<T>(text, params);
-  return tagged;
+  const sql = toSql(
+    async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows,
+  );
+  sql.transaction = (work) =>
+    db.transaction((tx) =>
+      transactionScope(
+        async <T>(text: string, params: unknown[]) => (await tx.query<T>(text, params)).rows,
+        work,
+      ),
+    );
+  return sql;
 }
 
 export async function openTestDb(): Promise<TestDb> {

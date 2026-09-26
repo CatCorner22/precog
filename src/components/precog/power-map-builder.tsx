@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { memo, useEffect, useMemo, useState } from "react";
 import {
   ConflictCard,
@@ -74,6 +75,7 @@ import { locationsById } from "@/lib/precog/person-location";
 import { downloadText } from "@/lib/download";
 
 export function PowerMapBuilder() {
+  const workspace = useWorkspace();
   const tpl = useTemplate();
   // Where each person works, when the business has two or more locations.
   const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
@@ -101,7 +103,7 @@ export function PowerMapBuilder() {
   const baselineKey = `precog.power-map-baseline.v1:${profile.businessId ?? "biz_default"}`;
   const [baseline, setBaseline] = useState<RoleAssignment[]>(() => {
     try {
-      const stored = window.localStorage.getItem(baselineKey);
+      const stored = workspace.local?.getItem(baselineKey);
       const restored = stored ? normalizeRoleAssignments(JSON.parse(stored)) : undefined;
       if (restored) return restored;
     } catch {
@@ -116,18 +118,18 @@ export function PowerMapBuilder() {
     // baseline and are stored, so edits made now still show as pending after
     // the owner leaves the tab and comes back.
     try {
-      if (window.localStorage.getItem(baselineKey) === null) {
-        window.localStorage.setItem(baselineKey, JSON.stringify(baseline));
+      if (workspace.local?.getItem(baselineKey) === null) {
+        workspace.local?.setItem(baselineKey, JSON.stringify(baseline));
       }
     } catch {
       /* storage unavailable */
     }
-  }, [baselineKey, baseline]);
+  }, [baselineKey, baseline, workspace.local]);
 
   function acceptBaseline(next: RoleAssignment[]) {
     setBaseline(next);
     try {
-      window.localStorage.setItem(baselineKey, JSON.stringify(next));
+      workspace.local?.setItem(baselineKey, JSON.stringify(next));
     } catch {
       /* storage unavailable */
     }
@@ -137,11 +139,11 @@ export function PowerMapBuilder() {
     // Earlier builds kept a separate sandbox copy of the map in this browser.
     // The profile is the only copy now, so drop the orphaned key.
     try {
-      window.localStorage.removeItem(POWER_MAP_STORAGE_KEY);
+      workspace.local?.removeItem(POWER_MAP_STORAGE_KEY);
     } catch {
       /* storage unavailable */
     }
-  }, []);
+  }, [workspace.local]);
 
   const report = useMemo(
     () =>
