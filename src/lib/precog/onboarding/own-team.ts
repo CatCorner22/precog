@@ -147,7 +147,7 @@ function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
   if (!role || row.duties.length === 0) return false;
   if ((row.suggestedFor ?? "").trim() !== role) return false;
   const usual = suggestedDuties(role, rowOwnsBusiness(row), industry);
-  return row.duties.length === usual.length && row.duties.every((d) => usual.includes(d));
+  return sameDuties(row.duties, usual);
 }
 
 /** Which catalog seat a row's title was read as, and whether only part of the title matched. */
@@ -245,7 +245,8 @@ export function leaderRow(industry?: string): OwnTeamRow {
   };
 }
 
-const sameDutyList = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
+/** The same duties, in any order. */
+export const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
   a.length === b.length && a.every((d) => b.includes(d));
 
 /** Whether a row is still exactly a fresh grid's first row, for any line of business. */
@@ -256,7 +257,7 @@ function isUntouchedLeaderRow(row: OwnTeamRow | undefined): boolean {
       fresh.role === row.role &&
       fresh.suggestedFor === row.suggestedFor &&
       fresh.owner === row.owner &&
-      sameDutyList(fresh.duties, row.duties),
+      sameDuties(fresh.duties, row.duties),
   );
 }
 

@@ -1,3 +1,9 @@
+/**
+ * Continuity register as a spreadsheet: one row per duty/task/know-how item,
+ * one column per active team member holding that person's level
+ * (expert / can do / learning / aware, or blank). This is the same grid the
+ * planner shows, so owners can fill it in Excel and import it back.
+ */
 import type { IndustryTemplate } from "../templates/types";
 import type {
   Criticality,
@@ -8,27 +14,21 @@ import type {
   Person,
 } from "../types";
 import { isCalendarDate, localDateKey } from "../dates";
-import { csvCell, normalizeHeader, parseRows, sniffDelimiter } from "./csv";
+import {
+  csvCell,
+  DOCUMENTED_WORDS,
+  normalizeHeader,
+  parseRows,
+  readYesNo,
+  sniffDelimiter,
+  type ImportIssue,
+} from "./csv";
 import { nameKey, slug, stripInvisibleControls } from "../text";
-
-/**
- * Continuity register as a spreadsheet: one row per duty/task/know-how item,
- * one column per active team member holding that person's level
- * (expert / can do / learning / aware, or blank). This is the same grid the
- * planner shows, so owners can fill it in Excel and import it back.
- */
-
-export interface RegisterImportIssue {
-  row: number;
-  message: string;
-}
 
 export interface RegisterImportResult {
   knowledge: KnowledgeItem[];
   relations: KnowledgeRelation[];
-  issues: RegisterImportIssue[];
-  /** Column headings that matched nobody on the active team; their levels were skipped. */
-  unknownPeople: string[];
+  issues: ImportIssue[];
 }
 
 const REGISTER_CSV_COLUMNS = [
@@ -112,8 +112,8 @@ const LEVEL_ALIASES: Record<string, KnowledgeLevel> = {
   "1": "aware",
 };
 
-const NONE_TOKENS = new Set(["", "-", "none", "no", "n", "0"]);
-const TRUE_TOKENS = new Set(["true", "yes", "y", "1", "x", "documented", "written"]);
+/** Level cells that mean the person does not hold the item. */
+const NO_LEVEL = new Set(["", "-", "–", "—", "none", "no", "n", "0", "n/a", "na"]);
 
 const LEVEL_CELL: Record<KnowledgeLevel, string> = {
   expert: "expert",
@@ -129,7 +129,7 @@ export function parseRegisterCsv(
 ): RegisterImportResult {
   const today = opts.today ?? localDateKey(new Date());
   const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
-  const issues: RegisterImportIssue[] = [];
+  const issues: ImportIssue[] = [];
   const header = rows[0] ?? [];
   const columns = new Map<(typeof REGISTER_CSV_COLUMNS)[number], number>();
   for (const key of REGISTER_CSV_COLUMNS) {
@@ -144,7 +144,6 @@ export function parseRegisterCsv(
       knowledge: [],
       relations: [],
       issues: [{ row: 0, message: "Missing an item column (duty, task or know-how name)" }],
-      unknownPeople: [],
     };
   }
 
@@ -226,17 +225,32 @@ export function parseRegisterCsv(
         });
     }
     const documentedValue = cell(cells, "documented");
-    const documented = documentedValue
-      ? TRUE_TOKENS.has(documentedValue.toLowerCase())
-      : Boolean(existing?.documented);
+    let documented = Boolean(existing?.documented);
+    if (documentedValue) {
+      const read = readYesNo(documentedValue, DOCUMENTED_WORDS);
+      if (read === undefined) {
+        issues.push({
+          row: rowNumber,
+          message: `Documented "${documentedValue}" should be yes or no; kept ${documented ? "yes" : "no"}`,
+        });
+      } else documented = read;
+    }
     const procedureLocation = columns.has("procedure location")
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
+    // A blank or unreadable date keeps the confirmation on record; only an
+    // unreadable one is reported.
     const confirmedValue = cell(cells, "last confirmed");
-    const confirmedAt =
-      isCalendarDate(confirmedValue, today) || !columns.has("last confirmed")
-        ? confirmedValue || existing?.confirmedAt
-        : existing?.confirmedAt;
+    let confirmedAt = existing?.confirmedAt;
+    if (isCalendarDate(confirmedValue, today)) confirmedAt = confirmedValue;
+    else if (confirmedValue) {
+      issues.push({
+        row: rowNumber,
+        message: isCalendarDate(confirmedValue)
+          ? `Last confirmed ${confirmedValue} is after today; the date on record was kept`
+          : `Last confirmed "${confirmedValue}" is not a date; write it as YYYY-MM-DD`,
+      });
+    }
     const description = columns.has("description")
       ? cell(cells, "description").slice(0, 500)
       : (existing?.description ?? "");
@@ -262,7 +276,7 @@ export function parseRegisterCsv(
 
     for (const { index: col, person } of personColumns) {
       const raw = (cells[col] ?? "").trim();
-      if (NONE_TOKENS.has(raw.toLowerCase())) continue;
+      if (NO_LEVEL.has(raw.toLowerCase())) continue;
       const level = LEVEL_ALIASES[nameKey(raw)];
       if (!level) {
         issues.push({
@@ -275,7 +289,7 @@ export function parseRegisterCsv(
     }
   });
 
-  return { knowledge, relations, issues, unknownPeople };
+  return { knowledge, relations, issues };
 }
 
 export function registerToCsv(tpl: IndustryTemplate): string {

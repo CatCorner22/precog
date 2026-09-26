@@ -1,6 +1,14 @@
 import { nameKey } from "../text";
+
 /** Cell separators the importers understand. */
 export type Delimiter = "," | "\t" | ";" | "|";
+
+/** Something an importer could not read or changed, for the owner to check. */
+export interface ImportIssue {
+  /** 1-based data row (0 = the whole file). */
+  row: number;
+  message: string;
+}
 
 /** A header cell for alias matching: "#" and "№" read as "number", then the `nameKey` of the rest. */
 export function normalizeHeader(cell: string): string {
@@ -139,3 +147,28 @@ export function locateTable(
   }
   return undefined;
 }
+
+/** Extra words a "documented" cell may use in the process and register sheets. */
+export const DOCUMENTED_WORDS = {
+  yes: ["documented", "written"],
+  no: ["none", "not documented", "undocumented", "-"],
+} as const;
+
+/**
+ * A yes/no cell: true for yes, y, true, t, 1 or x; false for no, n, false,
+ * f or 0; undefined when the cell is blank or says neither. An importer can
+ * add its own words, such as "documented".
+ */
+export function readYesNo(
+  cell: string,
+  extra: { yes?: readonly string[]; no?: readonly string[] } = {},
+): boolean | undefined {
+  const value = cell.trim().toLowerCase();
+  if (!value) return undefined;
+  if (YES_WORDS.includes(value) || extra.yes?.includes(value)) return true;
+  if (NO_WORDS.includes(value) || extra.no?.includes(value)) return false;
+  return undefined;
+}
+
+const YES_WORDS: readonly string[] = ["yes", "y", "true", "t", "1", "x"];
+const NO_WORDS: readonly string[] = ["no", "n", "false", "f", "0"];

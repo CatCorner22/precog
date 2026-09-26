@@ -14,19 +14,21 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
-import { csvCell, normalizeHeader, parseRows, sniffDelimiter } from "./csv";
+import {
+  csvCell,
+  DOCUMENTED_WORDS,
+  normalizeHeader,
+  parseRows,
+  readYesNo,
+  sniffDelimiter,
+  type ImportIssue,
+} from "./csv";
 import { nameKey, slug, stripInvisibleControls } from "../text";
-
-interface ProcessImportIssue {
-  /** 1-based data row (0 = whole file). */
-  row: number;
-  message: string;
-}
 
 export interface ProcessImportResult {
   /** The full map after the import is applied. */
   processes: ProcessNode[];
-  issues: ProcessImportIssue[];
+  issues: ImportIssue[];
   added: ProcessNode[];
   updated: { before: ProcessNode; after: ProcessNode }[];
   unchanged: ProcessNode[];
@@ -75,46 +77,7 @@ const HEADER_ALIASES: Record<Column, readonly string[]> = {
   outputs: ["outputs", "output", "produces", "delivers"],
 };
 
-const LIST_SEPARATOR = /[;|]/;
 const MAX_ROWS = 200;
-
-function splitList(value: string): string[] {
-  return value
-    .split(LIST_SEPARATOR)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function parseBool(value: string): boolean | undefined {
-  const v = value.trim().toLowerCase();
-  if (!v) return undefined;
-  if (["y", "yes", "true", "1", "documented", "written"].includes(v)) return true;
-  if (["n", "no", "false", "0", "none", "not documented", "undocumented"].includes(v)) return false;
-  return undefined;
-}
-
-/**
- * A record in a form where an empty list, an empty text and a missing field
- * are the same, and key order does not count: a process made in the builder
- * has "inputs: []" where the same row read back from its CSV has none.
- */
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.keys(record)
-        .sort()
-        .map((key) => [key, canonical(record[key])] as const)
-        .filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)),
-    );
-  }
-  return value;
-}
-
-function sameRecord(a: ProcessNode, b: ProcessNode): boolean {
-  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
-}
 
 export function parseProcessCsv(
   text: string,
@@ -122,7 +85,7 @@ export function parseProcessCsv(
   opts: { mode?: "merge" | "replace"; maxRows?: number } = {},
 ): ProcessImportResult {
   const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
-  const issues: ProcessImportIssue[] = [];
+  const issues: ImportIssue[] = [];
   const empty = (msg: string): ProcessImportResult => ({
     processes: tpl.processes,
     issues: [{ row: 0, message: msg }],
@@ -308,7 +271,9 @@ export function parseProcessCsv(
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
     const documentedValue = cell(cells, "documented");
-    let documented = columns.has("documented") ? parseBool(documentedValue) : existing?.documented;
+    let documented = columns.has("documented")
+      ? readYesNo(documentedValue, DOCUMENTED_WORDS)
+      : existing?.documented;
     if (columns.has("documented") && documentedValue && documented === undefined) {
       issues.push({
         row: rowNumber,
@@ -450,4 +415,36 @@ export function processTemplateCsv(): string {
         .join(","),
     ].join("\r\n") + "\r\n"
   );
+}
+
+const LIST_SEPARATOR = /[;|]/;
+
+function splitList(value: string): string[] {
+  return value
+    .split(LIST_SEPARATOR)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A record in a form where an empty list, an empty text and a missing field
+ * are the same, and key order does not count: a process made in the builder
+ * has "inputs: []" where the same row read back from its CSV has none.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, canonical(record[key])] as const)
+        .filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)),
+    );
+  }
+  return value;
+}
+
+function sameRecord(a: ProcessNode, b: ProcessNode): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }

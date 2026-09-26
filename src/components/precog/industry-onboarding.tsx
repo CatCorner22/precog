@@ -37,8 +37,7 @@ import {
   pasteSummary,
   pastedRows,
   rowOwnsBusiness,
-  rowSeat,
-  sharedTitles,
+  sameDuties,
   suggestedDuties,
   untickDutyForTitle,
   MAX_ROLE_LENGTH,
@@ -47,14 +46,13 @@ import {
   isLeaderTitle,
   rowsKeptForAdding,
   type OwnTeamRow,
-  type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { JOB_CATALOG, JOB_FAMILY_LABEL, type JobFamily } from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { SetupPreviewCard } from "@/components/precog/setup-preview-card";
 import { parseRoster } from "@/lib/precog/import/roster";
-import type { PeopleImportIssue } from "@/lib/precog/import/people-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
@@ -65,20 +63,20 @@ import { Plus, Trash2 } from "lucide-react";
 import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
 
 import {
+  dutiesHeldByTitle,
   EMPTY_ROW,
   freshRows,
   focusableIn,
   focusSoon,
   ICONS,
   nameInputId,
-  sameDuties,
+  sharedTitlesWithDuties,
   typedSeat,
   whoIs,
   withRowIds,
 } from "./industry-onboarding-helpers";
 import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
-import { titleKey } from "@/lib/precog/text";
 import { clamp } from "@/lib/precog/number";
 export function IndustryOnboarding() {
   const workspace = useWorkspace();
@@ -125,7 +123,7 @@ export function IndustryOnboarding() {
   const [reviewOnly, setReviewOnly] = useState(false);
   const [reviewRowIds, setReviewRowIds] = useState<Set<string>>(() => new Set());
   const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
-  const [pasteIssues, setPasteIssues] = useState<PeopleImportIssue[]>([]);
+  const [pasteIssues, setPasteIssues] = useState<ImportIssue[]>([]);
   const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
   // A team typed in an earlier setup in this tab came back with this one.
@@ -293,30 +291,10 @@ export function IndustryOnboarding() {
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
 
-  function seatOf(row: OwnTeamRow): SeatReading | undefined {
-    if (row.readAs && row.readAs.role.trim() === row.role.trim()) return rowSeat(row, selected);
-    return typedSeat(row.role, selected);
-  }
-
   // Titles two or more people share, for "untick one duty for all of them".
-  const shared = useMemo(
-    () =>
-      sharedTitles(rows).filter((t) => {
-        const key = titleKey(t.role);
-        return rows.some((r) => r.duties.length > 0 && titleKey(r.role) === key);
-      }),
-    [rows],
-  );
+  const shared = useMemo(() => sharedTitlesWithDuties(rows), [rows]);
   const bulkRole = shared.some((t) => t.role === bulkTitle) ? bulkTitle : (shared[0]?.role ?? "");
-  const bulkDuties = useMemo(() => {
-    const key = titleKey(bulkRole);
-    const held = new Set<EntitlementId>();
-    for (const row of rows) {
-      if (titleKey(row.role) !== key) continue;
-      for (const duty of row.duties) held.add(duty);
-    }
-    return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
-  }, [rows, bulkRole]);
+  const bulkDuties = useMemo(() => dutiesHeldByTitle(rows, bulkRole), [rows, bulkRole]);
   const bulkPick = bulkDuty && bulkDuties.includes(bulkDuty) ? bulkDuty : (bulkDuties[0] ?? "");
   const bulkCount = shared.find((t) => t.role === bulkRole)?.count ?? 0;
 
@@ -400,7 +378,7 @@ export function IndustryOnboarding() {
       added: outcome.added.length,
       matched: outcome.matched,
       notAdded: outcome.notAdded,
-      dropped: result.dropped ?? 0,
+      dropped: result.dropped,
       recognised,
       partial: titlesRead.filter((t) => t.catalogTitle && t.confidence === "partial").length,
       unmatched: titlesRead.length - recognised,
@@ -543,7 +521,9 @@ export function IndustryOnboarding() {
   const titleCls = "text-xl font-semibold tracking-tight outline-hidden sm:text-2xl";
 
   const attentionIndices = new Set(
-    rows.flatMap((row, index) => (setupRowNeedsAttention(row, seatOf(row)) ? [index] : [])),
+    rows.flatMap((row, index) =>
+      setupRowNeedsAttention(row, typedSeat(row, selected)) ? [index] : [],
+    ),
   );
 
   return (
@@ -1040,7 +1020,7 @@ export function IndustryOnboarding() {
                               onBlur={() => suggestDuties(index)}
                               maxLength={MAX_ROLE_LENGTH}
                             />
-                            <SeatNote seat={seatOf(row)} />
+                            <SeatNote seat={typedSeat(row, selected)} />
                             {extraDuties(row.duties).length > 0 && (
                               <ul
                                 className="mt-1 flex max-w-[11rem] flex-wrap gap-1.5"

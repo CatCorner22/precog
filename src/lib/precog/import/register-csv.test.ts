@@ -65,7 +65,6 @@ describe("registerToCsv", () => {
   it("round-trips through parseRegisterCsv keeping ids, links and many-to-many levels", () => {
     const result = parseRegisterCsv(registerToCsv(tpl), tpl);
     expect(result.issues).toEqual([]);
-    expect(result.unknownPeople).toEqual([]);
     expect(result.knowledge).toEqual(knowledge);
     const key = (r: { personId: string; knowledgeId: string; level: string }) =>
       `${r.knowledgeId}|${r.personId}|${r.level}`;
@@ -163,7 +162,6 @@ describe("parseRegisterCsv", () => {
   it("skips columns for people not on the active team and reports them once", () => {
     const csv = "item,Ana Ruiz,Dee Former,Nobody Here\r\nRun payroll,expert,expert,expert\r\n";
     const result = parseRegisterCsv(csv, tpl);
-    expect(result.unknownPeople).toEqual(["Dee Former", "Nobody Here"]);
     expect(result.issues).toEqual([
       { row: 0, message: "Not on the active team, skipped: Dee Former, Nobody Here" },
     ]);
@@ -241,6 +239,24 @@ describe("parseRegisterCsv: invisible characters and delimiters", () => {
   });
 });
 
+describe("documented and level cells", () => {
+  const tpl = { ...dental, people, knowledge, relations: [] } as IndustryTemplate;
+
+  it("reports a documented value that is neither yes nor no and keeps the one on record", () => {
+    const r = parseRegisterCsv("item,documented\nRun payroll,maybe\nVendor quirks,x", tpl);
+    expect(r.knowledge.map((k) => k.documented)).toEqual([false, true]);
+    expect(r.issues).toEqual([
+      { row: 1, message: 'Documented "maybe" should be yes or no; kept no' },
+    ]);
+  });
+
+  it("reads N/A and a dash in a level cell as no level", () => {
+    const r = parseRegisterCsv("item,Ana Ruiz,Ben Lee\nRun payroll,N/A,—", tpl);
+    expect(r.issues).toEqual([]);
+    expect(r.relations).toEqual([]);
+  });
+});
+
 describe("procedure location column", () => {
   it("reads aliases, keeps the existing location when the column is absent, and omits blanks", () => {
     const withAlias = parseRegisterCsv(
@@ -277,7 +293,13 @@ describe("last confirmed column", () => {
         tpl,
       );
       expect(result.knowledge[0].confirmedAt, value).toBe("2025-01-15");
+      expect(result.issues.map((issue) => issue.message).join(" "), value).toMatch(
+        value === "2099-01-01" ? /is after today/ : /is not a date/,
+      );
     }
+    const blank = parseRegisterCsv("item,last checked,Ana Ruiz\r\nVendor quirks,,expert\r\n", tpl);
+    expect(blank.knowledge[0].confirmedAt).toBe("2025-01-15");
+    expect(blank.issues).toEqual([]);
   });
 });
 

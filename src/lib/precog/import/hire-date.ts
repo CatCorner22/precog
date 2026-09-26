@@ -1,50 +1,6 @@
 import { isCalendarDate, DAY_MS } from "../dates";
 import { clamp } from "../number";
 
-const MONTHS = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-];
-
-function monthFromName(text: string): number {
-  const key = text.toLowerCase().replace(/\.$/, "");
-  if (key.length < 3) return 0;
-  return MONTHS.findIndex((month) => month.startsWith(key)) + 1;
-}
-
-function stripTime(value: string): string {
-  return value.replace(
-    /[T\s]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*([AaPp][Mm])?\s*(Z|[+-]\d{2}:?\d{2})?$/,
-    "",
-  );
-}
-
-/**
- * A two-digit year later than next year is last century: a hire date is
- * never further ahead than that. (Excel itself pivots at 30, reading "28" as
- * 2028; this rule reads it as 1928 until 2027.)
- */
-function fullYear(text: string, today: Date): number {
-  if (text.length === 4) return Number(text);
-  const short = Number(text);
-  return short > (today.getUTCFullYear() % 100) + 1 ? 1900 + short : 2000 + short;
-}
-
-function isoDay(year: number, month: number, day: number): string | undefined {
-  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  return isCalendarDate(iso) ? iso : undefined;
-}
-
 export interface HireDateOptions {
   /** Read "10/01/2020" as 10 January; set when the file's other dates only fit that order. */
   dayFirst?: boolean;
@@ -86,11 +42,6 @@ export function readHireDate(raw: string, opts: HireDateOptions = {}): string | 
   return undefined;
 }
 
-/** Reads a hire date written month first, with today as the two-digit year pivot. */
-export function parseHireDate(raw: string): string | undefined {
-  return readHireDate(raw);
-}
-
 /** True when any slash or dash date in the column can only be day first ("15/03/2019"). */
 export function datesAreDayFirst(values: readonly string[]): boolean {
   return values.some((value) => {
@@ -105,3 +56,47 @@ export function tenureFromHireDate(hireDate: string, today: Date = new Date()): 
   const years = (today.getTime() - start) / (365.25 * DAY_MS);
   return clamp(Math.round(years * 10) / 10, 0, 60);
 }
+
+/**
+ * A two-digit year later than next year is last century: a hire date is
+ * never further ahead than that. (Excel itself pivots at 30, reading "28" as
+ * 2028; this rule reads it as 1928 until 2027.)
+ */
+function fullYear(text: string, today: Date): number {
+  if (text.length === 4) return Number(text);
+  const short = Number(text);
+  return short > (today.getUTCFullYear() % 100) + 1 ? 1900 + short : 2000 + short;
+}
+
+function isoDay(year: number, month: number, day: number): string | undefined {
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return isCalendarDate(iso) ? iso : undefined;
+}
+
+function monthFromName(text: string): number {
+  const key = text.toLowerCase().replace(/\.$/, "");
+  if (key.length < 3) return 0;
+  return MONTHS.findIndex((month) => month.startsWith(key)) + 1;
+}
+
+function stripTime(value: string): string {
+  return value.replace(
+    /[T\s]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*([AaPp][Mm])?\s*(Z|[+-]\d{2}:?\d{2})?$/,
+    "",
+  );
+}
+
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];

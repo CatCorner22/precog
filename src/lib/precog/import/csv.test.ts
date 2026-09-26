@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvCell, locateTable, parseRows, sniffDelimiter } from "./csv";
+import { csvCell, locateTable, parseRows, readYesNo, sniffDelimiter } from "./csv";
 
 const isHeader = (cells: readonly string[]) => cells.some((cell) => cell.trim() === "Name");
 
@@ -99,5 +99,18 @@ describe("csvCell", () => {
     const values = ["=cmd|' /C calc'!A0", "+1 555 0100", "@home", "Ana Ruiz", "-5"];
     const line = values.map(csvCell).join(",");
     expect(parseRows(line)[0]).toEqual(values);
+  });
+});
+
+describe("readYesNo", () => {
+  it("reads the shared yes and no words, the importer's own words, and nothing else", () => {
+    expect(["yes", "Y", "true", "t", "1", "x"].map((v) => readYesNo(v))).toEqual(
+      Array(6).fill(true),
+    );
+    expect(["no", "N", "false", "f", "0"].map((v) => readYesNo(v))).toEqual(Array(5).fill(false));
+    expect(readYesNo("")).toBeUndefined();
+    expect(readYesNo("maybe")).toBeUndefined();
+    expect(readYesNo("Written", { yes: ["written"] })).toBe(true);
+    expect(readYesNo("none", { no: ["none"] })).toBe(false);
   });
 });

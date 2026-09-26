@@ -22,7 +22,7 @@ import {
 } from "@/lib/precog/continuity/register-window";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
-import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -55,8 +55,8 @@ export function RegisterGrid({
   setLevel,
   removeItem,
 }: {
-  importIssues: RegisterImportIssue[];
-  setImportIssues: (issues: RegisterImportIssue[]) => void;
+  importIssues: ImportIssue[];
+  setImportIssues: (issues: ImportIssue[]) => void;
   addItem: () => void;
   draftName: string;
   setDraftName: (value: string) => void;
