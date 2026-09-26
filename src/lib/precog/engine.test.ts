@@ -150,6 +150,40 @@ describe("runPrecogScenario", () => {
   });
 });
 
+describe("staffing uplift sentences", () => {
+  const base: StaffComposition = {
+    teamSize: 12,
+    soleOwnerKnowledgeCount: 0,
+    avgTenureYears: 8,
+    segregationScore: 90,
+    dualControlPayments: true,
+    independentBankRec: true,
+  };
+  const run = (staff: StaffComposition) => runPrecogScenario(dental, "sc-vendor-fraud", { staff })!;
+  const uplifts = (staff: StaffComposition) =>
+    run(staff).staffModifiers.filter((m) => m.startsWith("Assumed uplift"));
+
+  it("names an uplift exactly when it changes the figures", () => {
+    const changes: Partial<StaffComposition>[] = [
+      { teamSize: 4 },
+      { soleOwnerKnowledgeCount: 1 },
+      { soleOwnerKnowledgeCount: 2 },
+      { segregationScore: 30 },
+      { dualControlPayments: false },
+      { independentBankRec: false },
+      { avgTenureYears: 1 },
+    ];
+    const baseLoss = run(base).financialImpact.expected;
+    expect(uplifts(base)).toEqual([]);
+    for (const change of changes) {
+      const staff = { ...base, ...change };
+      const moved = run(staff).financialImpact.expected !== baseLoss;
+      const named = uplifts(staff).length > 0;
+      expect(named, JSON.stringify(change)).toBe(moved);
+    }
+  });
+});
+
 describe("fraud scenarios outside the shared ids", () => {
   it("prices skimmed donations as fraud and shows the fraud reference figures", () => {
     const nonprofit = getBaseTemplate("nonprofit");

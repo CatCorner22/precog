@@ -8,7 +8,7 @@ import { Wand2 } from "lucide-react";
 
 import { type HealthDelta } from "@/lib/precog/builder/what-if";
 
-import { type MapValidationIssue } from "@/lib/precog/process-graph";
+import { type MapValidationIssue } from "@/lib/precog/process-validation";
 
 function isQuickFixable(i: MapValidationIssue) {
   return Boolean(

@@ -66,11 +66,9 @@ import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { TabErrorBoundary } from "@/components/precog/tab-error-boundary";
-import {
-  computeMapHealth,
-  buildProcessMapGraph,
-  validateProcessMap,
-} from "@/lib/precog/process-graph";
+import { computeMapHealth } from "@/lib/precog/process-health";
+import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { validateProcessMap } from "@/lib/precog/process-validation";
 import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

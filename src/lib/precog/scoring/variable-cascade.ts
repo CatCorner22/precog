@@ -473,10 +473,6 @@ function secondOrderNotes(
     notes.push(
       "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss.",
     );
-  } else if (byKey.timelineP50?.direction === "worsens" && byKey.likelihoodMultiplier) {
-    notes.push(
-      "Fewer opportunities lengthen the assumed days until found in this model (a scheme that starts less often is assumed to surface later); the loss figures already count the lower likelihood.",
-    );
   }
 
   if (byKey.residualAverage && byKey.expectedAnnualCostOfRisk) {

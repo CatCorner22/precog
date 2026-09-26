@@ -24,7 +24,9 @@ import {
   recommendedStepsForRules,
 } from "../evidence";
 import { buildWeeklyActions } from "../weekly-actions/build";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { buildProcessMapGraph } from "../process-graph";
+import { computeMapHealth } from "../process-health";
+import { validateProcessMap } from "../process-validation";
 
 /**
  * Everything the printed report shows, computed once from the template and

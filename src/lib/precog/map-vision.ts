@@ -1,4 +1,4 @@
-import { HEAT_BANDS } from "./process-graph";
+import { HEAT_BANDS } from "./scoring/bands";
 import { clamp } from "./number";
 /**
  * Map vision modes: Risk Predator (thermal) + Risk Terminator (threat scan).

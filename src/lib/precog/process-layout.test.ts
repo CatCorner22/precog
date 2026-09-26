@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "./active-template";
-import {
-  buildProcessMapGraph,
-  layoutProcessMap,
-  MAP_LAYOUT,
-  stageLanes,
-  type MapGraphNode,
-} from "./process-graph";
+import { buildProcessMapGraph, type MapGraphNode } from "./process-graph";
+import { layoutProcessMap, MAP_LAYOUT, stageLanes } from "./process-layout";
 
 const CARD = { w: 220, h: 110 };
 const SATELLITE = { w: 180, h: 70 };

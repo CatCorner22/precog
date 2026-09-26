@@ -4,7 +4,8 @@
 import { type ReactNode } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import "@xyflow/react/dist/style.css";
-import { HEAT_BANDS, type MapGraphNode, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { type MapGraphNode, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
   PRIORITY_BAND_LABEL,
   predatorThermalColor,

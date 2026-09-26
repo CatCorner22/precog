@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
 import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
-import { HEAT_BANDS } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
 import { formatDay, formatDayShort } from "@/lib/precog/dates";

@@ -13,6 +13,7 @@ import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
 import { localDateKey, dateAfter } from "../dates";
+import { isOwnBusiness } from "../scoring/scope";
 import { uid } from "../text";
 import { clamp } from "../number";
 
@@ -288,11 +289,19 @@ export function seatedByDuty(person: Person): boolean {
   return (person.entitlements?.length ?? 0) > 0;
 }
 
+/**
+ * How a sample team's titles fill the default rules' dental role names. Only
+ * the people who run the office's money take a seat: the owner or the head of
+ * the organization, the office, general, operations, store or finance manager,
+ * and whoever keeps the books. A project, grants, bar or program manager does
+ * not release payments.
+ */
 const DENTAL_ROLE_SLOTS: Record<string, (role: string) => boolean> = {
-  "Owner / Dentist": isOwnerRole,
-  "Office Manager": (role) => /manager|general manager/i.test(role),
+  "Owner / Dentist": (role) => isOwnerRole(role) || /\bexecutive director\b/i.test(role),
+  "Office Manager": (role) =>
+    /\b(office|general|operations|store|finance)\b[^,]*\bmanager\b/i.test(role),
   "Front Desk Lead": (role) => /front desk|cashier|lead cashier|host|shift lead/i.test(role),
-  "Billing Specialist": (role) => /billing|bookkeeper|accounting|controller|specialist/i.test(role),
+  "Billing Specialist": (role) => /billing|bookkeeper|accounting|accountant|controller/i.test(role),
 };
 
 function rolesForSlot(people: Person[], matches: (role: string) => boolean): string[] {
@@ -344,11 +353,21 @@ function localizeDualReleaseRules(
   }));
 }
 
-/** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
-function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
+/**
+ * The sample business's seed exceptions (an owner-approved recurring payee,
+ * an optional strict mode and a vacation cover), dated from `now` and naming
+ * the sample's own owner and office manager. An owner's own business starts
+ * with none: the sample's payee and people are not theirs.
+ */
+function defaultExceptions(tpl: IndustryTemplate, now: Date): ThresholdException[] {
+  if (isOwnBusiness(tpl)) return [];
   const copy = getIndustryCopy(tpl.id);
-  const today = new Date();
-  return [
+  const today = now;
+  const active = tpl.people.filter((p) => p.active);
+  const marked = ownersMarked(active);
+  const ownerId = active.find((p) => ownsBusiness(p, marked))?.id;
+  const officeManagerId = active.find((p) => DENTAL_ROLE_SLOTS["Office Manager"](p.role))?.id;
+  const exceptions: ThresholdException[] = [
     {
       id: "ex-vendor-recurring",
       sample: true,
@@ -359,7 +378,7 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       payeeContains: copy.dualReleaseSeed.exceptionPayeeContains,
       enabled: true,
       reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
-      approvedByPersonId: "p1",
+      ...(ownerId ? { approvedByPersonId: ownerId } : {}),
       createdAt: localDateKey(today),
       residualNote: `Single release up to $3,500 for ${copy.dualReleaseSeed.defaultPayee} only — sample monthly statements.`,
     },
@@ -374,28 +393,33 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       reason: "Optional strict mode: dual even under the threshold for small first payments.",
       createdAt: localDateKey(today),
     },
-    {
+  ];
+  if (officeManagerId) {
+    exceptions.push({
       id: "ex-temp-om-writeoff",
       sample: true,
       label: "Temp OM write-off raise (vacation cover)",
       channels: ["writeoff"],
       action: "raise_threshold",
       thresholdUsd: 400,
-      personId: "p2",
+      personId: officeManagerId,
       effectiveFrom: localDateKey(today),
       effectiveTo: dateAfter(today, 90),
       enabled: false,
       reason: "Owner out of office — temporary higher single-approval for OM.",
-      approvedByPersonId: "p1",
+      ...(ownerId ? { approvedByPersonId: ownerId } : {}),
       createdAt: localDateKey(today),
       residualNote: "Time-bound; auto-expires. Review all write-offs on return.",
-    },
-  ];
+    });
+  }
+  return exceptions;
 }
 
+/** The policy a template starts with. `now` dates the sample's seed exceptions. */
 export function defaultDualReleasePolicy(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
+  now: Date = new Date(),
 ): DualReleasePolicy {
   const enabled = staff?.dualControlPayments ?? false;
   return {
@@ -406,7 +430,7 @@ export function defaultDualReleasePolicy(
       tpl,
       DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
     ),
-    exceptions: defaultExceptions(tpl),
+    exceptions: defaultExceptions(tpl, now),
   };
 }
 
@@ -520,8 +544,9 @@ export function mergeDualReleasePolicy(
   tpl: IndustryTemplate,
   partial?: Partial<DualReleasePolicy> | null,
   staff?: StaffComposition,
+  now: Date = new Date(),
 ): DualReleasePolicy {
-  const base = defaultDualReleasePolicy(tpl, staff);
+  const base = defaultDualReleasePolicy(tpl, staff, now);
   if (!partial || typeof partial !== "object") return base;
   const rulesByChannel = new Map<string, unknown>();
   if (Array.isArray(partial.rules)) {

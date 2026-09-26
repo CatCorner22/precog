@@ -31,7 +31,8 @@ const CONTROL_EFFECTIVENESS_WEIGHTS = {
 /** Staff composition modifiers applied after residual */
 const STAFF_MODIFIERS = {
   smallTeamUplift: 0.12, // teamSize <= 6
-  soleOwnerUpliftPerItem: 0.06, // capped
+  soleOwnerUpliftPerItem: 0.06,
+  soleOwnerUpliftCap: 0.24, // the sole-owner uplift never exceeds this
   weakSegregationUplift: 0.15, // segregationScore < 50
   lowTenureUplift: 0.05, // avgTenure < 3
 } as const;
@@ -39,13 +40,16 @@ const STAFF_MODIFIERS = {
 // A scenario's assumed loss and assumed days-to-impact are folded onto the
 // same 0–100 index as controls and knowledge so they can be sorted together.
 // The normalizers and weights below are this app's choices: $125,000 and 240
-// days are the points at which the index saturates, and effectiveness is
-// credited at half strength. None of it is calibrated against loss data.
+// days are the points at which the index saturates, the time term never falls
+// below half its weight (timeFloor), however long a scenario runs before it is
+// found, and effectiveness is credited at half strength. None of it is
+// calibrated against loss data.
 const SCENARIO_WEIGHTS = {
   lossSaturationUsd: 125_000,
   daysSaturation: 240,
   lossShare: 0.55,
   timeShare: 0.45,
+  timeFloor: 0.5,
   effectivenessCredit: 0.5,
   baseEffectiveness: 0.2,
   dualControlCredit: 0.15,
@@ -95,6 +99,8 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
     "Raises residual risk when a small team has fewer natural separation options.",
   "staff.soleOwnerUpliftPerItem":
     "Raises residual risk for each critical knowledge item with one strong owner.",
+  "staff.soleOwnerUpliftCap":
+    "The most the sole-owner uplift can add, however many items one person holds.",
   "staff.weakSegregationUplift": "Raises residual risk when the overall segregation score is weak.",
   "staff.lowTenureUplift": "Raises residual risk when average team tenure is low.",
   "scenario.lossSaturationUsd":
@@ -103,11 +109,14 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
     "Sets the timeline where faster impact contributes its full scenario effect.",
   "scenario.lossShare": "Weights expected financial impact in the scenario inherent-risk blend.",
   "scenario.timeShare": "Weights time to material impact in the scenario inherent-risk blend.",
+  "scenario.timeFloor":
+    "The share of the time weight a scenario keeps however long it runs before it is found.",
   "scenario.effectivenessCredit":
     "Scales how much scenario control effectiveness reduces residual risk.",
   "scenario.baseEffectiveness":
     "Sets the baseline scenario effectiveness before explicit controls are credited.",
-  "scenario.dualControlCredit": "Credits dual payment control in scenario effectiveness.",
+  "scenario.dualControlCredit":
+    "Credits dual payment control in the effectiveness of fraud scenarios; a departure is not slowed by it.",
   "scenario.independentBankRecCredit":
     "Credits independent bank reconciliation in scenario effectiveness.",
   "scenario.segregationCredit": "Credits the staff segregation score in scenario effectiveness.",

@@ -1,17 +1,15 @@
 /**
  * Process map graph builder — merges processes, SoD, knowledge SPOFs,
- * residuals and ideas into nodes and edges. Validation, layout and health
- * live beside it and are re-exported here, so callers import one module.
+ * residuals and ideas into nodes and edges. Validation (process-validation),
+ * layout (process-layout) and health (process-health) live beside it; import
+ * them from their own modules.
  */
 import { findKnowledgeRisks } from "./engine";
+import { HEAT_BANDS } from "./scoring/bands";
 import type { IndustryTemplate } from "./templates";
-import { portfolioSummary } from "./scoring/residual-engine";
-import type { StaffComposition } from "./types";
+import { portfolioSummary, type ResidualRiskScore } from "./scoring/residual-engine";
+import type { KnowledgeRisk, StaffComposition } from "./types";
 import type { ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
-
-export * from "./process-validation";
-export * from "./process-layout";
-export * from "./process-health";
 
 function normalizeIoToken(s: string): string {
   return s
@@ -135,24 +133,34 @@ export interface ProcessMapSnapshot {
   heat: number;
 }
 
-/**
- * Display bands for the composite `heat` score that enrichProcess computes.
- * `heat` is this app's own 0–100 blend of a process's worst risk (severity ×
- * likelihood), its open duty conflicts, sole-owner knowledge, and any linked
- * residual score. The cutoffs order attention on the map; no study sets them
- * and they carry no probability meaning. Every consumer reads them from here
- * so the map badge, the health card, the review, and the weekly plan agree.
- */
-export const HEAT_BANDS = { hot: 70, warm: 45 } as const;
-
 function riskHeat(r: ProcessRisk) {
   return r.severity * r.likelihood * 4; // 4–100
+}
+
+/**
+ * What enrichProcess reads from the whole business. buildProcessMapGraph
+ * computes it once for every process; a single call computes its own.
+ */
+export interface ProcessMapContext {
+  knowledgeRisks: KnowledgeRisk[];
+  residualRows: ResidualRiskScore[];
+}
+
+export function processMapContext(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+): ProcessMapContext {
+  return {
+    knowledgeRisks: findKnowledgeRisks(tpl),
+    residualRows: portfolioSummary(tpl, staff).all,
+  };
 }
 
 export function enrichProcess(
   tpl: IndustryTemplate,
   process: ProcessNode,
   staff?: StaffComposition,
+  context: ProcessMapContext = processMapContext(tpl, staff),
 ): ProcessMapSnapshot {
   const { controls, knowledge, people, scenarios } = tpl;
   const risks = process.risks ?? [];
@@ -168,7 +176,7 @@ export function enrichProcess(
       residualRiskAccepted: c!.residualRiskAccepted,
     }));
 
-  const kRisks = findKnowledgeRisks(tpl);
+  const kRisks = context.knowledgeRisks;
   const knowledgeItems = knowledge
     .filter((k) => k.linkedProcessIds.includes(process.id))
     .map((k) => {
@@ -182,22 +190,6 @@ export function enrichProcess(
       };
     });
 
-  const portfolio = portfolioSummary(tpl, staff);
-  // Heuristic link residual items by name tokens
-  const tokens = process.name.toLowerCase().split(/\s+/);
-  const residualHit =
-    portfolio.top.find((t) =>
-      tokens.some((tok) => tok.length > 3 && t.name.toLowerCase().includes(tok)),
-    ) ??
-    portfolio.top.find((t) =>
-      process.controlIds.some(
-        (cid) =>
-          t.id.includes(cid) ||
-          (t.linkedScenarioId &&
-            scenarios.find((s) => s.id === t.linkedScenarioId)?.controlId === cid),
-      ),
-    );
-
   const linkedScenarios = scenarios
     .filter(
       (s) =>
@@ -205,6 +197,22 @@ export function enrichProcess(
         (s.knowledgeId && knowledgeItems.some((k) => k.id === s.knowledgeId)),
     )
     .map((s) => ({ id: s.id, title: s.title }));
+
+  // The residual rows this process is linked to by id: its controls, its
+  // register items and the scenarios on them. The worst of them is the
+  // process's residual; nothing linked means no residual, never a row that
+  // merely shares a word with the process name.
+  const linkedRowIds = new Set([
+    ...process.controlIds.map((id) => `ctrl-${id}`),
+    ...knowledgeItems.map((k) => `know-${k.id}`),
+    ...linkedScenarios.map((s) => `scen-${s.id}`),
+  ]);
+  const residualHit = context.residualRows
+    .filter((row) => linkedRowIds.has(row.id))
+    .reduce<ResidualRiskScore | undefined>(
+      (worst, row) => (!worst || row.residual > worst.residual ? row : worst),
+      undefined,
+    );
 
   const owners = (process.ownerPersonIds ?? [])
     .map((id) => people.find((p) => p.id === id))
@@ -251,7 +259,8 @@ export function buildProcessMapGraph(
   const showKnowledge = opts.showKnowledge ?? true;
 
   const { processes, knowledge, relations } = tpl;
-  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
+  const context = processMapContext(tpl, staff);
+  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff, context));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];
 

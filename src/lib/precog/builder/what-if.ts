@@ -6,13 +6,10 @@ import type { IndustryTemplate } from "../templates";
 import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import { findKnowledgeRisks } from "../engine";
-import {
-  computeMapHealth,
-  enrichProcess,
-  HEAT_BANDS,
-  validateProcessMap,
-  type MapHealthReport,
-} from "../process-graph";
+import { computeMapHealth, type MapHealthReport } from "../process-health";
+import { enrichProcess } from "../process-graph";
+import { HEAT_BANDS } from "../scoring/bands";
+import { validateProcessMap } from "../process-validation";
 import type { Person, ProcessNode, StaffComposition } from "../types";
 import { formatPct } from "../../utils";
 

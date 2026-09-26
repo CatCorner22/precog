@@ -59,7 +59,8 @@ import {
   type ProcessBlock,
   type SavedProcessBlock,
 } from "@/lib/precog/builder/process-blocks";
-import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
+import { enrichProcess } from "@/lib/precog/process-graph";
+import { validateProcessMap } from "@/lib/precog/process-validation";
 import { peopleFromBackup } from "@/lib/precog/import/people-backup";
 import { downloadText } from "@/lib/download";
 import { formatDayShort } from "@/lib/precog/dates";

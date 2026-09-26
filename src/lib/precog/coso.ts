@@ -14,6 +14,7 @@ import type { DualReleasePolicy } from "./controls/dual-release";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { withLiveThreshold } from "./coach/first-steps";
 import { formatUsd } from "../utils";
+import { count, joinWithAnd } from "./text";
 
 export type CosoComponentId =
   | "control_environment"
@@ -96,10 +97,26 @@ export function assessCoso(
   });
   const scenariosLeftOut = starterScenariosLeftOut(tpl, opts.confirmedScenarioIds).length;
   const spofs = risks.filter((r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow);
-  const sodGaps = controls.filter((c) => !c.segregated);
+  // A starter control carries the industry example's segregated flag, not a
+  // fact about this business, so it counts once the owner confirms it runs
+  // here, as in the residual register.
+  const ownControls = controls.filter((c) => !c.starter);
+  const startersLeftOut = controls.length - ownControls.length;
+  const sodGaps = ownControls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);
   const unaddressedGaps = sodGaps.filter((c) => !c.residualRiskAccepted);
   const topScenario = ranked[0];
+  const fraudDrivers = [
+    ...(sodGaps.length > 0 ? [count(sodGaps.length, "open duty conflict")] : []),
+    ...(staffComposition.dualControlPayments ? [] : ["no dual payment control"]),
+    ...(staffComposition.independentBankRec ? [] : ["no independent bank reconciliation"]),
+  ];
+  const fraudSeverity: HealthStatus =
+    sodGaps.length > 0 && fraudDrivers.length >= 2
+      ? "critical"
+      : fraudDrivers.length > 0
+        ? "weak"
+        : "adequate";
 
   // --- Component scores derived from live demo state ---
   const controlEnvScore = Math.max(
@@ -146,7 +163,7 @@ export function assessCoso(
           number: 1,
           name: "Integrity & ethical values",
           status: controlEnvScore >= 60 ? "adequate" : "weak",
-          note: "Policy language exists; enforcement depends on owner reviews.",
+          note: "Read from segregation and open duty conflicts; no written code of conduct is recorded here.",
         },
         {
           number: 2,
@@ -160,7 +177,10 @@ export function assessCoso(
           number: 3,
           name: "Structure, authority, responsibility",
           status: unaddressedGaps.length > 2 ? "weak" : "adequate",
-          note: "Approval authority for write-offs and AP needs tighter mapping.",
+          note:
+            unaddressedGaps.length > 0
+              ? `${count(unaddressedGaps.length, "duty conflict")} without a decision on who approves.`
+              : "Every duty conflict has a recorded decision.",
         },
         {
           number: 4,
@@ -169,7 +189,7 @@ export function assessCoso(
           note: !knowledgeAssessed
             ? REGISTER_NOT_ASSESSED
             : spofs.length > 0
-              ? `${spofs.length} critical knowledge item(s) concentrated on one person.`
+              ? `${count(spofs.length, "critical knowledge item")} held by one person.`
               : "Critical skills have redundancy.",
           ...(knowledgeAssessed ? {} : { notAssessed: true }),
         },
@@ -189,7 +209,7 @@ export function assessCoso(
               {
                 id: "ce-spof",
                 label: "Key-person concentration weakens accountability",
-                detail: `${spofs.length} sole-owner critical knowledge area(s) — competence and succession pressure on control environment.`,
+                detail: `${count(spofs.length, "critical knowledge area")} held by one person, which puts competence and succession under pressure.`,
                 severity: spofs.length >= 2 ? "critical" : "weak",
                 link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
               },
@@ -212,7 +232,8 @@ export function assessCoso(
           number: 6,
           name: "Suitable objectives",
           status: "adequate",
-          note: "Operational and reporting objectives implied by practice goals.",
+          note: "Not assessed: the app does not record the business's objectives.",
+          notAssessed: true,
         },
         {
           number: 7,
@@ -233,13 +254,16 @@ export function assessCoso(
             !staffComposition.dualControlPayments || !staffComposition.independentBankRec
               ? "weak"
               : "adequate",
-          note: "Cash, write-off, and vendor paths elevate fraud opportunity when SoD is thin.",
+          note: fraudDrivers.length
+            ? `Fraud opportunity from ${joinWithAnd(fraudDrivers)}.`
+            : "No open duty conflict; dual payment control and independent bank reconciliation are on.",
         },
         {
           number: 9,
           name: "Assess change",
           status: "weak",
-          note: "Staff exits and role changes are not yet monitored as control-change events.",
+          note: "Not assessed: leavers and role changes are tracked on the continuity planner, not scored here.",
+          notAssessed: true,
         },
       ],
       findings: [
@@ -259,9 +283,9 @@ export function assessCoso(
           : []),
         {
           id: "ra-fraud",
-          label: "Fraud risk drivers active",
-          detail: `${sodGaps.length} SoD gap(s); dual payment control ${staffComposition.dualControlPayments ? "on" : "off"}; independent bank rec ${staffComposition.independentBankRec ? "on" : "off"}.`,
-          severity: "weak",
+          label: fraudDrivers.length ? "Fraud risk drivers active" : "No fraud risk driver active",
+          detail: `${count(sodGaps.length, "open duty conflict")}; dual payment control ${staffComposition.dualControlPayments ? "on" : "off"}; independent bank reconciliation ${staffComposition.independentBankRec ? "on" : "off"}.`,
+          severity: fraudSeverity,
           link: { type: "sod" },
         },
       ],
@@ -285,13 +309,14 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: healthLevel(controlActivitiesScore),
-          note: `Segregation score ${staffComposition.segregationScore}/100 with ${sodGaps.length} active conflicts.`,
+          note: `Segregation score ${staffComposition.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "starter control")} not yet confirmed as running here.` : ""}`,
         },
         {
           number: 11,
           name: "Technology general controls",
           status: "adequate",
-          note: "PMS role design assumed; re-check access when staff change.",
+          note: "Not assessed: the app does not record who has which system access. Re-check access when someone joins or leaves.",
+          notAssessed: true,
         },
         {
           number: 12,
@@ -299,7 +324,12 @@ export function assessCoso(
           status: unaddressedGaps.some((g) => g.compensatingControls.length === 0)
             ? "weak"
             : "adequate",
-          note: "Compensating controls exist for some gaps; formalize the rest.",
+          note: (() => {
+            const bare = unaddressedGaps.filter((g) => g.compensatingControls.length === 0).length;
+            return bare
+              ? `${count(bare, "open conflict")} with no compensating control written down.`
+              : "Every open conflict has a compensating control written down.";
+          })(),
         },
       ],
       findings: sodGaps.map((g) => ({
@@ -340,7 +370,8 @@ export function assessCoso(
           number: 13,
           name: "Relevant quality information",
           status: "adequate",
-          note: "Aging, adjustments, and deposits must be visible to the owner.",
+          note: "Not assessed: the app does not record which reports the owner reviews (aging, adjustments, deposits).",
+          notAssessed: true,
         },
         {
           number: 14,
@@ -355,7 +386,8 @@ export function assessCoso(
           number: 15,
           name: "External communication",
           status: "adequate",
-          note: "Payer and vendor channels exist; exception routing is uneven.",
+          note: "Not assessed: the app does not record how customers and vendors raise problems.",
+          notAssessed: true,
         },
       ],
       findings: knowledgeAssessed
@@ -405,7 +437,7 @@ export function assessCoso(
           number: 16,
           name: "Ongoing / separate evaluations",
           status: staffComposition.independentBankRec ? "adequate" : "weak",
-          note: "Bank and adjustment reviews are the primary detective layer for small practices.",
+          note: "Bank and adjustment reviews are the main detective check in a small business.",
         },
         {
           number: 17,
@@ -413,7 +445,7 @@ export function assessCoso(
           status: unaddressedGaps.length > 0 ? "weak" : "adequate",
           note:
             unaddressedGaps.length > 0
-              ? `${unaddressedGaps.length} control gap(s) lack a clear residual-risk or remediation decision.`
+              ? `${count(unaddressedGaps.length, "control gap")} without a residual-risk or remediation decision.`
               : "Deficiencies are tagged with residual-risk decisions.",
         },
       ],
@@ -431,7 +463,7 @@ export function assessCoso(
         },
         {
           id: "mon-residual",
-          label: `${unaddressedGaps.length} gap(s) without residual decision`,
+          label: `${count(unaddressedGaps.length, "gap")} without a residual decision`,
           detail:
             "COSO expects deficiencies to be evaluated and either fixed or accepted with compensating design.",
           severity: unaddressedGaps.length > 0 ? "weak" : "strong",
@@ -450,9 +482,11 @@ export function assessCoso(
 
   const overall = Math.round(components.reduce((s, c) => s + c.score, 0) / components.length);
 
+  // Most severe first; within a severity, component order.
   const priorityFindings = components
     .flatMap((c) => c.findings)
     .filter((f) => f.severity === "critical" || f.severity === "weak")
+    .sort((a, b) => PRIORITY_RANK[a.severity] - PRIORITY_RANK[b.severity])
     .slice(0, 8);
 
   return {
@@ -462,3 +496,10 @@ export function assessCoso(
     priorityFindings,
   };
 }
+
+const PRIORITY_RANK: Record<HealthStatus, number> = {
+  critical: 0,
+  weak: 1,
+  adequate: 2,
+  strong: 3,
+};

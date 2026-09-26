@@ -99,7 +99,7 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   hasSecurityCameras: false,
   hasDualControl: false,
   hasIndependentBankRec: false,
-  hasAlarmAccess: true,
+  hasAlarmAccess: false,
   hasBondedCashHandlers: false,
   claimsLoadFactor: 1,
   dailyCashExposure: 3500,
@@ -243,7 +243,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 50000,
     step: 100,
-    defaultValue: 4200,
+    defaultValue: DEFAULT_RISK_VARIABLES.basePremiumAnnual,
   },
   {
     id: "deductible",
@@ -257,7 +257,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 100000,
     step: 500,
-    defaultValue: 5000,
+    defaultValue: DEFAULT_RISK_VARIABLES.deductible,
   },
   {
     id: "policyLimit",
@@ -270,7 +270,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 1000000,
     step: 5000,
-    defaultValue: 100000,
+    defaultValue: DEFAULT_RISK_VARIABLES.policyLimit,
   },
   {
     id: "coinsurancePct",
@@ -284,7 +284,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 50,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.coinsurancePct,
   },
   {
     id: "hasSecurityCameras",
@@ -294,7 +294,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     description: "Cameras covering cash drawer, safe, and public entry.",
     likelihoodEffect: "Lowers theft/opportunity likelihood (deterrence + detection).",
     severityEffect: "May shorten duration of schemes (faster detection).",
-    defaultValue: false,
+    defaultValue: DEFAULT_RISK_VARIABLES.hasSecurityCameras,
     unlocksDiscount: true,
   },
   {
@@ -309,7 +309,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 20,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.discountCamerasPct,
   },
   {
     id: "hasDualControl",
@@ -317,9 +317,10 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "financial_control",
     kind: "boolean",
     description: "Two-person rule for ACH release or deposit custody vs posting.",
-    likelihoodEffect: "Strongly reduces fraud opportunity likelihood.",
+    likelihoodEffect:
+      "This app assumes dual control lowers the chance of a fraud starting (see the multiplier it applies).",
     severityEffect: "Limits size of unauthorized transfers.",
-    defaultValue: false,
+    defaultValue: DEFAULT_RISK_VARIABLES.hasDualControl,
     unlocksDiscount: true,
   },
   {
@@ -334,7 +335,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 20,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.discountDualControlPct,
   },
   {
     id: "hasIndependentBankRec",
@@ -344,7 +345,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     description: "Someone who does not post payments reconciles the bank.",
     likelihoodEffect: "Shortens detection lag → lower multi-period scheme likelihood.",
     severityEffect: "Cuts cumulative loss severity via earlier detection.",
-    defaultValue: false,
+    defaultValue: DEFAULT_RISK_VARIABLES.hasIndependentBankRec,
     unlocksDiscount: true,
   },
   {
@@ -359,7 +360,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 15,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.discountBankRecPct,
   },
   {
     id: "hasAlarmAccess",
@@ -369,7 +370,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     description: "Monitored alarm and controlled after-hours access.",
     likelihoodEffect: "Lowers external theft / break-in likelihood.",
     severityEffect: "Limits overnight cash/equipment loss.",
-    defaultValue: true,
+    defaultValue: DEFAULT_RISK_VARIABLES.hasAlarmAccess,
     unlocksDiscount: true,
   },
   {
@@ -384,7 +385,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 10,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.discountAlarmPct,
   },
   {
     id: "hasBondedCashHandlers",
@@ -394,7 +395,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     description: "Bonding or enhanced screening for staff with cash/ACH access.",
     likelihoodEffect: "Modest reduction in employee dishonesty likelihood.",
     severityEffect: "May improve recovery odds; model applies small severity relief.",
-    defaultValue: false,
+    defaultValue: DEFAULT_RISK_VARIABLES.hasBondedCashHandlers,
     unlocksDiscount: true,
   },
   {
@@ -409,20 +410,20 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 15,
     step: 1,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.discountBondedStaffPct,
   },
   {
     id: "maxDiscountPct",
     label: "Max stackable discount",
     category: "insurance",
     kind: "percent",
-    description: "Carriers often cap combined credits.",
+    description: "Enter the cap your carrier applies to combined credits, if any.",
     likelihoodEffect: "None.",
     severityEffect: "Caps premium reduction.",
     min: 0,
     max: 40,
     step: 1,
-    defaultValue: 25,
+    defaultValue: DEFAULT_RISK_VARIABLES.maxDiscountPct,
   },
   {
     id: "claimsLoadFactor",
@@ -435,7 +436,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0.8,
     max: 2.5,
     step: 0.05,
-    defaultValue: 1,
+    defaultValue: DEFAULT_RISK_VARIABLES.claimsLoadFactor,
   },
   {
     id: "dailyCashExposure",
@@ -448,7 +449,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 50000,
     step: 100,
-    defaultValue: 3500,
+    defaultValue: DEFAULT_RISK_VARIABLES.dailyCashExposure,
   },
   {
     id: "underwritingLoadAnnual",
@@ -461,7 +462,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     min: 0,
     max: 20000,
     step: 50,
-    defaultValue: 0,
+    defaultValue: DEFAULT_RISK_VARIABLES.underwritingLoadAnnual,
   },
 ];
 
@@ -510,7 +511,11 @@ export interface DynamicRiskOutcome {
   variables: RiskVariableState;
   likelihoodSeverity: LikelihoodSeverityBreakdown;
   transfer: InsuranceTransferResult;
-  /** Timeline multipliers already incorporating detection lag */
+  /**
+   * Multiplier on the assumed days until found: the detection lag alone. How
+   * often a scheme starts (likelihood) says nothing about how long one runs
+   * before it is found, so likelihood does not touch the timeline.
+   */
   timelineMultiplier: number;
   /** Applied to gross financial impact before retention math */
   impactMultiplier: number;
@@ -651,7 +656,7 @@ function computeLikelihoodSeverity(
     drivers.push({
       id: "alarm-l",
       label: "Alarm / access",
-      effect: "Assumed −6% external theft likelihood",
+      effect: `Assumed −${cash ? 6 : 3}% external theft likelihood`,
       on: "likelihood",
     });
   }
@@ -733,26 +738,31 @@ export function applyInsuranceTransfer(
   const expectedAnnualCostOfRisk = Math.round(premiumAnnualNet + rE.retained * annualFreqWeight);
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
 
-  const noPolicy = v.basePremiumAnnual === 0 && v.policyLimit === 0;
+  const noRecovery = v.policyLimit === 0;
+  const noPolicy = v.basePremiumAnnual === 0 && noRecovery;
   const recorded = normalizeInsuranceRecord(v.insurance);
+  const annualNote = `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss`;
+  const premiumNote = `Net premium ${formatUsd(premiumAnnualNet)} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`;
   const notes: string[] = noPolicy
     ? [
         recorded && recorded.status !== "none"
           ? "No recovery or premium modeled from unconfirmed policy terms; this is not a finding that the business is uninsured."
           : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
-        `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss.`,
+        `${annualNote}.`,
       ]
-    : [
-        `Net premium ${formatUsd(premiumAnnualNet)} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`,
-        `Retained loss ≈ deductible + unreimbursed share + excess over limit.`,
-        `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss, plus the premium.`,
-      ];
+    : noRecovery
+      ? [
+          premiumNote,
+          "Premium counted; no recovery modeled for this scenario, so the business keeps the whole assumed loss until coverage assumptions are entered.",
+          `${annualNote}, plus the premium.`,
+        ]
+      : [
+          premiumNote,
+          "Retained loss ≈ deductible + unreimbursed share + excess over limit.",
+          `${annualNote}, plus the premium.`,
+        ];
 
-  if (v.policyLimit === 0 && !noPolicy)
-    notes.push(
-      "No recovery modeled: the full scenario loss remains until coverage assumptions are entered.",
-    );
-  if (!noPolicy && grossExpected > v.deductible + v.policyLimit) {
+  if (!noRecovery && grossExpected > v.deductible + v.policyLimit) {
     notes.push(
       "The assumed loss can exceed the deductible plus the limit; the excess stays with the business.",
     );
@@ -784,7 +794,7 @@ export function evaluateDynamicRisk(
   const staffMult = opts?.staffImpactMult ?? 1;
 
   const impactMultiplier = ls.grossSeverityMultiplier * staffMult;
-  const timelineMultiplier = ls.detectionLagMultiplier / Math.sqrt(ls.likelihoodMultiplier);
+  const timelineMultiplier = ls.detectionLagMultiplier;
 
   const grossExpected = baseImpact.expected * impactMultiplier;
   const grossLow = baseImpact.low * impactMultiplier;

@@ -20,6 +20,7 @@ import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
 import { formatUsd } from "../utils";
+import { count } from "./text";
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -76,30 +77,64 @@ const KNOWLEDGE_RISK_INDEX = { unowned: 100, soleCritical: 85, soleImportant: 65
 
 /**
  * Multipliers applied to a scenario's assumed loss and timeline for staffing
- * conditions. Every value is an assumption this app makes about direction and
- * rough size; none is measured. They are listed to the owner as assumptions.
+ * conditions, each with the sentence the owner reads when it applies. The
+ * multiplier and its sentence come from one row, so the owner reads exactly
+ * the uplifts that were applied. Every factor is an assumption this app makes
+ * about direction and rough size; none is measured.
  */
-const ASSUMED_STAFF_UPLIFT = {
-  smallTeam: 1.15, // six people or fewer
-  severalSoleOwners: 1.2, // two or more sole-owner knowledge items
-  weakSegregation: 1.25, // segregation score under 50
-  noDualControl: 1.08, // dual control also flows through the variables; mild here
-  noIndependentBankRec: 1.06,
-  lowTenure: 1.05, // average tenure under three years
-} as const;
+const ASSUMED_STAFF_UPLIFT: readonly {
+  applies: (staff: StaffComposition) => boolean;
+  factor: number;
+  sentence: (staff: StaffComposition) => string;
+}[] = [
+  {
+    applies: (s) => s.teamSize <= 6,
+    factor: 1.15,
+    sentence: (s) => `Assumed uplift: with ${s.teamSize} people, duties are harder to separate.`,
+  },
+  {
+    applies: (s) => s.soleOwnerKnowledgeCount >= 2,
+    factor: 1.2,
+    sentence: (s) =>
+      `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} held by one person.`,
+  },
+  {
+    applies: (s) => s.segregationScore < 50,
+    factor: 1.25,
+    sentence: (s) =>
+      `Assumed uplift: segregation index ${s.segregationScore}/100 is below this app's weak line.`,
+  },
+  {
+    // Dual control also flows through the risk variables; mild here.
+    applies: (s) => !s.dualControlPayments,
+    factor: 1.08,
+    sentence: () =>
+      "Assumed uplift: no dual control on payments, so one person can release money alone.",
+  },
+  {
+    applies: (s) => !s.independentBankRec,
+    factor: 1.06,
+    sentence: () =>
+      "Assumed uplift: the bank is reconciled by the person who posts, so detection takes longer.",
+  },
+  {
+    applies: (s) => s.avgTenureYears < 3,
+    factor: 1.05,
+    sentence: (s) =>
+      `Assumed uplift: average tenure of ${s.avgTenureYears} years is under three, so habits and checks are newer.`,
+  },
+];
 
 /** Share of an assumed impact reduction that this app also credits to the timeline. An assumption. */
 const ASSUMED_TIMELINE_RELIEF_SHARE = 0.4;
 
-function staffRiskMultiplier(staff: StaffComposition): number {
-  let m = 1;
-  if (staff.teamSize <= 6) m *= ASSUMED_STAFF_UPLIFT.smallTeam;
-  if (staff.soleOwnerKnowledgeCount >= 2) m *= ASSUMED_STAFF_UPLIFT.severalSoleOwners;
-  if (staff.segregationScore < 50) m *= ASSUMED_STAFF_UPLIFT.weakSegregation;
-  if (!staff.dualControlPayments) m *= ASSUMED_STAFF_UPLIFT.noDualControl;
-  if (!staff.independentBankRec) m *= ASSUMED_STAFF_UPLIFT.noIndependentBankRec;
-  if (staff.avgTenureYears < 3) m *= ASSUMED_STAFF_UPLIFT.lowTenure;
-  return m;
+/** The staffing uplifts that apply to `staff`: their product and the sentence for each. */
+function staffUplifts(staff: StaffComposition): { multiplier: number; sentences: string[] } {
+  const applied = ASSUMED_STAFF_UPLIFT.filter((u) => u.applies(staff));
+  return {
+    multiplier: applied.reduce((m, u) => m * u.factor, 1),
+    sentences: applied.map((u) => u.sentence(staff)),
+  };
 }
 
 export function runPrecogScenario(
@@ -126,7 +161,8 @@ export function runPrecogScenario(
   const ownBusiness = isOwnBusiness(tpl);
   const vars = effectiveRiskVariables(entered, ownBusiness, scenarioId);
 
-  const sMult = staffRiskMultiplier(staff);
+  const uplifts = staffUplifts(staff);
+  const sMult = uplifts.multiplier;
   const flags = scenarioFlags(scenarioId);
 
   let timelineMult = sMult;
@@ -168,27 +204,7 @@ export function runPrecogScenario(
   const low = Math.round(dynamic.transfer.grossLossLow);
   const high = Math.round(dynamic.transfer.grossLossHigh);
 
-  const staffModifiers: string[] = [];
-  if (staff.teamSize <= 6)
-    staffModifiers.push(
-      `Assumed uplift: with ${staff.teamSize} people, duties are harder to separate.`,
-    );
-  if (staff.soleOwnerKnowledgeCount >= 1)
-    staffModifiers.push(
-      `Assumed uplift: ${staff.soleOwnerKnowledgeCount} critical knowledge item(s) held by one person.`,
-    );
-  if (staff.segregationScore < 50)
-    staffModifiers.push(
-      `Assumed uplift: segregation index ${staff.segregationScore}/100 is below this app's weak line.`,
-    );
-  if (!staff.dualControlPayments)
-    staffModifiers.push(
-      "Assumed uplift: no dual control on payments, so one person can release money alone.",
-    );
-  if (!staff.independentBankRec)
-    staffModifiers.push(
-      "Assumed uplift: the bank is reconciled by the person who posts, so detection takes longer.",
-    );
+  const staffModifiers: string[] = [...uplifts.sentences];
 
   for (const d of dynamic.likelihoodSeverity.drivers.slice(0, 4)) {
     staffModifiers.push(`${d.label}: ${d.effect}`);

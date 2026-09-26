@@ -381,6 +381,7 @@ export function executeTool(
               state: g.state,
               cadence: g.process.cadence ? CADENCE_LABEL[g.process.cadence] : null,
               stopsWithinDays: g.stopsWithinDays,
+              cadenceAssumed: g.cadenceAssumed,
               systems: g.process.systems ?? [],
               owners: (g.process.ownerPersonIds ?? []).map(personName),
               unowned: g.unowned,

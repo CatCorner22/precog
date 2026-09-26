@@ -59,34 +59,7 @@ export function parseCadence(value: string | undefined | null): ProcessCadence |
     .toLowerCase()
     .replace(/[\s_]+/g, "-");
   if (!v) return undefined;
-  const aliases: Record<string, ProcessCadence> = {
-    continuous: "continuous",
-    constant: "continuous",
-    "all-day": "continuous",
-    hourly: "continuous",
-    daily: "daily",
-    day: "daily",
-    "every-day": "daily",
-    weekly: "weekly",
-    week: "weekly",
-    biweekly: "weekly",
-    "bi-weekly": "weekly",
-    fortnightly: "weekly",
-    monthly: "monthly",
-    month: "monthly",
-    quarterly: "quarterly",
-    quarter: "quarterly",
-    annual: "annual",
-    annually: "annual",
-    yearly: "annual",
-    year: "annual",
-    "ad-hoc": "ad-hoc",
-    adhoc: "ad-hoc",
-    "as-needed": "ad-hoc",
-    "on-demand": "ad-hoc",
-    occasional: "ad-hoc",
-  };
-  return aliases[v];
+  return CADENCE_ALIASES[v];
 }
 
 export function processDocumentationState(p: ProcessNode): ProcessDocumentationState {
@@ -115,6 +88,11 @@ interface ProcessRecordGap {
   state: Exclude<ProcessDocumentationState, "located">;
   /** Days until the process stops mattering to a stand-in; lower = more urgent. */
   stopsWithinDays: number;
+  /**
+   * True when no cadence is recorded: stopsWithinDays is then the as-needed
+   * figure, an assumption rather than something the owner said.
+   */
+  cadenceAssumed: boolean;
   /** Nobody is assigned, so there is no one to ask where the procedure lives. */
   unowned: boolean;
   /** Written and ordered "document this" / "record where it lives" instruction. */
@@ -124,7 +102,10 @@ interface ProcessRecordGap {
 export interface ProcessRecordReport {
   total: number;
   counts: Record<ProcessDocumentationState, number>;
-  /** 0–100, share of processes with a written, findable procedure. 100 when there are no processes. */
+  /**
+   * 0–100, share of processes with a written, findable procedure. 100 when
+   * there are no processes. The one documentation rule: map health reads it too.
+   */
   documentedIndex: number;
   /** Processes with no cadence recorded — the continuity view cannot say when they stop. */
   cadenceUnknown: number;
@@ -147,12 +128,14 @@ export function processRecordReport(processes: readonly ProcessNode[]): ProcessR
     counts[state] += 1;
     if (!p.cadence) cadenceUnknown += 1;
     if (state === "located") continue;
-    const stopsWithinDays = p.cadence ? CADENCE_STOP_DAYS[p.cadence] : CADENCE_STOP_DAYS["ad-hoc"];
+    const cadenceAssumed = !p.cadence;
+    const stopsWithinDays = CADENCE_STOP_DAYS[p.cadence ?? "ad-hoc"];
     const unowned = !(p.ownerPersonIds ?? []).length;
     gaps.push({
       process: p,
       state,
       stopsWithinDays,
+      cadenceAssumed,
       unowned,
       nextStep:
         state === "none"
@@ -176,3 +159,32 @@ export function processRecordReport(processes: readonly ProcessNode[]): ProcessR
     gaps,
   };
 }
+
+/** Spellings of each cadence seen in spreadsheets and forms, after lower-casing and hyphenating. */
+const CADENCE_ALIASES: Record<string, ProcessCadence> = {
+  continuous: "continuous",
+  constant: "continuous",
+  "all-day": "continuous",
+  hourly: "continuous",
+  daily: "daily",
+  day: "daily",
+  "every-day": "daily",
+  weekly: "weekly",
+  week: "weekly",
+  biweekly: "weekly",
+  "bi-weekly": "weekly",
+  fortnightly: "weekly",
+  monthly: "monthly",
+  month: "monthly",
+  quarterly: "quarterly",
+  quarter: "quarterly",
+  annual: "annual",
+  annually: "annual",
+  yearly: "annual",
+  year: "annual",
+  "ad-hoc": "ad-hoc",
+  adhoc: "ad-hoc",
+  "as-needed": "ad-hoc",
+  "on-demand": "ad-hoc",
+  occasional: "ad-hoc",
+};

@@ -11,7 +11,9 @@ import { diffMaps } from "./diff";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { buildProcessMapGraph } from "../process-graph";
+import { computeMapHealth } from "../process-health";
+import { validateProcessMap } from "../process-validation";
 
 const people = buildOwnTeam([
   { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
@@ -97,7 +99,12 @@ describe("mapNotAssessedNote", () => {
 describe("the sample business's map figures do not change", () => {
   // The controlled-drugs process added to the dental and medical sample is
   // one more process with a hot fraud risk and no written record: the score
-  // moves from 73 to 72 and calm from 43 to 39.
+  // moves from 73 to 72 and calm from 43 to 39. A process now takes its
+  // residual from the rows linked to it by id (its controls, register items
+  // and their scenarios), not from a row sharing a word with its name:
+  // scheduling (sole-held know-how) and payroll (payroll control) gain one,
+  // so calm moves from 39 to 30, the score from 72 to 69 and five processes
+  // are hot.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -110,17 +117,17 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(72);
+    expect(health.score).toBe(69);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 39],
+      ["calm", 30],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
-    expect(health.hotProcesses).toBe(4);
+    expect(health.hotProcesses).toBe(5);
     expect(health.unownedProcesses).toBe(0);
     expect(issues.map((i) => i.id)).toEqual([
       "record-proc-schedule",

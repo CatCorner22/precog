@@ -24,12 +24,11 @@ import {
   buildProcessMapGraph,
   enrichProcess,
   graphNodeIdForPriority,
-  HEAT_BANDS,
-  layoutProcessMap,
   priorityKeyForNode,
-  stageLanes,
   type ProcessMapSnapshot,
 } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { layoutProcessMap, stageLanes } from "@/lib/precog/process-layout";
 import {
   DEFAULT_LAYERS,
   PRIORITY_BAND_LABEL,

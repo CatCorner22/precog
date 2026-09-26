@@ -96,3 +96,59 @@ describe("the staff assessCoso scores", () => {
     expect(call).toBeTypeOf("function");
   });
 });
+
+describe("priority findings", () => {
+  it("keeps the most severe findings when there are more than eight", () => {
+    const tpl = getBaseTemplate("dental");
+    const a = assessCoso(tpl, tpl.staffComposition);
+    const all = a.components
+      .flatMap((c) => c.findings)
+      .filter((f) => f.severity === "critical" || f.severity === "weak");
+    expect(all.length).toBeGreaterThan(8);
+    const critical = all.filter((f) => f.severity === "critical").length;
+    const kept = a.priorityFindings.map((f) => f.severity);
+    // No weak finding is kept while a critical one is cut.
+    expect(kept.slice(0, Math.min(8, critical)).every((s) => s === "critical")).toBe(true);
+    expect(kept).toHaveLength(8);
+    expect(a.priorityFindings.some((f) => f.severity === "weak")).toBe(critical < 8);
+  });
+
+  it("drops the fraud-driver finding when no driver is active", () => {
+    const allSeparated = {
+      ...generalSample,
+      controls: generalSample.controls.map((c) => ({ ...c, segregated: true })),
+    };
+    const a = assessCoso(allSeparated, { ...clean, dualControlPayments: true });
+    const fraud = a.components.flatMap((c) => c.findings).find((f) => f.id === "ra-fraud")!;
+    expect(fraud.severity).toBe("adequate");
+    expect(a.priorityFindings.some((f) => f.id === "ra-fraud")).toBe(false);
+  });
+});
+
+describe("starter controls in COSO", () => {
+  it("does not count a starter control the owner has not confirmed as a duty conflict", () => {
+    const tpl = resolveTemplate({ industry: "dental", customPeople: people });
+    const starters = tpl.controls.filter((c) => c.starter && !c.segregated);
+    expect(starters.length).toBeGreaterThan(0);
+    const a = assessCoso(tpl, clean);
+    const findings = a.components.find((c) => c.id === "control_activities")!.findings;
+    for (const c of starters) expect(findings.some((f) => f.id === `ca-${c.id}`)).toBe(false);
+    const p10 = a.components
+      .find((c) => c.id === "control_activities")!
+      .principles.find((p) => p.number === 10)!;
+    expect(p10.note).toMatch(/starter controls? not yet confirmed/);
+  });
+});
+
+describe("principles the app cannot read", () => {
+  it("say so instead of asserting facts about the business", () => {
+    const a = assessCoso(own, clean);
+    const principles = a.components.flatMap((c) => c.principles);
+    for (const n of [6, 9, 11, 13, 15]) {
+      const p = principles.find((x) => x.number === n)!;
+      expect(p.notAssessed, `P${n}`).toBe(true);
+      expect(p.note).toMatch(/^Not assessed/);
+    }
+    expect(principles.map((p) => p.note).join(" ")).not.toMatch(/\bPMS\b|practice/);
+  });
+});
