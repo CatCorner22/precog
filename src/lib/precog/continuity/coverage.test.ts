@@ -404,14 +404,14 @@ describe("absenceImpact", () => {
     expect(a.dependence).toBe(
       coverageReport(t).people.find((l) => l.person.id === "a")!.dependence,
     );
-    expect(a.actions[0].text).toMatch(/^Today: hand/);
+    expect(a.actions[0].text).toMatch(/^Hand /);
     expect(a.actions[0].step).toBe("handoff");
     expect(a.actions[0].knowledgeIds).toContain("bank-rec");
     expect(a.actions.map((x) => x.step)).toEqual(["handoff", "document", "locate", "cover"]);
-    expect(a.actions.some((x) => x.text.startsWith("Before the next absence"))).toBe(true);
-    expect(
-      a.actions.find((x) => x.text.startsWith("Before the next absence"))!.knowledgeIds,
-    ).toEqual(a.stops.filter((s) => !s.item.documented).map((s) => s.item.id));
+    expect(a.actions.some((x) => x.text.startsWith("Have "))).toBe(true);
+    expect(a.actions.find((x) => x.text.startsWith("Have "))!.knowledgeIds).toEqual(
+      a.stops.filter((s) => !s.item.documented).map((s) => s.item.id),
+    );
   });
 
   it("reports nothing more stopping for a fully backed-up person and flags sole-owned processes", () => {

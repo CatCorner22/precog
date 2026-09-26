@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   dateAfter,
   formatDay,
+  formatDayNear,
   formatDayRange,
   formatDayShort,
   formatDayTime,
@@ -50,6 +51,8 @@ describe("formatters", () => {
   it("prints days month first in US English", () => {
     expect(formatDay("2026-11-03")).toBe("Nov 3, 2026");
     expect(formatDayShort("2026-11-03")).toBe("Nov 3");
+    expect(formatDayNear("2026-11-03", "2026-10-01")).toBe("Nov 3");
+    expect(formatDayNear("2027-01-04", "2026-12-20")).toBe("Jan 4, 2027");
     expect(formatDay(new Date(2026, 10, 3, 15, 0))).toBe("Nov 3, 2026");
     expect(formatDayTime(new Date(2026, 10, 3, 16, 5)).replace(/\s/g, " ")).toBe(
       "Nov 3, 2026, 4:05 PM",

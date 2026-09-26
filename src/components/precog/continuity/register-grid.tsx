@@ -1,16 +1,11 @@
 import { Plus, Trash2 } from "lucide-react";
 import type { CoverageReport, ItemCoverage } from "@/lib/precog/continuity/coverage";
+import { LEVEL_LABEL, LEVEL_ORDER, relationLevel } from "@/lib/precog/continuity/coverage";
 import {
-  LEVEL_LABEL,
-  LEVEL_ORDER,
-  relationLevel,
-  STATUS_LABEL,
-} from "@/lib/precog/continuity/coverage";
-import {
+  coverageBadge,
   CRITICALITY_LABEL,
   KIND_LABEL,
   LEVEL_SHORT,
-  STATUS_VARIANT,
 } from "@/lib/precog/continuity/planner-copy";
 import { inputClass } from "./styles";
 import {
@@ -274,8 +269,8 @@ export function RegisterGrid({
                         </div>
                       </th>
                       <td className="px-3 py-2">
-                        <Badge variant={STATUS_VARIANT[row.status]}>
-                          {STATUS_LABEL[row.status]}
+                        <Badge variant={coverageBadge(row).variant}>
+                          {coverageBadge(row).label}
                         </Badge>
                       </td>
                       {visiblePeople.map((p) => {

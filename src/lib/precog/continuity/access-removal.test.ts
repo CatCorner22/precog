@@ -169,7 +169,7 @@ describe("the owner answers the prompt", () => {
     });
     expect(entry.subject).toContain("Jordan Lee");
     expect(entry.note).toContain(
-      `On ${TODAY} you confirmed that Jordan Lee (Keyholder) is off payroll`,
+      "On Sep 24, 2026 you confirmed that Jordan Lee (Keyholder) is off payroll",
     );
     expect(entry.note).toMatch(/bank, payroll, point of sale/);
     expect(openAccessChecks(result.checks, "retail", []).map((c) => c.name)).toEqual(["Nora Diaz"]);

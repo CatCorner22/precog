@@ -45,9 +45,9 @@ describe("buildWeeklyActions leavers", () => {
     expect(action?.title).toBe(
       `${firstName(maya.name)} leaves in 19 days: train ${firstName(chris.name)} on ${item.name}`,
     );
-    expect(action?.why).toContain("Hand over by 2025-04-20");
+    expect(action?.why).toContain("Hand over by Apr 20.");
     expect(action?.why).toContain("1 has nothing written down");
-    expect(action?.why).toContain("Left in the business after 2025-04-20");
+    expect(action?.why).toContain("Left in the business after Apr 20:");
     expect(action?.effort).toBe("medium");
     expect(action?.priority).toBe(87);
     expect(action?.tab).toBe("knowledge");

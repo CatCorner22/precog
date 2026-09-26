@@ -20,6 +20,7 @@ import {
   type DocumentationReport,
 } from "@/lib/precog/continuity/documentation";
 import {
+  coverageBadge,
   CRITICALITY_LABEL,
   NOT_ASSESSED_PLAN,
   STATUS_VARIANT,
@@ -474,7 +475,7 @@ export function SelectedKnowledgeCard({
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>{selected.item.name}</CardTitle>
-          <Badge variant={STATUS_VARIANT[selected.status]}>{STATUS_LABEL[selected.status]}</Badge>
+          <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
         </div>
         <CardDescription>
           {selected.item.description || CRITICALITY_LABEL[selected.item.criticality]}

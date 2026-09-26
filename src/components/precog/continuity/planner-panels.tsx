@@ -457,7 +457,7 @@ export function LeavingTeamCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <LeaverAccessList />
+        <LeaverAccessList explainOnSample />
         {staying.length > 0 && (
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">

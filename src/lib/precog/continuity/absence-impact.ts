@@ -42,7 +42,11 @@ export interface AbsenceImpact {
   orphanedProcesses: string[];
   /** 0–100 share of must-do work that stops (same weighted index as PersonLoad.dependence). */
   dependence: number;
-  /** What to do now, then what to do before the next absence. */
+  /**
+   * What to do: hand-offs first, then what to write down and who to
+   * cross-train. The text carries no timing; the card that shows it says
+   * whether it is for today or before the leave starts.
+   */
   actions: AbsenceAction[];
 }
 
@@ -184,7 +188,7 @@ export function absenceImpact(
     const named = critical.filter((s) => s.standIn);
     if (named.length)
       actions.push({
-        text: `Today: hand ${joinWithAnd(
+        text: `Hand ${joinWithAnd(
           named.map((s) => `${quoted(s.item.name)} to ${s.standIn?.name}`),
           3,
         )}.`,
@@ -205,7 +209,7 @@ export function absenceImpact(
   const undocumented = stops.filter((s) => !s.item.documented);
   if (undocumented.length)
     actions.push({
-      text: `Before the next absence: have ${names} write down ${joinWithAnd(
+      text: `Have ${names} write down ${joinWithAnd(
         undocumented.map((s) => quoted(s.item.name)),
         3,
       )}.`,

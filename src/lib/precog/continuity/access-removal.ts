@@ -7,6 +7,7 @@ import {
 } from "../practice-profile";
 import type { Person } from "../types";
 import { nameKey, uid } from "../text";
+import { formatDay } from "../dates";
 
 /**
  * Someone who has left keeps whatever access nobody took away: a login, card
@@ -176,10 +177,10 @@ export function confirmAccessRemoved(
       createdAt: now.toISOString(),
       subject: `${check.name} has left: pay and logins stopped`.slice(0, 120),
       kind: "remediate",
-      note: `On ${today} you confirmed that ${leaverLabel(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
+      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
         check.source === "roster"
-          ? `Noted as left from a roster on ${check.notedOn}.`
-          : `Marked as left on ${check.notedOn}.`
+          ? `Noted as left from a roster on ${formatDay(check.notedOn)}.`
+          : `Marked as left on ${formatDay(check.notedOn)}.`
       }`,
       linkedTab: "knowledge",
       ...(check.personId ? { linkedPersonId: check.personId } : {}),

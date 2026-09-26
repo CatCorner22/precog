@@ -108,6 +108,11 @@ export function formatDayShort(value: string | Date): string {
   return date ? DAY_SHORT.format(date) : String(value);
 }
 
+/** "Nov 3" for a day in the same year as `today`, "Nov 3, 2027" otherwise. */
+export function formatDayNear(value: string, today: string): string {
+  return value.slice(0, 4) === today.slice(0, 4) ? formatDayShort(value) : formatDay(value);
+}
+
 /** "Nov 3, 2026, 4:05 PM". */
 export function formatDayTime(value: string | Date): string {
   const date = toDate(value);

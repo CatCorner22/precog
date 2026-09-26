@@ -65,7 +65,7 @@ describe("buildWeeklyActions journal awareness", () => {
     expect(actions).toContainEqual(
       expect.objectContaining({
         id: "commit-d-cover",
-        title: `In progress: ${first} on ${item.name} — review 2025-05-01`,
+        title: `In progress: ${first} on ${item.name} — review May 1, 2025`,
         tab: "journal",
         effort: "low",
         priority: 40,
@@ -73,7 +73,7 @@ describe("buildWeeklyActions journal awareness", () => {
     );
     const action = actions.find((a) => a.id === "commit-d-cover");
     expect(action?.why).toContain(
-      `You logged "Train ${trainee.name} on ${item.name}" on 2025-03-01`,
+      `You logged "Train ${trainee.name} on ${item.name}" on Mar 1, 2025`,
     );
     expect(action?.why).toContain("the register still says only one person");
   });

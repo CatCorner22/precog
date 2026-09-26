@@ -4,7 +4,7 @@ import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { checkInPlan } from "@/lib/precog/continuity/staleness";
+import { checkInPlan, CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import {
   coverageReport,
   STATUS_LABEL,
@@ -53,7 +53,7 @@ import {
   type ControlId,
 } from "@/lib/precog/evidence";
 import type { StaffComposition } from "@/lib/precog/types";
-import { localDateKey, formatDayRange } from "../dates";
+import { localDateKey, formatDay, formatDayNear, formatDayRange } from "../dates";
 import { joinWithAnd, verb, firstName, count } from "../text";
 
 export interface WeeklyAction {
@@ -130,6 +130,8 @@ const PRIORITY = {
   mapStart: 84,
   /** A critical register entry only one person can run alone. */
   crossTrainSingle: 82,
+  /** A critical register entry one person runs alone while someone learns it. */
+  crossTrainThin: 76,
   /** One active person carries half the critical work alone. */
   dependence: 80,
   /** A leaver's last day is more than 30 days out. */
@@ -358,13 +360,16 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
   for (const m of continuity.plan.filter(
     (x) =>
       x.item.criticality === "critical" &&
-      x.status !== "thin" &&
       !debriefing.has(x.item.id) &&
       !handingOver.has(x.item.id),
   )) {
     if (freshLeft === 0 && remindersLeft === 0) break;
     const priority =
-      m.status === "uncovered" ? PRIORITY.crossTrainUncovered : PRIORITY.crossTrainSingle;
+      m.status === "uncovered"
+        ? PRIORITY.crossTrainUncovered
+        : m.status === "single"
+          ? PRIORITY.crossTrainSingle
+          : PRIORITY.crossTrainThin;
     const c = committed.get(continuityStepKey(m.item.id, "cover"));
     if (c) {
       if (remindersLeft === 0) continue;
@@ -380,7 +385,7 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
         m.status === "uncovered"
           ? `Find someone to own ${m.item.name}`
           : m.trainee
-            ? `Cross-train ${firstName(m.trainee.name)} on ${m.item.name}`
+            ? `${m.status === "thin" ? "Finish training" : "Cross-train"} ${firstName(m.trainee.name)} on ${m.item.name}`
             : `Cross-train a backup for ${m.item.name}`,
       why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare what they do with what should be done.`,
       effort: m.item.documented ? "low" : "medium",
@@ -452,7 +457,9 @@ function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAc
           : `${first} ${out} ${when}: hand off ${lead.item.name} to ${standInFirst}${others > 0 ? ` and ${others} more` : ""}`
         : `${first} ${out} ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
       why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${
-        w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : coverToday
+        w.status === "upcoming"
+          ? ` Hand off by ${formatDayNear(handoffDeadline(w, today), today)}.`
+          : coverToday
       }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else is left in the business."}`,
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
@@ -476,7 +483,7 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
       actions.push({
         id: `leaver-${l.person.id}`,
         title: `${lead}: mark ${first} as left`,
-        why: `${first}'s last day was ${l.lastDay} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${count(l.handover.length, "register entry", "register entries")} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
+        why: `${first}'s last day was ${formatDayNear(l.lastDay, today)} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${count(l.handover.length, "register entry", "register entries")} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
         effort: "low",
         tab: "knowledge",
         priority: PRIORITY.leaverGone,
@@ -490,9 +497,9 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
         : l.daysLeft <= 30
           ? PRIORITY.leaverThisMonth
           : PRIORITY.leaverLater;
-    const deadline = handoverDeadline(l, today);
+    const deadline = formatDayNear(handoverDeadline(l, today), today);
     const remaining = l.remaining.length
-      ? ` Left in the business after ${l.lastDay}: ${l.remaining.map((p) => firstName(p.name)).join(", ")}.`
+      ? ` Left in the business after ${formatDayNear(l.lastDay, today)}: ${l.remaining.map((p) => firstName(p.name)).join(", ")}.`
       : " Nobody else is left in the business.";
     if (l.handover.length === 0) {
       const orphaned = l.orphanedProcesses;
@@ -658,11 +665,11 @@ function checkInActions({ tpl, input, today, registerReady }: WeeklyContext): We
         why: `The register says ${first.person.name} can do ${joinWithAnd(
           first.items.map((entry) => entry.item.name),
           3,
-        )}, but nobody has confirmed it in 90+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
+        )}, but nobody has confirmed it in ${CONFIRMATION_MAX_AGE_DAYS}+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
           others > 0
             ? ` ${others} more ${verb(others, "person", "people")} to check in with after that.`
             : ""
-        }${plan.unheld.length > 0 ? ` ${plan.unheld.length} stale item(s) nobody active holds.` : ""}`,
+        }${plan.unheld.length > 0 ? ` ${count(plan.unheld.length, "stale entry", "stale entries")} nobody active holds.` : ""}`,
         effort: "low",
         tab: "knowledge",
         priority: first.soleCount > 0 ? PRIORITY.checkInSole : PRIORITY.checkIn,
@@ -673,9 +680,11 @@ function checkInActions({ tpl, input, today, registerReady }: WeeklyContext): We
   return [
     {
       id: "confirm-register",
-      title: `Re-confirm ${plan.unheld.length} register item(s) nobody holds`,
+      title: `Re-confirm ${count(plan.unheld.length, "register entry", "register entries")} nobody holds`,
       why: `${plan.unheld[0].action} ${
-        plan.unheld.length > 1 ? `${plan.unheld.length - 1} more item(s) also need a check.` : ""
+        plan.unheld.length > 1
+          ? `${count(plan.unheld.length - 1, "more entry", "more entries")} also ${verb(plan.unheld.length - 1, "needs", "need")} a check.`
+          : ""
       }`.trim(),
       effort: "low",
       tab: "knowledge",
@@ -692,7 +701,7 @@ function dependenceActions({ continuity }: WeeklyContext): WeeklyAction[] {
     {
       id: `dependence-${leanedOn.person.id}`,
       title: `Spread ${firstName(leanedOn.person.name)}'s sole duties`,
-      why: `${leanedOn.dependence}% of critical work stops if ${leanedOn.person.name} is out — ${leanedOn.soleItems.length} items nobody else can run. Run the absence check on the Who-knows-what tab.`,
+      why: `${leanedOn.dependence}% of critical work stops if ${leanedOn.person.name} is out — ${leanedOn.soleItems.length} items nobody else can run. Run the absence check on the Who knows what tab.`,
       effort: "medium",
       tab: "knowledge",
       priority: PRIORITY.dependence,
@@ -761,7 +770,7 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
       return {
         id: `map-heat-${snap.process.id}`,
         title: `Review hot process: ${snap.process.name}`,
-        why: `Heat ${snap.heat} — ${snap.risks.length} risk(s)${gaps ? `, ${gaps} duty-conflict gap(s)` : ""}. Open the map builder to assign owners and controls.`,
+        why: `Heat ${snap.heat} — ${count(snap.risks.length, "risk")}${gaps ? `, ${count(gaps, "duty-conflict gap")}` : ""}. Open the map builder to assign owners and controls.`,
         effort: gaps > 0 ? "medium" : "low",
         tab: "map",
         processId: snap.process.id,
@@ -806,7 +815,7 @@ function committedAction(
     c.step === "cover" && first
       ? `${first} on ${c.item.name}`
       : `${STEP_VERB[c.step]} ${c.item.name}`;
-  const logged = `You logged "${c.decision.subject}" on ${c.decision.createdAt.slice(0, 10)}${c.reviewBy ? ` with a review on ${c.reviewBy}` : ""}; the register still says ${stillSays}.`;
+  const logged = `You logged "${c.decision.subject}" on ${formatDay(c.decision.createdAt)}${c.reviewBy ? ` with a review on ${formatDay(c.reviewBy)}` : ""}; the register still says ${stillSays}.`;
   if (c.overdue) {
     return {
       id: `commit-${c.decision.id}`,
@@ -828,7 +837,7 @@ function committedAction(
   }
   return {
     id: `commit-${c.decision.id}`,
-    title: `In progress: ${what}${c.reviewBy ? ` — review ${c.reviewBy}` : ""}`,
+    title: `In progress: ${what}${c.reviewBy ? ` — review ${formatDay(c.reviewBy)}` : ""}`,
     why: `${logged} Nothing new to start; if it has already happened, close it as done in the Journal.`,
     effort: "low",
     tab: "journal",

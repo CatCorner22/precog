@@ -3,6 +3,7 @@ import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
 import { documentationDebt } from "@/lib/precog/continuity/documentation";
 import { buildWeeklyActions } from "./build";
+import { firstName } from "../text";
 
 const dental = getBaseTemplate("dental");
 
@@ -118,7 +119,7 @@ describe("buildWeeklyActions documentation advice", () => {
     expect(actions).toContainEqual(
       expect.objectContaining({
         id: "confirm-register",
-        title: "Re-confirm 1 register item(s) nobody holds",
+        title: "Re-confirm 1 register entry nobody holds",
       }),
     );
   });
@@ -148,5 +149,40 @@ describe("buildWeeklyActions de-duplication", () => {
     });
     const docs = actions.filter((action) => action.id.startsWith("docs-")).map((a) => a.id);
     expect(docs.sort()).toEqual(["docs-kb-appeal", "docs-kb-submit"]);
+  });
+});
+
+describe("buildWeeklyActions cross-training", () => {
+  it("asks to finish training a learner on a critical entry one person runs alone", () => {
+    const payroll = {
+      ...dental.knowledge[0],
+      id: "k-payroll",
+      name: "Payroll",
+      criticality: "critical" as const,
+      documented: true,
+      procedureLocation: "Drive/SOPs",
+    };
+    const [expert, learner] = dental.people;
+    const tpl = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [payroll],
+      customRelations: [
+        { personId: expert.id, knowledgeId: payroll.id, level: "expert" },
+        { personId: learner.id, knowledgeId: payroll.id, level: "basic" },
+      ],
+    });
+    const actions = buildWeeklyActions({
+      tpl,
+      staff: { ...tpl.staffComposition, independentBankRec: true, dualControlPayments: true },
+      dualRelease: defaultDualReleasePolicy(tpl),
+      mapAssessed: true,
+    });
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        id: "spof-k-payroll",
+        title: `Finish training ${firstName(learner.name)} on Payroll`,
+        priority: 76,
+      }),
+    );
   });
 });
