@@ -334,7 +334,7 @@ export function IndustryOnboarding() {
         if (i !== index) return row;
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
-        const owns = rowOwnsBusiness(row);
+        const owns = rowOwnsBusiness(row, selected);
         const previous = row.suggestedFor ? suggestedDuties(row.suggestedFor, owns, selected) : [];
         const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
         return untouched
@@ -378,7 +378,7 @@ export function IndustryOnboarding() {
     // The unnamed Owner row stays at the top unless the paste has its own owner.
     const { kept, ownerRow: owner } = rowsKeptForAdding(
       rows,
-      incoming.some((r) => rowOwnsBusiness(r)),
+      incoming.some((r) => rowOwnsBusiness(r, selected)),
       incoming.some((r) => isLeaderTitle(r.role)),
     );
     const outcome = addPastedRows(kept, incoming);
@@ -1004,7 +1004,7 @@ export function IndustryOnboarding() {
                                   type="checkbox"
                                   className="size-4"
                                   aria-label={`${who} owns the business`}
-                                  checked={rowOwnsBusiness(row)}
+                                  checked={rowOwnsBusiness(row, selected)}
                                   onChange={(e) => updateRow(index, { owner: e.target.checked })}
                                 />
                                 Owns the business

@@ -41,3 +41,32 @@ describe("parseRoster over an existing team", () => {
     expect(result.people.find((p) => p.name === "Cal Diaz")?.role).toBe("Cook");
   });
 });
+
+describe("the first line of a pasted list", () => {
+  const general = getBaseTemplate("general");
+  const names = (text: string) => parseRoster(text, general, { today }).people.map((p) => p.name);
+
+  it("keeps a first name at the top of a list of first names", () => {
+    expect(names("Jose\nMaria, Team Member\nAna, Shift Lead")).toEqual(["Jose", "Maria", "Ana"]);
+    expect(
+      names("Bob\nAlice Smith - Wizard of Ops\nCarlos Diaz, Head of Everything\nDana"),
+    ).toEqual(["Bob", "Alice Smith", "Carlos Diaz", "Dana"]);
+  });
+
+  it("keeps a person whose surname is a list word", () => {
+    expect(names("Ana Staff\nBen Cole, Bookkeeper")).toEqual(["Ana Staff", "Ben Cole"]);
+  });
+
+  it("still skips and reports a title line", () => {
+    for (const title of ["Employees", "Acme", "Acme Staff List", "Our crew:", "Staff List"]) {
+      const result = parseRoster(`${title}\nAna Ruiz, Owner\nBen Cole, Bookkeeper`, general, {
+        today,
+      });
+      expect(
+        result.people.map((p) => p.name),
+        title,
+      ).toEqual(["Ana Ruiz", "Ben Cole"]);
+      expect(result.issues[0]?.message, title).toBe(`Skipped 1 line at the top: "${title}"`);
+    }
+  });
+});

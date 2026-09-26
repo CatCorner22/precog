@@ -328,23 +328,65 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   assistant: { dental: "dental-assistant" },
   technician: { dental: "dental-assistant" },
   partner: { professional_services: "owner" },
-  "crew lead": { general: "foreman", construction: "foreman" },
-  "crew leader": { general: "foreman", construction: "foreman" },
+  "crew lead": {
+    general: "foreman",
+    construction: "foreman",
+    retail: "shift-lead",
+    restaurant: "shift-lead",
+  },
+  "crew leader": {
+    general: "foreman",
+    construction: "foreman",
+    retail: "shift-lead",
+    restaurant: "shift-lead",
+  },
+  // A team lead takes the drawer only in a store or a restaurant.
+  "team lead": { retail: "shift-lead", restaurant: "shift-lead" },
+  "team leader": { retail: "shift-lead", restaurant: "shift-lead" },
   // On a job site a "super" is the superintendent.
   super: { construction: "foreman" },
-  // A nonprofit's treasurer is a board officer, and its CEO is its executive director.
+  // A nonprofit's treasurer is a board officer, its CEO or president is its
+  // executive director, and its principal runs a school.
   treasurer: { nonprofit: "board-treasurer" },
   ceo: { nonprofit: "executive-director" },
   "chief executive officer": { nonprofit: "executive-director" },
+  "chief executive": { nonprofit: "executive-director" },
+  president: { nonprofit: "executive-director" },
+  principal: { nonprofit: "center-director" },
   // A nonprofit's program manager runs a program, not a client project.
   "program manager": { nonprofit: "program-director" },
   "business assistant": { dental: "receptionist" },
   // A CSR in a dental, medical or veterinary office is the front desk.
   csr: { dental: "receptionist" },
   "customer service representative": { dental: "receptionist" },
+  // In a dental, medical or veterinary office the practice administrator or
+  // business manager keeps the books like the office manager, the business
+  // office runs the billing, the care coordinator takes payment for the plan,
+  // and the registrar registers patients at the desk. A law firm's practice
+  // administrator is its firm administrator.
+  "practice administrator": {
+    dental: "office-manager",
+    professional_services: "firm-administrator",
+  },
+  "business manager": { dental: "office-manager" },
+  "business office manager": { dental: "billing-manager" },
+  "care coordinator": { dental: "treatment-coordinator" },
+  "case coordinator": { dental: "treatment-coordinator" },
+  registrar: { dental: "medical-secretary" },
   // A restaurant's general manager runs the floor and the drawer as well as the books.
   "general manager": { restaurant: "restaurant-manager" },
   gm: { restaurant: "restaurant-manager" },
+  // A community manager keeps a property in a general business and a
+  // following everywhere else.
+  "community manager": {
+    general: "property-manager",
+    nonprofit: "marketing",
+    professional_services: "marketing",
+    retail: "marketing",
+    restaurant: "marketing",
+  },
+  // A restaurant's event planner sells and runs its catered events.
+  "event planner": { restaurant: "catering-manager" },
 };
 
 /**

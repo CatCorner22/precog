@@ -1,10 +1,5 @@
 import type { EntitlementId } from "../sod/conflict-rules";
-import {
-  entitlementsForTitle,
-  matchJobTitle,
-  seatDuties,
-  type JobCatalogEntry,
-} from "./job-catalog";
+import { entitlementsForTitle, matchJobTitle, type JobCatalogEntry } from "./job-catalog";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isOwnerRole } from "../sod/owner-role";
 import { industryHasOwner } from "../industry";
@@ -115,9 +110,21 @@ export interface OwnTeamRow {
   rowId?: string;
 }
 
-/** Whether a grid row owns the business: its mark when set, otherwise its title. */
-export function rowOwnsBusiness(row: Pick<OwnTeamRow, "role" | "owner">): boolean {
-  return row.owner ?? isOwnerRole(row.role);
+/**
+ * Whether a grid row owns the business: nobody in a nonprofit; otherwise the
+ * row's mark when set, else its title. A title names the owner when either
+ * owner reader says so, the owner-title rule the engines use or the job
+ * catalog that ticks the duties, so a "Dealer Principal" whose owner's duties
+ * are ticked is also marked the owner.
+ */
+export function rowOwnsBusiness(
+  row: Pick<OwnTeamRow, "role" | "owner">,
+  industry?: string,
+): boolean {
+  if (!industryHasOwner(industry)) return false;
+  return (
+    row.owner ?? (isOwnerRole(row.role) || matchJobTitle(row.role, industry)?.entry.id === "owner")
+  );
 }
 
 /** The catalog's usual duties for a title, every one of them: columns and chips alike. */
@@ -146,7 +153,7 @@ function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
   const role = row.role.trim();
   if (!role || row.duties.length === 0) return false;
   if ((row.suggestedFor ?? "").trim() !== role) return false;
-  const usual = suggestedDuties(role, rowOwnsBusiness(row), industry);
+  const usual = suggestedDuties(role, rowOwnsBusiness(row, industry), industry);
   return row.duties.length === usual.length && row.duties.every((d) => usual.includes(d));
 }
 
@@ -232,7 +239,7 @@ const NONPROFIT_LEADER_TITLE = "Executive Director";
 
 /**
  * The first row of a fresh grid in this line of business: the owner, or in a
- * nonprofit the executive director, who owns nothing and is marked so.
+ * nonprofit the executive director.
  */
 export function leaderRow(industry?: string): OwnTeamRow {
   if (industryHasOwner(industry)) return ownerRow();
@@ -241,7 +248,6 @@ export function leaderRow(industry?: string): OwnTeamRow {
     role: NONPROFIT_LEADER_TITLE,
     duties: coreDutiesForTitle(NONPROFIT_LEADER_TITLE, industry),
     suggestedFor: NONPROFIT_LEADER_TITLE,
-    owner: false,
   };
 }
 
@@ -255,7 +261,8 @@ function isUntouchedLeaderRow(row: OwnTeamRow | undefined): boolean {
     (fresh) =>
       fresh.role === row.role &&
       fresh.suggestedFor === row.suggestedFor &&
-      fresh.owner === row.owner &&
+      // Drafts saved before the nonprofit row lost its mark carry owner: false.
+      Boolean(fresh.owner) === Boolean(row.owner) &&
       sameDutyList(fresh.duties, row.duties),
   );
 }
@@ -270,7 +277,7 @@ export function firstRowForIndustry(rows: OwnTeamRow[], industry?: string): OwnT
   const first = rows[0];
   if (!isUntouchedLeaderRow(first)) return rows;
   const wanted = leaderRow(industry);
-  if (wanted.role === first.role && wanted.owner === first.owner) return rows;
+  if (wanted.role === first.role && Boolean(wanted.owner) === Boolean(first.owner)) return rows;
   return [{ ...wanted, ...(first.rowId ? { rowId: first.rowId } : {}) }, ...rows.slice(1)];
 }
 
@@ -373,7 +380,13 @@ export function rowsForJobTitle(
   industry?: string,
 ): OwnTeamRow[] {
   const n = clamp(Math.floor(count), 0, OWN_TEAM_MAX);
-  const duties = seatDuties(entry, industry).filter((d) => d !== "view_reports_only");
+  // The same duties typing the title ticks, so the rows keep their "duties
+  // from the title" mark.
+  const duties = suggestedDuties(
+    entry.title,
+    rowOwnsBusiness({ role: entry.title }, industry),
+    industry,
+  );
   const base = entry.title.split(" / ")[0];
   const names =
     typeof existing === "number"
@@ -384,8 +397,6 @@ export function rowsForJobTitle(
     role: entry.title,
     duties: [...duties],
     suggestedFor: entry.title,
-    // Nobody owns a nonprofit, whatever the title says.
-    ...(industryHasOwner(industry) ? {} : { owner: false }),
   }));
 }
 
@@ -417,8 +428,6 @@ export function rowFromImportedPerson(
     ...(person.lastDay ? { lastDay: person.lastDay } : {}),
     suggestedFor: person.role,
     ...(onLeave ? { onLeave: true } : {}),
-    // Nobody owns a nonprofit: a pasted "President & CEO" is its executive, not its owner.
-    ...(industryHasOwner(industry) ? {} : { owner: false }),
   };
 }
 
@@ -487,10 +496,20 @@ export function pastedRows(
   industry?: string,
 ): { rows: OwnTeamRow[]; inactiveNames: string[] } {
   const onLeave = new Set(result.onLeave ?? []);
+  const unread = [...result.titles];
+  // Two people may share a name: each takes the first reading not yet taken
+  // with their name and title, else with their name.
+  const readingFor = (person: Person) => {
+    const index = [
+      unread.findIndex((t) => t.name === person.name && nameKey(t.title) === nameKey(person.role)),
+      unread.findIndex((t) => t.name === person.name),
+    ].find((i) => i >= 0);
+    return index === undefined ? undefined : unread.splice(index, 1)[0];
+  };
   const rows = result.people
     .filter((person) => person.active)
     .map((person) => {
-      const mapping = result.titles.find((t) => t.name === person.name);
+      const mapping = readingFor(person);
       return {
         ...rowFromImportedPerson(person, industry, onLeave.has(person.id)),
         readAs: {
@@ -628,7 +647,11 @@ export function addRowsByTitle(
   industry?: string,
   max = OWN_TEAM_MAX,
 ): { rows: OwnTeamRow[]; added: number; notAdded: number } {
-  const { kept } = rowsKeptForAdding(rows, entry.id === "owner", entry.id === "executive-director");
+  const { kept } = rowsKeptForAdding(
+    rows,
+    industryHasOwner(industry) && entry.id === "owner",
+    entry.id === "executive-director",
+  );
   const wanted = Math.max(0, Math.floor(count));
   const room = Math.max(0, max - kept.length);
   const added = rowsForJobTitle(
@@ -686,8 +709,7 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[], industry?: string): Pe
       department: row.department?.trim().slice(0, 120) || undefined,
       employeeId: row.employeeId?.trim().slice(0, 40) || undefined,
       lastDay: row.lastDay && isCalendarDate(row.lastDay) ? row.lastDay : undefined,
-      // Nobody owns a nonprofit: the board oversees its executive director.
-      owner: industryHasOwner(industry) && rowOwnsBusiness(row),
+      owner: rowOwnsBusiness(row, industry),
     }))
     .map((row, index) => ({
       id: `own-${index + 1}`,

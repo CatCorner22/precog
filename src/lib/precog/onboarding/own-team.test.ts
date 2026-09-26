@@ -1,4 +1,5 @@
-import { jobCatalogEntry } from "./job-catalog";
+import { JOB_CATALOG, jobCatalogEntry } from "./job-catalog";
+import { INDUSTRIES } from "../industry";
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
@@ -647,5 +648,66 @@ describe("a nonprofit paste whose leader is titled CEO", () => {
     );
     expect(outcome).toBe("leader-replaced");
     expect(kept).toEqual([]);
+  });
+});
+
+describe("adding people by job title and typing the title agree", () => {
+  it("ticks the duties typing the title ticks, for every job in every line of business", () => {
+    for (const industry of INDUSTRIES.map((i) => i.id)) {
+      for (const entry of JOB_CATALOG) {
+        const [row] = rowsForJobTitle(entry, 1, [], industry);
+        const owns = rowOwnsBusiness(row, industry);
+        expect(row.duties, `${entry.id} in ${industry}`).toEqual(
+          suggestedDuties(entry.title, owns, industry),
+        );
+        if (row.duties.length > 0) {
+          expect(buildOwnTeam([row], industry)[0].dutiesFromTitle, entry.id).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("gives a dental customer service representative the front desk's duties either way", () => {
+    const entry = jobCatalogEntry("customer-service")!;
+    const [row] = rowsForJobTitle(entry, 1, [], "dental");
+    expect(row.duties).toEqual(suggestedDuties("Customer Service Representative", false, "dental"));
+    expect(row.duties).toContain("collect_cash");
+  });
+});
+
+describe("one reading of who owns the business", () => {
+  it("marks a row the owner whenever its title ticks the owner's duties", () => {
+    for (const role of ["Dealer Principal", "Dealer", "Chief Executive", "Owner / Principal"]) {
+      expect(rowOwnsBusiness({ role }, "general"), role).toBe(true);
+      expect(
+        buildOwnTeam([{ name: "Ana", role, duties: ["sign_checks"] }], "general")[0].owner,
+      ).toBe(true);
+    }
+    for (const alias of jobCatalogEntry("owner")!.aliases) {
+      expect(rowOwnsBusiness({ role: alias }, "general"), alias).toBe(true);
+    }
+    expect(rowOwnsBusiness({ role: "Owner's Assistant" }, "general")).toBe(false);
+    expect(rowOwnsBusiness({ role: "Dealer Principal", owner: false }, "general")).toBe(false);
+  });
+
+  it("reads nobody as the owner of a nonprofit, whatever the title or mark", () => {
+    expect(rowOwnsBusiness({ role: "Owner" }, "nonprofit")).toBe(false);
+    expect(rowOwnsBusiness({ role: "Founder", owner: true }, "nonprofit")).toBe(false);
+    const [row] = rowsForJobTitle(jobCatalogEntry("owner")!, 1, [], "nonprofit");
+    expect(buildOwnTeam([row], "nonprofit")[0].owner).toBe(false);
+  });
+});
+
+describe("two pasted people who share a name", () => {
+  it("gives each the seat their own title was read as", () => {
+    const result = parseRoster(
+      "Employee ID,Name,Title\n1,Ana Ruiz,Bookkeeper\n2,Ana Ruiz,Cashier",
+      getBaseTemplate("general"),
+    );
+    const { rows } = pastedRows(result, "general");
+    expect(rows.map((r) => [r.role, r.readAs?.title])).toEqual([
+      ["Bookkeeper", "Bookkeeper"],
+      ["Cashier", jobCatalogEntry("cashier")!.title],
+    ]);
   });
 });

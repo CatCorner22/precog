@@ -488,8 +488,10 @@ describe("job catalog", () => {
       const match = matchJobTitle(title, "general");
       expect(match?.entry.id, title).toBe("clinic-site-director");
       expect(match?.entitlements, title).toEqual(
-        expect.arrayContaining(["approve_writeoffs", "enter_payroll", "prepare_deposit"]),
+        expect.arrayContaining(["approve_writeoffs", "prepare_deposit"]),
       );
+      // Signing off the staff's hours is not entering the payroll run.
+      expect(match?.entitlements, title).not.toContain("enter_payroll");
     }
   });
 
