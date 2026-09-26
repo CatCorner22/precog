@@ -4,7 +4,8 @@ import { isCalendarDate } from "../dates";
 
 const KINDS = new Set(["charge", "payment", "deposit", "adjustment", "refund"]);
 
-function parseAmount(value: string): number | null {
+/** "$1,200.50" → 1200.5, "(40.00)" → -40; null for an empty or non-numeric cell. */
+export function parseAmount(value: string): number | null {
   const trimmed = value.trim();
   const negative = trimmed.startsWith("(") && trimmed.endsWith(")");
   const source = (negative ? trimmed.slice(1, -1) : trimmed)
