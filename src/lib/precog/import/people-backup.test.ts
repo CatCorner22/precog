@@ -2,16 +2,25 @@ import { describe, expect, it } from "vitest";
 import { peopleFromBackup } from "./people-backup";
 
 describe("peopleFromBackup", () => {
-  it("restores department, last day and employee id from the map builder's JSON backup", () => {
+  it("restores the owner mark, department, last day and employee id from the map builder's JSON backup", () => {
     const backup = JSON.parse(
       JSON.stringify({
         version: 3,
         people: [
           {
+            id: "own-10",
+            name: "Dr. Elena Vargas",
+            role: "Dentist",
+            active: true,
+            owner: true,
+          },
+          {
             id: "own-11",
             name: "Li Wu",
             role: "Front Desk",
             active: true,
+            owner: false,
+            dutiesFromTitle: true,
             tenureYears: 2.5,
             lastDay: "2026-11-30",
             department: "Front Desk",
@@ -36,6 +45,8 @@ describe("peopleFromBackup", () => {
         lastDay: "next month",
         department: "",
         entitlements: ["collect_cash", "fly_the_plane", 4],
+        owner: "yes",
+        dutiesFromTitle: "yes",
       },
       { id: "p1", name: "Second copy" },
       { name: "No id" },
