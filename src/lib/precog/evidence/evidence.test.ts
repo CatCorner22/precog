@@ -17,6 +17,7 @@ import {
   citingCaseStats,
   detectionBreakdown,
   durationPhrase,
+  effortPhrase,
   isOwnSector,
   observedLossRange,
   RULE_SCHEMES,
@@ -594,6 +595,18 @@ describe("benchmarks and the shared statistics record", () => {
       expect(b.page, b.id).toBeUndefined();
       expect(b.figure, b.id).toBeUndefined();
     }
+  });
+});
+
+describe("control effort", () => {
+  it("states the set-up cost and, separately, how often the control recurs", () => {
+    expect(effortPhrase({ setup: "minutes", cadence: "each payroll" })).toBe(
+      "Minutes to set up, then each payroll",
+    );
+    expect(effortPhrase({ setup: "a day", cadence: "once" })).toBe("A day to set up");
+    expect(effortPhrase(CONTROL_CATALOG["payroll-register-review"])).toBe(
+      "Minutes to set up, then each payroll",
+    );
   });
 });
 

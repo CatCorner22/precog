@@ -56,8 +56,33 @@ export interface ControlDefinition {
   label: string;
   /** What it actually defends against. */
   why: string;
-  /** Roughly what it costs to put in place. */
-  effort: "minutes" | "an hour" | "ongoing";
+  /** Roughly what it costs to put in place, once. */
+  setup: "minutes" | "an hour" | "a day";
+  /** How often it recurs after that; "once" when setting it up is the whole job. */
+  cadence: ControlCadence;
+}
+
+export type ControlCadence =
+  | "once"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly"
+  | "each payroll"
+  | "each check run"
+  | "each payment"
+  | "each new supplier"
+  | "each claim"
+  | "each purchase"
+  | "each hire"
+  | "each departure"
+  | "each void or refund";
+
+/** What a control costs, in words: "Minutes to set up, then monthly", "A day to set up". */
+export function effortPhrase(control: Pick<ControlDefinition, "setup" | "cadence">): string {
+  const setup = `${control.setup === "minutes" ? "Minutes" : control.setup === "an hour" ? "An hour" : "A day"} to set up`;
+  return control.cadence === "once" ? setup : `${setup}, then ${control.cadence}`;
 }
 
 export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
@@ -65,227 +90,263 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "owner-opens-bank-statement",
     label: "Owner opens the bank statement first, before anyone else handles it",
     why: "Cleared-check images show where money actually went. A forged signature clears the bank; only someone outside the process looking at the images catches it.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "independent-bank-reconciliation": {
     id: "independent-bank-reconciliation",
     label: "Someone other than the person who banks the money reconciles the account",
     why: "If the person who records a deposit also confirms it arrived, the two will always agree regardless of what went in.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "monthly",
   },
   "positive-pay": {
     id: "positive-pay",
     label: "Turn on Positive Pay so the bank only pays checks on a list you upload",
     why: "Stops an unauthorized check at the bank rather than finding it afterwards.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "each check run",
   },
   "payroll-register-review": {
     id: "payroll-register-review",
     label: "Owner reviews the payroll register every cycle — one page, names and amounts",
     why: "Whoever runs payroll can change what payroll says, including their own pay.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "each payroll",
   },
   "no-self-approval": {
     id: "no-self-approval",
     label: "Nobody approves their own pay, expenses, or adjustments, at any amount",
     why: "A threshold with no floor is how escalation starts: small enough to ignore, growing while nothing happens.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "once",
   },
   "electronic-remittance": {
     id: "electronic-remittance",
     label: "Take payment electronically so no payable check passes through the office",
     why: "A check that never exists cannot be diverted. This removes the exposure rather than watching it.",
-    effort: "ongoing",
+    setup: "a day",
+    cadence: "once",
   },
   "expected-receipts-vs-deposits": {
     id: "expected-receipts-vs-deposits",
     label: "Owner compares what should have come in against what was deposited, monthly",
     why: "Money that never arrives leaves no trace in the books. Only an outside expectation reveals it.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "monthly",
   },
   "new-payee-review": {
     id: "new-payee-review",
     label:
       "Owner reads the month's list of new suppliers and changed supplier bank details, and confirms any they do not recognize",
     why: "An invented supplier is added once and paid for years, and the payments look entirely ordinary in the accounts. The one moment it is visible is the month it appears on the list of additions and bank-detail changes, read by someone who cannot add them.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "new-payee-second-approval": {
     id: "new-payee-second-approval",
     label:
       "A second person approves each new supplier before its first payment, against a W-9 and a real address",
     why: "Documentation that arrives by email from the supplier proves nothing when the supplier is the one being invented.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "each new supplier",
   },
   "bank-alerts-on-payee-change": {
     id: "bank-alerts-on-payee-change",
     label: "Bank alerts on new payees and on any account-detail change",
     why: "Redirecting an existing supplier's bank details is quieter than inventing a new one.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "once",
   },
   "dual-release-above-threshold": {
     id: "dual-release-above-threshold",
     label: "A second person releases payments above a set amount, using their own login",
     why: "A shared login defeats this entirely. If the first person can give the second approval, the control exists only on paper.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "each payment",
   },
   "card-statement-line-review": {
     id: "card-statement-line-review",
     label: "Owner reads the company card statement line by line, every month",
     why: "A consumer marketplace charge is indistinguishable from a supplier line until someone asks what it was for.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "receipt-and-second-approval": {
     id: "receipt-and-second-approval",
     label: "Reimbursements need a receipt and a second person's approval",
     why: "A reimbursement is not taxed and does not read as a raise, so it is the quietest way to inflate one's own pay.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "each claim",
   },
   "adjustments-report-by-employee": {
     id: "adjustments-report-by-employee",
     label: "Review voids, refunds, discounts, and write-offs grouped by employee",
     why: "These are normal, necessary functions, which is exactly why they work as concealment. Grouped by person, the outlier is visible at a glance.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "weekly",
   },
   "split-one-duty-out": {
     id: "split-one-duty-out",
     label: "Move any single duty out of the concentrated role — even just the bank reconciliation",
     why: "The cycle only works while one person holds every step. Breaking any link breaks it.",
-    effort: "ongoing",
+    setup: "a day",
+    cadence: "once",
   },
   "permission-review": {
     id: "permission-review",
     label: "Review who holds which system permissions, not who holds which job title",
     why: "Oversight gets designed around the senior title while a deputy quietly inherits the same access.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "quarterly",
   },
   "log-payments-at-the-mail": {
     id: "log-payments-at-the-mail",
     label: "Log incoming payments when the mail is opened, before they reach whoever posts them",
     why: "Creates a record made by a different person, which is the only thing a diverted payment can be checked against.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "daily",
   },
   "independent-financial-review": {
     id: "independent-financial-review",
     label: "Have an outside accountant review the books annually, even where no audit is required",
     why: "An outsider asks the questions everyone inside has stopped asking.",
-    effort: "ongoing",
+    setup: "a day",
+    cadence: "yearly",
   },
   "verify-oversight-is-real": {
     id: "verify-oversight-is-real",
     label:
       "Confirm the people your controls rely on know they hold the role, and that approvals leave evidence",
     why: "A control that is documented but never performed is worse than none, because it stops anyone asking the question.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "yearly",
   },
   "billing-matches-the-schedule": {
     id: "billing-matches-the-schedule",
     label: "Check that what you billed matches who actually worked and what was actually delivered",
     why: "Billing under a name that did not work that day exposes the business to repayment and to the insurer's own fraud finding.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "monthly",
   },
   "compare-across-locations": {
     id: "compare-across-locations",
     label: "Compare the same cost and cash lines across your locations",
     why: "With attention split across sites, an outlier location is the fastest signal a multi-unit owner has.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "volume-vs-recorded-sales": {
     id: "volume-vs-recorded-sales",
     label: "Compare goods used or work done against sales recorded",
     why: "Suppressing a sale in the till does not suppress the stock that left with it.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "monthly",
   },
   "payee-account-not-an-employee": {
     id: "payee-account-not-an-employee",
     label: "No supplier is paid to a bank account matching an employee's",
     why: "A one-line check against payroll details that catches the crudest and most common version outright.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "confirm-remittance-account": {
     id: "confirm-remittance-account",
     label: "Confirm annually with major payers which account they send money to",
     why: "Confirms with the party actually sending the money, which is the one record an insider cannot edit.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "yearly",
   },
   "terminated-staff-vs-payroll": {
     id: "terminated-staff-vs-payroll",
     label: "Compare the list of people who have left against everyone paid this month",
     why: "A ghost employee is almost always a real former employee whose record was quietly reactivated. The departed list is the one thing the payroll operator does not control.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "monthly",
   },
   "gift-card-purchases-controlled": {
     id: "gift-card-purchases-controlled",
     label: "Gift cards on a company card need a second approval and a stated purpose",
     why: "A gift card turns a traceable card charge into untraceable cash. They look like any other retailer line on a statement.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "each purchase",
   },
   "background-check-money-handlers": {
     id: "background-check-money-handlers",
     label: "Reference and background checks on anyone who will touch money",
     why: "A business that quietly fires an embezzler hands the problem to the next small business. The next one is sometimes you.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "each hire",
   },
   "mandatory-time-away": {
     id: "mandatory-time-away",
     label:
       "Everyone who touches money takes at least a week away each year while someone else does the job",
     why: "A scheme that needs daily tending falls apart the week its owner is not there to tend it. The person covering the desk asks the questions nobody else has been in a position to ask.",
-    effort: "ongoing",
+    setup: "an hour",
+    cadence: "yearly",
   },
   "count-inventory-independently": {
     id: "count-inventory-independently",
     label:
       "Someone who neither orders nor receives stock counts it and compares the count to what was bought",
     why: "Goods leave a business as quietly as cash does, and an order placed for personal use looks exactly like a real one on the invoice. A count by a third pair of hands is the only record that does not depend on the person who ordered and signed for it.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "monthly",
   },
   "controlled-substance-count": {
     id: "controlled-substance-count",
     label:
       "Two people count controlled substances against the log each day and inspect vials and seals for tampering",
     why: "Drug diversion is inventory theft with a patient at the other end. A daily two-person count with a signed log turns a missing or altered vial into a same-day question instead of a months-later discovery.",
-    effort: "ongoing",
+    setup: "an hour",
+    cadence: "daily",
   },
   "no-shared-logins": {
     id: "no-shared-logins",
     label:
       "Every person has their own login, and every shared password changes the day anyone leaves",
     why: "A departing employee who knows a colleague's password still has your customer list. Named logins make access removable, and make the audit log mean something when you need it.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "once",
   },
   "recovery-copy-out-of-reach": {
     id: "recovery-copy-out-of-reach",
     label:
       "Keep one backup copy that no employee login can delete — under the owner's own account, or offline",
     why: "A backup the administrator can reach is a backup the administrator can erase, and an angry administrator erases it first. A copy only the owner controls turns a wipe into an afternoon's restore.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "once",
   },
   "payroll-tax-remittance-verified": {
     id: "payroll-tax-remittance-verified",
     label:
       "Each quarter, log in to the IRS and state payroll-tax portals yourself and confirm the deposits were made",
     why: "A bookkeeper who is short of cash can stop paying the payroll taxes and keep the money; the notices arrive months later, addressed to the person who caused them. The portals show in minutes whether the deposits exist.",
-    effort: "ongoing",
+    setup: "minutes",
+    cadence: "quarterly",
   },
   "same-day-access-removal": {
     id: "same-day-access-removal",
     label:
       "Remove every login, administrator right, and shared password the day a person's duties change or they leave",
     why: "Access that outlives the job is how a departed or demoted employee reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
-    effort: "an hour",
+    setup: "an hour",
+    cadence: "each departure",
   },
   "check-stock-custody": {
     id: "check-stock-custody",
     label:
       "Lock the blank check stock, never sign a check in blank, and log the check numbers used each week",
     why: "A pre-signed blank check is cash with your signature on it, and a printed check to a home address is one line in a ledger. Locked stock and a numbered log make a missing check visible before it clears.",
-    effort: "minutes",
+    setup: "minutes",
+    cadence: "weekly",
   },
   "void-refund-second-approval": {
     id: "void-refund-second-approval",
     label: "A second person approves every void, refund, and credit memo before it posts",
     why: "A refund with no sale behind it is a payment, and a void after the customer paid is cash in a pocket. Requiring a second name on each one turns a private key into a shared decision.",
-    effort: "ongoing",
+    setup: "an hour",
+    cadence: "each void or refund",
   },
 };

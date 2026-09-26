@@ -93,7 +93,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "new-payee-review",
         asApplied:
-          "Owner reviews the list of new payees and vendors monthly — a five-minute report in any accounting package",
+          "Owner reviews the list of new suppliers monthly — a five-minute report in any accounting package",
       },
       {
         control: "bank-alerts-on-payee-change",
@@ -556,12 +556,15 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "new-payee-second-approval",
         asApplied:
-          "A second person approves every new vendor before its first payment, checking a W-9 and a real business address",
+          "A second person approves every new supplier before its first payment, checking a W-9 and a real business address",
       },
-      { control: "new-payee-review", asApplied: "New-vendor report reviewed monthly by the owner" },
+      {
+        control: "new-payee-review",
+        asApplied: "New-supplier report reviewed monthly by the owner",
+      },
       {
         control: "payee-account-not-an-employee",
-        asApplied: "No vendor paid to a bank account that matches an employee's",
+        asApplied: "No supplier paid to a bank account that matches an employee's",
       },
     ],
     source: {
@@ -1029,7 +1032,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "independent-financial-review",
         asApplied:
-          "Accountant reconciles to bank-sourced records and reports unpaid vendor balances to the owner",
+          "Accountant reconciles to bank-sourced records and reports unpaid supplier balances to the owner",
       },
     ],
     source: {
@@ -1178,7 +1181,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "new-payee-review",
-        asApplied: "Owner reviews every vendor added that month and asks to see the work",
+        asApplied: "Owner reviews every supplier added that month and asks to see the work",
       },
       {
         control: "receipt-and-second-approval",
@@ -1302,7 +1305,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
-        asApplied: "Owner reviews every vendor added that month and who requested it",
+        asApplied: "Owner reviews every supplier added that month and who requested it",
       },
       {
         control: "count-inventory-independently",
@@ -1433,7 +1436,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "new-payee-review",
         asApplied:
-          "Someone outside IT reviews each new vendor that month and who at the vendor the foundation actually deals with",
+          "Someone outside IT reviews each new supplier that month and who at the supplier the foundation actually deals with",
       },
       {
         control: "independent-financial-review",
@@ -1473,7 +1476,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "new-payee-review",
         asApplied:
-          "Every new vendor approved by the executive director with its registration and owner checked against staff names and addresses",
+          "Every new supplier approved by the executive director with its registration and owner checked against staff names and addresses",
       },
       {
         control: "billing-matches-the-schedule",
@@ -1483,12 +1486,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "independent-financial-review",
         asApplied:
-          "The outside auditor samples the largest vendors each year and asks the program staff, not the fiscal officer, what was delivered",
+          "The outside auditor samples the largest suppliers each year and asks the program staff, not the fiscal officer, what was delivered",
       },
       {
         control: "new-payee-review",
         asApplied:
-          "The month a new vendor appears, the executive director reads the addition and checks its owner and address against staff records",
+          "The month a new supplier appears, the executive director reads the addition and checks its owner and address against staff records",
       },
     ],
     source: {
@@ -1524,7 +1527,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "new-payee-second-approval",
         asApplied:
-          "Any new vendor bank account confirmed by phone with the vendor before the first payment, by someone other than the person who set it up",
+          "Any new supplier bank account confirmed by phone with the supplier before the first payment, by someone other than the person who set it up",
       },
       {
         control: "card-statement-line-review",
@@ -1841,11 +1844,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       {
         control: "bank-alerts-on-payee-change",
-        asApplied: "Bank alerts the owner on any change to a vendor's account details",
+        asApplied: "Bank alerts the owner on any change to a supplier's account details",
       },
       {
         control: "payee-account-not-an-employee",
-        asApplied: "No vendor is paid to a bank account matching an employee's",
+        asApplied: "No supplier is paid to a bank account matching an employee's",
       },
       {
         control: "payroll-register-review",
@@ -1987,7 +1990,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "independent-financial-review",
         asApplied:
-          "Annual outside review of spend by vendor — one contractor's share doubling is the finding",
+          "Annual outside review of spend by supplier — one contractor's share doubling is the finding",
       },
     ],
     source: {
