@@ -127,6 +127,28 @@ describe("todayBrief", () => {
     expect(brief.headline).toMatch(/^Maya and Sam are out \(one unexpectedly\) today — /);
   });
 
+  it("counts a stopped entry once when two people who both hold it are out", () => {
+    // billing: Maya and Sam; pms and payroll: Maya alone. Both out, so three entries stop.
+    const brief = todayBrief(
+      register,
+      [absence(), absence({ id: "abs-2", personId: "sam" })],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(brief.stopped).toBe(3);
+    expect(brief.cold).toBe(2);
+    expect(brief.unwritten).toBe(1);
+    expect(brief.unlogged).toBe(3);
+    const byPerson = Object.fromEntries(
+      brief.out.map((o) => [o.person.id, o.stops.map((s) => s.item.id).sort()]),
+    );
+    expect(byPerson).toEqual({ maya: ["billing", "payroll", "pms"], sam: ["billing"] });
+    expect(brief.headline).toBe(
+      "Maya and Sam are out unexpectedly today — 3 register entries stop, 2 that nobody left has done before, 1 with nothing written down.",
+    );
+  });
+
   it("counts how many are out unexpectedly when more than one is", () => {
     const brief = todayBrief(
       register,
