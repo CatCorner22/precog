@@ -1,3 +1,4 @@
+import { isCalendarDate, dateAfter, localDateKey } from "./dates";
 export type ValueEvidenceKind = "time" | "recovery" | "control" | "exception";
 
 export type ValueEvidence = {
@@ -22,11 +23,7 @@ function text(value: unknown, maximum: number) {
 
 function validDate(value: unknown) {
   const candidate = String(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return "";
-  const parsed = new Date(`${candidate}T00:00:00.000Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === candidate
-    ? candidate
-    : "";
+  return isCalendarDate(candidate) ? candidate : "";
 }
 
 export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
@@ -60,11 +57,9 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
 const OBSERVATION_WINDOW_DAYS = 365;
 
 function observationWindow(asOf: Date) {
-  const cutoff = new Date(asOf);
-  cutoff.setUTCDate(cutoff.getUTCDate() - OBSERVATION_WINDOW_DAYS);
   return {
-    cutoffDate: cutoff.toISOString().slice(0, 10),
-    asOfDate: asOf.toISOString().slice(0, 10),
+    cutoffDate: dateAfter(asOf, -OBSERVATION_WINDOW_DAYS),
+    asOfDate: localDateKey(asOf),
   };
 }
 

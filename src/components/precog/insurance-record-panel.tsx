@@ -5,7 +5,7 @@ import {
   type PolicyField,
 } from "@/lib/precog/scoring/insurance-record";
 import { VARIABLE_CATALOG, type RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import { localDateKey } from "@/lib/precog/dates";
 
 /** No file upload or external model call: records the owner's stated basis. */
 export function InsuranceRecordPanel({

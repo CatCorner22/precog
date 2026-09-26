@@ -23,7 +23,6 @@ import {
   applyDecisionReview,
   captureDecisionSnapshot,
   linkedKnowledgeId,
-  localDateKey,
 } from "./decisions/follow-through";
 import {
   defaultProfile,
@@ -43,6 +42,7 @@ import {
   noteDepartures,
   type Departure,
 } from "./continuity/access-removal";
+import { localDateKey, formatDay } from "./dates";
 
 /**
  * Every edit the app makes to a business, as a pure function from one
@@ -368,7 +368,7 @@ export function makeMapVersion(p: PracticeProfile, name: string, healthScore: nu
   const tpl = getIndustryTemplate(p.industry);
   return {
     id: `ver_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-    name: name.trim().slice(0, 60) || `Version ${new Date().toLocaleDateString()}`,
+    name: name.trim().slice(0, 60) || `Version ${formatDay(new Date())}`,
     createdAt: new Date().toISOString(),
     healthScore,
     processes: structuredClone(processesToEdit(p)),

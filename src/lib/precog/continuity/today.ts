@@ -7,13 +7,9 @@ import { firstName } from "./coverage";
 import { leaveDebriefs } from "./leave-debrief";
 import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
-import {
-  formatDateRange,
-  plannedAbsenceReport,
-  procedurePointer,
-  type AbsenceWindow,
-} from "./planned-absence";
+import { plannedAbsenceReport, procedurePointer, type AbsenceWindow } from "./planned-absence";
 import { joinWithAnd } from "../text";
+import { formatDayRange } from "../dates";
 
 /** Leave starting within this many days counts as "starting soon" on the dashboard. */
 export const SOON_DAYS = 7;
@@ -170,7 +166,7 @@ function headline(b: TodayBrief): string | null {
   if (b.startingSoon.length > 0) {
     const w = b.startingSoon[0];
     const when = w.daysUntil === 1 ? "tomorrow" : `in ${w.daysUntil} days`;
-    return `${firstName(w.person.name)} is out ${formatDateRange(w.window.absence.from, w.window.absence.to)}, ${when}${w.unlogged > 0 ? ` — ${w.unlogged} hand-off${w.unlogged === 1 ? "" : "s"} not yet logged` : ""}.`;
+    return `${firstName(w.person.name)} is out ${formatDayRange(w.window.absence.from, w.window.absence.to)}, ${when}${w.unlogged > 0 ? ` — ${w.unlogged} hand-off${w.unlogged === 1 ? "" : "s"} not yet logged` : ""}.`;
   }
   if (b.leaving.length > 0) {
     const l = b.leaving[0];

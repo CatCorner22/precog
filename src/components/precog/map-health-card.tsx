@@ -23,6 +23,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { formatDayShort } from "@/lib/precog/dates";
 
 function Sparkline({ points, color }: { points: number[]; color: string }) {
   if (points.length < 2) return null;
@@ -286,9 +287,7 @@ export function MapHealthCard({
           {health.processCount} processes · avg heat {health.avgHeat}
           {health.hotProcesses > 0 ? ` · ${health.hotProcesses} hot` : ""}
           {mapCustomized ? " · custom map" : " · industry template"}
-          {firstAt && trendPoints.length >= 2
-            ? ` · tracked since ${new Date(firstAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-            : ""}
+          {firstAt && trendPoints.length >= 2 ? ` · tracked since ${formatDayShort(firstAt)}` : ""}
         </p>
       </CardContent>
     </Card>

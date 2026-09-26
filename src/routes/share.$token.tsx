@@ -5,6 +5,7 @@ import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
 import { HEAT_BANDS } from "@/lib/precog/process-graph";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
+import { formatDay, formatDayShort } from "@/lib/precog/dates";
 
 export const Route = createFileRoute("/share/$token")({
   component: SharePage,
@@ -144,15 +145,8 @@ function SharePage() {
       <div className="border-b border-neutral-200 bg-neutral-50">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3 text-xs text-neutral-600">
           <span className="inline-flex items-center gap-1.5">
-            <Eye className="size-3.5" /> Read-only share · generated{" "}
-            {generated.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-            {expiresAt
-              ? ` · expires ${new Date(expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-              : ""}
+            <Eye className="size-3.5" /> Read-only share · generated {formatDay(generated)}
+            {expiresAt ? ` · expires ${formatDayShort(expiresAt)}` : ""}
           </span>
           <button
             type="button"

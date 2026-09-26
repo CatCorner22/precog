@@ -7,7 +7,6 @@ import { BookOpen, Trash2, UserCheck, UserMinus } from "lucide-react";
 import { type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
 import { firstName } from "@/lib/precog/continuity/coverage";
 import {
-  formatDateRange,
   handoffDeadline,
   leadLabel,
   procedurePointer,
@@ -36,6 +35,7 @@ import {
   LEVEL_SHORT,
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
+import { formatDayRange } from "@/lib/precog/dates";
 
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
@@ -132,7 +132,7 @@ export function LeaveWindow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
-            {w.person.name} · {formatDateRange(w.absence.from, w.absence.to)}
+            {w.person.name} · {formatDayRange(w.absence.from, w.absence.to)}
           </span>
           <Badge variant={current ? "danger" : w.daysUntil <= 7 ? "warn" : "default"}>
             {current
@@ -191,11 +191,11 @@ export function LeaveWindow({
             <p className="mt-1 text-xs text-warn">
               Overlapping absence:{" "}
               {w.overlaps
-                .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
+                .map((o) => `${firstName(o.person.name)} also out ${formatDayRange(o.from, o.to)}`)
                 .join("; ")}
               .{" "}
               {w.peak.extraStops.length > 0
-                ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
+                ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${w.peak.people
                     .filter((p) => p.id !== w.person.id)
                     .map((p) => firstName(p.name))
                     .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
@@ -501,7 +501,7 @@ export function LeaveDebriefCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
-            {first}&apos;s back · out {formatDateRange(debrief.absence.from, debrief.absence.to)}
+            {first}&apos;s back · out {formatDayRange(debrief.absence.from, debrief.absence.to)}
           </span>
           <Badge variant="accent">Debrief</Badge>
           <span className="text-xs text-muted">

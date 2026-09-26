@@ -5,6 +5,7 @@
 import { FREQUENCY_DAYS, FREQUENCY_LABEL, evidenceStatus } from "./evidence";
 import type { PracticeProfile } from "../practice-profile";
 import type { EvidenceItem, Person, ProcessNode } from "../types";
+import { DAY_MS, localDateKey, localDaysBetween } from "../dates";
 
 type DueKind = "evidence" | "decision" | "snapshot";
 
@@ -25,17 +26,9 @@ export interface DueItem {
   reviewer?: string;
 }
 
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
 function nextDueDate(item: EvidenceItem): Date | null {
   if (!item.lastDoneAt) return null;
-  return new Date(
-    new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * 86_400_000,
-  );
+  return new Date(new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * DAY_MS);
 }
 
 function classify(daysLeft: number | null): DueItem["status"] {
@@ -53,8 +46,7 @@ export function collectDueItems(
   now = new Date(),
 ): DueItem[] {
   const items: DueItem[] = [];
-  const today = startOfDay(now);
-  const dayDiff = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000);
+  const dayDiff = (d: Date) => localDaysBetween(now, d);
 
   for (const p of processes) {
     for (const e of p.evidence ?? []) {
@@ -101,7 +93,7 @@ export function collectDueItems(
   const hasCustomMap = Boolean(profile.customProcesses || profile.customPeople);
   if (hasCustomMap) {
     const ageDays = lastVersion
-      ? Math.floor((now.getTime() - new Date(lastVersion.createdAt).getTime()) / 86_400_000)
+      ? Math.floor((now.getTime() - new Date(lastVersion.createdAt).getTime()) / DAY_MS)
       : null;
     if (ageDays === null || ageDays >= 30) {
       items.push({
@@ -153,15 +145,10 @@ export function groupByDay(items: DueItem[]): Map<string, DueItem[]> {
   const m = new Map<string, DueItem[]>();
   for (const i of items) {
     if (!i.dueAt) continue;
-    const k = dayKey(i.dueAt);
+    const k = localDateKey(i.dueAt);
     const list = m.get(k) ?? [];
     list.push(i);
     m.set(k, list);
   }
   return m;
-}
-
-export function dayKey(d: Date): string {
-  const x = startOfDay(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 }

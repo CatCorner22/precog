@@ -3,7 +3,7 @@ import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
 import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
-import { daysBetween, isCalendarDate } from "../dates";
+import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";
 import { firstName } from "./coverage";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
@@ -68,12 +68,6 @@ function activePerson(tpl: IndustryTemplate, id: string): Person | undefined {
 
 function overlapsWith(a: PlannedAbsence, b: PlannedAbsence): boolean {
   return a.from <= b.to && b.from <= a.to;
-}
-
-function shiftDay(day: string, delta: number): string {
-  const date = new Date(`${day}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + delta);
-  return date.toISOString().slice(0, 10);
 }
 
 /** An absence recorded the day it happened: today only, extendable day by day while the person stays out. */
@@ -255,33 +249,6 @@ export function absencesNeedingAttention(
   return windows.filter((w) => w.daysUntil <= leadDays);
 }
 
-const RANGE_DAY = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-});
-const RANGE_DAY_YEAR = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-/** "3–10 Nov", "28 Oct – 3 Nov", or "30 Dec 2025 – 2 Jan 2026" when the range crosses a year. */
-export function formatDateRange(from: string, to: string): string {
-  const start = new Date(`${from}T00:00:00Z`);
-  const end = new Date(`${to}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${from} – ${to}`;
-  if (from === to) return RANGE_DAY.format(start);
-  if (from.slice(0, 4) !== to.slice(0, 4)) {
-    return `${RANGE_DAY_YEAR.format(start)} – ${RANGE_DAY_YEAR.format(end)}`;
-  }
-  if (from.slice(0, 7) === to.slice(0, 7)) {
-    return `${start.getUTCDate()}–${RANGE_DAY.format(end)}`;
-  }
-  return `${RANGE_DAY.format(start)} – ${RANGE_DAY.format(end)}`;
-}
-
 /** "out now", "tomorrow", "in 12 days". */
 export function leadLabel(daysUntil: number): string {
   if (daysUntil <= 0) return "out now";
@@ -292,9 +259,7 @@ export function leadLabel(daysUntil: number): string {
 /** The day to have hand-offs done by: the day before leave starts, or today once it is imminent or under way. */
 export function handoffDeadline(window: AbsenceWindow, today: string): string {
   if (window.daysUntil <= 1) return today;
-  const day = new Date(`${window.absence.from}T00:00:00Z`);
-  day.setUTCDate(day.getUTCDate() - 1);
-  return day.toISOString().slice(0, 10);
+  return shiftDay(window.absence.from, -1);
 }
 
 /**
@@ -304,11 +269,11 @@ export function handoffDeadline(window: AbsenceWindow, today: string): string {
 function describeOverlaps(w: AbsenceWindow): string {
   if (w.overlaps.length === 0) return "";
   const listed = w.overlaps
-    .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
+    .map((o) => `${firstName(o.person.name)} also out ${formatDayRange(o.from, o.to)}`)
     .join("; ");
   const others = w.peak.people.filter((p) => p.id !== w.person.id);
   if (w.overlaps.length === 1 || w.peak.extraStops.length === 0) return ` (${listed})`;
-  return ` (${listed}; worst ${formatDateRange(w.peak.from, w.peak.to)}, with ${others
+  return ` (${listed}; worst ${formatDayRange(w.peak.from, w.peak.to)}, with ${others
     .map((p) => firstName(p.name))
     .join(" and ")} also out)`;
 }
@@ -317,7 +282,7 @@ function describeOverlaps(w: AbsenceWindow): string {
 export function describeWindow(w: AbsenceWindow): string {
   const first = firstName(w.person.name);
   const out = outPhrase(w.absence);
-  const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
+  const when = `${formatDayRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
   const overlap = describeOverlaps(w);
   const stops = w.impact.stops;
   if (!w.impact.assessed && w.impact.orphanedProcesses.length === 0) {

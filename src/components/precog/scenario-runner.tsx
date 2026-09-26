@@ -29,7 +29,7 @@ import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { CaseCard } from "@/components/precog/case-card";
 import { CheckCircle2, GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
-import { dateAfter } from "@/lib/precog/decisions/follow-through";
+import { dateAfter } from "@/lib/precog/dates";
 
 export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
   const baseTpl = useTemplate();

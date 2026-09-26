@@ -193,7 +193,7 @@ describe("todayBrief", () => {
     expect(brief.out).toEqual([]);
     expect(brief.startingSoon).toHaveLength(1);
     expect(brief.startingSoon[0]).toMatchObject({ daysUntil: 2, unlogged: 1 });
-    expect(brief.headline).toBe("Maya is out 7–14 Nov, in 2 days — 1 hand-off not yet logged.");
+    expect(brief.headline).toBe("Maya is out Nov 7–14, in 2 days — 1 hand-off not yet logged.");
   });
 
   it("treats the SOON_DAYS boundary as inclusive", () => {
@@ -249,7 +249,7 @@ describe("todayBrief", () => {
     });
     const brief = todayBrief(near, [soon], [], "general", TODAY);
     expect(brief.leaving).toHaveLength(1);
-    expect(brief.headline).toMatch(/^Sam is out 7–8 Nov, in 2 days/);
+    expect(brief.headline).toMatch(/^Sam is out Nov 7–8, in 2 days/);
   });
 
   it("puts someone whose last day has passed but is still active ahead of everything but today's absences", () => {

@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
+import { localDateKey } from "@/lib/precog/dates";
 
 export function WeeklyActionPlan({
   onNavigate,

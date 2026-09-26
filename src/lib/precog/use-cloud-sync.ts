@@ -18,7 +18,6 @@ import { BusinessSaveQueue, removeAcknowledgedCopies } from "./workspace-storage
 import type { Workspace } from "./workspace-context";
 import { authEnabled } from "@/lib/auth/client";
 import { listBusinesses, loadBusinessProfile, saveBusinessProfile } from "./profile-server";
-import { localDateKey } from "./decisions/follow-through";
 import {
   ACTIVE_PROFILE_KEY,
   hasUserWork,
@@ -31,6 +30,7 @@ import {
 import type { AccountLineage, LocalProfileStore } from "./save-conflict";
 import { canKeepLocalData, readLocalJson, writeLocal } from "./local-data";
 import type { ProfileAction } from "./profile-reducer";
+import { localDateKey } from "./dates";
 
 export type SyncStatus =
   "idle" | "loading" | "synced" | "local" | "local-error" | "error" | "conflict";

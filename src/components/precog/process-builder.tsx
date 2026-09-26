@@ -62,6 +62,7 @@ import {
 import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
 import { peopleFromBackup } from "@/lib/precog/import/people-backup";
 import { downloadText } from "@/lib/download";
+import { formatDayShort } from "@/lib/precog/dates";
 
 export function ProcessBuilder({
   selectedProcessId,
@@ -227,7 +228,7 @@ export function ProcessBuilder({
   function snapshotVersion() {
     const name = window.prompt(
       "Name this version",
-      `${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })} · health ${currentHealth.score}`,
+      `${formatDayShort(new Date())} · health ${currentHealth.score}`,
     );
     if (name === null) return;
     saveMapVersion(name, currentHealth.score);

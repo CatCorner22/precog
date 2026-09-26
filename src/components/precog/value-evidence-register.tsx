@@ -12,6 +12,7 @@ import {
   type ValueEvidenceKind,
 } from "@/lib/precog/value-evidence";
 import { downloadText } from "@/lib/download";
+import { localDateKey } from "@/lib/precog/dates";
 
 export function ValueEvidenceRegister({
   items,
@@ -38,7 +39,7 @@ export function ValueEvidenceRegister({
       {
         ...draft,
         id: crypto.randomUUID(),
-        observedAt: new Date().toISOString().slice(0, 10),
+        observedAt: localDateKey(new Date()),
         verified: false,
       },
     ]);
@@ -65,7 +66,7 @@ export function ValueEvidenceRegister({
   };
   const exportEvidence = () => {
     downloadText(
-      `precog-value-evidence-${new Date().toISOString().slice(0, 10)}.json`,
+      `precog-value-evidence-${localDateKey(new Date())}.json`,
       serializeValueEvidence(items),
       "application/json",
     );

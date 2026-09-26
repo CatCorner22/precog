@@ -1,13 +1,7 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
-import {
-  collectDueItems,
-  dayKey,
-  groupByDay,
-  summarizeDue,
-  type DueItem,
-} from "@/lib/precog/builder/due";
+import { collectDueItems, groupByDay, summarizeDue, type DueItem } from "@/lib/precog/builder/due";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +16,7 @@ import {
   ClipboardList,
   Clock,
 } from "lucide-react";
+import { localDateKey, formatDayShort } from "@/lib/precog/dates";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -107,7 +102,7 @@ export function ControlCalendarCard({
       }),
     );
   }, [weekOffset]);
-  const todayKey = dayKey(new Date());
+  const todayKey = localDateKey(new Date());
 
   return (
     <Card>
@@ -209,8 +204,7 @@ export function ControlCalendarCard({
                 <ChevronLeft className="size-4" />
               </button>
               <span>
-                {weeks[0][0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} –{" "}
-                {weeks[5][6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {formatDayShort(weeks[0][0])} – {formatDayShort(weeks[5][6])}
                 {weekOffset !== 0 && (
                   <button
                     type="button"
@@ -239,7 +233,7 @@ export function ControlCalendarCard({
             </div>
             <div className="grid grid-cols-7 gap-1">
               {weeks.flat().map((day) => {
-                const k = dayKey(day);
+                const k = localDateKey(day);
                 const dayItems = byDay.get(k) ?? [];
                 const isToday = k === todayKey;
                 const past = day.getTime() < new Date(todayKey).getTime() && !isToday;

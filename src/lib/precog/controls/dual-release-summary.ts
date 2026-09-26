@@ -1,6 +1,7 @@
 import type { IndustryTemplate } from "../templates";
 import type { DualReleaseCoverage, DualReleasePolicy, ReleaseChannel } from "./dual-release-policy";
-import { isDateActive, listEligibleApprovers, todayIso } from "./dual-release-evaluate";
+import { isDateActive, listEligibleApprovers } from "./dual-release-evaluate";
+import { shiftDay } from "../dates";
 
 /** What the policy covers and mitigates, read by the SoD engine and the staff flags. */
 /**
@@ -57,15 +58,18 @@ export function staffFlagsFromDualRelease(policy: DualReleasePolicy): {
   return { dualControlPayments };
 }
 
-export function activeExceptionSummary(policy: DualReleasePolicy): {
+/** Exceptions in force on `today`, the owner's local calendar day ("YYYY-MM-DD"). */
+export function activeExceptionSummary(
+  policy: DualReleasePolicy,
+  today: string,
+): {
   total: number;
   raises: number;
   forceDual: number;
   waives: number;
   expiringSoon: number;
 } {
-  const today = todayIso();
-  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const in30 = shiftDay(today, 30);
   const active = (policy.exceptions ?? []).filter((e) => e.enabled && isDateActive(e, today));
   return {
     total: active.length,

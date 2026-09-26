@@ -12,6 +12,7 @@ import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
+import { localDateKey, dateAfter } from "../dates";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -345,8 +346,6 @@ function localizeDualReleaseRules(
 function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
   const copy = getIndustryCopy(tpl.id);
   const today = new Date();
-  const in90 = new Date(today.getTime() + 90 * 86400000);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
   return [
     {
       id: "ex-vendor-recurring",
@@ -359,7 +358,7 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       enabled: true,
       reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
       approvedByPersonId: "p1",
-      createdAt: iso(today),
+      createdAt: localDateKey(today),
       residualNote: `Single release up to $3,500 for ${copy.dualReleaseSeed.defaultPayee} only — sample monthly statements.`,
     },
     {
@@ -371,7 +370,7 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       amountMaxUsd: 499,
       enabled: false,
       reason: "Optional strict mode: dual even under the threshold for small first payments.",
-      createdAt: iso(today),
+      createdAt: localDateKey(today),
     },
     {
       id: "ex-temp-om-writeoff",
@@ -381,12 +380,12 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       action: "raise_threshold",
       thresholdUsd: 400,
       personId: "p2",
-      effectiveFrom: iso(today),
-      effectiveTo: iso(in90),
+      effectiveFrom: localDateKey(today),
+      effectiveTo: dateAfter(today, 90),
       enabled: false,
       reason: "Owner out of office — temporary higher single-approval for OM.",
       approvedByPersonId: "p1",
-      createdAt: iso(today),
+      createdAt: localDateKey(today),
       residualNote: "Time-bound; auto-expires. Review all write-offs on return.",
     },
   ];

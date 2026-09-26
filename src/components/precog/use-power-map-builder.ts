@@ -34,6 +34,7 @@ import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
 import { downloadText } from "@/lib/download";
 import { downloadFile } from "./power-map-graph";
+import { localDateKey } from "@/lib/precog/dates";
 
 export function usePowerMapBuilder() {
   const workspace = useWorkspace();
@@ -273,7 +274,7 @@ export function usePowerMapBuilder() {
 
   function exportModel() {
     downloadText(
-      `precog-power-map-${new Date().toISOString().slice(0, 10)}.json`,
+      `precog-power-map-${localDateKey(new Date())}.json`,
       JSON.stringify(createPowerMapFile(assignments), null, 2),
       "application/json",
     );
@@ -283,7 +284,7 @@ export function usePowerMapBuilder() {
     downloadFile(
       createResponsibilityMatrixCsv(assignments),
       "text/csv;charset=utf-8",
-      `precog-responsibility-matrix-${new Date().toISOString().slice(0, 10)}.csv`,
+      `precog-responsibility-matrix-${localDateKey(new Date())}.csv`,
     );
   }
 
@@ -291,7 +292,7 @@ export function usePowerMapBuilder() {
     downloadFile(
       createGovernanceReport(assignments, profile.staff, new Date(), profile.industry),
       "text/markdown;charset=utf-8",
-      `precog-governance-report-${new Date().toISOString().slice(0, 10)}.md`,
+      `precog-governance-report-${localDateKey(new Date())}.md`,
     );
   }
 

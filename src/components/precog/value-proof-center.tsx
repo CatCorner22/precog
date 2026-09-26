@@ -34,6 +34,7 @@ import {
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
+import { localDateKey } from "@/lib/precog/dates";
 
 export function ValueProofCenter() {
   const workspace = useWorkspace();
@@ -97,7 +98,7 @@ export function ValueProofCenter() {
   };
   const exportMemo = () => {
     downloadText(
-      `precog-value-case-${new Date().toISOString().slice(0, 10)}.md`,
+      `precog-value-case-${localDateKey(new Date())}.md`,
       createValueCaseMemo(inputs, new Date(), evidence, typed),
       "text/markdown;charset=utf-8",
     );

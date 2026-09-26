@@ -6,7 +6,7 @@ import { getReport } from "@/lib/precog/firm/server";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import { localDateKey } from "@/lib/precog/dates";
 
 export const Route = createFileRoute("/report")({
   component: ReportPage,

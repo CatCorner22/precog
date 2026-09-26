@@ -16,7 +16,6 @@ import {
   isDecisionOpen,
   linkedContinuityStep,
   linkedKnowledgeId,
-  localDateKey,
 } from "@/lib/precog/decisions/follow-through";
 import { parseRegisterCsv, type RegisterImportIssue } from "@/lib/precog/import/register-csv";
 import {
@@ -41,12 +40,11 @@ import {
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import { documentationDebt, type DocumentationGap } from "@/lib/precog/continuity/documentation";
-import { isCalendarDate } from "@/lib/precog/dates";
+import { isCalendarDate, localDateKey, formatDay, formatDayRange } from "@/lib/precog/dates";
 import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
 import {
   endAbsence,
   extendAbsence,
-  formatDateRange,
   plannedAbsenceReport,
   unplannedAbsenceToday,
   type AbsenceWindow,
@@ -131,7 +129,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     });
   const confirmLogged = (reviewBy: Date, count = 1) =>
     toast.success(
-      `${count === 1 ? "Logged" : `${count} steps logged`} in the Journal — the register is re-checked at the review on ${reviewBy.toLocaleDateString()}.`,
+      `${count === 1 ? "Logged" : `${count} steps logged`} in the Journal — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
     );
   const logMove = (m: CrossTrainingMove) => {
     const reviewBy = reviewDateIn30Days();
@@ -246,7 +244,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     ]);
     setLeaveFrom("");
     setLeaveTo("");
-    toast.success(`${firstName(person.name)} out ${formatDateRange(leaveFrom, leaveTo)} added.`);
+    toast.success(`${firstName(person.name)} out ${formatDayRange(leaveFrom, leaveTo)} added.`);
   };
   const removeLeave = (id: string) =>
     setPlannedAbsences((current) => current.filter((a) => a.id !== id));
@@ -267,9 +265,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const stillOutTomorrow = (w: AbsenceWindow) => {
     const next = extendAbsence(w.absence, today);
     setPlannedAbsences((current) => current.map((a) => (a.id === w.absence.id ? next : a)));
-    toast.success(
-      `${firstName(w.person.name)} out through ${formatDateRange(next.from, next.to)}.`,
-    );
+    toast.success(`${firstName(w.person.name)} out through ${formatDayRange(next.from, next.to)}.`);
   };
   /** "Back at work": the absence ended yesterday, so the debrief asks about it today. */
   const backAtWork = (w: AbsenceWindow) => {
@@ -314,7 +310,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   /** Stand-in ran it for real: register says "can do", confirmed today, hand-off (and training aimed at them) closed. */
   const promoteStandIn = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
     const first = firstName(standIn.name);
-    const note = `${first} covered ${entry.item.name} while ${firstName(debrief.person.name)} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
+    const note = `${first} covered ${entry.item.name} while ${firstName(debrief.person.name)} was out (${formatDayRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
     setLevel(standIn.id, entry.item.id, "proficient");
     closeHandoff(entry, note);
     if (
@@ -328,7 +324,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   /** Stand-in got through it but not alone yet: keep them as a learner and make the training a tracked step. */
   const keepTraining = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
     const first = firstName(standIn.name);
-    const during = `while ${firstName(debrief.person.name)} was out (${formatDateRange(debrief.absence.from, debrief.absence.to)})`;
+    const during = `while ${firstName(debrief.person.name)} was out (${formatDayRange(debrief.absence.from, debrief.absence.to)})`;
     if (!entry.standInLevel || entry.standInLevel === "aware")
       setLevel(standIn.id, entry.item.id, "basic");
     closeHandoff(
@@ -355,7 +351,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const closeDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
     closeHandoff(
       entry,
-      `Leave over (${formatDateRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${firstName(debrief.person.name)}.`,
+      `Leave over (${formatDayRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${firstName(debrief.person.name)}.`,
     );
     settleDebriefItem(debrief, entry);
   };

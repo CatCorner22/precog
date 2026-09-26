@@ -1,7 +1,6 @@
 import { firstName, LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
 import {
-  formatDateRange,
   handoffDeadline,
   leadLabel,
   procedurePointer,
@@ -21,8 +20,8 @@ import {
   slipLabels,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
-import { fmtDate } from "@/components/precog/control-report-helpers";
 import { CommitmentTag, Section } from "@/components/precog/control-report-parts";
+import { formatDay, formatDayRange } from "@/lib/precog/dates";
 
 type ContinuityModel = Pick<
   ControlReportModel,
@@ -264,7 +263,7 @@ function ControlReportLeaveSection({
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium">
-                  {w.person.name} — {formatDateRange(w.absence.from, w.absence.to)}
+                  {w.person.name} — {formatDayRange(w.absence.from, w.absence.to)}
                   <span className="ml-2 text-xs font-normal text-neutral-600">
                     {w.absence.unplanned
                       ? w.status === "current"
@@ -283,7 +282,7 @@ function ControlReportLeaveSection({
                 <p className="mt-1 text-xs text-amber-800">
                   Overlapping leave: {others.join(", ")} also out for part of this window.{" "}
                   {w.peak.extraStops.length > 0
-                    ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
+                    ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
                     : "Nothing extra stops on the shared days."}
                 </p>
               )}
@@ -369,7 +368,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-medium">
-                {d.person.name} — back from {formatDateRange(d.absence.from, d.absence.to)}
+                {d.person.name} — back from {formatDayRange(d.absence.from, d.absence.to)}
               </span>
               <span className="text-xs text-neutral-600">
                 {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"}{" "}
@@ -652,7 +651,7 @@ function ControlReportFollowThroughSection({
                   <span className="text-neutral-500">
                     {" "}
                     · {state}
-                    {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
+                    {d.reviewBy ? ` · review ${formatDay(d.reviewBy)}` : ""}
                     {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                   </span>
                   {overdue && <span className="ml-1 font-medium text-red-700">overdue</span>}

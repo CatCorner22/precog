@@ -12,9 +12,10 @@ import {
   markReportSent,
   signOffReport,
 } from "@/lib/precog/firm/server";
-import { versionProvenance, when, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
+import { formatDay } from "@/lib/precog/dates";
 
 /**
  * Locking, listing and signing off report versions. A version freezes the
@@ -133,7 +134,7 @@ export function ReportVersionsPanel() {
                   <p className="font-medium">{versionProvenance(v)}</p>
                   <p className="text-xs text-neutral-500">
                     {v.scopeNote || "No scope note"}
-                    {v.sentAt ? ` · Sent ${when(v.sentAt)}` : ""}
+                    {v.sentAt ? ` · Sent ${formatDay(v.sentAt)}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">

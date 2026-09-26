@@ -6,6 +6,7 @@ import { deleteAccount, exportAccountData } from "@/lib/precog/account-server";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
 import { downloadText } from "@/lib/download";
+import { localDateKey } from "@/lib/precog/dates";
 
 /** Export and delete controls for the signed-in account. */
 export function AccountMenu() {
@@ -16,11 +17,7 @@ export function AccountMenu() {
     setBusy("export");
     try {
       const { json } = await exportAccountData();
-      downloadText(
-        `precog-account-${new Date().toISOString().slice(0, 10)}.json`,
-        json,
-        "application/json",
-      );
+      downloadText(`precog-account-${localDateKey(new Date())}.json`, json, "application/json");
       toast.success("Your data is downloading as one JSON file.");
     } catch {
       toast.error("The export failed. Try again in a moment.");

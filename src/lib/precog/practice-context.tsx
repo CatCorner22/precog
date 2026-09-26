@@ -29,7 +29,6 @@ import type { DualReleasePolicy } from "./controls/dual-release";
 import type { IndustryId } from "./industry";
 import { confirmedControlIds, controlsInPlace, resolveTemplate } from "./active-template";
 import type { IndustryTemplate } from "./templates";
-import { localDateKey } from "./decisions/follow-through";
 import {
   defaultProfile,
   makeDecisionId,
@@ -77,6 +76,7 @@ import {
   withStaff,
   type DecisionInput,
 } from "./profile-actions";
+import { localDateKey } from "./dates";
 
 export type { SaveConflictReason, SyncStatus };
 

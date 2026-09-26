@@ -1,7 +1,6 @@
 import { normalizeInsuranceRecord } from "./scoring/insurance-record";
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import { localDateKey } from "./decisions/follow-through";
-import { isCalendarDate } from "./dates";
+import { isCalendarDate, localDateKey } from "./dates";
 import { soleOwnerCriticalCount, type CoverageStatus } from "./continuity/coverage";
 import { type ContinuityStep } from "./continuity/absence-impact";
 import { type DocumentationState } from "./continuity/documentation";

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { serverUtcDay } from "@/lib/precog/dates";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/api/cron/digest")({
         const sql = await getSql();
         const url = new URL(request.url);
         const appUrl = process.env.PUBLIC_APP_URL?.trim() || `${url.protocol}//${url.host}`;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = serverUtcDay();
 
         const configured = mailer.mailConfigured();
         const digest = await runDigest(sql, {

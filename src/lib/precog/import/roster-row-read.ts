@@ -8,6 +8,7 @@ import { reorderLastFirst } from "./roster-names";
 import { isInactive, isKnownActive, isOnLeave, isTrue, statusKey } from "./roster-status";
 import type { ColumnMap } from "./roster-columns";
 import { slug } from "../text";
+import { localDateKey } from "../dates";
 export interface RosterImportIssue {
   row: number;
   message: string;
@@ -204,7 +205,7 @@ function readTenure(
     context.issues.push({ row, message: `Hire date not understood: ${raw}` });
     return undefined;
   }
-  if (hired > today.toISOString().slice(0, 10)) {
+  if (hired > localDateKey(today)) {
     context.issues.push({ row, message: `Hire date is in the future: ${raw}` });
     return undefined;
   }
@@ -450,7 +451,7 @@ export function readPerson(
   let lastDay = readLastDay(context, cells, row, existing);
   // A last day already past means the person has left, unless a status says
   // otherwise (a rehire can keep an old termination date).
-  if (lastDay && lastDay < context.today.toISOString().slice(0, 10) && status.active) {
+  if (lastDay && lastDay < localDateKey(context.today) && status.active) {
     if (hasStatus(context, cells)) {
       context.issues.push({
         row,

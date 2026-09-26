@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
+import { formatDay } from "../dates";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
@@ -188,17 +189,11 @@ export async function markReportVersionSent(
   `;
 }
 
-export function when(iso: string | null): string {
-  return iso
-    ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : "";
-}
-
 /** One line of provenance for a locked version, printed in the report header. */
 export function versionProvenance(v: ReportVersionRow): string {
-  const prepared = `Prepared by ${v.preparedByName ?? "a firm member"} on ${when(v.preparedAt)}`;
+  const prepared = `Prepared by ${v.preparedByName ?? "a firm member"} on ${formatDay(v.preparedAt)}`;
   const reviewed = v.reviewedAt
-    ? ` · Reviewed by ${v.reviewedByName ?? "a reviewer"} on ${when(v.reviewedAt)}`
+    ? ` · Reviewed by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`
     : " · Not yet reviewed";
   return `Version ${v.versionNo} · ${prepared}${reviewed}`;
 }

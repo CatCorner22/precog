@@ -36,6 +36,7 @@ import {
   variableCascades,
 } from "./scenario-tools";
 import { formatUsd as usd } from "@/lib/utils";
+import { localDateKey } from "../dates";
 
 export interface ToolContext {
   /** The business being advised. Every tool is a pure function of this. */
@@ -300,7 +301,7 @@ export function executeTool(
           tool,
           profile,
           tpl,
-          today: ctx.today ?? new Date().toISOString().slice(0, 10),
+          today: ctx.today ?? localDateKey(new Date()),
         });
 
       case "get_planned_absences":
@@ -308,7 +309,7 @@ export function executeTool(
           tool,
           profile,
           tpl,
-          today: ctx.today ?? new Date().toISOString().slice(0, 10),
+          today: ctx.today ?? localDateKey(new Date()),
         });
 
       case "get_register_checkins":
@@ -316,7 +317,7 @@ export function executeTool(
           tool,
           profile,
           tpl,
-          today: ctx.today ?? new Date().toISOString().slice(0, 10),
+          today: ctx.today ?? localDateKey(new Date()),
         });
 
       case "get_knowledge_graph": {

@@ -1,4 +1,5 @@
 import type { EvidenceFrequency, EvidenceItem, ProcessNode } from "../types";
+import { DAY_MS } from "../dates";
 
 export const FREQUENCY_DAYS: Record<EvidenceFrequency, number> = {
   daily: 1,
@@ -24,7 +25,7 @@ export function evidenceStatus(
 ): { status: EvidenceStatus; daysLeft: number | null } {
   if (!item.lastDoneAt) return { status: "never", daysLeft: null };
   const period = FREQUENCY_DAYS[item.frequency];
-  const elapsedDays = (now - new Date(item.lastDoneAt).getTime()) / 86_400_000;
+  const elapsedDays = (now - new Date(item.lastDoneAt).getTime()) / DAY_MS;
   const daysLeft = Math.round(period - elapsedDays);
   if (daysLeft < 0) return { status: "overdue", daysLeft };
   // "Due soon" in the last fifth of the window (min 1 day for daily).

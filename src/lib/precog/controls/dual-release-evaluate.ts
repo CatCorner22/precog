@@ -13,14 +13,11 @@ import {
   type ReleaseRequest,
   type ThresholdException,
 } from "./dual-release-policy";
+import { localDateKey } from "../dates";
 
 /** Evaluating one release against the policy: threshold, exceptions, who may approve. */
 function personById(tpl: IndustryTemplate, id: string) {
   return tpl.people.find((p) => p.id === id);
-}
-
-export function todayIso(asOf?: string) {
-  return asOf ?? new Date().toISOString().slice(0, 10);
 }
 
 export function isDateActive(ex: ThresholdException, asOf: string): boolean {
@@ -49,7 +46,7 @@ function matchExceptions(
     "channel" | "amountUsd" | "initiatorPersonId" | "payee" | "asOfDate"
   >,
 ): ThresholdException[] {
-  const asOf = todayIso(request.asOfDate);
+  const asOf = request.asOfDate ?? localDateKey(new Date());
   const initiator = personById(tpl, request.initiatorPersonId);
   const payee = (request.payee ?? "").toLowerCase();
 

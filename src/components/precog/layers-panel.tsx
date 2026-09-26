@@ -6,10 +6,10 @@ import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
-import { dateAfter } from "@/lib/precog/decisions/follow-through";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { dateAfter } from "@/lib/precog/dates";
 
 const ORDER: MatrixLayerId[] = [
   "surface",

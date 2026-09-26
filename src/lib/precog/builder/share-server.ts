@@ -10,6 +10,7 @@ import { invalidRequest, requireObject } from "@/lib/request-errors";
 import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
 import { purgeOldShareViews } from "../account-store";
 import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
+import { DAY_MS } from "../dates";
 
 type ShareRow = {
   token: string;
@@ -46,7 +47,7 @@ export const createMapShare = createServerFn({ method: "POST" })
     const { randomBytes, scryptSync } = await import("node:crypto");
     const sql = await getSql();
     const token = makeToken();
-    const expires = new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString();
+    const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
     let passcodeSalt: string | undefined;
     let passcodeHash: string | undefined;
     if (data.passcode) {

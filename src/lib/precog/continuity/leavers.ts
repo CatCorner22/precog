@@ -3,9 +3,8 @@ import { continuityCommitments, continuityStepKey } from "../decisions/follow-th
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
-import { daysBetween, isCalendarDate } from "../dates";
+import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
 import { firstName, relationLevel, STRONG_LEVELS } from "./coverage";
-import { formatDateRange } from "./planned-absence";
 
 /** A hand-over with this many days or fewer left is urgent. */
 export const HANDOVER_URGENT_DAYS = 7;
@@ -216,7 +215,7 @@ export function leaverLead(daysLeft: number): string {
 /** "Maya leaves in 12 days (last day 14 Oct): 3 entries only she can run — train Chris on PMS admin, …" */
 export function describeLeaver(l: Leaver): string {
   const first = firstName(l.person.name);
-  const when = `${first} ${leaverLead(l.daysLeft)} (last day ${formatDateRange(l.lastDay, l.lastDay)})`;
+  const when = `${first} ${leaverLead(l.daysLeft)} (last day ${formatDayRange(l.lastDay, l.lastDay)})`;
   if (l.status === "gone") {
     const n = l.handover.length;
     return `${when} and is still counted as on the team — mark ${first} as left${

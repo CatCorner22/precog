@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { useTemplate } from "@/lib/precog/use-template";
 import {
@@ -15,6 +14,8 @@ import {
 } from "@/lib/precog/controls/dual-release";
 import { usePractice } from "@/lib/precog/practice-context";
 import { personLabel } from "@/lib/precog/person-label";
+import { dateAfter, localDateKey } from "@/lib/precog/dates";
+import { useToday } from "@/lib/precog/decisions/use-today";
 
 export function useDualReleasePanel() {
   const tpl = useTemplate();
@@ -57,8 +58,9 @@ export function useDualReleasePanel() {
   const [exReason, setExReason] = useState("");
   const [exResidual, setExResidual] = useState("");
 
+  const today = localDateKey(useToday());
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
-  const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
+  const exSummary = useMemo(() => activeExceptionSummary(policy, today), [policy, today]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
   const secondsLine = useMemo(() => {
     const seconds = listEligibleApprovers(tpl, policy, channel).filter((p) => p.canSecond);
@@ -98,6 +100,7 @@ export function useDualReleasePanel() {
         secondPersonId: secondId || undefined,
         payee,
         memo: "Simulator release",
+        asOfDate: today,
       }),
     );
   }

@@ -1,5 +1,6 @@
 import { parseRows } from "../import/csv";
 import type { Transaction } from "./forensic-suite";
+import { isCalendarDate } from "../dates";
 
 const KINDS = new Set(["charge", "payment", "deposit", "adjustment", "refund"]);
 
@@ -20,12 +21,6 @@ function parseAmount(value: string): number | null {
   if (!source) return null;
   const amount = Number(source);
   return Number.isFinite(amount) ? (negative ? -Math.abs(amount) : amount) : null;
-}
-
-function validDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return date.toISOString().slice(0, 10) === value;
 }
 
 export function parseTransactionsCsv(text: string): {
@@ -53,7 +48,7 @@ export function parseTransactionsCsv(text: string): {
     const kindValue = columns.has("kind")
       ? (cells[columns.get("kind")!] ?? "").trim().toLowerCase()
       : undefined;
-    if (!validDate(date)) {
+    if (!isCalendarDate(date)) {
       issues.push(`Row ${row}: invalid date`);
       return;
     }

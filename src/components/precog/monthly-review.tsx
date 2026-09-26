@@ -2,7 +2,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import {
   latestReview,
@@ -11,6 +10,7 @@ import {
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
+import { localDateKey } from "@/lib/precog/dates";
 
 const RESULT_LABEL: Record<ReviewResult, string> = {
   done: "Done",

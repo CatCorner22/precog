@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { LONG_SERVICE_YEARS } from "./start-here-copy";
 import { usePractice } from "@/lib/precog/practice-context";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { continuitySlips, decisionsDue, localDateKey } from "@/lib/precog/decisions/follow-through";
+import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { checkInPlan, staleItems } from "@/lib/precog/continuity/staleness";
 import { coverageReport } from "@/lib/precog/continuity/coverage";
@@ -23,6 +23,7 @@ import { concentrationHeadline, separatedPairs } from "@/lib/precog/sod/verdict"
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
 import { locationsById, locationText } from "@/lib/precog/person-location";
+import { localDateKey } from "@/lib/precog/dates";
 
 export function useStartHere() {
   const { profile, template } = usePractice();

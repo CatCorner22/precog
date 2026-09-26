@@ -27,6 +27,7 @@ import { formatUsd } from "@/lib/utils";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
+import { localDateKey, formatDay } from "@/lib/precog/dates";
 
 export function AssessmentSnapshots() {
   const workspace = useWorkspace();
@@ -206,7 +207,7 @@ export function AssessmentSnapshots() {
       comparison.result,
     );
     downloadText(
-      `precog-assessment-comparison-${new Date().toISOString().slice(0, 10)}.md`,
+      `precog-assessment-comparison-${localDateKey(new Date())}.md`,
       report,
       "text/markdown;charset=utf-8",
     );
@@ -273,7 +274,7 @@ export function AssessmentSnapshots() {
                 <p>{profile.practiceName}</p>
                 <p className="mt-1">
                   {profile.decisions.length} logged decision(s) · profile updated{" "}
-                  {new Date(profile.updatedAt).toLocaleDateString()}
+                  {formatDay(profile.updatedAt)}
                 </p>
               </div>
               <Button onClick={save} disabled={busy}>

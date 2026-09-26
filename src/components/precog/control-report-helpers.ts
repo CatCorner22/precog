@@ -1,11 +1,3 @@
-export function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export const REPORT_DETECTION: Record<string, string> = {
   tip: "Someone spoke up",
   "owner-review": "The owner looked",

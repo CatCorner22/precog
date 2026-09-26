@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { localDateKey } from "./follow-through";
+import { localDateKey } from "../dates";
 
 export function useToday(): Date {
   const [key, setKey] = useState(() => localDateKey(new Date()));

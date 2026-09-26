@@ -127,7 +127,7 @@ describe("leavers", () => {
     expect(maya.status).toBe("gone");
     expect(maya.daysLeft).toBe(-3);
     expect(describeLeaver(maya)).toBe(
-      "Maya left 3 days ago (last day 14 Oct) and is still counted as on the team — mark Maya as left so the register stops relying on Maya for 2 entries.",
+      "Maya left 3 days ago (last day Oct 14) and is still counted as on the team — mark Maya as left so the register stops relying on Maya for 2 entries.",
     );
     expect(handoverDeadline(maya, "2026-10-17")).toBe("2026-10-17");
   });
@@ -135,7 +135,7 @@ describe("leavers", () => {
   it("describes the hand-over in one sentence", () => {
     const [maya] = leavers(register, [decision({})], "2026-10-02");
     expect(describeLeaver(maya)).toBe(
-      "Maya leaves in 12 days (last day 14 Oct): 2 register entries only Maya can run alone — train Chris on pms — train Chris on vendors — 1 process needs a new owner; 1 of 2 logged in the Journal.",
+      "Maya leaves in 12 days (last day Oct 14): 2 register entries only Maya can run alone — train Chris on pms — train Chris on vendors — 1 process needs a new owner; 1 of 2 logged in the Journal.",
     );
     expect(handoverDeadline(maya, "2026-10-02")).toBe("2026-10-14");
     expect(leaverLead(0)).toBe("last day today");
@@ -153,7 +153,7 @@ describe("leavers", () => {
     expect(maya.handover).toEqual([]);
     expect(maya.actions).toHaveLength(1);
     expect(describeLeaver(maya)).toBe(
-      "Maya leaves in 12 days (last day 14 Oct): nothing on the register leaves with Maya.",
+      "Maya leaves in 12 days (last day Oct 14): nothing on the register leaves with Maya.",
     );
   });
 
@@ -269,7 +269,7 @@ describe("a leaver over a starter register nobody has marked", () => {
     expect(maya.assessed).toBe(false);
     expect(maya.handover).toEqual([]);
     expect(describeLeaver(maya)).toBe(
-      "Maya leaves in 13 days (last day 14 Oct): nobody is marked on the register yet, so the app cannot tell what leaves with Maya.",
+      "Maya leaves in 13 days (last day Oct 14): nobody is marked on the register yet, so the app cannot tell what leaves with Maya.",
     );
     expect(maya.actions.map((a) => a.text)).toEqual([
       "Nobody is marked on the register yet, so the app cannot tell what leaves with Maya. Mark who can do each item before Maya's last day.",

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
-import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
+import { dateAfter, localDateKey } from "@/lib/precog/dates";
 
 function renderInline(text: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);

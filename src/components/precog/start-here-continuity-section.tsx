@@ -1,13 +1,13 @@
 import { ArrowRight, Users } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { industryMeta } from "@/lib/precog/industry";
-import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
 import { firstName } from "@/lib/precog/continuity/coverage";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "./use-start-here";
+import { formatDayRange } from "@/lib/precog/dates";
 
 export function StartHereContinuitySection({
   model,
@@ -79,7 +79,7 @@ export function StartHereContinuitySection({
                       <span className="text-xs text-subtle">
                         {o.window.absence.from === o.window.absence.to
                           ? "today"
-                          : `back after ${formatDateRange(o.window.absence.from, o.window.absence.to)}`}
+                          : `back after ${formatDayRange(o.window.absence.from, o.window.absence.to)}`}
                       </span>
                     </div>
                     {o.stops.length === 0 ? (
@@ -149,7 +149,7 @@ export function StartHereContinuitySection({
                       ? `Also: ${staffingToday.startingSoon
                           .map(
                             (u) =>
-                              `${firstName(u.person.name)} out ${formatDateRange(u.window.absence.from, u.window.absence.to)}${u.unlogged > 0 ? ` (${u.unlogged} hand-off${u.unlogged === 1 ? "" : "s"} not logged)` : ""}`,
+                              `${firstName(u.person.name)} out ${formatDayRange(u.window.absence.from, u.window.absence.to)}${u.unlogged > 0 ? ` (${u.unlogged} hand-off${u.unlogged === 1 ? "" : "s"} not logged)` : ""}`,
                           )
                           .join("; ")}.`
                       : "",

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, type Dispatch, type MutableRefObject } from "react";
 import type { IndustryId } from "./industry";
 import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-server";
-import { localDateKey } from "./decisions/follow-through";
 import {
   loadPortfolio,
   normalizeProfile,
@@ -28,6 +27,7 @@ import type { ProfileAction } from "./profile-reducer";
 import { useEffect } from "react";
 import type { Workspace } from "./workspace-context";
 import { withRosterLeavers } from "./profile-actions";
+import { localDateKey } from "./dates";
 
 /**
  * More than one business per account: the list, switching between them,

@@ -1,4 +1,5 @@
 import type { Transaction } from "./forensic-suite";
+import { utcDateKey } from "../dates";
 
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
@@ -15,10 +16,6 @@ function normal(random: () => number): number {
   const u = Math.max(random(), Number.MIN_VALUE);
   const v = random();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export function demoTransactions(seed = 42, days = 60): Transaction[] {
@@ -39,7 +36,7 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
     date.setUTCDate(start.getUTCDate() + offset);
     const weekday = date.getUTCDay();
     if (weekday === 0 || weekday === 6) continue;
-    const dateText = dateKey(date);
+    const dateText = utcDateKey(date);
     const chargeCount = 6 + Math.floor(random() * 9);
     let payments = 0;
     for (let index = 0; index < chargeCount; index++) {
@@ -96,7 +93,7 @@ export function demoTransactions(seed = 42, days = 60): Transaction[] {
     date.setUTCDate(start.getUTCDate() + index * 4 + 1);
     transactions.push({
       id: `tx-adjustment-${index}`,
-      date: dateKey(date),
+      date: utcDateKey(date),
       amount: index % 2 === 0 ? 25 : -15,
       kind: "adjustment",
       memo: "Adjustment review sample",

@@ -23,7 +23,6 @@ import {
   readSetupDraft,
   writeSetupDraft,
 } from "@/lib/precog/onboarding/setup-draft";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
 import {
   CORE_DUTIES,
   GRID_DUTY_HEADING,
@@ -78,6 +77,7 @@ import {
   withRowIds,
 } from "./industry-onboarding-helpers";
 import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
+import { localDateKey } from "@/lib/precog/dates";
 export function IndustryOnboarding() {
   const workspace = useWorkspace();
   const {

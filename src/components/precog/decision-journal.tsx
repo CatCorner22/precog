@@ -12,10 +12,8 @@ import {
   decisionDelta,
   decisionsDue,
   isDecisionOpen,
-  dateAfter,
   linkedKnowledgeId,
   linkedToIndustry,
-  localDateKey,
   registerCloseOut,
   slipLabels,
   type RegisterCloseOut,
@@ -30,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
+import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -608,7 +607,7 @@ export function DecisionJournal({
                       <p className="mt-1 font-medium">{d.subject}</p>
                       <p className="mt-0.5 text-sm text-muted">{d.note}</p>
                       <p className="mt-1 text-xs text-subtle">
-                        {new Date(d.createdAt).toLocaleDateString()}
+                        {formatDay(d.createdAt)}
                         {d.reviewBy ? ` · review by ${d.reviewBy}` : ""}
                         {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                       </p>

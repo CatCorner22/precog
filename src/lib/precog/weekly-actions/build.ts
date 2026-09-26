@@ -14,12 +14,10 @@ import {
   continuityCommitments,
   continuityStepKey,
   handoffCommitment,
-  localDateKey,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
 import {
   absencesNeedingAttention,
-  formatDateRange,
   handoffDeadline,
   leadLabel,
   outPhrase,
@@ -43,6 +41,7 @@ import {
   type ControlId,
 } from "@/lib/precog/evidence";
 import type { StaffComposition } from "@/lib/precog/types";
+import { localDateKey, formatDayRange } from "../dates";
 
 export interface WeeklyAction {
   id: string;
@@ -309,7 +308,7 @@ export function buildWeeklyActions(input: {
   for (const w of leaveWorthRaising.slice(0, 2)) {
     const first = firstName(w.person.name);
     const out = outPhrase(w.absence);
-    const when = `${formatDateRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
+    const when = `${formatDayRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
     const also = w.overlaps.length
       ? ` ${w.overlaps.map((o) => firstName(o.person.name)).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
       : "";
@@ -340,7 +339,7 @@ export function buildWeeklyActions(input: {
     const othersAway = w.peak.people.filter((p) => p.id !== w.person.id);
     const during =
       w.peak.extraStops.length > 0
-        ? ` ${formatDateRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => firstName(p.name)).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
+        ? ` ${formatDayRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => firstName(p.name)).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
         : " for the whole absence";
     const standInFirst = lead.standIn ? firstName(lead.standIn.name) : "";
     const coverToday =

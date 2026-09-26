@@ -14,6 +14,7 @@ import { Link } from "@tanstack/react-router";
 import { Copy, Link2 } from "lucide-react";
 
 import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
+import { formatDayShort } from "@/lib/precog/dates";
 export function SharePanel({
   buildPayload,
 }: {
@@ -232,13 +233,8 @@ export function SharePanel({
               >
                 <code className="min-w-0 flex-1 truncate text-xs">…{l.token.slice(-10)}</code>
                 <span className="text-xs text-subtle">
-                  {new Date(l.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                  {l.expiresAt
-                    ? ` → ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                    : ""}
+                  {formatDayShort(l.createdAt)}
+                  {l.expiresAt ? ` → ${formatDayShort(l.expiresAt)}` : ""}
                 </span>
                 {l.revoked ? (
                   <span className="text-xs text-subtle">revoked</span>
@@ -254,7 +250,7 @@ export function SharePanel({
                     )}
                     <span className="text-xs text-subtle">
                       {l.views
-                        ? `viewed ${l.views}× · last ${new Date(l.lastViewedAt ?? l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                        ? `viewed ${l.views}× · last ${formatDayShort(l.lastViewedAt ?? l.createdAt)}`
                         : "not viewed yet"}
                     </span>
                     <button

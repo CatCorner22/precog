@@ -1,4 +1,4 @@
-import { isCalendarDate } from "../dates";
+import { isCalendarDate, DAY_MS } from "../dates";
 
 const MONTHS = [
   "january",
@@ -97,6 +97,6 @@ export function datesAreDayFirst(values: readonly string[]): boolean {
 /** Whole and tenth years between a hire date and today, never negative. */
 export function tenureFromHireDate(hireDate: string, today: Date = new Date()): number {
   const start = new Date(`${hireDate}T00:00:00Z`).getTime();
-  const years = (today.getTime() - start) / (365.25 * 86_400_000);
+  const years = (today.getTime() - start) / (365.25 * DAY_MS);
   return Math.max(0, Math.min(60, Math.round(years * 10) / 10));
 }

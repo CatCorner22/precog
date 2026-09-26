@@ -20,10 +20,10 @@ import {
   linkedContinuityStep,
   linkedKnowledgeId,
   linkedToIndustry,
-  localDateKey,
   registerCloseOut,
   slipLabels,
 } from "./follow-through";
+import { localDateKey } from "../dates";
 
 const dental = getBaseTemplate("dental");
 const dualRelease = defaultDualReleasePolicy(dental);

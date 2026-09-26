@@ -11,6 +11,7 @@ import type { Person } from "@/lib/precog/types";
 import { diffMaps } from "@/lib/precog/builder/diff";
 
 import type { MapVersion } from "@/lib/precog/practice-profile";
+import { formatDayTime } from "@/lib/precog/dates";
 
 export function VersionsPanel({
   versions,
@@ -48,13 +49,7 @@ export function VersionsPanel({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-fg">{v.name}</p>
                 <p className="text-xs text-subtle">
-                  {new Date(v.createdAt).toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}{" "}
-                  · health {v.healthScore}
+                  {formatDayTime(v.createdAt)} · health {v.healthScore}
                   {delta !== 0 && (
                     <span className={delta > 0 ? "text-ok" : "text-danger"}>
                       {" "}

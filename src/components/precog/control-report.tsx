@@ -11,11 +11,7 @@ import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { firstName } from "@/lib/precog/continuity/coverage";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
-import {
-  isDecisionOpen,
-  linkedKnowledgeId,
-  localDateKey,
-} from "@/lib/precog/decisions/follow-through";
+import { isDecisionOpen, linkedKnowledgeId } from "@/lib/precog/decisions/follow-through";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -27,8 +23,8 @@ import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { ControlReportContinuitySections } from "@/components/precog/control-report-continuity-sections";
 import { ControlReportEvidenceSection } from "@/components/precog/control-report-evidence-section";
-import { fmtDate } from "@/components/precog/control-report-helpers";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.
@@ -183,12 +179,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
               : mapCustomized
                 ? "custom process map"
                 : "industry template map"}{" "}
-            · generated{" "}
-            {generated.toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+            · generated {formatDay(generated)}
           </p>
         </header>
 
@@ -269,7 +260,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
               <p className="text-sm text-neutral-700">
                 {mapHealth.summary}{" "}
                 {healthDelta !== null && healthDelta !== 0 && firstPoint
-                  ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${fmtDate(firstPoint.at)}.`
+                  ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${formatDay(firstPoint.at)}.`
                   : ""}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -482,8 +473,8 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                     <span className="font-medium">{DECISION_KIND_LABEL[d.kind]}</span> · {d.subject}
                     <span className="text-neutral-500">
                       {" "}
-                      · {fmtDate(d.createdAt)}
-                      {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
+                      · {formatDay(d.createdAt)}
+                      {d.reviewBy ? ` · review ${formatDay(d.reviewBy)}` : ""}
                     </span>
                   </p>
                   {d.note && <p className="text-neutral-600">{d.note}</p>}

@@ -22,7 +22,6 @@ import {
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
 import {
-  formatDateRange,
   handoffDeadline,
   type PlannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
@@ -31,6 +30,7 @@ import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { joinWithAnd as naturalNames } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+import { formatDayRange } from "@/lib/precog/dates";
 
 type StepTrack = (action: AbsenceAction, absenceId?: string) => string | undefined;
 type LogStep = (action: AbsenceAction, reviewByKey?: string, absenceId?: string) => void;
@@ -387,7 +387,7 @@ export function PlannedLeaveCard({
                     <li key={a.id} className="flex items-center justify-between gap-2">
                       <span>
                         {person?.name ?? "Someone no longer on the team"} ·{" "}
-                        {formatDateRange(a.from, a.to)}
+                        {formatDayRange(a.from, a.to)}
                         {!person || !person.active ? " · not on the active team" : ""}
                       </span>
                       <Button

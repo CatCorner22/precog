@@ -11,6 +11,7 @@ import {
   type Severity,
 } from "@/lib/precog/stats/forensic-suite";
 import { parseTransactionsCsv } from "@/lib/precog/stats/transactions-csv";
+import { localDateKey } from "@/lib/precog/dates";
 
 function severityVariant(severity: Severity): "danger" | "warn" | "default" {
   return severity === "review" ? "danger" : severity === "watch" ? "warn" : "default";
@@ -23,7 +24,7 @@ function parsePastedAmounts(value: string): { transactions: Transaction[]; issue
   if (firstLine.includes("date") && firstLine.includes("amount")) {
     return parseTransactionsCsv(trimmed);
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const transactions: Transaction[] = [];
   const issues: string[] = [];
   trimmed.split(/\r?\n/).forEach((line, index) => {

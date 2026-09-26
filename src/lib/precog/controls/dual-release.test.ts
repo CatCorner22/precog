@@ -1,7 +1,8 @@
 import { getIndustryTemplate } from "../templates";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import {
+  activeExceptionSummary,
   defaultDualReleasePolicy,
   dualReleaseCoverage,
   evaluateRelease,
@@ -332,5 +333,35 @@ describe("dual-release seats for a team that says what each person does", () => 
     const seats = listEligibleApprovers(dental, policyOn(), "ach");
     expect(seats.find((p) => p.id === officeManager)?.canInitiate).toBe(true);
     expect(seats.some((p) => p.id === hygienist)).toBe(false);
+  });
+});
+
+describe("exceptions on the owner's calendar day", () => {
+  it("keeps an exception active through its last local day after UTC has rolled over", () => {
+    vi.useFakeTimers();
+    // 6:30 pm in Denver on 30 September is already 1 October in UTC.
+    vi.setSystemTime(new Date("2026-10-01T00:30:00Z"));
+    try {
+      const policy: DualReleasePolicy = {
+        ...policyOn(),
+        exceptions: [
+          {
+            id: "ex-last-day",
+            label: "Raised threshold through September",
+            channels: [],
+            action: "raise_threshold",
+            thresholdUsd: 25_000,
+            enabled: true,
+            effectiveTo: "2026-09-30",
+            reason: "Quarter-end vendor run",
+            createdAt: "2026-09-01",
+          },
+        ],
+      };
+      expect(activeExceptionSummary(policy, "2026-09-30").total).toBe(1);
+      expect(activeExceptionSummary(policy, "2026-10-01").total).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -1,5 +1,6 @@
 import type { EntitlementId } from "../sod/conflict-rules";
 import type { Person } from "../types";
+import { utcDateKey } from "../dates";
 
 export type ReviewItemKey =
   "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors";
@@ -85,7 +86,7 @@ export function monthKey(day: string): string {
 export function reviewDueOn(period: string): string {
   const [year, month] = period.split("-").map(Number);
   const due = new Date(Date.UTC(year, month, 10));
-  return due.toISOString().slice(0, 10);
+  return utcDateKey(due);
 }
 
 function holderName(people: readonly Person[], duties: readonly EntitlementId[]): string {

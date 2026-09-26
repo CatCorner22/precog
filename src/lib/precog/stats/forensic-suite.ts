@@ -5,6 +5,7 @@ import {
   benfordFirstDigit,
   benfordSecondDigit,
 } from "./benford";
+import { utcDateKey } from "../dates";
 
 export interface Transaction {
   id: string;
@@ -78,7 +79,7 @@ function addBusinessDays(date: string, days: number): string {
     const weekday = result.getUTCDay();
     if (weekday !== 0 && weekday !== 6) remaining--;
   }
-  return result.toISOString().slice(0, 10);
+  return utcDateKey(result);
 }
 
 function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest): ForensicFinding {
