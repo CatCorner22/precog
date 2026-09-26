@@ -52,6 +52,7 @@ import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePresentation } from "@/lib/precog/presentation";
+import { TAB_WORDING } from "@/lib/precog/navigation";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { StartHere } from "@/components/precog/start-here";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
@@ -407,21 +408,21 @@ function isTabId(value: unknown): value is TabId {
  * better off knowing both words for the same thing.
  */
 const TABS: { id: TabId; label: string; tactical: string; icon: typeof Eye }[] = [
-  { id: "start", label: "Start here", tactical: "Start here", icon: Compass },
-  { id: "command", label: "Dashboard", tactical: "Command", icon: Activity },
-  { id: "map", label: "How work flows", tactical: "Process map", icon: Map },
-  { id: "pioneer", label: "Ask a question", tactical: "Advisor", icon: MessageSquare },
-  { id: "intel", label: "Patterns", tactical: "Intel", icon: Brain },
-  { id: "residual", label: "What is still exposed", tactical: "Residual", icon: Gauge },
-  { id: "coso", label: "Coverage check", tactical: "COSO", icon: Grid3x3 },
-  { id: "layers", label: "Where risk sits", tactical: "Layers", icon: Layers },
-  { id: "knowledge", label: "Who knows what", tactical: "Knowledge", icon: Network },
-  { id: "precog", label: "What could happen", tactical: "Precog", icon: Sparkles },
-  { id: "sod", label: "Who controls what", tactical: "SoD", icon: Shield },
-  { id: "journal", label: "Decisions log", tactical: "Journal", icon: BookOpen },
-  { id: "value", label: "Value proof", tactical: "Value", icon: TrendingUp },
-  { id: "blueprint", label: "Operating blueprint", tactical: "Blueprint", icon: LibraryBig },
-  { id: "snapshots", label: "Assessment snapshots", tactical: "Snapshots", icon: Archive },
+  { id: "start", ...TAB_WORDING.start, icon: Compass },
+  { id: "command", ...TAB_WORDING.command, icon: Activity },
+  { id: "map", ...TAB_WORDING.map, icon: Map },
+  { id: "pioneer", ...TAB_WORDING.pioneer, icon: MessageSquare },
+  { id: "intel", ...TAB_WORDING.intel, icon: Brain },
+  { id: "residual", ...TAB_WORDING.residual, icon: Gauge },
+  { id: "coso", ...TAB_WORDING.coso, icon: Grid3x3 },
+  { id: "layers", ...TAB_WORDING.layers, icon: Layers },
+  { id: "knowledge", ...TAB_WORDING.knowledge, icon: Network },
+  { id: "precog", ...TAB_WORDING.precog, icon: Sparkles },
+  { id: "sod", ...TAB_WORDING.sod, icon: Shield },
+  { id: "journal", ...TAB_WORDING.journal, icon: BookOpen },
+  { id: "value", ...TAB_WORDING.value, icon: TrendingUp },
+  { id: "blueprint", ...TAB_WORDING.blueprint, icon: LibraryBig },
+  { id: "snapshots", ...TAB_WORDING.snapshots, icon: Archive },
 ];
 
 /**
@@ -957,7 +958,7 @@ function Home() {
                 />
               )}
 
-              {tab === "intel" && <IntelligencePanel onNavigate={(t) => navigateTab(t)} />}
+              {tab === "intel" && <IntelligencePanel onNavigate={navigateTab} />}
 
               {tab === "residual" && (
                 <div className="space-y-4">

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import type { IndustryTemplate } from "../templates/types";
 import { buildAssignments, detectSodConflicts } from "./detect";
-import { concentrationHeadline, separatedPairs } from "./verdict";
+import { concentrationHeadline, midSentence, separatedPairs } from "./verdict";
 
 const general = getBaseTemplate("general");
 
@@ -69,5 +69,17 @@ describe("separatedPairs", () => {
     expect(ids).toContain("rule-payroll-release");
     // Nobody sets up suppliers, so that pair is not "kept apart"; it is not held at all.
     expect(ids).not.toContain("rule-vendor-create-pay");
+  });
+});
+
+describe("midSentence", () => {
+  it("lower-cases a word or the article A, and keeps acronyms and codes as written", () => {
+    expect(midSentence("Set up suppliers")).toBe("set up suppliers");
+    expect(midSentence("A second person releases payments")).toBe(
+      "a second person releases payments",
+    );
+    expect(midSentence("ACH initiation")).toBe("ACH initiation");
+    expect(midSentence("A/R write-offs")).toBe("A/R write-offs");
+    expect(midSentence("X-ray")).toBe("X-ray");
   });
 });

@@ -273,14 +273,12 @@ const pioneerProfileSchema = z.looseObject({
 
 const pioneerSchema = z.object({
   question: z.string().nullish(),
-  preferLocal: z.boolean().nullish(),
   profile: pioneerProfileSchema.nullish(),
   today: z.string().max(40).nullish(),
 });
 
 export interface PioneerRequest {
   question: string;
-  preferLocal: boolean;
   profile: PioneerProfileInput;
   today: string | undefined;
 }
@@ -289,7 +287,6 @@ export function parsePioneerInput(input: unknown): PioneerRequest {
   const data = parse(pioneerSchema, input);
   return {
     question: (data.question ?? "").trim().slice(0, 1500),
-    preferLocal: Boolean(data.preferLocal),
     // The schema checked the shapes Pioneer walks; pioneerProfileFrom builds
     // the canonical profile (defaults, caps, journal and absence rebuilds).
     profile: (data.profile ?? {}) as PioneerProfileInput,

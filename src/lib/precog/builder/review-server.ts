@@ -3,6 +3,7 @@ import { grokChat } from "../llm/grok-client.server";
 import { llmMiddleware } from "../llm/middleware";
 import { parseReviewInput } from "../public-inputs";
 import { gradeFromScore, reviewLocally, type MapReview, type ReviewInput } from "./review";
+import { ownerText } from "../llm/owner-text";
 
 function cleanPoints(v: unknown, max = 5): string[] {
   return (Array.isArray(v) ? v : [])
@@ -102,10 +103,6 @@ Rules: 2-4 points per section, each under 200 characters, name specific processe
 }
 
 /** Plain-English critique of the whole process map. */
-/** Owner-typed text goes inside <owner_text>; strip a closing tag so it cannot end the block early. */
-function ownerText(value: string): string {
-  return value.replaceAll("</owner_text>", "");
-}
 
 export const reviewMap = createServerFn({ method: "POST" })
   .middleware([llmMiddleware])

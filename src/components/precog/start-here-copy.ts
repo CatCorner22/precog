@@ -62,8 +62,3 @@ export function joinClauses(parts: string[]): string {
 export function effortPhrase(effort: string): string {
   return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;
 }
-
-/** Lower-cases an entitlement label for mid-sentence use, keeping acronyms. */
-export function lower(label: string): string {
-  return label.replace(/^([A-Z])(?=[a-z])/, (m) => m.toLowerCase());
-}

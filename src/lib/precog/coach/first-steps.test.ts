@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
-import { defaultDualReleasePolicy } from "../controls/dual-release";
 import { recommendedStepsForRules } from "../evidence";
 import { detectSodConflicts } from "../sod/detect";
 import type { Person } from "../types";
 import {
   CONTROL_DUTIES,
-  closingSteps,
-  dualReleaseLine,
+  UNIVERSAL_FIX,
   findingsAnswered,
   gapBadge,
   ownerHeldPairs,
@@ -57,6 +55,12 @@ describe("rankFirstSteps", () => {
     }
   });
 
+  it("lets splitting one duty out answer every open finding, so it leads the ranking", () => {
+    expect(findingsAnswered(UNIVERSAL_FIX, clinic)).toBe(clinic.length);
+    const ranked = rankFirstSteps(recommendedStepsForRules(clinic.map((f) => f.ruleId)), clinic);
+    expect(ranked[0].answers).toBe(clinic.length);
+  });
+
   it("answers a finding when a control watches either duty of the pair", () => {
     expect(findingsAnswered("new-payee-review", clinic)).toBe(1);
     expect(findingsAnswered("independent-bank-reconciliation", clinic)).toBe(3);
@@ -87,44 +91,7 @@ describe("rankFirstSteps", () => {
   });
 });
 
-describe("dual-release wording", () => {
-  const tpl = resolveTemplate({ industry: "dental" });
-  const off = defaultDualReleasePolicy(tpl, {
-    ...tpl.staffComposition,
-    dualControlPayments: false,
-  });
-  const on = { ...off, enabled: true };
-
-  it("quotes the live policy's thresholds, never a template's", () => {
-    expect(dualReleaseLine(on, "rule-vendor-create-pay")).toBe(
-      "Your dual-release policy requires a second person on ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
-    );
-    expect(dualReleaseLine(off, "rule-vendor-create-pay")).toMatch(
-      /^Dual release is off for this in your policy/,
-    );
-    expect(dualReleaseLine(on, "rule-sign-rec")).toBeNull();
-    const closes = closingSteps(
-      [
-        "Dual release on payments > $1,000",
-        "Owner signs new vendor form",
-        "Dual-release policy active on related channel",
-      ],
-      on,
-      "rule-vendor-create-pay",
-    );
-    expect(closes.join(" ")).not.toContain("$1,000");
-    expect(closes).toContain("Owner signs new vendor form");
-    expect(closes[closes.length - 1]).toMatch(/above \$500/);
-    // A control the owner already has is done, not a step to take.
-    const withReview = closingSteps(
-      ["Owner opens the bank statement first", "The CFO reviews each reconciliation"],
-      off,
-      "rule-release-rec",
-      ["The CFO reviews each reconciliation"],
-    );
-    expect(withReview).toEqual(["Owner opens the bank statement first"]);
-  });
-
+describe("gapBadge", () => {
   it("drops the severity badge once dual release covers the gap", () => {
     expect(gapBadge({ severity: "critical", dualReleaseMitigated: false }, undefined)).toBe(
       "Fix first",

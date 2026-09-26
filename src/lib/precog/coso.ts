@@ -12,7 +12,7 @@ import type { IndustryTemplate } from "./templates";
 import type { StaffComposition } from "./types";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
-import { withLiveThreshold } from "./coach/first-steps";
+import { withLiveThreshold } from "./controls/dual-release-wording";
 import { formatUsd } from "../utils";
 
 export type CosoComponentId =

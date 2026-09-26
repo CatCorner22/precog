@@ -1,8 +1,9 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { BADGE_VARIANT, LONG_SERVICE_YEARS, lower } from "./start-here-copy";
+import { BADGE_VARIANT, LONG_SERVICE_YEARS } from "./start-here-copy";
 import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
-import { closingSteps, gapBadge } from "@/lib/precog/coach/first-steps";
+import { gapBadge } from "@/lib/precog/coach/first-steps";
+import { closingSteps } from "@/lib/precog/controls/dual-release-wording";
 import { midSentence } from "@/lib/precog/sod/verdict";
 import { personLabel } from "@/lib/precog/person-label";
 import { CaseCard } from "./case-card";
@@ -137,7 +138,7 @@ export function StartHereExposureSection({
                   </div>
                   <CardTitle as="h3" className="leading-snug">
                     {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
-                    {lower(conflict.labelA)} and {lower(conflict.labelB)}
+                    {midSentence(conflict.labelA)} and {midSentence(conflict.labelB)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">

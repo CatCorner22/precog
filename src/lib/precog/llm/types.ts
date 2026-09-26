@@ -1,6 +1,7 @@
 /**
  * Precog LLM stack types — tool-grounded multi-step reasoning.
  */
+import type { ContinuityStep } from "../continuity/absence-impact";
 
 export type ToolName =
   | "get_practice_snapshot"
@@ -72,6 +73,16 @@ export interface PioneerDecision {
   effort: "low" | "medium" | "high";
   horizonDays: number;
   cascadeEffects?: string[];
+  /** What a Journal entry logged from this decision links to, so the next brief follows it up. */
+  link?: DecisionLink;
+}
+
+/** The Journal link fields a coach decision carries (DecisionInput's linked* fields). */
+export interface DecisionLink {
+  tab: string;
+  id?: string;
+  step?: ContinuityStep;
+  personId?: string;
 }
 
 export interface StructuredBrief {

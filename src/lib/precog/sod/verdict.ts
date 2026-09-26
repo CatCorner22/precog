@@ -17,9 +17,13 @@ export interface ConcentrationHeadline {
   closes: number;
 }
 
-/** Lower-cases a label's first word for use mid-sentence, unless it is an acronym ("ACH initiation"). */
+/**
+ * Lower-cases a label's first word for use mid-sentence ("A second person"
+ * reads "a second person"), unless it is an acronym or a code ("ACH
+ * initiation", "A/R write-offs", "X-ray").
+ */
 export function midSentence(label: string): string {
-  return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
+  return /^(?:[A-Z][a-z]|A\s)/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
 
 const dutyLabel = entitlementLabel;
