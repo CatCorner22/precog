@@ -19,8 +19,19 @@ export function WeeklyActionPlan({
 }) {
   const { profile, template } = usePractice();
   const today = useToday();
-  const trackFreshness = trackRegisterFreshness(profile, template);
-  const mapReady = mapAssessed(profile);
+  const { industry, customPeople, customKnowledge, customRelations, customProcesses } = profile;
+  const trackFreshness = useMemo(
+    () =>
+      trackRegisterFreshness(
+        { industry, customPeople, customKnowledge, customRelations },
+        template,
+      ),
+    [industry, customPeople, customKnowledge, customRelations, template],
+  );
+  const mapReady = useMemo(
+    () => mapAssessed({ industry, customPeople, customProcesses }),
+    [industry, customPeople, customProcesses],
+  );
   const actions = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(template, profile.staff);
     return buildWeeklyActions({

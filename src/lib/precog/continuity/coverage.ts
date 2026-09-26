@@ -225,7 +225,26 @@ export function suggestBackups(
     .sort((a, b) => b.score - a.score || a.person.name.localeCompare(b.person.name));
 }
 
+const coverageCache = new WeakMap<IndustryTemplate, CoverageReport>();
+
+/**
+ * Who can run each register entry, who carries what alone, and the
+ * cross-training plan. Every continuity report (absence impact, leave
+ * windows, leavers, documentation, staleness, the weekly plan) starts from
+ * this one, so it is worked out once per template object: a register change
+ * resolves a new template rather than editing one in place. Treat the
+ * report as read-only.
+ */
 export function coverageReport(tpl: IndustryTemplate): CoverageReport {
+  let report = coverageCache.get(tpl);
+  if (!report) {
+    report = buildCoverageReport(tpl);
+    coverageCache.set(tpl, report);
+  }
+  return report;
+}
+
+function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
   const { knowledge, people, relations } = tpl;
   const byId = new Map(people.map((p) => [p.id, p]));
 

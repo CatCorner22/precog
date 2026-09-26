@@ -45,6 +45,20 @@ function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): Indust
   });
 }
 
+describe("coverageReport", () => {
+  it("works a template out once, and a new template afresh", () => {
+    const t = tpl([knowledgeItem("pay")], [{ personId: "a", knowledgeId: "pay", level: "expert" }]);
+    expect(coverageReport(t)).toBe(coverageReport(t));
+    const next = {
+      ...t,
+      relations: [...t.relations, { personId: "b", knowledgeId: "pay", level: "expert" as const }],
+    };
+    expect(coverageReport(next)).not.toBe(coverageReport(t));
+    expect(coverageReport(next).items[0].status).toBe("covered");
+    expect(coverageReport(t).items[0].status).toBe("single");
+  });
+});
+
 describe("coverageStatus", () => {
   it("maps holder counts to the four statuses", () => {
     expect(coverageStatus(0, 0)).toBe("uncovered");
