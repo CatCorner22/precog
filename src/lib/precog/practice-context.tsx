@@ -46,7 +46,7 @@ import type { Departure } from "./continuity/access-removal";
 import { profileReducer } from "./profile-reducer";
 import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
-import { usePortfolio } from "./use-portfolio";
+import { usePortfolio, type SwitchResult } from "./use-portfolio";
 import {
   currentPeople,
   isMapCustomized,
@@ -160,7 +160,8 @@ export interface PracticeContextValue {
   restoreMapVersion: (id: string) => void;
   /** Multi-business portfolio (advisors, multi-location owners). */
   businesses: BusinessSummary[];
-  switchBusiness: (id: string) => Promise<void>;
+  /** Opens another business; when it cannot, says why. */
+  switchBusiness: (id: string) => Promise<SwitchResult>;
   /**
    * Opens setup for a new business (its name and line of business filled
    * in). Refused, with the reason to show, while a save conflict waits for
@@ -353,7 +354,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     cloudUser: sync.cloudUser,
     cloudRevision: sync.cloudRevision,
     saveConflictRef: sync.saveConflictRef,
+    flushLocal: sync.flushLocal,
     flushActive: sync.flushActive,
+    openedFromAccount: sync.openedFromAccount,
     remoteBusinesses: sync.remoteBusinesses,
     setRemoteBusinesses: sync.setRemoteBusinesses,
     portfolioVersion: sync.portfolioVersion,

@@ -188,3 +188,26 @@ export class AccountLineage {
     return Boolean(stamp) && (this.stamps.get(businessId)?.includes(stamp as string) ?? false);
   }
 }
+
+/** The account's answer to one save: the new revision, or the version it holds instead. */
+export type AccountSaveAnswer =
+  | { ok: true; revision: number }
+  | { ok: false; revision: number; profile: Pick<PracticeProfile, "updatedAt"> };
+
+/**
+ * Saves one business to the account on top of `baseRevision`. When the
+ * account refuses because another tab of this browser moved it on to a
+ * version this tab already builds on (see `AccountLineage`), saves once more
+ * on top of that version: nothing is lost, so the owner is not asked. Any
+ * other refusal comes back for the owner to settle.
+ */
+export async function saveOnLineage<A extends AccountSaveAnswer>(input: {
+  businessId: string;
+  baseRevision: number | null;
+  lineage: AccountLineage;
+  save: (baseRevision: number | null) => Promise<A>;
+}): Promise<A> {
+  const first = await input.save(input.baseRevision);
+  if (first.ok || !input.lineage.buildsOn(input.businessId, first.profile.updatedAt)) return first;
+  return input.save(first.revision);
+}

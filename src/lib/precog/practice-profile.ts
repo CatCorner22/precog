@@ -242,6 +242,8 @@ export interface BusinessSummary {
   updatedAt: string;
   processCount: number;
   healthScore: number | null;
+  /** True for a firm colleague's client rather than the account's own business. */
+  shared?: boolean;
 }
 
 /**

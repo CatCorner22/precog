@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AccountLineage, LocalProfileStore, storedRevision } from "./save-conflict";
+import { AccountLineage, LocalProfileStore, saveOnLineage, storedRevision } from "./save-conflict";
 import { ACTIVE_PROFILE_KEY, defaultProfile, type PracticeProfile } from "./practice-profile";
 import type { StorageLike } from "./local-data";
 import type { KnowledgeItem } from "./types";
@@ -160,18 +160,19 @@ function account(first: PracticeProfile) {
   };
 }
 
-/** One signed-in tab's account save, as the provider makes it: once more on top of a version it builds on. */
-function saveToAccount(
+/** One signed-in tab's account save, through the provider's `saveOnLineage`. */
+async function saveToAccount(
   acct: ReturnType<typeof account>,
   tab: { lineage: AccountLineage; revision: number | null },
   profile: PracticeProfile,
-): "saved" | "conflict" {
+): Promise<"saved" | "conflict"> {
   const id = profile.businessId ?? "biz_default";
-  let result = acct.save(profile, tab.revision);
-  if (!result.ok && tab.lineage.buildsOn(id, result.profile.updatedAt)) {
-    tab.revision = result.revision;
-    result = acct.save(profile, tab.revision);
-  }
+  const result = await saveOnLineage({
+    businessId: id,
+    baseRevision: tab.revision,
+    lineage: tab.lineage,
+    save: async (base) => acct.save(profile, base),
+  });
   if (!result.ok) return "conflict";
   tab.revision = result.revision;
   tab.lineage.add(id, profile.updatedAt);
@@ -198,7 +199,7 @@ describe("two signed-in tabs of one browser on the same business", () => {
     return { b, acct, A: open(), B: open() };
   }
 
-  it("a tab that took the other tab's save can save its own edit without a false 'changed on another device' warning", () => {
+  it("a tab that took the other tab's save can save its own edit without a false 'changed on another device' warning", async () => {
     const { b, acct, A, B } = signedInTabs();
     // Tab A adds an item; it lands in this browser, then in the account.
     const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
@@ -209,7 +210,7 @@ describe("two signed-in tabs of one browser on the same business", () => {
     if (change.kind !== "adopt") return;
     B.local.accept(change.rev, change.profile.updatedAt);
     B.cloud.lineage.add("biz_two_tab", change.profile.updatedAt);
-    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+    expect(await saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
 
     // B edits on top of A's item. B's account revision is behind, yet the
     // account holds exactly the version B took: no warning, both items kept.
@@ -217,17 +218,17 @@ describe("two signed-in tabs of one browser on the same business", () => {
       customKnowledge: [...(change.profile.customKnowledge ?? []), item("Item from tab B")],
     });
     expect(B.local.write(bNext).kind).toBe("saved");
-    expect(saveToAccount(acct, B.cloud, bNext)).toBe("saved");
+    expect(await saveToAccount(acct, B.cloud, bNext)).toBe("saved");
     expect(names(acct.held())).toEqual(["Item from tab A", "Item from tab B"]);
   });
 
-  it("a tab that never heard of the other tab's account save still gets the warning, and overwrites nothing", () => {
+  it("a tab that never heard of the other tab's account save still gets the warning, and overwrites nothing", async () => {
     const { acct, A, B } = signedInTabs();
     const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
-    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+    expect(await saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
     // B was asleep: it never took A's version and edits its old copy.
     const staleB = edit(B.profile, { customKnowledge: [item("Item from stale tab B")] });
-    expect(saveToAccount(acct, B.cloud, staleB)).toBe("conflict");
+    expect(await saveToAccount(acct, B.cloud, staleB)).toBe("conflict");
     expect(names(acct.held())).toEqual(["Item from tab A"]);
   });
 

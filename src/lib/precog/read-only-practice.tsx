@@ -68,7 +68,7 @@ export function ReadOnlyPracticeProvider({
       deleteMapVersion: noop,
       restoreMapVersion: noop,
       businesses: [summarizeBusiness(frozen)],
-      switchBusiness: asyncNoop,
+      switchBusiness: async () => ({ ok: false, reason: "This view is read-only" }),
       createBusiness: () => ({ ok: false, reason: "This view is read-only" }),
       deleteBusiness: asyncNoop,
       switchingBusiness: false,
