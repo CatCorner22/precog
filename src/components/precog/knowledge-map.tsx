@@ -1,16 +1,28 @@
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
-import { useEffect, useMemo, useState } from "react";
 import { useTemplate } from "@/lib/precog/use-template";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
-import { firstName } from "@/lib/precog/text";
+import { coverageReport, STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
+import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { CRITICALITY_LABEL, KIND_LABEL } from "@/lib/precog/continuity/planner-copy";
+import { count, firstName } from "@/lib/precog/text";
+import {
+  ITEM_NODE,
+  knowledgeMapLayout,
+  MAP_WIDTH,
+  PERSON_NODE,
+} from "@/components/precog/knowledge-map-layout";
 
 export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const tpl = useTemplate();
-  const { people, knowledge, relations } = tpl;
+  const assessed = registerAssessed(tpl);
   const risks = useMemo(() => findKnowledgeRisks(tpl), [tpl]);
+  const coverage = useMemo(
+    () => new Map(coverageReport(tpl).items.map((i) => [i.item.id, i])),
+    [tpl],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     initialKnowledgeId ?? risks[0]?.knowledgeId ?? null,
   );
@@ -19,56 +31,37 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
     if (initialKnowledgeId) setSelectedId(initialKnowledgeId);
   }, [initialKnowledgeId]);
 
-  const selected = risks.find((r) => r.knowledgeId === selectedId);
-  const item = knowledge.find((k) => k.id === selectedId);
+  const layout = useMemo(() => {
+    const riskById = new Map(risks.map((r) => [r.knowledgeId, r]));
+    return knowledgeMapLayout(
+      tpl.people,
+      tpl.knowledge.map((k) => ({ ...k, risk: riskById.get(k.id) })),
+      tpl.relations.filter((r) => STRONG_LEVELS.has(r.level)),
+    );
+  }, [tpl, risks]);
 
-  const personNodes = people.map((p, i) => ({
-    ...p,
-    x: 80,
-    y: 48 + i * 72,
-  }));
-
-  const knowledgeNodes = knowledge.map((k, i) => {
-    const risk = risks.find((r) => r.knowledgeId === k.id);
-    return {
-      ...k,
-      x: 420,
-      y: 40 + i * 68,
-      risk,
-    };
-  });
-
-  const edges = relations
-    .filter((r) => STRONG_LEVELS.has(r.level))
-    .map((r) => {
-      const from = personNodes.find((p) => p.id === r.personId);
-      const to = knowledgeNodes.find((k) => k.id === r.knowledgeId);
-      if (!from || !to) return null;
-      return { ...r, from, to };
-    })
-    .filter(Boolean) as Array<{
-    personId: string;
-    knowledgeId: string;
-    level: string;
-    from: (typeof personNodes)[0];
-    to: (typeof knowledgeNodes)[0];
-  }>;
+  const selected = selectedId ? coverage.get(selectedId) : undefined;
+  const selectKey = (id: string) => (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setSelectedId(id);
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
       <div className="overflow-x-auto rounded-xl border border-border bg-panel matrix-grid">
         <svg
-          viewBox="0 0 640 520"
-          className="min-h-[320px] w-full min-w-[560px]"
-          role="img"
-          aria-label="Knowledge continuity map"
+          viewBox={`0 0 ${MAP_WIDTH} ${layout.height}`}
+          className="w-full min-w-[560px]"
+          role="group"
+          aria-label="Knowledge continuity map: people on the left, register items on the right"
         >
-          {edges.map((e) => {
+          {layout.edges.map((e) => {
             const isHot = e.to.risk?.soleOwner && e.to.criticality === "critical";
             return (
               <line
                 key={`${e.personId}-${e.knowledgeId}`}
-                x1={e.from.x + 100}
+                x1={e.from.x + PERSON_NODE.width}
                 y1={e.from.y + 18}
                 x2={e.to.x}
                 y2={e.to.y + 18}
@@ -79,15 +72,15 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
             );
           })}
 
-          {personNodes.map((p) => {
+          {layout.people.map((p) => {
             const sole = risks.some((r) => r.soleOwner && r.owners.some((o) => o.id === p.id));
             return (
               <g key={p.id}>
                 <rect
                   x={p.x}
                   y={p.y}
-                  width={100}
-                  height={44}
+                  width={PERSON_NODE.width}
+                  height={PERSON_NODE.height}
                   rx={8}
                   fill="var(--color-elevated)"
                   stroke={sole ? "var(--color-danger)" : "var(--color-border)"}
@@ -109,17 +102,34 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
             );
           })}
 
-          {knowledgeNodes.map((k) => {
+          {layout.items.map((k) => {
             const sole = k.risk?.soleOwner && k.criticality === "critical";
-            const unowned = k.risk?.ownerCount === 0;
+            const holders = coverage.get(k.id)?.primaries.length ?? 0;
             const isSelected = selectedId === k.id;
+            const holdersText = !assessed
+              ? "not assessed yet"
+              : holders === 0
+                ? "nobody can run it"
+                : holders === 1
+                  ? "one person only"
+                  : `${holders} can run it`;
             return (
-              <g key={k.id} className="cursor-pointer" onClick={() => setSelectedId(k.id)}>
+              <g
+                key={k.id}
+                className="cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:outline-primary"
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`${k.name}, ${holdersText}`}
+                opacity={assessed ? 1 : 0.6}
+                onClick={() => setSelectedId(k.id)}
+                onKeyDown={selectKey(k.id)}
+              >
                 <rect
                   x={k.x}
                   y={k.y}
-                  width={190}
-                  height={48}
+                  width={ITEM_NODE.width}
+                  height={ITEM_NODE.height}
                   rx={8}
                   fill={
                     sole
@@ -131,7 +141,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                       ? "var(--color-primary)"
                       : sole
                         ? "var(--color-danger)"
-                        : unowned
+                        : assessed && holders === 0
                           ? "var(--color-warn)"
                           : "var(--color-border)"
                   }
@@ -147,89 +157,113 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                   {k.name.length > 24 ? k.name.slice(0, 23) + "…" : k.name}
                 </text>
                 <text x={k.x + 10} y={k.y + 36} fill="var(--color-muted)" fontSize="12">
-                  {k.criticality}
-                  {sole ? " · SOLE OWNER" : ` · ${k.risk?.ownerCount ?? 0} owners`}
+                  {k.criticality} · {holdersText}
                 </text>
               </g>
             );
           })}
 
-          <text x={80} y={24} fill="var(--color-subtle)" fontSize="12" letterSpacing="0.08em">
+          <text
+            x={PERSON_NODE.x}
+            y={24}
+            fill="var(--color-subtle)"
+            fontSize="12"
+            letterSpacing="0.08em"
+          >
             PEOPLE
           </text>
-          <text x={420} y={24} fill="var(--color-subtle)" fontSize="12" letterSpacing="0.08em">
-            CRITICAL KNOWLEDGE
+          <text
+            x={ITEM_NODE.x}
+            y={24}
+            fill="var(--color-subtle)"
+            fontSize="12"
+            letterSpacing="0.08em"
+          >
+            REGISTER ITEMS
           </text>
         </svg>
       </div>
 
       <aside className="rounded-xl border border-border bg-surface p-4">
-        <p className="text-xs font-medium tracking-wide text-subtle uppercase">Drill-down</p>
-        {item && selected ? (
+        <p className="text-xs font-medium tracking-wide text-subtle uppercase">Selected item</p>
+        {!assessed ? (
+          <p className="mt-3 text-sm text-muted">
+            Nobody is marked on the register above yet, so the map cannot say who holds what. Mark
+            who can do each item there and the map fills in.
+          </p>
+        ) : selected ? (
           <div className="mt-3 space-y-3">
             <div>
-              <h3 className="font-semibold">{item.name}</h3>
-              <p className="mt-1 text-sm text-muted">{item.description}</p>
+              <h3 className="font-semibold">{selected.item.name}</h3>
+              {selected.item.description && (
+                <p className="mt-1 text-sm text-muted">{selected.item.description}</p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={selected.soleOwner ? "danger" : "ok"}>
-                {selected.ownerCount} strong owner{selected.ownerCount === 1 ? "" : "s"}
+              <Badge variant={selected.primaries.length >= 2 ? "ok" : "danger"}>
+                {count(selected.primaries.length, "person", "people")} can run it alone
               </Badge>
-              <Badge variant="default">{item.category}</Badge>
-              <Badge variant={item.criticality === "critical" ? "warn" : "default"}>
-                {item.criticality}
+              <Badge variant="default">{KIND_LABEL[selected.item.kind ?? "knowledge"]}</Badge>
+              <Badge variant={selected.item.criticality === "critical" ? "warn" : "default"}>
+                {CRITICALITY_LABEL[selected.item.criticality]}
               </Badge>
             </div>
             <div>
-              <p className="text-xs text-subtle">Holders</p>
+              <p className="text-xs text-subtle">Can run it alone</p>
               <ul className="mt-1 space-y-1">
-                {selected.owners.length === 0 && (
-                  <li className="text-sm text-warn">No proficient/expert owner</li>
+                {selected.primaries.length === 0 && (
+                  <li className="text-sm text-warn">Nobody can run this alone yet</li>
                 )}
-                {selected.owners.map((o) => (
+                {selected.primaries.map((o) => (
                   <li key={o.id} className="text-sm">
                     {o.name} <span className="text-muted">· {o.role}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            {selected.soleOwner && (
+            {selected.primaries.length === 1 && (
               <p className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-                Single point of failure. Cross-train or document before this person is unavailable.
+                Only one person can run this alone. Train a second person or write it down before{" "}
+                {firstName(selected.primaries[0].name)} is away.
               </p>
             )}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-muted">Select a knowledge node.</p>
+          <p className="mt-3 text-sm text-muted">Select an item on the map.</p>
         )}
 
-        <div className="mt-6 border-t border-border pt-4">
-          <p className="text-xs font-medium tracking-wide text-subtle uppercase">Highest risk</p>
-          <ul className="mt-2 space-y-2">
-            {risks
-              .filter((r) => r.riskScore >= RISK_SCALE.actNow)
-              .map((r) => (
-                <li key={r.knowledgeId}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(r.knowledgeId)}
-                    className={cn(
-                      "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                      selectedId === r.knowledgeId
-                        ? "border-primary/40 bg-primary/10"
-                        : "border-border bg-elevated hover:border-border-strong",
-                    )}
-                  >
-                    <span className="font-medium">{r.name}</span>
-                    <span className="mt-0.5 block text-xs text-muted">
-                      Risk {r.riskScore}
-                      {r.soleOwner ? " · SPOF" : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </div>
+        {assessed && (
+          <div className="mt-6 border-t border-border pt-4">
+            <p className="text-xs font-medium tracking-wide text-subtle uppercase">
+              Needs attention first
+            </p>
+            <ul className="mt-2 space-y-2">
+              {risks
+                .filter((r) => r.riskScore >= RISK_SCALE.actNow)
+                .map((r) => (
+                  <li key={r.knowledgeId}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(r.knowledgeId)}
+                      aria-pressed={selectedId === r.knowledgeId}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                        selectedId === r.knowledgeId
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border bg-elevated hover:border-border-strong",
+                      )}
+                    >
+                      <span className="font-medium">{r.name}</span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {r.ownerCount === 0 ? "Nobody can run it alone" : "One person only"} ·
+                        attention index {r.riskScore} of 100 (this app&apos;s own scale)
+                      </span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
       </aside>
     </div>
   );

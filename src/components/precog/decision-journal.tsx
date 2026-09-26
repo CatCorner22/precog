@@ -9,7 +9,6 @@ import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import {
   captureDecisionSnapshot,
   continuitySlips,
-  decisionDelta,
   decisionsDue,
   isDecisionOpen,
   linkedKnowledgeId,
@@ -18,7 +17,6 @@ import {
   slipLabels,
   type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
-import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
@@ -30,40 +28,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
+import { reviewDelta } from "@/components/precog/decision-review-delta";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
-
-function signed(value: number): string {
-  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
-}
-
-function reviewDelta(
-  d: DecisionEntry,
-  current: ReturnType<typeof captureDecisionSnapshot>,
-): string {
-  const delta = decisionDelta(d, current);
-  if (!delta || !d.snapshot) return "no snapshot on record";
-  if (!delta.comparable) {
-    return `scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}) — values not directly comparable`;
-  }
-  if (delta.continuity && d.snapshot.continuity && current.continuity) {
-    const c = delta.continuity;
-    const item = c.itemThen
-      ? `${STATUS_LABEL[c.itemThen].toLowerCase()} → ${
-          c.itemNow ? STATUS_LABEL[c.itemNow].toLowerCase() : "no longer on the register"
-        } · `
-      : "";
-    const docs =
-      c.docsThen && c.docsNow && c.docsThen !== c.docsNow
-        ? `${DOCUMENTATION_LABEL[c.docsThen].toLowerCase()} → ${DOCUMENTATION_LABEL[c.docsNow].toLowerCase()} · `
-        : "";
-    return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
-  }
-  if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
-    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
-  }
-  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
-}
 
 /**
  * "Done" for a register step, when the register does not yet say so: closing

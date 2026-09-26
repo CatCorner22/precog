@@ -124,8 +124,13 @@ export function PlannerRegisterCard({
             Blank template
           </Button>
           {registerFrom === "own" && (
-            <Button variant="ghost" size="sm" onClick={onReset} title="Back to the starter list">
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onReset}
+              title="Replace your register with the industry's starter list"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Back to starter list
             </Button>
           )}
         </div>

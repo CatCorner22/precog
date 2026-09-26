@@ -70,6 +70,12 @@ import type {
 } from "@/lib/precog/types";
 import { UNHELD_VIEW } from "@/lib/precog/continuity/planner-copy";
 import { firstName, count, verb } from "@/lib/precog/text";
+import { industryMeta } from "@/lib/precog/industry";
+import {
+  importRegisterPrompt,
+  removeItemPrompt,
+  resetRegisterPrompt,
+} from "@/components/precog/continuity/planner-logic";
 
 export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const {
@@ -446,6 +452,8 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   };
 
   const removeItem = (id: string) => {
+    const item = tpl.knowledge.find((k) => k.id === id);
+    if (item && !window.confirm(removeItemPrompt(item, tpl.relations))) return;
     setCustomKnowledge((current) => current.filter((k) => k.id !== id));
     setCustomRelations((current) => current.filter((r) => r.knowledgeId !== id));
     if (selectedId === id) setSelectedId(null);
@@ -470,6 +478,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   };
 
   const resetToTemplate = () => {
+    if (!window.confirm(resetRegisterPrompt(tpl, industryMeta(profile.industry).label))) return;
     setCustomKnowledge(null);
     setCustomRelations(null);
     setImportIssues([]);
@@ -480,6 +489,8 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     setImportIssues([]);
     try {
       const result = parseRegisterCsv(await file.text(), tpl);
+      const replacesOwn = result.knowledge.length > 0 && registerFrom === "own";
+      if (replacesOwn && !window.confirm(importRegisterPrompt(tpl, result))) return;
       setImportIssues(result.issues);
       if (!result.knowledge.length) {
         toast.error(result.issues[0]?.message ?? "No duties or tasks found in that file");
