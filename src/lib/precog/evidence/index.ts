@@ -296,6 +296,18 @@ export function durationPhrase(months: number): string {
   return `${years} year${years === 1 ? "" : "s"}`;
 }
 
+/**
+ * How long one case ran, in words, or null when the source states no
+ * duration: "8 months", or "at least 5 years" when the record says its
+ * duration is a floor.
+ */
+export function caseDurationPhrase(
+  study: Pick<CaseStudy, "durationMonths" | "durationIsFloor">,
+): string | null {
+  if (typeof study.durationMonths !== "number") return null;
+  return `${study.durationIsFloor ? "at least " : ""}${durationPhrase(study.durationMonths)}`;
+}
+
 /** A case's loss as the customer reads it: "at least $1,000,000" when the source states a minimum, else "$1,000,000". */
 export function lossPhrase(study: Pick<CaseStudy, "lossUsd" | "lossIsFloor">): string {
   return `${study.lossIsFloor ? "at least " : ""}${formatUsd(study.lossUsd)}`;
@@ -310,6 +322,7 @@ export function sectorPhrase(sector: IndustrySector): string {
 export const SECTOR_LABEL: Record<IndustrySector, string> = {
   dental: "Dental practice",
   medical: "Medical practice",
+  veterinary: "Veterinary practice",
   restaurant: "Restaurant",
   construction: "Construction",
   "professional-services": "Professional services",
@@ -335,6 +348,7 @@ export const DETECTION_LABEL: Record<DetectionRoute, string> = {
 const SECTOR_PHRASE: Record<IndustrySector, string> = {
   dental: "at a dental practice",
   medical: "at a medical practice",
+  veterinary: "at a veterinary practice",
   restaurant: "at a restaurant",
   construction: "at a construction business",
   "professional-services": "at a professional-services firm",
@@ -361,16 +375,16 @@ export function sectorForIndustry(industryId: string): IndustrySector {
 /**
  * Every case-library sector an industry template counts as its own.
  *
- * The "Dental / Medical Office" template serves both dental and medical
- * practices, and a medical office case reads as "in your line of business"
- * to a dentist exactly as a dental one does: same front desk, same insurer
- * remittances, same write-off authority. The construction template likewise
+ * The "Dental / medical / veterinary office" template serves all three, and
+ * a medical or veterinary case reads as "in your line of business" to a
+ * dentist exactly as a dental one does: same front desk, same payments at
+ * the counter, same refund and write-off authority. The construction template likewise
  * counts both construction and trades cases. Other templates map to one sector.
  */
 export function sectorsForIndustry(industryId: string): IndustrySector[] {
   switch (industryId) {
     case "dental":
-      return ["dental", "medical"];
+      return ["dental", "medical", "veterinary"];
     case "retail":
       return ["retail"];
     case "restaurant":

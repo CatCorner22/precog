@@ -48,8 +48,7 @@ export type ControlId =
   | "payroll-tax-remittance-verified"
   | "same-day-access-removal"
   | "check-stock-custody"
-  | "void-refund-second-approval"
-  | "vendor-master-change-log";
+  | "void-refund-second-approval";
 
 export interface ControlDefinition {
   id: ControlId;
@@ -106,8 +105,9 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "new-payee-review": {
     id: "new-payee-review",
-    label: "Owner reviews every payee and supplier added that month",
-    why: "An invented supplier is paid like any other, and the payments look entirely ordinary in the accounts. The only place it shows is the list of who was added.",
+    label:
+      "Owner reads the month's list of new suppliers and changed supplier bank details, and confirms any they do not recognize",
+    why: "An invented supplier is added once and paid for years, and the payments look entirely ordinary in the accounts. The one moment it is visible is the month it appears on the list of additions and bank-detail changes, read by someone who cannot add them.",
     effort: "minutes",
   },
   "new-payee-second-approval": {
@@ -287,12 +287,5 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     label: "A second person approves every void, refund, and credit memo before it posts",
     why: "A refund with no sale behind it is a payment, and a void after the customer paid is cash in a pocket. Requiring a second name on each one turns a private key into a shared decision.",
     effort: "ongoing",
-  },
-  "vendor-master-change-log": {
-    id: "vendor-master-change-log",
-    label:
-      "Read the month's list of new suppliers and changed bank details, and confirm any you do not recognise",
-    why: "A shell company is added once and paid for years. The one moment it is visible is the month it appears; a monthly list of additions and bank-detail changes, read by someone who cannot add them, catches it then.",
-    effort: "minutes",
   },
 };

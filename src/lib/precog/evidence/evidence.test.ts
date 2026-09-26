@@ -11,6 +11,7 @@ import {
   CASE_LIBRARY,
   CONTROL_CATALOG,
   caseById,
+  caseDurationPhrase,
   caseForRule,
   casesCitingSodRules,
   casesForSector,
@@ -77,7 +78,7 @@ describe("case library integrity", () => {
   });
 
   it("counts medical cases as the dental template's own line of business", () => {
-    expect(sectorsForIndustry("dental")).toEqual(["dental", "medical"]);
+    expect(sectorsForIndustry("dental")).toEqual(["dental", "medical", "veterinary"]);
     expect(sectorForIndustry("dental")).toBe("dental");
     const medical = CASE_LIBRARY.find((c) => c.sector === "medical");
     const retail = CASE_LIBRARY.find((c) => c.sector === "retail");
@@ -87,6 +88,63 @@ describe("case library integrity", () => {
     for (const { id } of INDUSTRIES) {
       expect(sectorsForIndustry(id).length, id).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("record invariants", () => {
+  it("never states a tenure shorter than the scheme the person ran", () => {
+    for (const c of CASE_LIBRARY) {
+      if (c.tenureYearsStated === undefined || c.durationMonths === undefined) continue;
+      expect(c.tenureYearsStated, c.id).toBeGreaterThanOrEqual(Math.floor(c.durationMonths / 12));
+    }
+  });
+
+  it("marks a duration as a floor only where there is a duration", () => {
+    for (const c of CASE_LIBRARY) {
+      if (c.durationIsFloor) expect(c.durationMonths, c.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps each title's length of scheme in step with the duration shown beside it", () => {
+    const boston = caseById("case-boston-dental")!;
+    expect(boston.title).toContain("six years");
+    expect(durationPhrase(boston.durationMonths!)).toBe("6 years");
+  });
+
+  it("keeps an inbound billing fraud out of the conflicts it cannot show", () => {
+    for (const rule of ["rule-sign-rec", "rule-je-rec", "rule-payroll-rec"]) {
+      expect(
+        casesForSodRules([rule]).map((c) => c.id),
+        rule,
+      ).not.toContain("case-stamford-dental-billing");
+    }
+  });
+
+  it("files spending by an executive as expenses, not as kickbacks", () => {
+    const ids = casesForSodRules(["rule-vendor-approve-pay"]).map((c) => c.id);
+    expect(ids).not.toContain("case-nonprofit-human-first");
+    expect(ids).not.toContain("case-modest-needs-fake-board");
+  });
+
+  it("counts a control only against the employer whose loss the record carries", () => {
+    expect(casesForControl("background-check-money-handlers").map((c) => c.id)).not.toContain(
+      "case-dennys-franchise-vendors",
+    );
+  });
+
+  it("prints 'at least' before a duration the record calls a floor", () => {
+    expect(caseDurationPhrase({ durationMonths: 60, durationIsFloor: true })).toBe(
+      "at least 5 years",
+    );
+    expect(caseDurationPhrase({ durationMonths: 8 })).toBe("8 months");
+    expect(caseDurationPhrase({})).toBeNull();
+  });
+
+  it("counts the veterinary case as the dental, medical and veterinary template's own", () => {
+    const lowell = caseById("case-lowell-animal-hospital-refunds")!;
+    expect(lowell.sector).toBe("veterinary");
+    expect(isOwnSector(lowell, "dental")).toBe(true);
+    expect(sectorPhrase("veterinary")).toBe("at a veterinary practice");
   });
 });
 
@@ -422,7 +480,7 @@ describe("rule attachments", () => {
 
   it("puts check signing and reconciliation on the records that state both", () => {
     for (const id of [
-      "case-anderson-flooring-accountant-transfers-gambling",
+      "case-anderson-indiana-accountant-transfers-gambling",
       "case-lenoir-secret-bank-account",
     ]) {
       expect(caseById(id)?.sodRuleIds, id).toContain("rule-sign-rec");

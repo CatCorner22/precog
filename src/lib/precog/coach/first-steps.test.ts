@@ -61,7 +61,7 @@ describe("rankFirstSteps", () => {
     expect(findingsAnswered("new-payee-review", clinic)).toBe(1);
     expect(findingsAnswered("independent-bank-reconciliation", clinic)).toBe(3);
     expect(findingsAnswered("card-statement-line-review", clinic)).toBe(0);
-    expect(Object.keys(CONTROL_DUTIES).length).toBe(37);
+    expect(Object.keys(CONTROL_DUTIES).length).toBe(36);
   });
 
   it("lets the card-statement review and receipt controls answer a company card finding", () => {

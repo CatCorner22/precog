@@ -89,7 +89,6 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
   "same-day-access-removal": ["manage_user_access"],
   "check-stock-custody": ["sign_checks", "release_payment"],
   "void-refund-second-approval": ["issue_refunds", "post_adjustments", "approve_writeoffs"],
-  "vendor-master-change-log": ["create_vendor", "approve_vendor"],
 };
 
 /** An open finding as the ranking needs it: its rule and the two duties it pairs. */

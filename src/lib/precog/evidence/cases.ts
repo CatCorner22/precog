@@ -1,18 +1,26 @@
 import type { CaseStudy } from "./types";
 
 /**
- * Real U.S. federal prosecutions of occupational fraud against small
+ * Real U.S. prosecutions of occupational fraud, most of them against small
  * organizations.
  *
- * Selection criteria — a case earns a place here only if it shows all three:
- *   1. The victim was a small business, practice, or nonprofit, not a
- *      corporation with an internal audit department.
- *   2. The press release describes the *mechanism*, so the control gap is
- *      identifiable rather than guessed at.
- *   3. A dollar figure and, where possible, a duration are stated.
+ * Selection rule:
+ *   1. The press release describes the *mechanism*, so the control gap is
+ *      identifiable rather than guessed at. This is the one criterion no
+ *      record is admitted without.
+ *   2. The victim is a small business, practice, or nonprofit by default. A
+ *      larger or non-business victim (a federal agency, a large foundation, a
+ *      group of large nonprofits) is admitted only when its mechanism is the
+ *      point and no comparable small-organization case describes it as
+ *      plainly; its caveat says so.
+ *   3. A dollar figure and, where possible, a duration are stated. A record
+ *      whose source states no reliable total carries `lossUsd: 0` and a
+ *      caveat, is left out of every loss range and median, and is ranked
+ *      below every record with a figure.
  *
- * Every record links to the charging office's own press release. Readers who
- * want to confirm a figure open the link; nothing here asks for trust.
+ * Every record links to the U.S. Attorney's Office's own press release,
+ * the plea or sentencing release where one exists. Readers who want to
+ * confirm a figure open the link; nothing here asks for trust.
  *
  * On detection route: federal press releases rarely state how a scheme was
  * caught, so most records carry `detection: "unknown"`. That gap is itself
@@ -20,9 +28,11 @@ import type { CaseStudy } from "./types";
  * distribution separately. Inventing a detection route to fill the field would
  * defeat the purpose of the library.
  *
- * On naming: defendants are named only where the source names them and the
- * case has resolved. The victim organization is named only where the source
- * names it. This library describes control failures, never character.
+ * On naming: defendants are named only where the source names them and a
+ * plea or verdict has been entered. The victim organization is named only
+ * where the source names it. Facts from newspapers appear only in the caveat,
+ * with the paper named, never in the id, title, sector, or account of how it
+ * worked. This library describes control failures, never character.
  */
 export const CASE_LIBRARY: CaseStudy[] = [
   {
@@ -64,7 +74,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
   {
     id: "case-boston-dental",
-    title: "Dental practice office manager diverted 276 insurance checks over roughly five years",
+    title: "Dental practice office manager diverted 276 insurance checks over about six years",
     sector: "dental",
     schemes: ["receivables-diversion"],
     howItWorked:
@@ -98,7 +108,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-ma/pr/former-office-manager-boston-dental-practice-sentenced-bank-fraud-identity-theft-and-tax",
     },
     caveat:
-      "The scheme ran from 2009 through December 2014. The figure is stated in the source as more than $348,000. Yuliya Vaysglus was terminated in February 2015 and pled guilty in June 2020 to bank fraud, aggravated identity theft, and filing false tax returns; 41 months.",
+      "The scheme ran from 2009 through December 2014; the 72 months recorded count from January 2009 and may overstate by up to eleven months. The figure is stated in the source as more than $348,000. Yuliya Vaysglus was terminated in February 2015 and pled guilty in June 2020 to bank fraud, aggravated identity theft, and filing false tax returns; 41 months.",
   },
   {
     id: "case-houston-dental-shell",
@@ -141,7 +151,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     id: "case-stamford-dental-billing",
     title: "Dental office manager billed 37 insurers under a stolen provider identity",
     sector: "dental",
-    schemes: ["billing-shell-vendor", "financial-statement"],
+    schemes: ["billing-shell-vendor"],
     howItWorked:
       "The office manager of a Stamford, Connecticut dental practice submitted claims to 37 private insurers for work attributed to a dentist whose identity she had taken. Insurers paid approximately $581,729 to the practice on those claims.",
     controlGap:
@@ -155,16 +165,8 @@ export const CASE_LIBRARY: CaseStudy[] = [
     wouldHaveCaughtIt: [
       {
         control: "billing-matches-the-schedule",
-        asApplied: "Monthly production-by-provider report compared against the actual schedule",
-      },
-      {
-        control: "billing-matches-the-schedule",
-        asApplied: "Provider credentialing list reviewed by the owner against claims submitted",
-      },
-      {
-        control: "billing-matches-the-schedule",
         asApplied:
-          "Any claim naming a provider not on the day's schedule flagged before submission",
+          "Owner compares the monthly production-by-provider report with the schedule and the list of credentialed providers, so a claim naming a provider who did not work that day stands out",
       },
     ],
     source: {
@@ -197,11 +199,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
       },
       { control: "new-payee-review", asApplied: "New-vendor report reviewed monthly by the owner" },
       {
-        control: "background-check-money-handlers",
-        asApplied:
-          "Reference and background checks on anyone who will touch money — she was fired for this and hired straight into the same role elsewhere",
-      },
-      {
         control: "payee-account-not-an-employee",
         asApplied: "No vendor paid to a bank account that matches an employee's",
       },
@@ -211,7 +208,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-mn/pr/kenyon-bookkeeper-sentenced-more-9-years-prison-881000-employer-embezzlement-and-tax",
     },
     caveat:
-      "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. Both components are approximate, so the sum is an estimate, not a floor. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
+      "The $356,000 recorded here is the sum of the two components the charging office states for this employer — about $336,000 in bogus vendor payments plus about $20,000 in payroll issued under other people's names. Both components are approximate, so the sum is an estimate, not a floor. The prosecution's overall figure of $881,000 is larger because it covers a second victim: after MI5 detected the fraud in July 2019 and fired her, she lied about her work history, was hired as bookkeeper at a family-owned construction company in Rochester, was promoted to general manager, and embezzled there too. A reference check by that second employer would have caught her; it is not listed as a control here because that employer's loss is not the one recorded. Sentenced to nine years and three months, with more than $1 million in restitution. Scheme at MI5 ran April 2014 to July 2019.",
   },
   {
     id: "case-hutchinson-controller",
@@ -224,7 +221,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "This is total concentration of the finance function in one role with no independent review at any point. Every check she wrote, she also recorded, reconciled, and reported on. There was no step in the cycle that another person touched.",
     lossUsd: 2061328.67,
     lossIsFloor: false,
-    durationMonths: 77,
+    durationMonths: 76,
     detection: "unknown",
     resolvedYear: 2024,
     sodRuleIds: [
@@ -389,14 +386,16 @@ export const CASE_LIBRARY: CaseStudy[] = [
     title:
       "Nonprofit executive director and co-conspirators took $1.4 million of agency money over five years",
     sector: "nonprofit",
-    schemes: ["expense-reimbursement", "corruption"],
+    schemes: ["expense-reimbursement"],
     howItWorked:
       "The executive director of Human First, Inc., a Long Island nonprofit, used agency funds over more than five years in the role for personal spending including international travel, spas, salons, restaurants, and elective cosmetic surgery.",
     controlGap:
       "A board that meets quarterly and reads a summary is not a control over the executive director's own spending. Without someone reviewing the ED's card statement line by line, the position reviews itself.",
     lossUsd: 1415000,
     lossIsFloor: false,
-    durationMonths: 64,
+    durationMonths: 60,
+    durationIsFloor: true,
+    tenureYearsStated: 5,
     detection: "unknown",
     resolvedYear: 2023,
     sodRuleIds: ["rule-release-rec"],
@@ -420,14 +419,14 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-edny/pr/former-executive-director-long-island-charity-sentenced-over-two-years-prison",
     },
     caveat:
-      "Wafa Abboud was sentenced in January 2023 to 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution to Human First. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization, so it is the loss recorded here; the release's headline says over $1 million. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016 and acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
+      "Wafa Abboud was sentenced in January 2023 to 33 months, with $836,000 forfeited and $1,415,000 ordered in restitution to Human First. The restitution figure exceeds the forfeiture and is the better measure of total harm to the organization, so it is the loss recorded here; the release's headline says over $1 million. Human First served autistic children and developmentally disabled young adults. Wafa Abboud was executive director from January 2011 to May 2016, a tenure of five years. The release dates the spending only as 'over more than five years in the role', so the duration is recorded as a floor of 60 months. She acted alongside several co-conspirators — which matters, because segregation of duties assumes people do not collude, and here they did.",
   },
   {
     id: "case-modest-needs-fake-board",
     title:
       "Charity founder took $2.5 million and invented a board — a bartender, a friend, his housekeeper — to approve it",
     sector: "nonprofit",
-    schemes: ["corruption", "financial-statement"],
+    schemes: ["expense-reimbursement", "financial-statement"],
     howItWorked:
       "Keith Taylor, founder and chief executive of the Modest Needs Foundation, used the charity's accounts as his own from at least 2015: more than $300,000 on rent for a high-rise Manhattan apartment, more than $320,000 at restaurants, more than $100,000 on food-delivery apps. To make the spending look authorized he listed a fictitious board of directors — a bartender, a friend, and his housekeeper — none of whom knew they had been named and none of whom ever attended a meeting.",
     controlGap:
@@ -458,7 +457,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-sdny/pr/founder-and-former-ceo-charity-pleads-guilty-multimillion-dollar-charity-fraud-and-tax",
     },
     caveat:
-      "Pled guilty in 2025 to wire fraud and to evading more than $1 million in federal income tax; sentencing was scheduled for 10 December 2025. The $2.5 million is stated as a floor.",
+      "Pled guilty in 2025 to wire fraud and to evading more than $1 million in federal income tax. The cited release reports the plea; this record has not been updated with the sentence. The $2.5 million is stated as a floor.",
   },
   {
     id: "case-dc-architecture-firm",
@@ -472,7 +471,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "The person making the purchases also paid the card bill and kept the books, so nobody outside the role ever read the statement. Gift cards are the detail that matters: they turn a company card into untraceable value, and $167,000 of them left the firm as ordinary-looking supplier lines.",
     lossUsd: 279611,
     lossIsFloor: false,
-    durationMonths: 100,
+    durationMonths: 99,
     detection: "unknown",
     resolvedYear: 2017,
     sodRuleIds: ["rule-release-rec"],
@@ -686,10 +685,10 @@ export const CASE_LIBRARY: CaseStudy[] = [
     ],
     source: {
       publisher: "U.S. Attorney's Office, District of Minnesota",
-      url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-charged-wire-fraud-embezzling-more-140000-employer",
+      url: "https://www.justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer",
     },
     caveat:
-      "The linked release is the charging document (February 2024). Timothy Michael Hill Jr. pleaded guilty in June 2024 (release: justice.gov/usao-mn/pr/fast-food-manager-pleads-guilty-wire-fraud-after-embezzling-more-140000-employer, which names the employer only as Company A and puts the loss at about $144,000) and, per press reports of the sentencing hearing, was sentenced in October 2024 to one year in prison with restitution of about $145,000. The loss figure is the amount charged.",
+      "The linked release reports the June 2024 guilty plea; it names the employer only as Company A and puts the loss at about $144,000. The exact $144,819, the employer and the restaurants come from the February 2024 charging release (justice.gov/usao-mn/pr/fast-food-manager-charged-wire-fraud-embezzling-more-140000-employer). Timothy Michael Hill Jr. was, per press reports of the sentencing hearing, sentenced in October 2024 to one year in prison with restitution of about $145,000.",
   },
   {
     id: "case-san-antonio-dermatology-side-account",
@@ -703,7 +702,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "The practice had a bank account the owner had forgotten about, and the person who received patient payments also controlled where they were deposited and kept the books. A dormant account in the business's name is a ready-made place to park diverted receipts.",
     lossUsd: 345254,
     lossIsFloor: false,
-    durationMonths: 92,
+    durationMonths: 91,
     detection: "unknown",
     resolvedYear: 2021,
     sodRuleIds: ["rule-collect-post", "rule-deposit-post"],
@@ -782,7 +781,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 315000,
     lossIsFloor: true,
     durationMonths: 24,
-    tenureYearsStated: 0,
+    tenureYearsStated: 2,
     detection: "by-accident",
     resolvedYear: 2018,
     sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
@@ -808,7 +807,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-sdin/pr/bookkeeper-sentenced-defrauding-small-franklin-indiana-business",
     },
     caveat:
-      "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. Her prior convictions are stated in the release.",
+      "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. The release gives no hire date; because the scheme began within months of her being hired and ran two years, her time with the company when it ended is recorded as two years. Her prior convictions are stated in the release.",
   },
   {
     id: "case-ocean-city-builder-forged-checks",
@@ -902,7 +901,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "One person entered payroll, approved it, issued the invoices, received the payments, and held the cards, and nobody reviewed the payroll register, the headcount, or the card statements. Four separate schemes ran through the same unwatched seat for seven years.",
     lossUsd: 1000000,
     lossIsFloor: true,
-    durationMonths: 84,
+    durationMonths: 83,
     detection: "owner-review",
     resolvedYear: 2025,
     sodRuleIds: ["rule-payroll", "rule-payroll-master-run"],
@@ -1066,7 +1065,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Debra Ann Vaughn, 67, of Springville, Iowa, pleaded guilty on 1 December 2025 to one count of bank fraud and was sentenced on 19 May 2026 to 41 months in prison and five years of supervised release. Restitution was set at $158,135.77 after credit for the $373,732.27 the company had already recovered in the civil case, so the loss recorded here is the release's figure of more than $500,000, not the restitution figure. The release does not say how the company discovered the theft, so the detection route is recorded as unknown. The eight-year duration is the span the release gives (2013 to 2021).",
   },
   {
-    id: "case-anderson-flooring-accountant-transfers-gambling",
+    id: "case-anderson-indiana-accountant-transfers-gambling",
     title:
       "Indiana business's accountant moved $952,000 to his own accounts in 18 months and reconciled the bank himself",
     sector: "any",
@@ -1296,6 +1295,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 431557.61,
     lossIsFloor: false,
     durationMonths: 24,
+    durationIsFloor: true,
     tenureYearsStated: 5,
     detection: "unknown",
     resolvedYear: 2023,
@@ -1611,6 +1611,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossUsd: 192675,
     lossIsFloor: false,
     durationMonths: 132,
+    durationIsFloor: true,
     tenureYearsStated: 23,
     detection: "owner-review",
     resolvedYear: 2025,
@@ -1760,7 +1761,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
           "Owner reviews the payroll register every cycle, including reimbursements paid through payroll",
       },
       {
-        control: "vendor-master-change-log",
+        control: "new-payee-review",
         asApplied:
           "Monthly list of new suppliers and changed bank details, read by the owner and confirmed by phone with the supplier",
       },
@@ -1810,7 +1811,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-nj/pr/lead-property-manager-admits-conspiracy-committ-wire-fraud-470000-kickback-scheme",
     },
     caveat:
-      "The lead property manager, 56, of Jersey City pleaded guilty in April 2024 to conspiracy to commit wire fraud, with sentencing scheduled for August 2024; this record has not been updated with the sentence and does not name him for that reason. The release states the loss to the complex's owner as $470,000, the sum of the kickbacks. It does not name the complex or its owner, or say how the scheme was discovered. The victim is a property owner rather than an operating business, so the sector is recorded as any.",
+      "The lead property manager, 56, of Jersey City pleaded guilty in April 2024 to conspiracy to commit wire fraud, with sentencing scheduled for August 2024; this record has not been updated with the sentence and does not name him. The release states the loss to the complex's owner as $470,000, the sum of the kickbacks. It does not name the complex or its owner, or say how the scheme was discovered. The victim is a property owner rather than an operating business, so the sector is recorded as any.",
   },
   {
     id: "case-irvine-consultancy-it-wipe",
@@ -1859,7 +1860,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "Nikishna Polequaptewa, 37, of Avondale, Arizona was found guilty by a federal jury in November 2018 of one count of unauthorized impairment of the integrity and availability of data and was sentenced in July 2019 to 27 months in prison and $53,305 in restitution. The loss recorded here is the restitution figure and is a floor: the release describes eight years of website and marketing work destroyed but puts no price on it. He was hired in April 2014, so tenure is recorded as under one year. The deletions ran over days in November 2014, recorded as one month. The release does not say how the firm discovered the deletions, so the detection route is unknown.",
   },
   {
-    id: "case-centro-san-antonio-fake-audit",
+    id: "case-san-antonio-nonprofit-bookkeeper-checks",
     title: "Nonprofit bookkeeper wrote herself 118 checks over three years",
     sector: "nonprofit",
     schemes: ["check-tampering", "financial-statement"],
@@ -1949,7 +1950,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "The person who held the cards also reconciled the accounts and answered the bank's questions, so the one outside party that noticed something wrong was routed back to her. Nobody who did not hold a card read the card and bank statements line by line. A reference check between the two nonprofits, or a review of the first one's books when she left, would have stopped the second loss.",
     lossUsd: 3121572,
     lossIsFloor: false,
-    durationMonths: 66,
+    durationMonths: 65,
     detection: "unknown",
     resolvedYear: 2023,
     sodRuleIds: ["rule-release-rec"],
@@ -2015,7 +2016,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
           "The outside auditor samples the largest vendors each year and asks the program staff, not the fiscal officer, what was delivered",
       },
       {
-        control: "vendor-master-change-log",
+        control: "new-payee-review",
         asApplied:
           "The month a new vendor appears, the executive director reads the addition and checks its owner and address against staff records",
       },
@@ -2075,7 +2076,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     id: "case-lowell-animal-hospital-refunds",
     title:
       "Animal hospital client relations specialist entered about 482 false refunds to her own debit cards over four years",
-    sector: "any",
+    sector: "veterinary",
     schemes: ["refund-fraud"],
     howItWorked:
       "A client relations specialist at a full-service animal hospital, who worked there from October 2011 until September 2018, sold retail products to customers at the hospital. A temporary supervisory role also gave her access to the hospital's management software and the ability to manipulate account transactions. From March 2014 through August 2018 she entered false refund transactions in that software and credited them to her own personal debit cards: some refunded merchandise a customer had really bought and never returned, others refunded purchases that were never made. About 482 transactions in all. She hid them on the dormant accounts of inactive clients, such as those whose pets had died, and on test accounts set up for training.",
@@ -2110,7 +2111,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-ma/pr/lowell-woman-sentenced-stealing-approximately-182000-employer",
     },
     caveat:
-      "Sasha A. Saulnier of Lowell, Massachusetts pleaded guilty in January 2020 to six counts of wire fraud and was sentenced by U.S. District Judge Nathaniel M. Gorton to one year and one day in prison and restitution of $182,827.68, the figure recorded here. The resolved year is the year of the plea; the sentencing date could not be confirmed from here. The six years of tenure are the whole years from October 2011 to September 2018. The releases do not name the hospital, give its size, or say how the refunds were found; the sector is recorded as any because a veterinary hospital is neither a dental nor a medical practice, though its front desk works the same way.",
+      "Sasha A. Saulnier of Lowell, Massachusetts pleaded guilty in January 2020 to six counts of wire fraud and was sentenced by U.S. District Judge Nathaniel M. Gorton to one year and one day in prison and restitution of $182,827.68, the figure recorded here. The resolved year is the year of the plea; the sentencing date could not be confirmed from here. The six years of tenure are the whole years from October 2011 to September 2018. The releases do not name the hospital, give its size, or say how the refunds were found; its front desk works the way a dental or medical practice's does.",
   },
   {
     id: "case-norfolk-brake-maker-treasurer-payroll",

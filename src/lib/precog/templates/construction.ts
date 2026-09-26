@@ -532,11 +532,11 @@ export const constructionTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ar-1",
-          title: "Client balances written off without owner approval",
+          title: "A kept client payment hidden as a disputed write-off",
           kind: "fraud",
           severity: 4,
           likelihood: 2,
-          note: "A payment kept by an insider can be hidden by writing off the balance as disputed.",
+          note: "Only the owner approves write-offs here, so a kept payment would have to reach him described as a disputed balance; the owner asks for the dispute behind each one.",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -779,7 +779,7 @@ export const constructionTemplate: IndustryTemplate = {
       keyPersonDesc:
         "The project accountant (sole expert on pay applications and retainage) resigns in the middle of several jobs. Billing slips a month and retainage goes unbilled.",
       knowledgeId: "k3",
-      billingLabel: "Client balances written off without owner approval",
+      billingLabel: "A kept client payment hidden as a disputed write-off",
     }),
     ...constructionScenarios,
   ],

@@ -1,5 +1,5 @@
 import { resolveTemplate } from "../active-template";
-import { caseForRule, durationPhrase, lossPhrase } from "../evidence";
+import { caseDurationPhrase, caseForRule, lossPhrase } from "../evidence";
 import type { CaseStudy } from "../evidence/types";
 import type { IndustryId } from "../industry";
 import { defaultProfile } from "../practice-profile";
@@ -52,10 +52,7 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
       citesRule: matched?.citesRule ?? false,
       // A record with no stated loss has no amount to print.
       lossPhrase: matched && matched.study.lossUsd > 0 ? lossPhrase(matched.study) : null,
-      durationPhrase:
-        matched && typeof matched.study.durationMonths === "number"
-          ? durationPhrase(matched.study.durationMonths)
-          : null,
+      durationPhrase: matched ? caseDurationPhrase(matched.study) : null,
     },
   };
 }
