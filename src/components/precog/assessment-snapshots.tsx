@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Archive, Clock3, Download, RefreshCw, Save, Scale, Trash2, X } from "lucide-react";
@@ -28,6 +29,7 @@ import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
 
 export function AssessmentSnapshots() {
+  const workspace = useWorkspace();
   const { profile, replaceProfile } = usePractice();
   const businessId = profile.businessId ?? "biz_default";
   const tpl = useTemplate();
@@ -76,7 +78,7 @@ export function AssessmentSnapshots() {
       const powerMap = buildAssignments(tpl);
       // This business's value proof. Unreadable or blocked storage leaves it
       // out rather than failing the whole snapshot.
-      const stored = readValueProof(businessId);
+      const stored = readValueProof(businessId, workspace.local);
       if (stored.valueCase && typeof stored.valueCase === "object") {
         valueCase = normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>);
       }
@@ -125,7 +127,11 @@ export function AssessmentSnapshots() {
       const restoredEvidence = snapshot.valueEvidence ?? [];
       // The Value proof tab takes the restored figures from this event even
       // when the browser refuses to store them.
-      writeValueProof(businessId, { valueCase: restoredValueCase, evidence: restoredEvidence });
+      writeValueProof(
+        businessId,
+        { valueCase: restoredValueCase, evidence: restoredEvidence },
+        workspace.local,
+      );
       window.dispatchEvent(
         new CustomEvent("precog:value-proof-restored", {
           detail: { valueCase: restoredValueCase, evidence: restoredEvidence },
@@ -145,7 +151,7 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       const currentMap = buildAssignments(tpl);
-      const stored = readValueProof(businessId);
+      const stored = readValueProof(businessId, workspace.local);
       const currentValue =
         stored.valueCase && typeof stored.valueCase === "object"
           ? normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>)

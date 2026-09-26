@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
 
@@ -50,7 +51,11 @@ export function UserButton() {
       {authEnabled && (
         <button
           type="button"
-          onClick={() => void signOut()}
+          onClick={() =>
+            void signOut().catch(() =>
+              toast.error("Sign-out failed. Your local work was kept; try again."),
+            )
+          }
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline"
         >
           Sign out

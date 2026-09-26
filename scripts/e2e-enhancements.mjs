@@ -5,7 +5,7 @@ import { checkedUrl } from "./browser-guard.mjs";
 
 const options = e2eOptions();
 const base = checkedUrl(options.baseUrl);
-const profileKey = "precog.practiceProfile.v2";
+const profileKey = "precog.workspace.v2:guest:precog.practiceProfile.v2";
 const steps = [];
 const step = (name) => {
   steps.push(name);
@@ -196,7 +196,7 @@ await withPage(options, async (page, errors) => {
   await page.addInitScript(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
-      if (key === "precog.onboarding-draft.v1")
+      if (key.endsWith(":precog.onboarding-draft.v1"))
         throw new DOMException("Test quota", "QuotaExceededError");
       return original.call(this, key, value);
     };

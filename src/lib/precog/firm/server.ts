@@ -496,7 +496,7 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     `;
     const owner = owners[0]?.user_id;
     if (!owner) throw new RequestError(404, "That business is not in the deleted list");
-    return { restored: await restoreBusinessRow(sql, owner, data.businessId) };
+    return { restored: await restoreBusinessRow(sql, owner, data.businessId, context.userId) };
   });
 
 // ── Reminders ───────────────────────────────────────────────────────────────

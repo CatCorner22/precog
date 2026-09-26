@@ -62,7 +62,9 @@ export async function getSessionUser(bearerToken?: string): Promise<VerifiedUser
     headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${bearerToken}`);
   }
-  const session = await auth.api.getSession({ headers });
+  // Server operations recheck the stored session. A revoked cookie must not
+  // keep authorizing writes during the display cookie cache's lifetime.
+  const session = await auth.api.getSession({ headers, query: { disableCookieCache: true } });
   if (!session?.user) return null;
   return { id: session.user.id, email: session.user.email ?? null };
 }

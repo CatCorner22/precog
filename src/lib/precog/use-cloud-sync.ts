@@ -7,6 +7,15 @@ import {
   type MutableRefObject,
 } from "react";
 import { toast } from "sonner";
+import {
+  identitySnapshot,
+  identityUnchanged,
+  registerAccountExit,
+  registerAccountCleanup,
+} from "@/lib/auth/identity-change";
+import { downloadText } from "@/lib/download";
+import { BusinessSaveQueue, removeAcknowledgedCopies } from "./workspace-storage";
+import type { Workspace } from "./workspace-context";
 import { authEnabled } from "@/lib/auth/client";
 import { listBusinesses, loadBusinessProfile, saveBusinessProfile } from "./profile-server";
 import { localDateKey } from "./decisions/follow-through";
@@ -20,7 +29,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { AccountLineage, LocalProfileStore } from "./save-conflict";
-import { canKeepLocalData } from "./local-data";
+import { canKeepLocalData, readLocalJson, writeLocal } from "./local-data";
 import type { ProfileAction } from "./profile-reducer";
 
 export type SyncStatus =
@@ -57,6 +66,7 @@ function copyName(name: string, from: string): string {
  * profile contains is the provider's business.
  */
 export function useCloudSync(input: {
+  workspace: Workspace;
   profile: PracticeProfile;
   profileRef: MutableRefObject<PracticeProfile>;
   setProfile: Dispatch<ProfileAction>;
@@ -72,6 +82,7 @@ export function useCloudSync(input: {
   clearHistory: () => void;
 }) {
   const {
+    workspace,
     profile,
     profileRef,
     setProfile,
@@ -93,9 +104,52 @@ export function useCloudSync(input: {
   const [remoteBusinesses, setRemoteBusinesses] = useState<BusinessSummary[]>([]);
   const [portfolioVersion, setPortfolioVersion] = useState(0);
   const bumpPortfolio = useCallback(() => setPortfolioVersion((v) => v + 1), []);
+  useEffect(() => {
+    window.addEventListener("precog:portfolio-change", bumpPortfolio);
+    return () => window.removeEventListener("precog:portfolio-change", bumpPortfolio);
+  }, [bumpPortfolio]);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudRevision = useRef<Map<string, number>>(new Map());
+  const basesLoaded = useRef(false);
+  if (!basesLoaded.current) {
+    basesLoaded.current = true;
+    const held = readLocalJson("precog.cloud-bases.v1", workspace.local);
+    if (held && typeof held === "object")
+      for (const [id, revision] of Object.entries(held))
+        if (typeof revision === "number" && Number.isSafeInteger(revision) && revision > 0)
+          cloudRevision.current.set(id, revision);
+  }
+  const syncedStamps = useRef<Record<string, string>>({});
+  const acknowledged = useRef(new Map<string, PracticeProfile>());
+  useEffect(
+    () =>
+      registerAccountCleanup(() => {
+        if (workspace.accountId) removeAcknowledgedCopies(workspace.local, acknowledged.current);
+      }),
+    [workspace],
+  );
+  const mounted = useRef(true);
+  const queue = useRef(new BusinessSaveQueue());
+  useEffect(() => {
+    mounted.current = true;
+    queue.current = new BusinessSaveQueue();
+    return () => {
+      mounted.current = false;
+      queue.current.close();
+    };
+  }, []);
+  const rememberRevision = useCallback(
+    (id: string, revision: number) => {
+      cloudRevision.current.set(id, revision);
+      writeLocal(
+        "precog.cloud-bases.v1",
+        JSON.stringify(Object.fromEntries(cloudRevision.current)),
+        workspace.local,
+      );
+    },
+    [workspace.local],
+  );
   const skipNextCloudSave = useRef(false);
   const cloudLoadedFor = useRef<string | null>(null);
   // Whether the last write of the open business to this browser went through.
@@ -121,40 +175,47 @@ export function useCloudSync(input: {
   const saveCloud = useCallback(
     async (current: PracticeProfile) => {
       const id = current.businessId ?? "biz_default";
-      const save = () =>
-        saveBusinessProfile({
+      const identity = identitySnapshot();
+      if (!mounted.current || !identityUnchanged(identity) || identity.accountId !== userId)
+        return false;
+      return queue.current.run(id, async () => {
+        if (!mounted.current || !identityUnchanged(identity) || !userId) return false;
+        const result = await saveBusinessProfile({
           data: {
+            expectedAccountId: userId,
             profile: current,
             industry: current.industry,
             baseRevision: cloudRevision.current.get(id) ?? null,
             today: localDateKey(new Date()),
           },
         });
-      let result = await save();
-      // Refused as stale, but the account holds a version this tab already
-      // builds on (another tab of this browser saved it, and this tab took
-      // it): nothing would be lost, so save on top of it. Once only; a
-      // second refusal means someone else saved in between.
-      if (!result.ok && lineage.buildsOn(id, result.profile.updatedAt)) {
-        cloudRevision.current.set(id, result.revision);
-        result = await save();
-      }
-      if (result.ok) {
-        cloudRevision.current.set(id, result.revision);
-        lineage.add(id, current.updatedAt);
-        lastCloudError.current = null;
-        setSyncStatus("synced");
-        return true;
-      }
-      raiseConflict({
-        reason: "remote-edit",
-        remote: normalizeProfile(result.profile),
-        revision: result.revision,
-        updatedAt: result.updatedAt,
+        if (!mounted.current || !identityUnchanged(identity)) return false;
+        if (result.ok) {
+          rememberRevision(id, result.revision);
+          acknowledged.current.set(id, current);
+          lineage.add(id, current.updatedAt);
+          syncedStamps.current[id] = current.updatedAt;
+          writeLocal(
+            "precog.cloud-stamps.v1",
+            JSON.stringify(syncedStamps.current),
+            workspace.local,
+          );
+          lastCloudError.current = null;
+          if (profileRef.current === current) setSyncStatus("synced");
+          return true;
+        }
+        // A timestamp is not proof that a conflicting remote version was incorporated.
+        // Never retry an overwrite solely because client clocks happen to agree.
+        raiseConflict({
+          reason: "remote-edit",
+          remote: normalizeProfile(result.profile),
+          revision: result.revision,
+          updatedAt: result.updatedAt,
+        });
+        return false;
       });
-      return false;
     },
-    [lineage, raiseConflict],
+    [lineage, raiseConflict, rememberRevision, userId, profileRef, workspace.local],
   );
 
   /**
@@ -163,11 +224,14 @@ export function useCloudSync(input: {
    * every retry.
    */
   const reportCloudError = useCallback((error: unknown) => {
+    if (!mounted.current) return;
     setSyncStatus("error");
     const raw = error instanceof Error ? error.message.trim() : "";
     const message =
       !raw || /fetch|network|load failed/i.test(raw)
-        ? "Could not reach the server. Your work is saved in this browser and syncs on your next change."
+        ? lastLocalWrite.current === "saved"
+          ? "Could not reach the server. Your work is saved in this account's browser workspace; make another change to retry."
+          : "Could not reach the server or save locally. Export a recovery copy before closing this page."
         : raw;
     if (message === lastCloudError.current) return;
     lastCloudError.current = message;
@@ -189,18 +253,23 @@ export function useCloudSync(input: {
 
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
+    const stamps = readLocalJson("precog.cloud-stamps.v1", workspace.local);
+    if (stamps && typeof stamps === "object")
+      syncedStamps.current = Object.fromEntries(
+        Object.entries(stamps).filter(([, value]) => typeof value === "string"),
+      );
     const { profile: loaded, stored } = localStore.load();
     if (stored) {
       loadedFromStorage.current = loaded;
       lastLocalWrite.current = "saved";
-    } else if (!canKeepLocalData()) {
+    } else if (!canKeepLocalData(workspace.local)) {
       // Nothing stored and nothing can be: say so from the start rather than
       // "Saved on this device".
       lastLocalWrite.current = "failed";
     }
     activateProfile(loaded);
     setReady(true);
-  }, [activateProfile, localStore, setReady]);
+  }, [activateProfile, localStore, setReady, workspace.local]);
 
   useEffect(() => {
     if (!ready || isPending) return;
@@ -229,27 +298,16 @@ export function useCloudSync(input: {
           // Cloud rows skip the client normaliser on the way in unless we run it here.
           const remoteProfile = normalizeProfile(res.profile);
           const id = remoteProfile.businessId ?? "biz_default";
-          if (res.revision === null) cloudRevision.current.delete(id);
-          else cloudRevision.current.set(id, res.revision);
+          if (res.revision !== null) rememberRevision(id, res.revision);
 
-          if (
-            id !== localId &&
-            local.onboardingComplete !== false &&
-            hasUserWork(local) &&
-            !list.some((b) => b.id === localId)
-          ) {
-            // Work done signed-out under a different business id: keep it as
-            // its own business in the account instead of dropping it. Awaited
-            // so the account's active-business pointer ends on the remote
-            // business activated below, not on this one.
-            cloudRevision.current.delete(localId);
-            await saveCloud(local).catch(() => undefined);
-            if (cancelled) return;
-          }
+          // This is only the verified account's namespace. Guest or legacy work is
+          // never silently attached to the account during sign-in.
+          if (id !== localId && hasUserWork(local)) savePortfolioEntry(local, workspace.local);
 
           if (id === localId && hasUserWork(local) && res.revision !== null) {
             const localNewer =
-              new Date(local.updatedAt).getTime() > new Date(res.updatedAt).getTime();
+              local.updatedAt !== remoteProfile.updatedAt &&
+              syncedStamps.current[id] !== local.updatedAt;
             if (localNewer) {
               // Same business, edited here before signing in: let the user
               // choose instead of silently replacing their work.
@@ -265,11 +323,17 @@ export function useCloudSync(input: {
           }
 
           // The save effect writes it to this browser as the open business.
+          syncedStamps.current[id] = remoteProfile.updatedAt;
+          writeLocal(
+            "precog.cloud-stamps.v1",
+            JSON.stringify(syncedStamps.current),
+            workspace.local,
+          );
+          acknowledged.current.set(id, remoteProfile);
+          skipNextCloudSave.current = true;
           activateProfile(remoteProfile);
-          savePortfolioEntry(remoteProfile);
-        } else {
-          cloudRevision.current.delete(localId);
-        }
+          savePortfolioEntry(remoteProfile, workspace.local);
+        } // Keep a previously known base revision: missing is not permission to recreate.
         setRemoteBusinesses(list);
         setSyncStatus("synced");
       })
@@ -289,6 +353,8 @@ export function useCloudSync(input: {
     saveCloud,
     profileRef,
     raiseConflict,
+    workspace.local,
+    rememberRevision,
   ]);
 
   // The active profile is written locally on every change, so a cleared
@@ -341,7 +407,7 @@ export function useCloudSync(input: {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      savePortfolioEntry(profile);
+      savePortfolioEntry(profile, workspace.local);
       setPortfolioVersion((v) => v + 1);
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(reportCloudError);
@@ -360,6 +426,7 @@ export function useCloudSync(input: {
     lineage,
     raiseTabConflict,
     reportCloudError,
+    workspace.local,
   ]);
 
   // Another tab saved the open business. When it built on this tab's copy
@@ -368,7 +435,7 @@ export function useCloudSync(input: {
   useEffect(() => {
     if (!ready) return;
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== ACTIVE_PROFILE_KEY) return;
+      if (event.key !== workspace.local?.physicalKey(ACTIVE_PROFILE_KEY)) return;
       const current = profileRef.current;
       const tabConflict = saveConflictRef.current?.reason === "other-tab";
       const unsaved = storedProfile.current !== current;
@@ -390,7 +457,7 @@ export function useCloudSync(input: {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [ready, localStore, raiseTabConflict, profileRef, setProfile, clearHistory]);
+  }, [ready, localStore, raiseTabConflict, profileRef, setProfile, clearHistory, workspace.local]);
 
   // A pending debounced save must not die with the tab. On hide, write the
   // portfolio now and push the cloud copy immediately (best effort: the
@@ -404,7 +471,7 @@ export function useCloudSync(input: {
       if (saveConflictRef.current?.reason === "other-tab") return;
       const cur = profileRef.current;
       if (cur.onboardingComplete === false) return;
-      savePortfolioEntry(cur);
+      savePortfolioEntry(cur, workspace.local);
       if (cloudUser && cloudLoadedFor.current === userId && !saveConflictRef.current) {
         void saveCloud(cur).catch(reportCloudError);
       }
@@ -418,7 +485,7 @@ export function useCloudSync(input: {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef]);
+  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, workspace.local]);
 
   /** Write the open business everywhere it goes, now. False when a conflict stops it. */
   const flushActive = useCallback(async () => {
@@ -435,7 +502,7 @@ export function useCloudSync(input: {
       lastLocalWrite.current = result.kind;
       if (result.kind === "saved") storedProfile.current = cur;
     }
-    savePortfolioEntry(cur);
+    savePortfolioEntry(cur, workspace.local);
     if (
       cloudUser &&
       cur.onboardingComplete !== false &&
@@ -443,25 +510,40 @@ export function useCloudSync(input: {
       !saveConflictRef.current
     ) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      await saveCloud(cur).catch(reportCloudError);
+      return saveCloud(cur).catch((error) => {
+        reportCloudError(error);
+        return false;
+      });
     }
-    return !saveConflictRef.current;
-  }, [cloudUser, saveCloud, userId, localStore, raiseTabConflict, reportCloudError, profileRef]);
+    return !saveConflictRef.current && lastLocalWrite.current !== "failed";
+  }, [
+    cloudUser,
+    saveCloud,
+    userId,
+    localStore,
+    raiseTabConflict,
+    reportCloudError,
+    profileRef,
+    workspace.local,
+  ]);
 
   /** Keeps a version the owner did not choose as its own business, so no work is lost. */
   const keepAsCopy = useCallback(
     (version: PracticeProfile, from: string) => {
       const name = copyName(version.practiceName, from);
-      savePortfolioEntry({
-        ...version,
-        businessId: makeBusinessId(),
-        practiceName: name,
-        onboardingComplete: true,
-      });
+      savePortfolioEntry(
+        {
+          ...version,
+          businessId: makeBusinessId(),
+          practiceName: name,
+          onboardingComplete: true,
+        },
+        workspace.local,
+      );
       bumpPortfolio();
       return name;
     },
-    [bumpPortfolio],
+    [bumpPortfolio, workspace.local],
   );
 
   const resolveSaveConflict = useCallback(
@@ -499,7 +581,7 @@ export function useCloudSync(input: {
         const result = localStore.write(mine, { force: true });
         lastLocalWrite.current = result.kind === "saved" ? "saved" : "failed";
         if (result.kind === "saved") storedProfile.current = mine;
-        savePortfolioEntry(mine);
+        savePortfolioEntry(mine, workspace.local);
         setSyncStatus(result.kind === "saved" ? "local" : "local-error");
         toast("Kept this tab's version.", {
           description: `The other tab's version is kept as “${kept}” in your businesses.`,
@@ -519,7 +601,48 @@ export function useCloudSync(input: {
       setSyncStatus("loading");
       await saveCloud(profileRef.current).catch(reportCloudError);
     },
-    [activateProfile, saveCloud, localStore, lineage, keepAsCopy, reportCloudError, profileRef],
+    [
+      activateProfile,
+      saveCloud,
+      localStore,
+      lineage,
+      keepAsCopy,
+      reportCloudError,
+      profileRef,
+      workspace.local,
+    ],
+  );
+
+  useEffect(
+    () =>
+      registerAccountExit(async () => {
+        if (!mounted.current) return true;
+        const saved = await flushActive();
+        if (saved) return true;
+        if (
+          !window.confirm(
+            "Some work is not synced. Export a local recovery copy and sign out? Cancel keeps this workspace open.",
+          )
+        )
+          return false;
+        downloadText(
+          "precog-unsynced-recovery.json",
+          JSON.stringify(
+            {
+              version: 1,
+              accountId: workspace.accountId,
+              profile: profileRef.current,
+              local: workspace.local?.entries() ?? {},
+              session: workspace.session?.entries() ?? {},
+            },
+            null,
+            2,
+          ),
+          "application/json",
+        );
+        return true;
+      }),
+    [flushActive, profileRef, workspace],
   );
 
   return {
