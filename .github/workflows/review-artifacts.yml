@@ -11,7 +11,8 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.head_ref == 'fix/expanded-stabilization-2026-09-25' ||
-       github.head_ref == 'enhance/insurance-map-setup-20260925')
+       github.head_ref == 'enhance/insurance-map-setup-20260925' ||
+       github.head_ref == 'fix/account-data-safety-20260925')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

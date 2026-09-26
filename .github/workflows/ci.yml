@@ -76,6 +76,11 @@ jobs:
         env:
           PRECOG_QUOTA_TEST: "1"
 
+      - name: Business lifecycle on concurrent real PostgreSQL connections
+        run: npx vitest run src/lib/precog/business-lifecycle-safety.test.ts
+        env:
+          PRECOG_LIFECYCLE_POSTGRES: "1"
+
       - name: Every table the migrations create exists
         run: |
           node -e '
@@ -148,10 +153,65 @@ jobs:
             dev.log
           if-no-files-found: ignore
 
+  account-safety:
+    name: Authenticated compiled-server safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: precog
+          POSTGRES_PASSWORD: precog
+          POSTGRES_DB: precog_safety_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U precog -d precog_safety_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://precog:precog@localhost:5432/precog_safety_e2e
+      BETTER_AUTH_URL: http://localhost:8080
+      BETTER_AUTH_SECRET: isolated-ci-fixture-secret-not-for-production-2026
+      PRECOG_AUTH_TEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/migrate.mjs
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Serve the compiled Vercel handler, never the dev server
+        run: |
+          node scripts/serve-built-test.mjs > compiled-test.log 2>&1 &
+          for i in $(seq 1 45); do
+            curl -sSf http://localhost:8080/api/auth/get-session > /dev/null && exit 0
+            sleep 2
+          done
+          cat compiled-test.log
+          exit 1
+      - run: node scripts/e2e-account-safety.mjs
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-safety-failure
+          path: |
+            artifacts/account-safety-failure.png
+            compiled-test.log
+          retention-days: 3
+          if-no-files-found: ignore
+
   release-gate:
     name: Release gate
     if: always()
-    needs: [checks, migrations, e2e]
+    needs: [checks, migrations, e2e, account-safety]
     runs-on: ubuntu-latest
     steps:
       - name: Require all mandatory jobs to succeed
@@ -159,7 +219,9 @@ jobs:
           CHECKS: ${{ needs.checks.result }}
           MIGRATIONS: ${{ needs.migrations.result }}
           E2E: ${{ needs.e2e.result }}
+          ACCOUNT_SAFETY: ${{ needs.account-safety.result }}
         run: |
           test "$CHECKS" = success
           test "$MIGRATIONS" = success
           test "$E2E" = success
+          test "$ACCOUNT_SAFETY" = success

@@ -1,15 +1,14 @@
 import type { Sql } from "@/lib/db";
+import { inTransaction } from "@/lib/sql-transaction";
+import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 
 /**
  * Revision-checked write of one business row.
  *
- * The check and the write are ONE statement: the `on conflict … do update`
- * carries `where businesses.revision = base`, so two clients that both loaded
- * revision N and save at the same moment cannot both succeed — Postgres
- * evaluates the predicate against the row it has just locked, and the loser's
- * update matches nothing. The earlier read-then-write version let the second
- * writer silently overwrite the first; the database now enforces the rule.
+ * The owner lock, expected revision, history and active pointer are one
+ * transaction. Creation is allowed only without a base revision and never
+ * over a deletion marker. Updates cannot implicitly recreate a missing row.
  *
  * A business row is keyed by its owner's user id. Members of the owner's firm
  * reach the same row (see `resolveBusinessOwner`), so `userId` here is always
@@ -31,6 +30,8 @@ export interface BusinessSaveInput {
   savedBy?: string;
   /** The firm a new business belongs to; ignored for an existing row. */
   firmUserId?: string | null;
+  /** Set the saver's active pointer in the same transaction as this save. */
+  activate?: boolean;
 }
 
 interface BusinessRowSnapshot<TProfile = unknown> {
@@ -70,12 +71,13 @@ export async function resolveBusinessOwner(
   sql: Sql,
   userId: string,
   businessId: string,
+  includeDeleted = false,
 ): Promise<string | null> {
   const rows = await sql<{ user_id: string }>`
     select b.user_id
     from businesses b
     where b.id = ${businessId}
-      and b.deleted_at is null
+      and (b.deleted_at is null or ${includeDeleted})
       and (
         b.user_id = ${userId}
         or (
@@ -88,7 +90,48 @@ export async function resolveBusinessOwner(
     order by (b.user_id = ${userId}) desc
     limit 1
   `;
-  return rows[0]?.user_id ?? null;
+  if (rows[0]) return rows[0].user_id;
+  if (!includeDeleted) return null;
+  const markers = await sql<{ user_id: string }>`
+    select d.user_id from business_deletion_markers d
+    where d.business_id = ${businessId} and (
+      d.user_id = ${userId} or d.firm_user_id in (
+        select firm_user_id from firm_members where member_user_id = ${userId}
+      )
+    ) order by (d.user_id = ${userId}) desc limit 1
+  `;
+  return markers[0]?.user_id ?? null;
+}
+
+/** A missing/deleted row is not permission to insert an old copy. */
+export class BusinessUnavailableError extends RequestError {
+  constructor() {
+    super(
+      409,
+      "This business was deleted or is no longer available. Reload your business list, or export unsynced work before closing this page.",
+    );
+  }
+}
+
+/** Serializes creation, update, restore and delete for this owner's portfolio. */
+async function lockBusinessOwner(sql: Sql, userId: string): Promise<void> {
+  const owner = await sql`select id from "user" where id = ${userId} for update`;
+  if (!owner.length) throw new RequestError(401, "Unauthorized");
+}
+
+/** Recheck sharing while holding the row lock; revocation cannot race the write. */
+async function authorizeBusinessWriter(
+  sql: Sql,
+  owner: string,
+  actor: string,
+  firm: string | null,
+) {
+  if (owner === actor) return;
+  const member = await sql`
+    select member_user_id from firm_members
+    where member_user_id = ${actor} and firm_user_id = ${firm} for share
+  `;
+  if (!member.length) throw new BusinessUnavailableError();
 }
 
 export async function saveBusinessRevision<TProfile = unknown>(
@@ -96,101 +139,83 @@ export async function saveBusinessRevision<TProfile = unknown>(
   input: BusinessSaveInput,
   limit = MAX_BUSINESSES_PER_USER,
 ): Promise<BusinessSaveResult<TProfile>> {
-  const savedBy = input.savedBy ?? input.userId;
-
-  // The version about to be replaced goes to the history first. It matches
-  // only at the caller's base revision, so a stale save records nothing; a
-  // race that records the same version twice is absorbed by the unique key.
-  if (input.baseRevision !== null) {
-    await sql`
-      insert into business_history
+  if (
+    input.baseRevision !== null &&
+    (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 1)
+  )
+    throw new RequestError(400, "Invalid business revision");
+  if (!Number.isSafeInteger(limit) || limit < 1)
+    throw new RequestError(400, "Invalid business limit");
+  return inTransaction(sql, async (tx) => {
+    await lockBusinessOwner(tx, input.userId);
+    const savedBy = input.savedBy ?? input.userId;
+    const rows = await tx<{
+      revision: number | string;
+      profile: TProfile;
+      name: string;
+      industry: string;
+      updated_at: string;
+      deleted_at: string | null;
+      firm_user_id: string | null;
+    }>`select revision, profile, name, industry, updated_at, deleted_at, firm_user_id
+       from businesses where user_id = ${input.userId} and id = ${input.businessId} for update`;
+    const current = rows[0];
+    const deleted = await tx`select 1 from business_deletion_markers
+      where user_id = ${input.userId} and business_id = ${input.businessId}`;
+    if (deleted.length || current?.deleted_at) throw new BusinessUnavailableError();
+    if (!current && (input.baseRevision !== null || savedBy !== input.userId))
+      throw new BusinessUnavailableError();
+    if (current) {
+      await authorizeBusinessWriter(tx, input.userId, savedBy, current.firm_user_id);
+      if (input.baseRevision === null || Number(current.revision) !== input.baseRevision) {
+        return {
+          ok: false,
+          conflict: true,
+          existing: {
+            revision: Number(current.revision),
+            profile: current.profile,
+            name: current.name,
+            industry: current.industry,
+            updated_at: toIsoTimestamp(current.updated_at),
+          },
+        };
+      }
+      // Only a successful replacement archives the old row, in the same transaction.
+      await tx`insert into business_history
         (user_id, business_id, revision, name, industry, profile, saved_by, saved_at)
-      select user_id, id, revision, name, industry, profile, saved_by, updated_at
-      from businesses
-      where user_id = ${input.userId} and id = ${input.businessId}
-        and revision = ${input.baseRevision}::bigint
-      on conflict (user_id, business_id, revision) do nothing
-    `;
-  }
-
-  // First save of a business: no row, so no conflict target — plain insert at
-  // revision 1, provided the account is under its business limit. Existing
-  // row: update only when the caller's base revision matches. `null::bigint`
-  // never equals anything, so a client that never loaded this business cannot
-  // overwrite a row that exists (that is the "stale" case the client resolves
-  // through the conflict banner). Two first saves racing at the limit can
-  // both pass; listBusinessSummaries has no limit, so neither is hidden.
-  const written = await sql<{ revision: number | string; updated_at: string }>`
-    insert into businesses
-      (id, user_id, name, industry, profile, revision, updated_at, saved_by, firm_user_id)
-    select
-      ${input.businessId}::text,
-      ${input.userId}::text,
-      ${input.name}::text,
-      ${input.industry}::text,
-      ${input.profileJson}::jsonb,
-      1,
-      now(),
-      ${savedBy}::text,
-      ${input.firmUserId ?? null}::text
-    where exists (
-        select 1 from businesses where user_id = ${input.userId} and id = ${input.businessId}
-      )
-      or (
-        select count(*) from businesses where user_id = ${input.userId} and deleted_at is null
-      ) < ${limit}::int
-    on conflict (user_id, id) do update set
-      name = excluded.name,
-      industry = excluded.industry,
-      profile = excluded.profile,
-      revision = businesses.revision + 1,
-      updated_at = now(),
-      saved_by = excluded.saved_by,
-      firm_user_id = coalesce(businesses.firm_user_id, excluded.firm_user_id)
-    where businesses.revision = ${input.baseRevision}::bigint
-      and businesses.deleted_at is null
-    returning revision, updated_at
-  `;
-  const row = written[0];
-  if (row) {
-    if (input.baseRevision !== null) await pruneHistory(sql, input.userId, input.businessId);
+        select user_id, id, revision, name, industry, profile, saved_by, updated_at
+        from businesses where user_id = ${input.userId} and id = ${input.businessId}
+        on conflict (user_id, business_id, revision) do nothing`;
+    } else {
+      if (input.firmUserId && input.firmUserId !== input.userId) {
+        const membership = await tx`select member_user_id from firm_members
+          where member_user_id = ${savedBy} and firm_user_id = ${input.firmUserId} for share`;
+        if (!membership.length) throw new BusinessUnavailableError();
+      }
+      const held = await tx<{ n: number | string }>`select count(*) as n from businesses
+        where user_id = ${input.userId} and deleted_at is null`;
+      if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
+    }
+    const written = current
+      ? await tx<{ revision: number | string; updated_at: string }>`
+        update businesses set name = ${input.name}, industry = ${input.industry},
+          profile = ${input.profileJson}::jsonb, revision = revision + 1,
+          updated_at = now(), saved_by = ${savedBy}
+        where user_id = ${input.userId} and id = ${input.businessId}
+          and revision = ${input.baseRevision}::bigint and deleted_at is null
+        returning revision, updated_at`
+      : await tx<{ revision: number | string; updated_at: string }>`
+        insert into businesses (id, user_id, name, industry, profile, revision, updated_at, saved_by, firm_user_id)
+        values (${input.businessId}, ${input.userId}, ${input.name}, ${input.industry},
+          ${input.profileJson}::jsonb, 1, now(), ${savedBy}, ${input.firmUserId ?? null})
+        returning revision, updated_at`;
+    const row = written[0];
+    if (!row) throw new BusinessUnavailableError();
+    if (current) await pruneHistory(tx, input.userId, input.businessId);
+    if (input.activate)
+      await setActiveBusiness(tx, { ...input, userId: savedBy, ownerUserId: input.userId });
     return { ok: true, revision: Number(row.revision), updatedAt: toIsoTimestamp(row.updated_at) };
-  }
-
-  // Nothing written: the row exists at some other revision. Read it so the
-  // client can show what it would be overwriting.
-  const existingRows = await sql<{
-    revision: number | string;
-    profile: TProfile;
-    industry: string;
-    name: string;
-    updated_at: string;
-  }>`
-    select revision, profile, industry, name, updated_at
-    from businesses
-    where id = ${input.businessId} and user_id = ${input.userId}
-  `;
-  const existing = existingRows[0];
-  if (!existing) {
-    // No row and nothing written: the account is at its business limit (or,
-    // rarely, the row was deleted between the two statements).
-    const held = await sql<{ n: number | string }>`
-      select count(*) as n from businesses where user_id = ${input.userId} and deleted_at is null
-    `;
-    if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
-    throw new Error("Unable to save business profile");
-  }
-  return {
-    ok: false,
-    conflict: true,
-    existing: {
-      revision: Number(existing.revision),
-      profile: existing.profile,
-      industry: existing.industry,
-      name: existing.name,
-      updated_at: toIsoTimestamp(existing.updated_at),
-    },
-  };
+  });
 }
 
 async function pruneHistory(sql: Sql, userId: string, businessId: string): Promise<void> {
@@ -348,7 +373,7 @@ export async function listBusinessSummaries(
  */
 export async function setActiveBusiness(
   sql: Sql,
-  input: Omit<BusinessSaveInput, "baseRevision" | "profileJson">,
+  input: Omit<BusinessSaveInput, "baseRevision" | "profileJson"> & { ownerUserId?: string },
 ): Promise<void> {
   await sql`
     insert into business_profiles (user_id, name, industry, profile, updated_at)
@@ -356,7 +381,7 @@ export async function setActiveBusiness(
       ${input.userId},
       ${input.name},
       ${input.industry},
-      jsonb_build_object('businessId', ${input.businessId}::text),
+      jsonb_build_object('businessId', ${input.businessId}::text, 'ownerUserId', ${input.ownerUserId ?? input.userId}::text, 'pointerVersion', 2),
       now()
     )
     on conflict (user_id) do update set
@@ -378,7 +403,9 @@ export interface ActiveBusiness<TProfile = unknown> {
 }
 
 export async function loadActiveBusiness<
-  TProfile extends { businessId?: string } = { businessId?: string },
+  TProfile extends { businessId?: string; ownerUserId?: string; pointerVersion?: number } = {
+    businessId?: string;
+  },
 >(sql: Sql, userId: string): Promise<ActiveBusiness<TProfile> | null> {
   const pointer = await sql<{
     name: string;
@@ -395,7 +422,20 @@ export async function loadActiveBusiness<
   const businessId =
     typeof active.profile.businessId === "string" ? active.profile.businessId : "biz_default";
 
-  const owner = await resolveBusinessOwner(sql, userId, businessId);
+  const pointerOwner = active.profile.ownerUserId;
+  const permitted =
+    typeof pointerOwner === "string"
+      ? await sql<{ user_id: string }>`
+    select user_id from businesses b where b.user_id = ${pointerOwner} and b.id = ${businessId}
+      and deleted_at is null and (b.user_id = ${userId} or b.firm_user_id in (
+        select firm_user_id from firm_members where member_user_id = ${userId}
+      ))
+  `
+      : [];
+  const owner =
+    typeof pointerOwner === "string"
+      ? (permitted[0]?.user_id ?? null)
+      : await resolveBusinessOwner(sql, userId, businessId);
   const rows = owner
     ? await sql<{
         name: string;
@@ -406,7 +446,7 @@ export async function loadActiveBusiness<
       }>`
         select name, industry, profile, updated_at, revision
         from businesses
-        where user_id = ${owner} and id = ${businessId}
+        where user_id = ${owner} and id = ${businessId} and deleted_at is null
       `
     : [];
   const authoritative = rows[0];
@@ -415,7 +455,15 @@ export async function loadActiveBusiness<
     // any revision-tracked business, that is a dangling pointer (the business
     // was deleted), not a legacy account, so nothing is resurrected from it.
     const others = await sql`select 1 from businesses where user_id = ${userId} limit 1`;
-    if (others.length > 0) return null;
+    const deleted = await sql`select 1 from business_deletion_markers
+      where user_id = ${pointerOwner ?? userId} and business_id = ${businessId}`;
+    if (
+      others.length > 0 ||
+      deleted.length > 0 ||
+      active.profile.pointerVersion === 2 ||
+      !("staff" in active.profile)
+    )
+      return null;
   }
   if (authoritative) {
     return {
@@ -450,28 +498,46 @@ export async function deleteBusinessRow(
   businessId: string,
   pointerUserId = ownerUserId,
 ): Promise<void> {
-  await sql`
-    update businesses set deleted_at = now()
-    where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
-  `;
-  await sql`
-    delete from business_profiles
-    where user_id = ${pointerUserId}
-      and coalesce(profile->>'businessId', 'biz_default') = ${businessId}
-  `;
+  await inTransaction(sql, async (tx) => {
+    await lockBusinessOwner(tx, ownerUserId);
+    const rows = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
+      where user_id = ${ownerUserId} and id = ${businessId} for update`;
+    if (!rows.length) return; // Repeated delete is harmless, never creates a marker for another row.
+    await authorizeBusinessWriter(tx, ownerUserId, pointerUserId, rows[0].firm_user_id);
+    await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id)
+      values (${ownerUserId}, ${businessId}, ${rows[0].firm_user_id})
+      on conflict (user_id, business_id) do nothing`;
+    await tx`update businesses set deleted_at = now(), revision = revision + 1, updated_at = now()
+      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null`;
+    // Remove exact v2 pointers, including colleagues; legacy pointers only when ownership is known.
+    await tx`delete from business_profiles where coalesce(profile->>'businessId', 'biz_default') = ${businessId}
+      and (profile->>'ownerUserId' = ${ownerUserId}
+        or (not (profile ? 'ownerUserId') and user_id in (${ownerUserId}, ${pointerUserId})))`;
+  });
 }
 
 export async function restoreBusinessRow(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
+  actorUserId = ownerUserId,
+  limit = MAX_BUSINESSES_PER_USER,
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }>`
-    update businesses set deleted_at = null
-    where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
-    returning id
-  `;
-  return rows.length > 0;
+  return inTransaction(sql, async (tx) => {
+    await lockBusinessOwner(tx, ownerUserId);
+    const rows = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
+      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
+        and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int) for update`;
+    if (!rows.length) return false;
+    await authorizeBusinessWriter(tx, ownerUserId, actorUserId, rows[0].firm_user_id);
+    const held = await tx<{ n: number | string }>`select count(*) as n from businesses
+      where user_id = ${ownerUserId} and deleted_at is null`;
+    if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
+    await tx`update businesses set deleted_at = null, revision = revision + 1, updated_at = now()
+      where user_id = ${ownerUserId} and id = ${businessId}`;
+    await tx`delete from business_deletion_markers where user_id = ${ownerUserId} and business_id = ${businessId}`;
+    return true;
+  });
 }
 
 export interface DeletedBusinessRow {
@@ -499,6 +565,7 @@ export async function listDeletedBusinesses(
       deleted_at + make_interval(days => ${DELETED_RETENTION_DAYS}::int) as purge_on
     from businesses
     where deleted_at is not null
+      and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int)
       and (user_id = ${userId} or (${firmUserId}::text is not null and firm_user_id = ${firmUserId}))
     order by deleted_at desc
   `;
@@ -516,20 +583,30 @@ export async function purgeDeletedBusinesses(
   sql: Sql,
   retentionDays = DELETED_RETENTION_DAYS,
 ): Promise<number> {
-  // A pointer left behind would read as a legacy account on the next load.
-  await sql`
-    delete from business_profiles p
-    using businesses b
-    where b.user_id = p.user_id
-      and b.id = coalesce(p.profile->>'businessId', 'biz_default')
-      and b.deleted_at is not null
-      and b.deleted_at < now() - make_interval(days => ${retentionDays}::int)
-  `;
-  const rows = await sql<{ id: string }>`
-    delete from businesses
-    where deleted_at is not null
-      and deleted_at < now() - make_interval(days => ${retentionDays}::int)
-    returning id
-  `;
-  return rows.length;
+  if (!Number.isSafeInteger(retentionDays) || retentionDays < 0)
+    throw new RequestError(400, "Invalid retention");
+  // Lock each owner before rechecking age. A restore and a purge cannot both win.
+  const owners = await sql<{ user_id: string }>`select distinct user_id from businesses
+    where deleted_at is not null and deleted_at < now() - make_interval(days => ${retentionDays}::int)
+    order by user_id`;
+  let count = 0;
+  for (const { user_id: owner } of owners)
+    count += await inTransaction(sql, async (tx) => {
+      await lockBusinessOwner(tx, owner);
+      await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id, deleted_at)
+      select user_id, id, firm_user_id, deleted_at from businesses
+      where user_id = ${owner} and deleted_at is not null
+        and deleted_at < now() - make_interval(days => ${retentionDays}::int)
+      on conflict (user_id, business_id) do nothing`;
+      await tx`delete from business_profiles p using businesses b
+      where b.user_id = ${owner} and b.id = coalesce(p.profile->>'businessId', 'biz_default')
+        and (p.profile->>'ownerUserId' = b.user_id or
+          (not (p.profile ? 'ownerUserId') and p.user_id = b.user_id))
+        and b.deleted_at is not null and b.deleted_at < now() - make_interval(days => ${retentionDays}::int)`;
+      const removed = await tx`delete from businesses where user_id = ${owner}
+      and deleted_at is not null and deleted_at < now() - make_interval(days => ${retentionDays}::int)
+      returning id`;
+      return removed.length;
+    });
+  return count;
 }

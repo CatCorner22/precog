@@ -25,6 +25,8 @@ import type { Person } from "./types";
 import type { LocalProfileStore } from "./save-conflict";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { ProfileAction } from "./profile-reducer";
+import { useEffect } from "react";
+import type { Workspace } from "./workspace-context";
 import { withRosterLeavers } from "./profile-actions";
 
 /**
@@ -34,6 +36,7 @@ import { withRosterLeavers } from "./profile-actions";
  * business the setup dialog sat on.
  */
 export function usePortfolio(input: {
+  workspace: Workspace;
   profile: PracticeProfile;
   profileRef: MutableRefObject<PracticeProfile>;
   setProfile: Dispatch<ProfileAction>;
@@ -51,6 +54,7 @@ export function usePortfolio(input: {
   setSwitching: (on: boolean) => void;
 }) {
   const {
+    workspace,
     profile,
     profileRef,
     setProfile,
@@ -68,13 +72,20 @@ export function usePortfolio(input: {
     setSwitching,
   } = input;
   // The business open before "Add a business", which cancelling setup returns to.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const openBeforeSetup = useRef<string | null>(null);
 
   /** Local portfolio + cloud summaries merged by id; the active business always wins. */
   const businesses = useMemo<BusinessSummary[]>(() => {
     const byId = new Map<string, BusinessSummary>();
     for (const b of remoteBusinesses) byId.set(b.id, b);
-    for (const p of Object.values(loadPortfolio())) {
+    for (const p of Object.values(loadPortfolio(workspace.local))) {
       // An unfinished setup saved by an older version is the sample, not a business.
       if (p.onboardingComplete === false) continue;
       const s = summarizeBusiness(p);
@@ -90,6 +101,7 @@ export function usePortfolio(input: {
     profile.practiceName,
     profile.industry,
     portfolioVersion,
+    workspace.local,
   ]);
 
   const switchBusiness = useCallback(
@@ -97,8 +109,8 @@ export function usePortfolio(input: {
       if (id === (profileRef.current.businessId ?? "biz_default")) return;
       setSwitching(true);
       try {
-        if (!(await flushActive())) return;
-        let next: PracticeProfile | null = loadPortfolio()[id] ?? null;
+        if (!(await flushActive()) || !mounted.current) return;
+        let next: PracticeProfile | null = loadPortfolio(workspace.local)[id] ?? null;
         // Another tab may have this business open: its copy of the open
         // business is written on every edit, the portfolio only a moment
         // later, so take whichever is newer.
@@ -117,16 +129,27 @@ export function usePortfolio(input: {
             cloudRevision.current.set(id, remote.revision);
             if (!localCurrent) next = normalizeProfile(remote.profile);
           } else if (remote?.found === false) {
-            cloudRevision.current.delete(id);
+            throw new Error(
+              "This business was deleted or access was removed. Your local recovery copy was kept; reload the business list.",
+            );
           }
         }
-        if (!next) return;
+        if (!next || !mounted.current) return;
         activateProfile({ ...next, businessId: id, onboardingComplete: true });
       } finally {
         setSwitching(false);
       }
     },
-    [activateProfile, cloudUser, flushActive, localStore, cloudRevision, profileRef, setSwitching],
+    [
+      activateProfile,
+      cloudUser,
+      flushActive,
+      localStore,
+      cloudRevision,
+      profileRef,
+      setSwitching,
+      workspace.local,
+    ],
   );
 
   const createBusiness = useCallback(
@@ -196,13 +219,14 @@ export function usePortfolio(input: {
     (previous: PracticeProfile) => {
       const keep = unfinishedBusinessToKeep(previous);
       const id = previous.businessId ?? "biz_default";
-      if (keep) savePortfolioEntry(keep);
+      if (keep) savePortfolioEntry(keep, workspace.local);
       // Older versions listed the unfinished sample in the portfolio; a finished
       // business under the same id (another tab's) is left alone.
-      else if (loadPortfolio()[id]?.onboardingComplete === false) removePortfolioEntry(id);
+      else if (loadPortfolio(workspace.local)[id]?.onboardingComplete === false)
+        removePortfolioEntry(id, workspace.local);
       bumpPortfolio();
     },
-    [bumpPortfolio],
+    [bumpPortfolio, workspace.local],
   );
 
   const completeOnboarding = useCallback(
@@ -238,13 +262,15 @@ export function usePortfolio(input: {
     async (id: string) => {
       const activeId = profileRef.current.businessId ?? "biz_default";
       if (id === activeId) return;
-      removePortfolioEntry(id);
-      removeValueProof(id);
+      if (cloudUser)
+        await deleteBusinessRemote({ data: { id, expectedAccountId: workspace.accountId ?? "" } });
+      if (!mounted.current) return;
+      removePortfolioEntry(id, workspace.local);
+      removeValueProof(id, workspace.local);
       setRemoteBusinesses((cur) => cur.filter((b) => b.id !== id));
       bumpPortfolio();
-      if (cloudUser) await deleteBusinessRemote({ data: { id } }).catch(() => undefined);
     },
-    [cloudUser, profileRef, setRemoteBusinesses, bumpPortfolio],
+    [cloudUser, profileRef, setRemoteBusinesses, bumpPortfolio, workspace],
   );
 
   return {
