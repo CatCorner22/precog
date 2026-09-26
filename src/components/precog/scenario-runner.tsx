@@ -25,8 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, formatPct } from "@/lib/utils";
-import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
-import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
+import { observedLossRange } from "@/lib/precog/evidence";
+import { scenarioCases } from "@/lib/precog/templates";
 import { CaseCard } from "@/components/precog/case-card";
 import { CheckCircle2, GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 import { dateAfter } from "@/lib/precog/dates";
@@ -121,18 +121,15 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
    * The prosecuted cases behind this scenario.
    *
    * A scenario's figures are assumptions. The duty conflicts it models are
-   * not: each conflict rule that links to this scenario has real cases behind
-   * it, so the page can put the assumption next to what the same failure
-   * cost somewhere real. Scenarios no rule links to (a key person leaving)
-   * get no case list rather than a loosely related one.
+   * not: each has real cases behind it, so the page can put the assumption
+   * next to what the same failure cost somewhere real. Scenarios with no duty
+   * pair (a key person leaving) get no case list rather than a loosely
+   * related one.
    */
   const realCases = useMemo(() => {
-    const ruleIds = CONFLICT_RULES.filter((r) => r.linkedScenarioId === scenario.id).map(
-      (r) => r.id,
-    );
-    const cases = ruleIds.length ? casesForSodRules(ruleIds) : [];
+    const cases = scenarioCases(scenario);
     return { cases, lossRange: observedLossRange(cases) };
-  }, [scenario.id]);
+  }, [scenario]);
   const result = useMemo(
     () =>
       runPrecogScenario(tpl, scenarioId, {

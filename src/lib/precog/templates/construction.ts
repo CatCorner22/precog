@@ -84,6 +84,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "Someone who sets up vendors and releases payments adds a subcontractor with a real-sounding name and a bank account they control, then codes its invoices to a busy job where the extra cost reads as an overrun.",
     controlId: "c-sub-verify",
+    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay"],
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
     cascadeLayers: ["control", "source", "process", "continuity"],
@@ -110,6 +111,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "The person who negotiates change orders with a subcontractor also approves the subcontractor's pay applications. The subcontractor bills more than the extra work is worth and returns part of it to that person.",
     controlId: "c-change-orders",
+    sodRuleIds: ["rule-invoice-approve"],
     knowledgeId: "k2",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
@@ -137,6 +139,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "The person who orders materials also signs for them. Lumber, wire, fixtures or equipment are charged to an open job and delivered to a side job or resold, and the cost reads as job cost.",
     controlId: "c-materials",
+    sodRuleIds: ["rule-order-receive"],
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
     cascadeLayers: ["control", "process", "surface", "continuity"],
@@ -163,6 +166,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "Timesheets from the field go to payroll without a check against the daily reports. Extra hours, or a former crew member left on payroll with a changed bank account, are paid with the rest of the run.",
     controlId: "c-field-time",
+    sodRuleIds: ["rule-payroll-master-run", "rule-payroll"],
     knowledgeId: "k5",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },

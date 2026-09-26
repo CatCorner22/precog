@@ -249,6 +249,7 @@ const nonprofitScenarios: ScenarioTemplate[] = [
     description:
       "One person opens the mail or counts event cash and also records the gifts, so a gift that never reaches the log never reaches the bank, and the donor still gets a thank-you.",
     controlId: "c-gift-log",
+    sodRuleIds: ["rule-collect-post", "rule-custody-rec"],
     knowledgeId: "k1",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
@@ -276,6 +277,7 @@ const nonprofitScenarios: ScenarioTemplate[] = [
     description:
       "Restricted gifts and grant funds sit in the operating account with no fund code, so they pay rent, payroll or a shortfall elsewhere, and the organization owes the funder money it no longer has.",
     controlId: "c-restricted",
+    sodRuleIds: ["rule-release-je"],
     knowledgeId: "k2",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
@@ -303,6 +305,7 @@ const nonprofitScenarios: ScenarioTemplate[] = [
     description:
       "Cardholders approve their own statements, and the executive director's card is reviewed by nobody, so personal travel, cash advances and purchases are booked as program costs.",
     controlId: "c-cards",
+    sodRuleIds: ["rule-card-review", "rule-card-approve"],
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
     cascadeLayers: ["control", "process", "surface", "continuity"],

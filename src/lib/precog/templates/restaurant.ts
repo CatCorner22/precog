@@ -53,6 +53,7 @@ const taxAndTipScenarios: ScenarioTemplate[] = [
     description:
       "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
     controlId: "c-salestax",
+    sodRuleIds: ["rule-release-rec"],
     knowledgeId: "k7",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
@@ -80,6 +81,7 @@ const taxAndTipScenarios: ScenarioTemplate[] = [
     description:
       "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
     controlId: "c-tip-pool",
+    sodRuleIds: ["rule-payroll"],
     knowledgeId: "k1",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },

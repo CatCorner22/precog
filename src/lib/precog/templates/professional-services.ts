@@ -51,6 +51,7 @@ const trustScenarios: ScenarioTemplate[] = [
     description:
       "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
     controlId: "c-trust-rec",
+    sodRuleIds: ["rule-release-rec", "rule-cash-rec"],
     knowledgeId: "k7",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },

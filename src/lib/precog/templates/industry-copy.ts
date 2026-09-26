@@ -286,8 +286,7 @@ export function getIndustryCopy(id: IndustryId): IndustryCopyBundle {
   return INDUSTRY_COPY[id] ?? INDUSTRY_COPY.general;
 }
 
-/** The plural of the industry's word for a business: "practices", "stores", "businesses". */
+/** The plural of the industry's word for a business: "practices", "companies", "businesses". */
 export function pluralTeamLabel(id: IndustryId): string {
-  const word = industryMeta(id).teamLabel;
-  return /(s|x|z|ch|sh)$/.test(word) ? `${word}es` : `${word}s`;
+  return industryMeta(id).teamLabelPlural;
 }

@@ -807,6 +807,7 @@ const scenarios: ScenarioTemplate[] = [
       "The person who handles controlled drugs also keeps the log and does the counts. Drugs are removed and the log, or the vials, are changed so the count still matches; the office learns of it from a patient harmed, a DEA inspection, or a colleague who speaks up.",
     controlId: "c-controlled",
     knowledgeId: "k8",
+    caseIds: ["case-littleton-oral-surgery-fentanyl"],
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
     cascadeLayers: ["control", "process", "surface", "continuity"],

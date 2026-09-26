@@ -18,6 +18,7 @@ import { initialSetup } from "../onboarding/setup-draft";
 import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
 import { jobCatalogEntry } from "../onboarding/job-catalog";
+import { scenarioCases } from "./index";
 
 const findings = (id: Parameters<typeof getBaseTemplate>[0]) =>
   detectSodConflicts(getBaseTemplate(id)).conflicts.map((c) => `${c.role}: ${c.ruleId}`);
@@ -55,6 +56,26 @@ describe("every sample's links resolve inside its own template", () => {
       expect(new Set(tpl.controls.map((c) => c.id)).size).toBe(tpl.controls.length);
     });
   }
+});
+
+describe("every sample's scenarios", () => {
+  const KEY_PERSON = new Set(["sc-key-person-leaves", "sc-front-desk-leaves"]);
+  for (const { id } of INDUSTRIES) {
+    it(`${id}: puts a prosecuted case beside every scenario but a key person leaving`, () => {
+      const bare = getBaseTemplate(id)
+        .scenarios.filter((s) => !KEY_PERSON.has(s.id))
+        .filter((s) => scenarioCases(s).length === 0)
+        .map((s) => s.id);
+      expect(bare).toEqual([]);
+    });
+  }
+
+  it("leads the drug-diversion scenario with the case it names", () => {
+    const diversion = getBaseTemplate("dental").scenarios.find(
+      (s) => s.id === "sc-drug-diversion",
+    )!;
+    expect(scenarioCases(diversion)[0]?.id).toBe("case-littleton-oral-surgery-fentanyl");
+  });
 });
 
 describe("construction sample", () => {

@@ -14,6 +14,8 @@ export interface IndustryMeta {
   tagline: string;
   demoName: string;
   teamLabel: string;
+  /** The plural of teamLabel, written out: "practices", "companies", "businesses". */
+  teamLabelPlural: string;
   /** Plural noun for the people the business serves ("patients", "guests"). */
   customerLabel: string;
 }
@@ -25,6 +27,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Patient revenue, billing, cash, and controlled-drug controls",
     demoName: "Ridgeview Family Dental",
     teamLabel: "practice",
+    teamLabelPlural: "practices",
     customerLabel: "patients",
   },
   {
@@ -33,6 +36,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Inventory, POS, and vendor payment controls",
     demoName: "Harbor Lane Boutique",
     teamLabel: "store",
+    teamLabelPlural: "stores",
     customerLabel: "customers",
   },
   {
@@ -41,6 +45,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Client billing, trust accounts, and project delivery",
     demoName: "Northgate Advisory Group",
     teamLabel: "firm",
+    teamLabelPlural: "firms",
     customerLabel: "clients",
   },
   {
@@ -49,6 +54,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Cash tips, vendor AP, and shift reconciliation",
     demoName: "Ember & Oak Kitchen",
     teamLabel: "restaurant",
+    teamLabelPlural: "restaurants",
     customerLabel: "guests",
   },
   {
@@ -57,6 +63,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Job costing, progress billing, and subcontractor payments",
     demoName: "Summit Ridge Builders",
     teamLabel: "company",
+    teamLabelPlural: "companies",
     customerLabel: "clients",
   },
   {
@@ -65,6 +72,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Donations, restricted grants, and board oversight",
     demoName: "Riverbend Community Alliance",
     teamLabel: "organization",
+    teamLabelPlural: "organizations",
     customerLabel: "donors and clients",
   },
   {
@@ -73,6 +81,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Core financial and operational controls",
     demoName: "Main Street Business Co.",
     teamLabel: "business",
+    teamLabelPlural: "businesses",
     customerLabel: "customers",
   },
 ];
