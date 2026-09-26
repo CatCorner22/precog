@@ -13,6 +13,19 @@ describe("KNOWLEDGE_CORPUS", () => {
       if (c.industry) expect(industries.has(c.industry), `${c.id}: ${c.industry}`).toBe(true);
     }
   });
+
+  for (const { id: industry } of INDUSTRIES.filter((i) => i.id !== "dental")) {
+    it(`serves a ${industry} business no dental, patient or health-privacy wording`, () => {
+      const eligible = KNOWLEDGE_CORPUS.filter(
+        (c) => !c.industry || c.industry === "general" || c.industry === industry,
+      );
+      for (const c of eligible) {
+        expect(`${c.title} ${c.text}`, c.id).not.toMatch(
+          /patient|\bPMS\b|HIPAA|\bOCR\b|ePHI|\bPHI\b|dental|clinical/i,
+        );
+      }
+    });
+  }
 });
 
 describe("retrieveKnowledge", () => {

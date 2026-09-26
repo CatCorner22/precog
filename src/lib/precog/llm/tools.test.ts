@@ -7,6 +7,9 @@ import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
+import { citingCaseStats } from "../evidence";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { formatUsd } from "@/lib/utils";
 
 const dental = getBaseTemplate("dental");
 
@@ -589,4 +592,31 @@ describe("get_process_records on a map that is not assessed", () => {
     expect((r.data as { assessed?: boolean }).assessed).toBeUndefined();
     expect(r.summary).toMatch(/written, findable procedure/);
   });
+});
+
+describe("get_case_evidence", () => {
+  for (const industry of ["dental", "retail", "nonprofit"] as const) {
+    it(`states the same case count and median as Start here (${industry})`, () => {
+      const profile = defaultProfile(industry);
+      const tpl = resolveTemplate(profile);
+      const sod = detectSodConflicts(
+        tpl,
+        profile.staff,
+        sodDetectionOptions(tpl, profile.dualRelease),
+      );
+      // Start here's rule set: open, not accepted, not held by the owner.
+      const startHereRules = [
+        ...new Set(
+          sod.conflicts.filter((c) => !c.residualRiskAccepted && !c.ownerHeld).map((c) => c.ruleId),
+        ),
+      ];
+      const startHere = citingCaseStats(startHereRules);
+      const result = executeTool("get_case_evidence", {}, { profile });
+      expect(startHere.count).toBeGreaterThan(0);
+      expect(result.summary).toBe(
+        `${startHere.count} prosecuted case(s) show the open duty conflicts; median stated loss ${formatUsd(startHere.loss!.median)}`,
+      );
+      expect((result.data as { matchingCases: number }).matchingCases).toBe(startHere.count);
+    });
+  }
 });

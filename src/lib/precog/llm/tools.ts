@@ -19,7 +19,7 @@ import {
 import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "../scoring/dynamic-variables";
 import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
-import { casesForSodRules, detectionBreakdown, observedLossRange } from "../evidence";
+import { casesForSodRules, citingCaseStats } from "../evidence";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
@@ -483,35 +483,46 @@ export function executeTool(
               .map((c) => c.ruleId),
           ),
         ];
+        // The count and the median describe only the cases whose own record
+        // shows one of these duty pairs, as Start here and the printed report
+        // do; cases that merely share a scheme are listed, not counted.
+        const citing = citingCaseStats(openRuleIds);
         const cases = casesForSodRules(openRuleIds);
-        const range = observedLossRange(cases);
-        const found = detectionBreakdown(cases);
+        const citingIds = new Set(citing.cases.map((c) => c.id));
         // The case list is ordered by relevance to the open rules, so the
         // largest loss is found separately rather than read off the top.
-        const largest = cases.reduce<(typeof cases)[number] | null>(
+        const largest = citing.cases.reduce<(typeof cases)[number] | null>(
           (best, c) => (best === null || c.lossUsd > best.lossUsd ? c : best),
           null,
         );
         return {
           tool,
           ok: true,
-          summary: cases.length
-            ? `${cases.length} prosecuted case(s) match the open duty conflicts; median stated loss ${range ? formatUsd(range.median) : "n/a"}`
-            : "No prosecuted case in the library matches the open duty conflicts",
+          summary: citing.count
+            ? `${citing.count} prosecuted case(s) show the open duty conflicts; median stated loss ${citing.loss ? formatUsd(citing.loss.median) : "n/a"}`
+            : cases.length
+              ? `No prosecuted case in the library shows these exact duty conflicts; ${cases.length} related case(s) share the same schemes`
+              : "No prosecuted case in the library matches the open duty conflicts",
           // Every field here is a fact stated in the cited source, or the
           // library's own tagging of which control would have caught it.
           // Nothing is a rate or a forecast.
           data: {
-            matchingCases: cases.length,
+            matchingCases: citing.count,
+            relatedCases: cases.length - citing.count,
             openRuleIds,
-            lossRange: range,
+            lossRange: citing.loss,
             largest: largest
               ? { title: largest.title, lossUsd: largest.lossUsd, lossIsFloor: largest.lossIsFloor }
               : null,
-            detection: { known: found.known, unknown: found.unknown, byRoute: found.byRoute },
+            detection: {
+              known: citing.detection.known,
+              unknown: citing.detection.unknown,
+              byRoute: citing.detection.byRoute,
+            },
             cases: cases.slice(0, 8).map((c) => ({
               id: c.id,
               title: c.title,
+              showsTheseDutyConflicts: citingIds.has(c.id),
               sector: c.sector,
               lossUsd: c.lossUsd,
               lossIsFloor: c.lossIsFloor,
