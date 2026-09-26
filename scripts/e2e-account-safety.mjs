@@ -77,7 +77,10 @@ async function seed(user, businessId, name) {
   return {
     name: "__Host-grok-auth.session_token",
     value: encodeURIComponent(`${token}.${signature}`),
-    url: base,
+    // Playwright derives Secure from the URL, overriding an explicit flag.
+    // Seed this host-only cookie with HTTPS so the __Host- prefix stays valid;
+    // localhost requests retain Chromium's normal secure-context treatment.
+    url: base.replace("http:", "https:") + "/",
     secure: true,
     httpOnly: true,
     sameSite: "Lax",
