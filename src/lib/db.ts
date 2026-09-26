@@ -77,6 +77,9 @@ const OID_DATE = 1082;
 const OID_INTERVAL = 1186;
 const identity = (v: string) => v;
 
+const CONNECT_TIMEOUT_MS = 10_000;
+const STATEMENT_TIMEOUT_MS = 30_000;
+
 /**
  * The one node-postgres pool of this process, shared by app queries and Better
  * Auth (see `@/lib/auth/server`). Small and short-lived: each warm serverless
@@ -96,12 +99,27 @@ export function getPgPool(): Promise<import("pg").Pool> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    return new Pool({
+    const pool = new Pool({
       connectionString: databaseUrl,
       max: 4,
       idleTimeoutMillis: 10_000,
       allowExitOnIdle: true,
+      // Fail fast instead of holding the request until the platform kills it:
+      // a connect (or a wait for a free slot) that takes longer than this, or a
+      // statement that runs longer than that, rejects with a clear error.
+      connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+      statement_timeout: STATEMENT_TIMEOUT_MS,
     });
+    // The database closes idle connections (compute suspend, pooler restart).
+    // pg-pool reports that as an 'error' event on the pool; with no listener
+    // Node throws it as an uncaught exception and the whole process dies.
+    pool.on("error", (err) => {
+      console.error("[db] idle connection error:", err.message);
+      void import("./observability/report.server")
+        .then(({ reportServerError }) => reportServerError(err, "pg-pool"))
+        .catch(() => undefined);
+    });
+    return pool;
   })().catch((err) => {
     globalRef.__pgPoolPromise__ = undefined;
     throw err;

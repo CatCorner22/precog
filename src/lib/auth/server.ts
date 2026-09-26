@@ -189,14 +189,18 @@ export const auth = betterAuth({
   // `account_not_linked` (Better Auth refuses to attach an untrusted, unverified
   // identity to an existing user). Google and X carry DISTINCT emails, so this
   // never merges them into one user — they stay separate identities.
+  //
+  // Linking keeps Better Auth's default `requireLocalEmailVerified: true`: an
+  // email/password sign-up is unverified, so a Google or X sign-in with the
+  // same address must NOT attach to it. Otherwise anyone could pre-register a
+  // victim's address with a password and keep that password on the victim's
+  // account once the victim signs in with Google (see server.test.ts). The
+  // refused sign-in lands on /login with `error=account_not_linked`.
   account: {
     encryptOAuthTokens: true,
     accountLinking: {
       enabled: true,
       trustedProviders: GROK_PROVIDERS.map((p) => p.providerId),
-      // X's synthetic email is never "verified", so don't gate linking on the
-      // local user's email-verified state.
-      requireLocalEmailVerified: false,
     },
   },
 
