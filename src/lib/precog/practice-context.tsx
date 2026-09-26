@@ -26,6 +26,7 @@ import type {
 } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
+import type { AccessReconciliation } from "./firm/reconcile";
 import type { IndustryId } from "./industry";
 import { confirmedControlIds, controlsInPlace, resolveTemplate } from "./active-template";
 import type { IndustryTemplate } from "./templates";
@@ -140,6 +141,8 @@ export interface PracticeContextValue {
   ) => void;
   /** Continuity planner: known leave (who, from, to). */
   setPlannedAbsences: (v: SetStateAction<PlannedAbsence[]>) => void;
+  /** The imported user and vendor files; an update keeps the undo history. */
+  setAccessReconciliation: (v: SetStateAction<AccessReconciliation | undefined>) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
@@ -470,6 +473,13 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withPlannedAbsences(p, resolveUpdate(v, p.plannedAbsences ?? [])));
   }, []);
 
+  const setAccessReconciliation = useCallback(
+    (v: SetStateAction<AccessReconciliation | undefined>) => {
+      setProfile((p) => ({ ...p, accessReconciliation: resolveUpdate(v, p.accessReconciliation) }));
+    },
+    [],
+  );
+
   const resetSegregationToDerived = useCallback(() => {
     setProfile((p) => withDerivedSegregation(p));
   }, []);
@@ -582,6 +592,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setAccessReconciliation,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
@@ -626,6 +637,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setAccessReconciliation,
       resetSegregationToDerived,
       setMapLayout,
       mapCustomized,
