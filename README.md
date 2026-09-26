@@ -148,6 +148,30 @@ hidden or closed, and if the browser refuses local storage (private mode, quota)
 badge says so instead of the page failing. The open tab is part of the URL (`/?tab=map`),
 so refresh, back, and shared links keep the view.
 
+## Firm workspace
+
+`/firm` is for an advisor (a CPA or bookkeeping firm) who runs the assessment
+for several client businesses.
+
+- **People at the firm**: the owner invites preparers and reviewers by email;
+  members see the firm's clients and their saves reach the same records.
+- **Clients**: each client carries its engagement marks (started, map
+  completed, report sent, open and accepted findings).
+- **Monthly review log**: four checks per client per month (open the bank
+  statement, read the cleared-check images, compare payroll to who still
+  works there, review new vendors), each recorded as done, exception or
+  skipped. The log is append-only: a later result is a new row.
+- **Report versions**: a sent report is a locked version with the profile as
+  it was, the preparer, and the reviewer who signed it off.
+- **Billing**: the fixed assessment and the monthly firm plan through Stripe
+  Checkout when Stripe is configured; otherwise the firm records its stage by
+  hand.
+- **QuickBooks link** (read-only): reads the connected company's vendors and
+  employees and compares them with the people on the duty map.
+- **Reminders**: a weekly email digest to advisors and a note to each client
+  owner about what is due, sent by the scheduled job; each account can turn
+  either off.
+
 ## Core loop
 
 1. **Pick an industry** on first visit — loads a full demo template
@@ -174,19 +198,103 @@ current action band first, the weight descriptions, band cutoffs, and a determin
 A written, findable procedure lowers a know-how item's residual score; the scoring version is now
 `precog-residual-v1.1.0`, so earlier journal snapshots are not directly comparable.
 
-## Develop
+## Develop, operate and verify
 
 ```bash
 npm install
-npm run dev    # live preview on port 8080
-npm run build
+npm run dev          # live preview on port 8080
+npm run build        # compile; on a production deploy, also apply migrations
 npm run typecheck
-npm test       # vitest unit tests + domain checks
-npm run e2e    # headless builder walk-through against the running dev server (needs: npx playwright install chromium)
-npm run e2e:tabs  # every tab of every industry demo plus /threat, /report, /login, /share; fails on any page error
+npm run lint
+npm test             # vitest: unit, domain and PGLite store tests, plus the scripts' own tests
+npm run db:migrate   # apply pending migrations to DATABASE_URL now
 ```
 
-`npm run build` compiles the app and, only when `VERCEL_ENV` is `production`, applies pending migrations. Preview deploys, CI, and a local build leave the database untouched; `npm run db:migrate` applies them on demand. CI (`.github/workflows/ci.yml`) runs typecheck, lint, formatting, the production dependency audit, the unit and domain tests, the build and its bundle budget on every pull request; applies every migration twice to a real Postgres; and runs the two browser smokes (`scripts/e2e-builder.mjs`, which loads the demo, adds a process, drives the keyboard shortcuts, imports a CSV and undoes it; and `scripts/e2e-tabs.mjs`, which opens every tab for every industry and each public route).
+Browser suites drive a running server (`npm run dev` for the first four) and
+need Chromium once: `npx playwright install --with-deps chromium`.
+
+```bash
+npm run e2e:warmup        # wait until Vite has finished discovering dependencies
+npm run e2e               # map builder: add a process, keyboard shortcuts, CSV import and undo
+npm run e2e:enhancements  # insurance confirmation, map undo/redo, exception-first setup
+npm run e2e:tabs          # every tab of every industry demo, plus /threat, /report, /login,
+                          # /privacy, /terms, /firm and a bad /share link; fails on any page error
+npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
+```
+
+`scripts/README.md` lists every script and the CI job that runs it.
+
+### Environment
+
+`.env.example` names every variable the app reads, grouped by feature, with
+what each one enables and what happens when it is empty: the database and
+sign-in (required in production), the public app URL, the assistants and
+their daily ceilings, the scheduled job (`CRON_SECRET`), reminder email
+(Resend), billing (Stripe), the QuickBooks link, error reporting (Sentry or a
+webhook) and hosting outside Vercel. `scripts/deploy-config.test.mjs` fails
+when the code reads a variable the file does not name.
+
+### Database migrations
+
+`migrations/*.sql` is the only schema source. `npm run build` runs
+`scripts/migrate.mjs --only-on-production`: preview deploys, CI and local
+builds leave the database alone, and a production deploy applies pending
+files, refuses to finish without `DATABASE_URL` and `BETTER_AUTH_SECRET`, and
+warns in the build log about each optional feature that is half configured.
+`npm run db:migrate` applies pending files on demand. The ledger
+(`scripts/migrate-core.mjs`) applies each file once under an advisory lock;
+`migrations/renamed.json` maps renumbered files to their old names so an older
+database moves its ledger rows instead of re-applying. The live preview's
+PGLite applies the same files at startup.
+
+### Scheduled job
+
+`vercel.json` calls `/api/cron/digest` every Monday at 13:00 UTC with
+`CRON_SECRET` as a bearer token. The run emails the weekly reminders, purges
+businesses deleted more than 30 days ago, and re-reads QuickBooks connections
+older than 28 days. Without `CRON_SECRET` every run is refused and none of
+this happens; a production build warns about it.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs five jobs on every pull request and every push
+to `main`; the release gate passes only when the other four pass.
+
+- **Typecheck, lint, test, build**: typecheck, lint, formatting, the
+  production dependency audit, `npm test`, the build, its bundle budget
+  (`check:bundle`) and its security headers (`check:headers`).
+- **Migrations against real Postgres**: applies every migration twice, then
+  `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
+  and retry), `test:postgres:quota` (the daily model budget under 64 parallel
+  requests) and `test:postgres:lifecycle` (the business lifecycle on up to
+  eight connections).
+- **Builder end-to-end smoke**: the dev server, then `e2e:warmup`, `e2e`,
+  `e2e:enhancements` and `e2e:tabs`.
+- **Authenticated compiled-server safety**: the production build served by
+  `scripts/serve-built-test.mjs` against a disposable `precog_safety_e2e`
+  database; `e2e:safety` signs in two real Better Auth test sessions and checks
+  account boundaries (see `docs/ACCOUNT_DATA_MODEL.md`), then `e2e:tabs`
+  walks every tab on the compiled build. To run it locally, set
+  `PRECOG_AUTH_TEST=1`, `DATABASE_URL` to a local `precog_safety_e2e`
+  database, `BETTER_AUTH_URL=http://localhost:8080` and a 32-character
+  `BETTER_AUTH_SECRET`, then `npm run db:migrate`, `npm run build`,
+  `node scripts/serve-built-test.mjs` and `npm run e2e:safety`.
+- **Release gate**: requires the four jobs above.
+
+A newer push to a pull request cancels its older run; pushes to `main` never
+cancel each other. Actions are pinned to commits and `.github/dependabot.yml`
+keeps them current.
+
+### Pinned dependencies
+
+The project runs on Node 22 (`engines` in `package.json`; CI uses 22, and the
+quota check needs `--experimental-strip-types`, Node 22.6 or later). Both
+version pins came with the app template: `nitro` is pinned to a beta because
+Nitro 3 has no stable release yet, and `overrides` holds `nf3` (Nitro's file
+tracer) at exactly 0.3.17 although Nitro accepts any 0.3.x from 0.3.17. Try
+removing the override on the next Nitro upgrade.
+
+### How the app behaves
 
 Grok calls require a signed-in user and are rate-limited to 10/min per user, 120/min per process, and 30/min per IP for any LLM call. Logged-out users get the deterministic local brief. Grok calls time out after 20 seconds and fall back locally. The limiters are in-process memory: on serverless hosting each instance counts separately, so treat them as cost control, not abuse control; put a platform-level limit (Vercel Firewall, Cloudflare) in front for the latter. Every Grok brief is post-checked deterministically: dollar figures and percentages in the answer must appear in the tool results it was given, and any that do not are listed under "Check before quoting" at the end of the brief.
 
