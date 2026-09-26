@@ -584,7 +584,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     controlGap:
       "The person taking the money could also cancel the record of taking it. A void is an ordinary, necessary function — which is exactly why it works as a concealment tool. Nobody was reviewing void and no-sale activity by employee.",
     lossUsd: 0,
-    lossIsFloor: true,
+    lossIsFloor: false,
     durationMonths: 8,
     detection: "unknown",
     resolvedYear: 2014,

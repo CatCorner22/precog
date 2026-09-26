@@ -154,29 +154,36 @@ export function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
  * Cases matching any of several rules, most relevant first.
  *
  * A case matches when it cites one of the rules, or when it shows a scheme one
- * of the rules enables. Ordering runs on four keys, in this priority:
+ * of the rules enables. Ordering runs on five keys, in this priority:
  *
  *   1. Citation: a case that cites one of the rules shows that very pair of
  *      duties, so it always sits above a case that only shares a scheme.
- *   2. Scheme overlap: does this case show the kind of fraud these conflicts
+ *   2. Stated loss: a record whose source states no loss never leads while a
+ *      record with a figure is available, so the first case an owner reads
+ *      carries an amount.
+ *   3. Scheme overlap: does this case show the kind of fraud these conflicts
  *      actually enable. An owner asked about vendor payments learns little
  *      from an unrelated case that happens to touch the same rule.
- *   3. Rule overlap: how many of the asked-about rules the case demonstrates.
- *   4. Loss amount: among equally apt cases, the costlier one leads.
+ *   4. Rule overlap: how many of the asked-about rules the case demonstrates.
+ *   5. Loss amount: among equally apt cases, the costlier one leads.
  *
  * Ranking by loss alone would surface the same few large cases against every
  * finding; ranking by rule count alone rewards cases for being narrow rather
  * than for being on point. Use `casesCitingSodRules` wherever a count or a
- * median has to describe cases that show the pair itself.
+ * median has to describe cases that show the pair itself. `library` lets a
+ * test rank a small synthetic set.
  */
-export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
+export function casesForSodRules(
+  ruleIds: readonly string[],
+  library: readonly CaseStudy[] = CASE_LIBRARY,
+): CaseStudy[] {
   const wantedRules = new Set(ruleIds);
   const wantedSchemes = new Set(schemesForSodRules(ruleIds));
 
   // A named rule selects cases that cite it. A family-derived id cites nothing,
   // so those select on scheme overlap instead — the case still demonstrates
   // that combination of duties, which is what the finding is about.
-  const candidates = CASE_LIBRARY.filter(
+  const candidates = library.filter(
     (c) =>
       c.sodRuleIds.some((id) => wantedRules.has(id)) ||
       (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
@@ -195,6 +202,7 @@ export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
       .sort(
         (a, b) =>
           Number(b.ruleHits > 0) - Number(a.ruleHits > 0) ||
+          Number(b.study.lossUsd > 0) - Number(a.study.lossUsd > 0) ||
           b.schemeHits - a.schemeHits ||
           b.ruleHits - a.ruleHits ||
           byLossDescending(a.study, b.study),

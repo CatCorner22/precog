@@ -28,6 +28,7 @@ import {
   sectorForIndustry,
   sectorsForIndustry,
 } from "./index";
+import type { CaseStudy } from "./types";
 
 describe("case library integrity", () => {
   const ruleIds = new Set(CONFLICT_RULES.map((r) => r.id));
@@ -44,6 +45,8 @@ describe("case library integrity", () => {
         expect(CONTROL_CATALOG[w.control], `${c.id}: ${w.control}`).toBeDefined();
       }
       if (c.lossUsd === 0) expect(c.caveat, `${c.id} has no loss and no caveat`).toBeTruthy();
+      // A zero is no amount at all, so it cannot be a minimum.
+      if (c.lossIsFloor) expect(c.lossUsd, `${c.id} floor of $0`).toBeGreaterThan(0);
     }
   });
 
@@ -193,6 +196,72 @@ describe("recommendedStepsForRules", () => {
 });
 
 describe("case ranking", () => {
+  const mk = (id: string, over: Partial<CaseStudy>): CaseStudy => ({
+    ...CASE_LIBRARY[0],
+    id,
+    sector: "any",
+    schemes: [],
+    sodRuleIds: [],
+    lossUsd: 1000,
+    lossIsFloor: false,
+    ...over,
+  });
+
+  it("orders by citation, then stated loss, then scheme overlap, then rule overlap, then amount", () => {
+    // rule-collect-post enables skimming and cash-larceny.
+    const library = [
+      mk("related-large", { schemes: ["skimming", "cash-larceny"], lossUsd: 9_000_000 }),
+      mk("cites-no-loss", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 0,
+      }),
+      mk("cites-one-scheme-large", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming"],
+        lossUsd: 500_000,
+      }),
+      mk("cites-two-schemes-small", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 20_000,
+      }),
+      mk("cites-two-schemes-large", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 90_000,
+      }),
+      mk("unrelated", { schemes: ["payroll"] }),
+    ];
+    expect(casesForSodRules(["rule-collect-post"], library).map((c) => c.id)).toEqual([
+      "cites-two-schemes-large",
+      "cites-two-schemes-small",
+      "cites-one-scheme-large",
+      "cites-no-loss",
+      "related-large",
+    ]);
+  });
+
+  it("never leads a rule with a record that states no loss while one with a figure cites it", () => {
+    for (const rule of CONFLICT_RULES) {
+      const citing = casesCitingSodRules([rule.id]);
+      if (!citing.some((c) => c.lossUsd > 0)) continue;
+      expect(citing[0].lossUsd, rule.id).toBeGreaterThan(0);
+      for (const { id: industry } of INDUSTRIES) {
+        expect(
+          caseForRule(rule.id, industry)?.study.lossUsd,
+          `${rule.id} ${industry}`,
+        ).toBeGreaterThan(0);
+      }
+    }
+    // The counter-clerk record, whose source states no loss, used to lead these.
+    for (const industry of ["restaurant", "construction", "general", "nonprofit"]) {
+      expect(caseForRule("rule-collect-post", industry)?.study.id).not.toBe(
+        "case-void-no-sale-counter",
+      );
+    }
+  });
+
   it("leads every rule with a case that cites it, and never calls a cross-sector case the owner's line", () => {
     for (const rule of CONFLICT_RULES) {
       if (casesCitingSodRules([rule.id]).length === 0) continue;

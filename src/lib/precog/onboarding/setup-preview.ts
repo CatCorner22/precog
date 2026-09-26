@@ -50,7 +50,8 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
       conflict,
       study: matched?.study ?? null,
       citesRule: matched?.citesRule ?? false,
-      lossPhrase: matched ? lossPhrase(matched.study) : null,
+      // A record with no stated loss has no amount to print.
+      lossPhrase: matched && matched.study.lossUsd > 0 ? lossPhrase(matched.study) : null,
       durationPhrase:
         matched && typeof matched.study.durationMonths === "number"
           ? durationPhrase(matched.study.durationMonths)
