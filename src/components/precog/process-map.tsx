@@ -744,8 +744,8 @@ export function ProcessMap({
                 type="button"
                 onClick={undoMap}
                 disabled={!canUndoMap}
-                title="Undo (Ctrl+Z)"
-                aria-label="Undo"
+                title="Undo map layout (Ctrl+Z)"
+                aria-label="Undo map layout"
                 className="inline-flex h-8 items-center gap-1 px-2.5 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
               >
                 <Undo2 className="size-3.5" />
@@ -755,8 +755,8 @@ export function ProcessMap({
                 type="button"
                 onClick={redoMap}
                 disabled={!canRedoMap}
-                title="Redo (Ctrl+Shift+Z)"
-                aria-label="Redo"
+                title="Redo map layout (Ctrl+Shift+Z)"
+                aria-label="Redo map layout"
                 className="inline-flex h-8 items-center gap-1 border-l border-border px-2.5 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
               >
                 <Redo2 className="size-3.5" />
