@@ -71,6 +71,11 @@ jobs:
       - name: Apply again; the ledger must skip every file
         run: node scripts/migrate.mjs | tee second-run.log && grep -q "up to date" second-run.log
 
+      - name: Concurrent migration admission, timeout and rollback
+        run: node scripts/test-migrations-postgres.mjs
+        env:
+          PRECOG_MIGRATION_TEST: "1"
+
       - name: Atomic model budget with concurrent PostgreSQL connections
         run: node --experimental-strip-types scripts/test-quota-postgres.mjs
         env:

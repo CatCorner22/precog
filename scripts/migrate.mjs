@@ -17,6 +17,9 @@ import { runMigrations } from "./migrate-core.mjs";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 const isProduction = process.env.VERCEL_ENV === "production";
+const lockTimeoutMs = process.env.MIGRATION_LOCK_TIMEOUT_MS?.trim()
+  ? Number(process.env.MIGRATION_LOCK_TIMEOUT_MS)
+  : 30_000;
 if (isProduction) {
   // A production deploy without these runs on an in-memory database with a
   // random signing secret: every cold start loses all data and signs everyone
@@ -37,11 +40,16 @@ if (!databaseUrl) {
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 async function main() {
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  const pool = new pg.Pool({
+    connectionString: databaseUrl,
+    max: 1,
+    connectionTimeoutMillis: 10_000,
+  });
   const client = await pool.connect();
   try {
     await runMigrations({
       migrationsDir,
+      lockTimeoutMs,
       exec: async (sql, params) => (await client.query(sql, params)).rows,
       log: console.log,
     });
