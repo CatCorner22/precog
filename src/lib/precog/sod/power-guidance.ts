@@ -260,6 +260,23 @@ function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
       evidence: "Backup status, restore-test result, and exception ticket",
       boundary: "Keep a separate immutable copy and independent failure alerts.",
     },
+    hold_company_card: {
+      purpose: `Buy approved goods and services for the ${w.business} on a company card or charge account.`,
+      evidence: "Receipt and stated business purpose for every charge, matched to the statement",
+      boundary:
+        "Should not review or code the card's own statement, or approve the spending on it.",
+    },
+    review_card_statement: {
+      purpose:
+        "Read each card statement line against a receipt and a purpose, and code it into the books.",
+      evidence: "Statement initialled line by line, with the receipts and any queried charge",
+      boundary: "Should hold no card on the account being reviewed.",
+    },
+    approve_expenses: {
+      purpose: "Approve expense claims, reimbursements, and card spending before they are paid.",
+      evidence: "Approval on each claim, with the receipt and the purpose stated",
+      boundary: "Should not approve their own claims or the statement of a card they hold.",
+    },
     view_reports_only: {
       purpose: "Read dashboards and reports without changing transactions or configuration.",
       evidence: "Read-only role assignment and periodic access review",

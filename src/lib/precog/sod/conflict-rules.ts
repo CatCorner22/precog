@@ -38,6 +38,9 @@ export type EntitlementId =
   | "sign_checks"
   | "review_audit_logs"
   | "manage_backups"
+  | "hold_company_card"
+  | "review_card_statement"
+  | "approve_expenses"
   | "view_reports_only";
 
 export interface Entitlement {
@@ -272,6 +275,39 @@ export const ENTITLEMENTS: Entitlement[] = [
     family: "custody",
     processIds: ["proc-clinical", "proc-claims"],
     riskWeight: 4,
+  },
+  {
+    // A card is a checking account under another name: it takes cash
+    // advances, buys gift cards, and pays a personal bill as readily as a
+    // supplier. Holding one is holding money. A business with no card has
+    // nobody holding this, and that is not a gap.
+    id: "hold_company_card",
+    label: "Spend on a company card or charge account",
+    family: "custody",
+    processIds: ["proc-ap"],
+    riskWeight: 4,
+    optional: true,
+  },
+  {
+    // In most small businesses nobody "reviews" the statement as such: the
+    // person who codes each line into the books is the review. Many have
+    // nobody in the seat at all, so an empty seat is a choice, not a gap.
+    id: "review_card_statement",
+    label: "Review and code the company card statement",
+    family: "reconciliation",
+    processIds: ["proc-ap"],
+    riskWeight: 4,
+    optional: true,
+  },
+  {
+    // Reimbursements are the quietest way to raise one's own pay: untaxed,
+    // and never read as a raise. Whoever signs them off holds this.
+    id: "approve_expenses",
+    label: "Approve expense claims and card spending",
+    family: "authorization",
+    processIds: ["proc-ap", "proc-payroll"],
+    riskWeight: 4,
+    optional: true,
   },
 ];
 
@@ -757,6 +793,34 @@ export const CONFLICT_RULES: ConflictRule[] = [
     fraudPath: "Turn off the approval requirement, then write the balance off",
     compensatingDefaults: ["Separate admin account from daily billing login"],
     linkedControlId: "c-sod-billing",
+  },
+  {
+    id: "rule-card-review",
+    a: "hold_company_card",
+    b: "review_card_statement",
+    severity: "high",
+    title: "Company card + its statement review",
+    why: "The person who spends on the company card is the person who reads its statement and codes each line into the books, so a personal charge, a cash advance, or a gift card is booked as supplies and nobody else ever sees the line. A Bellevue dental office worker ran $174,336 of cash advances and personal spending through a practice card whose statement came to her; a Hutchinson construction controller who held the company cards and reconciled everything took $2.06 million. Both cases are in the library below.",
+    fraudPath:
+      "Spend on the card, then code the charge as a business expense on a statement nobody else reads",
+    compensatingDefaults: [
+      "Owner reads the company card statement line by line every month, before it is coded",
+      "Cash advances turned off on every company card, with a low limit per card",
+    ],
+  },
+  {
+    id: "rule-card-approve",
+    a: "hold_company_card",
+    b: "approve_expenses",
+    severity: "high",
+    title: "Company card + expense approval",
+    why: "The person who spends on the company card also approves expense claims and card spending, so their own charges and reimbursements carry an approval that came from the same hands, and nobody without a stake in the spending ever asks what a charge was for. A Franklin, Massachusetts office manager put $105,000 of personal spending on the company card and paid herself $268,046 in reimbursements for expenses she never incurred, with nobody else's approval on any of it; that case is in the library below.",
+    fraudPath:
+      "Charge personal spending to the card or claim a reimbursement, then approve it yourself",
+    compensatingDefaults: [
+      "Nobody approves their own card statement or expense claim, at any amount",
+      "Every reimbursement above a small threshold needs a receipt and a second person's approval",
+    ],
   },
 ];
 

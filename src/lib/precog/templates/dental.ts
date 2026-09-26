@@ -834,6 +834,7 @@ const roleTemplates: Record<string, EntitlementId[]> = {
     "approve_writeoffs",
     "approve_vendor",
     "approve_payroll",
+    "approve_expenses",
     "bank_reconcile",
     "view_reports_only",
     "pms_admin_roles",
@@ -848,6 +849,8 @@ const roleTemplates: Record<string, EntitlementId[]> = {
     "approve_writeoffs",
     "pms_admin_roles",
     "submit_claims",
+    "hold_company_card",
+    "review_card_statement",
     "view_reports_only",
   ],
   "Front Desk Lead": [

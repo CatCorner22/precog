@@ -6,10 +6,10 @@ import { formatUsd as usd } from "@/lib/utils";
 
 /**
  * The duties each catalog control polices: a control answers an open finding
- * when it watches either duty of the finding's pair. Controls that watch
- * something no duty grid records (a company card, gift cards, expenses) or
- * that apply to everyone regardless of duties (background checks, time away)
- * answer no finding; they still appear, after the ones that do.
+ * when it watches either duty of the finding's pair. Controls that apply to
+ * everyone regardless of duties (background checks, time away) or that watch
+ * a pattern rather than a duty (comparing locations) answer no finding; they
+ * still appear, after the ones that do.
  */
 const ALL_DUTIES: EntitlementId[] = ENTITLEMENTS.map((e) => e.id);
 
@@ -37,6 +37,7 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
     "approve_writeoffs",
     "approve_payroll",
     "approve_vendor",
+    "approve_expenses",
     "post_adjustments",
   ],
   "electronic-remittance": ["collect_cash", "post_payments", "prepare_deposit"],
@@ -50,8 +51,8 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
   "new-payee-second-approval": ["create_vendor", "approve_vendor"],
   "bank-alerts-on-payee-change": ["create_vendor", "release_payment", "initiate_ach"],
   "dual-release-above-threshold": ["release_payment", "initiate_ach", "sign_checks"],
-  "card-statement-line-review": [],
-  "receipt-and-second-approval": [],
+  "card-statement-line-review": ["hold_company_card", "review_card_statement"],
+  "receipt-and-second-approval": ["approve_expenses", "hold_company_card"],
   "adjustments-report-by-employee": [
     "post_adjustments",
     "approve_writeoffs",
@@ -67,7 +68,9 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
     "approve_invoices",
     "approve_payroll",
     "approve_writeoffs",
+    "approve_expenses",
     "bank_reconcile",
+    "review_card_statement",
   ],
   "billing-matches-the-schedule": ["submit_claims", "change_fee_schedule"],
   "compare-across-locations": [],
@@ -75,7 +78,7 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
   "payee-account-not-an-employee": ["create_vendor", "edit_payroll_master", "release_payment"],
   "confirm-remittance-account": ["collect_cash", "post_payments"],
   "terminated-staff-vs-payroll": ["edit_payroll_master", "enter_payroll"],
-  "gift-card-purchases-controlled": [],
+  "gift-card-purchases-controlled": ["hold_company_card"],
   "background-check-money-handlers": [],
   "mandatory-time-away": [],
   "count-inventory-independently": ["order_supplies", "receive_goods"],

@@ -83,6 +83,11 @@ export const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-access-log": ["data-theft", "data-destruction", "financial-statement"],
   "rule-access-export": ["data-theft"],
   "rule-backup-access": ["data-destruction", "data-theft"],
+  // Spend on the company card and read the statement nobody else reads, or
+  // approve your own charges and claims: the card is the expense scheme's
+  // instrument in every card case the library holds.
+  "rule-card-review": ["expense-reimbursement"],
+  "rule-card-approve": ["expense-reimbursement"],
 };
 
 /**

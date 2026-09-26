@@ -234,6 +234,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "rule-release-rec",
       "rule-sign-rec",
       "rule-payroll",
+      "rule-card-review",
     ],
     wouldHaveCaughtIt: [
       {
@@ -310,7 +311,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 63,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: [],
+    sodRuleIds: ["rule-card-review"],
     wouldHaveCaughtIt: [
       {
         control: "receipt-and-second-approval",
@@ -512,7 +513,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 108,
     detection: "unknown",
     resolvedYear: 2025,
-    sodRuleIds: [],
+    sodRuleIds: ["rule-card-review"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -1442,7 +1443,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "law-enforcement",
     resolvedYear: 2012,
-    sodRuleIds: ["rule-release-rec"],
+    sodRuleIds: ["rule-release-rec", "rule-card-review"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",

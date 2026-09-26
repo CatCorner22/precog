@@ -524,6 +524,60 @@ export const DUTY_CONTROL_MEASURES: Record<EntitlementId, DutyControlMeasures> =
       "Investigate gaps, rotate credentials, and revise recovery design",
     ],
   ),
+  hold_company_card: measures(
+    [
+      "Write down what the card may buy, who holds one, and the receipt rule for every charge",
+      "Prohibit cash advances, gift cards, and personal use on any company card",
+    ],
+    [
+      "Turn off cash advances at the issuer and set a low limit per card",
+      "Issue one named card per holder; never a shared card or a card in the business's name alone",
+    ],
+    [
+      "Owner reads every statement line by line each month, against the receipts",
+      "Alert on gift-card, marketplace, and after-hours charges",
+    ],
+    [
+      "Recover personal charges and cancel the card after a breach",
+      "Restrict holders and lower limits after repeated exceptions",
+    ],
+  ),
+  review_card_statement: measures(
+    [
+      "Assign statement review to someone who holds no card on the account",
+      "Require a receipt and a stated purpose before a line is coded",
+    ],
+    [
+      "Send the statement to the reviewer directly, not through a cardholder",
+      "Lock coding of the statement to the reviewer's login",
+    ],
+    [
+      "Owner reads the coded statement and questions any line without a receipt",
+      "Compare card spending by holder month over month",
+    ],
+    [
+      "Recode misposted lines and recover any personal charge found",
+      "Move the review when the reviewer is found to hold a card",
+    ],
+  ),
+  approve_expenses: measures(
+    [
+      "Set the receipt threshold, the approval chain, and who approves the approver",
+      "Prohibit anyone approving their own claim or card statement",
+    ],
+    [
+      "Pay reimbursements as their own line, never through payroll",
+      "Require the receipt attached before a claim can be approved",
+    ],
+    [
+      "Owner reads reimbursements by person each month and questions the pattern",
+      "Compare claims against travel and schedules for the period",
+    ],
+    [
+      "Recover unsupported reimbursements and record the review",
+      "Remove approval authority after a self-approval is found",
+    ],
+  ),
   view_reports_only: measures(
     [
       "Define approved reports, users, uses, and confidentiality",

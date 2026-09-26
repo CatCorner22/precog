@@ -307,6 +307,8 @@ export const OVERSIGHT_DUTIES: ReadonlySet<EntitlementId> = new Set<EntitlementI
   "pms_admin_roles",
   "review_audit_logs",
   "manage_backups",
+  "review_card_statement",
+  "approve_expenses",
   "view_reports_only",
 ]);
 
@@ -315,6 +317,7 @@ const APPROVAL_DUTIES = new Set<EntitlementId>([
   "approve_invoices",
   "approve_payroll",
   "approve_writeoffs",
+  "approve_expenses",
   "sign_checks",
 ]);
 const ACCESS_DUTIES = new Set<EntitlementId>(["manage_user_access", "pms_admin_roles"]);
@@ -394,7 +397,24 @@ function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
 function familyPair(a: EntitlementId, b: EntitlementId): boolean {
   if (ACCESS_DUTIES.has(a) && ACCESS_DUTIES.has(b)) return false;
   if (PAYMENT_CHANNELS.has(a) && PAYMENT_CHANNELS.has(b)) return false;
+  if (isCardPurchase(a, b)) return false;
+  // Reading the card statement is a check on the people who spend on the
+  // card, not on the bills or the payments, so it pairs with holding a card
+  // (the named rule) and with nothing else in the payables cycle.
+  if (a === "review_card_statement" || b === "review_card_statement") return false;
   return familiesConflict(entFamily(a), entFamily(b)) && sharesProcess(a, b);
+}
+
+/**
+ * Ordering supplies and paying for them on the company card is one act of
+ * buying, not an approval and a payment in the same hands; the control on it
+ * is whoever reads the statement afterwards, which the named card rules cover.
+ */
+function isCardPurchase(a: EntitlementId, b: EntitlementId): boolean {
+  return (
+    (a === "hold_company_card" && b === "order_supplies") ||
+    (a === "order_supplies" && b === "hold_company_card")
+  );
 }
 
 function sharesProcess(a: EntitlementId, b: EntitlementId): boolean {
@@ -833,6 +853,15 @@ export function detectSodConflicts(
   if (conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && open(c))) {
     recommendations.push(
       "Turn on dual release for electronic payments above the amount you set, and have the owner sign off on every new vendor.",
+    );
+  }
+  if (
+    conflicts.some(
+      (c) => (c.ruleId === "rule-card-review" || c.ruleId === "rule-card-approve") && open(c),
+    )
+  ) {
+    recommendations.push(
+      "Have the owner read every company card statement line by line before it is coded, turn off cash advances on the cards, and let nobody approve their own card spending or expense claims.",
     );
   }
   if (
