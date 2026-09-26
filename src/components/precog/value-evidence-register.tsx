@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   summarizeValueEvidence,
   formatEvidenceAmount,
-  assessEvidenceQuality,
   parseValueEvidence,
   serializeValueEvidence,
   type ValueEvidence,
@@ -31,7 +30,6 @@ export function ValueEvidenceRegister({
   const [editSource, setEditSource] = useState("");
   const [transferMessage, setTransferMessage] = useState("");
   const summary = summarizeValueEvidence(items);
-  const quality = assessEvidenceQuality(items);
   const add = () => {
     if (!draft.description.trim()) return;
     onChange([
@@ -92,8 +90,8 @@ export function ValueEvidenceRegister({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={quality.score === 100 && items.length ? "primary" : "default"}>
-              {quality.score}% evidence ready
+            <Badge variant={summary.score === 100 && items.length ? "primary" : "default"}>
+              {summary.score}% evidence ready
             </Badge>
             <Badge variant="default">
               {summary.verified}/{summary.total} verified
@@ -274,10 +272,10 @@ export function ValueEvidenceRegister({
             ))}
           </div>
         )}
-        {items.length > 0 && (quality.unsourced > 0 || quality.stale > 0 || quality.future > 0) && (
+        {items.length > 0 && (summary.unsourced > 0 || summary.stale > 0 || summary.future > 0) && (
           <p className="text-xs text-warn">
-            Evidence readiness excludes {quality.unsourced} unsourced, {quality.stale} stale or
-            undated, and {quality.future} future-dated {quality.future === 1 ? "record" : "records"}
+            Evidence readiness excludes {summary.unsourced} unsourced, {summary.stale} stale or
+            undated, and {summary.future} future-dated {summary.future === 1 ? "record" : "records"}
             . Refresh records older than 12 months and correct future dates.
           </p>
         )}

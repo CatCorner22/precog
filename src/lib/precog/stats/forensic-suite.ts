@@ -167,7 +167,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
       severity: review ? "review" : gaps.length > 0 ? "watch" : "info",
       summary:
         gaps.length > 0
-          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} where cumulative deposits trail cumulative payments by more than 1% within two business days (largest shortfall $${largestShortfall.toFixed(2)}).`
+          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} where cumulative deposits trail cumulative payments by more than 1% within two business days (largest shortfall ${CENTS.format(largestShortfall)}).`
           : "Deposits keep pace with payments within two business days.",
       detail: ["This cumulative check allows timing lags of a day or two without flagging them."],
       examples: gaps.slice(0, 8).map((gap) => gap.date),

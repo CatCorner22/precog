@@ -471,9 +471,9 @@ export function ScenarioCompare({
                             d && d.vsBaseline.retainedDelta > 0 && "text-danger",
                           )}
                         >
-                          {c.id === report.baselineId
+                          {c.id === report.baselineId || !d
                             ? "—"
-                            : formatUsdDelta(d?.vsBaseline.retainedDelta ?? 0)}
+                            : formatUsdDelta(d.vsBaseline.retainedDelta)}
                         </td>
                       </tr>
                     );

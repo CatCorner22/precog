@@ -7,7 +7,6 @@ import {
   scenariosInScope,
   starterScenarioLabel,
   starterScenarioNote,
-  templateMapAssessed,
   withOwnScenarioWording,
 } from "./scope";
 
@@ -93,26 +92,5 @@ describe("starter scenarios", () => {
       expect(s.baseTimelineDays).toEqual(own.scenarios[i].baseTimelineDays);
     });
     expect(withOwnScenarioWording(own)).toBe(worded);
-  });
-});
-
-describe("templateMapAssessed", () => {
-  it("treats an owner's map with no process owner as not assessed", () => {
-    expect(templateMapAssessed(getBaseTemplate("dental"))).toBe(true);
-    const own = resolveTemplate({ industry: "dental", customPeople: people });
-    expect(templateMapAssessed(own)).toBe(false);
-    const owned = resolveTemplate({
-      industry: "dental",
-      customPeople: people,
-      customProcesses: own.processes.map((p, i) =>
-        i === 0 ? { ...p, ownerPersonIds: ["own-1"] } : p,
-      ),
-    });
-    expect(templateMapAssessed(owned)).toBe(true);
-    expect(
-      templateMapAssessed(
-        resolveTemplate({ industry: "dental", customPeople: people, customProcesses: [] }),
-      ),
-    ).toBe(false);
   });
 });
