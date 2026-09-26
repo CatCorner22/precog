@@ -260,8 +260,9 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
           <CardHeader>
             <CardTitle className="text-base">Assignment builder</CardTitle>
             <CardDescription>
-              Select a person, then add or remove powers. This is a planning sandbox and does not
-              change production access.
+              Pick a person, then add or remove duties. Each change updates this business&apos;s
+              duty map on every tab and is saved. Undo reverses one step; Discard in Change review
+              returns to the baseline you accepted. No login or system permission changes.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
