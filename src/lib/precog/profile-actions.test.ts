@@ -11,9 +11,11 @@ import {
   isMapCustomized,
   makeMapVersion,
   withDecision,
+  withDecisionReview,
   withDualRelease,
   withRosterLeavers,
   withIndustry,
+  withLeaversConfirmed,
   withMapHealth,
   withMapSnapshot,
   withPeople,
@@ -22,6 +24,7 @@ import {
   withReportSent,
   withRestoredVersion,
   withRiskVariables,
+  withSavedBlocks,
   withStaff,
 } from "./profile-actions";
 import { captureMapSnapshot } from "./builder/map-history";
@@ -259,5 +262,50 @@ describe("the journal caps", () => {
     expect(p.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
     expect(stored.decisions[0].subject).toHaveLength(MAX_DECISION_SUBJECT);
     expect(stored.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
+  });
+});
+
+describe("journal and list edits", () => {
+  it("closes a reviewed decision with a snapshot, and keeps a still-open one open", () => {
+    const p = withDecision(
+      defaultProfile("general"),
+      { subject: "Bank rec", kind: "remediate", note: "" },
+      "d1",
+      NOW,
+    );
+    const done = withDecisionReview(p, "d1", "done", " fixed ", 90, NOW);
+    expect(done.decisions[0].status).toBe("closed");
+    expect(done.decisions[0].reviews?.[0]).toMatchObject({ outcome: "done", note: "fixed" });
+    expect(done.decisions[0].reviews?.[0].snapshot.at).toBeTruthy();
+    const open = withDecisionReview(p, "d1", "still_open", undefined, 30, NOW);
+    expect(open.decisions[0].status).toBe("open");
+    expect(withDecisionReview(p, "missing", "done", undefined, 90, NOW)).toBe(p);
+  });
+
+  it("adds one journal entry per confirmed leaver and ignores unknown ids", () => {
+    const team: Person[] = [
+      { id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] },
+      { id: "b", name: "Bea", role: "Clerk", active: true, entitlements: [] },
+    ];
+    const withTeam = withPeople(defaultProfile("general"), team, "2026-09-25");
+    const left = withPeople(withTeam, [team[0], { ...team[1], active: false }], "2026-09-26");
+    const id = left.leaverAccessChecks?.[0].id ?? "";
+    const confirmed = withLeaversConfirmed(left, [id, "nobody"], "2026-09-27");
+    expect(confirmed.decisions).toHaveLength(left.decisions.length + 1);
+    expect(confirmed.leaverAccessChecks?.[0].confirmedOn).toBe("2026-09-27");
+    expect(withLeaversConfirmed(confirmed, [id], "2026-09-28")).toBe(confirmed);
+    expect(withLeaversConfirmed(left, ["nobody"], "2026-09-27")).toBe(left);
+  });
+
+  it("keeps the newest 24 saved blocks", () => {
+    const blocks = Array.from({ length: 30 }, (_, i) => ({
+      id: `b${i}`,
+      name: `Block ${i}`,
+      description: "",
+      category: "payments",
+      template: { name: "x", layer: "process", description: "", dependencies: [], controlIds: [] },
+      createdAt: NOW.toISOString(),
+    })) as unknown as Parameters<typeof withSavedBlocks>[1];
+    expect(withSavedBlocks(defaultProfile("general"), blocks).savedProcessBlocks).toHaveLength(24);
   });
 });
