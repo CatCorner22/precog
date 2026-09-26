@@ -1,3 +1,4 @@
+import type { Departure } from "../continuity/access-removal";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
@@ -5,7 +6,8 @@ import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 /**
  * The setup grid in progress, kept in this tab's session storage so a reload
  * does not throw away what the owner has entered: the line of business they
- * picked, the business name, the rows, and a roster pasted but not yet used.
+ * picked, the business name, the rows, a roster pasted but not yet used, and
+ * the people a pasted roster left out as no longer working here.
  */
 export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 
@@ -18,6 +20,12 @@ export interface SetupDraft {
   paste: string;
   /** The unfinished business the draft was entered for; absent in drafts from older versions. */
   businessId?: string;
+  /**
+   * People a pasted roster marked terminated or inactive, whose pay and
+   * logins finishing asks the owner to confirm are stopped. The paste is
+   * cleared once used, so the draft is the only place they survive a reload.
+   */
+  leftOut?: Departure[];
 }
 
 function sessionArea(): StorageLike | null {
@@ -30,13 +38,48 @@ function sessionArea(): StorageLike | null {
 
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
 
+const optional = (value: unknown, type: "string" | "boolean") =>
+  value === undefined || typeof value === type;
+
+/** A row every field of which has the type the grid gives it; anything else is dropped. */
 function isRow(value: unknown): value is OwnTeamRow {
   if (!value || typeof value !== "object") return false;
   const row = value as Record<string, unknown>;
-  return typeof row.name === "string" && typeof row.role === "string" && Array.isArray(row.duties);
+  const readAs = row.readAs as Record<string, unknown> | undefined;
+  return (
+    typeof row.name === "string" &&
+    typeof row.role === "string" &&
+    Array.isArray(row.duties) &&
+    row.duties.every((d) => typeof d === "string") &&
+    optional(row.owner, "boolean") &&
+    optional(row.onLeave, "boolean") &&
+    (row.tenureYears === undefined ||
+      (typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears))) &&
+    ["department", "employeeId", "lastDay", "suggestedFor", "rowId"].every((key) =>
+      optional(row[key], "string"),
+    ) &&
+    (readAs === undefined ||
+      (typeof readAs === "object" &&
+        readAs !== null &&
+        typeof readAs.role === "string" &&
+        optional(readAs.title, "string") &&
+        optional(readAs.partial, "boolean")))
+  );
 }
 
-/** The draft in this tab, or null when there is none or it is not one this version can read. */
+function isDeparture(value: unknown): value is Departure {
+  if (!value || typeof value !== "object") return false;
+  const who = value as Record<string, unknown>;
+  return (
+    typeof who.name === "string" && optional(who.role, "string") && optional(who.personId, "string")
+  );
+}
+
+/**
+ * The draft in this tab, or null when there is none or it is not one this
+ * version can read, such as a draft for a line of business this version does
+ * not know.
+ */
 export function readSetupDraft(storage: StorageLike | null = sessionArea()): SetupDraft | null {
   let raw: string | null;
   try {
@@ -49,16 +92,16 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     const draft = JSON.parse(raw) as Record<string, unknown>;
     if (!draft || typeof draft !== "object") return null;
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
+    if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
+    const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
     return {
       step: draft.step === "team" ? "team" : "industry",
-      selected:
-        typeof draft.selected === "string" && INDUSTRY_IDS.has(draft.selected)
-          ? (draft.selected as IndustryId)
-          : "dental",
+      selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, 80),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
+      ...(leftOut.length > 0 ? { leftOut } : {}),
     };
   } catch {
     return null;

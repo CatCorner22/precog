@@ -147,6 +147,7 @@ export function IndustryOnboarding() {
     setRows(start.draft.rows);
     setStep(start.draft.step);
     setPaste(start.draft.paste);
+    setLeftOut(start.draft.leftOut ?? []);
     setPasteOpen(start.draft.paste.trim().length > 0);
     setRestoredEarlier(start.restoredEarlier);
     setKeepsNothing(!canKeepLocalData());
@@ -157,9 +158,12 @@ export function IndustryOnboarding() {
   useEffect(() => {
     if (!restored) return;
     setDraftSaved(
-      writeSetupDraft({ step, selected, businessName, rows, paste, businessId }, workspace.session),
+      writeSetupDraft(
+        { step, selected, businessName, rows, paste, businessId, leftOut },
+        workspace.session,
+      ),
     );
-  }, [restored, step, selected, businessName, rows, paste, businessId, workspace.session]);
+  }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
 
   // Each step opens at its question, with focus on it: the dialog is not
   // scrolled to a button further down, and a screen reader starts with the

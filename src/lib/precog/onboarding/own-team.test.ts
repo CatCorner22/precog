@@ -10,7 +10,9 @@ import {
   addableDuties,
   buildOwnTeam,
   coreDutiesForTitle,
+  firstRowForIndustry,
   firstUnnamedWithDuties,
+  isLeaderTitle,
   mergeTeamRows,
   onLeavePersonIds,
   ownerRow,
@@ -629,5 +631,21 @@ describe("findings that rest on duties guessed from job titles", () => {
     const confirmed = confirmTitleDuties(people);
     expect(confirmed[0]).not.toHaveProperty("dutiesFromTitle");
     expect(titleDutiesSentence(confirmed)).toBe("");
+  });
+});
+
+describe("a nonprofit paste whose leader is titled CEO", () => {
+  it("replaces the blank Executive Director row with the pasted leader", () => {
+    const tpl = getBaseTemplate("nonprofit");
+    const result = parseRoster("Maria Lopez, President & CEO\nJon Ruiz, Bookkeeper", tpl);
+    const { rows: incoming } = pastedRows(result, "nonprofit");
+    const grid = firstRowForIndustry([ownerRow()], "nonprofit");
+    const { kept, ownerRow: outcome } = rowsKeptForAdding(
+      grid,
+      incoming.some((r) => rowOwnsBusiness(r)),
+      incoming.some((r) => isLeaderTitle(r.role)),
+    );
+    expect(outcome).toBe("leader-replaced");
+    expect(kept).toEqual([]);
   });
 });

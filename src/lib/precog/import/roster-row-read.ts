@@ -422,9 +422,10 @@ export function readPerson(
 
   // A row naming someone already on the team takes over that person's
   // identity: by employee id first, else by name, each person once. Fields
-  // the file has no column for keep that person's values.
+  // the row leaves blank keep that person's values, the title included: a
+  // bare name in a pasted list keeps the person's role and duties.
   const existing = existingPerson(context, name, employeeId);
-  const hasTitle = columns.titles.length > 0;
+  const hasTitle = titleValues.length > 0;
   const role =
     hasTitle || !existing
       ? canonicalRole(roleValue || "Team member", tpl.roleTemplates)

@@ -159,6 +159,9 @@ describe("job catalog", () => {
     expect(matchJobTitle("Deposit Clerk")?.entry.id).toBe("cash-office");
     expect(matchJobTitle("AP Manager")?.entry.id).toBe("accounts-payable");
     expect(matchJobTitle("Collections Manager")?.entry.id).toBe("accounts-receivable");
+    // A hotel's guest service manager is the lodging manager, singular or plural.
+    expect(matchJobTitle("Guest Service Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Guest Services Manager")?.entry.id).toBe("hotel-manager");
     expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
     expect(matchJobTitle("Night Manager")?.entry.id).toBe("shift-lead");
     expect(matchJobTitle("Reconciliation Specialist")?.entry.id).toBe("accountant");
@@ -520,5 +523,36 @@ describe("job catalog", () => {
     expect(duties).toEqual(
       expect.arrayContaining(["post_payments", "release_payment", "enter_payroll"]),
     );
+  });
+});
+
+describe("aliases that must not capture an unrelated title", () => {
+  it("reads a special ed teacher or an ed tech as teaching staff, not the executive director", () => {
+    for (const title of ["Special Ed Teacher", "Physical Ed Teacher", "Ed Tech", "Ed Assistant"]) {
+      expect(matchJobTitle(title, "nonprofit")?.entry.id, title).toBe("teacher");
+      expect(entitlementsForTitle(title, "general"), title).not.toContain("sign_checks");
+    }
+    expect(matchJobTitle("ED")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("ED / Founder")?.entitlements).toContain("sign_checks");
+  });
+
+  it("reads client, guest and member service managers as customer service, singular or plural", () => {
+    for (const industry of ["dental", "general"]) {
+      for (const title of [
+        "Client Service Manager",
+        "Client Services Manager",
+        "Customer Service Manager",
+        "Member Service Manager",
+      ]) {
+        expect(matchJobTitle(title, industry)?.entry.id, `${title} ${industry}`).toBe(
+          "customer-service",
+        );
+        expect(entitlementsForTitle(title, industry)).not.toContain("approve_writeoffs");
+      }
+    }
+    // A hotel's guest service manager is the lodging manager, singular or plural.
+    expect(matchJobTitle("Guest Service Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Guest Services Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
   });
 });

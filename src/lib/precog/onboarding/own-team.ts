@@ -325,9 +325,13 @@ export function rowsKeptForAdding(
  */
 export type FirstRowOutcome = "kept" | "replaced" | "leader-kept" | "leader-replaced" | "none";
 
-/** Whether a grid row's title reads as a nonprofit's executive director. */
+/**
+ * Whether a grid row's title reads as a nonprofit's executive director. Only
+ * a nonprofit has that first row, so the title is read as a nonprofit reads
+ * it: "CEO" and "President & CEO" are its executive director.
+ */
 export function isLeaderTitle(role: string): boolean {
-  return matchJobTitle(role)?.entry.id === "executive-director";
+  return matchJobTitle(role, "nonprofit")?.entry.id === "executive-director";
 }
 
 /** The index of the first row with duties ticked but no name, which finishing would drop; -1 when none. */

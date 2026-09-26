@@ -243,8 +243,12 @@ const ASSISTANT_WORDS = new Set([
   "secretary",
 ]);
 
-/** A single-word owner name that counts only as the whole title: a card dealer owns nothing. */
-const WHOLE_TITLE_ONLY = new Set(["dealer"]);
+/**
+ * Single-word names that count only as the whole title or a whole part of
+ * one: a card dealer owns nothing, and "ED" is an executive director while
+ * "Special Ed Teacher" is a teacher.
+ */
+const WHOLE_TITLE_ONLY = new Set(["dealer", "ed"]);
 
 const carriesMoneyDuty = (e: JobCatalogEntry) =>
   e.entitlements.some((d) => d !== "view_reports_only");
