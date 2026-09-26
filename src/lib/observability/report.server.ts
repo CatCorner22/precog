@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { scrubText, toErrorEvent, type ErrorEvent } from "./error-event";
+import { env } from "@/lib/env.server";
 
 /**
  * Sends scrubbed error events to whichever tracker is configured:
@@ -26,11 +27,6 @@ function withinBudget(now = Date.now()): boolean {
   sentInWindow += 1;
   return sentInWindow <= BUDGET_PER_MINUTE;
 }
-
-const env = (key: string): string | undefined => {
-  const value = process.env[key]?.trim();
-  return value || undefined;
-};
 
 function currentRelease(): string | null {
   return env("VERCEL_GIT_COMMIT_SHA")?.slice(0, 12) ?? null;

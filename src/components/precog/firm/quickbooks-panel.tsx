@@ -9,7 +9,11 @@ import {
   startQuickBooksConnect,
   syncQuickBooksNow,
 } from "@/lib/precog/integrations/qbo/server";
-import { driftIsEmpty, type IntegrationDrift } from "@/lib/precog/integrations/qbo/model";
+import {
+  driftIsEmpty,
+  VENDOR_FIELD_LABEL,
+  type IntegrationDrift,
+} from "@/lib/precog/integrations/qbo/model";
 import type { ConnectionStatus } from "@/lib/precog/integrations/qbo/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 
@@ -173,8 +177,9 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     lines.push({
       label: "Vendor details changed",
       text:
-        drift.vendorsChanged.map((c) => `${c.vendor.name} (${c.fields.join(", ")})`).join("; ") +
-        " — a changed address or account is how a payee gets redirected.",
+        drift.vendorsChanged
+          .map((c) => `${c.vendor.name} (${c.fields.map((f) => VENDOR_FIELD_LABEL[f]).join(", ")})`)
+          .join("; ") + " — a changed address or account is how a payee gets redirected.",
       warn: true,
     });
   }
@@ -198,23 +203,25 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     });
   }
   return (
-    <dl className="mt-3 space-y-2 text-sm">
+    <>
       {drift.since && (
-        <p className="text-xs text-muted">
+        <p className="mt-3 text-xs text-muted">
           Compared with the reading of {drift.since.slice(0, 10)}.
         </p>
       )}
-      {lines.map((line) => (
-        <div
-          key={line.label}
-          className={line.warn ? "rounded-md border border-warn/40 bg-warn/5 p-2" : ""}
-        >
-          <dt className={`text-xs font-medium ${line.warn ? "text-warn" : "text-muted"}`}>
-            {line.label}
-          </dt>
-          <dd className="mt-0.5">{line.text}</dd>
-        </div>
-      ))}
-    </dl>
+      <dl className="mt-2 space-y-2 text-sm">
+        {lines.map((line) => (
+          <div
+            key={line.label}
+            className={line.warn ? "rounded-md border border-warn/40 bg-warn/5 p-2" : ""}
+          >
+            <dt className={`text-xs font-medium ${line.warn ? "text-warn" : "text-muted"}`}>
+              {line.label}
+            </dt>
+            <dd className="mt-0.5">{line.text}</dd>
+          </div>
+        ))}
+      </dl>
+    </>
   );
 }

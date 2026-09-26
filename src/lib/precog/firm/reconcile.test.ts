@@ -66,3 +66,27 @@ describe("matching people whose names are spelled without accents", () => {
     expect(parsed.users.map((u) => u.personId)).toEqual(["p1"]);
   });
 });
+
+describe("role phrases and vendor dates", () => {
+  it("matches role phrases as whole words and ignores filler words", () => {
+    expect(mapRoleToDuties("Administrator")).toEqual({
+      mapped: ["manage_user_access", "pms_admin_roles"],
+      unmatchedTokens: [],
+    });
+    expect(mapRoleToDuties("Standard user")).toEqual({
+      mapped: ["enter_invoices", "post_payments"],
+      unmatchedTokens: [],
+    });
+    expect(mapRoleToDuties("Badminton coach").mapped).toEqual([]);
+  });
+
+  it("reads the vendor date forms the roster importer reads", () => {
+    const csv = "Vendor,Created\nA Co,9/1/26\nB Co,1 Sep 2026\nC Co,2026-09-01\nD Co,2025-01-01\n";
+    expect(parseVendorExport(csv, "2026-09-26").map((v) => [v.name, v.recent])).toEqual([
+      ["A Co", true],
+      ["B Co", true],
+      ["C Co", true],
+      ["D Co", false],
+    ]);
+  });
+});

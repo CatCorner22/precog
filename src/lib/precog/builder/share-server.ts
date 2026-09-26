@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { randomHex } from "@/lib/web-crypto";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
 
@@ -25,12 +26,6 @@ type ShareRow = {
   passcode_hash: string | null;
 };
 
-function makeToken(): string {
-  const bytes = new Uint8Array(18);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 const passcodeLimiter = new SlidingWindowLimiter({ limit: 20, windowMs: 60_000 });
 
 export const createMapShare = createServerFn({ method: "POST" })
@@ -46,7 +41,7 @@ export const createMapShare = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { randomBytes, scryptSync } = await import("node:crypto");
     const sql = await getSql();
-    const token = makeToken();
+    const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
     let passcodeSalt: string | undefined;
     let passcodeHash: string | undefined;

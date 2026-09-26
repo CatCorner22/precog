@@ -1,4 +1,5 @@
 import { nameKey } from "../../text";
+
 /**
  * QuickBooks Online, reduced to what a duty map needs: who is paid (vendors)
  * and who is employed (employees), and what changed between two readings.
@@ -11,16 +12,13 @@ export interface QboVendor {
   email: string | null;
   address: string | null;
   accountNumber: string | null;
-  updatedAt: string | null;
 }
 
 export interface QboEmployee {
   id: string;
   name: string;
   active: boolean;
-  hiredOn: string | null;
   releasedOn: string | null;
-  email: string | null;
 }
 
 export interface QboSnapshot {
@@ -29,9 +27,11 @@ export interface QboSnapshot {
   employees: QboEmployee[];
 }
 
+export type VendorField = "name" | "address" | "email" | "accountNumber" | "active";
+
 interface VendorChange {
   vendor: QboVendor;
-  fields: Array<"name" | "address" | "email" | "accountNumber" | "active">;
+  fields: VendorField[];
 }
 
 export interface IntegrationDrift {
@@ -47,18 +47,14 @@ export interface IntegrationDrift {
   peopleNotInBooks: string[];
 }
 
-type Json = Record<string, unknown>;
-
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-
-function addressOf(addr: unknown): string | null {
-  if (!addr || typeof addr !== "object") return null;
-  const a = addr as Json;
-  const parts = [a.Line1, a.Line2, a.City, a.CountrySubDivisionCode, a.PostalCode]
-    .map(str)
-    .filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
-}
+/** How a changed vendor field reads to the advisor. */
+export const VENDOR_FIELD_LABEL: Record<VendorField, string> = {
+  name: "name",
+  address: "address",
+  email: "email",
+  accountNumber: "account number",
+  active: "active or inactive",
+};
 
 export function vendorsFromQuery(body: unknown): QboVendor[] {
   const rows = ((body as Json)?.QueryResponse as Json | undefined)?.Vendor;
@@ -76,7 +72,6 @@ export function vendorsFromQuery(body: unknown): QboVendor[] {
         email: str((r.PrimaryEmailAddr as Json | undefined)?.Address),
         address: addressOf(r.BillAddr),
         accountNumber: str(r.AcctNum),
-        updatedAt: str((r.MetaData as Json | undefined)?.LastUpdatedTime),
       };
     })
     .filter((v): v is QboVendor => v !== null);
@@ -96,9 +91,7 @@ export function employeesFromQuery(body: unknown): QboEmployee[] {
         id,
         name,
         active: r.Active !== false,
-        hiredOn: str(r.HiredDate),
         releasedOn: str(r.ReleasedDate),
-        email: str((r.PrimaryEmailAddr as Json | undefined)?.Address),
       };
     })
     .filter((e): e is QboEmployee => e !== null);
@@ -173,4 +166,19 @@ export function driftIsEmpty(drift: IntegrationDrift): boolean {
     drift.employeesNotOnMap.length === 0 &&
     drift.peopleNotInBooks.length === 0
   );
+}
+
+type Json = Record<string, unknown>;
+
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+function addressOf(addr: unknown): string | null {
+  if (!addr || typeof addr !== "object") return null;
+  const a = addr as Json;
+  const parts = [a.Line1, a.Line2, a.City, a.CountrySubDivisionCode, a.PostalCode]
+    .map(str)
+    .filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
 }
