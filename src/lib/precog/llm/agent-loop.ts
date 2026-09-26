@@ -1,7 +1,7 @@
 /**
  * Agentic reasoning loop: Plan → Retrieve → Analyze → Specialize → Critique → Synthesize
  */
-import { executeTool, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
+import { executeTools, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
 import { callModel, type LlmAccess } from "./guard.server";
 import type { AgentRunResult, EvidenceRef, ReasoningStep, ToolResult } from "./types";
@@ -26,9 +26,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
     detail: `${planned.length} tools (RAG + ML + cascades): ${planned.join(", ")}`,
   });
 
-  const toolResults = planned.map((tool) =>
-    executeTool(tool, tool === "retrieve_guidance" ? { query: question } : {}, toolCtx),
-  );
+  const toolResults = executeTools(planned, toolCtx);
 
   steps.push({
     phase: "retrieve",
@@ -102,7 +100,6 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Agen
   });
 
   return {
-    ok: true,
     source: "local-agent",
     question,
     steps,
@@ -220,7 +217,6 @@ export async function runGrokAgentLoop(
     const note = groundingNote(grounding);
 
     return {
-      ok: true,
       source: "grok-agent",
       model: response.model,
       question,

@@ -11,48 +11,40 @@ import {
   scenarioFlags,
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
-import {
-  simulateAllCascades,
-  simulateCascadeLever,
-  type CascadeLeverId,
-} from "../scoring/variable-cascade";
+import { simulateAllCascades } from "../scoring/variable-cascade";
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
-import type { ToolName, ToolResult } from "./types";
+import type { ToolOutput } from "./types";
 import { formatUsd } from "@/lib/utils";
 
 export interface ScenarioToolInput {
-  tool: ToolName;
-  args: Record<string, unknown>;
   tpl: IndustryTemplate;
   staff: StaffComposition;
   riskVars: RiskVariableState;
   scope: ResidualScope;
   ownBusiness: boolean;
-  scenarioInScope: (asked: unknown) => string | null;
-  noScenario: () => ToolResult;
+  /** The most dangerous scenario in scope, or null while none is. */
+  topScenarioId: () => string | null;
+  /** Why no scenario figure applies, when none is in scope. */
+  noScenarioNote: () => string;
 }
 
 export function runPrecogScenarioTool({
-  tool,
-  args,
   tpl,
   staff,
   riskVars,
-  scenarioInScope,
-  noScenario,
-}: ScenarioToolInput): ToolResult {
+  topScenarioId,
+  noScenarioNote,
+}: ScenarioToolInput): ToolOutput {
   const { scenarios } = tpl;
-  const scenarioId = scenarioInScope(args.scenarioId);
-  if (!scenarioId) return noScenario();
+  const scenarioId = topScenarioId();
+  if (!scenarioId) return noScenario(noScenarioNote());
   const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: riskVars });
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!result || !scenario) {
-    return { tool, args, ok: false, summary: "Scenario not found", data: null };
+    return { ok: false, summary: "Scenario not found", data: null };
   }
   return {
-    tool,
-    args: { scenarioId },
     ok: true,
     summary: `${scenario.title}: retained ${formatUsd(result.retainedImpact.expected)}, CoR ${formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
     data: {
@@ -74,25 +66,20 @@ export function runPrecogScenarioTool({
         : null,
       cascade: result.cascade,
     },
-    links: [{ tab: "precog", id: scenarioId, label: scenario.title }],
   };
 }
 
 export function compareScenarioFuturesTool({
-  tool,
-  args,
   tpl,
   staff,
   riskVars,
-  scenarioInScope,
-  noScenario,
-}: ScenarioToolInput): ToolResult {
-  const scenarioId = scenarioInScope(args.scenarioId);
-  if (!scenarioId) return noScenario();
+  topScenarioId,
+  noScenarioNote,
+}: ScenarioToolInput): ToolOutput {
+  const scenarioId = topScenarioId();
+  if (!scenarioId) return noScenario(noScenarioNote());
   const report = compareScenarioFutures(tpl, scenarioId, staff, [], riskVars);
   return {
-    tool,
-    args: { scenarioId },
     ok: true,
     summary: `Compared ${report.columns.length} futures`,
     data: {
@@ -106,33 +93,28 @@ export function compareScenarioFuturesTool({
         annualCor: c.result.dynamic?.expectedAnnualCostOfRisk,
       })),
     },
-    links: [{ tab: "precog", id: scenarioId, label: "Compare" }],
   };
 }
 
-export function tornadoLevers({ tool, tpl, staff, scope }: ScenarioToolInput): ToolResult {
+export function tornadoLevers({ tpl, staff, scope }: ScenarioToolInput): ToolOutput {
   const t = tornadoSensitivity(tpl, staff, scope);
   return {
-    tool,
     ok: true,
     summary: `Top lever: ${t.levers[0]?.label ?? "—"}`,
     data: { baseAverage: t.baseAverage, levers: t.levers },
-    links: [{ tab: "residual", label: "Tornado" }],
   };
 }
 
 export function insuranceCostOfRisk({
-  tool,
-  args,
   tpl,
   riskVars,
   ownBusiness,
-  scenarioInScope,
-  noScenario,
-}: ScenarioToolInput): ToolResult {
+  topScenarioId,
+  noScenarioNote,
+}: ScenarioToolInput): ToolOutput {
   const { scenarios } = tpl;
-  const scenarioId = scenarioInScope(args.scenarioId);
-  if (!scenarioId) return noScenario();
+  const scenarioId = topScenarioId();
+  if (!scenarioId) return noScenario(noScenarioNote());
   const scenario = scenarios.find((s) => s.id === scenarioId)!;
   // An own business with the app's default policy figures is priced
   // with no crime policy, and the summary says which basis applies.
@@ -143,8 +125,6 @@ export function insuranceCostOfRisk({
   );
   const policyNote = insuranceFigureNote(riskVars, ownBusiness, scenarioId);
   return {
-    tool,
-    args: { scenarioId },
     ok: true,
     summary: `CoR ${formatUsd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${formatUsd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
     data: {
@@ -153,44 +133,18 @@ export function insuranceCostOfRisk({
       likelihoodSeverity: dyn.likelihoodSeverity,
       transfer: dyn.transfer,
     },
-    links: [{ tab: "precog", label: "Insurance" }],
   };
 }
 
 export function variableCascades({
-  tool,
-  args,
   tpl,
   staff,
   riskVars,
-  scenarioInScope,
-  noScenario,
-}: ScenarioToolInput): ToolResult {
-  const scenarioId = scenarioInScope(args.scenarioId);
-  if (!scenarioId) return noScenario();
-  const leverId = args.leverId as CascadeLeverId | undefined;
-  if (leverId) {
-    const one = simulateCascadeLever(tpl, leverId, riskVars, staff, scenarioId);
-    return {
-      tool,
-      args: { leverId, scenarioId },
-      ok: true,
-      summary: one.overallVerdict,
-      data: {
-        mode: "single",
-        scenarioId,
-        simulation: {
-          lever: one.lever,
-          verdict: one.overallVerdict,
-          secondOrderNotes: one.secondOrderNotes,
-          deltas: one.deltas,
-          before: one.before,
-          after: one.after,
-        },
-      },
-      links: [{ tab: "precog", label: "Cascades" }],
-    };
-  }
+  topScenarioId,
+  noScenarioNote,
+}: ScenarioToolInput): ToolOutput {
+  const scenarioId = topScenarioId();
+  if (!scenarioId) return noScenario(noScenarioNote());
   const all = simulateAllCascades(tpl, riskVars, staff, scenarioId);
   const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
     leverId: s.lever.id,
@@ -208,8 +162,6 @@ export function variableCascades({
     worsens: s.deltas.filter((d) => d.direction === "worsens").map((d) => d.label),
   }));
   return {
-    tool,
-    args: { scenarioId },
     ok: true,
     summary: `Best CoR lever: ${topCor[0]?.label ?? "—"}`,
     data: {
@@ -219,6 +171,10 @@ export function variableCascades({
       dependencyMap: all.dependencyMap,
       topByCostOfRisk: topCor,
     },
-    links: [{ tab: "precog", label: "Cascades" }],
   };
+}
+
+/** Returned instead of a scenario result while no scenario is in scope. */
+function noScenario(note: string): ToolOutput {
+  return { ok: false, summary: note, data: null };
 }

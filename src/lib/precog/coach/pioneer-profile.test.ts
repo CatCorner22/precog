@@ -145,16 +145,16 @@ describe("Pioneer tools on a Retail profile", () => {
 
   it("every tool runs without error", () => {
     for (const { name } of TOOL_CATALOG) {
-      const r = executeTool(name, {}, ctx);
+      const r = executeTool(name, ctx);
       expect(r.ok, `${name}: ${r.summary}`).toBe(true);
     }
   });
 
   it("reports the retail industry and retail staff", () => {
-    const snap = executeTool("get_practice_snapshot", {}, ctx);
+    const snap = executeTool("get_practice_snapshot", ctx);
     expect((snap.data as { industry: string }).industry).toBe("retail");
 
-    const spofs = executeTool("get_knowledge_spofs", {}, ctx).data as {
+    const spofs = executeTool("get_knowledge_spofs", ctx).data as {
       name: string;
       owners: { id: string; name: string }[];
     }[];
@@ -165,7 +165,10 @@ describe("Pioneer tools on a Retail profile", () => {
   });
 
   it("only retrieves retail or general guidance", () => {
-    const r = executeTool("retrieve_guidance", { query: "cash deposit front desk payments" }, ctx);
+    const r = executeTool("retrieve_guidance", {
+      ...ctx,
+      question: "cash deposit front desk payments",
+    });
     const hits = (r.data as { hits: { id: string }[] }).hits;
     expect(hits.length).toBeGreaterThan(0);
     for (const h of hits) {
@@ -178,7 +181,7 @@ describe("Pioneer tools on a Retail profile", () => {
     const custom = retail.people.slice(0, 2);
     const p = pioneerProfileFrom({ industry: "retail", customPeople: custom });
     expect(resolveTemplate(p).people).toEqual(custom);
-    const graph = executeTool("get_knowledge_graph", {}, { profile: p });
+    const graph = executeTool("get_knowledge_graph", { profile: p });
     expect(graph.ok).toBe(true);
     expect(JSON.stringify(graph.data)).not.toContain(retail.people[5].name);
   });

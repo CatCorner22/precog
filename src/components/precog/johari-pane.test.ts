@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { examplesHeading, paneItems, PANE_PREVIEW } from "./johari-pane";
+import { paneItems, PANE_PREVIEW } from "./johari-pane";
 
 describe("paneItems", () => {
   it("states the pane's real total when it lists only the first eight of nine", () => {
@@ -14,12 +14,5 @@ describe("paneItems", () => {
     const nine = Array.from({ length: 9 }, (_, i) => i);
     expect(paneItems(nine, true)).toEqual({ shown: nine, total: 9, count: "9" });
     expect(paneItems([1, 2, 3], false).count).toBe("3");
-  });
-});
-
-describe("examplesHeading", () => {
-  it("does not call a restaurant's examples a dental office reference without saying they carry over", () => {
-    expect(examplesHeading("dental")).toBe("Examples from a dental or medical office");
-    expect(examplesHeading("restaurant")).toMatch(/same patterns occur in any business/);
   });
 });

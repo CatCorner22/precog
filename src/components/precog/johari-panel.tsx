@@ -2,18 +2,17 @@ import { useMemo, useState } from "react";
 import {
   JOHARI_PLAYBOOK,
   johariQuadrantFromEpistemic,
-  recommendJohariMoves,
   type JohariDomain,
   type JohariQuadrant,
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
-import { examplesHeading, paneItems } from "@/components/precog/johari-pane";
+import { paneItems } from "@/components/precog/johari-pane";
 import { usePracticeState } from "@/lib/precog/practice-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Lightbulb, Search } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Search } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
 
 const Q_META: Record<
@@ -58,7 +57,6 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
   );
   const liveItems = pane.shown;
 
-  const moves = useMemo(() => recommendJohariMoves(loads), [loads]);
   const guide = JOHARI_PLAYBOOK.quadrants.find((q) => q.id === activeQ)!;
   const domainApp = JOHARI_PLAYBOOK.domains.find((d) => d.domain === domain)!;
 
@@ -171,11 +169,9 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 {guide.riskIfLarge}
               </p>
               <div>
-                <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  {examplesHeading(profile.industry)}
-                </p>
+                <p className="text-xs font-medium tracking-wide text-subtle uppercase">Examples</p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
-                  {guide.dentalExamples.map((e) => (
+                  {guide.examples.map((e) => (
                     <li key={e}>· {e}</li>
                   ))}
                 </ul>
@@ -258,19 +254,6 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   Show all {pane.total}
                 </Button>
               )}
-              <div className="rounded-lg border border-border bg-panel p-3">
-                <p className="flex items-center gap-1 text-xs font-medium text-subtle uppercase">
-                  <Lightbulb className="size-3" />
-                  Recommended moves (load-weighted)
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-muted">
-                  {moves.map((m) => (
-                    <li key={m.id}>
-                      · [{m.from}→{m.to}] {m.action}
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -323,7 +306,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <p className="text-xs text-muted">
                 <span className="font-medium text-fg">Why it matters for small teams · </span>
-                {domainApp.valueForDental}
+                {domainApp.whyItMatters}
               </p>
             </CardContent>
           </Card>

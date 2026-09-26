@@ -26,20 +26,18 @@ import {
 import { findKnowledgeRisks } from "../engine";
 import type { IndustryTemplate } from "../templates/types";
 import type { PracticeProfile } from "../practice-profile";
-import type { ToolName, ToolResult } from "./types";
+import type { ToolOutput } from "./types";
 
 export interface ContinuityToolInput {
-  tool: ToolName;
   profile: PracticeProfile;
   tpl: IndustryTemplate;
   /** Owner's local calendar day (YYYY-MM-DD). */
   today: string;
 }
 
-export function knowledgeSpofs({ tool, profile, tpl, today }: ContinuityToolInput): ToolResult {
+export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): ToolOutput {
   if (!registerAssessed(tpl)) {
     return {
-      tool,
       ok: true,
       summary:
         tpl.knowledge.length === 0
@@ -53,7 +51,6 @@ export function knowledgeSpofs({ tool, profile, tpl, today }: ContinuityToolInpu
           criticality: k.criticality,
         })),
       },
-      links: [{ tab: "knowledge", label: "Who knows what" }],
     };
   }
   const risks = findKnowledgeRisks(tpl).filter((r) => r.soleOwner || r.ownerCount === 0);
@@ -80,7 +77,6 @@ export function knowledgeSpofs({ tool, profile, tpl, today }: ContinuityToolInpu
       ? `; ${committedRows} already being cross-trained per the Journal${overdueRows > 0 ? ` (${overdueRows} past review date)` : ""} — do not recommend those again, ask whether they happened`
       : "";
   return {
-    tool,
     ok: true,
     summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
     data: risks.map((r) => {
@@ -128,11 +124,10 @@ export function knowledgeSpofs({ tool, profile, tpl, today }: ContinuityToolInpu
           : null,
       };
     }),
-    links: [{ tab: "knowledge", label: "Who knows what" }],
   };
 }
 
-export function plannedAbsences({ tool, profile, tpl, today }: ContinuityToolInput): ToolResult {
+export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): ToolOutput {
   const report = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
   const soon = absencesNeedingAttention(report.windows);
   const committed = continuityCommitments(profile.decisions, tpl, today);
@@ -258,7 +253,6 @@ export function plannedAbsences({ tool, profile, tpl, today }: ContinuityToolInp
           .map((l) => l.summary)
           .join(" ")}`;
   return {
-    tool,
     ok: true,
     summary,
     data: {
@@ -268,19 +262,16 @@ export function plannedAbsences({ tool, profile, tpl, today }: ContinuityToolInp
       debriefs,
       leavers: departing,
     },
-    links: [{ tab: "knowledge", label: "Who knows what" }],
   };
 }
 
-export function registerCheckins({ tool, profile, tpl, today }: ContinuityToolInput): ToolResult {
+export function registerCheckins({ profile, tpl, today }: ContinuityToolInput): ToolOutput {
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   if (!trackFreshness) {
     return {
-      tool,
       ok: true,
       summary: "Freshness is not tracked until the owner enters their own register",
       data: { checkIns: [], unheld: [], tracked: false },
-      links: [{ tab: "knowledge", label: "Who knows what" }],
     };
   }
   const plan = checkInPlan(tpl, today);
@@ -324,10 +315,8 @@ export function registerCheckins({ tool, profile, tpl, today }: ContinuityToolIn
           .filter(Boolean)
           .join("; ");
   return {
-    tool,
     ok: true,
     summary,
     data: { checkIns, unheld, tracked: true },
-    links: [{ tab: "knowledge", label: "Who knows what" }],
   };
 }

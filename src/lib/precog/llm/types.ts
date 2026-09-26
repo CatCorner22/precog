@@ -28,12 +28,13 @@ export type GrokAccess = "allowed" | "unauthenticated" | "rate_limited" | "no_ap
 
 export interface ToolResult {
   tool: ToolName;
-  args?: Record<string, unknown>;
   ok: boolean;
   summary: string;
   data: unknown;
-  links?: { tab: string; id?: string; label: string }[];
 }
+
+/** What a tool returns before the runner stamps its name on it. */
+export type ToolOutput = Omit<ToolResult, "tool">;
 
 type ReasoningPhase =
   "plan" | "retrieve" | "analyze" | "reason" | "critique" | "specialize" | "synthesize" | "meta";
@@ -54,12 +55,10 @@ export interface EvidenceRef {
     | "coso"
     | "sod"
     | "insurance"
-    | "lever"
     | "cascade"
     | "rag"
     | "ml"
-    | "reasoning"
-    | "epistemic";
+    | "reasoning";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -84,13 +83,11 @@ export interface StructuredBrief {
   variableCascades: string[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
   advancedReasoning?: string[];
-  epistemicNote?: string;
   markdown: string;
   evidence: EvidenceRef[];
 }
 
 export interface AgentRunResult {
-  ok: true;
   source: "grok-agent" | "local-agent";
   model?: string;
   question: string;

@@ -10,6 +10,8 @@
  */
 
 import type { IndustryId } from "../industry";
+import { DEFAULT_FRAUD_STATS as ACFE } from "../templates/shared-controls";
+import { formatUsd } from "@/lib/utils";
 
 type ChunkBasis =
   | {
@@ -61,7 +63,7 @@ const ACFE_RTTN: ChunkBasis = {
   kind: "cited",
   publisher: "Association of Certified Fraud Examiners",
   document: "Occupational Fraud 2026: A Report to the Nations",
-  url: "https://www.acfe.com/fraud-resources/report-to-the-nations",
+  url: ACFE.sourceUrl,
 };
 const NIST_AI_RMF: ChunkBasis = {
   kind: "cited",
@@ -187,7 +189,8 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Detection lag multiplies loss",
     domain: "fraud",
     tags: ["detection", "timeline", "embezzlement", "bank rec"],
-    text: "The ACFE's Occupational Fraud 2026: A Report to the Nations puts the median time from the start of a scheme to its discovery at twelve months. Schemes caught within six months had a median loss of $40,000; those that ran more than five years, more than $1.1 million. Independent bank reconciliation and surprise cash counts are detection controls that shorten that window. Cameras help after the fact but do not replace reconciliation.",
+    // Figures read from the one stats record, so a new edition updates both.
+    text: `The ACFE's ${ACFE_RTTN.document} puts the median time from the start of a scheme to its discovery at ${ACFE.medianDetectionMonths} months. Schemes caught within six months had a median loss of ${formatUsd(ACFE.lossIfCaughtEarlyUsd)}; those that ran more than five years, more than ${formatUsd(ACFE.lossIfRunsLongUsd)}. Independent bank reconciliation and surprise cash counts are detection controls that shorten that window. Cameras help after the fact but do not replace reconciliation.`,
     basis: ACFE_RTTN,
   },
   {

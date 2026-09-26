@@ -411,7 +411,6 @@ export function localBrief(
   } catch (e) {
     console.error("[pioneer] local brief fell back to the conflict-only brief", e);
     return {
-      ok: true,
       source: "local-agent",
       question,
       steps: [],

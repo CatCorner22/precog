@@ -31,17 +31,18 @@ export function knownUnknowns(
     },
     {
       id: "ku-bank-rec-cadence",
-      title: "Bank recon completion dates & findings",
+      title: "Bank reconciliation dates and findings",
       description:
-        "Independent bank rec is a boolean, not a dated workpaper trail with exception rates.",
+        "Independent bank reconciliation is recorded as yes or no, not as dated work with the exceptions found.",
       severity: "high",
       affects: ["sod", "monitoring", "coso"],
       confidenceDrag: 0.09,
       probe: {
         kind: "data_capture",
-        action: "Log last 6 recon dates, who performed, open items count",
+        action:
+          "Note the last 6 reconciliation dates, who did each, and how many items were left open",
         effort: "minutes",
-        expectedLift: "Converts recon control from flag → measured control",
+        expectedLift: "Turns the reconciliation from a yes/no answer into a measured control",
       },
       link: { tab: "sod" },
     },
@@ -57,7 +58,7 @@ export function knownUnknowns(
         kind: "external_stat",
         action: "Request 5-year loss runs from crime/property carrier",
         effort: "days",
-        expectedLift: "Calibrates severity priors for employee dishonesty",
+        expectedLift: "Grounds the assumed size of an employee theft loss in your own history",
       },
       link: { tab: "precog" },
     },
@@ -80,7 +81,8 @@ export function knownUnknowns(
     {
       id: "ku-vendor-master-changes",
       title: "Vendor master change log",
-      description: "Fictitious vendor path is modeled; actual create/edit events are not ingested.",
+      description:
+        "The invented-vendor path is modeled; the real vendor additions and edits are not imported.",
       severity: "high",
       affects: ["ap", "dual-release", "precog"],
       confidenceDrag: 0.07,
@@ -95,7 +97,8 @@ export function knownUnknowns(
     {
       id: "ku-background-check-dates",
       title: "Bonding & background-check currency",
-      description: "Bonded-cash-handler flag exists without expiration dates per person.",
+      description:
+        "Bonded cash handlers are recorded as yes or no, with no expiry date per person.",
       severity: "medium",
       affects: ["insurance discount", "people risk"],
       confidenceDrag: 0.04,
@@ -145,8 +148,8 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
   return [
     {
       id: "uu-collusion-rings",
-      title: "Multi-party collusion outside pairwise SoD",
-      description: `SoD detects one-person conflicts. Two-person collusion (${words.pair}) can pass dual release by design. Platform does not model collusion graphs or lifestyle red flags.`,
+      title: "Collusion between two or more people",
+      description: `The duty-conflict check finds one person holding two duties. Two people working together (${words.pair}) can pass dual release by design, and the app does not model collusion or lifestyle red flags.`,
       severity: "critical",
       affects: ["sod", "dual-release", "precog"],
       confidenceDrag: 0.14,
@@ -154,13 +157,13 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
         kind: "scenario_design",
         action: "Add collusion scenario: dual signers who are related / share finances",
         effort: "days",
-        expectedLift: "Expands ontology beyond pairwise SoD",
+        expectedLift: "Takes the model beyond one person holding two duties",
       },
     },
     {
       id: "uu-cyber-ransomware-ops",
       title: "Cyber / ransomware operational cascade",
-      description: `Model is fraud/ops/continuity oriented. ${words.hostageData}, and restoration RTO/RPO are outside residual drivers today.`,
+      description: `The model covers fraud, operations and continuity. ${words.hostageData}, and how long a restore would take or how much data it would lose, are outside the residual index today.`,
       severity: "critical",
       affects: ["continuity", "insurance", "layers"],
       confidenceDrag: 0.11,
@@ -206,7 +209,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
     {
       id: "uu-supply-chain-lab-integrity",
       title: `${words.partners} integrity failure`,
-      description: `External partners can inject fraud (${words.partnerFraud}) without internal SoD firing.`,
+      description: `Outside partners can commit fraud (${words.partnerFraud}) without any duty conflict inside the business.`,
       severity: "high",
       affects: ["ap", "claims", "process map"],
       confidenceDrag: 0.07,
@@ -221,13 +224,13 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       id: "uu-ai-tooling-risk",
       title: "This coach's own model risk",
       description:
-        "Pioneer guidance can create false confidence (automation bias). Meta-analysis exists to flag that residual scores are educational priors, not truth.",
+        "The coach's advice can create false confidence. This list exists to say that residual scores rest on this app's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,
       probe: {
         kind: "interview",
-        action: "Require human sign-off on any residual <40 before treating as 'safe'",
+        action: "Have a person sign off any residual below 40 before treating it as 'safe'",
         effort: "minutes",
         expectedLift: "Guards against AI overconfidence",
       },
