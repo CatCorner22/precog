@@ -51,6 +51,7 @@ import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-thr
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { usePractice } from "@/lib/precog/practice-context";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
+import { useScoredMap } from "@/lib/precog/builder/use-scored-map";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { StartHere } from "@/components/precog/start-here";
@@ -65,11 +66,6 @@ import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { TabErrorBoundary } from "@/components/precog/tab-error-boundary";
-import {
-  computeMapHealth,
-  buildProcessMapGraph,
-  validateProcessMap,
-} from "@/lib/precog/process-graph";
 import { industryMeta } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -455,7 +451,7 @@ function Home() {
   const [processId, setProcessId] = useState<string | null>(null);
   const [mapBuild, setMapBuild] = useState(false);
   const { isPending } = useCurrentUserState();
-  const { profile, ready, mapCustomized } = usePractice();
+  const { profile, ready } = usePractice();
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
   // While setup is open, the page behind it is inert: no keyboard or screen
@@ -513,16 +509,9 @@ function Home() {
     [profile.decisions, tpl],
   );
 
-  const mapHealth = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
-    const issues = validateProcessMap(
-      tpl.processes,
-      tpl.people,
-      new Set(tpl.controls.map((c) => c.id)),
-      profile.mapLayout ?? {},
-    );
-    return computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
+  // Scored as the map page scores it: untouched starter processes are left out.
+  const scoredMap = useScoredMap();
+  const mapHealth = scoredMap.health;
   // A starter map nobody has assigned, or an empty map, has no health to show.
   const mapReady = mapAssessed(profile);
 
@@ -783,6 +772,7 @@ function Home() {
                   </section>
 
                   <MapHealthCard
+                    map={scoredMap}
                     onOpenMap={(id) => {
                       setMapBuild(false);
                       setProcessId(id ?? null);

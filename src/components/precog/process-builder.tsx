@@ -13,7 +13,7 @@ import { VersionsPanel } from "@/components/precog/builder/versions-panel";
 import { SpreadsheetPanel } from "@/components/precog/builder/spreadsheet-panel";
 import { WorkloadView } from "@/components/precog/builder/workload-view";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTemplate } from "@/lib/precog/use-template";
@@ -30,11 +30,11 @@ import { industryMeta } from "@/lib/precog/industry";
 import { Blocks, GitCompare, Redo2, ShieldCheck, Undo2 } from "lucide-react";
 import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
+import { scoreMap } from "@/lib/precog/builder/scored-map";
 import {
   analyzeWorkload,
   healthDelta,
   LOAD_BANDS,
-  previewMapHealth,
   type HealthDelta,
 } from "@/lib/precog/builder/what-if";
 import { ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
@@ -117,14 +117,22 @@ export function ProcessBuilder({
   const notAssessed = mapNotAssessedNote(profile);
   const starterMap = mapSource(profile) === "starter";
 
-  const currentHealth = useMemo(
-    () =>
-      previewMapHealth(tpl, processes, profile.staff, {
+  // Scored as the map page and the dashboard card score it: untouched
+  // starter processes are left out (see scoreMap).
+  const { industry, customPeople, staff, mapLayout } = profile;
+  const scoreList = useCallback(
+    (list: ProcessNode[], customized: boolean) =>
+      scoreMap(tpl, list, staff, {
+        profile: { industry, customPeople },
         people: tpl.people,
-        layout: profile.mapLayout ?? {},
-        customized: mapCustomized,
-      }),
-    [tpl, processes, profile.staff, profile.mapLayout, mapCustomized],
+        layout: mapLayout ?? {},
+        customized,
+      }).health,
+    [tpl, staff, industry, customPeople, mapLayout],
+  );
+  const currentHealth = useMemo(
+    () => scoreList(processes, mapCustomized),
+    [scoreList, processes, mapCustomized],
   );
   // Baseline when the builder opened — shows the session's net effect. It is
   // taken from the first assessed score, never from the starter map.
@@ -136,14 +144,7 @@ export function ProcessBuilder({
     if (!mapReady) {
       return { before: currentHealth.score, after: currentHealth.score, delta: 0 };
     }
-    return healthDelta(
-      currentHealth,
-      previewMapHealth(tpl, next, profile.staff, {
-        people: tpl.people,
-        layout: profile.mapLayout ?? {},
-        customized: true,
-      }),
-    );
+    return healthDelta(currentHealth, scoreList(next, true));
   };
 
   const workload = useMemo(

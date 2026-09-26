@@ -1,10 +1,15 @@
 import { EvidenceList } from "@/components/precog/builder/evidence-list";
 import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTemplate } from "@/lib/precog/use-template";
-import { textPatch } from "@/lib/precog/builder/process-text";
+import type { ProcessTextFields } from "@/lib/precog/builder/process-text";
+import {
+  commitFormText,
+  initialFormText,
+  syncFormText,
+} from "@/lib/precog/builder/process-text-sync";
 import type {
   LeanWasteKind,
   ProcessIdea,
@@ -53,46 +58,40 @@ export function ProcessForm({
   onSaveAsBlock: () => void;
 }) {
   const tpl = useTemplate();
-  const [name, setName] = useState(process.name);
-  const [desc, setDesc] = useState(process.description);
-  const [inputs, setInputs] = useState((process.inputs ?? []).join(", "));
-  const [outputs, setOutputs] = useState((process.outputs ?? []).join(", "));
-  const [systems, setSystems] = useState((process.systems ?? []).join(", "));
-  const [location, setLocation] = useState(process.procedureLocation ?? "");
+  // The form's own copy of the text fields. An undo, import or restore that
+  // changes the process text replaces the copy, so a stale copy is never
+  // committed back over the change.
+  const [text, setText] = useState(() => initialFormText(process));
+  const synced = syncFormText(text, process);
+  if (synced !== text) setText(synced);
+  const { name, desc, inputs, outputs, systems, location } = synced.fields;
+  const setField = (field: keyof ProcessTextFields, value: string) =>
+    setText((t) => ({ ...t, fields: { ...t.fields, [field]: value } }));
+
+  // The latest fields, process and callback, for the debounce and the
+  // unmount commit, which run outside render.
+  const latest = useRef({ fields: synced.fields, process, onChange });
+  useEffect(() => {
+    latest.current = { fields: synced.fields, process, onChange };
+  });
+  const commit = useCallback(() => {
+    const { fields, process: current, onChange: write } = latest.current;
+    const { patch, seenKey } = commitFormText(fields, current);
+    if (!Object.keys(patch).length) return;
+    setText((t) => ({ ...t, seenKey }));
+    write(patch);
+  }, []);
 
   // Debounce text field commits so typing doesn't thrash the graph.
   useEffect(() => {
-    const t = setTimeout(() => {
-      const patch = textPatch({ name, desc, inputs, outputs, systems, location }, process);
-      if (Object.keys(patch).length) onChange(patch);
-    }, 350);
+    const t = setTimeout(commit, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, desc, inputs, outputs, systems, location]);
+  }, [synced.fields, commit]);
 
   // The form remounts for each process, so an edit still inside the debounce
   // window when the owner selects another process, or closes the panel, is
   // committed as the form unmounts instead of being dropped.
-  const latest = useRef({
-    fields: { name, desc, inputs, outputs, systems, location },
-    process,
-    onChange,
-  });
-  useEffect(() => {
-    latest.current = {
-      fields: { name, desc, inputs, outputs, systems, location },
-      process,
-      onChange,
-    };
-  });
-  useEffect(
-    () => () => {
-      const { fields, process: current, onChange: commit } = latest.current;
-      const patch = textPatch(fields, current);
-      if (Object.keys(patch).length) commit(patch);
-    },
-    [],
-  );
+  useEffect(() => commit, [commit]);
 
   const docState = processDocumentationState(process);
 
@@ -113,7 +112,7 @@ export function ProcessForm({
             className={inputCls}
             data-builder-field="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => setField("name", e.target.value)}
           />
         </label>
         <label>
@@ -136,20 +135,24 @@ export function ProcessForm({
         <textarea
           className={cn(inputCls, "min-h-[52px] resize-y")}
           value={desc}
-          onChange={(e) => setDesc(e.target.value)}
+          onChange={(e) => setField("desc", e.target.value)}
         />
       </label>
       <div className="grid gap-2 sm:grid-cols-2">
         <label>
           <span className={labelCls}>Inputs (comma-separated)</span>
-          <input className={inputCls} value={inputs} onChange={(e) => setInputs(e.target.value)} />
+          <input
+            className={inputCls}
+            value={inputs}
+            onChange={(e) => setField("inputs", e.target.value)}
+          />
         </label>
         <label>
           <span className={labelCls}>Outputs</span>
           <input
             className={inputCls}
             value={outputs}
-            onChange={(e) => setOutputs(e.target.value)}
+            onChange={(e) => setField("outputs", e.target.value)}
           />
         </label>
       </div>
@@ -186,7 +189,7 @@ export function ProcessForm({
               className={inputCls}
               placeholder="Practice management system, bank portal"
               value={systems}
-              onChange={(e) => setSystems(e.target.value)}
+              onChange={(e) => setField("systems", e.target.value)}
             />
           </label>
         </div>
@@ -202,7 +205,7 @@ export function ProcessForm({
                   documented: v === "" ? undefined : v === "yes",
                   ...(v !== "yes" ? { procedureLocation: undefined } : {}),
                 });
-                if (v !== "yes") setLocation("");
+                if (v !== "yes") setField("location", "");
               }}
             >
               <option value="">Not recorded</option>
@@ -217,7 +220,7 @@ export function ProcessForm({
               placeholder="Shared drive path, binder, or link"
               value={location}
               disabled={!process.documented}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(e) => setField("location", e.target.value)}
             />
           </label>
         </div>

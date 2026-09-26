@@ -14,6 +14,7 @@ import {
   ReactFlow,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
   type ReactFlowInstance,
@@ -89,13 +90,16 @@ import {
   VisionChip,
 } from "@/components/precog/process-map/detail";
 import { clamp } from "@/lib/precog/number";
-import { slug } from "@/lib/precog/text";
+import { count, slug } from "@/lib/precog/text";
 
 /**
  * Stable identity matters: React Flow syncs this prop into its store on every
  * render, and a fresh object would overwrite the options queued by focusOn().
  */
 const FIT_ALL_OPTIONS = { padding: 0.15 } as const;
+
+/** Elements that handle Enter themselves; build mode's Enter-to-rename leaves them alone. */
+const OWN_ENTER_KEY = "button, a, [role=button], .react-flow__node, .react-flow__edge";
 
 export function ProcessMap({
   onNavigate,
@@ -134,6 +138,8 @@ export function ProcessMap({
   const [focusProcessId, setFocusProcessId] = useState<string | null>(
     initialProcessId ?? processes[0]?.id ?? null,
   );
+  /** The dependency link selected on the canvas while building; Delete removes it. */
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialProcessId) {
@@ -339,7 +345,8 @@ export function ProcessMap({
         autoArrange();
         return;
       }
-      if (e.key === "Enter" && focusProcessId) {
+      // Enter on a button, link, card or link line belongs to that element.
+      if (e.key === "Enter" && focusProcessId && !t?.closest(OWN_ENTER_KEY)) {
         const field = document.querySelector<HTMLInputElement>('[data-builder-field="name"]');
         if (field) {
           e.preventDefault();
@@ -468,6 +475,9 @@ export function ProcessMap({
         position: p,
         draggable: build && n.kind === "process",
         connectable: build && n.kind === "process",
+        // Delete removes a selected link only; with a card selected it would
+        // otherwise take every link attached to the card.
+        deletable: false,
         data: {
           ...n,
           vision,
@@ -492,23 +502,52 @@ export function ProcessMap({
     measured,
   ]);
 
-  const onNodesChange = useCallback((changes: NodeChange<ProcessFlowNode>[]) => {
-    const moves: Record<string, { x: number; y: number }> = {};
-    const sizes: Record<string, { width: number; height: number }> = {};
-    for (const c of changes) {
-      if (c.type === "position" && c.position) moves[c.id] = c.position;
-      if (c.type === "dimensions" && c.dimensions) sizes[c.id] = c.dimensions;
-    }
-    if (Object.keys(moves).length) setLiveLayout((l) => ({ ...l, ...moves }));
-    if (Object.keys(sizes).length) {
-      setMeasured((m) => {
-        const changed = Object.entries(sizes).some(
-          ([id, d]) => m[id]?.width !== d.width || m[id]?.height !== d.height,
-        );
-        return changed ? { ...m, ...sizes } : m;
-      });
-    }
-  }, []);
+  /** Select a card (by click, or Enter / Space on the focused card) and the process it belongs to. */
+  const selectNode = useCallback(
+    (id: string) => {
+      const n = graph.nodes.find((x) => x.id === id);
+      if (!n || layerMap.get(layerForKind(n.kind))?.interactive === false) return;
+      setSelectedId(id);
+      setSelectedEdgeId(null);
+      if (n.kind === "process") setFocusProcessId(n.id);
+      else if (n.processId) setFocusProcessId(n.processId);
+    },
+    [graph.nodes, layerMap],
+  );
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<ProcessFlowNode>[]) => {
+      const moves: Record<string, { x: number; y: number }> = {};
+      const sizes: Record<string, { width: number; height: number }> = {};
+      for (const c of changes) {
+        if (c.type === "position" && c.position) moves[c.id] = c.position;
+        if (c.type === "dimensions" && c.dimensions) sizes[c.id] = c.dimensions;
+        // React Flow reports keyboard selection (Enter / Space on a focused card) this way.
+        if (c.type === "select" && c.selected) selectNode(c.id);
+      }
+      if (Object.keys(moves).length) setLiveLayout((l) => ({ ...l, ...moves }));
+      if (Object.keys(sizes).length) {
+        setMeasured((m) => {
+          const changed = Object.entries(sizes).some(
+            ([id, d]) => m[id]?.width !== d.width || m[id]?.height !== d.height,
+          );
+          return changed ? { ...m, ...sizes } : m;
+        });
+      }
+    },
+    [selectNode],
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      for (const c of changes) {
+        if (c.type !== "select") continue;
+        if (c.selected && build) setSelectedEdgeId(c.id);
+        else setSelectedEdgeId((cur) => (cur === c.id ? null : cur));
+      }
+    },
+    [build],
+  );
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: ProcessFlowNode, dragged: ProcessFlowNode[] = []) => {
@@ -564,6 +603,10 @@ export function ProcessMap({
       const links = graph.edges.filter((edge) => edge.kind === "depends" && ids.has(edge.id));
       if (!links.length) return;
       setCustomProcesses((current) => removeProcessDependencies(current, links));
+      setSelectedEdgeId(null);
+      toast(`Removed ${count(links.length, "dependency link")}`, {
+        description: "Ctrl+Z puts it back.",
+      });
     },
     [build, graph.edges, setCustomProcesses],
   );
@@ -610,6 +653,7 @@ export function ProcessMap({
           source: e.source,
           target: e.target,
           deletable: build && e.kind === "depends",
+          selected: build && e.id === selectedEdgeId,
           label: vision === "standard" ? e.label : undefined,
           animated: isDep && depInteractive && vision !== "terminator",
           style: {
@@ -628,7 +672,7 @@ export function ProcessMap({
           interactionWidth: passiveDep ? 1 : 12,
         };
       });
-  }, [visibleEdges, vision, layerMap, build]);
+  }, [visibleEdges, vision, layerMap, build, selectedEdgeId]);
 
   const selectedNode = graph.nodes.find((n) => n.id === selectedId);
   const processId =
@@ -638,13 +682,10 @@ export function ProcessMap({
     ? enrichProcess(tpl, processes.find((p) => p.id === processId) ?? processes[0], profile.staff)
     : null;
 
-  const onNodeClick = useCallback((_: unknown, node: ProcessFlowNode) => {
-    const d = asMapNode(node.data);
-    if (d.interactive === false) return;
-    setSelectedId(node.id);
-    if (d.kind === "process") setFocusProcessId(d.id);
-    else if (d.processId) setFocusProcessId(d.processId);
-  }, []);
+  const onNodeClick = useCallback(
+    (_: unknown, node: ProcessFlowNode) => selectNode(node.id),
+    [selectNode],
+  );
 
   const whiteHot = priorities.filter((p) => p.band === "white_hot").length;
   const immediate = priorities.filter((p) => p.immediate).length;
@@ -894,6 +935,11 @@ export function ProcessMap({
                 onNodesChange={onNodesChange}
                 onNodeDragStop={onNodeDragStop}
                 onConnect={onConnect}
+                onEdgesChange={onEdgesChange}
+                onEdgeClick={(_, edge) => {
+                  if (build && edge.deletable) setSelectedEdgeId(edge.id);
+                }}
+                onPaneClick={() => setSelectedEdgeId(null)}
                 onEdgesDelete={onEdgesDelete}
                 isValidConnection={isValidConnection}
                 nodesDraggable={build}
