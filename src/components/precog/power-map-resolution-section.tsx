@@ -8,14 +8,8 @@ import { ControlMeasuresMatrix } from "./power-map-control-measures";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
 export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderModel }) {
-  const {
-    selectedConflicts,
-    selected,
-    assignments,
-    commit,
-    guidanceByDuty,
-    visibleEntitlements,
-  } = model;
+  const { selectedConflicts, selected, assignments, commit, guidanceByDuty, visibleEntitlements } =
+    model;
 
   return (
     <>

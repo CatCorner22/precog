@@ -1,9 +1,4 @@
-import {
-  CoverageList,
-  CoveragePlanOption,
-  ImpactMetric,
-  Metric,
-} from "./power-map-parts";
+import { CoverageList, CoveragePlanOption, ImpactMetric, Metric } from "./power-map-parts";
 import { withPlaces } from "./power-map-graph";
 import { AlertTriangle, Check, RotateCcw, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";

@@ -1,11 +1,6 @@
 import { ResponsibilityMatrix } from "./power-map-parts";
 import { FAMILY_META, withPlaces } from "./power-map-graph";
-import {
-  Background,
-  Controls,
-  MiniMap,
-  ReactFlow,
-} from "@xyflow/react";
+import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   AlertTriangle,
