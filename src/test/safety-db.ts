@@ -15,7 +15,9 @@ export interface SafetyDb {
 /** Real concurrency requires separate PostgreSQL connections, never a single WASM instance. */
 export async function openSafetyDb(): Promise<SafetyDb> {
   if (process.env.PRECOG_LIFECYCLE_POSTGRES !== "1") return openTestDb();
-  const connectionString = process.env.DATABASE_URL ?? "";
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!connectionString)
+    throw new Error("Set DATABASE_URL to an isolated local PostgreSQL database");
   const url = new URL(connectionString);
   if (!["localhost", "127.0.0.1", "postgres"].includes(url.hostname))
     throw new Error("Lifecycle tests only accept an isolated local PostgreSQL service");

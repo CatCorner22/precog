@@ -196,10 +196,13 @@ function TabStrip({
   activeId,
   children,
   onKeyDown,
+  tabCount,
 }: {
   activeId: string;
   children: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+  /** Every tab, including the ones behind "More"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
+  tabCount: number;
 }) {
   const ref = useRef<HTMLElement | null>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
@@ -232,6 +235,7 @@ function TabStrip({
         ref={ref}
         role="tablist"
         aria-label="Sections"
+        data-tab-count={tabCount}
         onKeyDown={onKeyDown}
         className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
       >
@@ -662,7 +666,7 @@ function Home() {
               )}
             </div>
           </div>
-          <TabStrip activeId={tab} onKeyDown={onTabKeyDown}>
+          <TabStrip activeId={tab} onKeyDown={onTabKeyDown} tabCount={TABS.length}>
             {[...PRIMARY_TABS, ...(activeAdvanced ? [activeAdvanced] : [])].map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;

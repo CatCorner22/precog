@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import { serverFunctionId } from "./scripts/lib/server-fn-id.mjs";
 
 /**
  * Finish PGLite bootstrap during dev-server setup (before traffic). Vite awaits
@@ -158,7 +159,10 @@ export default defineConfig(({ command }) => ({
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
     tailwindcss(),
-    tanstackStart(),
+    // Build-time server-function ids come from our own helper (same formula as
+    // TanStack's default), so scripts/e2e-account-safety.mjs can address a
+    // server function without reading the compiled bundle.
+    tanstackStart({ serverFns: { generateFunctionId: serverFunctionId } }),
     ...(command === "build"
       ? [
           nitro({

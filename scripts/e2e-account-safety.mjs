@@ -1,11 +1,22 @@
-/** Real signed-session and account-boundary tests against the compiled server + disposable PostgreSQL. */
+#!/usr/bin/env node
+/**
+ * Real signed-session and account-boundary tests against the compiled server
+ * (scripts/serve-built-test.mjs) and a disposable local PostgreSQL database.
+ *
+ * Usage: PRECOG_AUTH_TEST=1 DATABASE_URL=postgresql://…/precog_safety_e2e \
+ *        BETTER_AUTH_SECRET=<32+ chars> node scripts/e2e-account-safety.mjs
+ * (see the account-safety job in .github/workflows/ci.yml)
+ */
 import assert from "node:assert/strict";
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
-import { readdir, readFile, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { Pool } from "pg";
 import { chromium } from "playwright";
 import { toJSONAsync } from "seroval";
 import { authTestEnvironment } from "./lib/auth-test-env.mjs";
+import { profileStorageKey } from "./lib/e2e.mjs";
+import { eventually, stepLogger } from "./lib/steps.mjs";
+import { serverFunctionIdOf } from "./lib/server-fn-id.mjs";
 
 const { databaseUrl, base, secret } = authTestEnvironment();
 const db = new Pool({ connectionString: databaseUrl, max: 3 });
@@ -14,14 +25,13 @@ const a = `safety_a_${run}`,
   b = `safety_b_${run}`;
 const businessA = "biz_safety_alpha",
   businessB = "biz_safety_beta";
-const profileKey = (id) =>
-  `precog.workspace.v2:account:${encodeURIComponent(id)}:precog.practiceProfile.v2`;
-const guestKey = "precog.workspace.v2:guest:precog.practiceProfile.v2";
-const steps = [];
-const step = (name) => {
-  steps.push(name);
-  console.log(`· ${name}`);
+const guestKey = profileStorageKey();
+const PROFILE_SERVER = "src/lib/precog/profile-server.ts";
+const ids = {
+  saveBusinessProfile: serverFunctionIdOf(PROFILE_SERVER, "saveBusinessProfile"),
+  deleteBusiness: serverFunctionIdOf(PROFILE_SERVER, "deleteBusiness"),
 };
+const step = stepLogger();
 const errors = [];
 let browser, page;
 async function seed(user, businessId, name) {
@@ -86,29 +96,10 @@ async function seed(user, businessId, name) {
     sameSite: "Lax",
   };
 }
-async function eventually(check, message) {
-  for (let i = 0; i < 120; i++) {
-    if (await check()) return;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error(message);
-}
 async function nameInDb(user, id) {
   return (await db.query("select name from businesses where user_id=$1 and id=$2", [user, id]))
     .rows[0]?.name;
 }
-const fnDir = ".vercel/output/functions/__server.func/_ssr";
-const fnSource = await readFile(
-  `${fnDir}/${(await readdir(fnDir)).find((f) => /^profile-server-.*\.mjs$/.test(f))}`,
-  "utf8",
-);
-const ids = Object.fromEntries(
-  [...fnSource.matchAll(/id: "([a-f0-9]+)",\s+name: "([^"]+)"/g)].map((m) => [m[2], m[1]]),
-);
-assert.ok(
-  ids.saveBusinessProfile && ids.deleteBusiness,
-  "compiled server function metadata available",
-);
 async function requestBody(data, expected) {
   return JSON.stringify(
     await toJSONAsync({ data, context: { checkAccount: true, expectedAccountId: expected } }),
@@ -144,7 +135,7 @@ try {
   assert.equal(await nameField.inputValue(), "Safety Alpha edited");
   const aProfile = await page.evaluate(
     (key) => JSON.parse(localStorage.getItem(key)),
-    profileKey(a),
+    profileStorageKey(a),
   );
   assert.equal(aProfile.practiceName, "Safety Alpha edited");
   const aRevision = Number(
@@ -173,7 +164,7 @@ try {
   session = await context.request.get(`${base}/api/auth/get-session`);
   assert.equal(await session.json(), null);
   step("sign-out removes confirmed active copies; does not expose them as guest work");
-  assert.equal(await page.evaluate((key) => localStorage.getItem(key), profileKey(a)), null);
+  assert.equal(await page.evaluate((key) => localStorage.getItem(key), profileStorageKey(a)), null);
   const guest = await page.evaluate((key) => localStorage.getItem(key), guestKey);
   assert.ok(!guest || !guest.includes("Safety Alpha"));
 
@@ -218,7 +209,7 @@ try {
   step("B: authenticated delete cannot be undone by an old save");
   const bProfile = await page.evaluate(
     (key) => JSON.parse(localStorage.getItem(key)),
-    profileKey(b),
+    profileStorageKey(b),
   );
   const revision = Number(
     (await db.query("select revision from businesses where user_id=$1 and id=$2", [b, businessB]))
@@ -247,7 +238,7 @@ try {
       ok: true,
       runtime: "compiled Vercel entry through local HTTP adapter",
       authentication: "real Better Auth signed test sessions, not external OAuth login",
-      steps: steps.length,
+      steps: step.names.length,
     }),
   );
 } catch (error) {

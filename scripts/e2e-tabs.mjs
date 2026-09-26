@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Headless tab walk: for every industry demo, open every top-level tab and the
- * standalone routes (/threat, /report, /login, /share/<bad token>) and fail on
+ * standalone routes (/threat, /report, /login, /privacy, /terms, /firm,
+ * /share/<bad token>) and fail on
  * any uncaught page error, React error-boundary card, hydration warning, or
  * console error. This is the check that would have caught the /threat
  * hydration mismatch and any tab that throws on a template it was not written for.
@@ -87,9 +88,12 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
-    if (primary.length + advanced.length < 15) {
+    const expected = Number(
+      await page.locator("nav[data-tab-count]").getAttribute("data-tab-count"),
+    );
+    if (primary.length + advanced.length !== expected) {
       throw new Error(
-        `${industry}: expected 15 tabs, found ${primary.length} primary and ${advanced.length} advanced`,
+        `${industry}: expected ${expected} tabs, found ${primary.length} primary and ${advanced.length} advanced`,
       );
     }
 

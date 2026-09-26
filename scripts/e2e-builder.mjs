@@ -5,7 +5,7 @@
  *
  *   1. load the dental demo and open "How work flows"
  *   2. enter Build mode, add a process, rename it
- *   3. keyboard: F frames the selection, ArrowRight moves to the next stage
+ *   3. keyboard: F frames the selection, ArrowLeft moves to the previous stage
  *   4. Spreadsheet: import a CSV that updates one process and adds another
  *   5. Ctrl+Z undoes the import
  *
@@ -17,36 +17,13 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { e2eOptions, withPage } from "./lib/e2e.mjs";
+import { e2eOptions, restingViewport, viewportTransform, withPage } from "./lib/e2e.mjs";
+import { eventually, stepLogger } from "./lib/steps.mjs";
 
 const options = e2eOptions();
 const { baseUrl, timeout } = options;
-
-const steps = [];
+const step = stepLogger();
 let page;
-
-function step(name) {
-  steps.push(name);
-  console.log(`· ${name}`);
-}
-
-function assert(cond, message) {
-  if (!cond) throw new Error(message);
-}
-
-async function viewportTransform() {
-  return page.evaluate(
-    () => document.querySelector(".react-flow__viewport")?.getAttribute("style") ?? "",
-  );
-}
-
-async function selectedNodeIds() {
-  return page.evaluate(() =>
-    [...document.querySelectorAll(".react-flow__node.selected")].map((n) =>
-      n.getAttribute("data-id"),
-    ),
-  );
-}
 
 await withPage(options, async (p, errors) => {
   page = p;
@@ -81,27 +58,28 @@ await withPage(options, async (p, errors) => {
   await nameField.fill("Sterilizer logbook");
   await page.locator('.react-flow__node:has-text("Sterilizer logbook")').first().waitFor();
   await nameField.blur();
+  const [added] = await selectedNodeIds();
+  assert(added, "the new process should stay selected after renaming");
 
   step("keyboard: F frames the selection");
   await page.getByRole("button", { name: /^Focus$/ }).waitFor();
-  const before = await viewportTransform();
+  const before = await viewportTransform(page);
   await page.keyboard.press("f");
-  await page.waitForTimeout(700);
-  const framed = await viewportTransform();
-  assert(framed !== before, "F should change the viewport");
+  const framed = await restingViewport(page, {
+    from: before,
+    message: "F should change the viewport",
+  });
 
   step("keyboard: ArrowLeft moves to the previous stage");
   await page.keyboard.press("ArrowLeft");
-  await page.waitForTimeout(700);
-  const selected = await selectedNodeIds();
-  assert(
-    selected.length === 1 && selected[0] !== "proc-sterilizer-logbook",
-    `ArrowLeft should select a neighbour, got ${JSON.stringify(selected)}`,
-  );
-  assert(
-    (await viewportTransform()) !== framed,
-    "ArrowLeft should re-frame on the newly selected process",
-  );
+  const selected = await eventually(async () => {
+    const ids = await selectedNodeIds();
+    return ids.length === 1 && ids[0] !== added && ids;
+  }, "ArrowLeft should select a neighbour of the new process");
+  await restingViewport(page, {
+    from: framed,
+    message: "ArrowLeft should re-frame on the newly selected process",
+  });
 
   step("spreadsheet: import a CSV");
   await page.getByRole("button", { name: /^Spreadsheet$/ }).click();
@@ -147,6 +125,20 @@ await withPage(options, async (p, errors) => {
   assert(errors.page.length === 0, `page errors: ${errors.page.join(" | ")}`);
   assert(errors.console.length === 0, `console errors: ${errors.console.join(" | ")}`);
 
-  console.log(JSON.stringify({ ok: true, baseUrl, steps: steps.length }));
-}).catch(() => undefined);
-if (process.exitCode) console.error(`last step: "${steps.at(-1)}"`);
+  console.log(
+    JSON.stringify({ ok: true, baseUrl, steps: step.names.length, neighbour: selected[0] }),
+  );
+});
+if (process.exitCode) console.error(`last step: "${step.names.at(-1)}"`);
+
+function assert(cond, message) {
+  if (!cond) throw new Error(message);
+}
+
+async function selectedNodeIds() {
+  return page.evaluate(() =>
+    [...document.querySelectorAll(".react-flow__node.selected")].map((n) =>
+      n.getAttribute("data-id"),
+    ),
+  );
+}

@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { stepLogger } from "./lib/steps.mjs";
 import { runMigrations } from "./migrate-core.mjs";
 
 if (process.env.PRECOG_MIGRATION_TEST !== "1")
   throw new Error("Enable PRECOG_MIGRATION_TEST for isolated tests only");
-const connectionString = process.env.DATABASE_URL ?? "";
+const connectionString = process.env.DATABASE_URL?.trim();
+if (!connectionString) throw new Error("Set DATABASE_URL to an isolated local PostgreSQL database");
 const url = new URL(connectionString);
 if (
   !["postgres:", "postgresql:"].includes(url.protocol) ||
@@ -20,11 +22,7 @@ const schema = `precog_migrate_${randomUUID().replaceAll("-", "")}`;
 const dir = await mkdtemp(join(tmpdir(), "precog-migrations-"));
 const admin = new Pool({ connectionString, max: 1, connectionTimeoutMillis: 5000 });
 let pool;
-const steps = [];
-const step = (message) => {
-  steps.push(message);
-  console.log(`· ${message}`);
-};
+const step = stepLogger();
 try {
   await admin.query(`create schema ${schema}`);
   pool = new Pool({
@@ -119,7 +117,7 @@ try {
       ok: true,
       backend: "PostgreSQL",
       independentConnections: 4,
-      steps: steps.length,
+      steps: step.names.length,
     }),
   );
 } finally {
