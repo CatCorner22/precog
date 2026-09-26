@@ -5,12 +5,11 @@ describe("SlidingWindowLimiter", () => {
   it("allows the limit then denies with a retry window", () => {
     const limiter = new SlidingWindowLimiter({ limit: 2, windowMs: 1_000 }, () => 100);
 
-    expect(limiter.take("user")).toEqual({ allowed: true, remaining: 1, retryAfterMs: 0 });
-    expect(limiter.take("user")).toEqual({ allowed: true, remaining: 0, retryAfterMs: 0 });
+    expect(limiter.take("user")).toEqual({ allowed: true, retryAfterMs: 0 });
+    expect(limiter.take("user")).toEqual({ allowed: true, retryAfterMs: 0 });
     const denied = limiter.take("user");
 
     expect(denied.allowed).toBe(false);
-    expect(denied.remaining).toBe(0);
     expect(denied.retryAfterMs).toBeGreaterThan(0);
     expect(denied.retryAfterMs).toBeLessThanOrEqual(1_000);
   });
@@ -41,6 +40,19 @@ describe("SlidingWindowLimiter", () => {
     now = 1_001;
     limiter.prune();
     expect(limiter.take("user").allowed).toBe(true);
+  });
+
+  it("sweeps other keys once per window rather than on every take", () => {
+    let now = 0;
+    const limiter = new SlidingWindowLimiter({ limit: 5, windowMs: 1_000 }, () => now);
+    for (let i = 0; i < 100; i++) limiter.take(`ip:${i}`);
+    expect(limiter.size).toBe(100);
+    now = 500;
+    limiter.take("ip:new");
+    expect(limiter.size).toBe(101);
+    now = 1_500;
+    limiter.take("ip:new");
+    expect(limiter.size).toBe(1);
   });
 });
 

@@ -27,8 +27,16 @@ describe("grokChat", () => {
     ).resolves.toEqual({ text: "hello", model: "grok-test" });
   });
 
-  it("returns null on non-2xx responses", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("no", { status: 503 })));
+  it("returns null on non-2xx responses and logs the status without the key", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response("Incorrect API key provided: xai-abc123secret", { status: 401 }),
+        ),
+    );
 
     await expect(
       grokChat("test-key", {
@@ -37,6 +45,10 @@ describe("grokChat", () => {
         temperature: 0.2,
       }),
     ).resolves.toBeNull();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0][0])).toContain("401");
+    expect(String(log.mock.calls[0][0])).not.toContain("abc123secret");
+    log.mockRestore();
   });
 
   it("returns null when content is empty", async () => {
@@ -58,16 +70,21 @@ describe("grokChat", () => {
     ).resolves.toBeNull();
   });
 
-  it("returns null when fetch rejects", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")));
+  it("returns null when fetch rejects and says whether it timed out", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const options = {
+      messages: [{ role: "user" as const, content: "hi" }],
+      maxTokens: 10,
+      temperature: 0.2,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("slow", "TimeoutError")));
+    await expect(grokChat("test-key", options)).resolves.toBeNull();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    await expect(grokChat("test-key", options)).resolves.toBeNull();
 
-    await expect(
-      grokChat("test-key", {
-        messages: [{ role: "user", content: "hi" }],
-        maxTokens: 10,
-        temperature: 0.2,
-      }),
-    ).resolves.toBeNull();
+    expect(String(log.mock.calls[0][0])).toMatch(/no answer within 20s/);
+    expect(String(log.mock.calls[1][0])).toMatch(/TypeError: fetch failed/);
+    log.mockRestore();
   });
 
   it("only sends response_format for JSON requests", async () => {

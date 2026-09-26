@@ -151,6 +151,9 @@ export const TOOL_CATALOG: {
   },
 ];
 
+/** What a failed tool reports to the trace and the model. */
+const TOOL_FAILED = "This tool could not run for this business.";
+
 export function executeTool(
   tool: ToolName,
   args: Record<string, unknown> = {},
@@ -288,9 +291,11 @@ export function executeTool(
               drivers: t.drivers.slice(0, 4),
               linkedScenarioId: t.linkedScenarioId,
               linkedKnowledgeId: t.linkedKnowledgeId,
-              expectedLoss: t.expectedLoss,
-              p50Days: t.p50Days,
+              assumedLoss: t.expectedLoss,
+              assumedDaysUntilFound: t.p50Days,
             })),
+            basis:
+              "assumedLoss and assumedDaysUntilFound are scenario assumptions scaled by this business's settings; not measurements or expected values.",
           },
           links: [{ tab: "residual", label: "Residual" }],
         };
@@ -605,7 +610,6 @@ export function executeTool(
               .filter((i) => i.classification === "known_unknown")
               .slice(0, 5)
               .map((i) => ({ id: i.id, title: i.title, severity: i.severity })),
-            coverage: report.coverage,
           },
           links: [{ tab: "intel", label: "Meta-analysis" }],
         };
@@ -614,14 +618,11 @@ export function executeTool(
       default:
         return { tool, ok: false, summary: "Unknown tool", data: null };
     }
-  } catch (e) {
-    return {
-      tool,
-      args,
-      ok: false,
-      summary: e instanceof Error ? e.message : "Tool failed",
-      data: null,
-    };
+  } catch (error) {
+    // Logged in full here; the trace and the model get a fixed sentence,
+    // never the internal error text.
+    console.error(`[pioneer] tool ${tool} failed`, error);
+    return { tool, ok: false, summary: TOOL_FAILED, data: null };
   }
 }
 

@@ -89,7 +89,7 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
       const result =
         data.preferLocal || context.llm.grok !== "allowed"
           ? localBrief(question, ctx, data.profile)
-          : await runGrokAgentLoop(question, ctx);
+          : await runGrokAgentLoop(question, ctx, context.llm);
       const warnings = [...result.brief.chickenLittleWarnings];
       if (
         !data.preferLocal &&

@@ -6,6 +6,7 @@
 import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
 import { formatUsd } from "@/lib/utils";
+import { RISK_SCALE } from "../scoring/bands";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
@@ -96,7 +97,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
 
   // Critic
   const criticBullets: string[] = [];
-  if ((residual?.averageResidual ?? 0) >= 55) {
+  if ((residual?.averageResidual ?? 0) >= RISK_SCALE.actNow) {
     criticBullets.push("Residual already elevated — delay is a choice with a price.");
   }
   if (leading && leading.breached > 0) {

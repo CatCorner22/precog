@@ -3,7 +3,7 @@
  */
 import { executeTool, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
-import { grokChat } from "./grok-client.server";
+import { callModel, type LlmAccess } from "./guard.server";
 import type { AgentRunResult, EvidenceRef, ReasoningStep, ToolResult } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
 import {
@@ -189,12 +189,11 @@ Write the brief.`;
 
 export async function runGrokAgentLoop(
   question: string,
-  ctx: ToolContext = {},
+  ctx: ToolContext,
+  access: LlmAccess,
 ): Promise<AgentRunResult> {
   const started = Date.now();
   const local = runLocalAgentLoop(question, ctx);
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) return { ...local, latencyMs: Date.now() - started };
 
   const toolResults = local.steps.find((s) => s.phase === "retrieve")?.toolResults ?? [];
   const messages = buildGrokAgentMessages(
@@ -208,7 +207,7 @@ export async function runGrokAgentLoop(
   );
 
   try {
-    const response = await grokChat(apiKey, {
+    const response = await callModel(access, {
       messages,
       maxTokens: 2200,
       temperature: 0.3,

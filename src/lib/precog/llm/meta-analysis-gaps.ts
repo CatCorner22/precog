@@ -2,30 +2,30 @@
  * Known gaps and blind spots the meta-analysis lists for every business.
  * Wording follows the industry inventory; the items themselves do not change.
  */
+import type { DecisionEntry } from "../practice-profile";
+import { count } from "../text";
 import type { EpistemicItem } from "./meta-analysis";
 import type { InventoryWords } from "./meta-analysis-words";
 
-function capitalize(text: string): string {
-  return `${text[0].toUpperCase()}${text.slice(1)}`;
-}
-
 export function knownUnknowns(
   words: InventoryWords,
-  decisionCount: number,
+  decisions: readonly DecisionEntry[],
 ): Omit<EpistemicItem, "classification">[] {
+  const reviewed = decisions.filter((d) => d.reviews?.length).length;
   return [
     {
       id: "ku-actual-cash-counts",
       title: "Actual cash drawer variance history",
-      description: `No imported daily cash-count vs ${words.system} variance series. Lapping and skim detection stay prior-driven.`,
+      description: `No daily cash count is compared with the ${words.system}, so lapping and skimming are judged from assumptions, not records.`,
       severity: "critical",
       affects: ["precog", "watched conditions", "cash process"],
       confidenceDrag: 0.12,
       probe: {
         kind: "system_export",
-        action: "Export 90 days of drawer close reports + deposit logs; upload CSV",
+        action:
+          "Compare 90 days of drawer close reports with the deposit slips yourself; this app cannot import them yet",
         effort: "hours",
-        expectedLift: "+12–18 pts epistemic confidence on cash scenarios",
+        expectedLift: "Shows whether the cash scenarios' assumptions match what happened",
       },
       link: { tab: "map", id: "proc-cash" },
     },
@@ -124,10 +124,12 @@ export function knownUnknowns(
     {
       id: "ku-decision-followthrough",
       title: "Remediation completion evidence",
-      description: `${decisionCount} journal entries; few carry evidence artifacts that control actually changed.`,
-      severity: decisionCount < 2 ? "medium" : "low",
+      description: decisions.length
+        ? `${count(decisions.length, "Journal entry", "Journal entries")}, ${reviewed} with a review recorded.`
+        : "No Journal entry yet, so no fix has a recorded review.",
+      severity: decisions.length < 2 ? "medium" : "low",
       affects: ["monitoring", "coso"],
-      confidenceDrag: decisionCount < 2 ? 0.05 : 0.02,
+      confidenceDrag: decisions.length < 2 ? 0.05 : 0.02,
       probe: {
         kind: "interview",
         action: "After each remediate decision, attach proof (policy, bank setting, screenshot)",
@@ -164,7 +166,8 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       confidenceDrag: 0.11,
       probe: {
         kind: "external_stat",
-        action: "Import cyber insurance terms + last backup restore test date",
+        action:
+          "Read your cyber policy's terms and note the date of the last test restore from backup (outside this app)",
         effort: "hours",
         expectedLift: "Opens a new residual domain the coach can score",
       },
@@ -261,4 +264,8 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       },
     },
   ];
+}
+
+function capitalize(text: string): string {
+  return `${text[0].toUpperCase()}${text.slice(1)}`;
 }

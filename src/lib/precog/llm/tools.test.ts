@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { executeTool, planTools } from "./tools";
 import { resolveTemplate } from "../active-template";
@@ -619,4 +619,16 @@ describe("get_case_evidence", () => {
       expect((result.data as { matchingCases: number }).matchingCases).toBe(startHere.count);
     });
   }
+});
+
+describe("executeTool when a tool throws", () => {
+  it("reports a fixed sentence, never the internal error text", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const broken = { ...defaultProfile("dental"), staff: undefined } as unknown as PracticeProfile;
+    const result = executeTool("get_practice_snapshot", {}, { profile: broken });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe("This tool could not run for this business.");
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
 });

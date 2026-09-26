@@ -1,8 +1,11 @@
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
+import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
+import { RequestError } from "@/lib/request-errors";
 import { getSql } from "@/lib/db";
 import { withinDailyBudget } from "./daily-usage";
+import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 import type { GrokAccess } from "./types";
 
@@ -11,67 +14,78 @@ export type LlmAccess = {
   grok: GrokAccess;
 };
 
-class TooManyRequestsError extends Error {
-  readonly status = 429;
-  readonly retryAfterMs: number;
-
-  constructor(retryAfterMs: number, message = "Too many requests — try again in a minute.") {
-    super(message);
-    this.name = "TooManyRequestsError";
-    this.retryAfterMs = retryAfterMs;
-  }
-}
-
-const perUserLimiter = new SlidingWindowLimiter(LLM_LIMITS.perUser);
-const perIpLimiter = new SlidingWindowLimiter(LLM_LIMITS.perIp);
-const globalLimiter = new SlidingWindowLimiter(LLM_LIMITS.global);
-const anonymousHeavyGate = createAnonymousHeavyGate();
-
 export interface LlmAccessOptions {
   /**
    * The function does costly work on the server even without a model call
-   * (Pioneer's local analysis), so signed-out callers get a much smaller
-   * allowance there than the per-address limit every model path shares.
+   * (Pioneer's local analysis), so every caller is held to a per-minute
+   * allowance there, and signed-out callers to a much smaller one.
    */
   heavy?: boolean;
 }
 
+/**
+ * Who is calling and whether a model call may be made, checked before the
+ * function's input is parsed. In order: the same-site check, the per-address
+ * limit, the session (and, when the browser sent one, the account it expects),
+ * the heavy-path allowances, then the key, the sign-in, and the per-user and
+ * instance-wide minute limits. The persisted daily budget is not spent here:
+ * `callModel` spends it only when a model call is actually attempted.
+ */
 export async function resolveLlmAccess(
   bearerToken?: string,
   options: LlmAccessOptions = {},
+  expectedAccountId?: string,
 ): Promise<LlmAccess> {
   assertSameSiteRequest();
   const ipKey = `ip:${requestIp()}`;
-  const ipResult = perIpLimiter.take(ipKey);
-  if (!ipResult.allowed) throw new TooManyRequestsError(ipResult.retryAfterMs);
+  if (!perIpLimiter.take(ipKey).allowed) throw new RequestError(429, TRY_AGAIN);
 
   let userId: string | null = null;
   if (!authConfigured && !process.env.DATABASE_URL?.trim()) {
     userId = DEV_USER_ID;
   } else {
     userId = (await getSessionUser(bearerToken))?.id ?? null;
+    // A tab that was signed in as one account never gets an answer, or spends
+    // a budget, under another.
+    if (expectedAccountId !== undefined) assertExpectedAccount(expectedAccountId, userId ?? "");
   }
 
-  // Checked before the input is parsed or any analysis runs.
-  if (options.heavy && !userId) {
-    const anonymous = anonymousHeavyGate(ipKey);
-    if (!anonymous.allowed) {
-      throw new TooManyRequestsError(
-        anonymous.retryAfterMs,
-        "Too many requests — sign in, or try again in a minute.",
-      );
-    }
+  if (options.heavy && !userId && !anonymousHeavyGate(ipKey).allowed) {
+    throw new RequestError(429, SIGN_IN_OR_TRY_AGAIN);
   }
+  // Taken for every signed-in caller, with or without a key, so the heavy
+  // local analysis is capped per account and not only per address.
+  const userAllowed = userId ? perUserLimiter.take(userId).allowed : true;
+  if (options.heavy && !userAllowed) throw new RequestError(429, TRY_AGAIN);
 
   if (!process.env.XAI_API_KEY?.trim()) return { userId, grok: "no_api_key" };
   if (!userId) return { userId, grok: "unauthenticated" };
-
-  const userResult = perUserLimiter.take(userId);
-  if (!userResult.allowed) return { userId, grok: "rate_limited" };
-  const globalResult = globalLimiter.take("global");
-  if (!globalResult.allowed) return { userId, grok: "rate_limited" };
-  // Fails closed: if the daily count cannot be read, the caller gets the
-  // local answer rather than an uncounted model call.
-  if (!(await withinDailyBudget(getSql, userId))) return { userId, grok: "rate_limited" };
+  if (!userAllowed) return { userId, grok: "rate_limited" };
+  if (!globalLimiter.take("global").allowed) return { userId, grok: "rate_limited" };
   return { userId, grok: "allowed" };
 }
+
+/**
+ * The one way to call the model for a request the middleware allowed. Spends
+ * one unit of the persisted daily budget first, so only an attempted model
+ * call is counted. Returns null, and the caller uses its local answer, when
+ * the request may not call the model, the daily budget is spent or cannot be
+ * read (fails closed), or the upstream call fails.
+ */
+export async function callModel(
+  access: LlmAccess,
+  opts: GrokChatOptions,
+): Promise<GrokChatResult | null> {
+  const apiKey = process.env.XAI_API_KEY?.trim();
+  if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
+  if (!(await withinDailyBudget(getSql, access.userId))) return null;
+  return grokChat(apiKey, opts);
+}
+
+const TRY_AGAIN = "Too many requests — try again in a minute.";
+const SIGN_IN_OR_TRY_AGAIN = "Too many requests — sign in, or try again in a minute.";
+
+const perUserLimiter = new SlidingWindowLimiter(LLM_LIMITS.perUser);
+const perIpLimiter = new SlidingWindowLimiter(LLM_LIMITS.perIp);
+const globalLimiter = new SlidingWindowLimiter(LLM_LIMITS.global);
+const anonymousHeavyGate = createAnonymousHeavyGate();
