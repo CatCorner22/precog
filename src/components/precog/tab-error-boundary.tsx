@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { reportClientError } from "@/lib/observability/report-browser";
+import { isChunkLoadError, reportClientError } from "@/lib/observability/report-browser";
 
 interface TabErrorBoundaryProps {
   resetKey: string;
@@ -13,12 +13,6 @@ interface TabErrorBoundaryState {
   error: Error | null;
 }
 
-function isChunkLoadError(error: Error): boolean {
-  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError/i.test(
-    `${error.name} ${error.message}`,
-  );
-}
-
 export class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundaryState> {
   state: TabErrorBoundaryState = { error: null };
 
@@ -28,7 +22,7 @@ export class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorB
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Tab rendering error", error, info);
-    if (!isChunkLoadError(error)) reportClientError(error, `tab:${this.props.resetKey}`);
+    reportClientError(error, `tab:${this.props.resetKey}`);
   }
 
   componentDidUpdate(previousProps: TabErrorBoundaryProps) {
