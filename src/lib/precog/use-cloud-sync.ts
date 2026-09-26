@@ -27,7 +27,12 @@ import {
   type BusinessSummary,
   type PracticeProfile,
 } from "./practice-profile";
-import { saveOnLineage, type AccountLineage, type LocalProfileStore } from "./save-conflict";
+import {
+  saveOnLineage,
+  signInMeetsNewerWork,
+  type AccountLineage,
+  type LocalProfileStore,
+} from "./save-conflict";
 import { canKeepLocalData, readLocalJson, writeLocal } from "./local-data";
 import type { ProfileAction } from "./profile-reducer";
 import { localDateKey } from "./dates";
@@ -340,23 +345,17 @@ export function useCloudSync(input: {
           // never silently attached to the account during sign-in.
           if (id !== localId && hasUserWork(local)) savePortfolioEntry(local, workspace.local);
 
-          // A legacy account copy (no revision yet) is checked the same way;
-          // choosing this device's version then creates its revision-tracked row.
-          if (id === localId && hasUserWork(local)) {
-            const localNewer =
-              local.updatedAt !== remoteProfile.updatedAt &&
-              syncedStamps.current[id] !== local.updatedAt;
-            if (localNewer) {
-              // Same business, edited here before signing in: let the user
-              // choose instead of silently replacing their work.
-              raiseConflict({
-                reason: "sign-in",
-                remote: remoteProfile,
-                revision: res.revision,
-                updatedAt: res.updatedAt,
-              });
-              return;
-            }
+          // Same business, edited here before signing in (also over a legacy
+          // account copy with no revision yet): let the owner choose instead
+          // of silently replacing their work.
+          if (signInMeetsNewerWork(local, remoteProfile, syncedStamps.current[id])) {
+            raiseConflict({
+              reason: "sign-in",
+              remote: remoteProfile,
+              revision: res.revision,
+              updatedAt: res.updatedAt,
+            });
+            return;
           }
 
           // The save effect writes it to this browser as the open business.

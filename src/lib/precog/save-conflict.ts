@@ -1,6 +1,8 @@
 import { browserStorage, type StorageLike } from "./local-data";
 import {
   ACTIVE_PROFILE_KEY,
+  hasUserWork,
+  normalizeProfile,
   parseStoredProfile,
   readStoredActiveProfile,
   type PracticeProfile,
@@ -210,4 +212,84 @@ export async function saveOnLineage<A extends AccountSaveAnswer>(input: {
   const first = await input.save(input.baseRevision);
   if (first.ok || !input.lineage.buildsOn(input.businessId, first.profile.updatedAt)) return first;
   return input.save(first.revision);
+}
+
+/**
+ * True when signing in meets work on this device that the account's copy of
+ * the same business does not have: the owner chooses, nothing is replaced
+ * unseen. This holds for a legacy account copy with no revision too.
+ * `acknowledgedStamp` is the stamp of the copy the account last took from
+ * this device.
+ */
+export function signInMeetsNewerWork(
+  local: PracticeProfile,
+  account: PracticeProfile,
+  acknowledgedStamp: string | undefined,
+): boolean {
+  return (
+    (local.businessId ?? "biz_default") === (account.businessId ?? "biz_default") &&
+    hasUserWork(local) &&
+    local.updatedAt !== account.updatedAt &&
+    acknowledgedStamp !== local.updatedAt
+  );
+}
+
+/** The copy a switch opens, or why it opens none. */
+export type SwitchCopy =
+  | {
+      ok: true;
+      profile: PracticeProfile;
+      /** The account revision when the account's copy opens; null for a copy from this device. */
+      accountRevision: number | null;
+      /** A copy the account has never held: its next save creates it there. */
+      localOnly: boolean;
+    }
+  | { ok: false; reason: string };
+
+/**
+ * Which copy of a business a switch opens. On this device, the newer of its
+ * portfolio entry and another tab's open copy (written on every edit, the
+ * portfolio only a moment later). With an account, the account's copy
+ * unless this device's copy was built on the revision the account still
+ * holds: clocks are not a tiebreaker. A business the account does not hold
+ * opens from this device when the account never held it (a copy kept after
+ * a conflict, a guest business brought in); one the account held and no
+ * longer does was deleted or shared no more. Every copy is normalised, as on
+ * every other load path.
+ */
+export function pickSwitchCopy(input: {
+  /** The portfolio entry, as stored. */
+  stored: PracticeProfile | undefined;
+  /** Another tab's open copy of this business, already normalised. */
+  open: PracticeProfile | null;
+  /** The account's answer; null when not signed in or not reachable. */
+  account: { found: true; profile: PracticeProfile; revision: number } | { found: false } | null;
+  /** The account revision this device's copy was built on. */
+  seenRevision: number | undefined;
+  /** Whether the account held this business when this device last heard. */
+  heldByAccount: boolean;
+}): SwitchCopy {
+  let local = input.stored ? normalizeProfile(input.stored) : null;
+  if (input.open && (!local || input.open.updatedAt >= local.updatedAt)) local = input.open;
+  const { account } = input;
+  if (account?.found) {
+    return local && input.seenRevision === account.revision
+      ? { ok: true, profile: local, accountRevision: null, localOnly: false }
+      : {
+          ok: true,
+          profile: normalizeProfile(account.profile),
+          accountRevision: account.revision,
+          localOnly: false,
+        };
+  }
+  if (account && (input.heldByAccount || !local)) {
+    return {
+      ok: false,
+      reason: local
+        ? "This business was deleted from your account or your access was removed. Its copy on this device was kept."
+        : "This business was deleted from your account or your access was removed.",
+    };
+  }
+  if (!local) return { ok: false, reason: "This business is no longer on this device." };
+  return { ok: true, profile: local, accountRevision: null, localOnly: account !== null };
 }

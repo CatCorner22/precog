@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { AccountLineage, LocalProfileStore, saveOnLineage, storedRevision } from "./save-conflict";
+import {
+  AccountLineage,
+  LocalProfileStore,
+  pickSwitchCopy,
+  saveOnLineage,
+  signInMeetsNewerWork,
+  storedRevision,
+} from "./save-conflict";
 import { ACTIVE_PROFILE_KEY, defaultProfile, type PracticeProfile } from "./practice-profile";
 import type { StorageLike } from "./local-data";
 import type { KnowledgeItem } from "./types";
@@ -289,5 +296,93 @@ describe("a copy saved by an older version of the app", () => {
     expect(A.write(edit(profile, { practiceName: "Renamed" })).kind).toBe("saved");
     expect(storedRevision(b.stored()).rev).toBe("r1");
     expect(A.load().profile.practiceName).toBe("Renamed");
+  });
+});
+
+describe("switching to another business", () => {
+  const kept = edit(ownBusiness(), { businessId: "biz_kept", practiceName: "Two Tab Co (copy)" });
+
+  it("opens a copy kept only on this device when the account never held it", () => {
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: false },
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy).toMatchObject({ ok: true, localOnly: true, accountRevision: null });
+    if (copy.ok) expect(copy.profile.practiceName).toBe("Two Tab Co (copy)");
+  });
+
+  it("refuses a business the account held and no longer does, and says the copy here was kept", () => {
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: false },
+      seenRevision: 4,
+      heldByAccount: true,
+    });
+    expect(copy.ok).toBe(false);
+    if (!copy.ok) expect(copy.reason).toMatch(/copy on this device was kept/);
+  });
+
+  it("normalises the stored copy as every other load does", () => {
+    const stale = { ...kept, staff: { ...kept.staff, teamSize: 0 } };
+    const copy = pickSwitchCopy({
+      stored: stale,
+      open: null,
+      account: null,
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy.ok && copy.profile.staff.teamSize).toBeGreaterThanOrEqual(1);
+  });
+
+  it("opens the account's copy when another device saved since, and this device's when it is current", () => {
+    const account = edit(kept, { practiceName: "Renamed elsewhere" });
+    const newer = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: true, profile: account, revision: 5 },
+      seenRevision: 4,
+      heldByAccount: true,
+    });
+    expect(newer).toMatchObject({ ok: true, accountRevision: 5 });
+    if (newer.ok) expect(newer.profile.practiceName).toBe("Renamed elsewhere");
+    const current = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: true, profile: account, revision: 5 },
+      seenRevision: 5,
+      heldByAccount: true,
+    });
+    expect(current).toMatchObject({ ok: true, accountRevision: null });
+    if (current.ok) expect(current.profile.practiceName).toBe("Two Tab Co (copy)");
+  });
+
+  it("takes another tab's newer open copy over the portfolio entry", () => {
+    const open = edit(kept, { practiceName: "Open in another tab" });
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open,
+      account: null,
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy.ok && copy.profile.practiceName).toBe("Open in another tab");
+  });
+});
+
+describe("signing in on a device with work on the same business", () => {
+  it("asks the owner, also over a legacy account copy with no revision", () => {
+    const account = edit(ownBusiness(), {});
+    const local = edit(account, { customKnowledge: [item("Offline item")] });
+    expect(signInMeetsNewerWork(local, account, undefined)).toBe(true);
+    // The account already took this very copy from this device: nothing to ask.
+    expect(signInMeetsNewerWork(local, account, local.updatedAt)).toBe(false);
+    // Another business: kept apart, not a conflict.
+    expect(signInMeetsNewerWork(local, { ...account, businessId: "biz_other" }, undefined)).toBe(
+      false,
+    );
   });
 });

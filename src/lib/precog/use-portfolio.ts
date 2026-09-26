@@ -11,7 +11,6 @@ import type { IndustryId } from "./industry";
 import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-server";
 import {
   loadPortfolio,
-  normalizeProfile,
   removePortfolioEntry,
   savePortfolioEntry,
   summarizeBusiness,
@@ -29,7 +28,7 @@ import {
 } from "./business-lifecycle";
 import type { Departure } from "./continuity/access-removal";
 import type { Person } from "./types";
-import type { LocalProfileStore } from "./save-conflict";
+import { pickSwitchCopy, type LocalProfileStore } from "./save-conflict";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { ProfileAction } from "./profile-reducer";
 import type { Workspace } from "./workspace-context";
@@ -133,50 +132,27 @@ export function usePortfolio(input: {
               : "The open business could not be saved, so it stays open.",
           };
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
-        // Every copy is normalised on the way in, as on every other load path.
-        const kept = loadPortfolio(workspace.local)[id];
-        let next: PracticeProfile | null = kept ? normalizeProfile(kept) : null;
-        // Another tab may have this business open: its copy of the open
-        // business is written on every edit, the portfolio only a moment
-        // later, so take whichever is newer.
-        const open = localStore.peek(id);
-        if (open && (!next || open.profile.updatedAt >= next.updatedAt)) next = open.profile;
-        let fromAccount: number | null = null;
-        if (cloudUser) {
-          const remote = await loadBusiness({
-            data: { id, today: localDateKey(new Date()) },
-          }).catch(() => null);
-          if (remote?.found && remote.profile) {
-            // The local copy is only trustworthy if it was built on the
-            // revision the server still holds; any newer revision means
-            // another device wrote since, and clocks are not a tiebreaker.
-            const seen = cloudRevision.current.get(id);
-            if (next !== null && seen !== undefined && seen === remote.revision) {
-              cloudRevision.current.set(id, remote.revision);
-            } else {
-              next = normalizeProfile(remote.profile);
-              fromAccount = remote.revision;
-            }
-          } else if (remote?.found === false) {
-            const heldByAccount =
-              cloudRevision.current.has(id) || remoteBusinesses.some((b) => b.id === id);
-            if (heldByAccount || !next) {
-              return {
-                ok: false,
-                reason: next
-                  ? "This business was deleted from your account or your access was removed. Its copy on this device was kept."
-                  : "This business was deleted from your account or your access was removed.",
-              };
-            }
-            // Kept only on this device (a copy kept after a conflict, a guest
-            // business brought in): opening it saves it to the account.
-            cloudRevision.current.delete(id);
-          }
-        }
-        if (!next) return { ok: false, reason: "This business is no longer on this device." };
+        const remote = cloudUser
+          ? await loadBusiness({ data: { id, today: localDateKey(new Date()) } }).catch(() => null)
+          : null;
+        const copy = pickSwitchCopy({
+          stored: loadPortfolio(workspace.local)[id],
+          open: localStore.peek(id)?.profile ?? null,
+          account:
+            remote?.found && remote.profile
+              ? { found: true, profile: remote.profile, revision: remote.revision }
+              : remote?.found === false
+                ? { found: false }
+                : null,
+          seenRevision: cloudRevision.current.get(id),
+          heldByAccount: cloudRevision.current.has(id) || remoteBusinesses.some((b) => b.id === id),
+        });
+        if (!copy.ok) return copy;
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
-        const opened = { ...next, businessId: id, onboardingComplete: true };
-        if (fromAccount !== null) openedFromAccount(opened, fromAccount);
+        const opened = { ...copy.profile, businessId: id, onboardingComplete: true };
+        if (copy.accountRevision !== null) openedFromAccount(opened, copy.accountRevision);
+        // Its next save creates it in the account.
+        if (copy.localOnly) cloudRevision.current.delete(id);
         activateProfile(opened);
         return { ok: true };
       } finally {
