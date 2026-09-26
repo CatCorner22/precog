@@ -698,9 +698,5 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
 
 /** The blueprint for one line of business: its own processes first, then the shared ones in its words. */
 export function blueprintsForIndustry(industry: IndustryId): PracticeProcessBlueprint[] {
-  const vocab = VOCAB[industry] ?? VOCAB.general;
-  return [
-    ...(INDUSTRY_BLUEPRINTS[industry] ?? INDUSTRY_BLUEPRINTS.general),
-    ...sharedBlueprints(vocab),
-  ];
+  return [...INDUSTRY_BLUEPRINTS[industry], ...sharedBlueprints(VOCAB[industry])];
 }

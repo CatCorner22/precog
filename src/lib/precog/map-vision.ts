@@ -1,9 +1,9 @@
-import { HEAT_BANDS } from "./scoring/bands";
-import { clamp } from "./number";
 /**
  * Map vision modes: Risk Predator (thermal) + Risk Terminator (threat scan).
  * Priority scoring for process / control nodes.
  */
+import { HEAT_BANDS } from "./scoring/bands";
+import { clamp } from "./number";
 
 export type MapVisionMode = "standard" | "predator" | "terminator";
 
@@ -168,7 +168,7 @@ export function scorePriority(input: {
   controlOpen?: boolean;
   dependencyCount?: number;
 }): { priority: number; reasons: string[]; impactHint: string; immediate: boolean } {
-  const heat = input.heat ?? 0;
+  const { heat } = input;
   let impact = 0.45;
   const reasons: string[] = [];
 

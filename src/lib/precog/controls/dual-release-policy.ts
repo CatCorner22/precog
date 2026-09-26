@@ -76,7 +76,7 @@ export interface DualReleasePolicy {
   ownerCanSecondAny: boolean;
   hardBlockWithoutSecond: boolean;
   rules: DualReleaseRule[];
-  /** Ordered by specificity; first matching active exception wins */
+  /** Any order: the evaluator ranks matching exceptions by specificity and applies the most specific. */
   exceptions: ThresholdException[];
   updatedAt?: string;
 }
@@ -126,15 +126,9 @@ export interface ReleaseEvaluation {
   channel: ReleaseChannel;
   amountUsd: number;
   /**
-   * The dollar threshold in force for this evaluation, always finite.
-   *
-   * A waived rule used to pass Number.POSITIVE_INFINITY through here, and a
-   * forced rule -1. Consumers then had to reverse-engineer the exception state
-   * from a sentinel, and the panel got it wrong: it rendered a waiver — the
-   * weakest possible state, no second signer at any amount — as "$0", which
-   * everywhere else in the product means "always dual", the strictest state.
-   * The two flags below carry that state explicitly so no display ever has to
-   * infer it from a number.
+   * The dollar threshold in force for this evaluation, always finite: a
+   * waived rule reports its base threshold and a forced rule reports 0. Read
+   * `dualWaived` and `dualForced` for the exception state, never this number.
    */
   thresholdUsd: number;
   baseThresholdUsd: number;

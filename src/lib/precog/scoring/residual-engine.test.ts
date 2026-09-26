@@ -278,11 +278,14 @@ describe("scenario row formula", () => {
       expect(
         Math.abs(row.creditedEffectiveness! - row.controlEffectiveness * 0.5),
       ).toBeLessThanOrEqual(1);
-      const uplift = row.residual / Math.max(1, row.residualRaw);
-      const recomputed = (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100;
-      // Within rounding of the displayed integers, I × (1 − credited E) gives the raw residual.
-      expect(Math.abs(recomputed - row.residualRaw), row.id).toBeLessThanOrEqual(1.5);
-      expect(uplift).toBeGreaterThanOrEqual(1);
+      // The staffing uplift drivers sum to the factor the row is multiplied by.
+      const uplift =
+        1 +
+        row.drivers.filter((d) => d.id.startsWith("staff-")).reduce((sum, d) => sum + d.weight, 0);
+      const recomputed =
+        (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100 * uplift;
+      // Within rounding of the displayed integers, I × (1 − credited E) × uplift gives the residual.
+      expect(Math.abs(recomputed - row.residual), row.id).toBeLessThanOrEqual(2);
     }
   });
 

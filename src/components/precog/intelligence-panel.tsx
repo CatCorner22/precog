@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
+import { scoreLeadingIndicators, statusRank } from "@/lib/precog/ml/leading-indicators";
 import { retrieveKnowledge } from "@/lib/precog/rag/retrieve";
 import { defaultRagQuery } from "@/lib/precog/rag/industry-queries";
 import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-panel";
@@ -22,10 +22,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
-
-function rank(status: "ok" | "watch" | "breach"): number {
-  return status === "breach" ? 2 : status === "watch" ? 1 : 0;
-}
 
 export function IntelligencePanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile, template } = usePractice();
@@ -131,7 +127,7 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: NavFn }) {
             </CardHeader>
             <CardContent className="space-y-2">
               {[...leading.indicators]
-                .sort((a, b) => rank(b.status) - rank(a.status))
+                .sort((a, b) => statusRank(b.status) - statusRank(a.status))
                 .map((i) => (
                   <div
                     key={i.id}

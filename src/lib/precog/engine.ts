@@ -23,52 +23,6 @@ import { formatUsd } from "../utils";
 import { count } from "./text";
 
 /**
- * Knowledge held by too few people, from the business's register.
- *
- * A register nobody has filled in (the industry's starter list with nobody
- * marked, or an empty list) says nothing about the business, so it yields no
- * risks: every index that reads this list skips knowledge until the owner
- * marks who can do each item (registerAssessed in continuity/register-state).
- */
-export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
-  if (!registerAssessed(tpl)) return [];
-  const { knowledge, people, relations } = tpl;
-  const byK = new Map<string, typeof relations>();
-  for (const r of relations) {
-    if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
-    byK.get(r.knowledgeId)!.push(r);
-  }
-
-  return knowledge
-    .filter((k) => k.criticality === "critical" || k.criticality === "important")
-    .map((k) => {
-      const holders = (byK.get(k.id) || []).filter((r) => STRONG_LEVELS.has(r.level));
-      const owners = holders
-        .map((h) => people.find((p) => p.id === h.personId))
-        .filter((p): p is Person => Boolean(p?.active));
-      const ownerCount = owners.length;
-      const soleOwner = ownerCount === 1;
-      const riskScore =
-        ownerCount === 0
-          ? KNOWLEDGE_RISK_INDEX.unowned
-          : soleOwner
-            ? k.criticality === "critical"
-              ? KNOWLEDGE_RISK_INDEX.soleCritical
-              : KNOWLEDGE_RISK_INDEX.soleImportant
-            : KNOWLEDGE_RISK_INDEX.shared;
-      return {
-        knowledgeId: k.id,
-        name: k.name,
-        soleOwner,
-        ownerCount,
-        owners,
-        riskScore,
-      };
-    })
-    .sort((a, b) => b.riskScore - a.riskScore);
-}
-
-/**
  * Index values for knowledge held by too few people. This app's own scale:
  * the numbers order attention on the same 0–100 scale as the residual index
  * and were not derived from any data.
@@ -128,13 +82,50 @@ const ASSUMED_STAFF_UPLIFT: readonly {
 /** Share of an assumed impact reduction that this app also credits to the timeline. An assumption. */
 const ASSUMED_TIMELINE_RELIEF_SHARE = 0.4;
 
-/** The staffing uplifts that apply to `staff`: their product and the sentence for each. */
-function staffUplifts(staff: StaffComposition): { multiplier: number; sentences: string[] } {
-  const applied = ASSUMED_STAFF_UPLIFT.filter((u) => u.applies(staff));
-  return {
-    multiplier: applied.reduce((m, u) => m * u.factor, 1),
-    sentences: applied.map((u) => u.sentence(staff)),
-  };
+/**
+ * Knowledge held by too few people, from the business's register.
+ *
+ * A register nobody has filled in (the industry's starter list with nobody
+ * marked, or an empty list) says nothing about the business, so it yields no
+ * risks: every index that reads this list skips knowledge until the owner
+ * marks who can do each item (registerAssessed in continuity/register-state).
+ */
+export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
+  if (!registerAssessed(tpl)) return [];
+  const { knowledge, people, relations } = tpl;
+  const byK = new Map<string, typeof relations>();
+  for (const r of relations) {
+    if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
+    byK.get(r.knowledgeId)!.push(r);
+  }
+
+  return knowledge
+    .filter((k) => k.criticality === "critical" || k.criticality === "important")
+    .map((k) => {
+      const holders = (byK.get(k.id) || []).filter((r) => STRONG_LEVELS.has(r.level));
+      const owners = holders
+        .map((h) => people.find((p) => p.id === h.personId))
+        .filter((p): p is Person => Boolean(p?.active));
+      const ownerCount = owners.length;
+      const soleOwner = ownerCount === 1;
+      const riskScore =
+        ownerCount === 0
+          ? KNOWLEDGE_RISK_INDEX.unowned
+          : soleOwner
+            ? k.criticality === "critical"
+              ? KNOWLEDGE_RISK_INDEX.soleCritical
+              : KNOWLEDGE_RISK_INDEX.soleImportant
+            : KNOWLEDGE_RISK_INDEX.shared;
+      return {
+        knowledgeId: k.id,
+        name: k.name,
+        soleOwner,
+        ownerCount,
+        owners,
+        riskScore,
+      };
+    })
+    .sort((a, b) => b.riskScore - a.riskScore);
 }
 
 export function runPrecogScenario(
@@ -333,4 +324,13 @@ export function rankDangerousScenarios(
       return { scenario, score, result };
     })
     .sort((a, b) => b.score - a.score);
+}
+
+/** The staffing uplifts that apply to `staff`: their product and the sentence for each. */
+function staffUplifts(staff: StaffComposition): { multiplier: number; sentences: string[] } {
+  const applied = ASSUMED_STAFF_UPLIFT.filter((u) => u.applies(staff));
+  return {
+    multiplier: applied.reduce((m, u) => m * u.factor, 1),
+    sentences: applied.map((u) => u.sentence(staff)),
+  };
 }

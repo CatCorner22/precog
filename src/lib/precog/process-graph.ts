@@ -214,7 +214,8 @@ export function enrichProcess(
       undefined,
     );
 
-  const owners = (process.ownerPersonIds ?? [])
+  // An owner listed twice (a pasted CSV row) is one owner and one map node.
+  const owners = [...new Set(process.ownerPersonIds ?? [])]
     .map((id) => people.find((p) => p.id === id))
     .filter(Boolean)
     .map((p) => ({ id: p!.id, name: p!.name, role: p!.role }));
@@ -413,18 +414,16 @@ export function buildProcessMapGraph(
 
     for (const o of snap.owners) {
       const oid = `${p.id}::person::${o.id}`;
-      if (!nodes.some((n) => n.id === oid)) {
-        nodes.push({
-          id: oid,
-          kind: "person",
-          label: o.name,
-          subtitle: o.role,
-          processId: p.id,
-          severity: 20,
-          badges: ["owner"],
-          data: { ...o },
-        });
-      }
+      nodes.push({
+        id: oid,
+        kind: "person",
+        label: o.name,
+        subtitle: o.role,
+        processId: p.id,
+        severity: 20,
+        badges: ["owner"],
+        data: { ...o },
+      });
       edges.push({
         id: `e-${oid}`,
         source: oid,
@@ -436,9 +435,8 @@ export function buildProcessMapGraph(
   }
 
   // Semantic value-stream links from inputs/outputs (when not already a dependency)
-  for (const feed of inferFeedEdges(processes)) {
-    if (!edges.some((e) => e.id === feed.id)) edges.push(feed);
-  }
+  // Feed ids carry their own "feed-" prefix and inferFeedEdges dedupes them.
+  edges.push(...inferFeedEdges(processes));
 
   // Cross-link knowledge people for context (not all relations)
   for (const r of relations.filter((x) => x.level === "expert")) {

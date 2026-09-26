@@ -3,11 +3,16 @@ import { documentationState } from "../continuity/documentation";
 import { registerAssessed } from "../continuity/register-state";
 import { scenariosInScope, starterScenariosLeftOut } from "./scope";
 import type { IndustryTemplate } from "../templates";
-import type { ControlItem, KnowledgeItem, KnowledgeRelation, StaffComposition } from "../types";
+import type {
+  ControlItem,
+  KnowledgeRelation,
+  KnowledgeRisk,
+  ScenarioTemplate,
+  StaffComposition,
+} from "../types";
 import type { RiskVariableState } from "./dynamic-variables";
 import { scenarioFlags } from "./scenario-kind";
 import {
-  ACTION_BANDS,
   bandForScore,
   DEFAULT_WEIGHTS,
   type ScoringWeights,
@@ -16,14 +21,6 @@ import {
 } from "./weights";
 import { formatUsd } from "../../utils";
 import { clamp, wholePercent } from "../number";
-
-interface RiskDriver {
-  id: string;
-  label: string;
-  direction: "increases" | "decreases";
-  weight: number;
-  detail: string;
-}
 
 export interface ResidualRiskScore {
   id: string;
@@ -38,7 +35,6 @@ export interface ResidualRiskScore {
    */
   effectivenessCredit?: number;
   creditedEffectiveness?: number;
-  residualRaw: number;
   residual: number; // 0-100 after staff modifiers
   band: ActionBand;
   bandLabel: string;
@@ -64,10 +60,348 @@ export interface ResidualScope {
   riskVariables?: RiskVariableState;
 }
 
-function staffUplift(
+interface RiskDriver {
+  id: string;
+  label: string;
+  direction: "increases" | "decreases";
+  weight: number;
+  detail: string;
+}
+
+interface StaffUplift {
+  factor: number;
+  drivers: RiskDriver[];
+}
+
+/**
+ * Every residual row the business's own records support: its controls, the
+ * register items someone has marked (none while the register is not assessed)
+ * and the scenarios in scope (all of the sample's; for an owner's own people
+ * only the starter scenarios they confirmed).
+ */
+export function scoreAllResidualRisks(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+  weights: ScoringWeights = DEFAULT_WEIGHTS,
+  scope: ResidualScope = {},
+): ResidualRiskScore[] {
+  const staffResolved = staff ?? tpl.staffComposition;
+  // The staffing uplift depends on the staff alone: one figure for every row.
+  const uplift = staffUplift(staffResolved, weights);
+  const risks = findKnowledgeRisks(tpl);
+  const knowledgeRedundancy =
+    risks.length > 0 ? risks.filter((r) => r.ownerCount >= 2).length / risks.length : null;
+
+  // A starter control nobody has confirmed runs here says nothing about this
+  // business; it is scored once the owner confirms it (Where risk sits).
+  const controlScores = tpl.controls
+    .filter((c) => !c.starter)
+    .map((c) => scoreControl(tpl, c, staffResolved, knowledgeRedundancy, uplift, weights));
+
+  const knowledgeScores = risks.map((r) => scoreKnowledge(tpl, r, uplift, weights));
+
+  const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) =>
+    scoreScenario(tpl, s, staffResolved, uplift, weights, scope.riskVariables),
+  );
+
+  return [...controlScores, ...knowledgeScores, ...scenarioScores].sort(
+    (a, b) => b.residual - a.residual,
+  );
+}
+
+/** The residual register's summary: every row, the top eight, the average and the band counts. */
+export function portfolioSummary(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+  weights: ScoringWeights = DEFAULT_WEIGHTS,
+  scope: ResidualScope = {},
+) {
+  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights, scope);
+  const top = scores.slice(0, 8);
+  const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
+  const criticalPath = scores.filter((s) => s.band === "critical_path").length;
+  const actNow = scores.filter((s) => s.band === "act_now").length;
+
+  return {
+    scoringVersion: SCORING_VERSION,
+    averageResidual: wholePercent(avg),
+    criticalPath,
+    actNow,
+    top,
+    all: scores,
+    /** False while the register is not assessed: no knowledge rows are scored. */
+    knowledgeAssessed: registerAssessed(tpl),
+    /** Starter scenarios left out until the owner confirms them. */
+    starterScenariosLeftOut: starterScenariosLeftOut(tpl, scope.confirmedScenarioIds).map(
+      (s) => s.id,
+    ),
+    /** Starter controls left out until the owner confirms they run here. */
+    starterControlsLeftOut: tpl.controls.filter((c) => c.starter).map((c) => c.id),
+  };
+}
+
+/**
+ * Tornado sensitivity: which staff or control lever lowers the average
+ * residual most. A lever is offered only when pulling it lowers the average:
+ * one already in place (dual control on, segregation at or above the target,
+ * no item held by one person) never moves a score, and a lever that would not
+ * help is left out. Every lever is a control the owner can put in place;
+ * hiring is not one.
+ */
+export function tornadoSensitivity(
+  tpl: IndustryTemplate,
+  baseStaff?: StaffComposition,
+  scope: ResidualScope = {},
+) {
+  const baseStaffResolved = baseStaff ?? tpl.staffComposition;
+  const base = portfolioSummary(tpl, baseStaffResolved, DEFAULT_WEIGHTS, scope).averageResidual;
+  const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
+  const crossTrained = crossTrainSoleHolders(tpl);
+
+  const trials: { id: string; label: string; staff: StaffComposition; tpl?: IndustryTemplate }[] = [
+    {
+      id: "dual",
+      label: "Enable dual control on payments",
+      staff: { ...baseStaffResolved, dualControlPayments: true },
+    },
+    {
+      id: "bank",
+      label: "Independent bank reconciliation",
+      staff: { ...baseStaffResolved, independentBankRec: true },
+    },
+    {
+      id: "seg",
+      label: `Raise segregation score to ${TORNADO_SEGREGATION_TARGET}`,
+      staff: {
+        ...baseStaffResolved,
+        segregationScore: Math.max(baseStaffResolved.segregationScore, TORNADO_SEGREGATION_TARGET),
+      },
+    },
+    {
+      // A real cross-training: every item one person holds gets a second
+      // strong holder, so the register rows move as well as the uplift.
+      id: "spof",
+      label: "Cross-train every item only one person knows",
+      staff: { ...baseStaffResolved, soleOwnerKnowledgeCount: 0 },
+      tpl: crossTrained ?? tpl,
+    },
+  ];
+
+  for (const t of trials) {
+    const improved = portfolioSummary(
+      t.tpl ?? tpl,
+      t.staff,
+      DEFAULT_WEIGHTS,
+      scope,
+    ).averageResidual;
+    const delta = base - improved;
+    if (delta <= 0) continue;
+    levers.push({ id: t.id, label: t.label, delta, improvedAvg: improved });
+  }
+
+  return {
+    baseAverage: base,
+    levers: levers.sort((a, b) => b.delta - a.delta),
+  };
+}
+
+function scoreControl(
+  tpl: IndustryTemplate,
+  c: ControlItem,
   staff: StaffComposition,
+  knowledgeRedundancy: number | null,
+  uplift: StaffUplift,
   weights: ScoringWeights,
-): { factor: number; drivers: RiskDriver[] } {
+): ResidualRiskScore {
+  const inherent = controlInherent(tpl, c, weights);
+  const effectiveness = controlEffectiveness(c, staff, knowledgeRedundancy, weights);
+  const beforeUplift = inherent.score * (1 - effectiveness.score);
+  const residual = wholePercent(beforeUplift * 100 * uplift.factor);
+  const band = bandForScore(residual);
+
+  return {
+    id: `ctrl-${c.id}`,
+    name: c.name,
+    category: "control",
+    inherent: wholePercent(inherent.score * 100),
+    controlEffectiveness: wholePercent(effectiveness.score * 100),
+    residual,
+    band: band.band,
+    bandLabel: band.label,
+    bandGuidance: band.guidance,
+    drivers: [...inherent.drivers, ...effectiveness.drivers, ...uplift.drivers]
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 6),
+    linkedControlId: c.id,
+    linkedScenarioId: tpl.scenarios.find((s) => s.controlId === c.id)?.id,
+    scoringVersion: SCORING_VERSION,
+  };
+}
+
+function scoreKnowledge(
+  tpl: IndustryTemplate,
+  risk: KnowledgeRisk,
+  uplift: StaffUplift,
+  weights: ScoringWeights,
+): ResidualRiskScore {
+  const { knowledgeId, name, soleOwner, ownerCount } = risk;
+  const item = tpl.knowledge.find((x) => x.id === knowledgeId);
+  const criticality = item?.criticality ?? "important";
+  const crit = criticality === "critical" ? 0.9 : 0.6;
+  const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
+  const inherent = clamp(0.55 * crit + 0.45 * ownership, 0, 1);
+  const docState = item ? documentationState(item) : "none";
+  const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
+  const docCredit =
+    docState === "located"
+      ? weights.knowledge.documentedLocatedCredit
+      : docState === "unlocated"
+        ? weights.knowledge.documentedUnlocatedCredit
+        : 0;
+  const effectiveness = clamp(base + docCredit, 0, 1);
+  const beforeUplift = inherent * (1 - effectiveness);
+  const residual = wholePercent(beforeUplift * 100 * uplift.factor);
+  const band = bandForScore(residual);
+
+  const drivers: RiskDriver[] = [
+    {
+      id: `k-${knowledgeId}-own`,
+      label: soleOwner
+        ? "Single point of failure"
+        : ownerCount === 0
+          ? "No strong owner"
+          : "Redundant ownership",
+      direction: soleOwner || ownerCount === 0 ? "increases" : "decreases",
+      weight: ownership,
+      detail: `${ownerCount} proficient/expert holder(s).`,
+    },
+    {
+      id: `k-${knowledgeId}-crit`,
+      label: "Knowledge criticality",
+      direction: "increases",
+      weight: crit,
+      detail: criticality,
+    },
+    {
+      id: `k-${knowledgeId}-doc`,
+      label:
+        docState === "located"
+          ? "Written procedure, findable"
+          : docState === "unlocated"
+            ? "Written procedure, location unknown"
+            : "Nothing written down",
+      direction: docState === "none" ? "increases" : "decreases",
+      weight: docState === "none" ? 0.3 : docCredit,
+      detail:
+        docState === "none"
+          ? "No written procedure a stand-in could follow."
+          : docState === "unlocated"
+            ? "Procedure exists but nobody has recorded where it lives."
+            : `Procedure at ${item?.procedureLocation?.trim() ?? ""}.`,
+    },
+    ...uplift.drivers,
+  ];
+
+  return {
+    id: `know-${knowledgeId}`,
+    name,
+    category: "knowledge",
+    inherent: wholePercent(inherent * 100),
+    controlEffectiveness: wholePercent(effectiveness * 100),
+    residual,
+    band: band.band,
+    bandLabel: band.label,
+    bandGuidance: band.guidance,
+    drivers: drivers.sort((a, b) => b.weight - a.weight).slice(0, 6),
+    linkedKnowledgeId: knowledgeId,
+    linkedScenarioId: tpl.scenarios.find((s) => s.knowledgeId === knowledgeId)?.id,
+    scoringVersion: SCORING_VERSION,
+  };
+}
+
+/**
+ * A scenario's row: its assumed loss and days until found (from the scenario
+ * engine, priced with the owner's risk variables) folded onto the index, less
+ * the credited control effectiveness, times the staffing uplift.
+ */
+function scoreScenario(
+  tpl: IndustryTemplate,
+  s: ScenarioTemplate,
+  staff: StaffComposition,
+  uplift: StaffUplift,
+  weights: ScoringWeights,
+  riskVariables: RiskVariableState | undefined,
+): ResidualRiskScore {
+  const result = runPrecogScenario(tpl, s.id, { staff, riskVariables })!;
+  const lossNorm = clamp(
+    result.financialImpact.expected / weights.scenario.lossSaturationUsd,
+    0,
+    1,
+  );
+  const timeNorm = clamp(1 - result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
+  const { timeFloor } = weights.scenario;
+  const inherent = clamp(
+    weights.scenario.lossShare * lossNorm +
+      weights.scenario.timeShare * (timeFloor + timeNorm * (1 - timeFloor)),
+    0,
+    1,
+  );
+  // Dual payment control guards against someone moving money, so it is
+  // credited to fraud scenarios only; a departure is not slowed by it.
+  const dualCredit =
+    staff.dualControlPayments && scenarioFlags(s.id).fraudRelated
+      ? weights.scenario.dualControlCredit
+      : 0;
+  const effectiveness = clamp(
+    weights.scenario.baseEffectiveness +
+      dualCredit +
+      (staff.independentBankRec ? weights.scenario.independentBankRecCredit : 0) +
+      (staff.segregationScore / 100) * weights.scenario.segregationCredit,
+    0,
+    1,
+  );
+  const beforeUplift = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
+  const residual = wholePercent(beforeUplift * 100 * uplift.factor);
+  const band = bandForScore(residual);
+
+  return {
+    id: `scen-${s.id}`,
+    name: s.title,
+    category: "scenario",
+    inherent: wholePercent(inherent * 100),
+    controlEffectiveness: wholePercent(effectiveness * 100),
+    effectivenessCredit: weights.scenario.effectivenessCredit,
+    creditedEffectiveness: wholePercent(effectiveness * weights.scenario.effectivenessCredit * 100),
+    residual,
+    band: band.band,
+    bandLabel: band.label,
+    bandGuidance: band.guidance,
+    drivers: [
+      {
+        id: `${s.id}-loss`,
+        label: "Assumed loss if this happened",
+        direction: "increases" as const,
+        weight: lossNorm,
+        detail: `~${formatUsd(result.financialImpact.expected)} — the app's scenario assumption, not a measured figure`,
+      },
+      {
+        id: `${s.id}-time`,
+        label: "Assumed days until found",
+        direction: "increases" as const,
+        weight: timeNorm,
+        detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}, the app's scenario assumption; this index weighs a scenario that comes to light sooner as nearer at hand`,
+      },
+      ...uplift.drivers,
+    ].slice(0, 6),
+    linkedScenarioId: s.id,
+    expectedLoss: result.financialImpact.expected,
+    p50Days: result.timelineDays.p50,
+    scoringVersion: SCORING_VERSION,
+  };
+}
+
+/** The staffing uplift every row is multiplied by, with the drivers that explain it. */
+function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUplift {
   let factor = 1;
   const drivers: RiskDriver[] = [];
 
@@ -247,342 +581,6 @@ function controlEffectiveness(
   return { score: clamp(score, 0, 1), drivers };
 }
 
-function scoreControl(
-  tpl: IndustryTemplate,
-  c: ControlItem,
-  staff: StaffComposition,
-  knowledgeRedundancy: number | null,
-  weights: ScoringWeights,
-): ResidualRiskScore {
-  const inherent = controlInherent(tpl, c, weights);
-  const effectiveness = controlEffectiveness(c, staff, knowledgeRedundancy, weights);
-  const residualRaw = inherent.score * (1 - effectiveness.score);
-  const uplift = staffUplift(staff, weights);
-  const residual = wholePercent(residualRaw * 100 * uplift.factor);
-  const band = bandForScore(residual);
-
-  return {
-    id: `ctrl-${c.id}`,
-    name: c.name,
-    category: "control",
-    inherent: wholePercent(inherent.score * 100),
-    controlEffectiveness: wholePercent(effectiveness.score * 100),
-    residualRaw: wholePercent(residualRaw * 100),
-    residual,
-    band: band.band,
-    bandLabel: band.label,
-    bandGuidance: band.guidance,
-    drivers: [...inherent.drivers, ...effectiveness.drivers, ...uplift.drivers]
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, 6),
-    linkedControlId: c.id,
-    linkedScenarioId: tpl.scenarios.find((s) => s.controlId === c.id)?.id,
-    scoringVersion: SCORING_VERSION,
-  };
-}
-
-function scoreKnowledge(
-  tpl: IndustryTemplate,
-  knowledgeId: string,
-  name: string,
-  soleOwner: boolean,
-  ownerCount: number,
-  item: KnowledgeItem | undefined,
-  staff: StaffComposition,
-  weights: ScoringWeights,
-): ResidualRiskScore {
-  const criticality = item?.criticality ?? "important";
-  const crit = criticality === "critical" ? 0.9 : 0.6;
-  const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
-  const inherent = clamp(0.55 * crit + 0.45 * ownership, 0, 1);
-  const docState = item ? documentationState(item) : "none";
-  const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
-  const docCredit =
-    docState === "located"
-      ? weights.knowledge.documentedLocatedCredit
-      : docState === "unlocated"
-        ? weights.knowledge.documentedUnlocatedCredit
-        : 0;
-  const effectiveness = clamp(base + docCredit, 0, 1);
-  const residualRaw = inherent * (1 - effectiveness);
-  const uplift = staffUplift(staff, weights);
-  const residual = wholePercent(residualRaw * 100 * uplift.factor);
-  const band = bandForScore(residual);
-
-  const drivers: RiskDriver[] = [
-    {
-      id: `k-${knowledgeId}-own`,
-      label: soleOwner
-        ? "Single point of failure"
-        : ownerCount === 0
-          ? "No strong owner"
-          : "Redundant ownership",
-      direction: soleOwner || ownerCount === 0 ? "increases" : "decreases",
-      weight: ownership,
-      detail: `${ownerCount} proficient/expert holder(s).`,
-    },
-    {
-      id: `k-${knowledgeId}-crit`,
-      label: "Knowledge criticality",
-      direction: "increases",
-      weight: crit,
-      detail: criticality,
-    },
-    {
-      id: `k-${knowledgeId}-doc`,
-      label:
-        docState === "located"
-          ? "Written procedure, findable"
-          : docState === "unlocated"
-            ? "Written procedure, location unknown"
-            : "Nothing written down",
-      direction: docState === "none" ? "increases" : "decreases",
-      weight: docState === "none" ? 0.3 : docCredit,
-      detail:
-        docState === "none"
-          ? "No written procedure a stand-in could follow."
-          : docState === "unlocated"
-            ? "Procedure exists but nobody has recorded where it lives."
-            : `Procedure at ${item?.procedureLocation?.trim() ?? ""}.`,
-    },
-    ...uplift.drivers,
-  ];
-
-  return {
-    id: `know-${knowledgeId}`,
-    name,
-    category: "knowledge",
-    inherent: wholePercent(inherent * 100),
-    controlEffectiveness: wholePercent(effectiveness * 100),
-    residualRaw: wholePercent(residualRaw * 100),
-    residual,
-    band: band.band,
-    bandLabel: band.label,
-    bandGuidance: band.guidance,
-    drivers: drivers.sort((a, b) => b.weight - a.weight).slice(0, 6),
-    linkedKnowledgeId: knowledgeId,
-    linkedScenarioId: tpl.scenarios.find((s) => s.knowledgeId === knowledgeId)?.id,
-    scoringVersion: SCORING_VERSION,
-  };
-}
-
-/**
- * Every residual row the business's own records support: its controls, the
- * register items someone has marked (none while the register is not assessed)
- * and the scenarios in scope (all of the sample's; for an owner's own people
- * only the starter scenarios they confirmed).
- */
-export function scoreAllResidualRisks(
-  tpl: IndustryTemplate,
-  staff?: StaffComposition,
-  weights: ScoringWeights = DEFAULT_WEIGHTS,
-  scope: ResidualScope = {},
-): ResidualRiskScore[] {
-  const staffResolved = staff ?? tpl.staffComposition;
-  const risks = findKnowledgeRisks(tpl);
-  const knowledgeRedundancy =
-    risks.length > 0 ? risks.filter((r) => r.ownerCount >= 2).length / risks.length : null;
-
-  // A starter control nobody has confirmed runs here says nothing about this
-  // business; it is scored once the owner confirms it (Where risk sits).
-  const controlScores = tpl.controls
-    .filter((c) => !c.starter)
-    .map((c) => scoreControl(tpl, c, staffResolved, knowledgeRedundancy, weights));
-
-  const knowledgeScores = risks.map((r) => {
-    const k = tpl.knowledge.find((x) => x.id === r.knowledgeId);
-    return scoreKnowledge(
-      tpl,
-      r.knowledgeId,
-      r.name,
-      r.soleOwner,
-      r.ownerCount,
-      k,
-      staffResolved,
-      weights,
-    );
-  });
-
-  const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) => {
-    const result = runPrecogScenario(tpl, s.id, {
-      staff: staffResolved,
-      riskVariables: scope.riskVariables,
-    })!;
-    const lossNorm = clamp(
-      result.financialImpact.expected / weights.scenario.lossSaturationUsd,
-      0,
-      1,
-    );
-    const timeNorm = clamp(1 - result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
-    const { timeFloor } = weights.scenario;
-    const inherent = clamp(
-      weights.scenario.lossShare * lossNorm +
-        weights.scenario.timeShare * (timeFloor + timeNorm * (1 - timeFloor)),
-      0,
-      1,
-    );
-    // Dual payment control guards against someone moving money, so it is
-    // credited to fraud scenarios only; a departure is not slowed by it.
-    const dualCredit =
-      staffResolved.dualControlPayments && scenarioFlags(s.id).fraudRelated
-        ? weights.scenario.dualControlCredit
-        : 0;
-    const effectiveness = clamp(
-      weights.scenario.baseEffectiveness +
-        dualCredit +
-        (staffResolved.independentBankRec ? weights.scenario.independentBankRecCredit : 0) +
-        (staffResolved.segregationScore / 100) * weights.scenario.segregationCredit,
-      0,
-      1,
-    );
-    const residualRaw = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
-    const uplift = staffUplift(staffResolved, weights);
-    const residual = wholePercent(residualRaw * 100 * uplift.factor);
-    const band = bandForScore(residual);
-
-    return {
-      id: `scen-${s.id}`,
-      name: s.title,
-      category: "scenario" as const,
-      inherent: wholePercent(inherent * 100),
-      controlEffectiveness: wholePercent(effectiveness * 100),
-      effectivenessCredit: weights.scenario.effectivenessCredit,
-      creditedEffectiveness: wholePercent(
-        effectiveness * weights.scenario.effectivenessCredit * 100,
-      ),
-      residualRaw: wholePercent(residualRaw * 100),
-      residual,
-      band: band.band,
-      bandLabel: band.label,
-      bandGuidance: band.guidance,
-      drivers: [
-        {
-          id: `${s.id}-loss`,
-          label: "Assumed loss if this happened",
-          direction: "increases" as const,
-          weight: lossNorm,
-          detail: `~${formatUsd(result.financialImpact.expected)} — the app's scenario assumption, not a measured figure`,
-        },
-        {
-          id: `${s.id}-time`,
-          label: "Assumed days until found",
-          direction: "increases" as const,
-          weight: timeNorm,
-          detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}, the app's scenario assumption; this index weighs a scenario that comes to light sooner as nearer at hand`,
-        },
-        ...uplift.drivers,
-      ].slice(0, 6),
-      linkedScenarioId: s.id,
-      expectedLoss: result.financialImpact.expected,
-      p50Days: result.timelineDays.p50,
-      scoringVersion: SCORING_VERSION,
-    };
-  });
-
-  return [...controlScores, ...knowledgeScores, ...scenarioScores].sort(
-    (a, b) => b.residual - a.residual,
-  );
-}
-
-export function portfolioSummary(
-  tpl: IndustryTemplate,
-  staff?: StaffComposition,
-  weights: ScoringWeights = DEFAULT_WEIGHTS,
-  scope: ResidualScope = {},
-) {
-  const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights, scope);
-  const top = scores.slice(0, 8);
-  const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
-  const criticalPath = scores.filter((s) => s.band === "critical_path").length;
-  const actNow = scores.filter((s) => s.band === "act_now").length;
-
-  return {
-    scoringVersion: SCORING_VERSION,
-    actionBands: ACTION_BANDS,
-    averageResidual: wholePercent(avg),
-    criticalPath,
-    actNow,
-    top,
-    all: scores,
-    /** False while the register is not assessed: no knowledge rows are scored. */
-    knowledgeAssessed: registerAssessed(tpl),
-    /** Starter scenarios left out until the owner confirms them. */
-    starterScenariosLeftOut: starterScenariosLeftOut(tpl, scope.confirmedScenarioIds).map(
-      (s) => s.id,
-    ),
-    /** Starter controls left out until the owner confirms they run here. */
-    starterControlsLeftOut: tpl.controls.filter((c) => c.starter).map((c) => c.id),
-  };
-}
-
-/** The segregation score the tornado's "raise to" lever aims for. */
-const TORNADO_SEGREGATION_TARGET = 75;
-
-/**
- * Tornado sensitivity: which staff or control lever lowers the average
- * residual most. A lever is offered only when pulling it lowers the average:
- * one already in place (dual control on, segregation at or above the target,
- * no item held by one person) never moves a score, and a lever that would not
- * help is left out. Every lever is a control the owner can put in place;
- * hiring is not one.
- */
-export function tornadoSensitivity(
-  tpl: IndustryTemplate,
-  baseStaff?: StaffComposition,
-  scope: ResidualScope = {},
-) {
-  const baseStaffResolved = baseStaff ?? tpl.staffComposition;
-  const base = portfolioSummary(tpl, baseStaffResolved, DEFAULT_WEIGHTS, scope).averageResidual;
-  const levers: { id: string; label: string; delta: number; improvedAvg: number }[] = [];
-  const crossTrained = crossTrainSoleHolders(tpl);
-
-  const trials: { id: string; label: string; staff: StaffComposition; tpl?: IndustryTemplate }[] = [
-    {
-      id: "dual",
-      label: "Enable dual control on payments",
-      staff: { ...baseStaffResolved, dualControlPayments: true },
-    },
-    {
-      id: "bank",
-      label: "Independent bank reconciliation",
-      staff: { ...baseStaffResolved, independentBankRec: true },
-    },
-    {
-      id: "seg",
-      label: `Raise segregation score to ${TORNADO_SEGREGATION_TARGET}`,
-      staff: {
-        ...baseStaffResolved,
-        segregationScore: Math.max(baseStaffResolved.segregationScore, TORNADO_SEGREGATION_TARGET),
-      },
-    },
-    {
-      // A real cross-training: every item one person holds gets a second
-      // strong holder, so the register rows move as well as the uplift.
-      id: "spof",
-      label: "Cross-train every item only one person knows",
-      staff: { ...baseStaffResolved, soleOwnerKnowledgeCount: 0 },
-      tpl: crossTrained ?? tpl,
-    },
-  ];
-
-  for (const t of trials) {
-    const improved = portfolioSummary(
-      t.tpl ?? tpl,
-      t.staff,
-      DEFAULT_WEIGHTS,
-      scope,
-    ).averageResidual;
-    const delta = base - improved;
-    if (delta <= 0) continue;
-    levers.push({ id: t.id, label: t.label, delta, improvedAvg: improved });
-  }
-
-  return {
-    baseAverage: base,
-    levers: levers.sort((a, b) => b.delta - a.delta),
-  };
-}
-
 /**
  * The template with a second strong holder on every register item one person
  * holds: another active person, marked expert. Null when nothing is held by
@@ -601,6 +599,9 @@ function crossTrainSoleHolders(tpl: IndustryTemplate): IndustryTemplate | null {
     added.some((a) => a.personId === rel.personId && a.knowledgeId === rel.knowledgeId);
   return { ...tpl, relations: [...tpl.relations.filter((rel) => !replaced(rel)), ...added] };
 }
+
+/** The segregation score the tornado's "raise to" lever aims for. */
+const TORNADO_SEGREGATION_TARGET = 75;
 
 /** Cash custody controls: the drawer, the deposit and the bank reconciliation. */
 const CASH_CONTROLS = new Set(["c-cash", "c-sod-cash"]);

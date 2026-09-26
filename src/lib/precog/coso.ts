@@ -23,8 +23,6 @@ export type CosoComponentId =
   | "information_communication"
   | "monitoring";
 
-export type HealthStatus = HealthLevel;
-
 export type DeepLinkTarget =
   | { type: "sod" }
   | { type: "knowledge"; knowledgeId?: string }
@@ -35,14 +33,14 @@ export interface CosoFinding {
   id: string;
   label: string;
   detail: string;
-  severity: HealthStatus;
+  severity: HealthLevel;
   link: DeepLinkTarget;
 }
 
 interface CosoPrincipleScore {
   number: number;
   name: string;
-  status: HealthStatus;
+  status: HealthLevel;
   note: string;
   /** The inputs this principle reads are not in yet; show "not assessed" instead of a status. */
   notAssessed?: boolean;
@@ -54,7 +52,7 @@ export interface CosoComponentAssessment {
   shortName: string;
   description: string;
   score: number; // 0-100
-  status: HealthStatus;
+  status: HealthLevel;
   principles: CosoPrincipleScore[];
   findings: CosoFinding[];
   primaryActions: { label: string; link: DeepLinkTarget }[];
@@ -82,12 +80,11 @@ export function assessCoso(
   } = {},
 ): {
   overall: number;
-  overallStatus: HealthStatus;
+  overallStatus: HealthLevel;
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
   const { controls } = tpl;
-  const staffComposition = staff;
   const knowledgeAssessed = registerAssessed(tpl);
   const risks = findKnowledgeRisks(tpl);
   const ranked = rankDangerousScenarios(tpl, {
@@ -108,10 +105,10 @@ export function assessCoso(
   const topScenario = ranked[0];
   const fraudDrivers = [
     ...(sodGaps.length > 0 ? [count(sodGaps.length, "open duty conflict")] : []),
-    ...(staffComposition.dualControlPayments ? [] : ["no dual payment control"]),
-    ...(staffComposition.independentBankRec ? [] : ["no independent bank reconciliation"]),
+    ...(staff.dualControlPayments ? [] : ["no dual payment control"]),
+    ...(staff.independentBankRec ? [] : ["no independent bank reconciliation"]),
   ];
-  const fraudSeverity: HealthStatus =
+  const fraudSeverity: HealthLevel =
     sodGaps.length > 0 && fraudDrivers.length >= 2
       ? "critical"
       : fraudDrivers.length > 0
@@ -121,7 +118,7 @@ export function assessCoso(
   // --- Component scores derived from live demo state ---
   const controlEnvScore = Math.max(
     25,
-    72 - (staffComposition.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
+    72 - (staff.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
   );
 
   const riskAssessmentScore = Math.max(
@@ -131,9 +128,9 @@ export function assessCoso(
 
   const controlActivitiesScore = Math.max(
     15,
-    staffComposition.segregationScore -
-      (staffComposition.dualControlPayments ? 0 : 12) -
-      (staffComposition.independentBankRec ? 0 : 10) +
+    staff.segregationScore -
+      (staff.dualControlPayments ? 0 : 12) -
+      (staff.independentBankRec ? 0 : 10) +
       (sodGaps.length === 0 ? 15 : 0),
   );
 
@@ -145,7 +142,7 @@ export function assessCoso(
   const monitoringScore = Math.max(
     20,
     55 +
-      (staffComposition.independentBankRec ? 15 : 0) +
+      (staff.independentBankRec ? 15 : 0) +
       (residualAccepted.length > 0 && unaddressedGaps.length === 0 ? 10 : 0) -
       unaddressedGaps.length * 6,
   );
@@ -168,8 +165,8 @@ export function assessCoso(
         {
           number: 2,
           name: "Oversight responsibility",
-          status: staffComposition.independentBankRec ? "adequate" : "weak",
-          note: staffComposition.independentBankRec
+          status: staff.independentBankRec ? "adequate" : "weak",
+          note: staff.independentBankRec
             ? "Independent bank oversight in place."
             : "Owner/manager oversight of cash path is incomplete.",
         },
@@ -250,10 +247,7 @@ export function assessCoso(
         {
           number: 8,
           name: "Fraud risk",
-          status:
-            !staffComposition.dualControlPayments || !staffComposition.independentBankRec
-              ? "weak"
-              : "adequate",
+          status: !staff.dualControlPayments || !staff.independentBankRec ? "weak" : "adequate",
           note: fraudDrivers.length
             ? `Fraud opportunity from ${joinWithAnd(fraudDrivers)}.`
             : "No open duty conflict; dual payment control and independent bank reconciliation are on.",
@@ -273,7 +267,7 @@ export function assessCoso(
                 id: "ra-top",
                 label: `Top residual future: ${topScenario.scenario.title}`,
                 detail: `Scenario assumes a loss of ${formatUsd(topScenario.result.financialImpact.expected)} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
-                severity: "critical" as HealthStatus,
+                severity: "critical" as HealthLevel,
                 link: {
                   type: "precog" as const,
                   scenarioId: topScenario.scenario.id,
@@ -284,7 +278,7 @@ export function assessCoso(
         {
           id: "ra-fraud",
           label: fraudDrivers.length ? "Fraud risk drivers active" : "No fraud risk driver active",
-          detail: `${count(sodGaps.length, "open duty conflict")}; dual payment control ${staffComposition.dualControlPayments ? "on" : "off"}; independent bank reconciliation ${staffComposition.independentBankRec ? "on" : "off"}.`,
+          detail: `${count(sodGaps.length, "open duty conflict")}; dual payment control ${staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation ${staff.independentBankRec ? "on" : "off"}.`,
           severity: fraudSeverity,
           link: { type: "sod" },
         },
@@ -309,7 +303,7 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: healthLevel(controlActivitiesScore),
-          note: `Segregation score ${staffComposition.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "starter control")} not yet confirmed as running here.` : ""}`,
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "starter control")} not yet confirmed as running here.` : ""}`,
         },
         {
           number: 11,
@@ -395,7 +389,7 @@ export function assessCoso(
             id: `ic-${s.knowledgeId}`,
             label: `SPOF: ${s.name}`,
             detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. Continuity and internal know-how at risk.`,
-            severity: "critical" as HealthStatus,
+            severity: "critical" as HealthLevel,
             link: { type: "knowledge" as const, knowledgeId: s.knowledgeId },
           }))
         : [
@@ -404,7 +398,7 @@ export function assessCoso(
               label: "Register not assessed yet",
               detail:
                 "Mark who can do each item on Who knows what. Until then key-person concentration is not scored here.",
-              severity: "weak" as HealthStatus,
+              severity: "weak" as HealthLevel,
               link: { type: "knowledge" as const },
             },
           ],
@@ -436,7 +430,7 @@ export function assessCoso(
         {
           number: 16,
           name: "Ongoing / separate evaluations",
-          status: staffComposition.independentBankRec ? "adequate" : "weak",
+          status: staff.independentBankRec ? "adequate" : "weak",
           note: "Bank and adjustment reviews are the main detective check in a small business.",
         },
         {
@@ -452,13 +446,13 @@ export function assessCoso(
       findings: [
         {
           id: "mon-rec",
-          label: staffComposition.independentBankRec
+          label: staff.independentBankRec
             ? "Independent bank rec active"
             : "Independent bank rec missing",
-          detail: staffComposition.independentBankRec
+          detail: staff.independentBankRec
             ? "Detective control reduces detection lag."
             : "Without independent rec, fraud and error lag rises — elevates Precog timelines.",
-          severity: staffComposition.independentBankRec ? "adequate" : "critical",
+          severity: staff.independentBankRec ? "adequate" : "critical",
           link: { type: "precog", scenarioId: "sc-cash-sod-failure" },
         },
         {
@@ -497,7 +491,7 @@ export function assessCoso(
   };
 }
 
-const PRIORITY_RANK: Record<HealthStatus, number> = {
+const PRIORITY_RANK: Record<HealthLevel, number> = {
   critical: 0,
   weak: 1,
   adequate: 2,

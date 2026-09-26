@@ -6,8 +6,8 @@ import {
   type CosoComponentAssessment,
   type CosoComponentId,
   type DeepLinkTarget,
-  type HealthStatus,
 } from "@/lib/precog/coso";
+import type { HealthLevel } from "@/lib/precog/scoring/bands";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { ArrowRight, CheckCircle2, CircleAlert, TriangleAlert } from "lucide-react";
 
 const STATUS_META: Record<
-  HealthStatus,
+  HealthLevel,
   { label: string; badge: "ok" | "primary" | "warn" | "danger"; bar: string; cell: string }
 > = {
   strong: {
@@ -130,7 +130,7 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted">
-              {(Object.keys(STATUS_META) as HealthStatus[]).map((s) => (
+              {(Object.keys(STATUS_META) as HealthLevel[]).map((s) => (
                 <span key={s} className="inline-flex items-center gap-1.5">
                   <span className={cn("size-2 rounded-full", STATUS_META[s].bar)} />
                   {STATUS_META[s].label}
@@ -251,7 +251,7 @@ function ComponentDetail({
   );
 }
 
-function SeverityIcon({ status }: { status: HealthStatus }) {
+function SeverityIcon({ status }: { status: HealthLevel }) {
   if (status === "strong" || status === "adequate") {
     return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" />;
   }
