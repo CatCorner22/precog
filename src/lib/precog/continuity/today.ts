@@ -3,12 +3,11 @@ import type { IndustryId } from "../industry";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
 import { continuityCommitments, handoffCommitment } from "../decisions/follow-through";
-import { firstName } from "./coverage";
 import { leaveDebriefs } from "./leave-debrief";
 import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
 import { plannedAbsenceReport, procedurePointer, type AbsenceWindow } from "./planned-absence";
-import { joinWithAnd } from "../text";
+import { joinWithAnd, firstName, count, verb } from "../text";
 import { formatDayRange } from "../dates";
 
 /** Leave starting within this many days counts as "starting soon" on the dashboard. */
@@ -140,33 +139,33 @@ function headline(b: TodayBrief): string | null {
           : unexpected > 1
             ? `out (${unexpected} unexpectedly)`
             : "out";
-    const count = b.out.flatMap((o) => o.stops).length;
+    const stopCount = b.out.flatMap((o) => o.stops).length;
     const first = b.out[0].window;
     const waiting = (first.todayImpact ?? first.impact).alreadyStopped.filter(
       (k) => k.criticality !== "nice-to-have",
     ).length;
     const stops = !b.assessed
       ? "nobody is marked on the register yet, so the app cannot tell what stops"
-      : count === 0 && waiting > 0
-        ? `nothing more on the register stops, but ${waiting} ${waiting === 1 ? "entry" : "entries"} nobody can run alone already ${waiting === 1 ? "waits" : "wait"}`
-        : count === 0
+      : stopCount === 0 && waiting > 0
+        ? `nothing more on the register stops, but ${count(waiting, "entry", "entries")} nobody can run alone already ${verb(waiting, "waits", "wait")}`
+        : stopCount === 0
           ? "nothing on the register stops"
-          : `${count} register ${count === 1 ? "entry stops" : "entries stop"}`;
+          : `${count(stopCount, "register entry stops", "register entries stop")}`;
     const tail = [
       b.cold > 0 ? `${b.cold} that nobody left has done before` : "",
       b.unwritten > 0 ? `${b.unwritten} with nothing written down` : "",
     ].filter(Boolean);
-    return `${who} ${names.length === 1 ? "is" : "are"} ${how} today — ${stops}${tail.length ? `, ${tail.join(", ")}` : ""}.`;
+    return `${who} ${verb(names.length, "is", "are")} ${how} today — ${stops}${tail.length ? `, ${tail.join(", ")}` : ""}.`;
   }
   if (b.gone.length > 0) {
     const l = b.gone[0];
     const first = firstName(l.person.name);
-    return `${first} ${leaverLead(l.daysLeft)} but still counts as cover — mark ${first} as left${l.handover.length > 0 ? ` (${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} only ${first} could run alone)` : ""}.`;
+    return `${first} ${leaverLead(l.daysLeft)} but still counts as cover — mark ${first} as left${l.handover.length > 0 ? ` (${count(l.handover.length, "entry", "entries")} only ${first} could run alone)` : ""}.`;
   }
   if (b.startingSoon.length > 0) {
     const w = b.startingSoon[0];
     const when = w.daysUntil === 1 ? "tomorrow" : `in ${w.daysUntil} days`;
-    return `${firstName(w.person.name)} is out ${formatDayRange(w.window.absence.from, w.window.absence.to)}, ${when}${w.unlogged > 0 ? ` — ${w.unlogged} hand-off${w.unlogged === 1 ? "" : "s"} not yet logged` : ""}.`;
+    return `${firstName(w.person.name)} is out ${formatDayRange(w.window.absence.from, w.window.absence.to)}, ${when}${w.unlogged > 0 ? ` — ${count(w.unlogged, "hand-off")} not yet logged` : ""}.`;
   }
   if (b.leaving.length > 0) {
     const l = b.leaving[0];
@@ -175,11 +174,11 @@ function headline(b: TodayBrief): string | null {
       ? "the app cannot tell yet what depends on them alone"
       : l.handover.length === 0
         ? "nothing on the register depends on them alone"
-        : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`;
+        : `${count(l.handover.length, "entry", "entries")} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`;
     return `${first} ${leaverLead(l.daysLeft)} — ${work}.`;
   }
   if (b.debriefs > 0) {
-    return `${b.debriefs} absence${b.debriefs === 1 ? "" : "s"} just ended — debrief the stand-ins.`;
+    return `${count(b.debriefs, "absence")} just ended — debrief the stand-ins.`;
   }
   return null;
 }

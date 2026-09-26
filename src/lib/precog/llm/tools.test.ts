@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
-import { firstName } from "../continuity/coverage";
 import { executeTool, planTools } from "./tools";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
+import { firstName } from "../text";
 
 const dental = getBaseTemplate("dental");
 

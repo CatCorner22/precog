@@ -1,4 +1,5 @@
 import { formatPct } from "../../../utils";
+import { clamp } from "../../number";
 /**
  * Bayesian residual / loss belief updates.
  * Conjugate Beta-Binomial style priors for control failure probability,
@@ -71,7 +72,7 @@ export function initBayesianState(opts: {
   independentBankRec: boolean;
 }): BayesianState {
   // Prior: industry rate as mean of Beta with strength ~20
-  const priorMean = Math.min(0.45, Math.max(0.02, opts.assumedPrior));
+  const priorMean = clamp(opts.assumedPrior, 0.02, 0.45);
   const strength = 20;
   let alpha = priorMean * strength;
   let beta = (1 - priorMean) * strength;

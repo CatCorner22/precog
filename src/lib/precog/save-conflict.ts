@@ -5,6 +5,7 @@ import {
   readStoredActiveProfile,
   type PracticeProfile,
 } from "./practice-profile";
+import { uid } from "./text";
 
 /**
  * Each copy of the open business a tab writes carries its own revision and
@@ -19,7 +20,7 @@ export function storedRevision(raw: string | null): { rev: string | null; base: 
 }
 
 function makeLocalRevision(): string {
-  return `r_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return uid("r");
 }
 
 const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? "biz_default";

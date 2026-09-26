@@ -1,5 +1,5 @@
 import type { IndustryTemplate } from "../templates/types";
-import { locateTable, stripInvisibleControls } from "./csv";
+import { locateTable } from "./csv";
 import {
   addSkippedLines,
   looksLikeRosterHeader,
@@ -7,6 +7,7 @@ import {
   splitListLine,
   type PeopleImportResult,
 } from "./people-csv";
+import { stripInvisibleControls } from "../text";
 
 const LIST_HEADER = ["name", "role", "department"];
 

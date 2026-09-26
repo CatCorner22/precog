@@ -1,8 +1,9 @@
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isCalendarDate } from "../dates";
 import type { Person } from "../types";
-import { stripInvisibleControls } from "./csv";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
+import { stripInvisibleControls } from "../text";
+import { clamp } from "../number";
 
 const KNOWN_DUTIES = new Set<string>(ENTITLEMENTS.map((e) => e.id));
 
@@ -32,7 +33,7 @@ export function peopleFromBackup(raw: unknown): Person[] {
     seen.add(id);
     const tenure =
       typeof p.tenureYears === "number" && Number.isFinite(p.tenureYears)
-        ? Math.min(60, Math.max(0, p.tenureYears))
+        ? clamp(p.tenureYears, 0, 60)
         : undefined;
     const lastDay =
       typeof p.lastDay === "string" && isCalendarDate(p.lastDay) ? p.lastDay : undefined;

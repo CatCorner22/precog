@@ -88,6 +88,8 @@ import {
   TerminatorLegend,
   VisionChip,
 } from "@/components/precog/process-map/detail";
+import { clamp } from "@/lib/precog/number";
+import { slug } from "@/lib/precog/text";
 
 /**
  * Stable identity matters: React Flow syncs this prop into its store on every
@@ -325,7 +327,7 @@ export function ProcessMap({
         const here = processOrder[current];
         const lane = processOrder.filter((p) => p.stage === here.stage);
         const i = lane.findIndex((p) => p.id === here.id) + dir;
-        return select(lane[Math.max(0, Math.min(lane.length - 1, i))]);
+        return select(lane[clamp(i, 0, lane.length - 1)]);
       }
       if (k === "f" && focusProcessId) {
         e.preventDefault();
@@ -968,10 +970,7 @@ export function ProcessMap({
                     </>
                   )}
                   <ExportMapImageButton
-                    fileName={`${(profile.practiceName || "process-map")
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]+/g, "-")
-                      .replace(/^-+|-+$/g, "")}-map-${vision}`}
+                    fileName={`${slug(profile.practiceName) || "process-map"}-map-${vision}`}
                     background={
                       vision === "terminator"
                         ? "#0a0000"

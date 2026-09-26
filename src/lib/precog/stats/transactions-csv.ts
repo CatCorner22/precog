@@ -1,15 +1,8 @@
-import { parseRows } from "../import/csv";
+import { parseRows, normalizeHeader } from "../import/csv";
 import type { Transaction } from "./forensic-suite";
 import { isCalendarDate } from "../dates";
 
 const KINDS = new Set(["charge", "payment", "deposit", "adjustment", "refund"]);
-
-function normalize(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
 
 function parseAmount(value: string): number | null {
   const trimmed = value.trim();
@@ -32,7 +25,7 @@ export function parseTransactionsCsv(text: string): {
   const transactions: Transaction[] = [];
   const header = rows[0] ?? [];
   const columns = new Map<string, number>();
-  header.forEach((cell, index) => columns.set(normalize(cell), index));
+  header.forEach((cell, index) => columns.set(normalizeHeader(cell), index));
   const dateColumn = columns.get("date");
   const amountColumn = columns.get("amount");
   if (dateColumn === undefined || amountColumn === undefined) {

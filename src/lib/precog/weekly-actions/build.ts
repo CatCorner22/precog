@@ -5,7 +5,7 @@ import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { checkInPlan } from "@/lib/precog/continuity/staleness";
-import { coverageReport, firstName, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { coverageReport, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { documentationDebt, DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { ownerlessProcesses } from "@/lib/precog/continuity/absence-impact";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
@@ -42,6 +42,7 @@ import {
 } from "@/lib/precog/evidence";
 import type { StaffComposition } from "@/lib/precog/types";
 import { localDateKey, formatDayRange } from "../dates";
+import { joinWithAnd, verb, firstName, count } from "../text";
 
 export interface WeeklyAction {
   id: string;
@@ -310,14 +311,14 @@ export function buildWeeklyActions(input: {
     const out = outPhrase(w.absence);
     const when = `${formatDayRange(w.absence.from, w.absence.to)}, ${leadLabel(w.daysUntil)}`;
     const also = w.overlaps.length
-      ? ` ${w.overlaps.map((o) => firstName(o.person.name)).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also out for part of it.`
+      ? ` ${joinWithAnd(w.overlaps.map((o) => firstName(o.person.name)))} ${verb(w.overlaps.length, "is", "are")} also out for part of it.`
       : "";
     const stops = w.impact.stops;
     if (stops.length === 0) {
       const orphaned = w.impact.orphanedProcesses;
       actions.push({
         id: `leave-${w.absence.id}`,
-        title: `${first} ${out} ${when}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        title: `${first} ${out} ${when}: ${count(orphaned.length, "process", "processes")} without an owner`,
         why: `Nothing on the register stops, but nobody left owns ${orphaned.slice(0, 3).join(", ")}.${also} ${w.status === "current" ? "Name a stand-in owner today." : "Name a stand-in owner before the leave starts."}`,
         effort: "low",
         tab: "knowledge",
@@ -339,7 +340,7 @@ export function buildWeeklyActions(input: {
     const othersAway = w.peak.people.filter((p) => p.id !== w.person.id);
     const during =
       w.peak.extraStops.length > 0
-        ? ` ${formatDayRange(w.peak.from, w.peak.to)}, while ${othersAway.map((p) => firstName(p.name)).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also out`
+        ? ` ${formatDayRange(w.peak.from, w.peak.to)}, while ${joinWithAnd(othersAway.map((p) => firstName(p.name)))} ${verb(othersAway.length, "is", "are")} also out`
         : " for the whole absence";
     const standInFirst = lead.standIn ? firstName(lead.standIn.name) : "";
     const coverToday =
@@ -353,7 +354,7 @@ export function buildWeeklyActions(input: {
           ? `${first} ${out} ${when}: ${standInFirst} covers ${lead.item.name}${others > 0 ? ` and ${others} more` : ""}`
           : `${first} ${out} ${when}: hand off ${lead.item.name} to ${standInFirst}${others > 0 ? ` and ${others} more` : ""}`
         : `${first} ${out} ${when}: ${lead.item.name} has no one${others > 0 ? ` (${others} more stop)` : ""}`,
-      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${
+      why: `${open.length === 1 ? `${lead.item.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${
         w.status === "upcoming" ? ` Hand off by ${handoffDeadline(w, today)}.` : coverToday
       }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else is left in the business."}`,
       effort: lead.standIn ? "low" : "medium",
@@ -372,7 +373,7 @@ export function buildWeeklyActions(input: {
       actions.push({
         id: `leaver-${l.person.id}`,
         title: `${lead}: mark ${first} as left`,
-        why: `${first}'s last day was ${l.lastDay} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${l.handover.length} register ${l.handover.length === 1 ? "entry" : "entries"} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
+        why: `${first}'s last day was ${l.lastDay} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${count(l.handover.length, "register entry", "register entries")} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
         effort: "low",
         tab: "knowledge",
         priority: 93,
@@ -389,7 +390,7 @@ export function buildWeeklyActions(input: {
       const orphaned = l.orphanedProcesses;
       actions.push({
         id: `leaver-${l.person.id}`,
-        title: `${lead}: ${orphaned.length} process${orphaned.length === 1 ? "" : "es"} without an owner`,
+        title: `${lead}: ${count(orphaned.length, "process", "processes")} without an owner`,
         why: `Nothing on the register depends on ${first} alone, but nobody else owns ${orphaned.slice(0, 3).join(", ")}. Name the new owner by ${deadline}.${remaining}`,
         effort: "low",
         tab: "knowledge",
@@ -414,7 +415,7 @@ export function buildWeeklyActions(input: {
       title: top.successor
         ? `${lead}: train ${successor} on ${top.item.name}${others > 0 ? ` and ${others} more` : ""}`
         : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand over)` : ""}`,
-      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody to take ${noOne.length === 1 ? "it" : "them"}` : ""}${unwritten.length ? `; ${unwritten.length} ${unwritten.length === 1 ? "has" : "have"} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Journal)` : ""}.${remaining}`,
+      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Journal)` : ""}.${remaining}`,
       effort: top.successor ? "medium" : "high",
       tab: "knowledge",
       priority: top.item.criticality === "critical" ? urgency : urgency - 10,
@@ -428,7 +429,7 @@ export function buildWeeklyActions(input: {
     actions.push({
       id: `map-owner-left-${o.id}`,
       title: `Name a new owner for ${o.name}`,
-      why: `${former.join(" and ")} ${former.length === 1 ? "was" : "were"} the only listed owner${former.length === 1 ? "" : "s"} and ${former.length === 1 ? "has" : "have"} left. Until someone on the team owns it, nobody is accountable for its controls and it drops out of the segregation and continuity figures.`,
+      why: `${joinWithAnd(former)} ${verb(former.length, "was", "were")} the only listed ${verb(former.length, "owner", "owners")} and ${verb(former.length, "has", "have")} left. Until someone on the team owns it, nobody is accountable for its controls and it drops out of the segregation and continuity figures.`,
       effort: "low",
       tab: "map",
       processId: o.id,
@@ -518,7 +519,7 @@ export function buildWeeklyActions(input: {
         first.soleCount > 0 ? `${first.soleCount} of them nobody else can run alone. ` : "";
       actions.push({
         id: `check-in-${first.person.id}`,
-        title: `Check in with ${firstName(first.person.name)}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"}`,
+        title: `Check in with ${firstName(first.person.name)}: ${count(first.items.length, "register entry", "register entries")}`,
         why: `The register says ${first.person.name} can do ${first.items
           .slice(0, 3)
           .map((entry) => entry.item.name)
@@ -526,7 +527,7 @@ export function buildWeeklyActions(input: {
             ", ",
           )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
           others > 0
-            ? ` ${others} more ${others === 1 ? "person" : "people"} to check in with after that.`
+            ? ` ${others} more ${verb(others, "person", "people")} to check in with after that.`
             : ""
         }${plan.unheld.length > 0 ? ` ${plan.unheld.length} stale item(s) nobody active holds.` : ""}`,
         effort: "low",
@@ -584,9 +585,9 @@ export function buildWeeklyActions(input: {
   }
 
   if (!mapReady) {
-    const count = tpl.processes.length;
+    const starterCount = tpl.processes.length;
     actions.push(
-      count === 0
+      starterCount === 0
         ? {
             id: "map-start",
             title: "Add the processes your business runs to the map",
@@ -597,8 +598,8 @@ export function buildWeeklyActions(input: {
           }
         : {
             id: "map-start",
-            title: `Assign an owner to each of the ${count} starter processes`,
-            why: `Your map holds ${count} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
+            title: `Assign an owner to each of the ${starterCount} starter processes`,
+            why: `Your map holds ${starterCount} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
             effort: "low",
             tab: "map",
             priority: 84,

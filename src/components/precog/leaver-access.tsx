@@ -6,12 +6,12 @@ import { Card } from "@/components/ui/card";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   LEAVER_ACCESS_ITEMS,
-  leaverNames,
   openAccessChecks,
   unpromptedAccessChecks,
   type LeaverAccessItem,
 } from "@/lib/precog/continuity/access-removal";
 import type { LeaverAccessCheck } from "@/lib/precog/practice-profile";
+import { joinWithAnd } from "@/lib/precog/text";
 
 const WHY =
   "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. It is a well-documented way small businesses lose money and data, and it is closed by a few minutes of checking.";
@@ -90,7 +90,12 @@ export function LeaverAccessPrompt() {
   if (profile.onboardingComplete === false || pending.length === 0) return null;
   const ids = pending.map((check) => check.id);
   const one = pending.length === 1;
-  const names = one ? label(pending[0]) : leaverNames(pending);
+  const names = one
+    ? label(pending[0])
+    : joinWithAnd(
+        pending.map((check) => check.name),
+        2,
+      );
   return (
     <Card
       className="rounded-none border-x-0 border-warn/30 bg-warn/10 shadow-none"

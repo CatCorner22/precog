@@ -16,13 +16,7 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
-
-/** Short form of a name for advice wording: the first given name, skipping an honorific such as "Dr.". */
-export function firstName(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const given = parts.find((p) => !/^(dr|mr|mrs|ms|mx|prof|rev)\.?$/i.test(p));
-  return given ?? parts[0] ?? "";
-}
+import { uid } from "../text";
 
 export const LEVEL_ORDER: KnowledgeLevel[] = ["aware", "basic", "proficient", "expert"];
 export const STRONG_LEVELS = new Set<KnowledgeLevel>(["expert", "proficient"]);
@@ -402,5 +396,5 @@ export function soleOwnerCriticalCount(tpl: IndustryTemplate): number {
 }
 
 export function makeKnowledgeId(): string {
-  return `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return uid("k");
 }

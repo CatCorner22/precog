@@ -34,11 +34,11 @@ import {
   EFFORTS,
   IDEA_STATUS,
   WASTE_KINDS,
-  uid,
   inputCls,
   labelCls,
 } from "@/components/precog/builder/form-shared";
 import { ChipPicker, SectionHeader } from "@/components/precog/builder/chips";
+import { uid } from "@/lib/precog/text";
 export function ProcessForm({
   process,
   all,

@@ -39,6 +39,7 @@ import {
 } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { formatUsd } from "../utils";
+import { clamp } from "./number";
 
 type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
 
@@ -258,7 +259,7 @@ export function buildThreatAssessment(input: {
     .slice(0, 10);
 
   const overallThreatIndex = Math.round(
-    deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) / Math.max(1, Math.min(5, deck.length)),
+    deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) / clamp(deck.length, 1, 5),
   );
   const classificationLabel = PRIORITY_BAND_LABEL[priorityBand(overallThreatIndex)];
 

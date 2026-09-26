@@ -11,11 +11,9 @@ import {
   type ProcessImportResult,
 } from "@/lib/precog/import/process-csv";
 import type { ProcessNode } from "@/lib/precog/types";
-import { slug } from "@/components/precog/builder/form-shared";
 import { processChanges } from "@/lib/precog/builder/diff";
-import { downloadText } from "@/lib/download";
-
-const download = (name: string, text: string) => downloadText(name, text, "text/csv;charset=utf-8");
+import { downloadCsv } from "@/lib/download";
+import { slug } from "@/lib/precog/text";
 
 /**
  * Spreadsheet round-trip for the map: export the current processes as CSV,
@@ -96,7 +94,7 @@ export function SpreadsheetPanel({
           size="sm"
           variant="secondary"
           onClick={() =>
-            download(
+            downloadCsv(
               `${slug(businessName) || "process-map"}-processes.csv`,
               processesToCsv(tpl.processes, tpl.people, tpl.controls),
             )
@@ -107,7 +105,7 @@ export function SpreadsheetPanel({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => download("precog-process-template.csv", processTemplateCsv())}
+          onClick={() => downloadCsv("precog-process-template.csv", processTemplateCsv())}
         >
           Blank template
         </Button>

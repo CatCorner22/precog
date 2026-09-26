@@ -13,6 +13,8 @@ import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
 import { localDateKey, dateAfter } from "../dates";
+import { uid } from "../text";
+import { clamp } from "../number";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -409,7 +411,7 @@ export function defaultDualReleasePolicy(
 }
 
 export function makeExceptionId(): string {
-  return `ex_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  return uid("ex");
 }
 
 const RELEASE_CHANNELS = new Set<ReleaseChannel>([
@@ -431,9 +433,7 @@ const MAX_USD = 1_000_000_000;
 const str = (value: unknown, max: number): string | undefined =>
   typeof value === "string" ? value.trim().slice(0, max) : undefined;
 const boundedUsd = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value)
-    ? Math.max(0, Math.min(MAX_USD, value))
-    : undefined;
+  typeof value === "number" && Number.isFinite(value) ? clamp(value, 0, MAX_USD) : undefined;
 const isoDay = (value: unknown): string | undefined =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 const roleList = (value: unknown, fallback: string[]): string[] =>

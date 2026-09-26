@@ -15,8 +15,8 @@ import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/d
 import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
 import type { PeopleImportResult } from "../import/people-csv";
-import { stripInvisibleControls } from "../import/csv";
-import { joinWithAnd } from "../text";
+import { joinWithAnd, stripInvisibleControls, nameKey, titleKey, count } from "../text";
+import { clamp } from "../number";
 
 /**
  * The twelve money duties the onboarding grid shows as columns. Together they
@@ -216,10 +216,6 @@ export function sharedTitles(rows: readonly OwnTeamRow[]): { role: string; count
     .sort((a, b) => b.count - a.count || a.role.localeCompare(b.role));
 }
 
-function titleKey(role: string): string {
-  return role.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 /** The first row of a fresh grid: the owner, with an owner's usual duties already ticked. */
 export function ownerRow(): OwnTeamRow {
   return {
@@ -346,7 +342,7 @@ export function firstUnnamedWithDuties(rows: readonly OwnTeamRow[]): number {
  * "Server 4", not a second "Server 3".
  */
 export function placeholderNames(base: string, count: number, taken: readonly string[]): string[] {
-  const key = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  const key = titleKey;
   const used = new Set(taken.map(key));
   const pattern = new RegExp(`^${key(base).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} (\\d+)$`);
   let next = Math.max(0, ...taken.map((name) => Number(key(name).match(pattern)?.[1] ?? 0))) + 1;
@@ -372,7 +368,7 @@ export function rowsForJobTitle(
   existing: number | readonly string[] = 0,
   industry?: string,
 ): OwnTeamRow[] {
-  const n = Math.max(0, Math.min(OWN_TEAM_MAX, Math.floor(count)));
+  const n = clamp(Math.floor(count), 0, OWN_TEAM_MAX);
   const duties = seatDuties(entry, industry).filter((d) => d !== "view_reports_only");
   const base = entry.title.split(" / ")[0];
   const names =
@@ -424,14 +420,6 @@ export function rowFromImportedPerson(
 
 const ENTITLEMENT_IDS = new Set<string>(ENTITLEMENTS.map((e) => e.id));
 
-function rowKey(value: string): string {
-  return stripInvisibleControls(value)
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, "");
-}
-
 /**
  * Adds pasted rows to the grid without doubling anyone: a pasted row with
  * the employee id or, failing that, the name of a row already in the grid
@@ -448,17 +436,17 @@ export function mergeTeamRows(
   const added: OwnTeamRow[] = [];
   const updated: OwnTeamRow[] = [];
   for (const row of incoming) {
-    const id = row.employeeId ? rowKey(row.employeeId) : "";
-    const name = rowKey(row.name);
+    const id = row.employeeId ? nameKey(row.employeeId) : "";
+    const name = nameKey(row.name);
     let index = id
-      ? rows.findIndex((r, i) => !matched.has(i) && r.employeeId && rowKey(r.employeeId) === id)
+      ? rows.findIndex((r, i) => !matched.has(i) && r.employeeId && nameKey(r.employeeId) === id)
       : -1;
     if (index < 0 && name) {
       index = rows.findIndex(
         (r, i) =>
           !matched.has(i) &&
-          rowKey(r.name) === name &&
-          !(id && r.employeeId && rowKey(r.employeeId) !== id),
+          nameKey(r.name) === name &&
+          !(id && r.employeeId && nameKey(r.employeeId) !== id),
       );
     }
     if (index < 0) {
@@ -467,7 +455,7 @@ export function mergeTeamRows(
     }
     matched.add(index);
     const before = rows[index];
-    const sameTitle = rowKey(before.role) === rowKey(row.role);
+    const sameTitle = nameKey(before.role) === nameKey(row.role);
     const next: OwnTeamRow = {
       ...before,
       ...row,
@@ -533,16 +521,6 @@ export function addPastedRows(
   };
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** "Ana, Ben and Cal", or the first five and how many more. */
-function nameList(names: readonly string[]): string {
-  const shown = names.slice(0, 5);
-  const more = names.length - shown.length;
-  if (more > 0) return `${shown.join(", ")} and ${more} more`;
-  return joinWithAnd(shown);
-}
-
 /**
  * The note under "Fill the table", and whether the paste stays in the box.
  * The headline counts every person pasted, including rows past the
@@ -572,7 +550,7 @@ export function pasteSummary(input: {
   const keepPaste = leftOut > 0 || added + matched === 0;
   const already =
     matched > 0
-      ? `${plural(matched, "person", "people")} already in the table ${matched === 1 ? "was" : "were"} updated, not added again`
+      ? `${count(matched, "person", "people")} already in the table ${matched === 1 ? "was" : "were"} updated, not added again`
       : "";
   const sentences: string[] = [];
   if (leftOut > 0) {
@@ -591,7 +569,7 @@ export function pasteSummary(input: {
         : `All ${matched} people in the paste are already in the table; their rows were updated, not added again.`,
     );
   } else {
-    sentences.push(`Added ${plural(added, "person", "people")}${already ? `; ${already}` : ""}.`);
+    sentences.push(`Added ${count(added, "person", "people")}${already ? `; ${already}` : ""}.`);
   }
   if (added + matched > 0) {
     const partial =
@@ -600,12 +578,12 @@ export function pasteSummary(input: {
       ? `; ${input.unmatched} not recognised, tick their duties below`
       : "";
     sentences.push(
-      `${plural(input.recognised, "title", "titles")} recognised and duties ticked from the catalog${partial}${unmatched}.`,
+      `${count(input.recognised, "title", "titles")} recognised and duties ticked from the catalog${partial}${unmatched}.`,
     );
   }
   if (input.inactiveNames.length > 0) {
     sentences.push(
-      `${plural(input.inactiveNames.length, "person", "people")} marked inactive ${input.inactiveNames.length === 1 ? "was" : "were"} left out: ${nameList(input.inactiveNames)}.`,
+      `${count(input.inactiveNames.length, "person", "people")} marked inactive ${input.inactiveNames.length === 1 ? "was" : "were"} left out: ${joinWithAnd(input.inactiveNames, 5)}.`,
     );
   }
   if (added + matched === 0) {
@@ -625,7 +603,7 @@ export function pasteSummary(input: {
   }
   if (input.onLeaveNames.length > 0) {
     sentences.push(
-      `${nameList(input.onLeaveNames)} ${input.onLeaveNames.length === 1 ? "is" : "are"} on leave: kept on the team and recorded as out today in Who knows what when you finish; extend the absence there until they return.`,
+      `${joinWithAnd(input.onLeaveNames, 5)} ${input.onLeaveNames.length === 1 ? "is" : "are"} on leave: kept on the team and recorded as out today in Who knows what when you finish; extend the absence there until they return.`,
     );
   }
   if (added + matched > 0) {
@@ -699,7 +677,7 @@ export function buildOwnTeam(rows: readonly OwnTeamRow[], industry?: string): Pe
       duties: row.duties.filter((d) => allowed.has(d)),
       tenureYears:
         typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
-          ? Math.min(60, Math.max(0, row.tenureYears))
+          ? clamp(row.tenureYears, 0, 60)
           : undefined,
       department: row.department?.trim().slice(0, 120) || undefined,
       employeeId: row.employeeId?.trim().slice(0, 40) || undefined,

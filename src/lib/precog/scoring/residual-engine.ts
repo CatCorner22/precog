@@ -13,6 +13,7 @@ import {
   type ActionBand,
 } from "./weights";
 import { formatUsd } from "../../utils";
+import { clamp, wholePercent } from "../number";
 
 interface RiskDriver {
   id: string;
@@ -52,14 +53,6 @@ export interface ResidualRiskScore {
 /** Which of the template's scenarios the owner has confirmed as their own (see scoring/scope). */
 export interface ResidualScope {
   confirmedScenarioIds?: ReadonlySet<string>;
-}
-
-function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n));
-}
-
-function clamp100(n: number) {
-  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
 function staffUplift(
@@ -136,7 +129,7 @@ function controlInherent(
     weights.inherent.cascadePotential * cascade;
 
   return {
-    score: clamp01(score),
+    score: clamp(score, 0, 1),
     drivers: [
       {
         id: `${c.id}-inher-fraud`,
@@ -227,7 +220,7 @@ function controlEffectiveness(
     });
   }
 
-  return { score: clamp01(score), drivers };
+  return { score: clamp(score, 0, 1), drivers };
 }
 
 function scoreControl(
@@ -240,7 +233,7 @@ function scoreControl(
   const effectiveness = controlEffectiveness(c, staff, knowledgeRedundancy, weights);
   const residualRaw = inherent.score * (1 - effectiveness.score);
   const uplift = staffUplift(staff, weights);
-  const residual = clamp100(residualRaw * 100 * uplift.factor);
+  const residual = wholePercent(residualRaw * 100 * uplift.factor);
   const band = bandForScore(residual);
 
   const scenarioMap: Record<string, string> = {
@@ -254,9 +247,9 @@ function scoreControl(
     id: `ctrl-${c.id}`,
     name: c.name,
     category: "control",
-    inherent: clamp100(inherent.score * 100),
-    controlEffectiveness: clamp100(effectiveness.score * 100),
-    residualRaw: clamp100(residualRaw * 100),
+    inherent: wholePercent(inherent.score * 100),
+    controlEffectiveness: wholePercent(effectiveness.score * 100),
+    residualRaw: wholePercent(residualRaw * 100),
     residual,
     band: band.band,
     bandLabel: band.label,
@@ -283,7 +276,7 @@ function scoreKnowledge(
   const criticality = item?.criticality ?? "important";
   const crit = criticality === "critical" ? 0.9 : 0.6;
   const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
-  const inherent = clamp01(0.55 * crit + 0.45 * ownership);
+  const inherent = clamp(0.55 * crit + 0.45 * ownership, 0, 1);
   const docState = item ? documentationState(item) : "none";
   const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
   const docCredit =
@@ -292,10 +285,10 @@ function scoreKnowledge(
       : docState === "unlocated"
         ? weights.knowledge.documentedUnlocatedCredit
         : 0;
-  const effectiveness = clamp01(base + docCredit);
+  const effectiveness = clamp(base + docCredit, 0, 1);
   const residualRaw = inherent * (1 - effectiveness);
   const uplift = staffUplift(staff, weights);
-  const residual = clamp100(residualRaw * 100 * uplift.factor);
+  const residual = wholePercent(residualRaw * 100 * uplift.factor);
   const band = bandForScore(residual);
 
   const drivers: RiskDriver[] = [
@@ -341,9 +334,9 @@ function scoreKnowledge(
     id: `know-${knowledgeId}`,
     name,
     category: "knowledge",
-    inherent: clamp100(inherent * 100),
-    controlEffectiveness: clamp100(effectiveness * 100),
-    residualRaw: clamp100(residualRaw * 100),
+    inherent: wholePercent(inherent * 100),
+    controlEffectiveness: wholePercent(effectiveness * 100),
+    residualRaw: wholePercent(residualRaw * 100),
     residual,
     band: band.band,
     bandLabel: band.label,
@@ -394,31 +387,41 @@ export function scoreAllResidualRisks(
 
   const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) => {
     const result = runPrecogScenario(tpl, s.id, { staff: staffResolved })!;
-    const lossNorm = clamp01(result.financialImpact.expected / weights.scenario.lossSaturationUsd);
-    const timeNorm = clamp01(1 - result.timelineDays.p50 / weights.scenario.daysSaturation);
-    const inherent = clamp01(
-      weights.scenario.lossShare * lossNorm + weights.scenario.timeShare * (0.5 + timeNorm * 0.5),
+    const lossNorm = clamp(
+      result.financialImpact.expected / weights.scenario.lossSaturationUsd,
+      0,
+      1,
     );
-    const effectiveness = clamp01(
+    const timeNorm = clamp(1 - result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
+    const inherent = clamp(
+      weights.scenario.lossShare * lossNorm + weights.scenario.timeShare * (0.5 + timeNorm * 0.5),
+      0,
+      1,
+    );
+    const effectiveness = clamp(
       weights.scenario.baseEffectiveness +
         (staffResolved.dualControlPayments ? weights.scenario.dualControlCredit : 0) +
         (staffResolved.independentBankRec ? weights.scenario.independentBankRecCredit : 0) +
         (staffResolved.segregationScore / 100) * weights.scenario.segregationCredit,
+      0,
+      1,
     );
     const residualRaw = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
     const uplift = staffUplift(staffResolved, weights);
-    const residual = clamp100(residualRaw * 100 * uplift.factor);
+    const residual = wholePercent(residualRaw * 100 * uplift.factor);
     const band = bandForScore(residual);
 
     return {
       id: `scen-${s.id}`,
       name: s.title,
       category: "scenario" as const,
-      inherent: clamp100(inherent * 100),
-      controlEffectiveness: clamp100(effectiveness * 100),
+      inherent: wholePercent(inherent * 100),
+      controlEffectiveness: wholePercent(effectiveness * 100),
       effectivenessCredit: weights.scenario.effectivenessCredit,
-      creditedEffectiveness: clamp100(effectiveness * weights.scenario.effectivenessCredit * 100),
-      residualRaw: clamp100(residualRaw * 100),
+      creditedEffectiveness: wholePercent(
+        effectiveness * weights.scenario.effectivenessCredit * 100,
+      ),
+      residualRaw: wholePercent(residualRaw * 100),
       residual,
       band: band.band,
       bandLabel: band.label,
@@ -467,7 +470,7 @@ export function portfolioSummary(
   return {
     scoringVersion: SCORING_VERSION,
     actionBands: ACTION_BANDS,
-    averageResidual: clamp100(avg),
+    averageResidual: wholePercent(avg),
     criticalPath,
     actNow,
     top,

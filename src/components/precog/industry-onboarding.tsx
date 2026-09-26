@@ -78,6 +78,8 @@ import {
 } from "./industry-onboarding-helpers";
 import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
+import { titleKey } from "@/lib/precog/text";
+import { clamp } from "@/lib/precog/number";
 export function IndustryOnboarding() {
   const workspace = useWorkspace();
   const {
@@ -289,19 +291,17 @@ export function IndustryOnboarding() {
   const shared = useMemo(
     () =>
       sharedTitles(rows).filter((t) => {
-        const key = t.role.trim().toLowerCase().replace(/\s+/g, " ");
-        return rows.some(
-          (r) => r.duties.length > 0 && r.role.trim().toLowerCase().replace(/\s+/g, " ") === key,
-        );
+        const key = titleKey(t.role);
+        return rows.some((r) => r.duties.length > 0 && titleKey(r.role) === key);
       }),
     [rows],
   );
   const bulkRole = shared.some((t) => t.role === bulkTitle) ? bulkTitle : (shared[0]?.role ?? "");
   const bulkDuties = useMemo(() => {
-    const key = bulkRole.trim().toLowerCase().replace(/\s+/g, " ");
+    const key = titleKey(bulkRole);
     const held = new Set<EntitlementId>();
     for (const row of rows) {
-      if (row.role.trim().toLowerCase().replace(/\s+/g, " ") !== key) continue;
+      if (titleKey(row.role) !== key) continue;
       for (const duty of row.duties) held.add(duty);
     }
     return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
@@ -775,9 +775,7 @@ export function IndustryOnboarding() {
                         max={20}
                         className={cn(inputCls, "w-20")}
                         value={quickCount}
-                        onChange={(e) =>
-                          setQuickCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
-                        }
+                        onChange={(e) => setQuickCount(clamp(Number(e.target.value) || 1, 1, 20))}
                       />
                     </label>
                     <Button size="sm" onClick={addByTitle} disabled={!quickEntry || tableFull}>

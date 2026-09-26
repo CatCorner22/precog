@@ -27,8 +27,6 @@ export const WASTE_KINDS: { id: LeanWasteKind; label: string }[] = [
   { id: "muri", label: "Overburden (muri)" },
 ];
 
-export { slug, uid } from "@/lib/precog/text";
-
 export const inputCls =
   "w-full rounded-lg border border-border bg-elevated px-2.5 py-1.5 text-xs text-fg placeholder:text-subtle focus:border-primary/50";
 export const labelCls = "block text-xs font-medium tracking-wide text-subtle uppercase";

@@ -4,6 +4,7 @@ import { invalidRequest } from "@/lib/request-errors";
 import type { ReviewInput } from "./builder/review";
 import type { SuggestionInput } from "./builder/suggest";
 import type { PioneerProfileInput } from "./coach/pioneer-profile";
+import { clamp } from "./number";
 
 /**
  * Input checks for the server functions anyone can call signed out
@@ -46,7 +47,7 @@ function list<T extends z.ZodType>(item: T, keep: number, hardMax = 5_000) {
 
 /** The earlier `Math.max(min, Math.min(max, Number(x) || fallback))`, unchanged. */
 const bound = (value: number | null | undefined, min: number, max: number, fallback: number) =>
-  Math.max(min, Math.min(max, value || fallback));
+  clamp(value || fallback, min, max);
 
 // ---------------------------------------------------------------- loadMapShare
 

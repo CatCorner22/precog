@@ -13,6 +13,7 @@ import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
+import { clamp } from "../../number";
 
 export interface AdvancedReasoningReport {
   method: string;
@@ -112,7 +113,7 @@ export function runAdvancedReasoning(
   conf += Math.max(0, 15 - ciWidth * 40);
   conf += Math.min(15, improveCount * 3);
   conf += Math.min(10, beam.best.utility * 12);
-  conf = Math.max(35, Math.min(88, Math.round(conf)));
+  conf = clamp(Math.round(conf), 35, 88);
 
   // Qualitative on purpose. The probabilities, intervals, expected losses,
   // and utilities computed above are this app's own weights, so the ordering

@@ -1,19 +1,15 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { csvCell, locateTable, parseRows, sniffDelimiter, stripInvisibleControls } from "./csv";
+import { csvCell, locateTable, parseRows, sniffDelimiter, normalizeHeader } from "./csv";
 import { datesAreDayFirst } from "./hire-date";
 
 export { parseHireDate, readHireDate, tenureFromHireDate, type HireDateOptions } from "./hire-date";
 import { ROLE_TEMPLATES } from "../sod/role-templates";
 
 export { splitListLine } from "./roster-lines";
-import {
-  looksLikeRosterHeader,
-  mapColumns,
-  normalizeHeader,
-  type ColumnMap,
-} from "./roster-columns";
-import { nameKey, readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { looksLikeRosterHeader, mapColumns, type ColumnMap } from "./roster-columns";
+import { readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { stripInvisibleControls, nameKey } from "../text";
 
 export { looksLikeRosterHeader } from "./roster-columns";
 export type { TitleMapping } from "./roster-row-read";
@@ -101,9 +97,6 @@ const FOOTER_VALUE =
  */
 const RUN_STAMP =
   /^((accrual|cash) basis\s+)?((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}-\d{2}-\d{2})(,?\s+\d{1,2}:\d{2}(:\d{2})?\s*([ap]\.?m\.?)?)?(\s*(gmt|utc)\s*([+-]\d{1,2}(:?\d{2})?)?)?$/i;
-
-/** A CSV cell guarded against formula injection (see `csvCell`). */
-const escapeCsv = csvCell;
 
 function emptyResult(issues: PeopleImportIssue[], removed: Person[]): PeopleImportResult {
   return {
@@ -393,7 +386,7 @@ export function peopleToCsv(
         person.owner === undefined ? "" : person.owner ? "yes" : "no",
         person.dutiesFromTitle ? "yes" : "",
       ]
-        .map(escapeCsv)
+        .map(csvCell)
         .join(","),
     ),
   ];

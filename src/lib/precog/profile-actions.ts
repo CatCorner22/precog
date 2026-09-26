@@ -43,6 +43,7 @@ import {
   type Departure,
 } from "./continuity/access-removal";
 import { localDateKey, formatDay } from "./dates";
+import { nameKey, uid } from "./text";
 
 /**
  * Every edit the app makes to a business, as a pure function from one
@@ -367,7 +368,7 @@ export function withMapHealth(p: PracticeProfile, score: number, now: Date): Pra
 export function makeMapVersion(p: PracticeProfile, name: string, healthScore: number): MapVersion {
   const tpl = getIndustryTemplate(p.industry);
   return {
-    id: `ver_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    id: uid("ver"),
     name: name.trim().slice(0, 60) || `Version ${formatDay(new Date())}`,
     createdAt: new Date().toISOString(),
     healthScore,
@@ -401,8 +402,8 @@ export function withRosterLeavers(
   leftOut: readonly Departure[],
   today = localDateKey(new Date()),
 ): PracticeProfile {
-  const onTeam = new Set(people.map((person) => person.name.trim().toLowerCase()));
-  const gone = leftOut.filter((who) => !onTeam.has(who.name.trim().toLowerCase()));
+  const onTeam = new Set(people.map((person) => nameKey(person.name)));
+  const gone = leftOut.filter((who) => !onTeam.has(nameKey(who.name)));
   if (gone.length === 0) return p;
   return {
     ...p,

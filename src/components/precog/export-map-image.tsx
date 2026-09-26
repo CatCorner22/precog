@@ -3,6 +3,7 @@ import { getNodesBounds, getViewportForBounds, useReactFlow } from "@xyflow/reac
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { ImageDown, Loader2 } from "lucide-react";
+import { downloadUrl } from "@/lib/download";
 
 const EXPORT_W = 2400;
 const EXPORT_H = 1500;
@@ -46,10 +47,7 @@ export function ExportMapImageButton({
           );
         },
       });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${fileName}.png`;
-      a.click();
+      downloadUrl(`${fileName}.png`, dataUrl);
       toast.success("Map image exported", { description: `${fileName}.png` });
     } catch (e) {
       toast.error("Export failed", {

@@ -6,7 +6,7 @@ import { HealthPill } from "@/components/precog/builder/health-pill";
 import { ProcessForm } from "@/components/precog/builder/process-form";
 import { ReviewPanel } from "@/components/precog/builder/review-panel";
 import { SharePanel } from "@/components/precog/builder/share-panel";
-import { slug, labelCls } from "@/components/precog/builder/form-shared";
+import { labelCls } from "@/components/precog/builder/form-shared";
 import { TeamEditor } from "@/components/precog/builder/team-editor";
 import { ValidationPanel } from "@/components/precog/builder/validation-panel";
 import { VersionsPanel } from "@/components/precog/builder/versions-panel";
@@ -63,6 +63,7 @@ import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
 import { peopleFromBackup } from "@/lib/precog/import/people-backup";
 import { downloadText } from "@/lib/download";
 import { formatDayShort } from "@/lib/precog/dates";
+import { slug } from "@/lib/precog/text";
 
 export function ProcessBuilder({
   selectedProcessId,

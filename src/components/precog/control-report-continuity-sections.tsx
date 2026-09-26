@@ -1,4 +1,4 @@
-import { firstName, LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
+import { LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
 import {
   handoffDeadline,
@@ -22,6 +22,7 @@ import {
 } from "@/lib/precog/decisions/follow-through";
 import { CommitmentTag, Section } from "@/components/precog/control-report-parts";
 import { formatDay, formatDayRange } from "@/lib/precog/dates";
+import { joinWithAnd, verb, firstName, count } from "@/lib/precog/text";
 
 type ContinuityModel = Pick<
   ControlReportModel,
@@ -271,7 +272,7 @@ function ControlReportLeaveSection({
                         : `unplanned · ${leadLabel(w.daysUntil)}`
                       : w.status === "current"
                         ? `out now, back after ${w.absence.to}`
-                        : `${leadLabel(w.daysUntil)} · ${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
+                        : `${leadLabel(w.daysUntil)} · ${count(w.lengthDays, "day")}`}
                   </span>
                 </span>
                 <span className="text-xs text-neutral-600">
@@ -282,7 +283,7 @@ function ControlReportLeaveSection({
                 <p className="mt-1 text-xs text-amber-800">
                   Overlapping leave: {others.join(", ")} also out for part of this window.{" "}
                   {w.peak.extraStops.length > 0
-                    ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
+                    ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${joinWithAnd(peakOthers)} ${verb(peakOthers.length, "is", "are")} also away.`
                     : "Nothing extra stops on the shared days."}
                 </p>
               )}
@@ -373,9 +374,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
               <span className="text-xs text-neutral-600">
                 {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"}{" "}
                 {d.absence.unplanned ? "out unexpectedly" : "away"}
-                {d.daysSince > 0
-                  ? `, ended ${d.daysSince} day${d.daysSince === 1 ? "" : "s"} ago`
-                  : ", ended today"}
+                {d.daysSince > 0 ? `, ended ${count(d.daysSince, "day")} ago` : ", ended today"}
               </span>
             </div>
             <table className="mt-2 w-full text-xs">
@@ -453,7 +452,7 @@ function ControlReportLeavingSection({
                   ? "Still counted as cover — mark as left"
                   : l.handover.length === 0
                     ? "Nothing on the register depends on them alone"
-                    : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over by ${handoverDeadline(l, today)}${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`}
+                    : `${count(l.handover.length, "entry", "entries")} to hand over by ${handoverDeadline(l, today)}${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`}
               </span>
             </div>
             {l.handover.length > 0 && (

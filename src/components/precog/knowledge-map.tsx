@@ -5,6 +5,7 @@ import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
+import { firstName } from "@/lib/precog/text";
 
 export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const tpl = useTemplate();
@@ -99,7 +100,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                   fontSize="12"
                   fontWeight="600"
                 >
-                  {p.name.split(" ")[0]}
+                  {firstName(p.name)}
                 </text>
                 <text x={p.x + 10} y={p.y + 34} fill="var(--color-muted)" fontSize="12">
                   {p.role.length > 13 ? p.role.slice(0, 12) + "…" : p.role}

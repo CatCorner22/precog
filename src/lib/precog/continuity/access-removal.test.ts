@@ -159,3 +159,23 @@ describe("the owner answers the prompt", () => {
     ).toEqual([]);
   });
 });
+
+describe("one person under two spellings", () => {
+  it("does not open a second check when a roster drops the accents", () => {
+    const existing: LeaverAccessCheck = {
+      id: "c1",
+      name: "José Pérez",
+      industry: "dental",
+      notedOn: "2026-01-01",
+      source: "roster",
+    };
+    const checks = noteDepartures(
+      [existing],
+      [{ name: "Jose  Perez" }],
+      "roster",
+      "dental",
+      "2026-09-26",
+    );
+    expect(checks).toHaveLength(1);
+  });
+});

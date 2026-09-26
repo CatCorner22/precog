@@ -1,6 +1,8 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
 import { formatUsd } from "@/lib/utils";
+import { joinWithAnd, verb, count } from "../text";
+import { clamp } from "../number";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -470,7 +472,7 @@ export function localSynthesize(
   if (caseEv && caseEv.matchingCases > 0) {
     const largest = caseEv.largest;
     highestRisks.push(
-      `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${caseEv.matchingCases === 1 ? "case matches" : "cases match"} the open duty conflicts` +
+      `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} the open duty conflicts` +
         (caseEv.lossRange
           ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
@@ -509,7 +511,7 @@ export function localSynthesize(
     const first = plan[0];
     const others = plan.length - 1;
     return {
-      action: `Check in with ${first.person.name}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"} to re-confirm${others > 0 ? ` (${others} more ${others === 1 ? "person" : "people"} after that)` : ""}`,
+      action: `Check in with ${first.person.name}: ${count(first.items.length, "register entry", "register entries")} to re-confirm${others > 0 ? ` (${others} more ${verb(others, "person", "people")} after that)` : ""}`,
       rationale: `The register says ${first.person.name} can do ${first.items
         .slice(0, 3)
         .map((entry) => entry.name)
@@ -551,7 +553,7 @@ export function localSynthesize(
           rationale: `You already logged the hand-off in the Journal${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
-          horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.journal, w.daysUntil)),
+          horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.journal),
           cascadeEffects: [cascade],
         },
       ];
@@ -563,7 +565,7 @@ export function localSynthesize(
         ? w.unplanned
           ? `${out} today (${w.from}${w.to !== w.from ? ` to ${w.to}` : ""})`
           : "is out now"
-        : `is out ${w.from} to ${w.to}, in ${w.daysUntil} day${w.daysUntil === 1 ? "" : "s"}`;
+        : `is out ${w.from} to ${w.to}, in ${count(w.daysUntil, "day")}`;
     const procedure = !first.documented
       ? "nothing is written down"
       : first.procedureLocation
@@ -574,12 +576,12 @@ export function localSynthesize(
         ? ` Tell ${first.standIn.name} today that ${first.name} is theirs for now; ${procedure}.`
         : "";
     const also = w.overlaps.length
-      ? ` ${w.overlaps.map((o) => o.person.name).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also away for part of it.`
+      ? ` ${joinWithAnd(w.overlaps.map((o) => o.person.name))} ${verb(w.overlaps.length, "is", "are")} also away for part of it.`
       : "";
     const othersAway = w.worstStretch.away.filter((p) => p.id !== w.person.id);
     const during =
       w.worstStretch.extraStops.length > 0 && othersAway.length > 0
-        ? ` ${w.worstStretch.from} to ${w.worstStretch.to}, while ${othersAway.map((p) => p.name).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also away`
+        ? ` ${w.worstStretch.from} to ${w.worstStretch.to}, while ${joinWithAnd(othersAway.map((p) => p.name))} ${verb(othersAway.length, "is", "are")} also away`
         : " for the whole absence";
     return [
       {
@@ -588,10 +590,10 @@ export function localSynthesize(
             ? `${first.standIn.name} covers ${first.name} today while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
             : `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
           : `Decide who covers ${first.name} while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
-        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
         evidenceIds: [] as string[],
         effort: first.standIn ? ("low" as const) : ("medium" as const),
-        horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, w.daysUntil)),
+        horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.crossTrain),
         cascadeEffects: [cascade],
       },
     ];
@@ -604,7 +606,7 @@ export function localSynthesize(
       return [
         {
           action: `Mark ${name} as left on the register`,
-          rationale: `${l.summary} Until then the coverage figures count ${name} as a backup${l.handover.length > 0 ? ` for ${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
+          rationale: `${l.summary} Until then the coverage figures count ${name} as a backup${l.handover.length > 0 ? ` for ${count(l.handover.length, "entry", "entries")} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: 1,
@@ -613,7 +615,7 @@ export function localSynthesize(
       ];
     }
     if (l.handover.length === 0 && l.orphanedProcesses.length === 0) return [];
-    const horizon = Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, l.daysLeft));
+    const horizon = clamp(l.daysLeft, 1, REVIEW_HORIZON_DAYS.crossTrain);
     if (l.handover.length === 0) {
       return [
         {
@@ -650,7 +652,7 @@ export function localSynthesize(
         action: first.successor
           ? `Train ${first.successor.name} on ${first.name} before ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`
           : `Decide who takes ${first.name} when ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody to take ${noOne.length === 1 ? "it" : "them"} — hire, outsource or retire ${noOne.length === 1 ? "it" : "them"}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has gone, nobody can.` : ""}${l.remaining.length ? ` Left in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")} — hire, outsource or retire ${verb(noOne.length, "it", "them")}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has gone, nobody can.` : ""}${l.remaining.length ? ` Left in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
         evidenceIds: [] as string[],
         effort: first.successor ? ("medium" as const) : ("high" as const),
         horizonDays: horizon,
@@ -663,7 +665,7 @@ export function localSynthesize(
     if (!d) return [];
     const lead = d.items.find((e) => e.canPromote) ?? d.items[0];
     const more = d.items.length - 1;
-    const days = `${d.lengthDays} day${d.lengthDays === 1 ? "" : "s"}`;
+    const days = `${count(d.lengthDays, "day")}`;
     return [
       {
         action: lead.standIn

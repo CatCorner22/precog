@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   Stethoscope,
 } from "lucide-react";
+import { uid } from "@/lib/precog/text";
 
 export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   dental: Stethoscope,
@@ -26,9 +27,8 @@ export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   general: Building2,
 };
 
-let nextRowNumber = 0;
 /** A key for a grid row that stays with it when rows above it are removed. */
-const newRowId = () => `row-${Date.now().toString(36)}-${(nextRowNumber += 1)}`;
+const newRowId = () => uid("row");
 /** Gives every row a stable key; returns the same array when all have one. */
 export function withRowIds(rows: OwnTeamRow[]): OwnTeamRow[] {
   const seen = new Set<string>();

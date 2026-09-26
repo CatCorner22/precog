@@ -5,12 +5,12 @@ import { caseForRule } from "@/lib/precog/evidence";
 import { closingSteps, gapBadge } from "@/lib/precog/coach/first-steps";
 import { midSentence } from "@/lib/precog/sod/verdict";
 import { personLabel } from "@/lib/precog/person-label";
-import { locationText } from "@/lib/precog/person-location";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
+import { joinWithAnd } from "@/lib/precog/text";
 
 export function StartHereExposureSection({
   model,
@@ -90,7 +90,7 @@ export function StartHereExposureSection({
           <span className="font-medium">
             {personLabel(headline.personName, headline.role)}
             {placesOf.has(headline.personId)
-              ? `, at ${locationText(placesOf.get(headline.personId) ?? [])},`
+              ? `, at ${joinWithAnd(placesOf.get(headline.personId) ?? [])},`
               : ""}{" "}
             holds {headline.gaps} of the {headline.totalGaps} open gaps.
           </span>{" "}
@@ -132,7 +132,7 @@ export function StartHereExposureSection({
                         : `${people.length} people: ${people.map((name, i) => atPlaces(name, ids[i])).join(", ")}`}
                     </span>
                     {people.length > 1 && gapPlaces(ids).length > 0 && (
-                      <Badge variant="default">At {locationText(gapPlaces(ids))}</Badge>
+                      <Badge variant="default">At {joinWithAnd(gapPlaces(ids))}</Badge>
                     )}
                   </div>
                   <CardTitle as="h3" className="leading-snug">

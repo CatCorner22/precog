@@ -14,7 +14,8 @@ import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
 import { Loader2, Sparkles } from "lucide-react";
 
-import { uid, labelCls } from "@/components/precog/builder/form-shared";
+import { labelCls } from "@/components/precog/builder/form-shared";
+import { uid } from "@/lib/precog/text";
 export function SuggestPanel({
   process,
   onChange,

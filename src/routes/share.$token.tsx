@@ -6,6 +6,7 @@ import { HEAT_BANDS } from "@/lib/precog/process-graph";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
 import { formatDay, formatDayShort } from "@/lib/precog/dates";
+import { firstName } from "@/lib/precog/text";
 
 export const Route = createFileRoute("/share/$token")({
   component: SharePage,
@@ -439,7 +440,7 @@ function ValueStreamSvg({
                 {p.name.length > 22 ? `${p.name.slice(0, 21)}…` : p.name}
               </text>
               <text x="10" y="33" fontSize="9.5" fill="#6b7280">
-                {p.owners[0] ? p.owners[0].split(" ")[0] : "unowned"} · heat {p.heat}
+                {p.owners[0] ? firstName(p.owners[0]) : "unowned"} · heat {p.heat}
                 {p.controls.length ? ` · ${p.controls.length} ctrl` : ""}
               </text>
             </g>

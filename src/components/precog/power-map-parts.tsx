@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { buildResolutionPlans, type ResolutionPlan } from "@/lib/precog/sod/resolution-planner";
 import { type CoveragePlan } from "@/lib/precog/sod/coverage-planner";
-import { locationText } from "@/lib/precog/person-location";
 import { FAMILY_META, withPlaces } from "./power-map-graph";
+import { joinWithAnd } from "@/lib/precog/text";
 
 export function ResponsibilityMatrix({
   assignments,
@@ -71,7 +71,7 @@ export function ResponsibilityMatrix({
                   {person.personName}
                   {placesOf.has(person.personId) && (
                     <span className="block text-[10px] font-normal text-subtle">
-                      {locationText(placesOf.get(person.personId) ?? [])}
+                      {joinWithAnd(placesOf.get(person.personId) ?? [])}
                     </span>
                   )}
                 </span>

@@ -5,7 +5,6 @@
 import { useState } from "react";
 import { BookOpen, Trash2, UserCheck, UserMinus } from "lucide-react";
 import { type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
-import { firstName } from "@/lib/precog/continuity/coverage";
 import {
   handoffDeadline,
   leadLabel,
@@ -36,6 +35,7 @@ import {
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
 import { formatDayRange } from "@/lib/precog/dates";
+import { joinWithAnd, verb, firstName } from "@/lib/precog/text";
 
 const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
 
@@ -195,10 +195,9 @@ export function LeaveWindow({
                 .join("; ")}
               .{" "}
               {w.peak.extraStops.length > 0
-                ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${w.peak.people
-                    .filter((p) => p.id !== w.person.id)
-                    .map((p) => firstName(p.name))
-                    .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
+                ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${joinWithAnd(
+                    w.peak.people.filter((p) => p.id !== w.person.id).map((p) => firstName(p.name)),
+                  )} ${verb(w.peak.people.length - 1, "is", "are")} also away.`
                 : "Nothing extra stops on the shared days."}
             </p>
           )}

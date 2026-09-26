@@ -6,6 +6,7 @@ import {
   type LeaverAccessCheck,
 } from "../practice-profile";
 import type { Person } from "../types";
+import { nameKey, uid } from "../text";
 
 /**
  * Someone who has left keeps whatever access nobody took away. Former staff
@@ -36,8 +37,6 @@ export interface Departure {
   role?: string;
 }
 
-const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
-
 /** Whether a check is about this person: the same team member, or the same name when either has no id. */
 function samePerson(check: LeaverAccessCheck, who: Departure): boolean {
   if (check.personId && who.personId) return check.personId === who.personId;
@@ -45,7 +44,7 @@ function samePerson(check: LeaverAccessCheck, who: Departure): boolean {
 }
 
 function makeCheckId(): string {
-  return `lac_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return uid("lac");
 }
 
 /**
@@ -185,12 +184,4 @@ export function confirmAccessRemoved(
     return { ...check, prompted: true as const, confirmedOn: today };
   });
   return { checks: next, decisions };
-}
-
-/** "Jordan Lee" / "Jordan Lee and Pat Kim" / "Jordan Lee, Pat Kim and 3 more". */
-export function leaverNames(checks: readonly LeaverAccessCheck[]): string {
-  const names = checks.map((check) => check.name);
-  if (names.length <= 2) return names.join(" and ");
-  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
-  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
 }

@@ -52,3 +52,17 @@ describe("access reconciliation", () => {
     expect(vendors.find((v) => v.name === "Old Mill")?.recent).toBe(false);
   });
 });
+
+describe("matching people whose names are spelled without accents", () => {
+  it("matches an export row 'Jose Perez' to the team member 'José Pérez'", () => {
+    const people = [
+      { id: "p1", name: "José Pérez", role: "Office manager", entitlements: [] },
+    ] as unknown as Person[];
+    const parsed = parseAccessExport(
+      "Name,Email,Role\nJose Perez,j@example.com,Admin\n",
+      people,
+      "2026-09-26",
+    );
+    expect(parsed.users.map((u) => u.personId)).toEqual(["p1"]);
+  });
+});

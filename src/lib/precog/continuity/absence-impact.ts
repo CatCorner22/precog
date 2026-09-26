@@ -1,14 +1,8 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
-import { joinWithAnd } from "../text";
+import { joinWithAnd, firstName } from "../text";
 import { registerAssessed } from "./register-state";
-import {
-  coverageReport,
-  CRITICALITY_WEIGHT,
-  dependenceFor,
-  firstName,
-  suggestBackups,
-} from "./coverage";
+import { coverageReport, CRITICALITY_WEIGHT, dependenceFor, suggestBackups } from "./coverage";
 
 /**
  * What stops when someone is away, who picks it up, and the one action that

@@ -4,7 +4,7 @@
  *
  * Educational model for small businesses, not an insurance quote.
  */
-import { joinWithAnd as joinWords } from "../text";
+import { joinWithAnd } from "../text";
 import {
   CORE_POLICY_FIELDS,
   normalizeInsuranceRecord,
@@ -12,6 +12,7 @@ import {
   type PolicyField,
 } from "./insurance-record";
 import { formatUsd, formatPct } from "../../utils";
+import { clamp } from "../number";
 export type { PolicyField } from "./insurance-record";
 
 type VariableCategory =
@@ -203,7 +204,7 @@ export function insuranceFigureNote(
     (key) => POLICY_FIELD_WORD[key],
   );
   if (left.length)
-    return `Policy reported; confirm ${joinWords(left)}. No recovery modeled until terms and this scenario are reviewed.`;
+    return `Policy reported; confirm ${joinWithAnd(left)}. No recovery modeled until terms and this scenario are reviewed.`;
   if (!scenarioId)
     return record.modeledScenarioIds.length
       ? "Policy figures confirmed. Recovery is conditional and modeled only for individually selected scenarios, not established coverage."
@@ -514,10 +515,6 @@ export interface DynamicRiskOutcome {
   impactMultiplier: number;
 }
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
-
 export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[] {
   const reason = (present: boolean, pct: number, what: string, none: string) =>
     !present
@@ -709,7 +706,7 @@ export function retainLoss(
   const afterDed = Math.max(0, gross - Math.max(0, v.deductible));
   const practiceCoins = afterDed * clamp(v.coinsurancePct / 100, 0, 1);
   const insurerLayer = afterDed - practiceCoins;
-  const transferred = Math.min(insurerLayer, Math.max(0, v.policyLimit));
+  const transferred = clamp(v.policyLimit, 0, insurerLayer);
   // Round once and derive the remainder: rounding two half-dollar layers
   // independently can otherwise invent a dollar of loss.
   const roundedTransfer = Math.round(transferred);

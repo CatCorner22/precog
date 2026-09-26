@@ -1,5 +1,4 @@
 import type { Person } from "./types";
-import { joinWithAnd } from "./text";
 
 /**
  * Where a person works, as the roster said: the department or location
@@ -39,9 +38,6 @@ export function businessLocations(people: readonly Person[]): string[] {
   }
   return places;
 }
-
-/** "Oakridge Mall and Riverside": a person's places for a sentence or a label; "" when none is known. */
-export const locationText = joinWithAnd;
 
 /**
  * Looks up where each person works by id, for views that hold only the id and

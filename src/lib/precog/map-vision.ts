@@ -1,4 +1,5 @@
 import { HEAT_BANDS } from "./process-graph";
+import { clamp } from "./number";
 /**
  * Map vision modes: Risk Predator (thermal) + Risk Terminator (threat scan).
  * Priority scoring for process / control nodes.
@@ -83,7 +84,7 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
 
 /** Predator thermal: blue (cold) → white-hot (max risk × impact). */
 export function predatorThermalColor(heat: number): string {
-  const t = Math.max(0, Math.min(1, heat / 100));
+  const t = clamp(heat / 100, 0, 1);
   // Stops: deep blue, cyan, green, yellow, orange, red, white
   const stops: [number, [number, number, number]][] = [
     [0, [20, 40, 120]],

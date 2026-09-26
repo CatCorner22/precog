@@ -115,7 +115,8 @@ import {
   knownUnknowns as knownUnknownItems,
   unknownUnknowns as unknownUnknownItems,
 } from "./meta-analysis-gaps";
-import { bandConfidence, bandReadiness, clamp, INVENTORY_WORDS } from "./meta-analysis-words";
+import { bandConfidence, bandReadiness, INVENTORY_WORDS } from "./meta-analysis-words";
+import { wholePercent } from "../number";
 export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   const words = INVENTORY_WORDS[profile.industry] ?? INVENTORY_WORDS.general;
   const tpl = resolveTemplate(profile);
@@ -350,7 +351,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   ];
 
   const rtReady = realtimeCapabilities.filter((c) => c.ready).length;
-  const realtimeScore = clamp(
+  const realtimeScore = wholePercent(
     (rtReady / realtimeCapabilities.length) * 100 +
       (vars.hasDualControl ? 4 : 0) +
       (staff.independentBankRec ? 4 : 0) -
@@ -380,7 +381,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     (decisions.length > 0 ? 4 : 0) +
     (staff.segregationScore >= 40 ? 4 : 0) -
     criticalUnknowns * 2;
-  evaluationReadiness = clamp(evaluationReadiness);
+  evaluationReadiness = wholePercent(evaluationReadiness);
 
   // Epistemic confidence: how much should we trust the outputs?
   let epistemicConfidence =
@@ -388,13 +389,13 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     drag * 100 * 0.55 +
     (leading.pressureIndex < 45 ? 3 : leading.pressureIndex > 70 ? -5 : 0) +
     Math.min(8, decisions.length);
-  epistemicConfidence = clamp(epistemicConfidence);
+  epistemicConfidence = wholePercent(epistemicConfidence);
 
   // Coverage slices
   const coverage: CoverageSlice[] = [
     {
       domain: "Cash & deposits",
-      coveredPct: clamp(
+      coveredPct: wholePercent(
         55 -
           (items.find((i) => i.id === "ku-actual-cash-counts") ? 20 : 0) +
           (dual.enabled ? 10 : 0),
@@ -406,7 +407,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       domain: "SoD & dual release",
-      coveredPct: clamp(70 + (dual.enabled ? 12 : -10) - waives.length * 8),
+      coveredPct: wholePercent(70 + (dual.enabled ? 12 : -10) - waives.length * 8),
       knownKnowns: 2,
       knownUnknowns: 1,
       unknownUnknowns: 2,
@@ -422,7 +423,9 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       domain: "Insurance / CoR",
-      coveredPct: clamp(50 + (vars.hasDualControl ? 8 : 0) + (vars.hasSecurityCameras ? 5 : 0)),
+      coveredPct: wholePercent(
+        50 + (vars.hasDualControl ? 8 : 0) + (vars.hasSecurityCameras ? 5 : 0),
+      ),
       knownKnowns: 1,
       knownUnknowns: 2,
       unknownUnknowns: 1,
@@ -438,7 +441,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
     },
     {
       domain: "Culture & monitoring",
-      coveredPct: clamp(35 + Math.min(15, decisions.length * 3)),
+      coveredPct: wholePercent(35 + Math.min(15, decisions.length * 3)),
       knownKnowns: 0,
       knownUnknowns: 1,
       unknownUnknowns: 1,

@@ -6,6 +6,7 @@
  * the shared cutoffs and the sentence every index surface shows.
  */
 import { RISK_SCALE } from "./bands";
+import { clamp } from "../number";
 export const SCORING_VERSION = "precog-residual-v1.2.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
@@ -156,7 +157,7 @@ export const ACTION_BANDS: {
 ];
 
 export function bandForScore(score: number): (typeof ACTION_BANDS)[number] {
-  const s = Math.max(0, Math.min(100, score));
+  const s = clamp(score, 0, 100);
   return (
     ACTION_BANDS.find((b) => s >= b.min && s <= b.max) ?? ACTION_BANDS[ACTION_BANDS.length - 1]
   );

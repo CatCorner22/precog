@@ -3,11 +3,11 @@ import type { KnowledgeItem, Person } from "../types";
 import {
   coverageReport,
   CRITICALITY_WEIGHT,
-  firstName,
   STATUS_URGENCY,
   type CoverageStatus,
 } from "./coverage";
 import type { ContinuityStep } from "./absence-impact";
+import { firstName } from "../text";
 
 /** Whether a written procedure exists for each item, and where the gaps are. */
 /**

@@ -22,14 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import {
-  businessLocations,
-  locationsById,
-  locationText,
-  worksAt,
-} from "@/lib/precog/person-location";
+import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
 import { AlertTriangle, Grid3x3, Network, Shield, ShieldCheck, Users } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
+import { joinWithAnd } from "@/lib/precog/text";
 
 const FRAMEWORK_DUTIES = [
   { duty: "Authorization", meaning: "Approve before money or adjustments move" },
@@ -358,7 +354,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   <span className="text-xs text-muted">
                     {c.personName} · {c.role}
                     {placesOf.has(c.personId) &&
-                      ` · ${locationText(placesOf.get(c.personId) ?? [])}`}
+                      ` · ${joinWithAnd(placesOf.get(c.personId) ?? [])}`}
                   </span>
                 </div>
                 <p className="mt-1.5 font-medium">{c.title}</p>
@@ -542,7 +538,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       <p className="text-xs text-muted">
                         {a.role}
                         {placesOf.has(a.personId) &&
-                          ` · ${locationText(placesOf.get(a.personId) ?? [])}`}
+                          ` · ${joinWithAnd(placesOf.get(a.personId) ?? [])}`}
                       </p>
                     </div>
                     <div className="flex gap-1">

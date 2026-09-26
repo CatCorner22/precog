@@ -1,6 +1,7 @@
 import { getIndustryTemplate, type IndustryTemplate } from "../templates";
 import { industryMeta, type IndustryId } from "../industry";
 import type { ScenarioTemplate } from "../types";
+import { firstName } from "../text";
 
 /**
  * What the scores may count for this business.
@@ -155,10 +156,7 @@ function sampleNameRoles(
   const titleRole = /^(.+?) leaves\b/i.exec(s.title)?.[1]?.trim();
   const out: { name: string; role: string }[] = [];
   for (const person of sample.people) {
-    const first = person.name
-      .replace(/^(dr|mr|mrs|ms)\.?\s+/i, "")
-      .split(/\s+/)[0]
-      ?.replace(/[^A-Za-z'-]/g, "");
+    const first = firstName(person.name).replace(/[^A-Za-z'-]/g, "");
     if (!first || first.length < 2) continue;
     if (!new RegExp(`\\b${first}\\b`).test(text)) continue;
     // The title names the role of the person the scenario is about; a name

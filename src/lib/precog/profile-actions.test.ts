@@ -5,6 +5,7 @@ import {
   isMapCustomized,
   MAX_DECISIONS,
   withDecision,
+  withRosterLeavers,
   withIndustry,
   withMapHealth,
   withPeople,
@@ -79,5 +80,16 @@ describe("profile actions", () => {
       independentBankRec: !own.staff.independentBankRec,
     });
     expect(ownFlipped.staff.bankRecSource).toBe("manual");
+  });
+});
+
+describe("withRosterLeavers", () => {
+  it("does not treat someone on the team as a leaver when the roster drops the accents", () => {
+    const p = defaultProfile("dental");
+    const people = [
+      { id: "p1", name: "José Pérez", role: "Office manager" },
+    ] as unknown as Person[];
+    const next = withRosterLeavers(p, people, [{ name: "Jose Perez" }], "2026-09-26");
+    expect(next.leaverAccessChecks ?? []).toHaveLength(0);
   });
 });

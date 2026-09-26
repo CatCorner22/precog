@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
-import { firstName } from "@/lib/precog/continuity/coverage";
 import { markLeft, setLastDay } from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry } from "@/lib/precog/practice-profile";
 import type { Person } from "@/lib/precog/types";
 import { buildWeeklyActions } from "./build";
+import { firstName } from "../text";
 
 const dental = getBaseTemplate("dental");
 const [maya, chris] = dental.people;

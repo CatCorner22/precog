@@ -4,7 +4,8 @@ import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
 import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
-import { firstName, relationLevel, STRONG_LEVELS } from "./coverage";
+import { relationLevel, STRONG_LEVELS } from "./coverage";
+import { firstName } from "../text";
 
 /** A hand-over with this many days or fewer left is urgent. */
 export const HANDOVER_URGENT_DAYS = 7;

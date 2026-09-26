@@ -29,6 +29,7 @@ import {
 import { CONFIRMATION_MAX_AGE_DAYS, type CheckInPlan } from "@/lib/precog/continuity/staleness";
 import type { Criticality, KnowledgeLevel } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+import { joinWithAnd, verb } from "@/lib/precog/text";
 
 type StepTrack = (
   knowledgeId: string,
@@ -416,9 +417,11 @@ export function CheckInDropsCard({
                   <p className="text-muted">
                     {d.remaining.length === 0
                       ? "Nobody left on the active team can run this alone."
-                      : `${d.remaining.map((p) => p.name).join(" and ")} ${
-                          d.remaining.length === 1 ? "is" : "are"
-                        } left to run it alone.`}
+                      : `${joinWithAnd(d.remaining.map((p) => p.name))} ${verb(
+                          d.remaining.length,
+                          "is",
+                          "are",
+                        )} left to run it alone.`}
                     {move && ` ${move.action}`}
                   </p>
                   {move &&

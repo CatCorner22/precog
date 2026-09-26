@@ -1,4 +1,5 @@
 import { isCalendarDate, DAY_MS } from "../dates";
+import { clamp } from "../number";
 
 const MONTHS = [
   "january",
@@ -98,5 +99,5 @@ export function datesAreDayFirst(values: readonly string[]): boolean {
 export function tenureFromHireDate(hireDate: string, today: Date = new Date()): number {
   const start = new Date(`${hireDate}T00:00:00Z`).getTime();
   const years = (today.getTime() - start) / (365.25 * DAY_MS);
-  return Math.max(0, Math.min(60, Math.round(years * 10) / 10));
+  return clamp(Math.round(years * 10) / 10, 0, 60);
 }

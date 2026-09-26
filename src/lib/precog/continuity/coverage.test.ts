@@ -10,13 +10,13 @@ import {
   coverageReport,
   coverageStatus,
   criticalSinglePoints,
-  firstName,
   setRelationLevel,
   soleOwnerCriticalCount,
   suggestBackups,
 } from "./coverage";
 import { documentationDebt, documentationState } from "./documentation";
 import { resolveClientDate } from "../dates";
+import { firstName } from "../text";
 
 const people: Person[] = [
   { id: "a", name: "Ana", role: "Owner", active: true },

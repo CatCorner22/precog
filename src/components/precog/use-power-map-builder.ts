@@ -32,8 +32,7 @@ import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
-import { downloadText } from "@/lib/download";
-import { downloadFile } from "./power-map-graph";
+import { downloadText, downloadCsv } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
 
 export function usePowerMapBuilder() {
@@ -281,18 +280,17 @@ export function usePowerMapBuilder() {
   }
 
   function exportMatrixCsv() {
-    downloadFile(
-      createResponsibilityMatrixCsv(assignments),
-      "text/csv;charset=utf-8",
+    downloadCsv(
       `precog-responsibility-matrix-${localDateKey(new Date())}.csv`,
+      createResponsibilityMatrixCsv(assignments),
     );
   }
 
   function exportGovernanceReport() {
-    downloadFile(
+    downloadText(
+      `precog-governance-report-${localDateKey(new Date())}.md`,
       createGovernanceReport(assignments, profile.staff, new Date(), profile.industry),
       "text/markdown;charset=utf-8",
-      `precog-governance-report-${localDateKey(new Date())}.md`,
     );
   }
 

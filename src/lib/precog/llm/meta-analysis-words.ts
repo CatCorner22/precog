@@ -14,10 +14,6 @@ export function bandConfidence(n: number): "high" | "good" | "moderate" | "low" 
   return "low";
 }
 
-export function clamp(n: number, lo = 0, hi = 100) {
-  return Math.max(lo, Math.min(hi, Math.round(n)));
-}
-
 /** The words the inventory uses for this line of business. Wording only: no item is added or dropped. */
 export interface InventoryWords {
   /** The system of record: "PMS", "POS", "billing system". */

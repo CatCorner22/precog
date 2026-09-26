@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
+import { firstName } from "@/lib/precog/text";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -137,7 +138,7 @@ function RegisterCloseOutControls({
               )
             }
           >
-            Done — {person.name.split(" ")[0]} can now do it alone
+            Done — {firstName(person.name)} can now do it alone
           </Button>
         )}
         {closeOut.step === "document" && (

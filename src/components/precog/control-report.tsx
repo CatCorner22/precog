@@ -8,7 +8,6 @@ import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { firstName } from "@/lib/precog/continuity/coverage";
 import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { isDecisionOpen, linkedKnowledgeId } from "@/lib/precog/decisions/follow-through";
@@ -25,6 +24,7 @@ import { ControlReportContinuitySections } from "@/components/precog/control-rep
 import { ControlReportEvidenceSection } from "@/components/precog/control-report-evidence-section";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { firstName } from "@/lib/precog/text";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.

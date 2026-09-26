@@ -26,6 +26,7 @@ import {
   heatColorStandard,
   UNSCORED_ACCENT,
 } from "@/components/precog/process-map/style";
+import { clamp } from "@/lib/precog/number";
 
 export type ProcessFlowNode = Node<
   MapGraphNode & {
@@ -53,7 +54,7 @@ function useCanvasZoom(): number {
 
 /** Title size that reads at any zoom: grows as the viewport zooms out, capped so cards do not explode. */
 function compactTitlePx(zoom: number): number {
-  return Math.min(30, Math.max(14, Math.round(14 / Math.max(zoom, 0.25))));
+  return clamp(Math.round(14 / Math.max(zoom, 0.25)), 14, 30);
 }
 
 function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {

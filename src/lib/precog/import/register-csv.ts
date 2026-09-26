@@ -8,8 +8,8 @@ import type {
   Person,
 } from "../types";
 import { isCalendarDate, localDateKey } from "../dates";
-import { csvCell, parseRows } from "./csv";
-import { slug } from "../text";
+import { csvCell, parseRows, normalizeHeader } from "./csv";
+import { slug, nameKey } from "../text";
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -122,13 +122,6 @@ const LEVEL_CELL: Record<KnowledgeLevel, string> = {
   aware: "aware",
 };
 
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-/** A CSV cell guarded against formula injection (see `csvCell`). */
-const escapeCsv = csvCell;
-
 export function parseRegisterCsv(
   text: string,
   tpl: IndustryTemplate,
@@ -141,7 +134,7 @@ export function parseRegisterCsv(
   const columns = new Map<(typeof REGISTER_CSV_COLUMNS)[number], number>();
   for (const key of REGISTER_CSV_COLUMNS) {
     const index = header.findIndex((cell) =>
-      HEADER_ALIASES[key].some((alias) => normalize(alias) === normalize(cell)),
+      HEADER_ALIASES[key].some((alias) => normalizeHeader(alias) === normalizeHeader(cell)),
     );
     if (index >= 0) columns.set(key, index);
   }
@@ -163,7 +156,7 @@ export function parseRegisterCsv(
     if (fixedColumns.has(index)) return;
     const heading = cell.trim();
     if (!heading) return;
-    const person = activePeople.find((p) => normalize(p.name) === normalize(heading));
+    const person = activePeople.find((p) => nameKey(p.name) === nameKey(heading));
     if (person) {
       if (personColumns.some((c) => c.person.id === person.id)) {
         issues.push({ row: 0, message: `Duplicate column for ${person.name}` });
@@ -189,7 +182,7 @@ export function parseRegisterCsv(
     issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
   }
 
-  const existingByName = new Map(tpl.knowledge.map((k) => [normalize(k.name), k]));
+  const existingByName = new Map(tpl.knowledge.map((k) => [nameKey(k.name), k]));
   const usedIds = new Set<string>();
   const seenNames = new Set<string>();
   const knowledge: KnowledgeItem[] = [];
@@ -206,25 +199,25 @@ export function parseRegisterCsv(
       issues.push({ row: rowNumber, message: "Item name is required" });
       return;
     }
-    const nameKey = normalize(name);
-    if (seenNames.has(nameKey)) {
+    const itemKey = nameKey(name);
+    if (seenNames.has(itemKey)) {
       issues.push({ row: rowNumber, message: `Duplicate item "${name}" skipped` });
       return;
     }
-    seenNames.add(nameKey);
+    seenNames.add(itemKey);
 
-    const existing = existingByName.get(nameKey);
+    const existing = existingByName.get(itemKey);
     const kindValue = cell(cells, "kind");
     let kind: KnowledgeKind = existing?.kind ?? "duty";
     if (kindValue) {
-      const parsed = KIND_ALIASES[normalize(kindValue)];
+      const parsed = KIND_ALIASES[nameKey(kindValue)];
       if (parsed) kind = parsed;
       else issues.push({ row: rowNumber, message: `Unknown kind "${kindValue}"; using ${kind}` });
     }
     const criticalityValue = cell(cells, "criticality");
     let criticality: Criticality = existing?.criticality ?? "important";
     if (criticalityValue) {
-      const parsed = CRITICALITY_ALIASES[normalize(criticalityValue)];
+      const parsed = CRITICALITY_ALIASES[nameKey(criticalityValue)];
       if (parsed) criticality = parsed;
       else
         issues.push({
@@ -270,7 +263,7 @@ export function parseRegisterCsv(
     for (const { index: col, person } of personColumns) {
       const raw = (cells[col] ?? "").trim();
       if (NONE_TOKENS.has(raw.toLowerCase())) continue;
-      const level = LEVEL_ALIASES[normalize(raw)];
+      const level = LEVEL_ALIASES[nameKey(raw)];
       if (!level) {
         issues.push({
           row: rowNumber,
@@ -302,7 +295,7 @@ export function registerToCsv(tpl: IndustryTemplate): string {
       return level ? LEVEL_CELL[level] : "";
     }),
   ]);
-  return `${[header, ...rows].map((cells) => cells.map(escapeCsv).join(",")).join("\r\n")}\r\n`;
+  return `${[header, ...rows].map((cells) => cells.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }
 
 /** Empty grid with the active team as columns and one example row. */
@@ -319,5 +312,5 @@ export function registerTemplateCsv(tpl: IndustryTemplate): string {
     "Who can do it: expert, can do, learning, aware, or leave blank",
     ...people.map((_, i) => (i === 0 ? "expert" : i === 1 ? "learning" : "")),
   ];
-  return `${[header, example].map((cells) => cells.map(escapeCsv).join(",")).join("\r\n")}\r\n`;
+  return `${[header, example].map((cells) => cells.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }

@@ -4,7 +4,7 @@ import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, Person } from "../types";
 import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
 import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";
-import { firstName } from "./coverage";
+import { joinWithAnd, firstName } from "../text";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
 export const ABSENCE_LEAD_DAYS = 30;
@@ -273,9 +273,7 @@ function describeOverlaps(w: AbsenceWindow): string {
     .join("; ");
   const others = w.peak.people.filter((p) => p.id !== w.person.id);
   if (w.overlaps.length === 1 || w.peak.extraStops.length === 0) return ` (${listed})`;
-  return ` (${listed}; worst ${formatDayRange(w.peak.from, w.peak.to)}, with ${others
-    .map((p) => firstName(p.name))
-    .join(" and ")} also out)`;
+  return ` (${listed}; worst ${formatDayRange(w.peak.from, w.peak.to)}, with ${joinWithAnd(others.map((p) => firstName(p.name)))} also out)`;
 }
 
 /** One line an advisor can say about a window: who, when, and the first thing that stops. */

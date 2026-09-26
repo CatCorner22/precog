@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AbsenceAction, AbsenceImpact } from "@/lib/precog/continuity/absence-impact";
-import { firstName, type CoverageReport } from "@/lib/precog/continuity/coverage";
+import { type CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DebriefItem, LeaveDebrief } from "@/lib/precog/continuity/leave-debrief";
 import { handoverDeadline, type Leaver } from "@/lib/precog/continuity/leavers";
 import {
@@ -27,7 +27,7 @@ import {
 } from "@/lib/precog/continuity/planned-absence";
 import type { PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
-import { joinWithAnd as naturalNames } from "@/lib/precog/text";
+import { joinWithAnd, firstName } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 import { formatDayRange } from "@/lib/precog/dates";
@@ -98,7 +98,7 @@ export function OutTomorrowCard({
           <>
             {absence.people.length > 1 && (
               <p className="text-xs font-medium text-muted">
-                If {naturalNames(absence.people.map((p) => firstName(p.name)))} are all out:
+                If {joinWithAnd(absence.people.map((p) => firstName(p.name)))} are all out:
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">

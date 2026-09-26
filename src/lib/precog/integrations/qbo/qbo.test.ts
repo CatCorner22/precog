@@ -138,3 +138,27 @@ describe("connect state", () => {
     expect(url.searchParams.get("redirect_uri")).toBe("https://app/cb");
   });
 });
+
+describe("diffSnapshots name matching", () => {
+  it("treats 'Jose Perez' in the books as the mapped 'José Pérez'", () => {
+    const drift = diffSnapshots(
+      null,
+      {
+        takenAt: "2026-09-26T00:00:00Z",
+        vendors: [],
+        employees: [
+          {
+            id: "1",
+            name: "Jose Perez",
+            active: true,
+            hiredOn: null,
+            releasedOn: null,
+            email: null,
+          },
+        ],
+      },
+      [{ name: "José Pérez" }],
+    );
+    expect(drift.employeesNotOnMap).toEqual([]);
+  });
+});

@@ -1,13 +1,13 @@
 import { ArrowRight, Users } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { industryMeta } from "@/lib/precog/industry";
-import { firstName } from "@/lib/precog/continuity/coverage";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "./use-start-here";
 import { formatDayRange } from "@/lib/precog/dates";
+import { firstName } from "@/lib/precog/text";
 
 export function StartHereContinuitySection({
   model,

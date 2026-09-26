@@ -1,5 +1,5 @@
-import { firstName } from "@/lib/precog/continuity/coverage";
 import type { ContinuityCommitment } from "@/lib/precog/decisions/follow-through";
+import { firstName } from "@/lib/precog/text";
 
 /** Marks a recommended step the owner has already logged in the Journal, so it reads as follow-up, not fresh advice. */
 export function CommitmentTag({ c }: { c: ContinuityCommitment | undefined }) {

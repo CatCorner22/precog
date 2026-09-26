@@ -15,6 +15,7 @@ import {
 } from "@/components/precog/continuity/planner-register-panels";
 import { useContinuityPlanner } from "@/components/precog/continuity/use-continuity-planner";
 import { registerTemplateCsv, registerToCsv } from "@/lib/precog/import/register-csv";
+import { downloadCsv } from "@/lib/download";
 
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const p = useContinuityPlanner(initialKnowledgeId);
@@ -66,9 +67,9 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
         setLevel={p.setLevel}
         removeItem={p.removeItem}
         onImportCsv={p.importCsv}
-        onExportCsv={() => p.downloadCsv(registerToCsv(p.tpl), "precog-who-can-do-what.csv")}
+        onExportCsv={() => downloadCsv("precog-who-can-do-what.csv", registerToCsv(p.tpl))}
         onExportTemplate={() =>
-          p.downloadCsv(registerTemplateCsv(p.tpl), "precog-register-template.csv")
+          downloadCsv("precog-register-template.csv", registerTemplateCsv(p.tpl))
         }
         onReset={p.resetToTemplate}
       />

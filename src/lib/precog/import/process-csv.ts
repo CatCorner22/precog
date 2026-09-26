@@ -14,8 +14,8 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
-import { csvCell, parseRows } from "./csv";
-import { slug } from "../text";
+import { csvCell, parseRows, normalizeHeader } from "./csv";
+import { slug, nameKey } from "../text";
 
 interface ProcessImportIssue {
   /** 1-based data row (0 = whole file). */
@@ -78,13 +78,6 @@ const HEADER_ALIASES: Record<Column, readonly string[]> = {
 const LIST_SEPARATOR = /[;|]/;
 const MAX_ROWS = 200;
 
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-/** A CSV cell guarded against formula injection (see `csvCell`). */
-const escapeCsv = csvCell;
-
 function splitList(value: string): string[] {
   return value
     .split(LIST_SEPARATOR)
@@ -142,7 +135,7 @@ export function parseProcessCsv(
   const columns = new Map<Column, number>();
   for (const [key, aliases] of Object.entries(HEADER_ALIASES) as [Column, readonly string[]][]) {
     const index = header.findIndex((cell) =>
-      aliases.some((alias) => normalize(alias) === normalize(cell)),
+      aliases.some((alias) => normalizeHeader(alias) === normalizeHeader(cell)),
     );
     if (index >= 0) columns.set(key, index);
   }
@@ -164,18 +157,18 @@ export function parseProcessCsv(
 
   const existingByName = new Map<string, ProcessNode>();
   for (const p of tpl.processes) {
-    const key = normalize(p.name);
+    const key = nameKey(p.name);
     if (!existingByName.has(key)) existingByName.set(key, p);
   }
   const peopleByName = new Map<string, Person>();
   for (const person of tpl.people) {
-    const key = normalize(person.name);
+    const key = nameKey(person.name);
     if (!peopleByName.has(key)) peopleByName.set(key, person);
   }
   const controlsByKey = new Map<string, ControlItem>();
   for (const c of tpl.controls) {
-    controlsByKey.set(normalize(c.id), c);
-    if (!controlsByKey.has(normalize(c.name))) controlsByKey.set(normalize(c.name), c);
+    controlsByKey.set(nameKey(c.id), c);
+    if (!controlsByKey.has(nameKey(c.name))) controlsByKey.set(nameKey(c.name), c);
   }
 
   // First pass: names and ids, so dependencies can point at rows further down.
@@ -187,7 +180,7 @@ export function parseProcessCsv(
       issues.push({ row: rowNumber, message: "Process name is required" });
       return null;
     }
-    const existing = existingByName.get(normalize(name));
+    const existing = existingByName.get(nameKey(name));
     const baseId = existing && !usedIds.has(existing.id) ? existing.id : `proc-${slug(name)}`;
     if (existing && usedIds.has(existing.id)) {
       issues.push({
@@ -204,10 +197,10 @@ export function parseProcessCsv(
   const idByName = new Map<string, string>();
   rowsToImport.forEach((cells, index) => {
     const id = rowIds[index];
-    if (id) idByName.set(normalize(cell(cells, "process")), id);
+    if (id) idByName.set(nameKey(cell(cells, "process")), id);
   });
   const resolveProcess = (token: string): string | undefined => {
-    const key = normalize(token);
+    const key = nameKey(token);
     return (
       idByName.get(key) ?? existingByName.get(key)?.id ?? (usedIds.has(token) ? token : undefined)
     );
@@ -240,7 +233,7 @@ export function parseProcessCsv(
     const owners: string[] = [];
     const unknownOwners: string[] = [];
     for (const token of splitList(cell(cells, "owners"))) {
-      const person = peopleByName.get(normalize(token));
+      const person = peopleByName.get(nameKey(token));
       if (person) {
         if (!owners.includes(person.id)) owners.push(person.id);
       } else unknownOwners.push(token);
@@ -272,7 +265,7 @@ export function parseProcessCsv(
     const controlIds: string[] = [];
     const unknownControls: string[] = [];
     for (const token of splitList(cell(cells, "controls"))) {
-      const control = controlsByKey.get(normalize(token));
+      const control = controlsByKey.get(nameKey(token));
       if (control) {
         if (!controlIds.includes(control.id)) controlIds.push(control.id);
       } else unknownControls.push(token);
@@ -401,7 +394,7 @@ export function processesToCsv(
         (p.inputs ?? []).join("; "),
         (p.outputs ?? []).join("; "),
       ]
-        .map(escapeCsv)
+        .map(csvCell)
         .join(","),
     ),
   ];
@@ -427,7 +420,7 @@ export function processTemplateCsv(): string {
         "Day-end report",
         "Deposit slip",
       ]
-        .map(escapeCsv)
+        .map(csvCell)
         .join(","),
       [
         "Vendor setup",
@@ -443,7 +436,7 @@ export function processTemplateCsv(): string {
         "W-9",
         "Approved vendor",
       ]
-        .map(escapeCsv)
+        .map(csvCell)
         .join(","),
     ].join("\r\n") + "\r\n"
   );

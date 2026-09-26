@@ -1,3 +1,4 @@
+import { nameKey } from "../../text";
 /**
  * QuickBooks Online, reduced to what a duty map needs: who is paid (vendors)
  * and who is employed (employees), and what changed between two readings.
@@ -102,8 +103,6 @@ export function employeesFromQuery(body: unknown): QboEmployee[] {
     })
     .filter((e): e is QboEmployee => e !== null);
 }
-
-const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
 
 export function diffSnapshots(
   previous: QboSnapshot | null,

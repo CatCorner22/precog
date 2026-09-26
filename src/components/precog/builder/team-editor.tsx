@@ -32,11 +32,12 @@ import {
   type PeopleImportIssue,
 } from "@/lib/precog/import/people-csv";
 import { placeholderNames } from "@/lib/precog/onboarding/own-team";
-import { stripInvisibleControls } from "@/lib/precog/import/csv";
-import { slug, inputCls, labelCls } from "@/components/precog/builder/form-shared";
-import { locationText, personLocations } from "@/lib/precog/person-location";
-import { downloadText } from "@/lib/download";
+import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
+import { personLocations } from "@/lib/precog/person-location";
+import { downloadCsv } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
+import { stripInvisibleControls, joinWithAnd, count, verb, slug } from "@/lib/precog/text";
+import { clamp } from "@/lib/precog/number";
 function EntitlementPicker({
   selected,
   onChange,
@@ -100,12 +101,12 @@ export function TeamEditor({
   /** Add several people with one catalog title and placeholder names, for a fast first pass. */
   function addSeveral() {
     if (!catalogChoice) return;
-    const count = Math.max(1, Math.min(20, howMany));
+    const howManyToAdd = clamp(howMany, 1, 20);
     // Numbering continues after the highest number in use and never repeats
     // a name, so the team's own export re-imports without merging two people.
     const names = placeholderNames(
       catalogChoice.title.split(" / ")[0],
-      count,
+      howManyToAdd,
       people.map((p) => p.name),
     );
     const added: Person[] = [];
@@ -125,9 +126,7 @@ export function TeamEditor({
       });
     }
     onChange([...people, ...added]);
-    toast.success(
-      `Added ${count} ${catalogChoice.title}${count === 1 ? "" : "s"}; rename them when you can.`,
-    );
+    toast.success(`Added ${count(howManyToAdd, catalogChoice.title)}; rename them when you can.`);
   }
 
   function add() {
@@ -146,8 +145,7 @@ export function TeamEditor({
         name: stripInvisibleControls(name).trim().slice(0, 60),
         role: finalRole.slice(0, MAX_ROLE_LENGTH),
         active: true,
-        tenureYears:
-          tenure === "" || !Number.isFinite(tenure) ? undefined : Math.min(60, Math.max(0, tenure)),
+        tenureYears: tenure === "" || !Number.isFinite(tenure) ? undefined : clamp(tenure, 0, 60),
         entitlements: useCustom
           ? entitlements.length
             ? entitlements
@@ -234,7 +232,7 @@ export function TeamEditor({
       const shown =
         names.slice(0, 5).join(", ") + (names.length > 5 ? ` and ${names.length - 5} more` : "");
       replace = window.confirm(
-        `${names.length} ${names.length === 1 ? "person on the team is" : "people on the team are"} not in this file: ${shown}.\n\nOK removes them and makes the file the whole team. Cancel keeps them and only adds or updates the people in the file.`,
+        `${count(names.length, "person on the team is", "people on the team are")} not in this file: ${shown}.\n\nOK removes them and makes the file the whole team. Cancel keeps them and only adds or updates the people in the file.`,
       );
     }
     applyImport(result, replace);
@@ -258,17 +256,17 @@ export function TeamEditor({
           names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
         const lost = [
           impact.assignments
-            ? `${impact.assignments} who-knows-what assignment${impact.assignments === 1 ? "" : "s"}`
+            ? `${impact.assignments} who-knows-what assignment${verb(impact.assignments, "", "s")}`
             : "",
           impact.processOwnerships
-            ? `${impact.processOwnerships} process owner slot${impact.processOwnerships === 1 ? "" : "s"}`
+            ? `${impact.processOwnerships} process owner slot${verb(impact.processOwnerships, "", "s")}`
             : "",
         ]
           .filter(Boolean)
           .join(" and ");
         issues.push({
           row: 0,
-          message: `${shown} ${names.length === 1 ? "is" : "are"} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
+          message: `${shown} ${verb(names.length, "is", "are")} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
         });
       }
       setImportIssues(issues);
@@ -288,9 +286,9 @@ export function TeamEditor({
         `${removed} removed`,
       ].join(", ");
       toast.success(
-        `Read ${result.people.length} ${result.people.length === 1 ? "person" : "people"}: ${counts}${
+        `Read ${count(result.people.length, "person", "people")}: ${counts}${
           recognised
-            ? `; ${recognised} job ${recognised === 1 ? "title" : "titles"} read from the catalog`
+            ? `; ${recognised} job ${verb(recognised, "title", "titles")} read from the catalog`
             : ""
         }${issues.length ? `; ${issues.length} thing(s) need attention` : ""}`,
       );
@@ -329,7 +327,7 @@ export function TeamEditor({
   function exportCsv() {
     // Duties are written as the conflict engine reads them, so a person whose
     // duties come from their role re-imports with the same duties.
-    downloadText("precog-team.csv", peopleToCsv(people, roleTemplates), "text/csv;charset=utf-8");
+    downloadCsv("precog-team.csv", peopleToCsv(people, roleTemplates));
   }
 
   return (
@@ -423,7 +421,7 @@ export function TeamEditor({
                   </span>
                   <span className="text-subtle"> · {p.role}</span>
                   {p.department && (
-                    <span className="text-subtle"> · {locationText(personLocations(p))}</span>
+                    <span className="text-subtle"> · {joinWithAnd(personLocations(p))}</span>
                   )}
                   {p.employeeId && <span className="text-subtle"> · ID {p.employeeId}</span>}
                   {p.active && p.lastDay && (
@@ -548,7 +546,7 @@ export function TeamEditor({
               min={1}
               max={20}
               value={howMany}
-              onChange={(e) => setHowMany(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+              onChange={(e) => setHowMany(clamp(Number(e.target.value) || 1, 1, 20))}
               aria-label="How many to add"
             />
             <Button size="sm" variant="secondary" onClick={addSeveral}>

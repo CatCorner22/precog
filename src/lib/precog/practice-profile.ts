@@ -29,6 +29,8 @@ import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
 import { normalizeReviewRecords, type ReviewRecord } from "./firm/reviews";
 import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm/reconcile";
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
+import { uid } from "./text";
+import { boundedNumber } from "./number";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -129,7 +131,7 @@ export interface LeaverAccessCheck {
 }
 
 export function makePlannedAbsenceId(): string {
-  return `abs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return uid("abs");
 }
 
 /** Most leaver checks kept per business; the oldest confirmed ones go first. */
@@ -266,7 +268,7 @@ export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
 const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
 
 export function makeBusinessId(): string {
-  return `biz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return uid("biz");
 }
 
 export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
@@ -411,22 +413,30 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function boundedNumber(value: unknown, fallback: number, minimum: number, maximum: number) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(maximum, Math.max(minimum, value))
-    : fallback;
-}
-
 /** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
 function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
   const input = record(value);
   return {
-    teamSize: Math.round(boundedNumber(input.teamSize, base.teamSize, 1, 500)),
-    soleOwnerKnowledgeCount: Math.round(
-      boundedNumber(input.soleOwnerKnowledgeCount, base.soleOwnerKnowledgeCount, 0, 10_000),
+    teamSize: Math.round(
+      boundedNumber(input.teamSize, { min: 1, max: 500, fallback: base.teamSize }),
     ),
-    avgTenureYears: boundedNumber(input.avgTenureYears, base.avgTenureYears, 0, 100),
-    segregationScore: boundedNumber(input.segregationScore, base.segregationScore, 0, 100),
+    soleOwnerKnowledgeCount: Math.round(
+      boundedNumber(input.soleOwnerKnowledgeCount, {
+        min: 0,
+        max: 10_000,
+        fallback: base.soleOwnerKnowledgeCount,
+      }),
+    ),
+    avgTenureYears: boundedNumber(input.avgTenureYears, {
+      min: 0,
+      max: 100,
+      fallback: base.avgTenureYears,
+    }),
+    segregationScore: boundedNumber(input.segregationScore, {
+      min: 0,
+      max: 100,
+      fallback: base.segregationScore,
+    }),
     dualControlPayments:
       typeof input.dualControlPayments === "boolean"
         ? input.dualControlPayments
@@ -457,12 +467,11 @@ export function normalizeRiskVariables(value: unknown, base: RiskVariableState):
     if (typeof fallback === "boolean") {
       normalized[key] = typeof candidate === "boolean" ? candidate : fallback;
     } else if (typeof fallback === "number") {
-      normalized[key] = boundedNumber(
-        candidate,
-        fallback,
-        definition.min ?? 0,
-        definition.max ?? 1_000_000_000,
-      );
+      normalized[key] = boundedNumber(candidate, {
+        min: definition.min ?? 0,
+        max: definition.max ?? 1_000_000_000,
+        fallback: fallback,
+      });
     }
   }
   const insurance = normalizeInsuranceRecord(input.insurance);
@@ -558,7 +567,7 @@ export function normalizeProfile(
 }
 
 export function makeDecisionId(): string {
-  return `dec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  return uid("dec");
 }
 
 export const DECISION_KIND_LABEL: Record<DecisionKind, string> = {

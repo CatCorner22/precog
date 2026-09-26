@@ -1,3 +1,4 @@
+import { normalizeHeader } from "./csv";
 /** Roster CSV column aliases and header detection. */
 
 const HEADER_ALIASES = {
@@ -181,13 +182,6 @@ const HEADER_WORDS = new Set([
   "email",
   "phone",
 ]);
-
-export function normalizeHeader(cell: string): string {
-  return cell
-    .toLowerCase()
-    .replace(/[#№]/g, " number ")
-    .replace(/[^a-z0-9]/g, "");
-}
 
 const ALIAS_KEYS: Record<Field, string[]> = Object.fromEntries(
   FIELDS.map((field) => [field, HEADER_ALIASES[field].map(normalizeHeader)]),

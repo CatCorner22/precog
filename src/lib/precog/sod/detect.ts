@@ -25,6 +25,7 @@ import type { Person, StaffComposition } from "../types";
 import { teamOwnerId } from "./owner-role";
 import { personLabel } from "../person-label";
 import { ROLE_TEMPLATES } from "./role-templates";
+import { clamp } from "../number";
 
 export { isOwnerRole } from "./owner-role";
 
@@ -515,7 +516,7 @@ export function detectAssignments(
 
 /** The 0–100 score a finding shows. Sorting uses the unclamped value, so two findings that both show 100 still rank by severity, weight and the business's own staffing. */
 function clampScore(raw: number): number {
-  return Math.max(12, Math.min(100, Math.round(raw)));
+  return clamp(Math.round(raw), 12, 100);
 }
 
 export function buildAssignments(

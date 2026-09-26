@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { INDUSTRIES, type IndustryId } from "../industry";
+import { clamp } from "../number";
 
 /**
  * Shape check for a map share before it is stored and later rendered on a
@@ -116,7 +117,7 @@ export function parseCreateShareInput(input: unknown): CreateShareInput {
   const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
   return {
     payload: validateSharePayload(raw.payload),
-    expiresInDays: Math.min(365, Math.max(1, days || 30)),
+    expiresInDays: clamp(days || 30, 1, 365),
     redacted: raw.redacted === true,
     passcode,
   };

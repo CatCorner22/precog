@@ -21,7 +21,8 @@ import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
 
 import { CheckCircle2 } from "lucide-react";
 
-import { uid, inputCls, labelCls } from "@/components/precog/builder/form-shared";
+import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
+import { uid } from "@/lib/precog/text";
 const FREQUENCIES: EvidenceFrequency[] = ["daily", "weekly", "monthly", "quarterly", "annual"];
 
 export function EvidenceList({

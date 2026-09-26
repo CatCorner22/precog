@@ -32,7 +32,6 @@ import {
   coverageDrops,
   coverageReport,
   criticalSinglePoints,
-  firstName,
   makeKnowledgeId,
   setRelationLevel,
   type CoverageReport,
@@ -69,8 +68,8 @@ import type {
   KnowledgeLevel,
   Person,
 } from "@/lib/precog/types";
-import { downloadText } from "@/lib/download";
 import { UNHELD_VIEW } from "@/lib/precog/continuity/planner-copy";
+import { firstName, count, verb } from "@/lib/precog/text";
 
 export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const {
@@ -127,9 +126,9 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
       linkedPersonId: personId,
       linkedAbsenceId: absenceId,
     });
-  const confirmLogged = (reviewBy: Date, count = 1) =>
+  const confirmLogged = (reviewBy: Date, steps = 1) =>
     toast.success(
-      `${count === 1 ? "Logged" : `${count} steps logged`} in the Journal — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
+      `${steps === 1 ? "Logged" : `${steps} steps logged`} in the Journal — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
     );
   const logMove = (m: CrossTrainingMove) => {
     const reviewBy = reviewDateIn30Days();
@@ -396,7 +395,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
       !window.confirm(
         `Mark ${l.person.name} as left? ${first} stays in the history but no longer counts as cover for anything on the register${
           l.handover.length > 0
-            ? ` — ${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} will have nobody who can run ${l.handover.length === 1 ? "it" : "them"} alone`
+            ? ` — ${count(l.handover.length, "entry", "entries")} will have nobody who can run ${verb(l.handover.length, "it", "them")} alone`
             : ""
         }.`,
       )
@@ -476,9 +475,6 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     setImportIssues([]);
     setCheckInBaseline(null);
   };
-
-  const downloadCsv = (text: string, filename: string) =>
-    downloadText(filename, text, "text/csv;charset=utf-8");
 
   const importCsv = async (file: File) => {
     setImportIssues([]);
@@ -605,7 +601,6 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     checkInSetLevel,
     resetToTemplate,
     importCsv,
-    downloadCsv,
     mostDepended,
     singlePoints,
     importantSinglePoints,

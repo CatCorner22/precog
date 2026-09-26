@@ -1,8 +1,9 @@
-import { locateTable, stripInvisibleControls } from "../import/csv";
+import { locateTable } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
 import { daysBetween } from "../dates";
+import { nameKey, titleKey } from "../text";
 
 export type AccessSource = "quickbooks" | "xero" | "unknown";
 
@@ -81,28 +82,24 @@ const ROLE_MAP: { phrase: string; duties: EntitlementId[] }[] = [
 
 const VENDOR_HEADERS = ["vendor", "supplier", "contact name", "company"];
 
-function norm(value: string): string {
-  return stripInvisibleControls(value).trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function headerIndex(headers: readonly string[], names: readonly string[]): number {
-  const lowered = headers.map(norm);
+  const lowered = headers.map(titleKey);
   return lowered.findIndex((h) => names.includes(h));
 }
 
 function looksLikeUsers(headers: readonly string[]): boolean {
-  const lowered = headers.map(norm);
+  const lowered = headers.map(titleKey);
   if (lowered.some((h) => VENDOR_HEADERS.includes(h))) return false;
   return lowered.some((h) => h === "role" || h === "user role" || h === "email" || h === "user");
 }
 
 function looksLikeVendors(headers: readonly string[]): boolean {
-  const lowered = headers.map(norm);
+  const lowered = headers.map(titleKey);
   return lowered.some((h) => VENDOR_HEADERS.includes(h));
 }
 
 function detectAccessSource(headers: readonly string[]): AccessSource {
-  const joined = headers.map(norm).join(" ");
+  const joined = headers.map(titleKey).join(" ");
   if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
   if (joined.includes("contact name") || joined.includes("account number")) return "xero";
   return "unknown";
@@ -113,7 +110,7 @@ export function mapRoleToDuties(role: string): {
   mapped: EntitlementId[];
   unmatchedTokens: string[];
 } {
-  const rest = norm(role);
+  const rest = titleKey(role);
   const mapped = new Set<EntitlementId>();
   const unmatched: string[] = [];
   if (!rest) return { mapped: [], unmatchedTokens: [] };
@@ -135,14 +132,10 @@ export function mapRoleToDuties(role: string): {
   return { mapped: [...mapped], unmatchedTokens: unmatched.filter(Boolean) };
 }
 
-function personKey(name: string): string {
-  return norm(name).replace(/[^a-z0-9 ]/g, "");
-}
-
 function matchPerson(name: string, people: readonly Person[]): Person | undefined {
-  const key = personKey(name);
+  const key = nameKey(name);
   if (!key) return undefined;
-  return people.find((p) => personKey(p.name) === key);
+  return people.find((p) => nameKey(p.name) === key);
 }
 
 function readDate(value: string): string {
@@ -157,7 +150,7 @@ function readDate(value: string): string {
 }
 
 function rowId(prefix: string, index: number, name: string): string {
-  return `${prefix}_${index}_${personKey(name).slice(0, 24) || "row"}`;
+  return `${prefix}_${index}_${nameKey(name).slice(0, 24) || "row"}`;
 }
 
 export function parseAccessExport(
@@ -189,7 +182,7 @@ export function parseAccessExport(
       const first = firstAt >= 0 ? (cells[firstAt] ?? "") : "";
       const last = lastAt >= 0 ? (cells[lastAt] ?? "") : "";
       const name = (nameAt >= 0 ? cells[nameAt] : `${first} ${last}`).trim();
-      if (!name || norm(name) === "total") return;
+      if (!name || titleKey(name) === "total") return;
       const role = roleAt >= 0 ? (cells[roleAt] ?? "").trim() : "";
       const mappedRole = mapRoleToDuties(role);
       const person = matchPerson(name, people);
@@ -220,7 +213,7 @@ export function parseAccessExport(
     const detailAt = headerIndex(headers, ["email", "account number", "company"]);
     located.rows.slice(1).forEach((cells, index) => {
       const name = (nameAt >= 0 ? cells[nameAt] : (cells[0] ?? "")).trim();
-      if (!name || norm(name) === "total") return;
+      if (!name || titleKey(name) === "total") return;
       const created = dateAt >= 0 ? readDate(cells[dateAt] ?? "") : "";
       const age = created ? daysBetween(created, asOf.slice(0, 10)) : null;
       vendors.push({

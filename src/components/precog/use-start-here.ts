@@ -22,9 +22,10 @@ import { ownerHeldPairs, rankFirstSteps } from "@/lib/precog/coach/first-steps";
 import { concentrationHeadline, separatedPairs } from "@/lib/precog/sod/verdict";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
-import { locationsById, locationText } from "@/lib/precog/person-location";
+import { locationsById } from "@/lib/precog/person-location";
 import { localDateKey } from "@/lib/precog/dates";
 import { formatUsd } from "@/lib/utils";
+import { joinWithAnd } from "@/lib/precog/text";
 
 export function useStartHere() {
   const { profile, template } = usePractice();
@@ -88,7 +89,7 @@ export function useStartHere() {
   const placesOf = useMemo(() => locationsById(template.people), [template.people]);
   const atPlaces = (name: string, id: string) => {
     const places = placesOf.get(id);
-    return places ? `${name} (${locationText(places)})` : name;
+    return places ? `${name} (${joinWithAnd(places)})` : name;
   };
   const gapPlaces = (ids: readonly string[]) => [
     ...new Set(ids.flatMap((id) => placesOf.get(id) ?? [])),

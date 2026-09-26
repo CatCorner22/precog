@@ -7,8 +7,9 @@ import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
 import { reorderLastFirst } from "./roster-names";
 import { isInactive, isKnownActive, isOnLeave, isTrue, statusKey } from "./roster-status";
 import type { ColumnMap } from "./roster-columns";
-import { slug } from "../text";
+import { slug, nameKey } from "../text";
 import { localDateKey } from "../dates";
+import { clamp } from "../number";
 export interface RosterImportIssue {
   row: number;
   message: string;
@@ -21,18 +22,6 @@ export interface TitleMapping {
   /** Catalog title the row's job title mapped to, or undefined when nothing matched. */
   catalogTitle?: string;
   confidence?: "exact" | "partial";
-}
-
-export function nameKey(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, "");
-}
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function canonicalRole(value: string, roleTemplates: Record<string, unknown>): string {
@@ -89,12 +78,12 @@ const ENTITLEMENT_ALIASES: Record<string, EntitlementId> = {
 };
 
 function findEntitlement(token: string): EntitlementId | undefined {
-  const normalized = normalize(token);
-  const direct = ENTITLEMENTS.find((entitlement) => normalize(entitlement.id) === normalized);
+  const normalized = nameKey(token);
+  const direct = ENTITLEMENTS.find((entitlement) => nameKey(entitlement.id) === normalized);
   if (direct) return direct.id;
-  const byLabel = ENTITLEMENTS.find((entitlement) => normalize(entitlement.label) === normalized);
+  const byLabel = ENTITLEMENTS.find((entitlement) => nameKey(entitlement.label) === normalized);
   if (byLabel) return byLabel.id;
-  const alias = Object.entries(ENTITLEMENT_ALIASES).find(([key]) => normalize(key) === normalized);
+  const alias = Object.entries(ENTITLEMENT_ALIASES).find(([key]) => nameKey(key) === normalized);
   return alias?.[1];
 }
 
@@ -194,7 +183,7 @@ function readTenure(
   const tenureValue = cellAt(cells, columns.tenure);
   if (tenureValue) {
     const parsed = Number.parseFloat(tenureValue);
-    if (Number.isFinite(parsed)) return Math.min(60, Math.max(0, parsed));
+    if (Number.isFinite(parsed)) return clamp(parsed, 0, 60);
     context.issues.push({ row, message: "Tenure is not a valid number" });
     return undefined;
   }
@@ -253,7 +242,7 @@ function readListedDuties(
       continue;
     }
     unknown.push(trimmed);
-    if (!context.unknownEntitlements.some((seen) => normalize(seen) === normalize(trimmed))) {
+    if (!context.unknownEntitlements.some((seen) => nameKey(seen) === nameKey(trimmed))) {
       context.unknownEntitlements.push(trimmed);
     }
   }

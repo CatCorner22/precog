@@ -2,12 +2,7 @@ import { toast } from "sonner";
 import { useState, type ReactNode } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
-import {
-  describeEnteredWork,
-  enteredWork,
-  hasEnteredWork,
-  listEnteredWork,
-} from "@/lib/precog/industry-switch";
+import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { useTemplate } from "@/lib/precog/use-template";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
@@ -16,6 +11,7 @@ import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings2, ShieldCheck } from "lucide-react";
+import { joinWithAnd } from "@/lib/precog/text";
 
 /** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
@@ -47,7 +43,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   const setPendingIndustry = (industry: IndustryId | null) =>
     setPendingChoice(industry ? { key: businessKey, industry } : null);
   const work = enteredWork(profile);
-  const entered = listEnteredWork(describeEnteredWork(work));
+  const entered = joinWithAnd(describeEnteredWork(work));
 
   function loadTemplate(next: IndustryId) {
     setIndustry(next);

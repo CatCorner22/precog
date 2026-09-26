@@ -1,12 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBaseTemplate } from "./active-template";
 import { defaultProfile } from "./practice-profile";
-import {
-  describeEnteredWork,
-  enteredWork,
-  hasEnteredWork,
-  listEnteredWork,
-} from "./industry-switch";
+import { describeEnteredWork, enteredWork, hasEnteredWork } from "./industry-switch";
+import { joinWithAnd } from "./text";
 
 const tpl = getBaseTemplate("dental");
 
@@ -61,7 +57,7 @@ describe("enteredWork", () => {
     const work = enteredWork(defaultProfile("dental"));
     expect(hasEnteredWork(work)).toBe(false);
     expect(describeEnteredWork(work)).toEqual([]);
-    expect(listEnteredWork([])).toBe("");
+    expect(joinWithAnd([])).toBe("");
   });
 
   it("counts the team, register, leave and map work an industry switch would discard", () => {
@@ -82,7 +78,7 @@ describe("enteredWork", () => {
     const work = enteredWork(p);
     expect(hasEnteredWork(work)).toBe(true);
     expect(describeEnteredWork(work)).toEqual(["4 people", "12 register entries", "1 absence"]);
-    expect(listEnteredWork(describeEnteredWork(work))).toBe(
+    expect(joinWithAnd(describeEnteredWork(work))).toBe(
       "4 people, 12 register entries and 1 absence",
     );
   });
@@ -126,6 +122,6 @@ describe("enteredWork", () => {
       "1 register item",
       "1 process",
     ]);
-    expect(listEnteredWork(["1 person", "1 process"])).toBe("1 person and 1 process");
+    expect(joinWithAnd(["1 person", "1 process"])).toBe("1 person and 1 process");
   });
 });

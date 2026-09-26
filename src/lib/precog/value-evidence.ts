@@ -1,5 +1,6 @@
 import { isCalendarDate, dateAfter, localDateKey } from "./dates";
 import { formatUsd } from "../utils";
+import { clamp } from "./number";
 export type ValueEvidenceKind = "time" | "recovery" | "control" | "exception";
 
 export type ValueEvidence = {
@@ -46,7 +47,7 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
       kind,
       description,
       source,
-      amount: Number.isFinite(numeric) ? Math.max(0, Math.min(1_000_000_000, numeric)) : 0,
+      amount: Number.isFinite(numeric) ? clamp(numeric, 0, 1_000_000_000) : 0,
       observedAt: validDate(item.observedAt),
       verified: item.verified === true && Boolean(source),
     });

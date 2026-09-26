@@ -1,6 +1,7 @@
 import type { ValueEvidence } from "./value-evidence";
 import { joinWithAnd } from "./text";
 import { formatUsd, formatPct } from "../utils";
+import { boundedNumber } from "./number";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
 
@@ -30,7 +31,7 @@ export const DEFAULT_VALUE_CASE: ValueCaseInputs = {
 
 function bounded(value: unknown, minimum: number, maximum: number) {
   const numeric = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numeric) ? Math.min(maximum, Math.max(minimum, numeric)) : minimum;
+  return boundedNumber(numeric, { min: minimum, max: maximum, fallback: minimum });
 }
 
 export function normalizeValueCase(

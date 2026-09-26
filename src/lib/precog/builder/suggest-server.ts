@@ -10,6 +10,7 @@ import {
   type SuggestionInput,
   type SuggestionResult,
 } from "./suggest";
+import { boundedNumber } from "../number";
 
 const RISK_KINDS = new Set([
   "control",
@@ -24,8 +25,7 @@ const IDEA_CATS = new Set(["control", "lean", "tech", "training", "policy"]);
 const LEVELS = new Set(["low", "medium", "high"]);
 
 function clampLevel(n: unknown): 1 | 2 | 3 | 4 | 5 {
-  const v = Math.round(Number(n));
-  return (Number.isFinite(v) ? Math.min(5, Math.max(1, v)) : 3) as 1 | 2 | 3 | 4 | 5;
+  return boundedNumber(Math.round(Number(n)), { min: 1, max: 5, fallback: 3 }) as 1 | 2 | 3 | 4 | 5;
 }
 
 function sanitizeRisk(r: Record<string, unknown>): SuggestedRisk | null {

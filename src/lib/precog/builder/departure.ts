@@ -6,6 +6,7 @@ import type { IndustryTemplate } from "../templates";
 import { previewMapHealth } from "./what-if";
 import type { Person, ProcessNode, StaffComposition } from "../types";
 import { STRONG_LEVELS } from "../continuity/coverage";
+import { firstName } from "../text";
 
 export interface DepartureImpact {
   person: Person;
@@ -92,7 +93,7 @@ function simulateDeparture(
       `Cross-train someone on ${orphanedKnowledge
         .slice(0, 2)
         .map((k) => k.name)
-        .join(" and ")} — write the runbook while ${person.name.split(" ")[0]} is still here.`,
+        .join(" and ")} — write the runbook while ${firstName(person.name)} is still here.`,
     );
   if ((person.tenureYears ?? 0) >= 5 && (orphanedProcesses.length || orphanedKnowledge.length))
     recommendations.push(

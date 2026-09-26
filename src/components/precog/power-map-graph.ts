@@ -1,8 +1,7 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import { ENTITLEMENTS, type DutyFamily } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
-import { locationText } from "@/lib/precog/person-location";
-import { downloadText } from "@/lib/download";
+import { joinWithAnd } from "@/lib/precog/text";
 
 export const FAMILY_META: Record<
   DutyFamily,
@@ -35,12 +34,9 @@ export const FAMILY_META: Record<
   },
 };
 
-export const downloadFile = (content: string, type: string, filename: string) =>
-  downloadText(filename, content, type);
-
 /** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
 export function withPlaces(role: string, places: readonly string[] | undefined): string {
-  return places && places.length > 0 ? `${role} · ${locationText(places)}` : role;
+  return places && places.length > 0 ? `${role} · ${joinWithAnd(places)}` : role;
 }
 
 export function buildGraph(
@@ -78,7 +74,7 @@ export function buildGraph(
         person.personName,
         person.role,
         ...(placesOf.has(person.personId)
-          ? [locationText(placesOf.get(person.personId) ?? [])]
+          ? [joinWithAnd(placesOf.get(person.personId) ?? [])]
           : []),
       ].join("\n"),
     },
