@@ -2,6 +2,7 @@ import { entitlementLabel, type EntitlementId } from "@/lib/precog/sod/conflict-
 import type { RoleAssignment } from "@/lib/precog/sod/detect";
 import type { AccessReconciliation, AccessUserRow, QueueStatus } from "@/lib/precog/firm/reconcile";
 import { joinWithAnd } from "@/lib/precog/text";
+import { midSentence } from "@/lib/precog/sod/verdict";
 
 /** The reconciliation with one user row set to `status`; back in the queue, the row forgets its duty. */
 export function withUserStatus(
@@ -42,16 +43,12 @@ export function rowDifferences(row: AccessUserRow): string {
       ? `Role words we could not match to a duty: ${row.unmatchedTokens.join(", ")}.`
       : "",
     row.extra.length
-      ? `The books let them ${lowerFirst(duties(row.extra))}, which the duty map does not show.`
+      ? `The books let them ${midSentence(duties(row.extra))}, which the duty map does not show.`
       : "",
     row.missingFromBooks.length
-      ? `The duty map gives them ${lowerFirst(duties(row.missingFromBooks))}, which this export does not show.`
+      ? `The duty map gives them ${midSentence(duties(row.missingFromBooks))}, which this export does not show.`
       : "",
   ]
     .filter(Boolean)
     .join(" ");
-}
-
-function lowerFirst(text: string): string {
-  return text.charAt(0).toLowerCase() + text.slice(1);
 }

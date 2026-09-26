@@ -1,4 +1,5 @@
 import type { Person } from "./types";
+import { joinWithAnd } from "./text";
 
 /**
  * Where a person works, as the roster said: the department or location
@@ -59,4 +60,9 @@ export function worksAt(places: readonly string[] | undefined, place: string | n
   if (place === null) return !places || places.length === 0;
   const key = place.toLowerCase();
   return (places ?? []).some((held) => held.toLowerCase() === key);
+}
+
+/** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
+export function withPlaces(role: string, places: readonly string[] | undefined): string {
+  return places && places.length > 0 ? `${role} · ${joinWithAnd(places)}` : role;
 }

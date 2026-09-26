@@ -1,42 +1,52 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
-import { ENTITLEMENTS, type DutyFamily } from "@/lib/precog/sod/conflict-rules";
+import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { joinWithAnd } from "@/lib/precog/text";
 
-export const FAMILY_META: Record<
-  DutyFamily,
-  { label: string; color: string; description: string }
-> = {
-  authorization: {
-    label: "Authorization",
-    color: "#a78bfa",
-    description: "Approve or direct a transaction",
-  },
-  custody: {
-    label: "Custody",
-    color: "#fb7185",
-    description: "Hold money, data, goods, or release capability",
-  },
-  recording: {
-    label: "Recording",
-    color: "#60a5fa",
-    description: "Enter transactions or alter records",
-  },
-  reconciliation: {
-    label: "Reconciliation",
-    color: "#34d399",
-    description: "Independently verify what occurred",
-  },
-  master_data: {
-    label: "Master data",
-    color: "#fbbf24",
-    description: "Change standing data, users, vendors, or prices",
-  },
-};
+/** The part of the map a view shows: its people and duties, and which of them sit in a conflict. */
+export interface MapSlice {
+  shownPeople: RoleAssignment[];
+  shownDuties: typeof ENTITLEMENTS;
+  /** "personId:duty" for every duty a person holds inside a conflict. */
+  conflictKeys: Set<string>;
+  conflictedPeople: Set<string>;
+}
 
-/** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
-export function withPlaces(role: string, places: readonly string[] | undefined): string {
-  return places && places.length > 0 ? `${role} · ${joinWithAnd(places)}` : role;
+/**
+ * The people and duties the graph and the matrix both show: everyone and
+ * every duty, or with `conflictsOnly` only those in a conflict, narrowed to
+ * one process when `processId` is set.
+ */
+export function mapSlice(
+  assignments: RoleAssignment[],
+  conflicts: DetectedConflict[],
+  conflictsOnly: boolean,
+  processId = "all",
+): MapSlice {
+  const conflictKeys = new Set(
+    conflicts.flatMap((item) => [
+      `${item.personId}:${item.entitlementA}`,
+      `${item.personId}:${item.entitlementB}`,
+    ]),
+  );
+  const conflictedDuties = new Set<EntitlementId>(
+    conflicts.flatMap((item) => [item.entitlementA, item.entitlementB]),
+  );
+  const conflictedPeople = new Set(conflicts.map((item) => item.personId));
+  return {
+    shownPeople: conflictsOnly
+      ? assignments.filter((person) => conflictedPeople.has(person.personId))
+      : assignments,
+    shownDuties: ENTITLEMENTS.filter(
+      (item) =>
+        item.id !== "view_reports_only" &&
+        (!conflictsOnly || conflictedDuties.has(item.id)) &&
+        (processId === "all" || item.processIds.includes(processId)),
+    ),
+    conflictKeys,
+    conflictedPeople,
+  };
 }
 
 export function buildGraph(
@@ -46,27 +56,14 @@ export function buildGraph(
   processId = "all",
   placesOf: ReadonlyMap<string, string[]> = new Map(),
 ): { nodes: Node[]; edges: Edge[] } {
-  const conflictKeys = new Set(
-    conflicts.flatMap((item) => [
-      `${item.personId}:${item.entitlementA}`,
-      `${item.personId}:${item.entitlementB}`,
-    ]),
+  const { shownPeople, shownDuties, conflictKeys, conflictedPeople } = mapSlice(
+    assignments,
+    conflicts,
+    conflictsOnly,
+    processId,
   );
-  const conflictedDutyIds = new Set(
-    conflicts.flatMap((item) => [item.entitlementA, item.entitlementB]),
-  );
-  const conflictedPeople = new Set(conflicts.map((item) => item.personId));
   const families = Object.keys(FAMILY_META) as DutyFamily[];
-  const shownAssignments = conflictsOnly
-    ? assignments.filter((person) => conflictedPeople.has(person.personId))
-    : assignments;
-  const shownDuties = ENTITLEMENTS.filter(
-    (item) =>
-      item.id !== "view_reports_only" &&
-      (!conflictsOnly || conflictedDutyIds.has(item.id)) &&
-      (processId === "all" || item.processIds.includes(processId)),
-  );
-  const nodes: Node[] = shownAssignments.map((person, index) => ({
+  const nodes: Node[] = shownPeople.map((person, index) => ({
     id: `person:${person.personId}`,
     position: { x: 10, y: 80 + index * 110 },
     data: {
@@ -95,7 +92,7 @@ export function buildGraph(
         id: `duty:${entitlement.id}`,
         position: { x: 320 + familyIndex * 245, y: 70 + index * 100 },
         data: {
-          label: `${entitlement.label}\n${FAMILY_META[family].label} · risk ${entitlement.riskWeight}/5`,
+          label: `${entitlement.label}\n${FAMILY_META[family].label} · weight ${entitlement.riskWeight} of 5`,
         },
         style: {
           width: 215,
@@ -110,7 +107,7 @@ export function buildGraph(
       });
   }
   const visibleNodeIds = new Set(nodes.map((node) => node.id));
-  const edges: Edge[] = shownAssignments.flatMap((person) =>
+  const edges: Edge[] = shownPeople.flatMap((person) =>
     person.entitlements
       .filter((id) => id !== "view_reports_only")
       .map((id) => {

@@ -1,5 +1,7 @@
-import { ResponsibilityMatrix } from "./power-map-parts";
-import { FAMILY_META, withPlaces } from "./power-map-graph";
+import { ResponsibilityMatrix } from "./power-map-matrix";
+import { WEIGHT_TITLE } from "./power-map-words";
+import { FAMILY_META } from "@/lib/precog/sod/duty-families";
+import { withPlaces } from "@/lib/precog/person-location";
 import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -69,8 +71,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
   } = model;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
-      <Card>
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <Card className="min-w-0">
         <CardHeader className="gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
@@ -78,8 +80,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               Power, duty & responsibility map
             </CardTitle>
             <CardDescription>
-              Every line means a person holds that power. Animated red lines participate in a
-              conflict. Drag nodes into the structure that makes sense to your team.
+              Each line joins a person to a duty they hold. A red moving line is a duty in a
+              conflict. Drag the boxes into whatever layout makes sense to your team.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -156,13 +158,16 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-border bg-elevated p-2">
             {Object.entries(FAMILY_META).map(([id, meta]) => (
-              <span
-                key={id}
-                className="flex items-center gap-1.5 text-xs text-muted"
-                title={meta.description}
-              >
-                <span className="size-2 rounded-full" style={{ background: meta.color }} />
-                {meta.label}
+              <span key={id} className="flex items-center gap-1.5 text-xs text-muted">
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ background: meta.color }}
+                />
+                <span>
+                  {meta.label}
+                  <span className="text-subtle"> · {meta.description}</span>
+                </span>
               </span>
             ))}
             <label className="ml-auto flex items-center gap-2 text-xs text-muted">
@@ -184,7 +189,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
         </CardHeader>
         <CardContent>
           {mapView === "graph" ? (
-            <div className="h-[720px] overflow-hidden rounded-xl border border-border bg-bg">
+            <div className="h-[min(720px,70dvh)] w-full min-w-0 overflow-hidden rounded-xl border border-border bg-bg">
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -220,7 +225,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Add a common job</CardTitle>
@@ -233,6 +238,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               value={simulationName}
               onChange={(event) => setSimulationName(event.target.value)}
               placeholder="Name (optional)"
+              aria-label="Name of the simulated hire (optional)"
               className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
             />
             <div className="flex gap-2">
@@ -282,7 +288,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-border bg-elevated p-2">
-                <p className="text-xs text-subtle">POWERS</p>
+                <p className="text-xs text-subtle">DUTIES</p>
                 <p className="text-lg font-semibold">{selected?.entitlements.length ?? 0}</p>
               </div>
               <div
@@ -309,11 +315,12 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               </Button>
             )}
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 size-3.5 text-subtle" />
+              <Search aria-hidden className="absolute left-2.5 top-2.5 size-3.5 text-subtle" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Find a power or duty…"
+                placeholder="Find a duty…"
+                aria-label="Find a duty"
                 className="w-full rounded-lg border border-border bg-elevated py-2 pl-8 pr-3 text-sm"
               />
             </div>
@@ -322,6 +329,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                 <button
                   key={item}
                   type="button"
+                  aria-pressed={family === item}
                   onClick={() => setFamily(item)}
                   className={cn(
                     "shrink-0 rounded-full border px-2 py-0.5 text-xs capitalize",
@@ -330,7 +338,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                       : "border-border text-muted",
                   )}
                 >
-                  {item.replace("_", " ")}
+                  {item === "all" ? "all" : FAMILY_META[item].label}
                 </button>
               ))}
             </div>
@@ -346,8 +354,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                   <button
                     key={entitlement.id}
                     type="button"
+                    aria-pressed={Boolean(active)}
                     onClick={() => toggle(entitlement.id)}
-                    title={`${guidance.purpose} ${guidance.boundary}`}
                     className={cn(
                       "flex w-full items-start gap-2 rounded-lg border p-2 text-left",
                       active
@@ -360,6 +368,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                     )}
                   >
                     <span
+                      aria-hidden
                       className={cn(
                         "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-xs",
                         active && "border-primary bg-primary text-primary-fg",
@@ -369,8 +378,9 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                     </span>
                     <span className="min-w-0">
                       <span className="block text-xs font-medium">{entitlement.label}</span>
-                      <span className="text-xs capitalize text-subtle">
-                        {FAMILY_META[entitlement.family].label} · risk {entitlement.riskWeight}/5
+                      <span className="text-xs text-subtle">
+                        {FAMILY_META[entitlement.family].label} ·{" "}
+                        <span title={WEIGHT_TITLE}>weight {entitlement.riskWeight} of 5</span>
                       </span>
                       <span className="mt-1 block text-xs leading-relaxed text-subtle">
                         {guidance.purpose}
@@ -387,7 +397,10 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                       )}
                     </span>
                     {(conflict || creates > 0) && (
-                      <AlertTriangle className="ml-auto size-3.5 shrink-0 text-danger" />
+                      <AlertTriangle
+                        aria-hidden
+                        className="ml-auto size-3.5 shrink-0 text-danger"
+                      />
                     )}
                   </button>
                 );

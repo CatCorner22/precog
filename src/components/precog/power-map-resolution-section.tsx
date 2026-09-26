@@ -1,5 +1,6 @@
-import { ConflictCard, ResolutionOptions } from "./power-map-parts";
-import { FAMILY_META } from "./power-map-graph";
+import { ResolutionOptions } from "./power-map-parts";
+import { ConflictSummary } from "./sod-conflict-summary";
+import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { applyResolutionPlan } from "@/lib/precog/sod/resolution-planner";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,8 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
             <CardTitle className="text-base">Resolution planner · {selected?.personName}</CardTitle>
             <CardDescription>
               Compare conflict-safe transfers before changing the model. Suggestions never create a
-              new detected conflict; apply one, inspect the new health score, and undo at any time.
+              new detected conflict; apply one, check the new segregation health, and undo at any
+              time.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -28,7 +30,12 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
                 key={conflict.id}
                 className="grid gap-2 rounded-xl border border-border bg-elevated p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
               >
-                <ConflictCard conflict={conflict} />
+                <ConflictSummary conflict={conflict}>
+                  <p className="mt-2 text-xs text-muted">
+                    Until the duties are split:{" "}
+                    {conflict.compensatingControls.slice(0, 2).join("; ")}
+                  </p>
+                </ConflictSummary>
                 <ResolutionOptions
                   assignments={assignments}
                   conflict={conflict}

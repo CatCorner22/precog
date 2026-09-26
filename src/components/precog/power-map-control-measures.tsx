@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
-import { FAMILY_META } from "./power-map-graph";
+import { FAMILY_META } from "@/lib/precog/sod/duty-families";
+import { WEIGHT_TITLE } from "./power-map-words";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
 import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
 import { Button } from "@/components/ui/button";
@@ -24,9 +25,9 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
         <div>
           <CardTitle className="text-base">Internal control action catalog</CardTitle>
           <CardDescription>
-            A menu of directive, preventive, detective, and corrective measures for every visible
-            duty. Pick proportionate primary controls and documented alternatives; no single action
-            replaces accountable review.
+            Controls for every duty shown: ones that set the rule, prevent, detect, and correct.
+            Choose the controls your team can run and write down which you chose. No control
+            replaces the owner reading the records.
           </CardDescription>
         </div>
         <Button
@@ -76,7 +77,8 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
                       >
                         <span className="block font-medium text-fg">{duty.label}</span>
                         <span className="mt-1 block text-xs font-normal text-subtle">
-                          {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
+                          {FAMILY_META[duty.family].label} ·{" "}
+                          <span title={WEIGHT_TITLE}>weight {duty.riskWeight} of 5</span>
                         </span>
                       </th>
                       {categories.map((category) => (
