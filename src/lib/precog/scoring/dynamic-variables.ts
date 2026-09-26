@@ -240,7 +240,8 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     likelihoodEffect: "Premium does not change event likelihood; it prices transfer.",
     severityEffect: "Raises annual cost-of-risk even if no loss occurs.",
     min: 0,
-    max: 50000,
+    // The most the app stores, not the slider's range: a real policy can be larger.
+    max: 1_000_000,
     step: 100,
     defaultValue: 4200,
   },
@@ -254,7 +255,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     severityEffect:
       "For an eligible modeled loss, the business retains up to the loss amount before recovery starts.",
     min: 0,
-    max: 100000,
+    max: 1_000_000,
     step: 500,
     defaultValue: 5000,
   },
@@ -267,7 +268,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     likelihoodEffect: "None.",
     severityEffect: "Caps transferred severity; excess loss stays with the business.",
     min: 0,
-    max: 1000000,
+    max: 50_000_000,
     step: 5000,
     defaultValue: 100000,
   },
