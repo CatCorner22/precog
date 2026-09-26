@@ -204,19 +204,13 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
                 ))}
               </div>
             </div>
-            <Button
-              size="sm"
-              onClick={addException}
-              disabled={!exLabel.trim() || !exReason.trim()}
-            >
+            <Button size="sm" onClick={addException} disabled={!exLabel.trim() || !exReason.trim()}>
               Save exception
             </Button>
           </div>
         )}
 
-        {exceptions.length === 0 && (
-          <p className="text-sm text-muted">No exceptions configured.</p>
-        )}
+        {exceptions.length === 0 && <p className="text-sm text-muted">No exceptions configured.</p>}
         {exceptions.map((ex) => (
           <div
             key={ex.id}

@@ -15,9 +15,7 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
               <CardTitle className="text-sm">{c.label}</CardTitle>
               <div className="flex gap-1">
                 {c.activeExceptions > 0 && <Badge variant="warn">{c.activeExceptions} ex</Badge>}
-                <Badge variant={c.covered ? "ok" : "default"}>
-                  {c.covered ? "active" : "off"}
-                </Badge>
+                <Badge variant={c.covered ? "ok" : "default"}>{c.covered ? "active" : "off"}</Badge>
               </div>
             </div>
             <CardDescription>
