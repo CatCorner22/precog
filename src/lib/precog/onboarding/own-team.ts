@@ -246,7 +246,7 @@ export function leaderRow(industry?: string): OwnTeamRow {
 }
 
 /** The same duties, in any order. */
-export const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
+export const sameDuties = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((d) => b.includes(d));
 
 /** Whether a row is still exactly a fresh grid's first row, for any line of business. */

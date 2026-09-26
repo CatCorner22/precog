@@ -1,19 +1,19 @@
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
-import { ROLE_TEMPLATES } from "../sod/role-templates";
 import { nameKey, stripInvisibleControls } from "../text";
 import {
   csvCell,
   locateTable,
   normalizeHeader,
   parseRows,
+  rowCapMessage,
   sniffDelimiter,
   type ImportIssue,
 } from "./csv";
 import { datesAreDayFirst } from "./hire-date";
 import { parseRoster } from "./roster";
 import { looksLikeRosterHeader, mapColumns, startsWithColumnHeading } from "./roster-columns";
-import { readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { readPerson, roleDuties, type ImportContext, type TitleMapping } from "./roster-row-read";
 
 export interface PeopleImportResult {
   people: Person[];
@@ -117,7 +117,7 @@ export function parsePeopleRows(
   if (dropped) {
     issues.push({
       row: candidates[maxRows].row,
-      message: `Read the first ${maxRows} rows; ${dropped} more ${dropped === 1 ? "row was" : "rows were"} not read, because one import reads up to ${maxRows}`,
+      message: rowCapMessage(maxRows, dropped),
     });
   }
 
@@ -228,7 +228,7 @@ export function effectiveDuties(
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): string[] {
   if (person.entitlements?.length) return [...person.entitlements];
-  return [...(roleTemplates[person.role] ?? ROLE_TEMPLATES[person.role] ?? ["view_reports_only"])];
+  return [...roleDuties(person.role, roleTemplates)];
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */

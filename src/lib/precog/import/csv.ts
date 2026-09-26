@@ -1,4 +1,4 @@
-import { nameKey } from "../text";
+import { count, nameKey } from "../text";
 
 /** Cell separators the importers understand. */
 export type Delimiter = "," | "\t" | ";" | "|";
@@ -146,6 +146,11 @@ export function locateTable(
     };
   }
   return undefined;
+}
+
+/** What an importer says when a file has more rows than one import reads. */
+export function rowCapMessage(maxRows: number, dropped: number): string {
+  return `This import reads the first ${maxRows} rows; it did not read ${count(dropped, "more row")}`;
 }
 
 /** Extra words a "documented" cell may use in the process and register sheets. */

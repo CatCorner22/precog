@@ -25,7 +25,6 @@ import {
 } from "@/lib/precog/onboarding/setup-draft";
 import {
   CORE_DUTIES,
-  GRID_DUTY_HEADING,
   MORE_PEOPLE_PLACE,
   OWN_TEAM_MAX,
   addPastedRows,
@@ -75,9 +74,10 @@ import {
   whoIs,
   withRowIds,
 } from "./industry-onboarding-helpers";
-import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
+import { AddDutyControl, DutyHeading, SeatNote, YearsHereInput } from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
 import { clamp } from "@/lib/precog/number";
+import { count } from "@/lib/precog/text";
 export function IndustryOnboarding() {
   const workspace = useWorkspace();
   const {
@@ -257,8 +257,12 @@ export function IndustryOnboarding() {
     }
     completeOnboarding(selected);
   }
-  const [quickTitle, setQuickTitle] = useState(JOB_CATALOG[0]?.id ?? "");
-  const [quickCount, setQuickCount] = useState(1);
+  // No job is picked until the owner picks one: the catalog's first entry is
+  // the owner's seat, and a table with three placeholder owners has no sole owner.
+  const [quickTitle, setQuickTitle] = useState("");
+  // "How many" stays as typed until it is used, so it can be cleared and retyped.
+  const [quickCountText, setQuickCountText] = useState("1");
+  const quickCount = clamp(Math.floor(Number(quickCountText)) || 1, 1, 20);
   const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
 
   // Rows that count toward the limit: named, or with duties ticked. Blank
@@ -273,6 +277,7 @@ export function IndustryOnboarding() {
    */
   function addByTitle() {
     if (!quickEntry) return;
+    setQuickCountText(String(quickCount));
     const result = addRowsByTitle(rows, quickEntry, quickCount, selected);
     if (result.added === 0) {
       setQuickNote(
@@ -285,7 +290,7 @@ export function IndustryOnboarding() {
     setQuickNote(
       result.notAdded > 0
         ? `Added ${result.added} of ${quickCount}: this table holds ${OWN_TEAM_MAX} people. Add the other ${result.notAdded} in ${MORE_PEOPLE_PLACE} after setup.`
-        : `Added ${result.added} ${result.added === 1 ? "person" : "people"} as ${quickEntry.title}; rename them as you go.`,
+        : `Added ${count(result.added, "person", "people")} as ${quickEntry.title}; rename them as you go.`,
     );
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
@@ -304,7 +309,7 @@ export function IndustryOnboarding() {
     if (result.changed === 0) return;
     setRows(result.rows);
     setGridStatus({
-      text: `Unticked ${coreDutyLabel(bulkPick)} for ${result.changed} ${result.changed === 1 ? "person" : "people"} titled ${bulkRole}.`,
+      text: `Unticked ${coreDutyLabel(bulkPick)} for ${count(result.changed, "person", "people")} with the job title ${bulkRole}.`,
     });
   }
 
@@ -429,7 +434,7 @@ export function IndustryOnboarding() {
     const rowId = row.rowId;
     toggleDuty(index, duty);
     setGridStatus({
-      text: `Removed ${coreDutyLabel(duty)} from ${whoIs(row, index)}. Add it back with "Add a duty" under the role.`,
+      text: `Removed ${coreDutyLabel(duty)} from ${whoIs(row, index)}. Add it back with "Add a duty" under the job title.`,
     });
     focusSoon(() => {
       const cell = document.querySelector<HTMLElement>(`[data-role-cell="${rowId}"]`);
@@ -493,15 +498,17 @@ export function IndustryOnboarding() {
     }
   }
 
-  const storageNote = keepsNothing ? (
-    <p
-      className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
-      role="status"
-    >
-      This browser is not keeping data for this site, so what you set up here is lost when this tab
-      closes or reloads. Allow site data for this site to keep it.
-    </p>
-  ) : null;
+  // One warning when this browser cannot keep the setup: site data is
+  // blocked, or this tab could not save the draft.
+  const storageNote =
+    keepsNothing || draftSaved === false ? (
+      <p
+        className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
+        role="status"
+      >
+        This browser will not keep your progress: finish in this sitting.
+      </p>
+    ) : null;
 
   // Setting up an added business: the owner can go back without finishing.
   const cancelLink = setupReturnsTo ? (
@@ -516,8 +523,6 @@ export function IndustryOnboarding() {
     </p>
   ) : null;
 
-  // A long table gets the width of the screen, so more duty columns show at once.
-  const wide = step === "team" && rows.length > 10;
   const titleCls = "text-xl font-semibold tracking-tight outline-hidden sm:text-2xl";
 
   const attentionIndices = new Set(
@@ -525,6 +530,31 @@ export function IndustryOnboarding() {
       setupRowNeedsAttention(row, typedSeat(row, selected)) ? [index] : [],
     ),
   );
+
+  /** Arrow keys, Home and End move the choice between lines of business, as in any radio group. */
+  function moveIndustry(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const index = INDUSTRIES.findIndex((i) => i.id === selected);
+    const last = INDUSTRIES.length - 1;
+    const next =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    const id = INDUSTRIES[next].id;
+    setSelected(id);
+    focusSoon(() => document.getElementById(`industry-choice-${id}`));
+  }
 
   return (
     <div
@@ -539,7 +569,9 @@ export function IndustryOnboarding() {
         data-onboarding-card
         className={cn(
           "max-h-[92dvh] w-full overflow-y-auto border-border bg-surface shadow-2xl",
-          wide ? "max-w-7xl" : "max-w-3xl",
+          // The team grid takes the screen's width wherever the screen has it,
+          // so every duty column shows without scrolling sideways.
+          step === "team" ? "max-w-3xl lg:max-w-7xl" : "max-w-3xl",
         )}
       >
         {step === "industry" ? (
@@ -549,35 +581,34 @@ export function IndustryOnboarding() {
                 Welcome to Precog Pioneer
               </Badge>
               <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
-                What kind of business is this?
+                Which line of business is this?
               </h2>
               <CardDescription>
-                Pick the closest line of business. Next you enter your own team, or explore a sample
-                first. You can switch industry anytime in Business profile.
+                Pick the closest line of business. Next, enter your own team or explore a sample
+                first. You can change the line of business later in Business profile.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {storageNote}
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div
+                className="grid gap-2 sm:grid-cols-2"
+                role="radiogroup"
+                aria-labelledby="industry-onboarding-title"
+              >
                 {INDUSTRIES.map((ind) => {
                   const Icon = ICONS[ind.id];
                   const tpl = getIndustryTemplate(ind.id);
                   const active = selected === ind.id;
-                  // How many prosecuted cases the library holds for this line
-                  // of business. The general template counts the whole library.
-                  const sectors = sectorsForIndustry(ind.id);
-                  const caseCount = sectors.includes("any")
-                    ? CASE_LIBRARY.length
-                    : CASE_LIBRARY.filter((c) => sectors.includes(c.sector)).length;
-                  const casePhrase = sectors.includes("any")
-                    ? `${caseCount} prosecuted cases across every line of business`
-                    : `${caseCount} prosecuted ${caseCount === 1 ? "case" : "cases"} in this line of business`;
                   return (
                     <button
                       key={ind.id}
+                      id={`industry-choice-${ind.id}`}
                       type="button"
-                      aria-pressed={active}
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={active ? 0 : -1}
                       onClick={() => setSelected(ind.id)}
+                      onKeyDown={moveIndustry}
                       className={cn(
                         "rounded-xl border p-4 text-left transition-colors",
                         active
@@ -595,15 +626,12 @@ export function IndustryOnboarding() {
                           <Icon className="size-4" aria-hidden />
                         </span>
                         <div className="min-w-0">
-                          <p className="font-medium">
-                            {ind.label}
-                            {active && <span className="sr-only"> (selected)</span>}
-                          </p>
+                          <p className="font-medium">{ind.label}</p>
                           <p className="mt-0.5 text-xs text-muted">{ind.tagline}</p>
                           <p className="mt-2 text-xs text-subtle">
                             Sample: {tpl.processes.length} processes, {tpl.people.length} people
                           </p>
-                          <p className="mt-0.5 text-xs text-subtle">{casePhrase}</p>
+                          <p className="mt-0.5 text-xs text-subtle">{CASE_PHRASE[ind.id]}</p>
                         </div>
                       </div>
                     </button>
@@ -622,11 +650,12 @@ export function IndustryOnboarding() {
                   Set up my own business
                 </Button>
                 <Button className="w-full" variant="secondary" onClick={loadSample}>
-                  Load {industry?.label} demo
+                  Explore the sample instead
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                The demo is a fictional team. Every finding on it says so until you enter your own.
+                The sample is a fictional team; every finding on it says so until you enter your
+                own.
               </p>
               {cancelLink}
             </CardContent>
@@ -641,12 +670,8 @@ export function IndustryOnboarding() {
                 Your business and who does the money work
               </h2>
               <CardDescription>
-                Name your people and tick the money duties each one handles today: enough to find
-                the arrangements that let one person take money and hide it. Paste a roster from
-                your HR or payroll system and common job titles fill the duties for you; a
-                title&rsquo;s other duties appear as small tags you can remove, and &ldquo;Add a
-                duty&rdquo; under each role adds any other. You can refine everything later in Who
-                controls what.
+                Name your people and tick the money duties each one handles today; you can refine
+                everything later in Who controls what.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -674,177 +699,46 @@ export function IndustryOnboarding() {
                 />
               </label>
 
-              <details
-                className="rounded-xl border border-border bg-elevated/50 p-3"
-                open={pasteOpen}
-                onToggle={(e) => setPasteOpen(e.currentTarget.open)}
-              >
-                <summary className="cursor-pointer text-sm font-medium">
-                  Paste your team from Workday, SAP, Oracle, or your payroll export
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-muted">
-                    Paste the worker list as exported, header row included, or one person per line
-                    as <span className="font-mono">Name, Title</span>. Titles such as Bookkeeper,
-                    Office Manager, AP Specialist, or Cashier are read from a catalog of common jobs
-                    and their usual duties are ticked. People already in the table are updated, not
-                    added twice. People marked inactive are left out.
-                  </p>
-                  <textarea
-                    className={cn(inputCls, "min-h-28 w-full font-mono text-xs")}
-                    aria-label="Pasted roster"
-                    placeholder={
-                      "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Front Desk"
-                    }
-                    value={paste}
-                    onChange={(e) => setPaste(e.target.value)}
-                  />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" onClick={fillFromPaste} disabled={!paste.trim()}>
-                      Fill the table
-                    </Button>
-                  </div>
-                  <p
-                    ref={noteRef}
-                    tabIndex={-1}
-                    role="status"
-                    data-paste-note
-                    className="text-xs text-muted outline-hidden empty:hidden"
-                  >
-                    {pasteNote}
-                  </p>
-                  {pasteIssues.length > 0 && (
-                    <ul
-                      className="list-disc space-y-0.5 pl-4 text-xs text-muted"
-                      aria-label="Roster notes"
-                    >
-                      {pasteIssues.slice(0, 8).map((issue, i) => (
-                        <li key={`${issue.row}-${i}`}>
-                          {issue.row > 0 ? `Row ${issue.row}: ` : ""}
-                          {issue.message}
-                        </li>
-                      ))}
-                      {pasteIssues.length > 8 && <li>and {pasteIssues.length - 8} more</li>}
-                    </ul>
-                  )}
-                </div>
-              </details>
-
-              <details className="rounded-xl border border-border bg-elevated/50 p-3">
-                <summary className="cursor-pointer text-sm font-medium">
-                  No roster handy? Add people by job title
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-muted">
-                    Pick a common job, say how many, and rows appear with placeholder names and that
-                    job&rsquo;s usual duties ticked. Rename them as you go.
-                  </p>
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="flex flex-col gap-1 text-xs">
-                      <span className="text-muted">Job title</span>
-                      <select
-                        className={cn(inputCls, "w-64 max-w-full")}
-                        value={quickTitle}
-                        onChange={(e) => setQuickTitle(e.target.value)}
-                      >
-                        {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => (
-                          <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
-                            {JOB_CATALOG.filter((j) => j.family === family).map((j) => (
-                              <option key={j.id} value={j.id}>
-                                {j.title}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs">
-                      <span className="text-muted">How many</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        className={cn(inputCls, "w-20")}
-                        value={quickCount}
-                        onChange={(e) => setQuickCount(clamp(Number(e.target.value) || 1, 1, 20))}
-                      />
-                    </label>
-                    <Button size="sm" onClick={addByTitle} disabled={!quickEntry || tableFull}>
-                      Add {quickCount} {quickCount === 1 ? "person" : "people"}
-                    </Button>
-                  </div>
-                  <p role="status" className="text-xs text-muted empty:hidden">
-                    {tableFull && !quickNote
-                      ? `The table holds ${OWN_TEAM_MAX} people and is full. Add more in ${MORE_PEOPLE_PLACE} after setup.`
-                      : quickNote}
-                  </p>
-                  {quickEntry && (
-                    <p className="text-xs text-subtle">
-                      {quickEntry.description} {quickEntry.note}
-                    </p>
-                  )}
-                  <JobCatalogSheet />
-                </div>
-              </details>
-
               <datalist id="job-title-options">
                 {JOB_CATALOG.map((j) => (
                   <option key={j.id} value={j.title} />
                 ))}
               </datalist>
 
-              {shared.length > 0 && (
-                <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-elevated/50 p-3">
-                  <p className="w-full text-xs text-muted">
-                    Untick one duty for everyone with the same title:
+              <section
+                className="flex flex-wrap items-center justify-between gap-2"
+                aria-label="Setup review progress"
+              >
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    {count(namedRows.length, "person named", "people named")} ·{" "}
+                    {count(attentionIndices.size, "row")} to review
                   </p>
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="text-muted">Title</span>
-                    <select
-                      className={cn(inputCls, "w-56 max-w-full")}
-                      value={bulkRole}
-                      onChange={(e) => setBulkTitle(e.target.value)}
-                    >
-                      {shared.map((t) => (
-                        <option key={t.role} value={t.role}>
-                          {t.role} ({t.count})
-                        </option>
-                      ))}
-                    </select>
+                  <label className="flex items-center gap-2 text-xs text-muted">
+                    <input
+                      type="checkbox"
+                      checked={reviewOnly}
+                      onChange={(event) => {
+                        setReviewOnly(event.target.checked);
+                        setReviewRowIds(
+                          new Set(
+                            rows
+                              .filter((_, index) => attentionIndices.has(index))
+                              .map((row) => row.rowId ?? ""),
+                          ),
+                        );
+                      }}
+                    />
+                    Show only rows to review
                   </label>
-                  <label className="flex flex-col gap-1 text-xs">
-                    <span className="text-muted">Duty</span>
-                    <select
-                      className={cn(inputCls, "w-56 max-w-full")}
-                      value={bulkPick}
-                      onChange={(e) => setBulkDuty(e.target.value as EntitlementId)}
-                      disabled={bulkDuties.length === 0}
-                    >
-                      {bulkDuties.length === 0 && <option value="">No duties ticked</option>}
-                      {bulkDuties.map((duty) => (
-                        <option key={duty} value={duty}>
-                          {coreDutyLabel(duty)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={untickForTitle}
-                    disabled={!bulkPick}
-                  >
-                    Untick for all {bulkCount}
-                  </Button>
+                  {reviewOnly && (
+                    <p role="status" className="text-xs text-muted">
+                      {attentionIndices.size === 0
+                        ? "No name or job title is left to review. Show all rows to check their suggested duties."
+                        : "Showing rows to review. Rows you fix stay in view; hidden rows stay on your team."}
+                    </p>
+                  )}
                 </div>
-              )}
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-muted">
-                  {gridOverflows
-                    ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
-                    : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}
-                </p>
                 {rows.length > 3 && (
                   <Button
                     size="sm"
@@ -855,56 +749,15 @@ export function IndustryOnboarding() {
                     Skip to the finish button
                   </Button>
                 )}
-              </div>
-              <section
-                className="space-y-2 rounded-xl border border-border bg-panel p-3"
-                aria-label="Setup review progress"
-              >
-                <p className="text-sm font-medium">
-                  {namedRows.length} named people · {attentionIndices.size} incomplete or uncertain
-                  rows
-                </p>
-                <p className="text-xs text-muted">
-                  Review exceptions first, then check suggested duties. Hidden rows stay in your
-                  team. Rows stay visible while you correct them. A recognized title is not proof of
-                  actual access.
-                </p>
-                <label className="flex items-center gap-2 text-xs text-muted">
-                  <input
-                    type="checkbox"
-                    checked={reviewOnly}
-                    onChange={(event) => {
-                      setReviewOnly(event.target.checked);
-                      setReviewRowIds(
-                        new Set(
-                          rows
-                            .filter((_, index) => attentionIndices.has(index))
-                            .map((row) => row.rowId ?? ""),
-                        ),
-                      );
-                    }}
-                  />
-                  Show only incomplete or uncertain rows
-                </label>
-                {reviewOnly && attentionIndices.size === 0 && (
-                  <p role="status" className="text-xs text-muted">
-                    No title or name exceptions remain. Show all rows to review their suggested
-                    duties.
-                  </p>
-                )}
-                {draftSaved === false && (
-                  <p role="alert" className="text-xs text-danger">
-                    This tab cannot save your setup draft. Keep it open and copy your roster before
-                    leaving; a reload may lose these entries.
-                  </p>
-                )}
-                {draftSaved === true && (
-                  <p className="text-xs text-subtle">
-                    Draft saved in this tab for reload recovery, not to your account. Closing the
-                    tab can remove this draft.
-                  </p>
-                )}
               </section>
+              <p className="text-xs text-muted">
+                {gridOverflows
+                  ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
+                  : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
+                A job title&rsquo;s other duties show as small tags under it; remove one with ×, or
+                add another with &ldquo;Add a duty&rdquo;. A recognized job title is not proof of
+                actual access: check the suggested ticks.
+              </p>
               <div
                 ref={gridBoxRef}
                 className="max-h-[min(62dvh,40rem)] overflow-auto rounded-xl border border-border"
@@ -922,16 +775,15 @@ export function IndustryOnboarding() {
                         scope="col"
                         className="sticky top-0 z-20 border-b border-border bg-elevated p-2 text-left font-medium"
                       >
-                        Role
+                        Job title
                       </th>
                       {CORE_DUTIES.map((duty) => (
                         <th
                           key={duty}
                           scope="col"
-                          title={coreDutyLabel(duty)}
                           className="sticky top-0 z-20 border-b border-border bg-elevated p-2 text-center font-normal text-muted"
                         >
-                          {GRID_DUTY_HEADING[duty] ?? coreDutyLabel(duty)}
+                          <DutyHeading duty={duty} />
                         </th>
                       ))}
                       <th
@@ -985,6 +837,12 @@ export function IndustryOnboarding() {
                                 ))}
                               </ul>
                             )}
+                            <YearsHereInput
+                              key={`${rowKey}-${row.tenureYears ?? ""}`}
+                              who={who}
+                              years={row.tenureYears}
+                              onCommit={(tenureYears) => updateRow(index, { tenureYears })}
+                            />
                             {industryHasOwner(selected) && (
                               <label className="mt-1 flex min-h-6 items-center gap-1.5 text-xs text-muted">
                                 <input
@@ -1013,7 +871,7 @@ export function IndustryOnboarding() {
                             <input
                               className={cn(inputCls, "w-44 sm:w-52")}
                               placeholder="e.g. Bookkeeper"
-                              aria-label={`${who} role`}
+                              aria-label={`${who} job title`}
                               list="job-title-options"
                               value={row.role}
                               onChange={(e) => updateRow(index, { role: e.target.value })}
@@ -1103,7 +961,7 @@ export function IndustryOnboarding() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={rows.length >= OWN_TEAM_MAX}
+                  disabled={tableFull}
                   onClick={() => {
                     const row = EMPTY_ROW("");
                     setRows((current) => [...current, row]);
@@ -1121,6 +979,176 @@ export function IndustryOnboarding() {
                   Up to {OWN_TEAM_MAX} people here; add more in {MORE_PEOPLE_PLACE} after setup.
                 </p>
               </div>
+
+              {shared.length > 0 && (
+                <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-elevated/50 p-3">
+                  <p className="w-full text-xs text-muted">
+                    Untick one duty for everyone with the same job title:
+                  </p>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-muted">Job title</span>
+                    <select
+                      className={cn(inputCls, "w-56 max-w-full")}
+                      value={bulkRole}
+                      onChange={(e) => setBulkTitle(e.target.value)}
+                    >
+                      {shared.map((t) => (
+                        <option key={t.role} value={t.role}>
+                          {t.role} ({t.count})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-muted">Duty</span>
+                    <select
+                      className={cn(inputCls, "w-56 max-w-full")}
+                      value={bulkPick}
+                      onChange={(e) => setBulkDuty(e.target.value as EntitlementId)}
+                      disabled={bulkDuties.length === 0}
+                    >
+                      {bulkDuties.length === 0 && <option value="">No duties ticked</option>}
+                      {bulkDuties.map((duty) => (
+                        <option key={duty} value={duty}>
+                          {coreDutyLabel(duty)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={untickForTitle}
+                    disabled={!bulkPick}
+                  >
+                    Untick for all {bulkCount}
+                  </Button>
+                </div>
+              )}
+
+              <section className="space-y-2" aria-labelledby="fill-faster-heading">
+                <h3 id="fill-faster-heading" className="text-sm font-medium">
+                  Fill the table faster
+                </h3>
+                <details
+                  className="rounded-xl border border-border bg-elevated/50 p-3"
+                  open={pasteOpen}
+                  onToggle={(e) => setPasteOpen(e.currentTarget.open)}
+                >
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Paste your team from Workday, SAP, Oracle, or your payroll export
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-muted">
+                      Paste the worker list as exported, header row included, or one person per line
+                      as <span className="font-mono">Name, Job title</span>. Job titles such as
+                      Bookkeeper, Office Manager, AP Specialist, or Cashier are read from a catalog
+                      of common jobs and their usual duties are ticked. People already in the table
+                      are updated, not added twice. People marked inactive are left out.
+                    </p>
+                    <textarea
+                      className={cn(inputCls, "min-h-28 w-full font-mono text-xs")}
+                      aria-label="Pasted roster"
+                      placeholder={
+                        "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Front Desk"
+                      }
+                      value={paste}
+                      onChange={(e) => setPaste(e.target.value)}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" onClick={fillFromPaste} disabled={!paste.trim()}>
+                        Fill the table
+                      </Button>
+                    </div>
+                    <p
+                      ref={noteRef}
+                      tabIndex={-1}
+                      role="status"
+                      data-paste-note
+                      className="text-xs text-muted outline-hidden empty:hidden"
+                    >
+                      {pasteNote}
+                    </p>
+                    {pasteIssues.length > 0 && (
+                      <ul
+                        className="list-disc space-y-0.5 pl-4 text-xs text-muted"
+                        aria-label="Roster notes"
+                      >
+                        {pasteIssues.slice(0, 8).map((issue, i) => (
+                          <li key={`${issue.row}-${i}`}>
+                            {issue.row > 0 ? `Row ${issue.row}: ` : ""}
+                            {issue.message}
+                          </li>
+                        ))}
+                        {pasteIssues.length > 8 && <li>and {pasteIssues.length - 8} more</li>}
+                      </ul>
+                    )}
+                  </div>
+                </details>
+
+                <details className="rounded-xl border border-border bg-elevated/50 p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    No roster handy? Add people by job title
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-muted">
+                      Pick a common job, say how many, and rows appear with placeholder names and
+                      that job&rsquo;s usual duties ticked. Rename them as you go.
+                    </p>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="text-muted">Job title</span>
+                        <select
+                          className={cn(inputCls, "w-64 max-w-full")}
+                          value={quickTitle}
+                          onChange={(e) => setQuickTitle(e.target.value)}
+                        >
+                          <option value="">Choose a job title</option>
+                          {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => (
+                            <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
+                              {JOB_CATALOG.filter(
+                                // The table already has the owner's row.
+                                (j) => j.family === family && j.id !== "owner",
+                              ).map((j) => (
+                                <option key={j.id} value={j.id}>
+                                  {j.title}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="text-muted">How many</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          className={cn(inputCls, "w-20")}
+                          value={quickCountText}
+                          onChange={(e) => setQuickCountText(e.target.value)}
+                          onBlur={() => setQuickCountText(String(quickCount))}
+                        />
+                      </label>
+                      <Button size="sm" onClick={addByTitle} disabled={!quickEntry || tableFull}>
+                        Add {count(quickCount, "person", "people")}
+                      </Button>
+                    </div>
+                    <p role="status" className="text-xs text-muted empty:hidden">
+                      {tableFull && !quickNote
+                        ? `The table holds ${OWN_TEAM_MAX} people and is full. Add more in ${MORE_PEOPLE_PLACE} after setup.`
+                        : quickNote}
+                    </p>
+                    {quickEntry && (
+                      <p className="text-xs text-subtle">
+                        {quickEntry.description} {quickEntry.note}
+                      </p>
+                    )}
+                    <JobCatalogSheet />
+                  </div>
+                </details>
+              </section>
+
               <SetupPreviewCard rows={rows} industry={selected} />
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
@@ -1141,6 +1169,7 @@ export function IndustryOnboarding() {
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
+                {draftSaved ? "Your progress stays in this tab until you finish. " : ""}
                 Nothing leaves this browser until you sign in and choose to sync.
               </p>
               {cancelLink}
@@ -1151,3 +1180,15 @@ export function IndustryOnboarding() {
     </div>
   );
 }
+
+/** How many prosecuted cases the library holds for each line of business; the general template counts the whole library. */
+const CASE_PHRASE = Object.fromEntries(
+  INDUSTRIES.map((ind) => {
+    const sectors = sectorsForIndustry(ind.id);
+    if (sectors.includes("any")) {
+      return [ind.id, `${CASE_LIBRARY.length} prosecuted cases across every line of business`];
+    }
+    const cases = CASE_LIBRARY.filter((c) => sectors.includes(c.sector)).length;
+    return [ind.id, `${count(cases, "prosecuted case")} in this line of business`];
+  }),
+) as Record<IndustryId, string>;

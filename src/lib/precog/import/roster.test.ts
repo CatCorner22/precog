@@ -497,11 +497,11 @@ describe("parseRoster", () => {
       })),
       {
         row: inactive.length + active.length + 1,
-        message: 'Status "Onboarding" not recognised; treated as active',
+        message: 'The importer does not know the status "Onboarding" and reads it as active',
       },
       {
         row: inactive.length + active.length + 3,
-        message: 'Status "Pre-hire" not recognised; treated as active',
+        message: 'The importer does not know the status "Pre-hire" and reads it as active',
       },
     ]);
 
@@ -601,7 +601,7 @@ describe("parseRoster", () => {
         message:
           '"Ana Ruiz" (employee ID 1001) holds two positions, Bookkeeper and Cashier; read as one person with the duties of both',
       },
-      { row: 3, message: '"Ana Ruiz" appears twice; second copy skipped' },
+      { row: 3, message: '"Ana Ruiz" appears twice; the importer skipped the second row' },
     ]);
     // An inactive second position adds nothing; an active one replaces an ended first one.
     const ended = parseRoster(
@@ -974,7 +974,7 @@ describe("parseRoster", () => {
     ]);
     expect(result.duplicates).toBe(1);
     expect(result.issues).toEqual([
-      { row: 2, message: '"Ana Ruiz" appears twice; second copy skipped' },
+      { row: 2, message: '"Ana Ruiz" appears twice; the importer skipped the second row' },
       {
         row: 3,
         message: '"Ana Ruiz" appears twice with different titles; check whether this is one person',
@@ -993,8 +993,7 @@ describe("parseRoster", () => {
     expect(result.issues).toEqual([
       {
         row: 251,
-        message:
-          "Read the first 250 rows; 50 more rows were not read, because one import reads up to 250",
+        message: "This import reads the first 250 rows; it did not read 50 more rows",
       },
     ]);
     expect(parseRoster(rows.slice(0, 4).join("\n"), general, { today, maxRows: 2 })).toMatchObject({
@@ -1002,8 +1001,7 @@ describe("parseRoster", () => {
       issues: [
         {
           row: 3,
-          message:
-            "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
+          message: "This import reads the first 2 rows; it did not read 1 more row",
         },
       ],
     });
@@ -1211,8 +1209,7 @@ describe("parseRoster", () => {
     expect(result.issues).toEqual([
       {
         row: 251,
-        message:
-          "Read the first 250 rows; 4750 more rows were not read, because one import reads up to 250",
+        message: "This import reads the first 250 rows; it did not read 4750 more rows",
       },
     ]);
   });
@@ -1240,7 +1237,7 @@ describe("parseRoster", () => {
         4,
         '"Chloe Bennett" is listed at Larkspur - Oakridge Mall and Larkspur - Riverside with the same title; kept as one person at both',
       ],
-      [5, '"Chloe Bennett" appears twice; second copy skipped'],
+      [5, '"Chloe Bennett" appears twice; the importer skipped the second row'],
     ]);
   });
 

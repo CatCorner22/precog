@@ -4,11 +4,12 @@ import type { Person } from "../types";
 import { readYesNo, type ImportIssue } from "./csv";
 import { readHireDate, tenureFromHireDate } from "./hire-date";
 import { entitlementsForTitle, matchJobTitle, type JobMatch } from "../onboarding/job-catalog";
-import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
+import { MAX_ROLE_LENGTH, sameDuties } from "../onboarding/own-team";
+import { ROLE_TEMPLATES } from "../sod/role-templates";
 import { reorderLastFirst } from "./roster-names";
 import { isInactive, isKnownActive, isOnLeave, statusKey } from "./roster-status";
 import type { ColumnMap } from "./roster-columns";
-import { slug, nameKey } from "../text";
+import { nameKey, slug, verb } from "../text";
 import { localDateKey } from "../dates";
 import { clamp } from "../number";
 
@@ -226,7 +227,10 @@ function repeatOf(
   if (sameId && nameKey(sameId.person.name) === key) {
     if (!sameId.titleKeys.has(titleKey)) return sameId;
     if (!joinLocation(context, sameId.person, department, row)) {
-      context.issues.push({ row, message: `"${name}" appears twice; second copy skipped` });
+      context.issues.push({
+        row,
+        message: `"${name}" appears twice; the importer skipped the second row`,
+      });
     }
     return "duplicate";
   }
@@ -251,7 +255,10 @@ function repeatOf(
   } else if (earlier.titleKeys.has(titleKey)) {
     const first = context.byNameTitle.get(`${key}|${titleKey}`);
     if (!first || !joinLocation(context, first, department, row)) {
-      context.issues.push({ row, message: `"${name}" appears twice; second copy skipped` });
+      context.issues.push({
+        row,
+        message: `"${name}" appears twice; the importer skipped the second row`,
+      });
     }
     return "duplicate";
   } else {
@@ -334,14 +341,17 @@ function readTenure(
   if (tenureValue) {
     const parsed = Number.parseFloat(tenureValue);
     if (Number.isFinite(parsed)) return clamp(parsed, 0, 60);
-    context.issues.push({ row, message: "Tenure is not a valid number" });
+    context.issues.push({
+      row,
+      message: `The importer cannot read the years of service "${tenureValue}"`,
+    });
     return undefined;
   }
   const raw = cellAt(cells, columns.hireDate);
   if (!raw) return undefined;
   const hired = readHireDate(raw, { dayFirst: context.dayFirst, today });
   if (!hired) {
-    context.issues.push({ row, message: `Hire date not understood: ${raw}` });
+    context.issues.push({ row, message: `The importer cannot read the hire date "${raw}"` });
     return undefined;
   }
   if (hired > localDateKey(today)) {
@@ -417,7 +427,10 @@ function reportUnknownStatus(context: ImportContext, value: string, row: number)
   const key = statusKey(value);
   if (context.unknownStatuses.has(key)) return;
   context.unknownStatuses.add(key);
-  context.issues.push({ row, message: `Status "${value}" not recognised; treated as active` });
+  context.issues.push({
+    row,
+    message: `The importer does not know the status "${value}" and reads it as active`,
+  });
 }
 
 function readLastDay(
@@ -433,7 +446,7 @@ function readLastDay(
   if (!raw) return undefined;
   const day = readHireDate(raw, { dayFirst: context.dayFirst, today: context.today });
   if (day) return day;
-  context.issues.push({ row, message: `Last day not understood: ${raw}` });
+  context.issues.push({ row, message: `The importer cannot read the last day "${raw}"` });
   return existing?.lastDay;
 }
 
@@ -463,7 +476,20 @@ function resolveDuties(
   const templateRole = Object.hasOwn(tpl.roleTemplates, role);
   const sameSeat = existing !== undefined && nameKey(existing.role) === nameKey(role);
   const catalogDuties = hit ? entitlementsForTitle(hit.value, tpl.id) : [];
-  const duties = listed.length ? listed : sameSeat ? (existing.entitlements ?? []) : catalogDuties;
+  // Listed duties that are just the role's own (this app's export writes
+  // them out) stay unset, so the person keeps following the role and an
+  // unedited export re-imports unchanged.
+  const followsRole =
+    listed.length > 0 &&
+    !existing?.entitlements?.length &&
+    sameDuties(listed, roleDuties(role, tpl.roleTemplates));
+  const duties = followsRole
+    ? []
+    : listed.length
+      ? listed
+      : sameSeat
+        ? (existing.entitlements ?? [])
+        : catalogDuties;
   const mapping: TitleMapping = {
     row,
     name,
@@ -499,9 +525,24 @@ function readListedDuties(
     } else unknown.push(trimmed);
   }
   if (unknown.length) {
-    context.issues.push({ row, message: `Unknown entitlement(s): ${unknown.join(", ")}` });
+    context.issues.push({
+      row,
+      message: `${verb(unknown.length, "Unknown duty", "Unknown duties")}: ${unknown.join(", ")}`,
+    });
   }
   return entitlements;
+}
+
+/**
+ * The duties a role carries when a person has no list of their own: the
+ * line of business's role template, else the shared role list, else view
+ * reports only. The duty-conflict engine reads a person the same way.
+ */
+export function roleDuties(
+  role: string,
+  roleTemplates: Readonly<Record<string, readonly string[]>>,
+): readonly string[] {
+  return roleTemplates[role] ?? ROLE_TEMPLATES[role] ?? ["view_reports_only"];
 }
 
 function findEntitlement(token: string): EntitlementId | undefined {

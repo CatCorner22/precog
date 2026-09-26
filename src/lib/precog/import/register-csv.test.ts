@@ -163,7 +163,11 @@ describe("parseRegisterCsv", () => {
     const csv = "item,Ana Ruiz,Dee Former,Nobody Here\r\nRun payroll,expert,expert,expert\r\n";
     const result = parseRegisterCsv(csv, tpl);
     expect(result.issues).toEqual([
-      { row: 0, message: "Not on the active team, skipped: Dee Former, Nobody Here" },
+      {
+        row: 0,
+        message:
+          "These columns name people not on the active team, so the importer skipped them: Dee Former, Nobody Here",
+      },
     ]);
     expect(result.relations).toEqual([
       { personId: "p-ana", knowledgeId: "k-payroll", level: "expert" },
@@ -186,8 +190,8 @@ describe("parseRegisterCsv", () => {
         message: '"guru" is not a level for Ana Ruiz; use expert, can do, learning or aware',
       },
       { row: 2, message: "Item name is required" },
-      { row: 3, message: 'Duplicate item "RUN PAYROLL" skipped' },
-      { row: 4, message: 'Duplicate item "Run payroll" skipped' },
+      { row: 3, message: '"RUN PAYROLL" appears twice; the importer skipped the second row' },
+      { row: 4, message: '"Run payroll" appears twice; the importer skipped the second row' },
     ]);
     expect(result.knowledge).toHaveLength(1);
     expect(result.knowledge[0]).toMatchObject({
@@ -213,7 +217,9 @@ describe("parseRegisterCsv", () => {
     ]);
     const result = parseRegisterCsv("item\r\nA\r\nB\r\nC\r\n", tpl, { maxRows: 2 });
     expect(result.knowledge.map((k) => k.name)).toEqual(["A", "B"]);
-    expect(result.issues).toEqual([{ row: 3, message: "Import truncated to 2 rows" }]);
+    expect(result.issues).toEqual([
+      { row: 3, message: "This import reads the first 2 rows; it did not read 1 more row" },
+    ]);
   });
 });
 

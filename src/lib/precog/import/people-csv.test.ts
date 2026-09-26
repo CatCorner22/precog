@@ -32,7 +32,7 @@ describe("parsePeopleCsv", () => {
         entitlements: ["collect_cash", "enter_payroll"],
       },
     ]);
-    expect(result.issues).toEqual([{ row: 1, message: "Unknown entitlement(s): mystery" }]);
+    expect(result.issues).toEqual([{ row: 1, message: "Unknown duty: mystery" }]);
   });
 
   it("canonicalizes roles, deduplicates ids, and flags one name with two titles", () => {
@@ -62,7 +62,7 @@ describe("parsePeopleCsv", () => {
     );
     expect(result.people.map((person) => person.id)).toEqual(["p-alex-smith"]);
     expect(result.issues).toEqual([
-      { row: 2, message: '"Alex Smith" appears twice; second copy skipped' },
+      { row: 2, message: '"Alex Smith" appears twice; the importer skipped the second row' },
     ]);
     expect(result.duplicates).toBe(1);
   });
@@ -150,7 +150,7 @@ describe("parsePeopleCsv", () => {
     expect(result.people.map((person) => person.name)).toEqual(["One", "Two"]);
     expect(result.issues).toContainEqual({
       row: 3,
-      message: "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
+      message: "This import reads the first 2 rows; it did not read 1 more row",
     });
     expect(result.dropped).toBe(1);
   });
@@ -219,7 +219,7 @@ describe("parsePeopleCsv", () => {
     expect(bad.people[0].lastDay).toBe("2026-10-14");
     expect(bad.issues).toContainEqual({
       row: 1,
-      message: "Last day not understood: next month",
+      message: 'The importer cannot read the last day "next month"',
     });
     expect(parsePeopleCsv("name,last_day\nMaya Chen,2026-12-01", tpl).people[0].lastDay).toBe(
       "2026-12-01",
@@ -296,6 +296,9 @@ describe("the team editor's own export and imports", () => {
         effectiveDuties(person, general.roleTemplates).sort(),
       );
     }
+    // Nothing reads as updated, and role-derived duties still follow the role.
+    expect(mergeImportedPeople(team, back.people).updated).toEqual([]);
+    expect(back.people.find((p) => p.id === "p1")?.entitlements).toBeUndefined();
     // A pasted roster naming someone with the same title keeps their duties too.
     const pasted = parseRoster("Yan Role, Owner", tpl);
     expect(effectiveDuties(pasted.people[0], general.roleTemplates).sort()).toEqual(

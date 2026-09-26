@@ -109,13 +109,20 @@ describe("parseProcessCsv", () => {
     const r = parseProcessCsv(csv, tpl);
     const messages = r.issues.map((i) => `${i.row}:${i.message}`);
     expect(
-      messages.some((m) => m.startsWith("1:Owner(s) not on the team") && m.includes("Nobody Here")),
+      messages.some(
+        (m) => m.startsWith("1:This owner is not on the team") && m.includes("Nobody Here"),
+      ),
     ).toBe(true);
     expect(
-      messages.some((m) => m.startsWith("1:Dependency not found") && m.includes("Ghost process")),
+      messages.some(
+        (m) =>
+          m.startsWith("1:The importer cannot find this process") && m.includes("Ghost process"),
+      ),
     ).toBe(true);
-    expect(messages.some((m) => m.startsWith("1:Control(s) not in the library"))).toBe(true);
-    expect(messages.some((m) => m.includes('Cadence "sometimes" not recognised'))).toBe(true);
+    expect(messages.some((m) => m.startsWith("1:This control is not in the library"))).toBe(true);
+    expect(
+      messages.some((m) => m.includes('The importer does not know the cadence "sometimes"')),
+    ).toBe(true);
     expect(messages.some((m) => m.includes('Documented "maybe" should be yes or no'))).toBe(true);
     const p = r.added[0];
     expect(p.ownerPersonIds).toEqual([]);
@@ -156,7 +163,10 @@ describe("parseProcessCsv", () => {
     const csv = ["process", "A", "B", "C"].join("\n");
     const r = parseProcessCsv(csv, { processes: [], people: [], controls: [] }, { maxRows: 2 });
     expect(r.processes).toHaveLength(2);
-    expect(r.issues[0]).toEqual({ row: 3, message: "Import truncated to 2 rows" });
+    expect(r.issues[0]).toEqual({
+      row: 3,
+      message: "This import reads the first 2 rows; it did not read 1 more row",
+    });
   });
 });
 
@@ -213,14 +223,25 @@ describe("processesToCsv", () => {
     expect(claims).not.toContain("p6");
   });
 
-  it("ships a template that imports cleanly onto an empty map", () => {
-    const r = parseProcessCsv(processTemplateCsv(), {
+  it("ships a template that imports without an issue onto the current map", () => {
+    const r = parseProcessCsv(processTemplateCsv(tpl), tpl);
+    expect(r.issues).toEqual([]);
+    expect(r.added.map((p) => p.name)).toEqual([
+      "Collect payments",
+      "Daily deposit",
+      "Vendor setup",
+    ]);
+    const deposit = r.added.find((p) => p.name === "Daily deposit")!;
+    expect(deposit.dependencies).toEqual([r.added[0].id]);
+    expect(deposit.ownerPersonIds).toEqual([tpl.people[0].id]);
+    expect(deposit.controlIds).toEqual([tpl.controls[0].id]);
+
+    const blank = parseProcessCsv(processTemplateCsv(), {
       processes: [],
-      people: [{ id: "p-j", name: "Jordan Lee", role: "Front desk", active: true }],
-      controls: dental.controls,
+      people: [],
+      controls: [],
     });
-    expect(r.processes.map((p) => p.name)).toEqual(["Daily deposit", "Vendor setup"]);
-    // "Collect payments" is only an example dependency; the template is honest about that.
-    expect(r.issues.map((i) => i.message).join(" ")).toMatch(/Dependency not found/);
+    expect(blank.issues).toEqual([]);
+    expect(blank.processes).toHaveLength(3);
   });
 });

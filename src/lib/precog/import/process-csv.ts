@@ -20,10 +20,11 @@ import {
   normalizeHeader,
   parseRows,
   readYesNo,
+  rowCapMessage,
   sniffDelimiter,
   type ImportIssue,
 } from "./csv";
-import { nameKey, slug, stripInvisibleControls } from "../text";
+import { nameKey, slug, stripInvisibleControls, verb } from "../text";
 
 export interface ProcessImportResult {
   /** The full map after the import is applied. */
@@ -114,7 +115,7 @@ export function parseProcessCsv(
   const maxRows = Math.max(0, Math.floor(opts.maxRows ?? MAX_ROWS));
   const dataRows = rows.slice(1).filter((r) => r.some((c) => c.trim()));
   if (dataRows.length > maxRows) {
-    issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
+    issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
   const rowsToImport = dataRows.slice(0, maxRows);
 
@@ -214,7 +215,7 @@ export function parseProcessCsv(
     if (unknownOwners.length) {
       issues.push({
         row: rowNumber,
-        message: `Owner(s) not on the team, skipped: ${unknownOwners.join(", ")}. Add them under Team first or spell the name exactly.`,
+        message: `${verb(unknownOwners.length, "This owner is", "These owners are")} not on the team, so the importer skipped ${verb(unknownOwners.length, "the name", "them")}: ${unknownOwners.join(", ")}. Add them under Team first or spell each name as the team lists it.`,
       });
     }
 
@@ -231,7 +232,7 @@ export function parseProcessCsv(
     if (unknownDeps.length) {
       issues.push({
         row: rowNumber,
-        message: `Dependency not found, skipped: ${unknownDeps.join(", ")}. Use the exact process name from another row or the current map.`,
+        message: `The importer cannot find ${verb(unknownDeps.length, "this process", "these processes")}, so it skipped ${verb(unknownDeps.length, "it", "them")}: ${unknownDeps.join(", ")}. Use the exact process name from another row or the current map.`,
       });
     }
 
@@ -246,7 +247,7 @@ export function parseProcessCsv(
     if (unknownControls.length) {
       issues.push({
         row: rowNumber,
-        message: `Control(s) not in the library, skipped: ${unknownControls.join(", ")}`,
+        message: `${verb(unknownControls.length, "This control is", "These controls are")} not in the library, so the importer skipped ${verb(unknownControls.length, "it", "them")}: ${unknownControls.join(", ")}`,
       });
     }
 
@@ -258,7 +259,7 @@ export function parseProcessCsv(
       else
         issues.push({
           row: rowNumber,
-          message: `Cadence "${cadenceValue}" not recognised. Use one of: ${Object.keys(CADENCE_LABEL).join(", ")}`,
+          message: `The importer does not know the cadence "${cadenceValue}". Use one of: ${Object.keys(CADENCE_LABEL).join(", ")}`,
         });
     }
 
@@ -376,44 +377,63 @@ export function processesToCsv(
   return rows.join("\r\n") + "\r\n";
 }
 
-/** Header plus two illustrative rows for a blank sheet. */
-export function processTemplateCsv(): string {
-  return (
+/**
+ * Header plus three example rows for a blank sheet. Given the current team
+ * and control library, the examples name a real person and control, so the
+ * unchanged template imports without an issue; without them those cells stay
+ * blank.
+ */
+export function processTemplateCsv(tpl?: Pick<IndustryTemplate, "people" | "controls">): string {
+  const owner = tpl?.people.find((p) => p.active)?.name ?? "";
+  const control = tpl?.controls[0]?.name ?? "";
+  const rows = [
     [
-      PROCESS_CSV_HEADER.join(","),
-      [
-        "Daily deposit",
-        "2",
-        "Count the drawer and take cash and checks to the bank.",
-        "Jordan Lee",
-        "Collect payments",
-        "Independent deposit reconciliation",
-        "daily",
-        "Bank portal; Practice management system",
-        "yes",
-        "Shared drive > Front desk > Deposit checklist.pdf",
-        "Day-end report",
-        "Deposit slip",
-      ]
-        .map(csvCell)
-        .join(","),
-      [
-        "Vendor setup",
-        "3",
-        "Add a new supplier and their bank details.",
-        "",
-        "",
-        "",
-        "ad-hoc",
-        "Accounting software",
-        "no",
-        "",
-        "W-9",
-        "Approved vendor",
-      ]
-        .map(csvCell)
-        .join(","),
-    ].join("\r\n") + "\r\n"
+      "Collect payments",
+      "1",
+      "Take card, cash and check payments at the front desk.",
+      owner,
+      "",
+      "",
+      "daily",
+      "Practice management system",
+      "no",
+      "",
+      "",
+      "Day-end report",
+    ],
+    [
+      "Daily deposit",
+      "2",
+      "Count the drawer and take cash and checks to the bank.",
+      owner,
+      "Collect payments",
+      control,
+      "daily",
+      "Bank portal; Practice management system",
+      "yes",
+      "Shared drive > Front desk > Deposit checklist.pdf",
+      "Day-end report",
+      "Deposit slip",
+    ],
+    [
+      "Vendor setup",
+      "3",
+      "Add a new supplier and their bank details.",
+      "",
+      "",
+      "",
+      "ad-hoc",
+      "Accounting software",
+      "no",
+      "",
+      "W-9",
+      "Approved vendor",
+    ],
+  ];
+  return (
+    [PROCESS_CSV_HEADER.join(","), ...rows.map((cells) => cells.map(csvCell).join(","))].join(
+      "\r\n",
+    ) + "\r\n"
   );
 }
 

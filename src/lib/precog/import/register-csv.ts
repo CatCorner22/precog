@@ -20,10 +20,11 @@ import {
   normalizeHeader,
   parseRows,
   readYesNo,
+  rowCapMessage,
   sniffDelimiter,
   type ImportIssue,
 } from "./csv";
-import { nameKey, slug, stripInvisibleControls } from "../text";
+import { nameKey, slug, stripInvisibleControls, verb } from "../text";
 
 export interface RegisterImportResult {
   knowledge: KnowledgeItem[];
@@ -158,7 +159,10 @@ export function parseRegisterCsv(
     const person = activePeople.find((p) => nameKey(p.name) === nameKey(heading));
     if (person) {
       if (personColumns.some((c) => c.person.id === person.id)) {
-        issues.push({ row: 0, message: `Duplicate column for ${person.name}` });
+        issues.push({
+          row: 0,
+          message: `Two columns name ${person.name}; the importer read the first`,
+        });
       } else {
         personColumns.push({ index, person });
       }
@@ -169,7 +173,7 @@ export function parseRegisterCsv(
   if (unknownPeople.length) {
     issues.push({
       row: 0,
-      message: `Not on the active team, skipped: ${unknownPeople.join(", ")}`,
+      message: `${verb(unknownPeople.length, "This column names someone", "These columns name people")} not on the active team, so the importer skipped ${verb(unknownPeople.length, "it", "them")}: ${unknownPeople.join(", ")}`,
     });
   }
 
@@ -178,7 +182,7 @@ export function parseRegisterCsv(
   const dataRows = rows.slice(1);
   const rowsToImport = dataRows.slice(0, maxRows);
   if (dataRows.length > maxRows) {
-    issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
+    issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
 
   const existingByName = new Map(tpl.knowledge.map((k) => [nameKey(k.name), k]));
@@ -200,7 +204,10 @@ export function parseRegisterCsv(
     }
     const itemKey = nameKey(name);
     if (seenNames.has(itemKey)) {
-      issues.push({ row: rowNumber, message: `Duplicate item "${name}" skipped` });
+      issues.push({
+        row: rowNumber,
+        message: `"${name}" appears twice; the importer skipped the second row`,
+      });
       return;
     }
     seenNames.add(itemKey);
