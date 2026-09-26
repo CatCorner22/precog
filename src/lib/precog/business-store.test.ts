@@ -186,12 +186,11 @@ describe("saveBusinessRevision — compare-and-swap", () => {
     if (!losers[0].ok) expect(losers[0].existing.name).toBe(winnerName);
   });
 
-  it("throws only when the row vanished between the write and the re-read", async () => {
-    // A base revision for a row that no longer exists is not a conflict — the
-    // insert path creates it fresh (matches the previous `isStaleSave(null, N)` behaviour).
-    const result = await saveBusinessRevision(sql, input("user-a", "gone", 7, "recreated"));
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.revision).toBe(1);
+  it("refuses a stale revision for a business that no longer exists", async () => {
+    await expect(
+      saveBusinessRevision(sql, input("user-a", "gone", 7, "recreated")),
+    ).rejects.toThrow("no longer available");
+    expect(await revisionOf("user-a", "gone")).toBeNull();
   });
 });
 
@@ -218,7 +217,9 @@ describe("loadActiveBusiness", () => {
   });
 
   it("falls back to the pointer row for a legacy user with no businesses row", async () => {
-    await setActiveBusiness(sql, { ...input("user-a", "biz_default", null, "legacy") });
+    // Genuine pre-portfolio data contains the full profile, not a modern pointer.
+    await sql`insert into business_profiles (user_id, name, industry, profile)
+      values ('user-a', 'legacy', 'dental', '{"businessId":"biz_default","staff":{}}'::jsonb)`;
     const active = await loadActiveBusiness(sql, "user-a");
     expect(active?.businessId).toBe("biz_default");
     expect(active?.name).toBe("legacy");
@@ -233,8 +234,8 @@ describe("loadActiveBusiness", () => {
     await deleteBusinessRow(sql, "user-a", "biz_1");
 
     expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
-    // Deleted means marked, not gone: the row waits out its grace period.
-    expect(await revisionOf("user-a", "biz_1")).toBe(1);
+    // Deletion advances the revision so an old client cannot write after restore.
+    expect(await revisionOf("user-a", "biz_1")).toBe(2);
     expect((await listBusinessSummaries(sql, "user-a")).map((b) => b.id)).toEqual(["biz_2"]);
     expect(await revisionOf("user-a", "biz_2")).toBe(1);
   });
@@ -261,7 +262,12 @@ describe("loadActiveBusiness", () => {
 
 describe("history", () => {
   it("keeps the replaced version of every save, with who saved it", async () => {
-    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
+    await sql`insert into firms (user_id, name) values ('user-a', 'Firm')`;
+    await sql`insert into firm_members (firm_user_id, member_user_id) values ('user-a', 'user-b')`;
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "v1"),
+      firmUserId: "user-a",
+    });
     await saveBusinessRevision(sql, { ...input("user-a", "biz_1", 1, "v2"), savedBy: "user-b" });
     await saveBusinessRevision(sql, input("user-a", "biz_1", 2, "v3"));
 
@@ -388,7 +394,8 @@ describe("timestamps", () => {
     expect(active?.updated_at).toMatch(ISO_MS);
     expect(new Date(active!.updated_at).getTime()).toBe(await storedMs("user-a", "biz_1"));
 
-    await setActiveBusiness(sql, { ...input("user-b", "biz_default", null, "legacy") });
+    await sql`insert into business_profiles (user_id, name, industry, profile)
+      values ('user-b', 'legacy', 'dental', '{"businessId":"biz_default","staff":{}}'::jsonb)`;
     const legacy = await loadActiveBusiness(sql, "user-b");
     expect(legacy?.revision).toBeNull();
     expect(legacy?.updated_at).toMatch(ISO_MS);

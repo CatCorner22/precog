@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useEffect } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
@@ -11,6 +12,7 @@ import { reportClientError } from "@/lib/observability/report-browser";
  * Cloud copies are untouched; a signed-in owner's business reloads from them.
  */
 export function AppErrorComponent({ error }: ErrorComponentProps) {
+  const workspace = useWorkspace();
   useEffect(() => {
     reportClientError(error);
   }, [error]);
@@ -18,7 +20,14 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
     window.location.reload();
   }
   function clearAndReload() {
-    clearLocalCopies();
+    if (
+      !window.confirm(
+        "Clear local copies for this workspace? Unsynced changes will be lost. Other accounts are not affected.",
+      )
+    )
+      return;
+    clearLocalCopies(workspace.local);
+    workspace.session?.clear();
     window.location.replace("/");
   }
   return (
@@ -46,6 +55,7 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
         <button
           type="button"
           onClick={clearAndReload}
+          disabled={!workspace.local}
           className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
         >
           Clear saved data on this device and reload

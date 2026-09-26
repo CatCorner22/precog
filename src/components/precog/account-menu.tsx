@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Download, Trash2 } from "lucide-react";
@@ -8,6 +9,7 @@ import { downloadText } from "@/lib/download";
 
 /** Export and delete controls for the signed-in account. */
 export function AccountMenu() {
+  const workspace = useWorkspace();
   const [busy, setBusy] = useState<"export" | "delete" | null>(null);
 
   async function exportAll() {
@@ -35,11 +37,14 @@ export function AccountMenu() {
     setBusy("delete");
     try {
       await deleteAccount({ data: { confirm: "DELETE" } });
-      clearLocalCopies();
+      clearLocalCopies(workspace.local);
+      workspace.session?.clear();
       toast.success("Your account and its data are deleted.");
-      await signOut("/");
+      await signOut("/", { skipRecovery: true });
     } catch {
-      toast.error("The deletion failed. Nothing was removed; try again in a moment.");
+      toast.error(
+        "Could not finish account removal or sign-out. Reload to check the account state; a completed deletion cannot be undone.",
+      );
       setBusy(null);
     }
   }

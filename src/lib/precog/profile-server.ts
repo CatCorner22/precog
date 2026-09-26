@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
@@ -11,7 +12,6 @@ import {
   loadActiveBusiness,
   resolveBusinessOwner,
   saveBusinessRevision,
-  setActiveBusiness,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
 import { resolveClientDate } from "./dates";
@@ -44,19 +44,32 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
     (input: {
+      expectedAccountId: string;
       profile: PracticeProfile;
       industry?: IndustryId;
       baseRevision?: number | null;
       today?: string;
     }) => {
       const raw = requireObject(input);
+      if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId)
+        throw new RequestError(
+          409,
+          "Reload this application before saving so the account can be verified.",
+        );
       const checked = validateProfileInput(raw.profile);
       const industry = raw.industry ?? checked.profile.industry;
       if (!isIndustryId(industry)) throw new RequestError(400, "Unknown industry");
-      if (raw.baseRevision != null && typeof raw.baseRevision !== "number") throw invalidRequest();
+      if (
+        raw.baseRevision != null &&
+        (typeof raw.baseRevision !== "number" ||
+          !Number.isSafeInteger(raw.baseRevision) ||
+          raw.baseRevision < 1)
+      )
+        throw invalidRequest();
       const baseRevision = raw.baseRevision ?? null;
       return {
         ...checked,
+        expectedAccountId: raw.expectedAccountId,
         industry,
         baseRevision: baseRevision !== null && Number.isFinite(baseRevision) ? baseRevision : null,
         today: resolveClientDate(raw.today),
@@ -65,13 +78,14 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    assertExpectedAccount(data.expectedAccountId, context.userId);
     const name = data.profile.practiceName.trim().slice(0, 80) || "My Business";
     const { businessId, json: profileJson } = data;
 
     // A firm member saving a colleague's client writes the colleague's row;
     // a new business is created under the saver and joins their firm.
     const [owner, firm] = await Promise.all([
-      resolveBusinessOwner(sql, context.userId, businessId),
+      resolveBusinessOwner(sql, context.userId, businessId, true),
       loadFirmFor(sql, context.userId),
     ]);
 
@@ -87,6 +101,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision: data.baseRevision,
       savedBy: context.userId,
       firmUserId: firm?.firmUserId ?? null,
+      activate: true,
     });
     if (!saved.ok) {
       return {
@@ -98,15 +113,6 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
-    // Second write is only the active-business pointer; loads read the
-    // revision-checked row above first, so a failure here cannot resurrect a
-    // stale profile (see loadActiveBusiness).
-    await setActiveBusiness(sql, {
-      userId: context.userId,
-      businessId,
-      name,
-      industry: data.industry,
-    });
     return {
       ok: true as const,
       revision: saved.revision,
@@ -152,7 +158,7 @@ export const loadBusiness = createServerFn({ method: "GET" })
       ? await sql<BusinessRow>`
           select id, name, industry, profile, updated_at, revision
           from businesses
-          where user_id = ${owner} and id = ${data.id}
+          where user_id = ${owner} and id = ${data.id} and deleted_at is null
         `
       : [];
     const row = rows[0];
@@ -166,12 +172,14 @@ export const loadBusiness = createServerFn({ method: "GET" })
 
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => {
+  .validator((input: { id: string; expectedAccountId: string }) => {
     const raw = requireObject(input);
     if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
-    return { id: raw.id };
+    if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId) throw invalidRequest();
+    return { id: raw.id, expectedAccountId: raw.expectedAccountId };
   })
   .handler(async ({ context, data }) => {
+    assertExpectedAccount(data.expectedAccountId, context.userId);
     const sql = await getSql();
     const owner = await resolveBusinessOwner(sql, context.userId, data.id);
     if (owner) await deleteBusinessRow(sql, owner, data.id, context.userId);

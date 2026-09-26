@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/lib/precog/workspace-context";
 import { setupRowNeedsAttention } from "@/lib/precog/onboarding/review-rows";
 import {
   useCallback,
@@ -78,6 +79,7 @@ import {
 } from "./industry-onboarding-helpers";
 import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
 export function IndustryOnboarding() {
+  const workspace = useWorkspace();
   const {
     profile,
     completeOnboarding,
@@ -134,7 +136,7 @@ export function IndustryOnboarding() {
   // line of business picked and a roster pasted but not yet used.
   useEffect(() => {
     const start = initialSetup(
-      readSetupDraft(),
+      readSetupDraft(workspace.session),
       { businessId, industry: profile.industry, typedName },
       freshRows,
     );
@@ -149,11 +151,13 @@ export function IndustryOnboarding() {
     setRestored(true);
     // Once per setup: later edits are the owner's.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId]);
+  }, [businessId, workspace.local]);
   useEffect(() => {
     if (!restored) return;
-    setDraftSaved(writeSetupDraft({ step, selected, businessName, rows, paste, businessId }));
-  }, [restored, step, selected, businessName, rows, paste, businessId]);
+    setDraftSaved(
+      writeSetupDraft({ step, selected, businessName, rows, paste, businessId }, workspace.session),
+    );
+  }, [restored, step, selected, businessName, rows, paste, businessId, workspace.session]);
 
   // Each step opens at its question, with focus on it: the dialog is not
   // scrolled to a button further down, and a screen reader starts with the
@@ -238,7 +242,7 @@ export function IndustryOnboarding() {
         return;
       }
     } else {
-      writeSetupDraft(null);
+      writeSetupDraft(null, workspace.session);
     }
     completeOnboarding(selected);
   }
@@ -480,7 +484,7 @@ export function IndustryOnboarding() {
     const people = buildOwnTeam(rows, selected);
     if (people.length === 0) return;
     const onLeave = onLeavePersonIds(rows);
-    writeSetupDraft(null);
+    writeSetupDraft(null, workspace.session);
     startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
