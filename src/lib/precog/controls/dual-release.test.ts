@@ -140,6 +140,65 @@ describe("evaluateRelease", () => {
   });
 });
 
+describe("evaluateRelease edge cases", () => {
+  it("tells a channel that is off apart from a policy that is off", () => {
+    const policy = policyOn();
+    policy.rules = policy.rules.map((r) =>
+      r.channel === "payroll" ? { ...r, enabled: false } : r,
+    );
+    const payrollRule = policy.rules.find((r) => r.channel === "payroll")!;
+    const r = evaluateRelease(dental, policy, {
+      channel: "payroll",
+      amountUsd: 10,
+      initiatorPersonId: officeManager,
+    });
+    expect(r.status).toBe("blocked_channel_off");
+    expect(r.reasons[0]).toContain(payrollRule.label);
+    expect(r.reasons[0]).not.toContain('"payroll"');
+    expect(r.controlCredit.dualControlPayments).toBe(false);
+  });
+
+  it("resolves two equally specific exceptions to the stricter one, whatever their order", () => {
+    const exception = (id: string, action: "waive_dual" | "force_dual") => ({
+      id,
+      label: id,
+      channels: [],
+      action,
+      enabled: true,
+      reason: "test",
+      createdAt: "2026-01-01",
+    });
+    const waive = exception("Waive for payroll week", "waive_dual");
+    const force = exception("Always two signers", "force_dual");
+    const req = {
+      channel: "ach" as const,
+      amountUsd: 10,
+      initiatorPersonId: officeManager,
+      asOfDate: "2026-06-01",
+    };
+    for (const exceptions of [
+      [waive, force],
+      [force, waive],
+    ]) {
+      const r = evaluateRelease(dental, { ...policyOn(), exceptions }, req);
+      expect(r.status).toBe("blocked_missing_second");
+      expect(r.appliedException?.id).toBe(force.id);
+      expect(r.reasons.join(" ")).toContain(`"${waive.label}"`);
+    }
+  });
+
+  it("uses one display threshold in every outcome", () => {
+    const policy = policyOn();
+    const ach = policy.rules.find((r) => r.channel === "ach")!;
+    const base = { channel: "ach" as const, initiatorPersonId: officeManager };
+    const below = evaluateRelease(dental, policy, { ...base, amountUsd: 1 });
+    const above = evaluateRelease(dental, policy, { ...base, amountUsd: ach.thresholdUsd + 1 });
+    expect(below.thresholdUsd).toBe(ach.thresholdUsd);
+    expect(above.thresholdUsd).toBe(ach.thresholdUsd);
+    expect(above.eligibleSeconds.some((p) => p.id === officeManager)).toBe(false);
+  });
+});
+
 describe("policy helpers", () => {
   it("lists approvers by role and lets the owner second any channel", () => {
     const approvers = listEligibleApprovers(dental, policyOn(), "payroll");

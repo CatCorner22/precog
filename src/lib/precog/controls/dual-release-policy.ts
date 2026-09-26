@@ -100,7 +100,9 @@ export type ReleaseStatus =
   | "blocked_same_person"
   | "blocked_role"
   | "blocked_missing_second"
-  | "blocked_policy_off";
+  | "blocked_policy_off"
+  /** The policy is on but this channel's rule is off or missing. */
+  | "blocked_channel_off";
 
 export interface EligibleApprover {
   id: string;
