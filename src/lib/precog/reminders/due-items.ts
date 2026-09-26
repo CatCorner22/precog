@@ -5,58 +5,72 @@ import { handoverDeadline, leavers } from "../continuity/leavers";
 import { latestReview, monthKey, monthlyReviewTasks, reviewDueOn } from "../firm/reviews";
 import { isOwnTeam } from "../firm/engagement";
 import type { PracticeProfile } from "../practice-profile";
-import { daysBetween } from "../dates";
+import { daysBetween, formatDay } from "../dates";
+import { count, verb } from "../text";
 
 /**
  * What is due on one business, read from the saved profile the same way the
  * screens read it, so a reminder never names something the app would not
  * show. Each item carries a stable key and due date; the reminder log keeps
- * one row per (item, due date, recipient), so an item is announced once.
+ * one row per (announcement key, due date, recipient), so an item is
+ * announced when it comes due and again every four weeks while it stays
+ * overdue.
+ *
+ * Named ReminderItem, not DueItem: builder/due.ts's DueItem is the control
+ * calendar's entry, a different shape.
  */
-type DueAudience = "advisor" | "owner" | "both";
-
-export interface DueItem {
+export interface ReminderItem {
+  /** Stable for the item's life. */
   key: string;
+  /** What the reminder log records: the key, plus how many four-week periods it has been overdue. */
+  announceKey: string;
   title: string;
+  /** For the advisor's digest. */
   detail: string;
-  dueOn: string | null;
+  /** For the client's owner: never the advisor's own notes. */
+  ownerDetail: string;
+  dueOn: string;
   overdue: boolean;
-  audience: DueAudience;
+  /** Overdue for at least four weeks and announced before. */
+  stillOpen: boolean;
+  /** Only the advisor hears about it (the monthly review). */
+  advisorOnly: boolean;
 }
 
-const MONTHLY_REVIEW_GRACE_DAY = 5;
-const ABSENCE_LEAD_DAYS = 14;
-const LEAVER_LEAD_DAYS = 7;
-
-export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] {
+export function dueItemsFor(profile: PracticeProfile, today: string): ReminderItem[] {
   if (!isOwnTeam(profile)) return [];
-  const items: DueItem[] = [];
+  const items: ReminderItem[] = [];
+  const add = (item: Omit<ReminderItem, "announceKey" | "stillOpen">) =>
+    items.push(withAnnouncement(item, today));
   const tpl = resolveTemplate(profile);
-  const now = new Date(`${today}T12:00:00Z`);
+  // Local noon: decisionsDue reads the day back in the process's own zone.
+  const now = new Date(`${today}T12:00:00`);
 
   const { overdue, dueSoon } = decisionsDue(profile.decisions, now, 7);
   for (const decision of [...overdue, ...dueSoon]) {
-    items.push({
+    const reviewBy = decision.reviewBy ?? today;
+    add({
       key: `decision:${decision.id}`,
       title: `Review the decision on ${decision.subject}`,
-      detail: decision.note
-        ? decision.note.slice(0, 160)
-        : "A review date was set when it was recorded.",
-      dueOn: decision.reviewBy ?? null,
+      detail: decision.note ? decision.note.slice(0, 160) : `Review due ${formatDay(reviewBy)}.`,
+      ownerDetail: `Your advisor set ${formatDay(reviewBy)} to review this decision.`,
+      dueOn: reviewBy,
       overdue: overdue.includes(decision),
-      audience: "both",
+      advisorOnly: false,
     });
   }
 
   for (const check of profile.leaverAccessChecks ?? []) {
     if (check.confirmedOn || check.industry !== profile.industry) continue;
-    items.push({
+    const detail = `${check.name} was recorded as left on ${formatDay(check.notedOn)}. A login that still works lets a former employee move money after they leave.`;
+    add({
       key: `leaver:${check.id}`,
       title: `Confirm ${check.name} is off payroll and their logins are removed`,
-      detail: `Noted as left on ${check.notedOn}. A former employee's working login is a documented path to fraud.`,
+      detail,
+      ownerDetail: detail,
       dueOn: check.notedOn,
       overdue: (daysBetween(check.notedOn, today) ?? 0) > 0,
-      audience: "both",
+      advisorOnly: false,
     });
   }
 
@@ -66,20 +80,22 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
     profile.industry,
     today,
   );
-  for (const window of absencesNeedingAttention(absences.windows, ABSENCE_LEAD_DAYS)) {
+  for (const window of absencesNeedingAttention(absences.windows)) {
     const stops = window.impact.stops;
     if (stops.length === 0) continue;
     const hasHandoff = profile.decisions.some(
       (d) => d.linkedAbsenceId === window.absence.id && d.status !== "closed",
     );
     if (hasHandoff) continue;
-    items.push({
+    const detail = `${count(stops.length, "task")} ${verb(stops.length, "stops", "stop")} while they are out, and no one is named to cover ${verb(stops.length, "it", "them")}.`;
+    add({
       key: `absence:${window.absence.id}`,
-      title: `${window.person.name} is away from ${window.absence.from}: name who covers`,
-      detail: `${stops.length} item(s) stop while they are out and nobody is named to take them.`,
+      title: `${window.person.name} is away from ${formatDay(window.absence.from)}: name who covers`,
+      detail,
+      ownerDetail: detail,
       dueOn: window.absence.from,
       overdue: window.daysUntil <= 0,
-      audience: "both",
+      advisorOnly: false,
     });
   }
 
@@ -88,16 +104,18 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
     if ((daysBetween(today, deadline) ?? 0) > LEAVER_LEAD_DAYS) continue;
     const open = leaver.handover.filter((item) => !item.training && !item.documenting);
     if (open.length === 0) continue;
-    items.push({
+    const detail = open
+      .slice(0, 3)
+      .map((item) => item.item.name)
+      .join(", ");
+    add({
       key: `handover:${leaver.person.id}:${leaver.lastDay}`,
-      title: `${leaver.person.name} leaves on ${leaver.lastDay}: ${open.length} item(s) still to hand over`,
-      detail: open
-        .slice(0, 3)
-        .map((item) => item.item.name)
-        .join(", "),
+      title: `${leaver.person.name} leaves on ${formatDay(leaver.lastDay)}: ${count(open.length, "task")} still to hand over`,
+      detail,
+      ownerDetail: detail,
       dueOn: deadline,
       overdue: deadline <= today,
-      audience: "both",
+      advisorOnly: false,
     });
   }
 
@@ -112,22 +130,42 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
     );
     if (open.length > 0) {
       const dueOn = reviewDueOn(period);
-      items.push({
+      const detail = open.map((task) => task.title).join(", ");
+      add({
         key: `monthly:${period}`,
-        title: `Monthly review for ${period}: ${open.length} of ${tasks.length} items not yet recorded`,
-        detail: open.map((task) => task.title).join(", "),
+        title: `Monthly review for ${period}: ${open.length} of ${count(tasks.length, "task")} not yet recorded`,
+        detail,
+        ownerDetail: detail,
         dueOn,
         overdue: dueOn < today,
-        audience: "advisor",
+        advisorOnly: true,
       });
     }
   }
 
   return items.sort(
-    (a, b) => Number(b.overdue) - Number(a.overdue) || (a.dueOn ?? "").localeCompare(b.dueOn ?? ""),
+    (a, b) => Number(b.overdue) - Number(a.overdue) || a.dueOn.localeCompare(b.dueOn),
   );
 }
 
-export function forAudience(items: readonly DueItem[], audience: "advisor" | "owner"): DueItem[] {
-  return items.filter((item) => item.audience === "both" || item.audience === audience);
+/** The items each audience hears about: the client's owner never gets advisor-only ones. */
+export function forAudience(
+  items: readonly ReminderItem[],
+  audience: "advisor" | "owner",
+): ReminderItem[] {
+  return audience === "advisor" ? [...items] : items.filter((item) => !item.advisorOnly);
+}
+
+const MONTHLY_REVIEW_GRACE_DAY = 5;
+const LEAVER_LEAD_DAYS = 7;
+/** An overdue item is announced again after this many days while it stays open. */
+const REANNOUNCE_DAYS = 28;
+
+function withAnnouncement(
+  item: Omit<ReminderItem, "announceKey" | "stillOpen">,
+  today: string,
+): ReminderItem {
+  if (!item.overdue) return { ...item, announceKey: item.key, stillOpen: false };
+  const period = Math.floor(Math.max(0, daysBetween(item.dueOn, today) ?? 0) / REANNOUNCE_DAYS);
+  return { ...item, announceKey: `${item.key}#overdue-${period}`, stillOpen: period > 0 };
 }

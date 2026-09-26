@@ -1,9 +1,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile } from "../../practice-profile";
-import { encryptSecret } from "./client.server";
-import { loadConnection, saveConnection } from "./store";
-import { syncConnection } from "./sync.server";
+import { decryptSecret, encryptSecret } from "./client.server";
+import {
+  deleteConnection,
+  listConnectionsDue,
+  listSnapshots,
+  loadConnection,
+  saveConnection,
+  statusOf,
+} from "./store";
+import { removeConnection, syncConnection, syncDueConnections } from "./sync.server";
 
 /** A stand-in for Intuit: named-list rows by entity, and every query it was asked. */
 function fakeIntuit(books: { Vendor: object[]; Employee: object[] }) {
@@ -12,6 +19,15 @@ function fakeIntuit(books: { Vendor: object[]; Employee: object[] }) {
     const url = new URL(
       typeof input === "string" ? input : input instanceof URL ? input : input.url,
     );
+    if (url.pathname.endsWith("/tokens/bearer")) {
+      return Response.json({
+        access_token: "access-2",
+        refresh_token: "refresh-2",
+        expires_in: 3600,
+        x_refresh_token_expires_in: 8_640_000,
+      });
+    }
+    if (url.pathname.endsWith("/revoke")) return new Response(null, { status: 200 });
     const statement = url.searchParams.get("query") ?? "";
     queries.push(statement);
     const entity = /from (\w+)/.exec(statement)?.[1] as "Vendor" | "Employee";
@@ -26,7 +42,13 @@ function fakeIntuit(books: { Vendor: object[]; Employee: object[] }) {
   return { fetchStub, queries };
 }
 
-async function connect(sql: TestDb["sql"], accessExpiresAt = "2099-01-01T00:00:00.000Z") {
+async function connect(
+  sql: TestDb["sql"],
+  {
+    accessExpiresAt = "2099-01-01T00:00:00.000Z",
+    refreshExpiresAt = "2099-01-01T00:00:00.000Z",
+  } = {},
+) {
   await saveConnection(sql, {
     ownerUserId: "own",
     businessId: "biz_1",
@@ -34,7 +56,7 @@ async function connect(sql: TestDb["sql"], accessExpiresAt = "2099-01-01T00:00:0
     accessTokenEnc: encryptSecret("access-1"),
     refreshTokenEnc: encryptSecret("refresh-1"),
     accessExpiresAt,
-    refreshExpiresAt: "2099-01-01T00:00:00.000Z",
+    refreshExpiresAt,
   });
   const connection = await loadConnection(sql, "own", "biz_1");
   if (!connection) throw new Error("connection not saved");
@@ -97,5 +119,119 @@ describe("QuickBooks reading", () => {
       select jsonb_array_length(vendors) as n from integration_snapshots
     `;
     expect(rows[0].n).toBe(1203);
+  });
+
+  it("keeps the change a reading found when the books are read again unchanged", async () => {
+    const books = {
+      Vendor: [{ Id: "v1", DisplayName: "Acme", Active: true, AcctNum: "A-100" }],
+      Employee: [],
+    };
+    vi.stubGlobal("fetch", fakeIntuit(books).fetchStub);
+    await syncConnection(db.sql, await connect(db.sql));
+    books.Vendor[0] = { ...books.Vendor[0], AcctNum: "B-200" };
+    const found = await syncConnection(db.sql, (await loadConnection(db.sql, "own", "biz_1"))!);
+    const again = await syncConnection(db.sql, (await loadConnection(db.sql, "own", "biz_1"))!);
+    expect(found.vendorsChanged.map((c) => c.fields)).toEqual([["accountNumber"]]);
+    expect(again.vendorsChanged.map((c) => c.fields)).toEqual([["accountNumber"]]);
+    expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toHaveLength(2);
+  });
+
+  it("stores account numbers, addresses and emails as digests only", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fakeIntuit({
+        Vendor: [
+          {
+            Id: "v1",
+            DisplayName: "Acme",
+            AcctNum: "ACCT-99887766",
+            PrimaryEmailAddr: { Address: "ap@acme.test" },
+            BillAddr: { Line1: "1 Main St" },
+          },
+        ],
+        Employee: [
+          { Id: "e1", DisplayName: "Ada", PrimaryEmailAddr: { Address: "ada@shop.test" } },
+        ],
+      }).fetchStub,
+    );
+    await syncConnection(db.sql, await connect(db.sql));
+    const raw = await db.sql<{ body: string }>`
+      select vendors::text || employees::text as body from integration_snapshots
+    `;
+    expect(raw[0].body).not.toMatch(/ACCT-99887766|ap@acme\.test|1 Main St|ada@shop\.test/);
+    expect(raw[0].body).toContain("Acme");
+  });
+
+  it("refreshes a lapsing token once and never overwrites a newer pair", async () => {
+    vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
+    const stale = await connect(db.sql, { accessExpiresAt: "2020-01-01T00:00:00.000Z" });
+    await syncConnection(db.sql, stale);
+    const after = (await loadConnection(db.sql, "own", "biz_1"))!;
+    expect(decryptSecret(after.refreshTokenEnc)).toBe("refresh-2");
+
+    // A second reading that started from the same old row loses the write.
+    await db.sql`update integration_connections set refresh_token_enc = ${encryptSecret("refresh-3")}`;
+    await syncConnection(db.sql, stale);
+    const final = (await loadConnection(db.sql, "own", "biz_1"))!;
+    expect(decryptSecret(final.refreshTokenEnc)).toBe("refresh-3");
+  });
+
+  it("records a failed scheduled reading as a sentence and keeps the last read time", async () => {
+    const connection = await connect(db.sql, { accessExpiresAt: "2020-01-01T00:00:00.000Z" });
+    await db.sql`update integration_connections set refresh_token_enc = 'not.a.token'`;
+    vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await syncDueConnections(db.sql)).toEqual({ synced: 0, failed: 1 });
+    const row = (await loadConnection(db.sql, "own", "biz_1"))!;
+    expect(row.lastError).toBe(
+      "QuickBooks no longer accepts this connection. Disconnect and connect again.",
+    );
+    expect(row.lastSyncedAt).toBe(connection.lastSyncedAt);
+  });
+
+  it("skips expired connections in the scheduled pass and flags them for reconnecting", async () => {
+    const connection = await connect(db.sql, { refreshExpiresAt: "2020-01-01T00:00:00.000Z" });
+    expect(await listConnectionsDue(db.sql, 28)).toEqual([]);
+    expect(statusOf(connection).needsReconnect).toBe(true);
+    expect(statusOf({ ...connection, refreshExpiresAt: "2099-01-01T00:00:00.000Z" })).toEqual({
+      connectedAt: connection.connectedAt,
+      lastSyncedAt: null,
+      lastError: null,
+      needsReconnect: false,
+    });
+  });
+
+  it("removes a connection whose token can no longer be read, with its readings", async () => {
+    vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
+    await syncConnection(db.sql, await connect(db.sql));
+    await db.sql`update integration_connections set refresh_token_enc = 'bad.tag.body'`;
+    await removeConnection(db.sql, (await loadConnection(db.sql, "own", "biz_1"))!);
+    expect(await loadConnection(db.sql, "own", "biz_1")).toBeNull();
+    expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toEqual([]);
+  });
+
+  it("keeps the connection and its readings together when a delete fails", async () => {
+    vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
+    await syncConnection(db.sql, await connect(db.sql));
+    const failing = Object.assign(
+      async () => {
+        throw new Error("not used");
+      },
+      {
+        transaction: <T>(work: (tx: TestDb["sql"]) => Promise<T>) =>
+          db.sql.transaction!(async (tx) => {
+            let calls = 0;
+            const flaky = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
+              calls += 1;
+              if (calls === 2) throw new Error("connection lost");
+              return tx(strings, ...values);
+            }) as unknown as TestDb["sql"];
+            return work(flaky);
+          }),
+      },
+    ) as unknown as TestDb["sql"];
+    await expect(deleteConnection(failing, "own", "biz_1")).rejects.toThrow("connection lost");
+    expect(await loadConnection(db.sql, "own", "biz_1")).not.toBeNull();
+    expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toHaveLength(1);
   });
 });

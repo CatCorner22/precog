@@ -121,17 +121,21 @@ function findingAnswered(
   );
 }
 
-/** Fill a missing start or map-complete stamp. Existing stamps stay. */
+/**
+ * Fill a missing start or map-complete stamp. Existing stamps stay. Setup
+ * stamps the start; a business that reaches this without one gets it here
+ * only while its map is still incomplete, because a start stamped after the
+ * map was finished would report a map built in no time.
+ */
 export function advanceEngagement(
   current: EngagementStamp | undefined,
   input: { now: string; people: readonly Person[] | null | undefined; ownTeam: boolean },
 ): EngagementStamp | undefined {
   let startedAt = current?.startedAt;
   let mapCompletedAt = current?.mapCompletedAt;
-  if (input.ownTeam && !startedAt) startedAt = input.now;
-  if (input.ownTeam && mapIsComplete(input.people) && !mapCompletedAt) {
-    mapCompletedAt = input.now;
-  }
+  const complete = mapIsComplete(input.people);
+  if (input.ownTeam && !startedAt && !complete && !mapCompletedAt) startedAt = input.now;
+  if (input.ownTeam && complete && !mapCompletedAt) mapCompletedAt = input.now;
   if (startedAt === current?.startedAt && mapCompletedAt === current?.mapCompletedAt)
     return current;
   return { ...current, startedAt, mapCompletedAt };

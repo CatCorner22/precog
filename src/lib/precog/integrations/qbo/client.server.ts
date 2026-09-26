@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
 
 /**
  * Intuit's token and query endpoints, and the at-rest encryption for the
@@ -46,6 +46,16 @@ export function decryptSecret(sealed: string): string {
   const decipher = createDecipheriv("aes-256-gcm", deriveKey("qbo-tokens"), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString("utf8");
+}
+
+/**
+ * A keyed digest for a value that is only ever compared for equality (a
+ * vendor's account number, address or email). Same input, same digest;
+ * the value itself is not recoverable from the database.
+ */
+export function digestSecret(value: string): string {
+  const mac = createHmac("sha256", deriveKey("qbo-snapshot")).update(value, "utf8").digest();
+  return `hmac:${mac.subarray(0, 16).toString("base64url")}`;
 }
 
 const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";

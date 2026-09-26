@@ -75,6 +75,7 @@ function FirmPage() {
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [awaitingStripe, setAwaitingStripe] = useState(false);
   const signedIn = Boolean(user) && !isPending;
 
   const own = isOwnTeam(profile);
@@ -109,19 +110,12 @@ function FirmPage() {
       ownTeam: own,
     });
     if (!next || next === profile.engagement) return;
-    if (
-      next.startedAt === profile.engagement?.startedAt &&
-      next.mapCompletedAt === profile.engagement?.mapCompletedAt &&
-      next.reportSentAt === profile.engagement?.reportSentAt
-    ) {
-      return;
-    }
     replaceProfile({ ...profile, engagement: next });
   }, [own, profile, replaceProfile]);
 
   useEffect(() => {
     if (search.billing === "success")
-      toast.success("Payment received. The plan updates once the payment provider confirms it.");
+      toast.success("Checkout finished. The plan updates once Stripe confirms the payment.");
     if (search.billing === "cancelled") toast("Checkout was cancelled.");
     if (search.quickbooks && QUICKBOOKS_MESSAGE[search.quickbooks]) {
       const message = QUICKBOOKS_MESSAGE[search.quickbooks];
@@ -165,21 +159,36 @@ function FirmPage() {
     };
   }, [user, isPending]);
 
+  // Post only for a business saved to the account, and only when what the
+  // client list holds for it differs from what this page measures.
+  const savedRow = clients.find((c) => c.id === profile.businessId);
+  const engagementStale =
+    savedRow !== undefined &&
+    (savedRow.startedAt !== (profile.engagement?.startedAt ?? null) ||
+      savedRow.mapCompletedAt !== (profile.engagement?.mapCompletedAt ?? null) ||
+      savedRow.reportSentAt !== (profile.engagement?.reportSentAt ?? null) ||
+      savedRow.openFindings !== metrics.openFindings ||
+      savedRow.acceptedFindings !== metrics.acceptedFindings);
   useEffect(() => {
-    if (!user || !profile.businessId || !own) return;
-    void recordEngagement({
-      data: {
-        businessId: profile.businessId,
-        startedAt: profile.engagement?.startedAt ?? null,
-        mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
-        reportSentAt: profile.engagement?.reportSentAt ?? null,
-        openFindings: metrics.openFindings,
-        acceptedFindings: metrics.acceptedFindings,
-      },
-    }).catch(() => undefined);
+    if (!user || !loaded || !profile.businessId || !own || !engagementStale) return;
+    const posted = {
+      startedAt: profile.engagement?.startedAt ?? null,
+      mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
+      reportSentAt: profile.engagement?.reportSentAt ?? null,
+      openFindings: metrics.openFindings,
+      acceptedFindings: metrics.acceptedFindings,
+    };
+    const businessId = profile.businessId;
+    void recordEngagement({ data: { businessId, ...posted } })
+      .then(() =>
+        setClients((cur) => cur.map((c) => (c.id === businessId ? { ...c, ...posted } : c))),
+      )
+      .catch(() => undefined);
   }, [
     user,
+    loaded,
     own,
+    engagementStale,
     profile.businessId,
     profile.engagement?.startedAt,
     profile.engagement?.mapCompletedAt,
@@ -187,6 +196,57 @@ function FirmPage() {
     metrics.openFindings,
     metrics.acceptedFindings,
   ]);
+
+  // Stripe's confirmation reaches the webhook after the browser comes back,
+  // so the plan is read again for a short while until it shows the payment.
+  useEffect(() => {
+    if (search.billing !== "success" || !user || !loaded) return;
+    const before = billingSignature(billing);
+    let cancel = false;
+    let tries = 0;
+    setAwaitingStripe(true);
+    const timer = window.setInterval(() => {
+      tries += 1;
+      void getBillingStatus()
+        .then((res) => {
+          if (cancel) return;
+          if (billingSignature(res.account) !== before) {
+            setBilling(res.account);
+            setAwaitingStripe(false);
+            window.clearInterval(timer);
+            toast.success("Stripe confirmed the payment.");
+          }
+        })
+        .catch(() => undefined);
+      if (tries >= BILLING_POLL_TRIES) {
+        window.clearInterval(timer);
+        if (!cancel) setAwaitingStripe(false);
+      }
+    }, BILLING_POLL_MS);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+    };
+    // Poll once per return from checkout; `billing` is the value to compare against.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.billing, user, loaded]);
+
+  async function leftFirm() {
+    const wasShared = clients.some((c) => c.id === profile.businessId && c.shared);
+    setFirm(null);
+    setMembers([]);
+    setInvites([]);
+    toast.success("You left the firm.");
+    try {
+      const [clientRes, deletedRes] = await Promise.all([listFirmClients(), listDeletedClients()]);
+      setClients(clientRes.clients);
+      setDeleted(deletedRes.deleted);
+      const ownBusiness = clientRes.clients.find((c) => !c.shared);
+      if (wasShared && ownBusiness) await switchBusiness(ownBusiness.id);
+    } catch {
+      toast.error("The client list could not be refreshed. Reload the page.");
+    }
+  }
 
   async function saveFirm(plan: FirmPlan) {
     try {
@@ -264,6 +324,11 @@ function FirmPage() {
 
       {signedIn && firm && (
         <div className="mt-4 space-y-4">
+          {awaitingStripe && (
+            <p className="text-sm text-muted" role="status">
+              Waiting for Stripe to confirm the payment…
+            </p>
+          )}
           <FirmBilling
             plan={firm.plan}
             billing={billing}
@@ -277,10 +342,7 @@ function FirmPage() {
             invites={invites}
             onChange={(next) => {
               if (next.left) {
-                setFirm(null);
-                setMembers([]);
-                setInvites([]);
-                toast.success("You left the firm.");
+                void leftFirm();
                 return;
               }
               if (next.members) setMembers(next.members);
@@ -303,12 +365,22 @@ function FirmPage() {
           <Metric
             label="Hours to a complete map"
             value={metrics.hoursToMap === null ? "—" : String(metrics.hoursToMap)}
+            hint={
+              own && !metrics.startedAt
+                ? "No start recorded: the map was complete before timing began."
+                : "From the start of setup until two named people each hold a duty."
+            }
           />
           <Metric
             label="Findings accepted"
             value={metrics.acceptanceRate === null ? "—" : formatPct(metrics.acceptanceRate)}
+            hint="Conflicts answered (risk accepted, covered by dual release, or a logged decision), out of all conflicts found."
           />
-          <Metric label="Open conflicts" value={String(metrics.openFindings)} />
+          <Metric
+            label="Open conflicts"
+            value={own ? String(metrics.openFindings) : "—"}
+            hint="Conflicts found with no answer yet."
+          />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>
       </section>
@@ -349,11 +421,20 @@ function FirmPage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-1 font-medium">{value}</dd>
+      {hint && <dd className="mt-0.5 text-xs text-muted">{hint}</dd>}
     </div>
   );
 }
+
+/** What changes on the billing account when Stripe confirms a payment. */
+function billingSignature(account: BillingAccount | null): string {
+  return `${account?.assessmentPaidAt ?? ""}|${account?.subscriptionStatus ?? ""}`;
+}
+
+const BILLING_POLL_MS = 3_000;
+const BILLING_POLL_TRIES = 10;

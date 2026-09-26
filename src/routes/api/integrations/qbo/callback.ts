@@ -1,5 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+const NO_STORE = { "cache-control": "no-store" } as const;
+const REALM_ID = /^\d{1,32}$/;
+
 /**
  * Intuit sends the browser back here with `code`, `state` and `realmId`. The
  * signed state names the account and business that started the connection,
@@ -36,7 +39,8 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         const state = await verifyState(url.searchParams.get("state"), client.stateSecret());
         const code = url.searchParams.get("code");
         const realmId = url.searchParams.get("realmId");
-        if (!state || !code || !realmId) return back("invalid");
+        // Intuit company ids are numeric; anything else would fail every later reading.
+        if (!state || !code || !realmId || !REALM_ID.test(realmId)) return back("invalid");
 
         const signedInAs = await requireUserId().catch(() => null);
         if (!signedInAs) return back("signed-out");
@@ -65,6 +69,7 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         }
         return back("connected");
       },
+      ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "GET" } }),
     },
   },
 });

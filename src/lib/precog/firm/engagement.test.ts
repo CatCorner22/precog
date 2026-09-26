@@ -17,17 +17,37 @@ describe("pilot engagement", () => {
   it("stamps start and completion once, and leaves an existing stamp", () => {
     const first = advanceEngagement(undefined, {
       now: "2026-09-01T00:00:00.000Z",
-      people,
+      people: [people[0]],
       ownTeam: true,
     });
     expect(first?.startedAt).toBe("2026-09-01T00:00:00.000Z");
-    expect(first?.mapCompletedAt).toBe("2026-09-01T00:00:00.000Z");
-    const again = advanceEngagement(first, {
+    expect(first?.mapCompletedAt).toBeUndefined();
+    const done = advanceEngagement(first, {
+      now: "2026-09-01T06:00:00.000Z",
+      people,
+      ownTeam: true,
+    });
+    expect(done?.mapCompletedAt).toBe("2026-09-01T06:00:00.000Z");
+    const again = advanceEngagement(done, {
       now: "2026-09-02T00:00:00.000Z",
       people,
       ownTeam: true,
     });
-    expect(again).toBe(first);
+    expect(again).toBe(done);
+  });
+
+  it("does not stamp a start after the map is already complete", () => {
+    const stamp = advanceEngagement(undefined, {
+      now: "2026-09-04T00:00:00.000Z",
+      people,
+      ownTeam: true,
+    });
+    expect(stamp?.startedAt).toBeUndefined();
+    expect(stamp?.mapCompletedAt).toBe("2026-09-04T00:00:00.000Z");
+    expect(
+      pilotMetrics({ engagement: stamp, conflicts: [], decisions: [], industry: "general" })
+        .hoursToMap,
+    ).toBeNull();
   });
 
   it("counts answered findings against every finding and hours to the map", () => {
