@@ -456,7 +456,58 @@ describe("durationPhrase", () => {
   });
 });
 
+/**
+ * Words that show a record's insider held a duty. A rule belongs on a record
+ * only when its text shows both of the rule's duties (types.ts, sodRuleIds).
+ * The reconciliation words accept a record that says nobody outside the role
+ * read the bank statement or the cleared checks: the comparison sat with the
+ * insider's role or with no one. "In charge of all accounting" covers the
+ * reconciliation too.
+ */
+const DUTY_WORDS: Record<string, RegExp> = {
+  issue_refunds: /refund/i,
+  post_adjustments: /adjust|void|credit|write-?off|discount|no-sale|edited the accounting entries/i,
+  enter_invoices: /invoice|accounts payable|payables|bills/i,
+  release_payment: /\bpa(id|y|yment|yments|ying)\b|checks?\b|transfer|wire|disburs|bill-pay/i,
+  approve_invoices: /approv/i,
+  order_supplies: /order|purchas/i,
+  receive_goods: /receiv|deliver|signed for/i,
+  initiate_ach: /electronic|\bach\b|online|transfer|wire/i,
+  manage_backups: /backup/i,
+  manage_user_access: /access|login|password|administrator|permission/i,
+  post_payments: /record|post|books|ledger|enter|accounting/i,
+  sign_checks: /sign|forg|cut checks|checks to (her|him)self/i,
+  bank_reconcile:
+    /reconcil|bank statement|cleared[- ]checks?|compared what left the bank|looked at the bank account|view of the bank accounts|in charge of all accounting/i,
+  post_journal_entries: /journal|entr(y|ies)|books|ledger|recorded|coded/i,
+  edit_payroll_master: /payroll/i,
+  enter_payroll: /payroll|timesheet|pay run|hours/i,
+  collect_cash: /cash|payment|collect|receipt|deposit|checks?\b/i,
+  approve_writeoffs: /void|write-?off|no-sale/i,
+  prepare_deposit: /deposit|accounts receivable/i,
+  create_vendor: /vendor|supplier|payee|shell|company named/i,
+  approve_vendor: /approv|vendor/i,
+  approve_payroll: /approv|payroll/i,
+  hold_company_card: /card/i,
+  review_card_statement: /statement|card|books|reconcil/i,
+};
+
 describe("rule attachments", () => {
+  it("cite a rule only where the record shows both of its duties", () => {
+    const rules = new Map(CONFLICT_RULES.map((r) => [r.id, r]));
+    for (const c of CASE_LIBRARY) {
+      const text = [c.title, c.howItWorked, c.controlGap, c.caveat ?? ""].join(" ");
+      for (const id of c.sodRuleIds) {
+        const rule = rules.get(id)!;
+        for (const duty of [rule.a, rule.b]) {
+          const words = DUTY_WORDS[duty];
+          expect(words, `no duty words for ${duty}`).toBeDefined();
+          expect(words.test(text), `${c.id} cites ${id} but never shows ${duty}`).toBe(true);
+        }
+      }
+    }
+  });
+
   it("keeps off the attachments whose records do not show the rule's pair of duties", () => {
     const removed: [string, string][] = [
       ["case-houston-dental-shell", "rule-vendor-create-pay"],
@@ -590,10 +641,10 @@ describe("benchmarks and the shared statistics record", () => {
     expect(DEFAULT_FRAUD_STATS.sourceUrl).toBe(bm("bm-median-loss").source.url);
   });
 
-  it("leaves page and figure empty until someone checks them against the report", () => {
+  it("cite a page or figure only in a form a reader can find in the report", () => {
     for (const b of Object.values(BENCHMARK_BY_ID)) {
-      expect(b.page, b.id).toBeUndefined();
-      expect(b.figure, b.id).toBeUndefined();
+      if (b.page !== undefined) expect(b.page, b.id).toMatch(/^\d+(-\d+)?$/);
+      if (b.figure !== undefined) expect(b.figure, b.id).toMatch(/^(Fig\.|Figure|Table) \d+/);
     }
   });
 });

@@ -88,7 +88,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "owner-review",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-collect-post", "rule-cash-rec"],
+    sodRuleIds: ["rule-collect-post"],
     wouldHaveCaughtIt: [
       {
         control: "new-payee-review",
@@ -231,7 +231,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     lossIsFloor: false,
     detection: "law-enforcement",
     resolvedYear: 2012,
-    sodRuleIds: ["rule-release-rec", "rule-card-review"],
+    sodRuleIds: ["rule-card-review"],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -1385,7 +1385,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     durationMonths: 99,
     detection: "unknown",
     resolvedYear: 2017,
-    sodRuleIds: ["rule-release-rec"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
@@ -1597,7 +1597,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     tenureYearsStated: 5,
     detection: "unknown",
     resolvedYear: 2023,
-    sodRuleIds: ["rule-release-rec"],
+    sodRuleIds: [],
     wouldHaveCaughtIt: [
       {
         control: "card-statement-line-review",
