@@ -1,7 +1,7 @@
 import { Clock, Eye, ExternalLink, TrendingDown } from "lucide-react";
 import { SectionHeading, StatTile } from "./start-here-parts";
-import { DETECTION_PHRASE, joinClauses, ROUTE_CLAUSE } from "./start-here-copy";
-import { durationPhrase } from "@/lib/precog/evidence";
+import { joinClauses, ROUTE_CLAUSE } from "./start-here-copy";
+import { durationPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
@@ -95,8 +95,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
               <ul className="space-y-1 text-sm text-muted">
                 {found.byRoute.map((r) => (
                   <li key={r.route}>
-                    {DETECTION_PHRASE[r.route] ?? r.route}: {r.count}{" "}
-                    {r.count === 1 ? "case" : "cases"}
+                    {DETECTION_LABEL[r.route]}: {r.count} {r.count === 1 ? "case" : "cases"}
                   </li>
                 ))}
                 <li className="text-subtle">

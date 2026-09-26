@@ -4,6 +4,10 @@ import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { DEFAULT_FRAUD_STATS } from "../templates/shared-controls";
 import {
   BENCHMARK_BY_ID,
+  DETECTION_LABEL,
+  lossPhrase,
+  SECTOR_LABEL,
+  sectorPhrase,
   CASE_LIBRARY,
   CONTROL_CATALOG,
   caseById,
@@ -441,6 +445,30 @@ describe("benchmarks and the shared statistics record", () => {
     for (const b of Object.values(BENCHMARK_BY_ID)) {
       expect(b.page, b.id).toBeUndefined();
       expect(b.figure, b.id).toBeUndefined();
+    }
+  });
+});
+
+describe("shared evidence wording", () => {
+  it("states a floor loss as 'at least' and an exact loss as the figure", () => {
+    expect(lossPhrase({ lossUsd: 1_000_000, lossIsFloor: true })).toBe("at least $1,000,000");
+    expect(lossPhrase({ lossUsd: 48_250, lossIsFloor: false })).toBe("$48,250");
+  });
+
+  it("places every case in a natural phrase, never 'at a any business'", () => {
+    for (const study of CASE_LIBRARY) {
+      const phrase = sectorPhrase(study.sector);
+      expect(phrase).toMatch(/^at (a|an|another) /);
+      expect(phrase).not.toContain(" any ");
+      expect(phrase).not.toContain("professional-services business");
+    }
+    expect(sectorPhrase("any")).toBe("at another business");
+  });
+
+  it("labels every detection route and sector the library uses", () => {
+    for (const study of CASE_LIBRARY) {
+      expect(DETECTION_LABEL[study.detection]).toBeTruthy();
+      expect(SECTOR_LABEL[study.sector]).toBeTruthy();
     }
   });
 });

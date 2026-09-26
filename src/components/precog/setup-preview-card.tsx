@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import type { IndustryId } from "@/lib/precog/industry";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
 import { previewSetup } from "@/lib/precog/onboarding/setup-preview";
+import { sectorPhrase } from "@/lib/precog/evidence";
 
 /**
  * The payoff inside setup: the first conflict the typed team produces and
@@ -66,7 +67,7 @@ export function SetupPreviewCard({
           <span className="font-medium text-fg">
             {citesRule ? "The same arrangement" : "A related arrangement"}
           </span>{" "}
-          at a {study.sector.replace(/_/g, " ")} business: {study.title}
+          {sectorPhrase(study.sector)}: {study.title}
           {lossPhrase ? ` — ${lossPhrase} taken` : ""}
           {durationPhrase ? ` over ${durationPhrase}` : ""}. Every figure links to its record after
           setup.

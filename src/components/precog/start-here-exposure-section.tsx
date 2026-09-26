@@ -1,7 +1,7 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { BADGE_VARIANT, LONG_SERVICE_YEARS, lower } from "./start-here-copy";
-import { caseForRule } from "@/lib/precog/evidence";
+import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
 import { closingSteps, gapBadge } from "@/lib/precog/coach/first-steps";
 import { midSentence } from "@/lib/precog/sod/verdict";
 import { personLabel } from "@/lib/precog/person-label";
@@ -161,15 +161,13 @@ export function StartHereExposureSection({
                           : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
                         Length of service is not a control. Of the {n} cases in the library whose
                         source states how long the person had served, the longest,{" "}
-                        {longest.tenureYearsStated} years, cost the business{" "}
-                        {longest.lossIsFloor ? "at least " : ""}
-                        {formatUsd(longest.lossUsd)}
+                        {longest.tenureYearsStated} years, cost the business {lossPhrase(longest)}
                         {shortest
                           ? `; the shortest began ${
                               shortest.tenureYearsStated === 0
                                 ? "within months of hire"
                                 : `after ${shortest.tenureYearsStated} years`
-                            } and cost ${shortest.lossIsFloor ? "at least " : ""}${formatUsd(shortest.lossUsd)}`
+                            } and cost ${lossPhrase(shortest)}`
                           : ""}
                         . The people in those cases were trusted for the same reason yours are.
                       </p>

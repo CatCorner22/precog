@@ -52,7 +52,7 @@ export type SchemeKind =
  * variable: it is the difference between a four-figure loss and a
  * seven-figure one.
  */
-type DetectionRoute =
+export type DetectionRoute =
   | "tip"
   | "owner-review"
   | "external-audit"

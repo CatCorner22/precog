@@ -1,11 +1,10 @@
 import { resolveTemplate } from "../active-template";
-import { caseForRule, durationPhrase } from "../evidence";
+import { caseForRule, durationPhrase, lossPhrase } from "../evidence";
 import type { CaseStudy } from "../evidence/types";
 import type { IndustryId } from "../industry";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, type DetectedConflict } from "../sod/detect";
 import { buildOwnTeam, type OwnTeamRow } from "./own-team";
-import { formatUsd } from "../../utils";
 
 /**
  * The first finding, while setup is still open: as soon as two duties on one
@@ -25,11 +24,6 @@ export interface SetupPreview {
     lossPhrase: string | null;
     durationPhrase: string | null;
   } | null;
-}
-
-function formatLoss(study: CaseStudy): string {
-  const amount = formatUsd(study.lossUsd);
-  return study.lossIsFloor ? `more than ${amount}` : amount;
 }
 
 export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId): SetupPreview {
@@ -56,7 +50,7 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
       conflict,
       study: matched?.study ?? null,
       citesRule: matched?.citesRule ?? false,
-      lossPhrase: matched ? formatLoss(matched.study) : null,
+      lossPhrase: matched ? lossPhrase(matched.study) : null,
       durationPhrase:
         matched && typeof matched.study.durationMonths === "number"
           ? durationPhrase(matched.study.durationMonths)

@@ -9,7 +9,8 @@
  */
 import { CASE_LIBRARY } from "./cases";
 import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
-import type { CaseStudy, IndustrySector, SchemeKind } from "./types";
+import type { CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
+import { formatUsd } from "@/lib/utils";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
 
 export * from "./types";
@@ -286,6 +287,54 @@ export function durationPhrase(months: number): string {
   const years = Math.round((months / 12) * 10) / 10;
   return `${years} year${years === 1 ? "" : "s"}`;
 }
+
+/** A case's loss as the customer reads it: "at least $1,000,000" when the source states a minimum, else "$1,000,000". */
+export function lossPhrase(study: Pick<CaseStudy, "lossUsd" | "lossIsFloor">): string {
+  return `${study.lossIsFloor ? "at least " : ""}${formatUsd(study.lossUsd)}`;
+}
+
+/** Where a case happened, for a sentence: "at a dental practice", "at another business". */
+export function sectorPhrase(sector: IndustrySector): string {
+  return SECTOR_PHRASE[sector];
+}
+
+/** The badge label for a case's sector. */
+export const SECTOR_LABEL: Record<IndustrySector, string> = {
+  dental: "Dental practice",
+  medical: "Medical practice",
+  restaurant: "Restaurant",
+  construction: "Construction",
+  "professional-services": "Professional services",
+  retail: "Retail",
+  nonprofit: "Nonprofit",
+  trades: "Trades / home services",
+  any: "Any business",
+};
+
+/** How a scheme came to light, in the words every screen and the report use. */
+export const DETECTION_LABEL: Record<DetectionRoute, string> = {
+  tip: "Someone spoke up",
+  "owner-review": "The owner looked",
+  "external-audit": "Outside audit",
+  "bank-or-insurer": "Bank or insurer flagged it",
+  "law-enforcement": "Law enforcement",
+  "by-accident": "By accident",
+  cover: "Someone else covered the desk",
+  reconciliation: "A reconciliation caught it",
+  unknown: "Not stated in the source",
+};
+
+const SECTOR_PHRASE: Record<IndustrySector, string> = {
+  dental: "at a dental practice",
+  medical: "at a medical practice",
+  restaurant: "at a restaurant",
+  construction: "at a construction business",
+  "professional-services": "at a professional-services firm",
+  retail: "at a retail business",
+  nonprofit: "at a nonprofit",
+  trades: "at a trades or home-services business",
+  any: "at another business",
+};
 
 /**
  * Maps an industry template to the case-library sector.

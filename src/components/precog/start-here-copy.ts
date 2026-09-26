@@ -42,22 +42,10 @@ export const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "data-destruction": "Company data deleted or wiped by an insider",
 };
 
-/** Plain wording for each detection route, matching the case card. */
 /** Years of service at which the departure model calls a person long-serving. */
 export const LONG_SERVICE_YEARS = 5;
 
-export const DETECTION_PHRASE: Record<string, string> = {
-  tip: "Someone spoke up",
-  "owner-review": "The owner looked",
-  "external-audit": "An outside audit",
-  "bank-or-insurer": "A bank or insurer flagged it",
-  "law-enforcement": "Law enforcement",
-  "by-accident": "By accident, when the money ran out",
-  cover: "Someone else covered the desk and saw the records",
-  reconciliation: "A reconciliation caught it",
-};
-
-/** The same routes as a clause in a sentence: "it was the owner looking". */
+/** Detection routes as a clause in a sentence: "it was the owner looking". */
 export const ROUTE_CLAUSE: Record<string, string> = {
   "owner-review": "the owner looking",
   "bank-or-insurer": "a bank or insurer noticing",

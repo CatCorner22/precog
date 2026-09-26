@@ -28,7 +28,7 @@ describe("setup preview", () => {
     expect(preview.first?.conflict.personName).toBe("Bea");
     expect(preview.first?.conflict.ownerHeld).toBe(false);
     expect(preview.first?.study).not.toBeNull();
-    expect(preview.first?.lossPhrase).toMatch(/^\$|^more than \$/);
+    expect(preview.first?.lossPhrase).toMatch(/^\$|^at least \$/);
   });
 
   it("ranks an employee's conflict above the owner's", () => {

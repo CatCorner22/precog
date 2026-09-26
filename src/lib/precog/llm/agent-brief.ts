@@ -3,6 +3,7 @@ import { readSpofData } from "./spof-data";
 import { formatUsd } from "@/lib/utils";
 import { joinWithAnd, verb, count } from "../text";
 import { clamp } from "../number";
+import { lossPhrase } from "../evidence";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -476,9 +477,7 @@ export function localSynthesize(
         (caseEv.lossRange
           ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
-        (largest
-          ? `. Largest: "${largest.title}" (${largest.lossIsFloor ? "at least " : ""}${formatUsd(largest.lossUsd)}).`
-          : ".") +
+        (largest ? `. Largest: "${largest.title}" (${lossPhrase(largest)}).` : ".") +
         " Other organizations, not this one; see Start here for the sources.",
     );
   }

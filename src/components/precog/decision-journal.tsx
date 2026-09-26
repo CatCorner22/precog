@@ -22,7 +22,7 @@ import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
-import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
+import { casesForSodRules, observedLossRange, lossPhrase } from "@/lib/precog/evidence";
 import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -517,10 +517,8 @@ export function DecisionJournal({
                       ? `; median stated loss ${formatUsd(acceptEvidence.range.median)}`
                       : ""}
                     . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
-                    {acceptEvidence.largest.lossIsFloor ? "at least " : ""}
-                    {formatUsd(acceptEvidence.largest.lossUsd)}). Accepting is a legitimate
-                    decision; write down which compensating control makes it acceptable and who
-                    reviews it.
+                    {lossPhrase(acceptEvidence.largest)}). Accepting is a legitimate decision; write
+                    down which compensating control makes it acceptable and who reviews it.
                   </p>
                   {onOpenLinked && (
                     <button

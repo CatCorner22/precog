@@ -1,7 +1,6 @@
-import { METHOD_CAVEATS } from "@/lib/precog/evidence";
+import { METHOD_CAVEATS, lossPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
 import type { ControlReportModel } from "@/lib/precog/report/build-control-report";
 import { formatUsd } from "@/lib/utils";
-import { REPORT_DETECTION } from "@/components/precog/control-report-helpers";
 import { Section } from "@/components/precog/control-report-parts";
 
 type EvidenceSectionProps = Pick<
@@ -35,7 +34,7 @@ export function ControlReportEvidenceSection({
           : ""}
         {found.known > 0
           ? ` How they came to light, where the source says: ${found.byRoute
-              .map((r) => `${(REPORT_DETECTION[r.route] ?? r.route).toLowerCase()} (${r.count})`)
+              .map((r) => `${DETECTION_LABEL[r.route].toLowerCase()} (${r.count})`)
               .join(", ")}.`
           : ""}
         {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
@@ -61,9 +60,7 @@ export function ControlReportEvidenceSection({
                 return c ? (
                   <li key={id}>
                     {c.title}
-                    {c.lossUsd > 0
-                      ? ` (${c.lossIsFloor ? "at least " : ""}${formatUsd(c.lossUsd)})`
-                      : ""}
+                    {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
                   </li>
                 ) : null;
               })}

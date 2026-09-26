@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePractice } from "@/lib/precog/practice-context";
-import { formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { localDateKey } from "@/lib/precog/dates";
+import { lossPhrase } from "@/lib/precog/evidence";
 
 export function WeeklyActionPlan({
   onNavigate,
@@ -87,9 +87,7 @@ export function WeeklyActionPlan({
                   <span className="mt-1 block text-xs text-subtle">
                     {a.evidence.caseCount} prosecuted{" "}
                     {a.evidence.caseCount === 1 ? "case" : "cases"} in the library
-                    {a.evidence.worst
-                      ? `; the largest cost ${a.evidence.worst.lossIsFloor ? "at least " : ""}${formatUsd(a.evidence.worst.lossUsd)}.`
-                      : "."}
+                    {a.evidence.worst ? `; the largest cost ${lossPhrase(a.evidence.worst)}.` : "."}
                   </span>
                 )}
               </span>

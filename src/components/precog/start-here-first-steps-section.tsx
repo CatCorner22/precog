@@ -3,8 +3,8 @@ import { SectionHeading } from "./start-here-parts";
 import { effortPhrase } from "./start-here-copy";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
+import { lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel }) {
   const { steps, caseById, tips, soleKnowledge } = model;
@@ -53,9 +53,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel })
                             return c ? (
                               <li key={id}>
                                 · {c.title}
-                                {c.lossUsd > 0
-                                  ? ` (${c.lossIsFloor ? "at least " : ""}${formatUsd(c.lossUsd)})`
-                                  : ""}
+                                {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
                               </li>
                             ) : null;
                           })}
