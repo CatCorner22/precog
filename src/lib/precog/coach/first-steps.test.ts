@@ -63,6 +63,28 @@ describe("rankFirstSteps", () => {
     expect(findingsAnswered("card-statement-line-review", clinic)).toBe(0);
     expect(Object.keys(CONTROL_DUTIES).length).toBe(37);
   });
+
+  it("lets the card-statement review and receipt controls answer a company card finding", () => {
+    const card: OpenFinding[] = [
+      {
+        ruleId: "rule-card-review",
+        entitlementA: "hold_company_card",
+        entitlementB: "review_card_statement",
+      },
+      {
+        ruleId: "rule-card-approve",
+        entitlementA: "approve_expenses",
+        entitlementB: "hold_company_card",
+      },
+    ];
+    expect(findingsAnswered("card-statement-line-review", card)).toBe(2);
+    expect(findingsAnswered("receipt-and-second-approval", card)).toBe(2);
+    expect(findingsAnswered("gift-card-purchases-controlled", card)).toBe(2);
+    expect(findingsAnswered("no-self-approval", card)).toBe(1);
+    expect(findingsAnswered("positive-pay", card)).toBe(0);
+    const ranked = rankFirstSteps(recommendedStepsForRules(["rule-card-review"]), card);
+    expect(ranked[0].control.id).toBe("card-statement-line-review");
+  });
 });
 
 describe("dual-release wording", () => {

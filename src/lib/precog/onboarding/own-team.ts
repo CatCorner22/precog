@@ -19,11 +19,11 @@ import { stripInvisibleControls } from "../import/csv";
 import { joinWithAnd } from "../text";
 
 /**
- * The eleven money duties the onboarding grid shows as columns. Together they
+ * The twelve money duties the onboarding grid shows as columns. Together they
  * reach the conflict rules behind most of the case library: cash in, bills
- * and payments out, payroll, refunds and write-offs, and the reconciliation
- * that should sit with someone else. A title's other duties ride along as
- * chips the owner can remove.
+ * and payments out, the company card, payroll, refunds and write-offs, and
+ * the reconciliation that should sit with someone else. A title's other
+ * duties ride along as chips the owner can remove.
  */
 export const CORE_DUTIES: readonly EntitlementId[] = [
   "collect_cash",
@@ -33,6 +33,7 @@ export const CORE_DUTIES: readonly EntitlementId[] = [
   "enter_invoices",
   "create_vendor",
   "release_payment",
+  "hold_company_card",
   "enter_payroll",
   "approve_payroll",
   "issue_refunds",
@@ -48,6 +49,7 @@ export const GRID_DUTY_HEADING: Record<string, string> = {
   enter_invoices: "Enter bills",
   create_vendor: "Set up suppliers",
   release_payment: "Release payments",
+  hold_company_card: "Company card",
   enter_payroll: "Enter payroll",
   approve_payroll: "Approve payroll",
   issue_refunds: "Issue refunds",

@@ -857,7 +857,9 @@ export const nonprofitTemplate: IndustryTemplate = {
       "approve_vendor",
       "approve_payroll",
       "approve_writeoffs",
+      "approve_expenses",
       "sign_checks",
+      "hold_company_card",
       "view_reports_only",
     ],
     "Finance & Operations Manager": [
@@ -869,6 +871,7 @@ export const nonprofitTemplate: IndustryTemplate = {
       "enter_payroll",
       "bank_reconcile",
       "post_journal_entries",
+      "review_card_statement",
       "view_reports_only",
     ],
     "Development Director": [

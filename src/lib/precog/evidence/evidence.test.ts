@@ -210,6 +210,7 @@ const UNCITED_RULES = [
   "rule-access-release",
   "rule-admin-pay",
   "rule-admin-writeoff",
+  "rule-card-approve",
   "rule-cash-admin",
   "rule-claims-writeoff",
   "rule-refund-post",
@@ -374,6 +375,34 @@ describe("rule attachments", () => {
     // No record shows a collector approving write-offs or issuing refunds.
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-writeoff")).toBe(false);
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-refund")).toBe(false);
+  });
+
+  it("backs the company card plus its statement review with the records whose insider held the card and kept its books", () => {
+    expect(CONFLICT_RULES.find((r) => r.id === "rule-card-review")).toMatchObject({
+      a: "hold_company_card",
+      b: "review_card_statement",
+      severity: "high",
+    });
+    expect(
+      casesCitingSodRules(["rule-card-review"])
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual([
+      "case-attleboro-expense-padding",
+      "case-bellevue-dental-card",
+      "case-bellingham-assistant-manager",
+      "case-hutchinson-controller",
+    ]);
+    expect(schemesForSodRules(["rule-card-review"])).toEqual(["expense-reimbursement"]);
+    // A dentist reads the Bellevue practice card case as their own line of business.
+    const pick = caseForRule("rule-card-review", "dental")!;
+    expect(pick.citesRule).toBe(true);
+    expect(pick.ownSector).toBe(true);
+    expect(pick.study.id).toBe("case-bellevue-dental-card");
+    // No record shows a cardholder approving expense claims, so that rule shows a related card case.
+    const related = caseForRule("rule-card-approve", "professional_services")!;
+    expect(related.citesRule).toBe(false);
+    expect(related.study.schemes).toContain("expense-reimbursement");
   });
 
   it("records no duration where the source dates only the employment, and no floor from two estimates", () => {

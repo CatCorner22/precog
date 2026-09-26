@@ -401,6 +401,31 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     caseIds: ["case-amk-hvac", "case-bellingham-assistant-manager"],
   },
   {
+    id: "smb-company-card",
+    title: "Company cards: who holds one and who reads the statement",
+    domain: "fraud",
+    industry: "general",
+    tags: [
+      "small business",
+      "company card",
+      "credit card",
+      "card statement",
+      "cash advance",
+      "gift cards",
+      "expense claims",
+    ],
+    text: "A company card is a checking account under another name: it takes cash advances, buys gift cards, and pays a personal bill as readily as a supplier. The gap is structural, not personal: the person who spends on the card is the person who reads its statement and codes each line into the books, or the person who approves the expense claims, so no one without a stake in the spending ever asks what a charge was for. Controls: the owner opens every card statement and reads it line by line against receipts before it is coded; whoever codes the statement holds no card on that account; nobody approves their own card spending or expense claim at any amount; cash advances are turned off at the issuer and each card carries a low limit; gift-card and marketplace charges need a stated purpose. Reimbursements are paid as their own line, never through payroll, where they read as neither a raise nor an expense.",
+    basis: practice(
+      "Company-card and expense-claim control practice, in the terms of the prosecuted card cases in the evidence library.",
+    ),
+    caseIds: [
+      "case-bellevue-dental-card",
+      "case-hutchinson-controller",
+      "case-bellingham-assistant-manager",
+      "case-attleboro-expense-padding",
+    ],
+  },
+  {
     id: "smb-payroll-ghost",
     title: "Payroll ghost employees and rate changes",
     domain: "fraud",

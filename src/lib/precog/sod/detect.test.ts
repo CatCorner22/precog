@@ -675,6 +675,69 @@ describe("signing checks is releasing payments", () => {
   });
 });
 
+describe("company card and expense duties", () => {
+  it("flags the cardholder who reads and codes the card's own statement", () => {
+    const report = detectSodConflicts(
+      oneClerk(["hold_company_card", "review_card_statement", "enter_invoices"]),
+    );
+    const card = report.conflicts.find((c) => c.ruleId === "rule-card-review");
+    expect(card?.severity).toBe("high");
+    expect(card?.labelA).toBe("Spend on a company card or charge account");
+    expect(card?.labelB).toBe("Review and code the company card statement");
+    // The named rule already covers the card; no vaguer catch-all repeats it.
+    expect(report.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
+    expect(report.recommendations.some((r) => /card statement line by line/.test(r))).toBe(true);
+  });
+
+  it("flags the cardholder who approves the expense claims", () => {
+    const report = detectSodConflicts(
+      oneClerk(["hold_company_card", "approve_expenses", "approve_vendor", "manage_user_access"]),
+    );
+    expect(report.conflicts.map((c) => c.ruleId)).toEqual(["rule-card-approve"]);
+  });
+
+  it("treats ordering supplies and paying for them on the card as one act of buying", () => {
+    for (const duties of [
+      ["hold_company_card", "order_supplies"],
+      ["hold_company_card", "order_supplies", "receive_goods"],
+    ]) {
+      const report = detectSodConflicts(oneClerk(duties));
+      expect(
+        report.conflicts.filter(
+          (c) => c.entitlementA === "hold_company_card" || c.entitlementB === "hold_company_card",
+        ),
+      ).toEqual([]);
+    }
+  });
+
+  it("leaves a reviewer or approver who holds no card, and a team with no card, unflagged", () => {
+    expect(
+      detectSodConflicts(oneClerk(["review_card_statement", "approve_expenses"])).conflicts,
+    ).toEqual([]);
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["approve_expenses", "approve_payroll"] },
+        { role: "Bookkeeper", duties: ["review_card_statement", "enter_invoices"] },
+      ]),
+    );
+    expect(report.conflicts).toEqual([]);
+    // Nobody holding a card is a choice, not an empty seat.
+    expect(report.summary.unheldDuties).not.toContain("hold_company_card");
+  });
+
+  it("reads the owner's own card and approval as an owner-held pair, not a theft finding", () => {
+    const report = detectSodConflicts(
+      team([
+        { role: "Owner", duties: ["hold_company_card", "approve_expenses"] },
+        { role: "Bookkeeper", duties: ["review_card_statement"] },
+      ]),
+    );
+    expect(report.conflicts.map((c) => `${c.ruleId}:${c.ownerHeld}`)).toEqual([
+      "rule-card-approve:true",
+    ]);
+  });
+});
+
 describe("the owner's findings", () => {
   it("gives the sole owner no vaguer catch-all about their own business", () => {
     const report = detectSodConflicts(
