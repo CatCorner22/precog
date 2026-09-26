@@ -19,7 +19,7 @@ import {
 import type { IndustryTemplate } from "../templates/types";
 import type { StaffComposition } from "../types";
 import type { ToolName, ToolResult } from "./types";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 
 export interface ScenarioToolInput {
   tool: ToolName;
@@ -54,7 +54,7 @@ export function runPrecogScenarioTool({
     tool,
     args: { scenarioId },
     ok: true,
-    summary: `${scenario.title}: retained ${usd(result.retainedImpact.expected)}, CoR ${usd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+    summary: `${scenario.title}: retained ${formatUsd(result.retainedImpact.expected)}, CoR ${formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
     data: {
       scenarioId,
       title: scenario.title,
@@ -146,7 +146,7 @@ export function insuranceCostOfRisk({
     tool,
     args: { scenarioId },
     ok: true,
-    summary: `CoR ${usd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${usd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
+    summary: `CoR ${formatUsd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${formatUsd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
     data: {
       scenarioId,
       variables: riskVars,

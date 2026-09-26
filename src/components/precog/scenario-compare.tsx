@@ -23,7 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatUsd, cn, formatUsdDelta } from "@/lib/utils";
 import { Columns2, GitCompare, Trophy } from "lucide-react";
 
 type Mode = "futures" | "cross";
@@ -407,12 +407,12 @@ export function ScenarioCompare({
                             d.vsBaseline.retainedDelta < 0 ? "text-ok" : "text-danger",
                           )}
                         >
-                          Retained {fmtDeltaMoney(d.vsBaseline.retainedDelta)}
+                          Retained {formatUsdDelta(d.vsBaseline.retainedDelta)}
                         </p>
                         <p
                           className={cn(d.vsBaseline.annualCorDelta < 0 ? "text-ok" : "text-muted")}
                         >
-                          Annual CoR {fmtDeltaMoney(d.vsBaseline.annualCorDelta)}
+                          Annual CoR {formatUsdDelta(d.vsBaseline.annualCorDelta)}
                         </p>
                         <p className={cn(d.vsBaseline.p50DaysDelta < 0 ? "text-ok" : "text-muted")}>
                           Assumed days until found {fmtDeltaDays(d.vsBaseline.p50DaysDelta)}
@@ -473,7 +473,7 @@ export function ScenarioCompare({
                         >
                           {c.id === report.baselineId
                             ? "—"
-                            : fmtDeltaMoney(d?.vsBaseline.retainedDelta ?? 0)}
+                            : formatUsdDelta(d?.vsBaseline.retainedDelta ?? 0)}
                         </td>
                       </tr>
                     );
@@ -543,11 +543,6 @@ function Slider({
 
 function withNote(text: string, note: string | null) {
   return note ? `${text} · ${note}` : text;
-}
-
-function fmtDeltaMoney(n: number) {
-  const sign = n > 0 ? "+" : n < 0 ? "−" : "";
-  return `${sign}${formatUsd(Math.abs(n))}`;
 }
 
 function fmtDeltaDays(n: number) {

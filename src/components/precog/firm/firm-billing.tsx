@@ -5,6 +5,7 @@ import { PILOT_OFFER, type FirmPlan } from "@/lib/precog/firm/pricing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
 import { ACTIVE_SUBSCRIPTION_STATUSES } from "@/lib/precog/firm/billing-store";
 import { openBillingPortal, startCheckout } from "@/lib/precog/billing/server";
+import { formatUsd } from "@/lib/utils";
 
 /**
  * The offer and how to buy it. With Stripe connected the buttons open
@@ -55,7 +56,7 @@ export function FirmBilling({
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Plan</h2>
       <p className="mt-1 text-sm text-muted">
-        {PILOT_OFFER.assessmentLabel}: ${PILOT_OFFER.assessmentFeeUsd.toLocaleString()} —{" "}
+        {PILOT_OFFER.assessmentLabel}: {formatUsd(PILOT_OFFER.assessmentFeeUsd)} —{" "}
         {PILOT_OFFER.assessmentDetail} It converts to the {PILOT_OFFER.monthlyLabel} at $
         {PILOT_OFFER.monthlyFeeUsd}/month for {PILOT_OFFER.monthlyClients} clients.{" "}
         {PILOT_OFFER.monthlyDetail}
@@ -88,7 +89,7 @@ export function FirmBilling({
             <>
               {!billing?.assessmentPaidAt && (
                 <Button size="sm" onClick={() => void buy("assessment")} disabled={busy}>
-                  Pay the ${PILOT_OFFER.assessmentFeeUsd.toLocaleString()} assessment
+                  Pay the {formatUsd(PILOT_OFFER.assessmentFeeUsd)} assessment
                 </Button>
               )}
               {!active && (

@@ -5,7 +5,7 @@
  */
 import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
@@ -85,10 +85,10 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     title: "Precog (timeline & transfer)",
     bullets: [
       scenario
-        ? `${scenario.title}: retained ${usd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d, CoR ${usd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
+        ? `${scenario.title}: retained ${formatUsd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d, CoR ${formatUsd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
         : "Run top Precog scenario.",
       cascade?.topByCostOfRisk?.[0]
-        ? `Best cascade: ${cascade.topByCostOfRisk[0].label} (ΔCoR ${usd(cascade.topByCostOfRisk[0].deltaCor)}). ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`
+        ? `Best cascade: ${cascade.topByCostOfRisk[0].label} (ΔCoR ${formatUsd(cascade.topByCostOfRisk[0].deltaCor)}). ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`
         : "Simulate variable cascades before changing deductible.",
       "Premium, deductible, and controls are coupled — re-measure CoR after each lever.",
     ],

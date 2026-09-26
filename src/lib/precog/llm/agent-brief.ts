@@ -1,6 +1,6 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -79,7 +79,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "scenario",
         label: d.title,
-        metric: `assumed retained ${usd(d.retained.expected)} · about ${d.timelineDays.p50}d · CoR ${usd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+        metric: `assumed retained ${formatUsd(d.retained.expected)} · about ${d.timelineDays.p50}d · CoR ${formatUsd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
         link: { tab: "precog", id: d.scenarioId },
       });
     }
@@ -120,7 +120,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           kind: "sod",
           label: "Prosecuted cases matching the open gaps",
           metric: d.lossRange
-            ? `${d.matchingCases} cases; median stated loss ${usd(d.lossRange.median)}`
+            ? `${d.matchingCases} cases; median stated loss ${formatUsd(d.lossRange.median)}`
             : `${d.matchingCases} cases`,
           link: { tab: "start" },
         });
@@ -139,7 +139,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "insurance",
         label: "Cost of risk",
-        metric: `premium ${usd(d.transfer.premiumAnnualNet)} (−${d.transfer.discountPctApplied}%) · CoR ${usd(d.transfer.expectedAnnualCostOfRisk)}`,
+        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (−${d.transfer.discountPctApplied}%) · CoR ${formatUsd(d.transfer.expectedAnnualCostOfRisk)}`,
         link: { tab: "precog" },
       });
     }
@@ -157,7 +157,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "cascade",
           label: row.label,
-          metric: `ΔCoR ${usd(row.deltaCor)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
+          metric: `ΔCoR ${formatUsd(row.deltaCor)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
           link: { tab: "precog" },
         });
       }
@@ -249,12 +249,12 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${usd(cas.baseline.premiumAnnualNet)}, retained ${usd(cas.baseline.retainedExpected)}, CoR ${usd(cas.baseline.expectedAnnualCostOfRisk)}, residual ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, retained ${formatUsd(cas.baseline.retainedExpected)}, CoR ${formatUsd(cas.baseline.expectedAnnualCostOfRisk)}, residual ${cas.baseline.residualAverage}.`,
     );
   }
   for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: CoR ${usd(row.deltaCor)}, retained ${usd(row.deltaRetained)}, premium ${usd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: CoR ${formatUsd(row.deltaCor)}, retained ${formatUsd(row.deltaRetained)}, premium ${formatUsd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -282,7 +282,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
   }
   if (scenario && scenario.retained.expected > 15000 && scenario.timelineDays.p50 < 90) {
     warnings.push(
-      `"${scenario.title}" assumes ${usd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
+      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
@@ -472,10 +472,10 @@ export function localSynthesize(
     highestRisks.push(
       `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${caseEv.matchingCases === 1 ? "case matches" : "cases match"} the open duty conflicts` +
         (caseEv.lossRange
-          ? `; median stated loss ${usd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
+          ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
         (largest
-          ? `. Largest: "${largest.title}" (${largest.lossIsFloor ? "at least " : ""}${usd(largest.lossUsd)}).`
+          ? `. Largest: "${largest.title}" (${largest.lossIsFloor ? "at least " : ""}${formatUsd(largest.lossUsd)}).`
           : ".") +
         " Other organizations, not this one; see Start here for the sources.",
     );
@@ -494,7 +494,7 @@ export function localSynthesize(
       ? `Leading indicators: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
       : "Check the leading indicators for conditions that precede a loss.",
     bestCascade
-      ? `Best cascade: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
+      ? `Best cascade: **${bestCascade.label}** (ΔCoR ${formatUsd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
       : "Simulate variable cascades.",
     rag?.hits?.[0]
       ? `RAG: _${rag.hits[0].title}_ — ${rag.hits[0].text.slice(0, 140)}…`

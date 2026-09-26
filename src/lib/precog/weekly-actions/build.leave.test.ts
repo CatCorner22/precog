@@ -52,7 +52,7 @@ describe("buildWeeklyActions planned leave", () => {
     const action = build([leave]).find((a) => a.id === "leave-abs-1");
     expect(action).toBeDefined();
     expect(action?.title).toContain("in 12 days");
-    expect(action?.title).toContain("13–20 Apr");
+    expect(action?.title).toContain("Apr 13–20");
     expect(action?.title).toContain(`hand off ${item.name} to`);
     expect(action?.effort).toBe("low");
     expect(action?.why).toContain("Hand off by 2025-04-12");
@@ -80,7 +80,7 @@ describe("buildWeeklyActions planned leave", () => {
     };
     const action = build([sick], [], "2025-04-15").find((a) => a.id === "leave-abs-1");
     expect(action?.title).toBe(
-      `${firstName(maya.name)} is out unexpectedly 15 Apr, out now: ${firstName(chris.name)} covers ${item.name}`,
+      `${firstName(maya.name)} is out unexpectedly Apr 15, out now: ${firstName(chris.name)} covers ${item.name}`,
     );
     expect(action?.priority).toBe(92);
   });
@@ -132,7 +132,7 @@ describe("buildWeeklyActions planned leave", () => {
         },
       ],
     }).find((a) => a.id === "leave-abs-1");
-    expect(action?.why).toContain("2 register entries stop 18–20 Apr, while");
+    expect(action?.why).toContain("2 register entries stop Apr 18–20, while");
     expect(action?.why).toContain(`${third.name.split(" ")[0]} is also out`);
   });
 
@@ -188,7 +188,7 @@ describe("buildWeeklyActions planned leave", () => {
     const actions = build([leave], [logged]);
     expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
     const reminder = actions.find((a) => a.id.startsWith("commit-"));
-    expect(reminder?.why).toContain("out 13–20 Apr, in 12 days");
+    expect(reminder?.why).toContain("out Apr 13–20, in 12 days");
   });
 
   it("does not let one leave's hand-off stand in for a later leave", () => {

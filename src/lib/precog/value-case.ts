@@ -1,5 +1,6 @@
 import type { ValueEvidence } from "./value-evidence";
 import { joinWithAnd } from "./text";
+import { formatUsd, formatPct } from "../utils";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
 
@@ -290,12 +291,6 @@ export function applyVerifiedAnnualHours(raw: ValueCaseInputs, annualHours: numb
   });
 }
 
-/** Whole dollars with the sign in front: "-$3,640", never "$-3,640". */
-export function formatMoney(input: number): string {
-  const rounded = Math.round(input);
-  return `${rounded < 0 ? "-" : ""}$${Math.abs(rounded).toLocaleString("en-US")}`;
-}
-
 /**
  * The executive memo. Its observed section appears only once the owner has
  * entered an observation (an input of their own or an evidence item); each
@@ -310,8 +305,6 @@ export function createValueCaseMemo(
 ) {
   const value = calculateValueCase(raw);
   const status = observedValueStatus(value.inputs, typed);
-  const percent = (input: number) => `${(input * 100).toFixed(1)}%`;
-  const money = formatMoney;
   const uses = (f: ObservedFigure) =>
     f.defaultsUsed.length ? ` (uses the app default for ${inputList(f.defaultsUsed)})` : "";
   const notYet = (f: ObservedFigure) =>
@@ -332,11 +325,11 @@ export function createValueCaseMemo(
           "## Directly observed value",
           "",
           line("Annual review hours returned", status.hours, (v) => v.toLocaleString("en-US")),
-          line("Observed value (labor and documented recoveries)", status.value, money),
-          `- Documented recoveries: ${status.entered.has("directRecoveries") ? money(value.inputs.directRecoveries) : "not yet observed"}`,
-          `- Annual program cost: ${status.entered.has("annualProgramCost") ? money(value.inputs.annualProgramCost) : "not yet observed"}`,
-          line("Net observed value", status.net, money),
-          line("Observed ROI", status.roi, percent),
+          line("Observed value (labor and documented recoveries)", status.value, formatUsd),
+          `- Documented recoveries: ${status.entered.has("directRecoveries") ? formatUsd(value.inputs.directRecoveries) : "not yet observed"}`,
+          `- Annual program cost: ${status.entered.has("annualProgramCost") ? formatUsd(value.inputs.annualProgramCost) : "not yet observed"}`,
+          line("Net observed value", status.net, formatUsd),
+          line("Observed ROI", status.roi, (v) => formatPct(v, 1)),
           line("Payback", status.payback, (v) => `${v.toFixed(1)} months`),
         ]
       : [
@@ -353,10 +346,10 @@ export function createValueCaseMemo(
     "",
     "## Modeled risk reduction (not realized savings)",
     "",
-    `- Annual exposure (${assumption("annualExposure")}): ${money(value.inputs.annualExposure)}`,
-    `- Baseline event probability (${assumption("eventProbability")}): ${percent(value.inputs.eventProbability)}`,
-    `- Estimated control effectiveness (${assumption("controlEffectiveness")}): ${percent(value.inputs.controlEffectiveness)}`,
-    `- Low / base / high: ${money(value.modeled.low)} / ${money(value.modeled.base)} / ${money(value.modeled.high)}`,
+    `- Annual exposure (${assumption("annualExposure")}): ${formatUsd(value.inputs.annualExposure)}`,
+    `- Baseline event probability (${assumption("eventProbability")}): ${formatPct(value.inputs.eventProbability, 1)}`,
+    `- Estimated control effectiveness (${assumption("controlEffectiveness")}): ${formatPct(value.inputs.controlEffectiveness, 1)}`,
+    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)}`,
     "",
     "> Modeled avoided loss is a decision scenario, not booked savings. Validate assumptions independently and report it separately from observed value.",
     "",

@@ -12,6 +12,7 @@ import {
   SCORING_VERSION,
   type ActionBand,
 } from "./weights";
+import { formatUsd } from "../../utils";
 
 interface RiskDriver {
   id: string;
@@ -428,7 +429,7 @@ export function scoreAllResidualRisks(
           label: "Assumed loss if this happened",
           direction: "increases" as const,
           weight: lossNorm,
-          detail: `~$${result.financialImpact.expected.toLocaleString()} — the app's scenario assumption, not a measured figure`,
+          detail: `~${formatUsd(result.financialImpact.expected)} — the app's scenario assumption, not a measured figure`,
         },
         {
           id: `${s.id}-time`,

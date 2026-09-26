@@ -24,6 +24,7 @@ import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
 import { locationsById, locationText } from "@/lib/precog/person-location";
 import { localDateKey } from "@/lib/precog/dates";
+import { formatUsd } from "@/lib/utils";
 
 export function useStartHere() {
   const { profile, template } = usePractice();
@@ -205,7 +206,7 @@ export function useStartHere() {
   const medianLoss = BENCHMARK_BY_ID[smallOrg ? "bm-small-org-losses" : "bm-median-loss"];
   const medianLossValue =
     smallOrg && typeof medianLoss?.numeric === "number"
-      ? `$${medianLoss.numeric.toLocaleString("en-US")}`
+      ? formatUsd(medianLoss.numeric)
       : medianLoss?.value;
   const medianDuration = BENCHMARK_BY_ID["bm-median-duration"];
   const delayCurve = BENCHMARK_BY_ID["bm-duration-cost-curve"];

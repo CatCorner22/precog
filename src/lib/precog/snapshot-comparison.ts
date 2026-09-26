@@ -8,6 +8,7 @@ import {
   summarizeValueEvidence,
   type ValueEvidence,
 } from "./value-evidence";
+import { formatSigned, formatUsdDelta } from "../utils";
 
 export function compareAssessmentStates(
   current: {
@@ -74,8 +75,6 @@ export function createSnapshotComparisonReport(
   generatedAt: Date = new Date(),
 ) {
   const safe = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
-  const signed = (value: number) => `${value > 0 ? "+" : ""}${value}`;
-  const dollars = (value: number) => `${value > 0 ? "+" : ""}$${value.toLocaleString("en-US")}`;
   return [
     `# Assessment comparison — ${safe(title)}`,
     "",
@@ -84,18 +83,18 @@ export function createSnapshotComparisonReport(
     "",
     "## Change summary",
     "",
-    `- Team size: ${signed(comparison.teamSizeDelta)}`,
+    `- Team size: ${formatSigned(comparison.teamSizeDelta)}`,
     `- Risk inputs changed: ${comparison.riskChanges}`,
     `- Duty grants / revocations: ${comparison.grants} / ${comparison.revocations}`,
     `- People added / removed: ${comparison.hires} / ${comparison.removals}`,
     `- Net observed value: ${
       comparison.netObservedValueDelta === null
         ? "not observed in both assessments"
-        : dollars(comparison.netObservedValueDelta)
+        : formatUsdDelta(comparison.netObservedValueDelta)
     }`,
-    `- Verified evidence: ${signed(comparison.verifiedEvidenceDelta)}`,
-    `- Evidence readiness: ${signed(comparison.evidenceReadinessDelta)} points`,
-    `- Verified recoveries: ${dollars(comparison.verifiedRecoveryDelta)}`,
+    `- Verified evidence: ${formatSigned(comparison.verifiedEvidenceDelta)}`,
+    `- Evidence readiness: ${formatSigned(comparison.evidenceReadinessDelta)} points`,
+    `- Verified recoveries: ${formatUsdDelta(comparison.verifiedRecoveryDelta)}`,
     "",
     "## Responsibility changes",
     "",

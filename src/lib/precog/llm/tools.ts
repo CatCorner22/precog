@@ -35,7 +35,7 @@ import {
   tornadoLevers,
   variableCascades,
 } from "./scenario-tools";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 import { localDateKey } from "../dates";
 
 export interface ToolContext {
@@ -496,7 +496,7 @@ export function executeTool(
           tool,
           ok: true,
           summary: cases.length
-            ? `${cases.length} prosecuted case(s) match the open duty conflicts; median stated loss ${range ? usd(range.median) : "n/a"}`
+            ? `${cases.length} prosecuted case(s) match the open duty conflicts; median stated loss ${range ? formatUsd(range.median) : "n/a"}`
             : "No prosecuted case in the library matches the open duty conflicts",
           // Every field here is a fact stated in the cited source, or the
           // library's own tagging of which control would have caught it.

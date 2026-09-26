@@ -1,3 +1,4 @@
+import { formatPct } from "../../../utils";
 /**
  * Bayesian residual / loss belief updates.
  * Conjugate Beta-Binomial style priors for control failure probability,
@@ -75,7 +76,7 @@ export function initBayesianState(opts: {
   let alpha = priorMean * strength;
   let beta = (1 - priorMean) * strength;
   const updates: string[] = [
-    `Starting assumption ~${(priorMean * 100).toFixed(1)}% (a stated prior, not a measured rate; Beta strength ${strength} so evidence moves it quickly).`,
+    `Starting assumption ~${formatPct(priorMean, 1)} (a stated prior, not a measured rate; Beta strength ${strength} so evidence moves it quickly).`,
   ];
 
   // Pseudo-observations from residual / leading pressure

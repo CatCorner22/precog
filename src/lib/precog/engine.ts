@@ -19,6 +19,7 @@ import {
 import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
+import { formatUsd } from "../utils";
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -211,10 +212,10 @@ export function runPrecogScenario(
   const crimeModifiers: string[] = [];
   if (isFraudScenario(scenario)) {
     crimeModifiers.push(
-      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
+      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(crimeFraudStats.medianLossSmallOrgUsd)} against ${formatUsd(crimeFraudStats.medianLossAllUsd)} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is more than $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,
+      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(crimeFraudStats.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(crimeFraudStats.lossIfRunsLongUsd)}.`,
     );
     crimeModifiers.push(
       `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,
@@ -225,10 +226,8 @@ export function runPrecogScenario(
   crimeModifiers.push(
     `Assumed multipliers from your settings: likelihood ×${dynamic.likelihoodSeverity.likelihoodMultiplier.toFixed(2)} · severity ×${dynamic.likelihoodSeverity.grossSeverityMultiplier.toFixed(2)} · detection lag ×${dynamic.likelihoodSeverity.detectionLagMultiplier.toFixed(2)}.`,
   );
-  const usd = (n: number) =>
-    n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   crimeModifiers.push(
-    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${usd(dynamic.transfer.retainedExpected)}; modeled annual premium ${usd(dynamic.transfer.premiumAnnualNet)}.`,
+    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;

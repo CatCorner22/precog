@@ -23,7 +23,7 @@ import {
   compareAssessmentStates,
   createSnapshotComparisonReport,
 } from "@/lib/precog/snapshot-comparison";
-import { formatUsd } from "@/lib/utils";
+import { formatSigned, formatUsdDelta } from "@/lib/utils";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
@@ -333,7 +333,7 @@ export function AssessmentSnapshots() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                     <CompareMetric
                       label="Team size"
-                      value={signed(comparison.result.teamSizeDelta)}
+                      value={formatSigned(comparison.result.teamSizeDelta)}
                     />
                     <CompareMetric
                       label="Risk inputs changed"
@@ -353,20 +353,20 @@ export function AssessmentSnapshots() {
                       value={
                         comparison.result.netObservedValueDelta === null
                           ? "Not yet observed"
-                          : signedMoney(comparison.result.netObservedValueDelta)
+                          : formatUsdDelta(comparison.result.netObservedValueDelta)
                       }
                     />
                     <CompareMetric
                       label="Verified evidence"
-                      value={signed(comparison.result.verifiedEvidenceDelta)}
+                      value={formatSigned(comparison.result.verifiedEvidenceDelta)}
                     />
                     <CompareMetric
                       label="Evidence readiness"
-                      value={`${signed(comparison.result.evidenceReadinessDelta)} pts`}
+                      value={`${formatSigned(comparison.result.evidenceReadinessDelta)} pts`}
                     />
                     <CompareMetric
                       label="Verified recoveries"
-                      value={signedMoney(comparison.result.verifiedRecoveryDelta)}
+                      value={formatUsdDelta(comparison.result.verifiedRecoveryDelta)}
                     />
                   </div>
                   {comparison.result.assignmentChanges.length > 0 && (
@@ -491,12 +491,6 @@ export function AssessmentSnapshots() {
   );
 }
 
-function signed(value: number) {
-  return value > 0 ? `+${value}` : String(value);
-}
-function signedMoney(value: number) {
-  return `${value > 0 ? "+" : ""}${formatUsd(value)}`;
-}
 function CompareMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-bg p-2">

@@ -31,6 +31,7 @@ import type {
   FirmMember,
 } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
+import { formatPct } from "@/lib/utils";
 
 export const Route = createFileRoute("/firm")({
   component: FirmPage,
@@ -287,9 +288,7 @@ function FirmPage() {
           />
           <Metric
             label="Findings accepted"
-            value={
-              metrics.acceptanceRate === null ? "—" : `${Math.round(metrics.acceptanceRate * 100)}%`
-            }
+            value={metrics.acceptanceRate === null ? "—" : formatPct(metrics.acceptanceRate)}
           />
           <Metric label="Open conflicts" value={String(metrics.openFindings)} />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />

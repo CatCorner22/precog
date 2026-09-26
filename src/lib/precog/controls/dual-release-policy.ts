@@ -430,7 +430,7 @@ const MAX_USD = 1_000_000_000;
 
 const str = (value: unknown, max: number): string | undefined =>
   typeof value === "string" ? value.trim().slice(0, max) : undefined;
-const usd = (value: unknown): number | undefined =>
+const boundedUsd = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, Math.min(MAX_USD, value))
     : undefined;
@@ -469,11 +469,11 @@ function normalizeThresholdException(value: unknown): ThresholdException | null 
     reason: str(v.reason, 400) ?? "",
     createdAt: str(v.createdAt, 40) ?? new Date().toISOString(),
   };
-  const thresholdUsd = usd(v.thresholdUsd);
+  const thresholdUsd = boundedUsd(v.thresholdUsd);
   if (thresholdUsd !== undefined) out.thresholdUsd = thresholdUsd;
-  const amountMinUsd = usd(v.amountMinUsd);
+  const amountMinUsd = boundedUsd(v.amountMinUsd);
   if (amountMinUsd !== undefined) out.amountMinUsd = amountMinUsd;
-  const amountMaxUsd = usd(v.amountMaxUsd);
+  const amountMaxUsd = boundedUsd(v.amountMaxUsd);
   if (amountMaxUsd !== undefined) out.amountMaxUsd = amountMaxUsd;
   for (const key of [
     "payeeContains",
@@ -502,7 +502,7 @@ function mergeRule(base: DualReleaseRule, override: unknown): DualReleaseRule {
     label: str(o.label, 120) || base.label,
     description: str(o.description, 400) ?? base.description,
     enabled: typeof o.enabled === "boolean" ? o.enabled : base.enabled,
-    thresholdUsd: usd(o.thresholdUsd) ?? base.thresholdUsd,
+    thresholdUsd: boundedUsd(o.thresholdUsd) ?? base.thresholdUsd,
     requireDistinctPeople:
       typeof o.requireDistinctPeople === "boolean"
         ? o.requireDistinctPeople

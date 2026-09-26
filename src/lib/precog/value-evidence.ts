@@ -1,4 +1,5 @@
 import { isCalendarDate, dateAfter, localDateKey } from "./dates";
+import { formatUsd } from "../utils";
 export type ValueEvidenceKind = "time" | "recovery" | "control" | "exception";
 
 export type ValueEvidence = {
@@ -99,7 +100,7 @@ export function summarizeValueEvidence(items: ValueEvidence[], asOf: Date = new 
 }
 
 export function formatEvidenceAmount(item: Pick<ValueEvidence, "kind" | "amount">) {
-  if (item.kind === "recovery") return `$${item.amount.toLocaleString("en-US")}`;
+  if (item.kind === "recovery") return formatUsd(item.amount);
   if (item.kind === "time") return `${item.amount.toLocaleString("en-US")} hrs`;
   return `${item.amount.toLocaleString("en-US")} ${item.amount === 1 ? "item" : "items"}`;
 }

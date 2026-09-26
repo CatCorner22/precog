@@ -19,7 +19,7 @@ import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatUsd, cn, formatPct } from "@/lib/utils";
 
 function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
   if (band === "critical_path") return "danger";
@@ -109,8 +109,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             <CardDescription>
               Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app
               chose, sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
-              {Math.round(scenarioCredit * 100)}%: Inherent × (1 − effectiveness × {scenarioCredit})
-              × staff modifiers.
+              {formatPct(scenarioCredit)}: Inherent × (1 − effectiveness × {scenarioCredit}) × staff
+              modifiers.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -200,7 +200,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   {active.creditedEffectiveness != null && active.effectivenessCredit != null && (
                     <p className="text-xs text-subtle">
                       Scenario rows credit control effectiveness at{" "}
-                      {Math.round(active.effectivenessCredit * 100)}%, so effectiveness{" "}
+                      {formatPct(active.effectivenessCredit)}, so effectiveness{" "}
                       {active.controlEffectiveness} counts as {active.creditedEffectiveness}:{" "}
                       {active.inherent} × (1 − {active.creditedEffectiveness}/100) × staff
                       modifiers.

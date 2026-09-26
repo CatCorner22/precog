@@ -11,6 +11,7 @@ import {
   type InsuranceRecord,
   type PolicyField,
 } from "./insurance-record";
+import { formatUsd, formatPct } from "../../utils";
 export type { PolicyField } from "./insurance-record";
 
 type VariableCategory =
@@ -741,12 +742,12 @@ export function applyInsuranceTransfer(
         recorded && recorded.status !== "none"
           ? "No recovery or premium modeled from unconfirmed policy terms; this is not a finding that the business is uninsured."
           : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
-        `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss.`,
+        `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss.`,
       ]
     : [
-        `Net premium ${premiumAnnualNet.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`,
+        `Net premium ${formatUsd(premiumAnnualNet)} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`,
         `Retained loss ≈ deductible + unreimbursed share + excess over limit.`,
-        `Annual cost of risk assumes the event happens in ${(annualFreqWeight * 100).toFixed(1)}% of years (this app's assumption) × the retained loss, plus the premium.`,
+        `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss, plus the premium.`,
       ];
 
   if (v.policyLimit === 0 && !noPolicy)

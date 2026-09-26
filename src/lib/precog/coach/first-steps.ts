@@ -2,7 +2,7 @@ import type { ControlDefinition, ControlId } from "../evidence/controls";
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { DualReleasePolicy } from "../controls/dual-release";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 
 /**
  * The duties each catalog control polices: a control answers an open finding
@@ -150,7 +150,9 @@ export function dualReleaseLine(policy: DualReleasePolicy, ruleId: string): stri
 function channelWords(rules: readonly DualReleasePolicy["rules"][number][]): string {
   return rules
     .map((r) =>
-      r.thresholdUsd > 0 ? `${r.label} above ${usd(r.thresholdUsd)}` : `${r.label} at every amount`,
+      r.thresholdUsd > 0
+        ? `${r.label} above ${formatUsd(r.thresholdUsd)}`
+        : `${r.label} at every amount`,
     )
     .join("; ");
 }

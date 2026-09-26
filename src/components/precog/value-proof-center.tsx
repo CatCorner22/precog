@@ -24,7 +24,7 @@ import {
   observedValueStatus,
   inputList,
 } from "@/lib/precog/value-case";
-import { formatUsd } from "@/lib/utils";
+import { formatUsd, formatPct } from "@/lib/utils";
 import { ValueEvidenceRegister } from "./value-evidence-register";
 import {
   normalizeValueEvidence,
@@ -187,11 +187,7 @@ export function ValueProofCenter() {
                 figure={status.net}
                 show={(v) => formatUsd(v)}
               />
-              <ObservedInline
-                label="Observed ROI"
-                figure={status.roi}
-                show={(v) => `${(v * 100).toFixed(0)}%`}
-              />
+              <ObservedInline label="Observed ROI" figure={status.roi} show={(v) => formatPct(v)} />
               <ObservedInline
                 label="Observed payback"
                 figure={status.payback}

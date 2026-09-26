@@ -13,6 +13,7 @@ import type { StaffComposition } from "./types";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { withLiveThreshold } from "./coach/first-steps";
+import { formatUsd } from "../utils";
 
 export type CosoComponentId =
   | "control_environment"
@@ -246,7 +247,7 @@ export function assessCoso(
               {
                 id: "ra-top",
                 label: `Top residual future: ${topScenario.scenario.title}`,
-                detail: `Scenario assumes a loss of ${Math.round(topScenario.result.financialImpact.expected).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
+                detail: `Scenario assumes a loss of ${formatUsd(topScenario.result.financialImpact.expected)} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
                 severity: "critical" as HealthStatus,
                 link: {
                   type: "precog" as const,

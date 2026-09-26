@@ -16,7 +16,7 @@ import type { PrecogResult } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatUsd, cn, formatPct } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 
 export function DynamicVariablesPanel({
@@ -57,9 +57,7 @@ export function DynamicVariablesPanel({
   const note = insuranceFigureNote(value, ownBusiness, result?.scenarioId);
   const hint = (text: string) => (note ? `${text} · ${note}` : text);
   const isDefault = (key: PolicyField) => policyFieldIsDefault(value, key);
-  const frequency = d
-    ? `${(assumedAnnualFrequency(d.likelihoodMultiplier) * 100).toFixed(1)}%`
-    : "";
+  const frequency = d ? formatPct(assumedAnnualFrequency(d.likelihoodMultiplier), 1) : "";
 
   return (
     <div className="space-y-4">

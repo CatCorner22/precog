@@ -14,6 +14,7 @@ import {
   type ThresholdException,
 } from "./dual-release-policy";
 import { localDateKey } from "../dates";
+import { formatUsd } from "../../utils";
 
 /** Evaluating one release against the policy: threshold, exceptions, who may approve. */
 function personById(tpl: IndustryTemplate, id: string) {
@@ -369,8 +370,8 @@ export function evaluateRelease(
       dualRequired: false,
       reasons: [
         viaRaise
-          ? `Exception "${resolved.applied!.label}" raised threshold from $${rule.thresholdUsd.toLocaleString()} to $${resolved.applied!.effectiveThresholdUsd.toLocaleString()}.`
-          : `Amount $${request.amountUsd.toLocaleString()} is at or under threshold $${effectiveThreshold.toLocaleString()} — single release allowed.`,
+          ? `Exception "${resolved.applied!.label}" raised threshold from ${formatUsd(rule.thresholdUsd)} to ${formatUsd(resolved.applied!.effectiveThresholdUsd)}.`
+          : `Amount ${formatUsd(request.amountUsd)} is at or under threshold ${formatUsd(effectiveThreshold)} — single release allowed.`,
         ...(resolved.applied?.residualNote ? [resolved.applied.residualNote] : []),
       ],
       nextSteps: [
@@ -400,11 +401,11 @@ export function evaluateRelease(
       reasons: [
         resolved.forceDual
           ? `Exception "${topEx!.label}" forces dual release.`
-          : `Dual release required above $${Math.max(0, effectiveThreshold).toLocaleString()}.`,
+          : `Dual release required above ${formatUsd(Math.max(0, effectiveThreshold))}.`,
         "Second signer not yet attached.",
         ...(resolved.applied && resolved.applied.baseThresholdUsd !== effectiveThreshold
           ? [
-              `Base threshold $${rule.thresholdUsd.toLocaleString()} → effective $${Math.max(0, effectiveThreshold).toLocaleString()}.`,
+              `Base threshold ${formatUsd(rule.thresholdUsd)} → effective ${formatUsd(Math.max(0, effectiveThreshold))}.`,
             ]
           : []),
       ],
@@ -488,7 +489,7 @@ export function evaluateRelease(
     dualRequired: true,
     reasons: [
       `Dual release complete: ${initiator.name} → ${second.name}.`,
-      `Channel ${rule.label} above effective threshold $${Math.max(0, effectiveThreshold).toLocaleString()}.`,
+      `Channel ${rule.label} above effective threshold ${formatUsd(Math.max(0, effectiveThreshold))}.`,
       ...(resolved.applied
         ? [`Exception applied: ${resolved.applied.label} (${resolved.applied.action}).`]
         : []),

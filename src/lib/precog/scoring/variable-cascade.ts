@@ -19,7 +19,7 @@ import {
 } from "./dynamic-variables";
 import { isOwnBusiness } from "./scope";
 import type { StaffComposition } from "../types";
-import { formatUsd as usd } from "@/lib/utils";
+import { formatUsd } from "@/lib/utils";
 
 export type CascadeLeverId =
   | "enable_dual_control"
@@ -534,12 +534,12 @@ function verdict(deltas: MetricDelta[]): string {
   const parts: string[] = [];
   if (cor) {
     parts.push(
-      `Annual CoR ${cor.direction === "improves" ? "improves" : cor.direction === "worsens" ? "worsens" : "flat"} by ${usd(Math.abs(cor.delta))}`,
+      `Annual CoR ${cor.direction === "improves" ? "improves" : cor.direction === "worsens" ? "worsens" : "flat"} by ${formatUsd(Math.abs(cor.delta))}`,
     );
   }
   if (ret) {
     parts.push(
-      `retained EL ${ret.direction === "improves" ? "↓" : ret.direction === "worsens" ? "↑" : "→"} ${usd(Math.abs(ret.delta))}`,
+      `retained EL ${ret.direction === "improves" ? "↓" : ret.direction === "worsens" ? "↑" : "→"} ${formatUsd(Math.abs(ret.delta))}`,
     );
   }
   if (res) {

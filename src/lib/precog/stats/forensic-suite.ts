@@ -6,6 +6,7 @@ import {
   benfordSecondDigit,
 } from "./benford";
 import { utcDateKey } from "../dates";
+import { formatPct } from "../../utils";
 
 export interface Transaction {
   id: string;
@@ -122,7 +123,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     title: "Round-amount concentration",
     severity:
       roundShare > 0.15 && txns.length >= 50 ? "review" : roundShare > 0.1 ? "watch" : "info",
-    summary: `${roundCount} of ${priced.length} amounts (${(roundShare * 100).toFixed(1)}%) are exact multiples of ${threshold}.`,
+    summary: `${roundCount} of ${priced.length} amounts (${formatPct(roundShare, 1)}) are exact multiples of ${threshold}.`,
     detail: [
       "Round values can be useful prompts to review how amounts are entered and approved.",
       "Charges are excluded: fee-schedule prices are round by design.",
@@ -245,7 +246,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
         id: "adjustment_concentration",
         title: "Adjustment/refund concentration",
         severity: share > 0.8 ? "review" : share > 0.6 ? "watch" : "info",
-        summary: `${(share * 100).toFixed(1)}% of adjustments/refunds are associated with one person record.`,
+        summary: `${formatPct(share, 1)} of adjustments/refunds are associated with one person record.`,
         detail: [
           `The largest share is ${count} of ${adjustments.length} records for ${personId}.`,
           "Concentration can prompt a conversation about training, access, and review coverage.",

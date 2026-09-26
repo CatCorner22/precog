@@ -14,6 +14,7 @@ import {
   type MapHealthReport,
 } from "../process-graph";
 import type { Person, ProcessNode, StaffComposition } from "../types";
+import { formatPct } from "../../utils";
 
 export function previewMapHealth(
   tpl: IndustryTemplate,
@@ -132,7 +133,7 @@ export function analyzeWorkload(
 
       const flags: string[] = [];
       if (ownershipShare >= 0.4 && total >= 4)
-        flags.push(`owns ${Math.round(ownershipShare * 100)}% of processes`);
+        flags.push(`owns ${formatPct(ownershipShare)} of processes`);
       if (criticalConflicts) flags.push(`${criticalConflicts} critical SoD conflict(s)`);
       if (soleOwnerKnowledge) flags.push(`sole owner of ${soleOwnerKnowledge} knowledge item(s)`);
       if (ownedHeat >= HEAT_BANDS.hot) flags.push("owns hot processes");

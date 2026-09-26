@@ -24,7 +24,7 @@ import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd } from "@/lib/utils";
+import { formatUsd, formatPct } from "@/lib/utils";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange } from "@/lib/precog/evidence";
 import { CaseCard } from "@/components/precog/case-card";
@@ -598,7 +598,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
 
 /** How the annual cost-of-risk figure is built, with the assumed yearly chance named. */
 function costOfRiskHint(likelihoodMultiplier: number, noPolicy: boolean): string {
-  const pct = `${(assumedAnnualFrequency(likelihoodMultiplier) * 100).toFixed(1)}%`;
+  const pct = formatPct(assumedAnnualFrequency(likelihoodMultiplier), 1);
   return noPolicy
     ? `retained loss × assumed ${pct} chance a year`
     : `premium + retained loss × assumed ${pct} chance a year`;

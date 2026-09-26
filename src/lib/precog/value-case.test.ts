@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VALUE_CASE,
   createValueCaseMemo,
-  formatMoney,
   hasOwnObservations,
   normalizeEnteredInputs,
   observedValueStatus,
 } from "./value-case";
+import { formatUsd } from "../utils";
 
 const at = new Date("2026-09-23T00:00:00.000Z");
 
@@ -80,7 +80,7 @@ describe("createValueCaseMemo", () => {
   });
 
   it("writes negative money with the sign first", () => {
-    expect(formatMoney(-3640)).toBe("-$3,640");
-    expect(formatMoney(5000)).toBe("$5,000");
+    expect(formatUsd(-3640)).toBe("-$3,640");
+    expect(formatUsd(5000)).toBe("$5,000");
   });
 });

@@ -307,7 +307,7 @@ describe("get_planned_absences", () => {
     expect(first.remaining.map((p) => p.id)).not.toContain(holder.id);
     expect(first.remaining.map((p) => p.id)).not.toContain(backup.id);
     expect(first.summary).toContain("in 12 days");
-    expect(result.summary).toContain(`${firstName(holder.name)} is out 13–20 Apr`);
+    expect(result.summary).toContain(`${firstName(holder.name)} is out Apr 13–20`);
   });
 
   it("marks a hand-off already logged in the Journal", () => {
@@ -376,7 +376,7 @@ describe("get_planned_absences", () => {
     const [w] = (result.data as Leave).windows;
     expect(w).toMatchObject({ unplanned: true, status: "current", daysUntil: 0 });
     expect(result.summary).toContain(
-      `${firstName(holder.name)} is out unexpectedly 1 Apr, out now`,
+      `${firstName(holder.name)} is out unexpectedly Apr 1, out now`,
     );
   });
 
