@@ -3,15 +3,19 @@ import { defaultProfile } from "./practice-profile";
 import { industryMeta } from "./industry";
 import {
   isMapCustomized,
+  makeMapVersion,
   MAX_DECISIONS,
   withDecision,
   withRosterLeavers,
   withIndustry,
   withMapHealth,
+  withMapSnapshot,
   withPeople,
   withPracticeName,
+  withRestoredVersion,
   withStaff,
 } from "./profile-actions";
+import { captureMapSnapshot } from "./builder/map-history";
 import type { Person } from "./types";
 
 const NOW = new Date("2026-09-25T10:00:00Z");
@@ -91,5 +95,58 @@ describe("withRosterLeavers", () => {
     ] as unknown as Person[];
     const next = withRosterLeavers(p, people, [{ name: "Jose Perez" }], "2026-09-26");
     expect(next.leaverAccessChecks ?? []).toHaveLength(0);
+  });
+});
+
+describe("undo, redo and restoring a saved version", () => {
+  const teamA: Person[] = [
+    {
+      id: "a",
+      name: "Ana",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll"],
+    },
+    { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
+    { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
+  ];
+  const teamB: Person[] = [
+    teamA[0],
+    {
+      ...teamA[1],
+      entitlements: [
+        "post_payments",
+        "bank_reconcile",
+        "create_vendor",
+        "release_payment",
+        "sign_checks",
+      ],
+    },
+  ];
+  const figures = (p: ReturnType<typeof defaultProfile>) => ({
+    teamSize: p.staff.teamSize,
+    segregationScore: p.staff.segregationScore,
+    independentBankRec: p.staff.independentBankRec,
+  });
+
+  it("re-derives the staff figures from the team that comes back", () => {
+    const withA = withPeople(defaultProfile("general"), teamA, "2026-09-25");
+    const withB = withPeople(withA, teamB, "2026-09-25");
+    expect(figures(withB)).not.toEqual(figures(withA));
+
+    const undone = withMapSnapshot(withB, captureMapSnapshot(withA), "2026-09-25");
+    expect(undone.customPeople?.map((p) => p.name)).toEqual(["Ana", "Ben", "Cy"]);
+    expect(figures(undone)).toEqual(figures(withA));
+
+    const restored = withRestoredVersion(withB, makeMapVersion(withA, "A", 50), "2026-09-25");
+    expect(figures(restored)).toEqual(figures(withA));
+  });
+
+  it("applies the nonprofit owner rule to a restored team", () => {
+    const nonprofit = withPeople(defaultProfile("nonprofit"), teamA, "2026-09-25");
+    const version = { ...makeMapVersion(nonprofit, "v", 50), people: teamA };
+    const restored = withRestoredVersion(nonprofit, version, "2026-09-25");
+    expect(restored.customPeople?.some((p) => p.owner)).toBe(false);
   });
 });

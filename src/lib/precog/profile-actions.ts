@@ -34,6 +34,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import type { MapSnapshot } from "./builder/map-history";
 import { adoptOwnTeam, processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import {
   confirmAccessRemoved,
@@ -386,13 +387,38 @@ export function withoutMapVersion(p: PracticeProfile, id: string): PracticeProfi
   return { ...p, mapVersions: (p.mapVersions ?? []).filter((v) => v.id !== id) };
 }
 
-export function withRestoredVersion(p: PracticeProfile, v: MapVersion): PracticeProfile {
-  return {
-    ...p,
-    customProcesses: structuredClone(v.processes),
-    customPeople: structuredClone(v.people),
-    mapLayout: { ...v.layout },
-  };
+/**
+ * Put a map snapshot back (undo, redo): the processes, the team and the
+ * layout. The team goes through `withPeople`, so the staff figures, the
+ * nonprofit owner rule and the leaver checks follow the team that comes back,
+ * exactly as they do after an edit.
+ */
+export function withMapSnapshot(
+  p: PracticeProfile,
+  snapshot: MapSnapshot,
+  today: string,
+): PracticeProfile {
+  const withMap = withProcesses(
+    { ...p, mapLayout: snapshot.mapLayout ?? {} },
+    snapshot.customProcesses ?? null,
+  );
+  return withPeople(withMap, snapshot.customPeople ?? null, today);
+}
+
+export function withRestoredVersion(
+  p: PracticeProfile,
+  v: MapVersion,
+  today: string,
+): PracticeProfile {
+  return withMapSnapshot(
+    p,
+    {
+      customProcesses: structuredClone(v.processes),
+      customPeople: structuredClone(v.people),
+      mapLayout: { ...v.layout },
+    },
+    today,
+  );
 }
 
 /** Someone the roster left out who is on the team after all is not a leaver. */

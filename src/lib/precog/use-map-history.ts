@@ -1,10 +1,8 @@
 import { useCallback, useRef, useState, type Dispatch, type MutableRefObject } from "react";
 import type { PracticeProfile } from "./practice-profile";
-import {
-  applyMapSnapshot,
-  captureMapSnapshot as snapshot,
-  type MapSnapshot,
-} from "./builder/map-history";
+import { captureMapSnapshot as snapshot, type MapSnapshot } from "./builder/map-history";
+import { withMapSnapshot } from "./profile-actions";
+import { localDateKey } from "./dates";
 
 /**
  * Undo and redo for the map builder, including saved canvas positions. The
@@ -30,7 +28,7 @@ export function useMapHistory(
 
   const applySnapshot = useCallback(
     (snap: MapSnapshot) => {
-      setProfile((p) => applyMapSnapshot(p, snap));
+      setProfile((p) => withMapSnapshot(p, snap, localDateKey(new Date())));
     },
     [setProfile],
   );

@@ -513,7 +513,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       const v = profileRef.current.mapVersions?.find((x) => x.id === id);
       if (!v) return;
       pushUndo();
-      setProfile((p) => withRestoredVersion(p, v));
+      setProfile((p) => withRestoredVersion(p, v, localDateKey(new Date())));
     },
     [pushUndo],
   );
