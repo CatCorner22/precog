@@ -1,5 +1,6 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { auth, authConfigured } from "./server";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * Server-side session resolution (server-only).
@@ -33,10 +34,9 @@ export const DEV_USER_ID = "dev-user";
  * `status: 401`; the message is a stable contract — match
  * `err.message === "Unauthorized"` client-side to send the visitor to sign-in.
  */
-export class UnauthorizedError extends Error {
-  readonly status = 401;
+export class UnauthorizedError extends RequestError {
   constructor() {
-    super("Unauthorized");
+    super(401, "Unauthorized");
     this.name = "UnauthorizedError";
   }
 }

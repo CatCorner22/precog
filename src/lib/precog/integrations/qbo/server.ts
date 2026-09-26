@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import { isBusinessId } from "../../profile-input";
 import { requireBusinessOwner } from "../../firm/access.server";
-import { authorizeUrl, signState } from "./oauth";
+import { authorizeUrl, qboCallbackUrl, signState } from "./oauth";
 import {
   decryptSecret,
   qboClientId,
@@ -65,8 +65,14 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
       { userId: context.userId, businessId: data.businessId, issuedAt: Date.now() },
       stateSecret(),
     );
-    const { qboCallbackUrl } = await import("@/lib/request-origin.server");
-    return { url: authorizeUrl({ clientId: qboClientId(), redirectUri: qboCallbackUrl(), state }) };
+    const { requestOrigin } = await import("@/lib/request-origin.server");
+    return {
+      url: authorizeUrl({
+        clientId: qboClientId(),
+        redirectUri: qboCallbackUrl(requestOrigin()),
+        state,
+      }),
+    };
   });
 
 export const syncQuickBooksNow = createServerFn({ method: "POST" })

@@ -8,6 +8,7 @@ import {
   listMapShareSummaries,
   MAX_LIVE_SHARES,
   type NewMapShare,
+  purgeOldShareViews,
 } from "./share-store";
 
 let db: TestDb;
@@ -132,5 +133,18 @@ describe("insertMapShare", () => {
       passcode_salt: "s",
       passcode_hash: "h",
     });
+  });
+});
+
+describe("share view retention", () => {
+  it("purges views older than the retention window and keeps recent ones", async () => {
+    await seedShare(1, { minutesAgo: 5 });
+    await pg.query(
+      `insert into map_share_views (token, viewed_at) values ($1, now()), ($1, now() - interval '91 days')`,
+      [tok(1)],
+    );
+    await purgeOldShareViews(sql);
+    const rows = await pg.query<{ n: number }>("select count(*)::int as n from map_share_views");
+    expect(rows.rows[0].n).toBe(1);
   });
 });

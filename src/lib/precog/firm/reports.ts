@@ -1,6 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
@@ -25,12 +26,10 @@ export interface ReportVersionRow {
   sentAt: string | null;
 }
 
-export class ReportVersionError extends Error {
-  readonly status: number;
+export class ReportVersionError extends RequestError {
   constructor(status: number, message: string) {
-    super(message);
+    super(status, message);
     this.name = "ReportVersionError";
-    this.status = status;
   }
 }
 

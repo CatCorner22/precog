@@ -16,8 +16,9 @@ export interface ErrorEvent {
   release: string | null;
 }
 
-const MAX_MESSAGE_CHARS = 500;
-const MAX_STACK_CHARS = 4000;
+export const MAX_MESSAGE_CHARS = 500;
+export const MAX_STACK_CHARS = 4000;
+export const MAX_NAME_CHARS = 80;
 const MAX_AT_CHARS = 200;
 
 const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
@@ -65,7 +66,7 @@ export function toErrorEvent(
   const rawMessage = err ? err.message : typeof error === "string" ? error : "Unknown error";
   return {
     message: scrubText(rawMessage || "Unknown error", MAX_MESSAGE_CHARS),
-    name: err?.name?.slice(0, 80) || "Error",
+    name: err?.name?.slice(0, MAX_NAME_CHARS) || "Error",
     stack: err?.stack ? scrubText(err.stack, MAX_STACK_CHARS) : null,
     where: input.where,
     at: scrubLocation(input.at),
@@ -82,7 +83,7 @@ export function isErrorEventPayload(value: unknown): value is ErrorEvent {
     typeof v.message === "string" &&
     v.message.length <= MAX_MESSAGE_CHARS &&
     typeof v.name === "string" &&
-    v.name.length <= 80 &&
+    v.name.length <= MAX_NAME_CHARS &&
     (v.stack === null || (typeof v.stack === "string" && v.stack.length <= MAX_STACK_CHARS)) &&
     v.where === "client" &&
     (v.at === null || (typeof v.at === "string" && v.at.length <= MAX_AT_CHARS)) &&

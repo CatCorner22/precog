@@ -8,8 +8,12 @@ export type { SharedMapPayload };
 import { parseLoadShareInput } from "../public-inputs";
 import { invalidRequest, requireObject } from "@/lib/request-errors";
 import { checkPasscodeGuess, purgeOldPasscodeAttempts } from "./share-attempts";
-import { purgeOldShareViews } from "../account-store";
-import { insertMapShare, listMapShareSummaries, ShareLimitError } from "./share-store";
+import {
+  insertMapShare,
+  listMapShareSummaries,
+  purgeOldShareViews,
+  ShareLimitError,
+} from "./share-store";
 import { DAY_MS } from "../dates";
 
 type ShareRow = {

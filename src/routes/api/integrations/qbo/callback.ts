@@ -13,14 +13,19 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         const url = new URL(request.url);
         const back = (outcome: string) =>
           redirect({ href: `/firm?quickbooks=${outcome}`, throw: false });
-        const [{ verifyState }, client, store, { getSql }, { resolveBusinessOwner }] =
-          await Promise.all([
-            import("@/lib/precog/integrations/qbo/oauth"),
-            import("@/lib/precog/integrations/qbo/client.server"),
-            import("@/lib/precog/integrations/qbo/store"),
-            import("@/lib/db"),
-            import("@/lib/precog/business-store"),
-          ]);
+        const [
+          { qboCallbackUrl, verifyState },
+          client,
+          store,
+          { getSql },
+          { resolveBusinessOwner },
+        ] = await Promise.all([
+          import("@/lib/precog/integrations/qbo/oauth"),
+          import("@/lib/precog/integrations/qbo/client.server"),
+          import("@/lib/precog/integrations/qbo/store"),
+          import("@/lib/db"),
+          import("@/lib/precog/business-store"),
+        ]);
         if (!client.qboConfigured()) return back("not-configured");
         if (url.searchParams.get("error")) return back("declined");
 
@@ -34,8 +39,8 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
         if (!owner) return back("invalid");
 
         try {
-          const { qboCallbackUrl } = await import("@/lib/request-origin.server");
-          const tokens = await client.exchangeCode(code, qboCallbackUrl());
+          const { requestOrigin } = await import("@/lib/request-origin.server");
+          const tokens = await client.exchangeCode(code, qboCallbackUrl(requestOrigin()));
           await store.saveConnection(sql, {
             ownerUserId: owner,
             businessId: state.businessId,
@@ -48,7 +53,7 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
           });
         } catch (err) {
           const { reportServerError } = await import("@/lib/observability/report.server");
-          reportServerError(err, "qbo-callback");
+          await reportServerError(err, "qbo-callback");
           return back("failed");
         }
         return back("connected");

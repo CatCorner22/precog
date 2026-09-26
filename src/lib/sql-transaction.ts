@@ -26,11 +26,14 @@ export async function transactionScope<T>(
 ): Promise<T> {
   let active = true;
   let failed = false;
+  // The first failure inside the unit, kept as the cause of the abort.
+  let firstFailure: unknown;
   const tx = toSql(async <R>(text: string, params: unknown[]) => {
     if (!active) throw new Error("Transaction is already closed");
     try {
       return await run<R>(text, params);
     } catch (error) {
+      if (!failed) firstFailure = error;
       failed = true;
       throw error;
     }
@@ -40,13 +43,18 @@ export async function transactionScope<T>(
     try {
       return await nested(tx);
     } catch (error) {
+      if (!failed) firstFailure = error;
       failed = true;
       throw error;
     }
   };
   try {
     const result = await work(tx);
-    if (failed) throw new Error("Transaction aborted after a nested operation failed");
+    if (failed) {
+      throw new Error("Transaction aborted after a nested operation failed", {
+        cause: firstFailure,
+      });
+    }
     return result;
   } finally {
     active = false;

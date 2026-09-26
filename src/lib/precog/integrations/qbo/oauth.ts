@@ -8,6 +8,14 @@ const QBO_SCOPE = "com.intuit.quickbooks.accounting";
 const QBO_AUTHORIZE_URL = "https://appcenter.intuit.com/connect/oauth2";
 const STATE_TTL_MS = 10 * 60 * 1000;
 
+/** Where Intuit sends the browser back; the route file declares the same path. */
+export const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";
+
+/** The redirect_uri Intuit must see identically at authorize and token exchange. */
+export function qboCallbackUrl(origin: string): string {
+  return `${origin}${QBO_CALLBACK_PATH}`;
+}
+
 export interface ConnectState {
   userId: string;
   businessId: string;

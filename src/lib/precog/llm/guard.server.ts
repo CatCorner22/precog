@@ -5,18 +5,18 @@ import { getSql } from "@/lib/db";
 import { withinDailyBudget } from "./daily-usage";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 import type { GrokAccess } from "./types";
+import { RequestError } from "@/lib/request-errors";
 
 export type LlmAccess = {
   userId: string | null;
   grok: GrokAccess;
 };
 
-class TooManyRequestsError extends Error {
-  readonly status = 429;
+class TooManyRequestsError extends RequestError {
   readonly retryAfterMs: number;
 
   constructor(retryAfterMs: number, message = "Too many requests — try again in a minute.") {
-    super(message);
+    super(429, message);
     this.name = "TooManyRequestsError";
     this.retryAfterMs = retryAfterMs;
   }
