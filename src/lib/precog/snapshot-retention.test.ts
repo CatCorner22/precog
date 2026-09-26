@@ -32,6 +32,27 @@ async function insert(userId: string, n: number, startMinute: number) {
   }
 }
 
+describe("assessment_snapshots schema", () => {
+  it("has the ownership, provenance and saved-work columns", async () => {
+    const rows = await sql<{ column_name: string }>`
+      select column_name from information_schema.columns
+      where table_name = 'assessment_snapshots'`;
+    expect(rows.map((r) => r.column_name)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "user_id",
+        "profile_json",
+        "model_version",
+        "corpus_version",
+        "created_at",
+        "power_map_json",
+        "value_case_json",
+        "value_evidence_json",
+      ]),
+    );
+  });
+});
+
 describe("snapshot retention", () => {
   it("keeps the newest snapshots up to the limit and leaves other users alone", async () => {
     await insert("u1", 7, 0);

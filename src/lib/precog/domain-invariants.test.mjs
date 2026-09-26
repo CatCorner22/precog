@@ -6,7 +6,6 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { openTestDb } from "../../test/pglite";
 import * as vision from "./map-vision";
 import * as rag from "./rag/retrieve";
 import * as corpus from "./rag/corpus";
@@ -456,30 +455,6 @@ describe("domain invariants", () => {
     assert.equal(restored.riskVariables.claimsLoadFactor, 2.5);
     assert.equal(typeof restored.riskVariables.hasAlarmAccess, "boolean");
     assert.equal("injected" in restored, false);
-  });
-
-  it("snapshot migration provides ownership and provenance columns", async () => {
-    const testDb = await openTestDb();
-    const sql = testDb.sql;
-    const rows = await sql.query(
-      `select column_name from information_schema.columns
-       where table_name = 'assessment_snapshots'`,
-    );
-    const columns = new Set(rows.map((row) => row.column_name));
-    for (const required of [
-      "id",
-      "user_id",
-      "profile_json",
-      "model_version",
-      "corpus_version",
-      "created_at",
-      "power_map_json",
-      "value_case_json",
-      "value_evidence_json",
-    ]) {
-      assert.ok(columns.has(required), required);
-    }
-    await testDb.close();
   });
 
   it("operating blueprint covers complete tiered process guidance for every industry", () => {
