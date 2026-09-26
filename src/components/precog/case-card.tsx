@@ -153,18 +153,32 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * The case beside one duty conflict, under a heading that says what it is.
  *
  * A case that cites the rule shows the very pair of duties the finding names,
- * so it sits under "This arrangement". When no case cites the rule the most
- * relevant case that shares a scheme is shown instead, and the heading says it
- * is a related scheme, so the page never claims more than the record shows.
- * Renders nothing when the library holds no match at all.
+ * so it sits under "This arrangement"; given the owner's line of business, a
+ * citing case from that line leads (a dentist reads a dental case differently
+ * from a construction one) and the heading says so. When no case cites the
+ * rule the most relevant case that shares a scheme is shown instead, and the
+ * heading says it is a related scheme, so the page never claims more than the
+ * record shows. Renders nothing when the library holds no match at all.
  */
-export function RuleCaseCard({ ruleId, className }: { ruleId: string; className?: string }) {
-  const pick = caseForRule(ruleId);
+export function RuleCaseCard({
+  ruleId,
+  industryId,
+  className,
+}: {
+  ruleId: string;
+  industryId?: string;
+  className?: string;
+}) {
+  const pick = caseForRule(ruleId, industryId);
   if (!pick) return null;
   return (
     <div className={className}>
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">
-        {pick.citesRule ? "This arrangement, somewhere real" : "A related scheme, somewhere real"}
+        {!pick.citesRule
+          ? "A related scheme, somewhere real"
+          : pick.ownSector
+            ? "This arrangement, in your line of business"
+            : "This arrangement, somewhere real"}
       </p>
       <CaseCard study={pick.study} />
     </div>

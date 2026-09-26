@@ -388,7 +388,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   can see what the same arrangement cost a real business and
                   how long it ran before anyone noticed.
                 */}
-                <ConflictEvidence ruleId={c.ruleId} />
+                <ConflictEvidence ruleId={c.ruleId} industryId={profile.industry} />
                 <div className="mt-2 flex flex-wrap gap-1">
                   {c.linkedScenarioId && (
                     <Button
@@ -608,14 +608,14 @@ function Stat({
 /**
  * The most relevant prosecuted case for a duty conflict.
  *
- * A case that cites the rule leads, under "This arrangement, somewhere real".
- * A family finding, which no case cites, shows a case that shares a scheme
- * under "A related scheme, somewhere real". Renders nothing when the library
- * has no match rather than showing a filler message: a finding with no case
- * behind it should look exactly as bare as it is. Every named rule is cited by
- * at least one case, and verify-evidence.mjs fails the build if one stops
- * being.
+ * A case that cites the rule leads, from the owner's own line of business
+ * when the library has one ("This arrangement, in your line of business"),
+ * otherwise from anywhere ("somewhere real"). A family finding, which no case
+ * cites, shows a case that shares a scheme under "A related scheme, somewhere
+ * real". Renders nothing when the library has no match rather than showing a
+ * filler message: a finding with no case behind it should look exactly as
+ * bare as it is.
  */
-function ConflictEvidence({ ruleId }: { ruleId: string }) {
-  return <RuleCaseCard ruleId={ruleId} className="mt-2" />;
+function ConflictEvidence({ ruleId, industryId }: { ruleId: string; industryId: string }) {
+  return <RuleCaseCard ruleId={ruleId} industryId={industryId} className="mt-2" />;
 }
