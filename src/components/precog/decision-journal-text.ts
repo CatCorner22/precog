@@ -1,11 +1,13 @@
 /**
- * The "then → now" line under each review due in the Decisions log, in the
- * words the rest of the app uses, with the direction that counts as better.
+ * Sentences the Decisions log builds from an entry: the "then → now" line
+ * under each review due, in the words the rest of the app uses, and the
+ * question asked before an entry is deleted.
  */
 import { STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { decisionDelta, type captureDecisionSnapshot } from "@/lib/precog/decisions/follow-through";
 import type { DecisionEntry } from "@/lib/precog/practice-profile";
+import { count } from "@/lib/precog/text";
 
 /**
  * What changed since the decision was logged. The continuity figure counts
@@ -40,6 +42,16 @@ export function reviewDelta(
     return `still exposed ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${change(delta.subject, "lower")}) · ${conflicts}`;
   }
   return `average still exposed ${d.snapshot.averageResidual} → ${current.averageResidual} (${change(delta.average, "lower")}) · ${conflicts}`;
+}
+
+/** Asked before an entry leaves the log; one with reviews on record says they go with it. */
+export function deleteDecisionPrompt(d: Pick<DecisionEntry, "subject" | "reviews">): string {
+  const reviews = d.reviews?.length ?? 0;
+  return `Delete "${d.subject}" from the Decisions log?${
+    reviews > 0
+      ? ` Its ${count(reviews, "review")} on record ${reviews === 1 ? "is" : "are"} deleted with it.`
+      : ""
+  } This cannot be undone.`;
 }
 
 /** "down 7, better", "up 5, worse" or "no change", given which direction is better. */

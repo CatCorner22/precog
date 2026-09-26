@@ -28,7 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
-import { reviewDelta } from "@/components/precog/decision-review-delta";
+import { deleteDecisionPrompt, reviewDelta } from "@/components/precog/decision-journal-text";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -591,7 +591,9 @@ export function DecisionJournal({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => removeDecision(d.id)}
+                        onClick={() => {
+                          if (window.confirm(deleteDecisionPrompt(d))) removeDecision(d.id);
+                        }}
                         aria-label="Delete decision"
                       >
                         <Trash2 className="size-3.5" />

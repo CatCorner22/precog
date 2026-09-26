@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reviewDelta } from "./decision-review-delta";
+import { deleteDecisionPrompt, reviewDelta } from "./decision-journal-text";
 import type { DecisionEntry, DecisionSnapshot } from "@/lib/precog/practice-profile";
 
 const then: DecisionSnapshot = {
@@ -50,6 +50,18 @@ describe("reviewDelta", () => {
   it("refuses to compare across scoring models", () => {
     expect(reviewDelta(entry(then), { ...then, scoringVersion: "v2" })).toMatch(
       /cannot be compared/,
+    );
+  });
+});
+
+describe("deleteDecisionPrompt", () => {
+  it("warns that reviews on record go with the entry", () => {
+    const review = { at: then.at, outcome: "still_open" as const, snapshot: then };
+    expect(deleteDecisionPrompt({ subject: "Payroll", reviews: [review, review] })).toBe(
+      'Delete "Payroll" from the Decisions log? Its 2 reviews on record are deleted with it. This cannot be undone.',
+    );
+    expect(deleteDecisionPrompt({ subject: "Payroll" })).toBe(
+      'Delete "Payroll" from the Decisions log? This cannot be undone.',
     );
   });
 });
