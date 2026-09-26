@@ -8,7 +8,7 @@
  * team's segregation health index. The recommendations are in
  * recommendations.ts; the assignments themselves in assignments.ts.
  */
-import type { IndustryId } from "../industry";
+import { industryHasOwner, type IndustryId } from "../industry";
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "../controls/dual-release";
@@ -19,7 +19,6 @@ import {
   type EntitlementId,
   entitlementLabel,
 } from "./conflict-rules";
-import { industryHasOwner } from "../industry";
 import { teamOwnerId } from "./owner-role";
 import { inOverseerWords, sodRecommendations } from "./recommendations";
 import {
