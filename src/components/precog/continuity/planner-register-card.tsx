@@ -3,75 +3,21 @@ import { Download, RotateCcw, Upload } from "lucide-react";
 import { RegisterGrid } from "@/components/precog/continuity/register-grid";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CoverageReport, ItemCoverage } from "@/lib/precog/continuity/coverage";
-import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
+import type { RegisterEditor } from "@/components/precog/continuity/use-continuity-planner";
+import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
-import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
 
+/** The register card: import, export and reset in the header, the grid below. */
 export function PlannerRegisterCard({
-  registerFrom,
-  tpl,
-  importIssues,
-  setImportIssues,
-  addItem,
-  draftName,
-  setDraftName,
-  draftKind,
-  setDraftKind,
-  draftCriticality,
-  setDraftCriticality,
-  people,
+  register,
   report,
-  safeItemPage,
-  setItemPage,
-  itemPages,
-  safePeoplePage,
-  setPeoplePage,
-  peoplePages,
-  visiblePeople,
-  visibleItems,
-  selected,
-  setSelectedId,
+  tpl,
   trackFreshness,
-  staleIds,
-  setLevel,
-  removeItem,
-  onImportCsv,
-  onExportCsv,
-  onExportTemplate,
-  onReset,
 }: {
-  registerFrom: "starter" | "own" | "sample";
-  tpl: IndustryTemplate;
-  importIssues: RegisterImportIssue[];
-  setImportIssues: (issues: RegisterImportIssue[]) => void;
-  addItem: () => void;
-  draftName: string;
-  setDraftName: (value: string) => void;
-  draftKind: KnowledgeKind;
-  setDraftKind: (value: KnowledgeKind) => void;
-  draftCriticality: Criticality;
-  setDraftCriticality: (value: Criticality) => void;
-  people: Person[];
+  register: RegisterEditor;
   report: CoverageReport;
-  safeItemPage: number;
-  setItemPage: (page: number) => void;
-  itemPages: number;
-  safePeoplePage: number;
-  setPeoplePage: (page: number) => void;
-  peoplePages: number;
-  visiblePeople: Person[];
-  visibleItems: ItemCoverage[];
-  selected: ItemCoverage | undefined;
-  setSelectedId: (id: string | null) => void;
+  tpl: IndustryTemplate;
   trackFreshness: boolean;
-  staleIds: Set<string>;
-  setLevel: (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => void;
-  removeItem: (id: string) => void;
-  onImportCsv: (file: File) => void | Promise<void>;
-  onExportCsv: () => void;
-  onExportTemplate: () => void;
-  onReset: () => void;
 }) {
   const csvInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,14 +49,14 @@ export function PlannerRegisterCard({
             aria-label="Import register CSV"
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) void onImportCsv(file);
+              if (file) void register.importCsv(file);
               event.target.value = "";
             }}
           />
           <Button
             size="sm"
             variant="secondary"
-            onClick={onExportCsv}
+            onClick={register.exportCsv}
             title="Download the current register to edit in a spreadsheet"
           >
             <Download className="size-3.5" /> Export CSV
@@ -118,16 +64,16 @@ export function PlannerRegisterCard({
           <Button
             size="sm"
             variant="ghost"
-            onClick={onExportTemplate}
+            onClick={register.exportTemplate}
             title="Blank grid with your team as columns"
           >
             Blank template
           </Button>
-          {registerFrom === "own" && (
+          {register.source === "own" && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={onReset}
+              onClick={register.resetToTemplate}
               title="Replace your register with the industry's starter list"
             >
               <RotateCcw className="h-3.5 w-3.5" /> Back to starter list
@@ -137,32 +83,10 @@ export function PlannerRegisterCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <RegisterGrid
-          importIssues={importIssues}
-          setImportIssues={setImportIssues}
-          addItem={addItem}
-          draftName={draftName}
-          setDraftName={setDraftName}
-          draftKind={draftKind}
-          setDraftKind={setDraftKind}
-          draftCriticality={draftCriticality}
-          setDraftCriticality={setDraftCriticality}
-          people={people}
+          register={register}
           report={report}
-          safeItemPage={safeItemPage}
-          setItemPage={setItemPage}
-          itemPages={itemPages}
-          safePeoplePage={safePeoplePage}
-          setPeoplePage={setPeoplePage}
-          peoplePages={peoplePages}
-          visiblePeople={visiblePeople}
-          visibleItems={visibleItems}
-          selected={selected}
-          setSelectedId={setSelectedId}
-          trackFreshness={trackFreshness}
-          staleIds={staleIds}
           tpl={tpl}
-          setLevel={setLevel}
-          removeItem={removeItem}
+          trackFreshness={trackFreshness}
         />
       </CardContent>
     </Card>

@@ -10,6 +10,7 @@ import type {
 import { isCalendarDate, localDateKey } from "../dates";
 import { csvCell, parseRows, normalizeHeader } from "./csv";
 import { slug, nameKey } from "../text";
+import { defaultCategory } from "../continuity/knowledge-category";
 
 /**
  * Continuity register as a spreadsheet: one row per duty/task/know-how item,
@@ -252,7 +253,7 @@ export function parseRegisterCsv(
       name: name.slice(0, 80),
       kind,
       criticality,
-      category: existing?.category ?? (kind === "knowledge" ? "tribal" : "process"),
+      category: existing?.category ?? defaultCategory(kind),
       description,
       linkedProcessIds: existing?.linkedProcessIds ?? [],
       documented,

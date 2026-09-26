@@ -1,59 +1,54 @@
-import { BookOpen, CalendarDays, LogOut, Plus, Trash2, UserMinus } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
-import { toast } from "sonner";
+import { CalendarDays, LogOut, Plus, Trash2, UserMinus } from "lucide-react";
 import { LeaverAccessList } from "@/components/precog/leaver-access";
 import {
-  AlreadyStopped,
   LeaveDebriefCard,
   LeaverCard,
   LeaveWindow,
-  PeopleLine,
 } from "@/components/precog/continuity/leave-cards";
+import {
+  AlreadyStopped,
+  ItemButton,
+  JournalStepStatus,
+  PeopleLine,
+} from "@/components/precog/continuity/parts";
+import type {
+  JournalSteps,
+  LeavePlanner,
+  LeavingPlanner,
+  WhatIf,
+} from "@/components/precog/continuity/use-continuity-planner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AbsenceAction, AbsenceImpact } from "@/lib/precog/continuity/absence-impact";
 import { type CoverageReport } from "@/lib/precog/continuity/coverage";
-import type { DebriefItem, LeaveDebrief } from "@/lib/precog/continuity/leave-debrief";
-import { handoverDeadline, type Leaver } from "@/lib/precog/continuity/leavers";
+import { handoverDeadline } from "@/lib/precog/continuity/leavers";
 import {
   CRITICALITY_LABEL,
   inputClass,
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
-import {
-  handoffDeadline,
-  type PlannedAbsenceReport,
-} from "@/lib/precog/continuity/planned-absence";
-import type { PlannedAbsence } from "@/lib/precog/practice-profile";
+import { handoffDeadline } from "@/lib/precog/continuity/planned-absence";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { joinWithAnd, firstName } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 import { formatDayRange } from "@/lib/precog/dates";
 
-type StepTrack = (action: AbsenceAction, absenceId?: string) => string | undefined;
-type LogStep = (action: AbsenceAction, reviewByKey?: string, absenceId?: string) => void;
-
+/** What-if: tick who is out and see what stops, who picks it up, and what to do first. */
 export function OutTomorrowCard({
+  whatIf,
   people,
-  effectiveAbsentIds,
-  setAbsentIds,
-  registerReady,
-  absence,
-  setSelectedId,
-  absenceStepTracked,
-  logAbsenceAction,
+  registerAssessed,
+  journal,
+  onSelect,
 }: {
+  whatIf: WhatIf;
   people: Person[];
-  effectiveAbsentIds: string[];
-  setAbsentIds: (ids: string[]) => void;
-  registerReady: boolean;
-  absence: AbsenceImpact | null;
-  setSelectedId: (id: string) => void;
-  absenceStepTracked: StepTrack;
-  logAbsenceAction: LogStep;
+  registerAssessed: boolean;
+  journal: JournalSteps;
+  onSelect: (knowledgeId: string) => void;
 }) {
+  const { absentIds, absence, startedWith } = whatIf;
   return (
     <Card>
       <CardHeader>
@@ -67,7 +62,11 @@ export function OutTomorrowCard({
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <fieldset className="flex flex-col gap-1 text-xs text-muted">
-          <legend>Who is out (tick everyone)</legend>
+          <legend>
+            {startedWith
+              ? `Starting with ${firstName(startedWith.name)}, who the business leans on most. Tick everyone who is out:`
+              : "Who is out (tick everyone):"}
+          </legend>
           <div className="flex flex-wrap gap-2">
             {people.map((p) => (
               <label
@@ -76,24 +75,19 @@ export function OutTomorrowCard({
               >
                 <input
                   type="checkbox"
-                  checked={effectiveAbsentIds.includes(p.id)}
+                  checked={absentIds.includes(p.id)}
                   aria-label={p.name}
-                  onChange={() => {
-                    if (effectiveAbsentIds.includes(p.id)) {
-                      if (effectiveAbsentIds.length === 1) return;
-                      setAbsentIds(effectiveAbsentIds.filter((id) => id !== p.id));
-                    } else {
-                      setAbsentIds([...effectiveAbsentIds, p.id]);
-                    }
-                  }}
+                  onChange={() => whatIf.toggle(p.id)}
                 />
                 {p.name} · {p.role}
               </label>
             ))}
           </div>
         </fieldset>
-        {!registerReady ? (
+        {!registerAssessed ? (
           <p className="text-muted">{NOT_ASSESSED_ABSENCE}</p>
+        ) : people.length > 0 && absentIds.length === 0 ? (
+          <p className="text-muted">Tick someone to see what stops.</p>
         ) : absence ? (
           <>
             {absence.people.length > 1 && (
@@ -124,11 +118,10 @@ export function OutTomorrowCard({
                   {absence.stops.map((s) => (
                     <li
                       key={s.item.id}
-                      className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
-                      onClick={() => setSelectedId(s.item.id)}
+                      className="rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{s.item.name}</span>
+                        <ItemButton item={s.item} onSelect={onSelect} />
                         <Badge variant={s.item.criticality === "critical" ? "danger" : "default"}>
                           {CRITICALITY_LABEL[s.item.criticality]}
                         </Badge>
@@ -142,7 +135,7 @@ export function OutTomorrowCard({
                 </ul>
               </div>
             )}
-            <AlreadyStopped items={absence.alreadyStopped} onSelect={setSelectedId} />
+            <AlreadyStopped items={absence.alreadyStopped} onSelect={onSelect} />
             {absence.continues.length > 0 && (
               <PeopleLine label="Keeps running" people={absence.continues.map((k) => k.name)} />
             )}
@@ -154,21 +147,13 @@ export function OutTomorrowCard({
                 {absence.actions.map((a) => (
                   <li key={a.text}>
                     {a.text}
-                    {a.knowledgeIds.length > 0 &&
-                      (absenceStepTracked(a) ? (
-                        <span className="ml-2 text-xs text-subtle">
-                          In the Journal · review by {absenceStepTracked(a)}
-                        </span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="ml-1 h-6 px-1.5 text-xs"
-                          onClick={() => logAbsenceAction(a)}
-                        >
-                          <BookOpen className="size-3.5" /> Log as decision
-                        </Button>
-                      ))}
+                    {a.knowledgeIds.length > 0 && (
+                      <JournalStepStatus
+                        inline
+                        commitment={journal.stepTracked(a)}
+                        onLog={() => journal.logAbsenceAction(a)}
+                      />
+                    )}
                   </li>
                 ))}
               </ol>
@@ -182,71 +167,23 @@ export function OutTomorrowCard({
   );
 }
 
+/** Out today and known leave: the cover sheet for each absence and the debrief once someone is back. */
 export function PlannedLeaveCard({
-  people,
-  outTodayIds,
-  markOutToday,
-  leavePersonId,
-  setLeavePersonId,
-  leaveFrom,
-  setLeaveFrom,
-  leaveTo,
-  setLeaveTo,
-  leaveFormValid,
-  addLeave,
   leave,
-  leaveHistory,
-  debriefs,
-  debriefed,
-  debriefKey,
-  promoteStandIn,
-  keepTraining,
-  closeDebriefItem,
-  markDebriefed,
-  today,
-  registerReady,
-  removeLeave,
-  stillOutTomorrow,
-  backAtWork,
-  setSelectedId,
-  absenceStepTracked,
-  logAbsenceAction,
-  showPastLeave,
-  setShowPastLeave,
+  people,
   tpl,
+  today,
+  journal,
+  onSelect,
 }: {
+  leave: LeavePlanner;
   people: Person[];
-  outTodayIds: Set<string>;
-  markOutToday: (person: Person) => void;
-  leavePersonId: string;
-  setLeavePersonId: (id: string) => void;
-  leaveFrom: string;
-  setLeaveFrom: (value: string) => void;
-  leaveTo: string;
-  setLeaveTo: (value: string) => void;
-  leaveFormValid: boolean;
-  addLeave: () => void;
-  leave: PlannedAbsenceReport;
-  leaveHistory: PlannedAbsence[];
-  debriefs: LeaveDebrief[];
-  debriefed: Set<string>;
-  debriefKey: (absenceId: string, knowledgeId: string) => string;
-  promoteStandIn: (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => void;
-  keepTraining: (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => void;
-  closeDebriefItem: (debrief: LeaveDebrief, entry: DebriefItem) => void;
-  markDebriefed: (absenceId: string) => void;
-  today: string;
-  registerReady: boolean;
-  removeLeave: (id: string) => void;
-  stillOutTomorrow: (window: PlannedAbsenceReport["windows"][number]) => void;
-  backAtWork: (window: PlannedAbsenceReport["windows"][number]) => void;
-  setSelectedId: (id: string) => void;
-  absenceStepTracked: StepTrack;
-  logAbsenceAction: LogStep;
-  showPastLeave: boolean;
-  setShowPastLeave: Dispatch<SetStateAction<boolean>>;
   tpl: IndustryTemplate;
+  today: string;
+  journal: JournalSteps;
+  onSelect: (knowledgeId: string) => void;
 }) {
+  const leaveHistory = leave.history;
   return (
     <Card>
       <CardHeader>
@@ -257,7 +194,7 @@ export function PlannedLeaveCard({
         <CardDescription>
           Someone called in sick? Press their name and today&apos;s cover sheet appears: what stops,
           who steps in, where the procedure lives. Known absences — holidays, parental leave,
-          surgery — go in the form. Overlapping absences are flagged, and once anyone is back a
+          surgery — go in the form. The app flags overlapping absences, and once anyone is back a
           debrief asks whether the stand-in can now run it alone.
         </CardDescription>
       </CardHeader>
@@ -268,7 +205,7 @@ export function PlannedLeaveCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-muted">Out today:</span>
             {people.map((p) => {
-              const out = outTodayIds.has(p.id);
+              const out = leave.outTodayIds.has(p.id);
               return (
                 <Button
                   key={p.id}
@@ -277,7 +214,7 @@ export function PlannedLeaveCard({
                   className="h-7 px-2 text-xs"
                   disabled={out}
                   aria-label={out ? `${p.name} is already out today` : `${p.name} out today`}
-                  onClick={() => markOutToday(p)}
+                  onClick={() => leave.markOutToday(p)}
                 >
                   <UserMinus className="size-3.5" /> {firstName(p.name)}
                   {out ? " · out" : ""}
@@ -291,15 +228,15 @@ export function PlannedLeaveCard({
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              addLeave();
+              leave.add();
             }}
           >
             <label className="flex flex-col gap-1 text-xs text-muted">
               Who
               <select
                 className={inputClass}
-                value={leavePersonId}
-                onChange={(e) => setLeavePersonId(e.target.value)}
+                value={leave.personId}
+                onChange={(e) => leave.setPersonId(e.target.value)}
               >
                 <option value="">Choose…</option>
                 {people.map((p) => (
@@ -314,8 +251,8 @@ export function PlannedLeaveCard({
               <input
                 type="date"
                 className={inputClass}
-                value={leaveFrom}
-                onChange={(e) => setLeaveFrom(e.target.value)}
+                value={leave.from}
+                onChange={(e) => leave.setFrom(e.target.value)}
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted">
@@ -323,50 +260,46 @@ export function PlannedLeaveCard({
               <input
                 type="date"
                 className={inputClass}
-                value={leaveTo}
-                min={leaveFrom || undefined}
-                onChange={(e) => setLeaveTo(e.target.value)}
+                value={leave.to}
+                min={leave.from || undefined}
+                onChange={(e) => leave.setTo(e.target.value)}
               />
             </label>
-            <Button type="submit" size="sm" disabled={!leaveFormValid}>
+            <Button type="submit" size="sm" disabled={!leave.formValid}>
               <Plus className="size-4" /> Add leave
             </Button>
           </form>
         )}
-        {leave.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
+        {leave.report.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
           <p className="text-xs text-muted">
-            Nobody is out or has leave booked. Add known absences and the weekly plan, printed
-            report and Pioneer will warn ahead of each one; press a name above the day someone calls
-            in sick.
+            Nobody is out and no leave is booked. Add leave you know about, and the weekly plan, the
+            printed report and Pioneer will warn before it starts. The day someone calls in sick,
+            press their name above.
           </p>
         )}
-        {debriefs.map((d) => (
+        {leave.debriefs.map((d) => (
           <LeaveDebriefCard
             key={d.absence.id}
             debrief={d}
             people={people}
-            answered={(e) => debriefed.has(debriefKey(d.absence.id, e.item.id))}
-            onPromote={(e, s) => promoteStandIn(d, e, s)}
-            onKeepTraining={(e, s) => keepTraining(d, e, s)}
-            onClose={(e) => closeDebriefItem(d, e)}
-            onDismiss={() => {
-              markDebriefed(d.absence.id);
-              toast.success("Absence closed without register changes.");
-            }}
+            answered={(e) => leave.answered(d, e)}
+            onPromote={(e, s) => leave.promoteStandIn(d, e, s)}
+            onKeepTraining={(e, s) => leave.keepTraining(d, e, s)}
+            onClose={(e) => leave.closeDebriefItem(d, e)}
+            onDismiss={() => leave.dismissDebrief(d.absence.id)}
           />
         ))}
-        {leave.windows.map((w) => (
+        {leave.report.windows.map((w) => (
           <LeaveWindow
             key={w.absence.id}
             window={w}
             today={today}
-            assessed={registerReady}
-            onRemove={() => removeLeave(w.absence.id)}
-            onExtend={() => stillOutTomorrow(w)}
-            onBack={() => backAtWork(w)}
-            onSelect={setSelectedId}
-            tracked={(a) => absenceStepTracked(a, w.absence.id)}
-            onLog={(a) => logAbsenceAction(a, handoffDeadline(w, today), w.absence.id)}
+            onRemove={() => leave.remove(w.absence.id)}
+            onExtend={() => leave.stillOutTomorrow(w)}
+            onBack={() => leave.backAtWork(w)}
+            onSelect={onSelect}
+            tracked={(a) => journal.stepTracked(a, w.absence.id)}
+            onLog={(a) => journal.logAbsenceAction(a, handoffDeadline(w, today), w.absence.id)}
           />
         ))}
         {leaveHistory.length > 0 && (
@@ -374,12 +307,12 @@ export function PlannedLeaveCard({
             <button
               type="button"
               className="underline-offset-2 hover:underline"
-              onClick={() => setShowPastLeave((v) => !v)}
+              onClick={() => leave.setShowPast((v) => !v)}
             >
-              {showPastLeave ? "Hide" : "Show"} {leaveHistory.length} past or unmatched{" "}
+              {leave.showPast ? "Hide" : "Show"} {leaveHistory.length} past or unmatched{" "}
               {leaveHistory.length === 1 ? "entry" : "entries"}
             </button>
-            {showPastLeave && (
+            {leave.showPast && (
               <ul className="mt-1 space-y-1">
                 {leaveHistory.map((a) => {
                   const person = tpl.people.find((p) => p.id === a.personId);
@@ -395,7 +328,7 @@ export function PlannedLeaveCard({
                         variant="ghost"
                         className="h-6 px-1.5"
                         aria-label="Remove leave"
-                        onClick={() => removeLeave(a.id)}
+                        onClick={() => leave.remove(a.id)}
                       >
                         <Trash2 className="size-3.5" />
                       </Button>
@@ -411,40 +344,17 @@ export function PlannedLeaveCard({
   );
 }
 
+/** People who have given notice: their last day, the hand-over, and who picks up what. */
 export function LeavingTeamCard({
-  staying,
-  leaverPersonId,
-  setLeaverPersonId,
-  leaverLastDay,
-  setLeaverLastDay,
-  leaverFormValid,
-  recordLastDay,
   leaving,
   today,
-  registerReady,
-  setSelectedId,
-  changeLastDay,
-  cancelLeaving,
-  markAsLeft,
-  absenceStepTracked,
-  logAbsenceAction,
+  journal,
+  onSelect,
 }: {
-  staying: Person[];
-  leaverPersonId: string;
-  setLeaverPersonId: (id: string) => void;
-  leaverLastDay: string;
-  setLeaverLastDay: (value: string) => void;
-  leaverFormValid: boolean;
-  recordLastDay: () => void;
-  leaving: Leaver[];
+  leaving: LeavingPlanner;
   today: string;
-  registerReady: boolean;
-  setSelectedId: (id: string) => void;
-  changeLastDay: (leaver: Leaver, lastDay: string) => void;
-  cancelLeaving: (leaver: Leaver) => void;
-  markAsLeft: (leaver: Leaver) => void;
-  absenceStepTracked: StepTrack;
-  logAbsenceAction: LogStep;
+  journal: JournalSteps;
+  onSelect: (knowledgeId: string) => void;
 }) {
   return (
     <Card>
@@ -461,18 +371,18 @@ export function LeavingTeamCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <LeaverAccessList />
-        {staying.length > 0 && (
+        {leaving.staying.length > 0 && (
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">
               Who
               <select
                 className={inputClass}
-                value={leaverPersonId}
-                onChange={(e) => setLeaverPersonId(e.target.value)}
+                value={leaving.personId}
+                onChange={(e) => leaving.setPersonId(e.target.value)}
                 aria-label="Who is leaving"
               >
                 <option value="">Choose…</option>
-                {staying.map((p) => (
+                {leaving.staying.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -484,35 +394,34 @@ export function LeavingTeamCard({
               <input
                 type="date"
                 className={inputClass}
-                value={leaverLastDay}
-                onChange={(e) => setLeaverLastDay(e.target.value)}
+                value={leaving.lastDay}
+                onChange={(e) => leaving.setLastDay(e.target.value)}
                 aria-label="Last working day"
               />
             </label>
-            <Button size="sm" disabled={!leaverFormValid} onClick={recordLastDay}>
+            <Button size="sm" disabled={!leaving.formValid} onClick={leaving.recordLastDay}>
               <Plus className="size-3.5" /> Record last day
             </Button>
           </div>
         )}
-        {leaving.length === 0 && (
+        {leaving.list.length === 0 && (
           <p className="text-xs text-muted">
             Nobody has given notice. When someone does, record the date here rather than removing
             them &mdash; the weekly plan, printed report and Pioneer will count down to it and chase
             the hand-over.
           </p>
         )}
-        {leaving.map((l) => (
+        {leaving.list.map((l) => (
           <LeaverCard
             key={l.person.id}
             leaver={l}
             today={today}
-            assessed={registerReady}
-            onSelect={setSelectedId}
-            onChangeDate={(d) => changeLastDay(l, d)}
-            onCancel={() => cancelLeaving(l)}
-            onMarkLeft={() => markAsLeft(l)}
-            tracked={(a) => absenceStepTracked(a)}
-            onLog={(a) => logAbsenceAction(a, handoverDeadline(l, today))}
+            onSelect={onSelect}
+            onChangeDate={(d) => leaving.changeLastDay(l, d)}
+            onCancel={() => leaving.cancelLeaving(l)}
+            onMarkLeft={() => leaving.markAsLeft(l)}
+            tracked={(a) => journal.stepTracked(a)}
+            onLog={(a) => journal.logAbsenceAction(a, handoverDeadline(l, today))}
           />
         ))}
       </CardContent>
@@ -520,11 +429,12 @@ export function LeavingTeamCard({
   );
 }
 
+/** Each active person's share of must-do work that stops without them. */
 export function DependenceCard({
-  registerReady,
+  registerAssessed,
   report,
 }: {
-  registerReady: boolean;
+  registerAssessed: boolean;
   report: CoverageReport;
 }) {
   return (
@@ -532,14 +442,15 @@ export function DependenceCard({
       <CardHeader>
         <CardTitle>Who the business leans on</CardTitle>
         <CardDescription>
-          Share of must-do work that stops if each person is out — the app's own index, in which a
-          critical item counts three, an important item two, and a can-wait item nothing. Spread the
-          top names' sole items to bring these down.
+          Share of must-do work that stops if each person is out — the app&apos;s own index, in
+          which an item the business stops without counts three, one that hurts within a week counts
+          two, and one that can wait counts nothing. Spread the top names&apos; sole items to bring
+          these down.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {!registerReady && <p className="text-sm text-muted">{NOT_ASSESSED_ABSENCE}</p>}
-        {registerReady &&
+        {!registerAssessed && <p className="text-sm text-muted">{NOT_ASSESSED_ABSENCE}</p>}
+        {registerAssessed &&
           report.people
             .filter((l) => l.person.active)
             .map((l) => (

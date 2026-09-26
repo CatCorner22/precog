@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import type { CoverageReport, ItemCoverage } from "@/lib/precog/continuity/coverage";
+import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import {
   LEVEL_LABEL,
   LEVEL_ORDER,
@@ -21,67 +21,36 @@ import {
   registerOverResponsiveLimit,
 } from "@/lib/precog/continuity/register-window";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
-import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
-import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
+import type { Criticality, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
+import { ItemButton } from "@/components/precog/continuity/parts";
+import type { RegisterEditor } from "@/components/precog/continuity/use-continuity-planner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+/** The editable register: add an item, page through it, and mark each person's level. */
 export function RegisterGrid({
-  importIssues,
-  setImportIssues,
-  addItem,
-  draftName,
-  setDraftName,
-  draftKind,
-  setDraftKind,
-  draftCriticality,
-  setDraftCriticality,
-  people,
+  register,
   report,
-  safeItemPage,
-  setItemPage,
-  itemPages,
-  safePeoplePage,
-  setPeoplePage,
-  peoplePages,
-  visiblePeople,
-  visibleItems,
-  selected,
-  setSelectedId,
-  trackFreshness,
-  staleIds,
   tpl,
-  setLevel,
-  removeItem,
+  trackFreshness,
 }: {
-  importIssues: RegisterImportIssue[];
-  setImportIssues: (issues: RegisterImportIssue[]) => void;
-  addItem: () => void;
-  draftName: string;
-  setDraftName: (value: string) => void;
-  draftKind: KnowledgeKind;
-  setDraftKind: (value: KnowledgeKind) => void;
-  draftCriticality: Criticality;
-  setDraftCriticality: (value: Criticality) => void;
-  people: Person[];
+  register: RegisterEditor;
   report: CoverageReport;
-  safeItemPage: number;
-  setItemPage: (page: number) => void;
-  itemPages: number;
-  safePeoplePage: number;
-  setPeoplePage: (page: number) => void;
-  peoplePages: number;
-  visiblePeople: Person[];
-  visibleItems: ItemCoverage[];
-  selected: ItemCoverage | undefined;
-  setSelectedId: (id: string) => void;
-  trackFreshness: boolean;
-  staleIds: Set<string>;
   tpl: IndustryTemplate;
-  setLevel: (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => void;
-  removeItem: (id: string) => void;
+  trackFreshness: boolean;
 }) {
+  const {
+    importIssues,
+    people,
+    visiblePeople,
+    visibleItems,
+    itemPage,
+    itemPages,
+    peoplePage,
+    peoplePages,
+    selected,
+  } = register;
   return (
     <>
       {importIssues.length > 0 && (
@@ -90,7 +59,7 @@ export function RegisterGrid({
             <p className="font-medium text-warn">Import notes</p>
             <button
               type="button"
-              onClick={() => setImportIssues([])}
+              onClick={register.dismissImportIssues}
               className="text-xs text-subtle underline hover:text-fg"
             >
               Dismiss
@@ -110,15 +79,15 @@ export function RegisterGrid({
         className="flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          addItem();
+          register.addItem();
         }}
       >
         <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs text-muted">
           Add a duty, task or piece of know-how
           <input
             className={inputClass}
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
+            value={register.draftName}
+            onChange={(e) => register.setDraftName(e.target.value)}
             placeholder="e.g. Run payroll, Close the till, Reset the alarm"
             aria-label="New item name"
           />
@@ -127,8 +96,8 @@ export function RegisterGrid({
           Type
           <select
             className={inputClass}
-            value={draftKind}
-            onChange={(e) => setDraftKind(e.target.value as KnowledgeKind)}
+            value={register.draftKind}
+            onChange={(e) => register.setDraftKind(e.target.value as KnowledgeKind)}
             aria-label="New item type"
           >
             {(Object.keys(KIND_LABEL) as KnowledgeKind[]).map((k) => (
@@ -142,8 +111,8 @@ export function RegisterGrid({
           If nobody can do it
           <select
             className={inputClass}
-            value={draftCriticality}
-            onChange={(e) => setDraftCriticality(e.target.value as Criticality)}
+            value={register.draftCriticality}
+            onChange={(e) => register.setDraftCriticality(e.target.value as Criticality)}
             aria-label="New item criticality"
           >
             {(Object.keys(CRITICALITY_LABEL) as Criticality[]).map((c) => (
@@ -153,14 +122,15 @@ export function RegisterGrid({
             ))}
           </select>
         </label>
-        <Button type="submit" size="sm" disabled={!draftName.trim()}>
+        <Button type="submit" size="sm" disabled={!register.draftName.trim()}>
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </form>
 
       {people.length === 0 ? (
         <p className="text-sm text-muted">
-          No active people on the team yet. Add or import your team in the Builder tab first.
+          Nobody is on the active team yet. Add your people on the How work flows tab, then mark who
+          can do each item here.
         </p>
       ) : (
         <div className="space-y-2">
@@ -174,44 +144,43 @@ export function RegisterGrid({
           )}
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
             <span>
-              Items {safeItemPage * REGISTER_ITEM_PAGE + 1}–
-              {Math.min(report.items.length, (safeItemPage + 1) * REGISTER_ITEM_PAGE)} of{" "}
+              Items {itemPage * REGISTER_ITEM_PAGE + 1}–
+              {Math.min(report.items.length, (itemPage + 1) * REGISTER_ITEM_PAGE)} of{" "}
               {report.items.length}
             </span>
             <button
               type="button"
               className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={safeItemPage === 0}
-              onClick={() => setItemPage(safeItemPage - 1)}
+              disabled={itemPage === 0}
+              onClick={() => register.setItemPage(itemPage - 1)}
             >
               Previous items
             </button>
             <button
               type="button"
               className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={safeItemPage >= itemPages - 1}
-              onClick={() => setItemPage(safeItemPage + 1)}
+              disabled={itemPage >= itemPages - 1}
+              onClick={() => register.setItemPage(itemPage + 1)}
             >
               Next items
             </button>
             <span>
-              People {safePeoplePage * REGISTER_PEOPLE_PAGE + 1}–
-              {Math.min(people.length, (safePeoplePage + 1) * REGISTER_PEOPLE_PAGE)} of{" "}
-              {people.length}
+              People {peoplePage * REGISTER_PEOPLE_PAGE + 1}–
+              {Math.min(people.length, (peoplePage + 1) * REGISTER_PEOPLE_PAGE)} of {people.length}
             </span>
             <button
               type="button"
               className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={safePeoplePage === 0}
-              onClick={() => setPeoplePage(safePeoplePage - 1)}
+              disabled={peoplePage === 0}
+              onClick={() => register.setPeoplePage(peoplePage - 1)}
             >
               Previous people
             </button>
             <button
               type="button"
               className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={safePeoplePage >= peoplePages - 1}
-              onClick={() => setPeoplePage(safePeoplePage + 1)}
+              disabled={peoplePage >= peoplePages - 1}
+              onClick={() => register.setPeoplePage(peoplePage + 1)}
             >
               Next people
             </button>
@@ -243,10 +212,9 @@ export function RegisterGrid({
                     <tr
                       key={row.item.id}
                       className={cn(
-                        "cursor-pointer border-t border-border align-top hover:bg-elevated/60",
+                        "border-t border-border align-top hover:bg-elevated/60",
                         isSelected && "bg-primary/5",
                       )}
-                      onClick={() => setSelectedId(row.item.id)}
                     >
                       <th
                         scope="row"
@@ -256,8 +224,12 @@ export function RegisterGrid({
                         )}
                       >
                         <div className="flex max-w-[9rem] flex-wrap items-center gap-2 sm:max-w-xs">
-                          <span className="font-medium">{row.item.name}</span>
-                          {trackFreshness && staleIds.has(row.item.id) && (
+                          <ItemButton
+                            item={row.item}
+                            selected={isSelected}
+                            onSelect={register.select}
+                          />
+                          {trackFreshness && register.staleIds.has(row.item.id) && (
                             <Badge variant="warn">Re-confirm</Badge>
                           )}
                         </div>
@@ -281,7 +253,7 @@ export function RegisterGrid({
                       {visiblePeople.map((p) => {
                         const level = relationLevel(tpl.relations, p.id, row.item.id);
                         return (
-                          <td key={p.id} className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                          <td key={p.id} className="px-2 py-2">
                             <select
                               className={cn(
                                 inputClass,
@@ -294,7 +266,7 @@ export function RegisterGrid({
                               )}
                               value={level ?? ""}
                               onChange={(e) =>
-                                setLevel(
+                                register.setLevel(
                                   p.id,
                                   row.item.id,
                                   (e.target.value || undefined) as KnowledgeLevel | undefined,
@@ -312,11 +284,11 @@ export function RegisterGrid({
                           </td>
                         );
                       })}
-                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2 py-2">
                         <button
                           type="button"
                           className="rounded p-1.5 text-muted hover:bg-danger/10 hover:text-danger"
-                          onClick={() => removeItem(row.item.id)}
+                          onClick={() => register.removeItem(row.item.id)}
                           aria-label={`Remove ${row.item.name}`}
                         >
                           <Trash2 className="size-4" aria-hidden />
@@ -327,7 +299,10 @@ export function RegisterGrid({
                 })}
                 {report.items.length === 0 && (
                   <tr>
-                    <td colSpan={people.length + 3} className="px-3 py-6 text-center text-muted">
+                    <td
+                      colSpan={visiblePeople.length + 3}
+                      className="px-3 py-6 text-center text-muted"
+                    >
                       Nothing here yet. Add the first duty above.
                     </td>
                   </tr>

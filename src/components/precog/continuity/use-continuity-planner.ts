@@ -1,7 +1,17 @@
+/**
+ * State and actions behind the continuity planner (the Who knows what tab),
+ * grouped as the screen reads: the figures, the register, the check-in, the
+ * what-if card, leave, people leaving, and the Journal steps the cards log.
+ * Each card receives the one group it works with.
+ */
 import { useMemo, useState } from "react";
-import { useToday } from "@/lib/precog/decisions/use-today";
 import { toast } from "sonner";
-import { usePractice } from "@/lib/precog/practice-context";
+import { useToday } from "@/lib/precog/decisions/use-today";
+import {
+  usePracticeActions,
+  usePracticeState,
+  type PracticeActions,
+} from "@/lib/precog/practice-context";
 import {
   clampPage,
   pageCount,
@@ -9,15 +19,13 @@ import {
   REGISTER_ITEM_PAGE,
   REGISTER_PEOPLE_PAGE,
 } from "@/lib/precog/continuity/register-window";
+import { continuityCommitments } from "@/lib/precog/decisions/follow-through";
 import {
-  continuityStepKey,
-  handoffCommitment,
-  isContinuityStepEntry,
-  isDecisionOpen,
-  linkedContinuityStep,
-  linkedKnowledgeId,
-} from "@/lib/precog/decisions/follow-through";
-import { parseRegisterCsv, type RegisterImportIssue } from "@/lib/precog/import/register-csv";
+  parseRegisterCsv,
+  registerTemplateCsv,
+  registerToCsv,
+  type RegisterImportIssue,
+} from "@/lib/precog/import/register-csv";
 import {
   absenceImpact,
   type AbsenceAction,
@@ -39,8 +47,19 @@ import {
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import { documentationDebt, type DocumentationGap } from "@/lib/precog/continuity/documentation";
-import { isCalendarDate, localDateKey, formatDay, formatDayRange } from "@/lib/precog/dates";
-import { registerAssessed, registerSource } from "@/lib/precog/continuity/register-state";
+import { defaultCategory } from "@/lib/precog/continuity/knowledge-category";
+import {
+  dateAfter,
+  formatDay,
+  formatDayRange,
+  isCalendarDate,
+  localDateKey,
+} from "@/lib/precog/dates";
+import {
+  registerAssessed,
+  registerSource,
+  trackRegisterFreshness,
+} from "@/lib/precog/continuity/register-state";
 import {
   endAbsence,
   extendAbsence,
@@ -54,13 +73,14 @@ import {
   type LeaveDebrief,
 } from "@/lib/precog/continuity/leave-debrief";
 import {
-  leavers,
   canMarkLeft,
+  leavers,
   markLeft,
   setLastDay,
   type Leaver,
 } from "@/lib/precog/continuity/leavers";
-import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
+import { makePlannedAbsenceId, type PracticeProfile } from "@/lib/precog/practice-profile";
+import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type {
   Criticality,
   KnowledgeItem,
@@ -68,195 +88,417 @@ import type {
   KnowledgeLevel,
   Person,
 } from "@/lib/precog/types";
-import { UNHELD_VIEW } from "@/lib/precog/continuity/planner-copy";
-import { firstName, count, verb } from "@/lib/precog/text";
 import { industryMeta } from "@/lib/precog/industry";
+import { count, firstName, verb } from "@/lib/precog/text";
+import { downloadCsv } from "@/lib/download";
 import {
+  checkInViewFor,
+  debriefKey,
   importRegisterPrompt,
+  promotionClosesTraining,
   removeItemPrompt,
   resetRegisterPrompt,
+  settlesDebrief,
+  stepAbsenceId,
+  stepCommitment,
+  untrackedItems,
+  wholeStep,
+  whatIfAbsentIds,
 } from "@/components/precog/continuity/planner-logic";
 
+export type ContinuityPlanner = ReturnType<typeof useContinuityPlanner>;
+export type PlannerFigures = ContinuityPlanner["figures"];
+export type RegisterEditor = ContinuityPlanner["register"];
+export type CheckIn = ContinuityPlanner["checkIn"];
+export type JournalSteps = ContinuityPlanner["journal"];
+export type WhatIf = ContinuityPlanner["whatIf"];
+export type LeavePlanner = ContinuityPlanner["leave"];
+export type LeavingPlanner = ContinuityPlanner["leaving"];
+
 export function useContinuityPlanner(initialKnowledgeId?: string | null) {
-  const {
-    template: tpl,
-    profile,
-    setCustomKnowledge,
-    setCustomRelations,
-    setCustomPeople,
-    setPlannedAbsences,
-    addDecision,
-    reviewDecision,
-  } = usePractice();
+  const { template: tpl, profile } = usePracticeState();
+  const actions = usePracticeActions();
+  const todayDate = useToday();
+  const today = localDateKey(todayDate);
   const report = useMemo(() => coverageReport(tpl), [tpl]);
   const docs = useMemo(() => documentationDebt(tpl), [tpl]);
-  const today = localDateKey(useToday());
-  /** Review date of the open journal entry for each (item, step) logged from this register. */
-  const tracked = useMemo(() => {
-    const byStep = new Map<string, string>();
-    for (const d of profile.decisions) {
-      const id = linkedKnowledgeId(d, profile.industry);
-      if (!id || !isDecisionOpen(d) || !isContinuityStepEntry(d) || !d.reviewBy) continue;
-      const key = continuityStepKey(id, linkedContinuityStep(d), d.linkedAbsenceId);
-      if (!byStep.has(key)) byStep.set(key, d.reviewBy);
-    }
-    return byStep;
-  }, [profile.decisions, profile.industry]);
-  const trackedBy = (knowledgeId: string, step: ContinuityStep, absenceId?: string) =>
-    absenceId && step === "handoff"
-      ? handoffCommitment(tracked, knowledgeId, absenceId)
-      : tracked.get(continuityStepKey(knowledgeId, step));
+  const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
 
-  const reviewDateIn30Days = () => {
-    const reviewBy = new Date();
-    reviewBy.setDate(reviewBy.getDate() + 30);
-    return reviewBy;
+  const figures = usePlannerFigures(tpl, report);
+  const writes = useRegisterWrites(actions, today);
+  const journal = useJournalSteps(actions, profile, tpl, todayDate);
+  const checkIn = useCheckIn(profile, tpl, report, today, writes);
+  const register = useRegisterEditor(actions, profile, tpl, report, people, {
+    today,
+    initialKnowledgeId,
+    writes,
+    checkIn,
+  });
+  const whatIf = useWhatIf(tpl, report, people);
+  const leave = useLeave(actions, profile, tpl, people, today, journal, writes.setLevel);
+  const leaving = useLeaving(actions, profile, tpl, people, today);
+
+  return {
+    tpl,
+    industry: profile.industry,
+    today,
+    report,
+    docs,
+    people,
+    /** False while nobody is marked on the register: the figures and cards cannot say anything yet. */
+    registerAssessed: registerAssessed(tpl),
+    /** Confirmation dates are tracked only for a register the owner filled in. */
+    trackFreshness: trackRegisterFreshness(profile, tpl),
+    figures,
+    register,
+    checkIn,
+    journal,
+    whatIf,
+    leave,
+    leaving,
   };
-  const logContinuityDecision = (
+}
+
+/** The tiles at the top of the planner. */
+function usePlannerFigures(tpl: IndustryTemplate, report: CoverageReport) {
+  // The same count the Dashboard and the business profile's sole-owner figure use.
+  const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
+  const importantSinglePoints = report.items.filter(
+    (i) => i.item.criticality === "important" && i.primaries.length <= 1,
+  ).length;
+  const mostDepended = report.people.find((l) => l.person.active);
+  return { singlePoints, importantSinglePoints, mostDepended };
+}
+
+/**
+ * Writes to the register. Marking someone (or removing a mark) and pressing
+ * a "still true" button confirm an item as of today; any other edit is a
+ * plain change and leaves the confirmation date alone.
+ */
+function useRegisterWrites(actions: PracticeActions, today: string) {
+  const { setCustomKnowledge, setCustomRelations } = actions;
+  const confirm = (ids: ReadonlySet<string>) =>
+    setCustomKnowledge((current) =>
+      current.map((k) => (ids.has(k.id) ? { ...k, confirmedAt: today } : k)),
+    );
+  const setLevel = (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => {
+    setCustomRelations((current) => setRelationLevel(current, personId, knowledgeId, level));
+    confirm(new Set([knowledgeId]));
+  };
+  const confirmItems = (ids: string[]) => {
+    confirm(new Set(ids));
+    toast.success(
+      ids.length === 1
+        ? `Confirmed — re-check again in ${CONFIRMATION_MAX_AGE_DAYS} days.`
+        : `${ids.length} items confirmed.`,
+    );
+  };
+  const updateItem = (id: string, patch: Partial<KnowledgeItem>) =>
+    setCustomKnowledge((current) => current.map((k) => (k.id === id ? { ...k, ...patch } : k)));
+  return { setLevel, confirmItems, updateItem };
+}
+
+/** Continuity steps in the Decisions log: which are logged, and logging new ones. */
+function useJournalSteps(
+  actions: PracticeActions,
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  todayDate: Date,
+) {
+  const today = localDateKey(todayDate);
+  const commitments = useMemo(
+    () => continuityCommitments(profile.decisions, tpl, today),
+    [profile.decisions, tpl, today],
+  );
+  const trackedBy = (knowledgeId: string, step: ContinuityStep, absenceId?: string) =>
+    stepCommitment(commitments, knowledgeId, step, absenceId);
+  /** An absence step is "in the Journal" once every item it names has an open entry for that step. */
+  const stepTracked = (a: AbsenceAction, absenceId?: string) =>
+    wholeStep(a, (id) => trackedBy(id, a.step, absenceId));
+
+  const log = (
     subject: string,
     note: string,
     knowledgeId: string,
     step: ContinuityStep,
-    reviewBy: Date | string,
+    reviewBy: string,
     personId?: string,
     absenceId?: string,
   ) =>
-    addDecision({
+    actions.addDecision({
       subject,
       kind: "remediate",
       note,
-      reviewBy: typeof reviewBy === "string" ? reviewBy : localDateKey(reviewBy),
+      reviewBy,
       linkedTab: "knowledge",
       linkedId: knowledgeId,
       linkedStep: step,
       linkedPersonId: personId,
       linkedAbsenceId: absenceId,
     });
-  const confirmLogged = (reviewBy: Date, steps = 1) =>
+  const confirmLogged = (reviewBy: string, steps = 1) =>
     toast.success(
       `${steps === 1 ? "Logged" : `${steps} steps logged`} in the Journal — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
     );
-  const logMove = (m: CrossTrainingMove) => {
-    const reviewBy = reviewDateIn30Days();
-    logContinuityDecision(m.item.name, m.action, m.item.id, "cover", reviewBy, m.trainee?.id);
+  /** One step on one item, reviewed in 30 days. */
+  const logStep = (
+    subject: string,
+    note: string,
+    knowledgeId: string,
+    step: ContinuityStep,
+    personId?: string,
+  ) => {
+    const reviewBy = dateAfter(todayDate, 30);
+    log(subject, note, knowledgeId, step, reviewBy, personId);
     confirmLogged(reviewBy);
   };
-  const logGap = (g: DocumentationGap) => {
-    const reviewBy = reviewDateIn30Days();
-    logContinuityDecision(g.item.name, g.action, g.item.id, g.step, reviewBy);
-    confirmLogged(reviewBy);
-  };
+  const logMove = (m: CrossTrainingMove) =>
+    logStep(m.item.name, m.action, m.item.id, "cover", m.trainee?.id);
+  const logGap = (g: DocumentationGap) => logStep(g.item.name, g.action, g.item.id, g.step);
   /**
    * One entry per item, so each item's snapshot, review and slip check stand on
    * their own. Hand-offs logged from a leave window remember that absence, so
    * they never pass for the hand-off of a later one.
    */
-  const logAbsenceAction = (a: AbsenceAction, reviewByKey?: string, absenceId?: string) => {
-    const reviewBy = reviewByKey ? new Date(`${reviewByKey}T12:00:00`) : reviewDateIn30Days();
-    const pending = a.knowledgeIds
-      .map((id) => tpl.knowledge.find((k) => k.id === id))
-      .filter((k): k is KnowledgeItem => Boolean(k))
-      .filter((k) => !trackedBy(k.id, a.step, absenceId));
+  const logAbsenceAction = (a: AbsenceAction, reviewBy?: string, absenceId?: string) => {
+    const due = reviewBy ?? dateAfter(todayDate, 30);
+    const pending = untrackedItems(a, tpl.knowledge, (id, step) =>
+      Boolean(trackedBy(id, step, absenceId)),
+    );
     for (const k of pending)
-      logContinuityDecision(
-        k.name,
-        a.text,
-        k.id,
-        a.step,
-        reviewByKey ?? reviewBy,
-        undefined,
-        a.step === "handoff" ? absenceId : undefined,
-      );
-    confirmLogged(reviewBy, pending.length);
+      log(k.name, a.text, k.id, a.step, due, undefined, stepAbsenceId(a.step, absenceId));
+    confirmLogged(due, pending.length);
   };
-  /** An absence step is "in the Journal" once every item it names has an open entry for that step. */
-  const absenceStepTracked = (a: AbsenceAction, absenceId?: string) =>
-    a.knowledgeIds.length > 0 && a.knowledgeIds.every((id) => trackedBy(id, a.step, absenceId))
-      ? trackedBy(a.knowledgeIds[0], a.step, absenceId)
-      : undefined;
-  const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
+  return { trackedBy, stepTracked, logStep, logMove, logGap, logAbsenceAction };
+}
+
+/**
+ * Re-confirming the register person by person. The coverage at the start of
+ * a check-in is kept, keyed to the business and industry it was taken from
+ * (template item ids repeat across industries), so drops it causes can be shown.
+ */
+function useCheckIn(
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  report: CoverageReport,
+  today: string,
+  writes: ReturnType<typeof useRegisterWrites>,
+) {
+  const freshness = useMemo(() => staleItems(tpl, today), [tpl, today]);
+  const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
+  const plan = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
+  const [choice, setChoice] = useState<string | null>(null);
+  const registerKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
+  const [baseline, setBaseline] = useState<{ key: string; report: CoverageReport } | null>(null);
+  const drops = useMemo(
+    () => (baseline && baseline.key === registerKey ? coverageDrops(baseline.report, report) : []),
+    [baseline, registerKey, report],
+  );
+  const view = checkInViewFor(choice, plan);
+  const setLevel = (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => {
+    if (!baseline || baseline.key !== registerKey) setBaseline({ key: registerKey, report });
+    writes.setLevel(personId, knowledgeId, level);
+  };
+  return {
+    staleCount: freshness.stale.length,
+    staleIds,
+    plan,
+    view,
+    active: plan.checkIns.find((c) => c.person.id === view),
+    setChoice,
+    drops,
+    setLevel,
+    confirmItems: writes.confirmItems,
+    clearBaseline: () => setBaseline(null),
+  };
+}
+
+/** The register grid: paging, the selected item, adding, removing, importing and exporting. */
+function useRegisterEditor(
+  actions: PracticeActions,
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  report: CoverageReport,
+  people: Person[],
+  {
+    today,
+    initialKnowledgeId,
+    writes,
+    checkIn,
+  }: {
+    today: string;
+    initialKnowledgeId?: string | null;
+    writes: ReturnType<typeof useRegisterWrites>;
+    checkIn: ReturnType<typeof useCheckIn>;
+  },
+) {
+  const { setCustomKnowledge, setCustomRelations } = actions;
+  const source = registerSource(profile);
+
   const [itemPage, setItemPage] = useState(0);
   const [peoplePage, setPeoplePage] = useState(0);
   const safeItemPage = clampPage(itemPage, report.items.length, REGISTER_ITEM_PAGE);
   const safePeoplePage = clampPage(peoplePage, people.length, REGISTER_PEOPLE_PAGE);
-  const visibleItems = pageSlice(report.items, safeItemPage, REGISTER_ITEM_PAGE);
-  const visiblePeople = pageSlice(people, safePeoplePage, REGISTER_PEOPLE_PAGE);
-  const itemPages = pageCount(report.items.length, REGISTER_ITEM_PAGE);
-  const peoplePages = pageCount(people.length, REGISTER_PEOPLE_PAGE);
-  const registerFrom = registerSource(profile);
-  const registerReady = registerAssessed(tpl);
-  const trackFreshness = registerFrom !== "sample" && registerReady;
-  const freshness = useMemo(() => staleItems(tpl, today), [tpl, today]);
-  const staleIds = useMemo(() => new Set(freshness.stale.map((s) => s.item.id)), [freshness.stale]);
-  const checkIns = useMemo(() => checkInPlan(tpl, today), [tpl, today]);
-  const [checkInChoice, setCheckInChoice] = useState<string | null>(null);
-  /**
-   * Coverage as it stood when this check-in started, so drops caused by it can be
-   * shown. Keyed to the business and industry it was taken from: template item ids
-   * repeat across industries, so a baseline from another register must not be compared.
-   */
-  const registerKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
-  const [checkInBaseline, setCheckInBaseline] = useState<{
-    key: string;
-    report: CoverageReport;
-  } | null>(null);
-  const checkInDrops = useMemo(
-    () =>
-      checkInBaseline && checkInBaseline.key === registerKey
-        ? coverageDrops(checkInBaseline.report, report)
-        : [],
-    [checkInBaseline, registerKey, report],
-  );
-  const checkInView =
-    checkInChoice === UNHELD_VIEW && checkIns.unheld.length > 0
-      ? UNHELD_VIEW
-      : (checkIns.checkIns.find((c) => c.person.id === checkInChoice)?.person.id ??
-        checkIns.checkIns[0]?.person.id ??
-        UNHELD_VIEW);
-  const activeCheckIn = checkIns.checkIns.find((c) => c.person.id === checkInView);
 
   const [selectedId, setSelectedId] = useState<string | null>(initialKnowledgeId ?? null);
+  const selected: ItemCoverage | undefined =
+    report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];
+
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");
   const [draftCriticality, setDraftCriticality] = useState<Criticality>("important");
-  const [absentIds, setAbsentIds] = useState<string[]>([]);
-  const [leavePersonId, setLeavePersonId] = useState("");
-  const [leaveFrom, setLeaveFrom] = useState("");
-  const [leaveTo, setLeaveTo] = useState("");
-  const [showPastLeave, setShowPastLeave] = useState(false);
-  const leave = useMemo(
+  const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
+
+  const addItem = () => {
+    const name = draftName.trim();
+    if (!name) return;
+    const item: KnowledgeItem = {
+      id: makeKnowledgeId(),
+      name,
+      kind: draftKind,
+      criticality: draftCriticality,
+      category: defaultCategory(draftKind),
+      description: "",
+      linkedProcessIds: [],
+      documented: false,
+      confirmedAt: today,
+    };
+    setCustomKnowledge((current) => [...current, item]);
+    setSelectedId(item.id);
+    setDraftName("");
+  };
+
+  const removeItem = (id: string) => {
+    const item = tpl.knowledge.find((k) => k.id === id);
+    if (item && !window.confirm(removeItemPrompt(item, tpl.relations))) return;
+    setCustomKnowledge((current) => current.filter((k) => k.id !== id));
+    setCustomRelations((current) => current.filter((r) => r.knowledgeId !== id));
+    if (selectedId === id) setSelectedId(null);
+  };
+
+  const resetToTemplate = () => {
+    if (!window.confirm(resetRegisterPrompt(tpl, industryMeta(profile.industry).label))) return;
+    setCustomKnowledge(null);
+    setCustomRelations(null);
+    setImportIssues([]);
+    checkIn.clearBaseline();
+  };
+
+  const importCsv = async (file: File) => {
+    setImportIssues([]);
+    try {
+      const result = parseRegisterCsv(await file.text(), tpl);
+      const replacesOwn = result.knowledge.length > 0 && source === "own";
+      if (replacesOwn && !window.confirm(importRegisterPrompt(tpl, result))) return;
+      setImportIssues(result.issues);
+      if (!result.knowledge.length) {
+        toast.error(result.issues[0]?.message ?? "No duties or tasks found in that file");
+        return;
+      }
+      setCustomKnowledge(result.knowledge);
+      setCustomRelations(result.relations);
+      setSelectedId(null);
+      checkIn.clearBaseline();
+      toast.success(
+        `Imported ${count(result.knowledge.length, "item")} and ${count(result.relations.length, "assignment")}${
+          result.issues.length
+            ? `; read the ${count(result.issues.length, "import note")} below`
+            : ""
+        }`,
+      );
+    } catch {
+      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
+    }
+  };
+
+  return {
+    source,
+    people,
+    itemPage: safeItemPage,
+    setItemPage,
+    itemPages: pageCount(report.items.length, REGISTER_ITEM_PAGE),
+    peoplePage: safePeoplePage,
+    setPeoplePage,
+    peoplePages: pageCount(people.length, REGISTER_PEOPLE_PAGE),
+    visibleItems: pageSlice(report.items, safeItemPage, REGISTER_ITEM_PAGE),
+    visiblePeople: pageSlice(people, safePeoplePage, REGISTER_PEOPLE_PAGE),
+    staleIds: checkIn.staleIds,
+    selected,
+    select: (id: string) => setSelectedId(id),
+    draftName,
+    setDraftName,
+    draftKind,
+    setDraftKind,
+    draftCriticality,
+    setDraftCriticality,
+    importIssues,
+    dismissImportIssues: () => setImportIssues([]),
+    addItem,
+    removeItem,
+    ...writes,
+    resetToTemplate,
+    /** The starter list with nobody marked holds nothing of the owner's, so no confirmation. */
+    clearStarter: () => setCustomKnowledge([]),
+    importCsv,
+    exportCsv: () => downloadCsv("precog-who-can-do-what.csv", registerToCsv(tpl)),
+    exportTemplate: () => downloadCsv("precog-register-template.csv", registerTemplateCsv(tpl)),
+  };
+}
+
+/** "If someone is out tomorrow": who is ticked and what stops. */
+function useWhatIf(tpl: IndustryTemplate, report: CoverageReport, people: Person[]) {
+  /** Null until the owner ticks or unticks someone; the card then starts with the most depended-on person. */
+  const [ticked, setTicked] = useState<string[] | null>(null);
+  const { ids, startedWith } = useMemo(
+    () => whatIfAbsentIds(ticked, people, report),
+    [ticked, people, report],
+  );
+  const absence = useMemo(() => (ids.length > 0 ? absenceImpact(tpl, ids) : null), [tpl, ids]);
+  const toggle = (personId: string) =>
+    setTicked(ids.includes(personId) ? ids.filter((id) => id !== personId) : [...ids, personId]);
+  return { absentIds: ids, startedWith, toggle, absence };
+}
+
+/** Out today, planned leave, and the debrief once someone is back. */
+function useLeave(
+  actions: PracticeActions,
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  people: Person[],
+  today: string,
+  journal: ReturnType<typeof useJournalSteps>,
+  setLevel: (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => void,
+) {
+  const { setPlannedAbsences, reviewDecision } = actions;
+  const report = useMemo(
     () => plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today),
     [tpl, profile.plannedAbsences, profile.industry, today],
   );
-  const leaveFormValid =
-    Boolean(leavePersonId) &&
-    isCalendarDate(leaveFrom) &&
-    isCalendarDate(leaveTo) &&
-    leaveFrom <= leaveTo;
-  const addLeave = () => {
-    if (!leaveFormValid) return;
-    const person = people.find((p) => p.id === leavePersonId);
+
+  const [personId, setPersonId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [showPast, setShowPast] = useState(false);
+  const formValid = Boolean(personId) && isCalendarDate(from) && isCalendarDate(to) && from <= to;
+  const add = () => {
+    if (!formValid) return;
+    const person = people.find((p) => p.id === personId);
     if (!person) return;
     setPlannedAbsences((current) => [
       ...current,
-      {
-        id: makePlannedAbsenceId(),
-        personId: person.id,
-        industry: profile.industry,
-        from: leaveFrom,
-        to: leaveTo,
-      },
+      { id: makePlannedAbsenceId(), personId: person.id, industry: profile.industry, from, to },
     ]);
-    setLeaveFrom("");
-    setLeaveTo("");
-    toast.success(`${firstName(person.name)} out ${formatDayRange(leaveFrom, leaveTo)} added.`);
+    setFrom("");
+    setTo("");
+    toast.success(`${firstName(person.name)} out ${formatDayRange(from, to)} added.`);
   };
-  const removeLeave = (id: string) =>
+  const remove = (id: string) =>
     setPlannedAbsences((current) => current.filter((a) => a.id !== id));
+
   /** People already recorded out today, so "Out today" never doubles up an absence. */
   const outTodayIds = useMemo(
-    () => new Set(leave.windows.filter((w) => w.status === "current").map((w) => w.person.id)),
-    [leave.windows],
+    () => new Set(report.windows.filter((w) => w.status === "current").map((w) => w.person.id)),
+    [report.windows],
   );
   /** "Maya just called in sick": record it now and the card below becomes today's cover sheet. */
   const markOutToday = (person: Person) => {
@@ -286,7 +528,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
         : `${firstName(w.person.name)} is back; nothing was covered, so the entry was removed.`,
     );
   };
-  const leaveHistory = [...leave.past, ...leave.unmatched];
+
   const debriefs = useMemo(
     () =>
       leaveDebriefs(tpl, profile.plannedAbsences ?? [], profile.decisions, profile.industry, today),
@@ -294,63 +536,55 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   );
   /** Debrief entries answered this session, so the card only asks about what is left. */
   const [debriefed, setDebriefed] = useState<Set<string>>(() => new Set());
-  const debriefKey = (absenceId: string, knowledgeId: string) => `${absenceId}:${knowledgeId}`;
   const markDebriefed = (absenceId: string) =>
     setPlannedAbsences((current) =>
       current.map((a) => (a.id === absenceId ? { ...a, debriefedAt: today } : a)),
     );
   /** Record one answer; once every entry of that leave has one, the leave stops asking. */
-  const settleDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
-    const key = debriefKey(debrief.absence.id, entry.item.id);
-    const rest = debrief.items.filter(
-      (e) =>
-        e.item.id !== entry.item.id && !debriefed.has(debriefKey(debrief.absence.id, e.item.id)),
-    );
-    if (rest.length === 0) markDebriefed(debrief.absence.id);
-    else setDebriefed((current) => new Set(current).add(key));
+  const settle = (debrief: LeaveDebrief, entry: DebriefItem) => {
+    if (settlesDebrief(debrief, entry, debriefed)) markDebriefed(debrief.absence.id);
+    else
+      setDebriefed((current) =>
+        new Set(current).add(debriefKey(debrief.absence.id, entry.item.id)),
+      );
   };
   const closeHandoff = (entry: DebriefItem, note: string) => {
     if (entry.handoff) reviewDecision(entry.handoff.id, "done", note);
   };
+  const during = (debrief: LeaveDebrief) =>
+    `while ${firstName(debrief.person.name)} was out (${formatDayRange(debrief.absence.from, debrief.absence.to)})`;
   /** Stand-in ran it for real: register says "can do", confirmed today, hand-off (and training aimed at them) closed. */
   const promoteStandIn = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
     const first = firstName(standIn.name);
-    const note = `${first} covered ${entry.item.name} while ${firstName(debrief.person.name)} was out (${formatDayRange(debrief.absence.from, debrief.absence.to)}) and can now run it alone.`;
+    const note = `${first} covered ${entry.item.name} ${during(debrief)} and can now run it alone.`;
     setLevel(standIn.id, entry.item.id, "proficient");
     closeHandoff(entry, note);
-    if (
-      entry.training &&
-      (!entry.training.linkedPersonId || entry.training.linkedPersonId === standIn.id)
-    )
+    if (entry.training && promotionClosesTraining(entry, standIn))
       reviewDecision(entry.training.id, "done", note);
-    settleDebriefItem(debrief, entry);
+    settle(debrief, entry);
     toast.success(`${first} → Can do ${entry.item.name}, confirmed today.`);
   };
   /** Stand-in got through it but not alone yet: keep them as a learner and make the training a tracked step. */
   const keepTraining = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
     const first = firstName(standIn.name);
-    const during = `while ${firstName(debrief.person.name)} was out (${formatDayRange(debrief.absence.from, debrief.absence.to)})`;
     if (!entry.standInLevel || entry.standInLevel === "aware")
       setLevel(standIn.id, entry.item.id, "basic");
     closeHandoff(
       entry,
-      `${first} covered ${entry.item.name} ${during}; not yet able to run it alone.`,
+      `${first} covered ${entry.item.name} ${during(debrief)}; not yet able to run it alone.`,
     );
     if (entry.training) {
       toast.success(`Cross-training ${first} on ${entry.item.name} is already in the Journal.`);
     } else {
-      const reviewBy = reviewDateIn30Days();
-      logContinuityDecision(
+      journal.logStep(
         entry.item.name,
-        `Cross-train ${first} on ${entry.item.name}: covered it ${during} but cannot yet run it alone.`,
+        `Cross-train ${first} on ${entry.item.name}: covered it ${during(debrief)} but cannot yet run it alone.`,
         entry.item.id,
         "cover",
-        reviewBy,
         standIn.id,
       );
-      confirmLogged(reviewBy);
     }
-    settleDebriefItem(debrief, entry);
+    settle(debrief, entry);
   };
   /** Nothing to change on the register: just close the leave's hand-off. */
   const closeDebriefItem = (debrief: LeaveDebrief, entry: DebriefItem) => {
@@ -358,31 +592,73 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
       entry,
       `Leave over (${formatDayRange(debrief.absence.from, debrief.absence.to)}); ${entry.item.name} back with ${firstName(debrief.person.name)}.`,
     );
-    settleDebriefItem(debrief, entry);
+    settle(debrief, entry);
   };
-  const leaving = useMemo(
+  const dismissDebrief = (absenceId: string) => {
+    markDebriefed(absenceId);
+    toast.success("Absence closed without register changes.");
+  };
+
+  return {
+    report,
+    history: [...report.past, ...report.unmatched],
+    personId,
+    setPersonId,
+    from,
+    setFrom,
+    to,
+    setTo,
+    formValid,
+    add,
+    remove,
+    showPast,
+    setShowPast,
+    outTodayIds,
+    markOutToday,
+    stillOutTomorrow,
+    backAtWork,
+    debriefs,
+    answered: (debrief: LeaveDebrief, entry: DebriefItem) =>
+      debriefed.has(debriefKey(debrief.absence.id, entry.item.id)),
+    promoteStandIn,
+    keepTraining,
+    closeDebriefItem,
+    dismissDebrief,
+  };
+}
+
+/** People who have given notice: their last day, the hand-off, and marking them as left. */
+function useLeaving(
+  actions: PracticeActions,
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  people: Person[],
+  today: string,
+) {
+  const { setCustomPeople } = actions;
+  const list = useMemo(
     () => leavers(tpl, profile.decisions, today),
     [tpl, profile.decisions, today],
   );
-  const [leaverPersonId, setLeaverPersonId] = useState("");
-  const [leaverLastDay, setLeaverLastDay] = useState("");
   /** People still on the team with no last day recorded yet. */
   const staying = useMemo(() => people.filter((p) => !p.lastDay), [people]);
-  const leaverFormValid = Boolean(leaverPersonId) && isCalendarDate(leaverLastDay);
+  const [personId, setPersonId] = useState("");
+  const [lastDay, setLastDayInput] = useState("");
+  const formValid = Boolean(personId) && isCalendarDate(lastDay);
   const recordLastDay = () => {
-    if (!leaverFormValid) return;
-    const person = staying.find((p) => p.id === leaverPersonId);
+    if (!formValid) return;
+    const person = staying.find((p) => p.id === personId);
     if (!person) return;
-    setCustomPeople((current) => setLastDay(current, person.id, leaverLastDay));
-    setLeaverPersonId("");
-    setLeaverLastDay("");
+    setCustomPeople((current) => setLastDay(current, person.id, lastDay));
+    setPersonId("");
+    setLastDayInput("");
     toast.success(
       `${firstName(person.name)}'s last day recorded — the hand-over checklist is below.`,
     );
   };
-  const changeLastDay = (l: Leaver, lastDay: string) => {
-    if (!isCalendarDate(lastDay)) return;
-    setCustomPeople((current) => setLastDay(current, l.person.id, lastDay));
+  const changeLastDay = (l: Leaver, day: string) => {
+    if (!isCalendarDate(day)) return;
+    setCustomPeople((current) => setLastDay(current, l.person.id, day));
   };
   const cancelLeaving = (l: Leaver) => {
     setCustomPeople((current) => setLastDay(current, l.person.id, null));
@@ -393,7 +669,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     const first = firstName(l.person.name);
     if (!canMarkLeft(l.person, today)) {
       toast.error(
-        `${first}'s last day is ${l.lastDay} — mark ${first} as left once it has passed.`,
+        `${first}'s last day is ${formatDay(l.lastDay)} — mark ${first} as left once it has passed.`,
       );
       return;
     }
@@ -410,214 +686,17 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     setCustomPeople((current) => markLeft(current, l.person.id, today));
     toast.success(`${first} marked as left.`);
   };
-  const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
-
-  const selected: ItemCoverage | undefined =
-    report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];
-
-  const addItem = () => {
-    const name = draftName.trim();
-    if (!name) return;
-    const item: KnowledgeItem = {
-      id: makeKnowledgeId(),
-      name,
-      kind: draftKind,
-      criticality: draftCriticality,
-      category: draftKind === "knowledge" ? "tribal" : "process",
-      description: "",
-      linkedProcessIds: [],
-      documented: false,
-      confirmedAt: today,
-    };
-    setCustomKnowledge((current) => [...current, item]);
-    setSelectedId(item.id);
-    setDraftName("");
-  };
-
-  const updateItem = (id: string, patch: Partial<KnowledgeItem>) =>
-    setCustomKnowledge((current) =>
-      current.map((k) => (k.id === id ? { ...k, ...patch, confirmedAt: today } : k)),
-    );
-
-  const confirmItems = (ids: string[]) => {
-    const set = new Set(ids);
-    setCustomKnowledge((current) =>
-      current.map((k) => (set.has(k.id) ? { ...k, confirmedAt: today } : k)),
-    );
-    toast.success(
-      ids.length === 1
-        ? `Confirmed — re-check again in ${CONFIRMATION_MAX_AGE_DAYS} days.`
-        : `${ids.length} items confirmed.`,
-    );
-  };
-
-  const removeItem = (id: string) => {
-    const item = tpl.knowledge.find((k) => k.id === id);
-    if (item && !window.confirm(removeItemPrompt(item, tpl.relations))) return;
-    setCustomKnowledge((current) => current.filter((k) => k.id !== id));
-    setCustomRelations((current) => current.filter((r) => r.knowledgeId !== id));
-    if (selectedId === id) setSelectedId(null);
-  };
-
-  const setLevel = (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => {
-    setCustomRelations((current) => setRelationLevel(current, personId, knowledgeId, level));
-    setCustomKnowledge((current) =>
-      current.map((k) => (k.id === knowledgeId ? { ...k, confirmedAt: today } : k)),
-    );
-  };
-
-  const checkInSetLevel = (
-    personId: string,
-    knowledgeId: string,
-    level: KnowledgeLevel | undefined,
-  ) => {
-    if (!checkInBaseline || checkInBaseline.key !== registerKey) {
-      setCheckInBaseline({ key: registerKey, report });
-    }
-    setLevel(personId, knowledgeId, level);
-  };
-
-  const resetToTemplate = () => {
-    if (!window.confirm(resetRegisterPrompt(tpl, industryMeta(profile.industry).label))) return;
-    setCustomKnowledge(null);
-    setCustomRelations(null);
-    setImportIssues([]);
-    setCheckInBaseline(null);
-  };
-
-  const importCsv = async (file: File) => {
-    setImportIssues([]);
-    try {
-      const result = parseRegisterCsv(await file.text(), tpl);
-      const replacesOwn = result.knowledge.length > 0 && registerFrom === "own";
-      if (replacesOwn && !window.confirm(importRegisterPrompt(tpl, result))) return;
-      setImportIssues(result.issues);
-      if (!result.knowledge.length) {
-        toast.error(result.issues[0]?.message ?? "No duties or tasks found in that file");
-        return;
-      }
-      setCustomKnowledge(result.knowledge);
-      setCustomRelations(result.relations);
-      setSelectedId(null);
-      setCheckInBaseline(null);
-      toast.success(
-        `Imported ${result.knowledge.length} items and ${result.relations.length} assignments${
-          result.issues.length ? `; ${result.issues.length} thing(s) need attention` : ""
-        }`,
-      );
-    } catch {
-      toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
-    }
-  };
-
-  const mostDepended = report.people.find((l) => l.person.active);
-  // The same count the Dashboard and the business profile's sole-owner figure use.
-  const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
-  const importantSinglePoints = report.items.filter(
-    (i) => i.item.criticality === "important" && i.primaries.length <= 1,
-  ).length;
-  const effectiveAbsentIds = useMemo(() => {
-    const valid = absentIds.filter((id) => people.some((p) => p.id === id));
-    if (valid.length > 0) return valid;
-    const fallback = report.people.find((l) => l.person.active)?.person.id;
-    return fallback ? [fallback] : [];
-  }, [absentIds, people, report.people]);
-  const absence = useMemo(
-    () => (effectiveAbsentIds.length > 0 ? absenceImpact(tpl, effectiveAbsentIds) : null),
-    [tpl, effectiveAbsentIds],
-  );
-
   return {
-    tpl,
-    profile,
-    report,
-    docs,
-    today,
-    trackedBy,
-    logMove,
-    logGap,
-    logAbsenceAction,
-    absenceStepTracked,
-    people,
-    safeItemPage,
-    setItemPage,
-    itemPages,
-    safePeoplePage,
-    setPeoplePage,
-    peoplePages,
-    visibleItems,
-    visiblePeople,
-    registerFrom,
-    registerReady,
-    trackFreshness,
-    freshness,
-    staleIds,
-    checkIns,
-    setCheckInChoice,
-    checkInDrops,
-    checkInView,
-    activeCheckIn,
-    selected,
-    setSelectedId,
-    draftName,
-    setDraftName,
-    draftKind,
-    setDraftKind,
-    draftCriticality,
-    setDraftCriticality,
-    absentIds,
-    setAbsentIds,
-    leavePersonId,
-    setLeavePersonId,
-    leaveFrom,
-    setLeaveFrom,
-    leaveTo,
-    setLeaveTo,
-    showPastLeave,
-    setShowPastLeave,
-    leave,
-    leaveFormValid,
-    addLeave,
-    removeLeave,
-    outTodayIds,
-    markOutToday,
-    stillOutTomorrow,
-    backAtWork,
-    leaveHistory,
-    debriefs,
-    debriefed,
-    debriefKey,
-    promoteStandIn,
-    keepTraining,
-    closeDebriefItem,
-    markDebriefed,
+    list,
     staying,
-    leaverPersonId,
-    setLeaverPersonId,
-    leaverLastDay,
-    setLeaverLastDay,
-    leaverFormValid,
+    personId,
+    setPersonId,
+    lastDay,
+    setLastDay: setLastDayInput,
+    formValid,
     recordLastDay,
-    leaving,
     changeLastDay,
     cancelLeaving,
     markAsLeft,
-    importIssues,
-    setImportIssues,
-    addItem,
-    updateItem,
-    confirmItems,
-    removeItem,
-    setLevel,
-    checkInSetLevel,
-    resetToTemplate,
-    importCsv,
-    mostDepended,
-    singlePoints,
-    importantSinglePoints,
-    effectiveAbsentIds,
-    absence,
-    setCheckInBaseline,
-    setCustomKnowledge,
   };
 }
