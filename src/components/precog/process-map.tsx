@@ -63,8 +63,10 @@ import {
   LayoutGrid,
   Layers,
   ListOrdered,
+  Redo2,
   Scan,
   Thermometer,
+  Undo2,
 } from "lucide-react";
 import type { NavFn } from "@/lib/precog/navigation";
 import {
@@ -104,8 +106,16 @@ export function ProcessMap({
 }) {
   const tpl = useTemplate();
   const { processes } = tpl;
-  const { profile, setMapLayout, setCustomProcesses, mapCustomized, undoMap, redoMap } =
-    usePractice();
+  const {
+    profile,
+    setMapLayout,
+    setCustomProcesses,
+    mapCustomized,
+    undoMap,
+    redoMap,
+    canUndoMap,
+    canRedoMap,
+  } = usePractice();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [build, setBuild] = useState(initialBuild);
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
@@ -722,11 +732,37 @@ export function ProcessMap({
         </div>
 
         {build && (
-          <div className="mt-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
-            <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to arrange
-            your value stream. Drag from the right handle of one process to the left handle of
-            another to wire dependencies. Click a process to edit it — or insert a reusable block
-            from the builder panel.
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs text-muted">
+            <p>
+              <span className="font-semibold text-fg">Build mode.</span> Drag process boxes to
+              arrange your value stream. Drag from the right handle of one process to the left
+              handle of another to wire dependencies. Click a process to edit it — or insert a
+              reusable block from the builder panel.
+            </p>
+            <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-border bg-surface">
+              <button
+                type="button"
+                onClick={undoMap}
+                disabled={!canUndoMap}
+                title="Undo (Ctrl+Z)"
+                aria-label="Undo"
+                className="inline-flex h-8 items-center gap-1 px-2.5 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <Undo2 className="size-3.5" />
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={redoMap}
+                disabled={!canRedoMap}
+                title="Redo (Ctrl+Shift+Z)"
+                aria-label="Redo"
+                className="inline-flex h-8 items-center gap-1 border-l border-border px-2.5 text-muted hover:bg-elevated hover:text-fg disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <Redo2 className="size-3.5" />
+                Redo
+              </button>
+            </div>
           </div>
         )}
 
