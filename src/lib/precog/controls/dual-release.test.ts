@@ -424,3 +424,42 @@ describe("exceptions on the owner's calendar day", () => {
     }
   });
 });
+
+describe("evaluateRelease without an as-of date", () => {
+  it("uses the owner's local day, not the UTC day", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    vi.useFakeTimers();
+    // 6:30 pm in Denver on 30 September is already 1 October in UTC.
+    vi.setSystemTime(new Date("2026-10-01T00:30:00Z"));
+    try {
+      const policy: DualReleasePolicy = {
+        ...policyOn(),
+        exceptions: [
+          {
+            id: "ex-raise-sept",
+            label: "Raised threshold through September",
+            channels: ["ach"],
+            action: "raise_threshold",
+            thresholdUsd: 25_000,
+            enabled: true,
+            effectiveTo: "2026-09-30",
+            reason: "Quarter-end vendor run",
+            createdAt: "2026-09-01",
+          },
+        ],
+      };
+      const r = evaluateRelease(dental, policy, {
+        channel: "ach",
+        amountUsd: 20_000,
+        initiatorPersonId: officeManager,
+      });
+      expect(r.status).toBe("approved_exception");
+      expect(r.appliedException?.id).toBe("ex-raise-sept");
+    } finally {
+      vi.useRealTimers();
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
+  });
+});

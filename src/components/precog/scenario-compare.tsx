@@ -27,6 +27,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn, formatUsd } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
 import { deltaTone, formatDaysChange, formatMoneyChange, pickScenario } from "./scenario-page";
+import { FigureTile } from "./figure-tile";
 import { StaffWhatIfCard, type StaffWhatIf } from "./staff-what-if";
 
 type Mode = "futures" | "cross";
@@ -392,12 +393,16 @@ function CompareResults({
                 <CardTitle className="text-sm leading-snug">{col.label}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Figure
+                <FigureTile
+                  size="sm"
+                  className="border-0 bg-transparent p-0"
                   label="Assumed loss if it happens"
                   value={formatUsd(col.result.financialImpact.expected)}
                   hint={`assumed range ${formatUsd(col.result.financialImpact.low)} – ${formatUsd(col.result.financialImpact.high)}`}
                 />
-                <Figure
+                <FigureTile
+                  size="sm"
+                  className="border-0 bg-transparent p-0"
                   label="Assumed retained loss"
                   value={formatUsd(retained(col))}
                   hint={withNote(
@@ -409,7 +414,9 @@ function CompareResults({
                     policyNote,
                   )}
                 />
-                <Figure
+                <FigureTile
+                  size="sm"
+                  className="border-0 bg-transparent p-0"
                   label="Annual cost of risk"
                   value={formatUsd(annualCor(col))}
                   hint={withNote(
@@ -421,7 +428,9 @@ function CompareResults({
                     policyNote,
                   )}
                 />
-                <Figure
+                <FigureTile
+                  size="sm"
+                  className="border-0 bg-transparent p-0"
                   label="Assumed days until found"
                   value={`about ${col.result.timelineDays.p50} days`}
                   hint={`assumed range ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High} days`}
@@ -559,17 +568,6 @@ function WinnerChip({ label, value, icon }: { label: string; value: string; icon
         {icon && <Trophy className="mr-1 inline size-3.5 text-ok" />}
         {value}
       </p>
-    </div>
-  );
-}
-
-/** A figure inside a compare card: lighter than a FigureTile, no frame of its own. */
-function Figure({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div>
-      <p className="text-xs text-subtle">{label}</p>
-      <p className="font-semibold tabular tracking-tight">{value}</p>
-      <p className="text-xs text-muted">{hint}</p>
     </div>
   );
 }
