@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { joinWithAnd } from "@/lib/precog/text";
+import { count, joinWithAnd } from "@/lib/precog/text";
 import type { SodPanelModel } from "./use-sod-panel";
 
 export function SodRolesSection({ model }: { model: SodPanelModel }) {
@@ -33,7 +33,7 @@ export function SodRolesSection({ model }: { model: SodPanelModel }) {
                 </div>
                 <div className="flex gap-1">
                   <Badge variant={mine.length > 0 ? "danger" : "ok"}>
-                    {mine.length} conflict{mine.length === 1 ? "" : "s"}
+                    {count(mine.length, "conflict")}
                   </Badge>
                   {narrowed > 0 && <Badge variant="ok">{narrowed} narrowed by dual release</Badge>}
                 </div>

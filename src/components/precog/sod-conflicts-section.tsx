@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { NavFn } from "@/lib/precog/navigation";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
-import { joinWithAnd } from "@/lib/precog/text";
+import { count, joinWithAnd } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 import { RuleCaseCard } from "./case-card";
 import { IndexBasis } from "./index-basis";
@@ -92,7 +92,7 @@ export function SodConflictsSection({
                   {" "}
                   · {group.role}
                   {places && places.length > 0 && ` · ${joinWithAnd(places)}`} ·{" "}
-                  {group.conflicts.length} conflict{group.conflicts.length === 1 ? "" : "s"}
+                  {count(group.conflicts.length, "conflict")}
                 </span>
               </h3>
               {shown.map((c) => (

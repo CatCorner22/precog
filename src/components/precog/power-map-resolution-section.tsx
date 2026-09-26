@@ -19,9 +19,8 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
           <CardHeader>
             <CardTitle className="text-base">Resolution planner · {selected?.personName}</CardTitle>
             <CardDescription>
-              Compare conflict-safe transfers before changing the model. Suggestions never create a
-              new detected conflict; apply one, check the new segregation health, and undo at any
-              time.
+              Compare moves that end a conflict without creating a new one before you change the
+              map. Apply one, check the new segregation health, and undo at any time.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
