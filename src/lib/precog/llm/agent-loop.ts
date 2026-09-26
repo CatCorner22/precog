@@ -232,7 +232,7 @@ export async function runGrokAgentLoop(
           title: "Number grounding check",
           detail: grounding.unsupported.length
             ? `${grounding.unsupported.length} of ${grounding.checked.length} figure(s) not found in tool output: ${grounding.unsupported.join(", ")}`
-            : `${grounding.checked.length} money/percent figure(s) all trace to tool output`,
+            : `${grounding.checked.length} money/percent figure(s) checked; each matches a number the tools returned`,
         },
       ],
       toolsUsed: local.toolsUsed,
