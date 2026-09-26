@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WEIGHTS, SCORING_VERSION } from "./weights";
 
 describe("scoring weights", () => {
-  it("versions the insurance-confirmation and financing-separation changes", () => {
-    expect(SCORING_VERSION).toBe("precog-residual-v1.2.0");
+  it("versions the scenario-kind, control-guard and cross-training changes", () => {
+    expect(SCORING_VERSION).toBe("precog-residual-v1.3.0");
   });
 
   it("keeps the inherent and control groups normalized", () => {

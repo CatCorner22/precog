@@ -7,7 +7,7 @@
  */
 import { RISK_SCALE } from "./bands";
 import { clamp } from "../number";
-export const SCORING_VERSION = "precog-residual-v1.2.0";
+export const SCORING_VERSION = "precog-residual-v1.3.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 const INHERENT_WEIGHTS = {
