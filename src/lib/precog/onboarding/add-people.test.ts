@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { parseRoster } from "../import/roster";
-import { applyPaste } from "./add-people";
+import { applyPaste, rowsForJobTitle } from "./add-people";
+import { jobCatalogEntry } from "./job-catalog";
 import { firstRowForIndustry, ownerRow, type OwnTeamRow } from "./own-team";
 
 const today = new Date("2026-09-22T00:00:00Z");
@@ -61,5 +62,16 @@ describe("applyPaste", () => {
       "The paste marks all 2 people inactive, so the table adds none of them: Bo Chen and Al Wu.",
     );
     expect(applied.leftOut.map((who) => who.name)).toEqual(["Bo Chen", "Al Wu"]);
+  });
+});
+
+describe("placeholder names for people added by job title", () => {
+  it("names people after the job, not the first word of a compound title", () => {
+    const first = (id: string) => rowsForJobTitle(jobCatalogEntry(id)!, 1, [], "general")[0].name;
+    expect(first("general-manager")).toBe("General Manager 1");
+    expect(first("provider")).toBe("Provider 1");
+    expect(first("chef")).toBe("Chef 1");
+    expect(first("transport-driver")).toBe("Bus Driver 1");
+    expect(first("server")).toBe("Server 1");
   });
 });

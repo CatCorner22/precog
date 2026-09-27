@@ -10,7 +10,7 @@ import { industryHasOwner } from "../industry";
 import type { Person } from "../types";
 import { count, joinWithAnd, nameKey, titleKey, verb } from "../text";
 import { clamp } from "../number";
-import { entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
+import { aliasKey, entitlementsForTitle, type JobCatalogEntry } from "./job-catalog";
 import {
   OWN_TEAM_MAX,
   gridDuties,
@@ -314,7 +314,7 @@ export function rowsForJobTitle(
     rowOwnsBusiness({ role: entry.title }, industry),
     industry,
   );
-  const base = entry.title.split(" / ")[0];
+  const base = placeholderBase(entry);
   const names =
     typeof existing === "number"
       ? Array.from({ length: n }, (_, i) => `${base} ${existing + i + 1}`)
@@ -344,6 +344,25 @@ export function placeholderNames(base: string, wanted: number, taken: readonly s
     if (!used.has(titleKey(name))) names.push(name);
   }
   return names;
+}
+
+/**
+ * The word a job's placeholder names start with: the catalog title without
+ * its bracket, and of a title listing several names, the first name when it
+ * is a job on its own ("Chef" of "Chef / Kitchen Manager") and otherwise the
+ * first word with the shared noun ("General Manager" of "General /
+ * Operations Manager", "Bus Driver" of "Bus / Van Driver").
+ */
+function placeholderBase(entry: JobCatalogEntry): string {
+  const title = entry.title.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  const parts = title.split(/\s*\/\s*/);
+  const first = parts[0];
+  if (parts.length === 1 || /\s/.test(first)) return first;
+  const names = new Set([entry.title, ...entry.aliases].map(aliasKey));
+  const noun = parts[parts.length - 1].split(/\s+/);
+  return names.has(aliasKey(first)) || noun.length === 1
+    ? first
+    : `${first} ${noun[noun.length - 1]}`;
 }
 
 /** The first sentence: how many people the paste added and updated, and who it could not add. */

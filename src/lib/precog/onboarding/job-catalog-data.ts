@@ -189,38 +189,6 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "vp",
     ],
   },
-  {
-    id: "office-manager",
-    title: "Office Manager",
-    family: "leadership",
-    soc: "43-1011",
-    entitlements: [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "enter_invoices",
-      "release_payment",
-      "enter_payroll",
-      "hold_company_card",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-    description:
-      "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
-    note: "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and a practice administrator or business manager is read as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
-    aliases: [
-      "practice manager",
-      "administrative manager",
-      "front office manager",
-      "business office manager",
-      "clinic manager",
-      "office lead",
-      "hospital manager",
-      "hospital administrator",
-      "veterinary practice manager",
-      "veterinary hospital manager",
-    ],
-  },
   // Finance and accounting
   {
     id: "controller",
@@ -239,7 +207,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Plans, directs, and coordinates the accounting, reporting, and banking of the business and prepares its financial statements.",
-    note: "A controller releases payments, signs, posts journal entries, reconciles the bank, codes the card statements, and approves expense claims: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; add them if your controller does it.",
+    note: "A controller releases payments, signs, posts journal entries, reconciles the bank, codes the card statements, and approves expense claims: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; tick Approve payroll and Approve new suppliers if your controller does them.",
     aliases: [
       "controller",
       "comptroller",
@@ -261,7 +229,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["approve_vendor", "approve_expenses", "sign_checks", "view_reports_only"],
     description:
       "Directs the finances of the business, approves spending and suppliers, and signs or approves payments.",
-    note: "A CFO approves new suppliers and expense claims and signs or gives the second approval on payments; the controller or bookkeeper records, releases and reconciles. Tick payroll approval if the CFO approves each run.",
+    note: "A CFO approves new suppliers and expense claims and signs or gives the second approval on payments; the controller or bookkeeper records, releases and reconciles. Tick Approve payroll if the CFO approves each run.",
     aliases: ["cfo", "vp finance", "vice president of finance"],
   },
   {
@@ -318,7 +286,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Computes, classifies, and records financial transactions, keeps the ledger, and in a small business also pays bills and runs payroll.",
-    note: "A full-charge bookkeeper in a small business records receipts, adds the suppliers whose bills they enter, pays the bills, runs payroll, codes the card statement, and reconciles the bank, which is every side of the ledger in one seat. In a store the till records sales, so Record payments is left for you to tick.",
+    note: "A full-charge bookkeeper in a small business records receipts, adds the suppliers whose bills they enter, pays the bills, runs payroll, codes the card statement, and reconciles the bank, which is every side of the ledger in one seat. In a store the till records sales, so you decide whether to tick Record payments received.",
     aliases: [
       "full charge bookkeeper",
       "accounting clerk",
@@ -373,7 +341,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["post_payments", "post_adjustments", "view_reports_only"],
     description:
       "Records customer payments, follows up on unpaid balances, and posts the adjustments and credits that settle accounts.",
-    note: "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen; refunds of credit balances are approved above this seat unless you tick them.",
+    note: "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen; a manager or the owner approves refunds of credit balances unless you tick Issue customer refunds.",
     aliases: [
       "accounts receivable",
       "accounts receivable specialist",
@@ -454,7 +422,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["sign_checks", "initiate_ach", "bank_reconcile", "view_reports_only"],
     description:
       "Manages the cash of the business: signs or releases payments, moves funds between accounts, and reconciles the bank.",
-    note: "A treasurer moves the money out and, in a small organisation, often reconciles the account it leaves from.",
+    note: "A treasurer moves the money out and, in a small organization, often reconciles the account it leaves from.",
     aliases: ["treasurer", "cash manager", "treasury analyst", "treasury"],
   },
   {
@@ -558,6 +526,38 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
   },
   // Front office and administration
+  {
+    id: "office-manager",
+    title: "Office Manager",
+    family: "office",
+    soc: "43-1011",
+    entitlements: [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "enter_invoices",
+      "release_payment",
+      "enter_payroll",
+      "hold_company_card",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+    description:
+      "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
+    note: "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and a practice administrator or business manager is read as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
+    aliases: [
+      "practice manager",
+      "administrative manager",
+      "front office manager",
+      "business office manager",
+      "clinic manager",
+      "office lead",
+      "hospital manager",
+      "hospital administrator",
+      "veterinary practice manager",
+      "veterinary hospital manager",
+    ],
+  },
   {
     id: "office-administrator",
     title: "Office Administrator",
@@ -719,7 +719,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "sales",
     entitlements: ["collect_cash", "edit_patient_master", "view_reports_only"],
     description: "Sells the business's products or services and manages customer accounts.",
-    note: "Sales maintains customer accounts and often takes payment from the accounts it serves; granting credits or writing off balances belongs to a manager or the owner unless you tick it.",
+    note: "Sales maintains customer accounts and often takes payment from the accounts it serves; granting credits or writing off balances belongs to a manager or the owner unless you tick Enter write-offs.",
     aliases: [
       "sales manager",
       "sales director",
@@ -769,7 +769,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Delivers the clinical or professional service the business sells; billing, adjustments, and payments belong to the office.",
-    note: "An employed provider treats patients and stays out of the money: billing, adjustments, and write-off approval belong to the office and the owner. Tick write-off approval if this provider owns the practice or grants courtesy discounts.",
+    note: "An employed provider treats patients and stays out of the money: billing, adjustments, and write-off approval belong to the office and the owner. Tick Approve write-offs and voids if this provider owns the practice or grants courtesy discounts.",
     aliases: [
       "dentist",
       "associate dentist",
@@ -869,6 +869,8 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "charge nurse",
       "head nurse",
       "assistant medical",
+      "kennel assistant",
+      "kennel attendant",
     ],
   },
   {
@@ -928,13 +930,13 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
   },
   {
     id: "clinic-site-director",
-    title: "Clinic Director (one site)",
+    title: "Clinic Site Director",
     family: "clinical",
     entitlements: ["prepare_deposit", "approve_writeoffs", "view_reports_only"],
     description:
       "Runs one clinic site: schedules and supervises its staff, signs off their hours, and oversees its billing and deposits.",
     note: "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit. Tick Enter payroll if they also enter the run.",
-    aliases: ["clinic director", "clinic site director", "site clinic director"],
+    aliases: ["clinic director", "clinic director one site", "site clinic director"],
   },
   {
     id: "pharmacist",
@@ -966,7 +968,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["submit_claims", "post_adjustments", "view_reports_only"],
     description:
       "Assigns diagnosis and procedure codes for billing and resolves denied or adjusted claims.",
-    note: "A coder decides what is billed and adjusts what was denied.",
+    note: "A coder decides what the practice bills and adjusts what the payer denied.",
     aliases: [
       "coder",
       "coding specialist",
@@ -1101,7 +1103,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Seats guests, clears and resets tables, runs food, or stocks the bar, without handling payment.",
-    note: "Hosts, bussers, runners and barbacks seat guests and support the floor and bar without a drawer; tick Take payments if they ring out orders.",
+    note: "Hosts, bussers, runners and barbacks seat guests and support the floor and bar without a drawer; tick Take payment from customers if they ring out orders.",
     aliases: [
       "host",
       "hostess",
@@ -1153,7 +1155,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "Brewer / Cellar / Packaging",
     family: "food",
     entitlements: ["view_reports_only"],
-    description: "Brews, ferments, conditions, and packages the product; holds no financial duty.",
+    description: "Brews, ferments, conditions, and packages the product; holds no money duty.",
     note: "Brewing, cellar and packaging staff make the product and hold no money duty; they appear on the map for continuity.",
     aliases: [
       "brewer",
@@ -1189,7 +1191,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "Kitchen Staff",
     family: "food",
     entitlements: ["view_reports_only"],
-    description: "Prepares ingredients, washes, and supports the kitchen; holds no financial duty.",
+    description: "Prepares ingredients, washes, and supports the kitchen; holds no money duty.",
     note: "Kitchen staff hold no money duty; they appear on the map for continuity.",
     aliases: [
       "dishwasher",
@@ -1226,7 +1228,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Supervises and coordinates the retail staff of a store or department, including cash handling, returns, deliveries, and schedules.",
-    note: "A store manager takes and banks cash, approves returns and markdowns, signs for deliveries, and holds a store card for supplies. Add ordering, payroll entry and user set-up if they do them rather than the owner or the office.",
+    note: "A store manager takes and banks cash, approves returns and markdowns, signs for deliveries, and holds a store card for supplies. Tick Order supplies / services, Enter payroll and Create users / assign system access if they do them rather than the owner or the office.",
     aliases: [
       "store manager",
       "retail manager",
@@ -1234,6 +1236,11 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "branch manager",
       "department manager",
       "location manager",
+      "salon manager",
+      "spa manager",
+      "gym manager",
+      "fitness center manager",
+      "studio manager",
     ],
   },
   {
@@ -1243,7 +1250,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
     description:
       "Supports the store or restaurant manager and runs shifts: opens and closes the registers, bags the deposit, and handles returns.",
-    note: "An assistant manager closes registers, bags the deposit and processes refunds; tick write-off and void approval if they hold the manager's override, and ordering or payroll if they do those.",
+    note: "An assistant manager closes registers, bags the deposit and processes refunds; tick Approve write-offs and voids if they hold the manager's override, and Order supplies / services or Enter payroll if they do those.",
     aliases: [
       "assistant manager",
       "assistant store manager",
@@ -1258,7 +1265,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["collect_cash", "prepare_deposit", "view_reports_only"],
     description:
       "Leads a shift or a station, opens and closes the register, and stands in for the manager when none is present.",
-    note: "A shift lead or key holder takes cash and counts and bags the drawer; refunds need a manager unless you tick them.",
+    note: "A shift lead or key holder takes cash and counts and bags the drawer; a manager issues refunds unless you tick Issue customer refunds.",
     aliases: [
       "shift lead",
       "shift leader",
@@ -1331,7 +1338,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "E-commerce / Fulfillment",
     family: "retail",
     entitlements: ["issue_refunds", "view_reports_only"],
-    description: "Runs online sales channels and fulfils orders, including returns and refunds.",
+    description: "Runs online sales channels and fulfills orders, including returns and refunds.",
     note: "Online sales issues refunds against orders nobody else sees; tick Enter write-offs if they also grant store credit or adjust orders.",
     aliases: [
       "e-commerce specialist",
@@ -1355,8 +1362,9 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "Merchandiser / Category Manager",
     family: "retail",
     entitlements: ["order_supplies", "view_reports_only"],
-    description: "Plans and selects the products the business carries and how they are presented.",
-    note: "A merchandiser decides what is bought; receiving and paying belong to others.",
+    description:
+      "Plans and selects the products the business carries and how the store presents them.",
+    note: "A merchandiser decides what the business buys; receiving and paying belong to others.",
     aliases: [
       "visual merchandiser",
       "merchandiser",
@@ -1466,7 +1474,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["collect_cash", "view_reports_only"],
     description:
       "Performs the trade or service work in the field or on site and may collect payment from the customer on completion.",
-    note: "A technician who collects at the job holds cash the office never sees until it is deposited.",
+    note: "A technician who collects at the job holds cash the office never sees until they deposit it.",
     aliases: [
       "field technician",
       "service technician",
@@ -1596,7 +1604,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "trades",
     soc: "37-2011",
     entitlements: ["view_reports_only"],
-    description: "Cleans, maintains and repairs the premises and grounds; holds no financial duty.",
+    description: "Cleans, maintains and repairs the premises and grounds; holds no money duty.",
     note: "Cleaning, grounds and maintenance staff hold no money duty by default; tick anything they actually do.",
     aliases: [
       "cleaner",
@@ -1628,7 +1636,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
-    note: "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Reviewing the access logs should sit with someone else: tick it here only if IT does it.",
+    note: "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Someone else should review the access logs: tick Review system audit / access logs here only if IT does it.",
     aliases: [
       "systems administrator",
       "system administrator",
@@ -1719,7 +1727,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Assists attorneys by preparing documents, organizing files, and managing deadlines and client contact.",
-    note: "A paralegal or legal assistant works the matters and holds no money duty by default; tick billing or payment posting if they do the firm's billing.",
+    note: "A paralegal or legal assistant works the matters and holds no money duty by default; tick Issue invoices or claims or Record payments received if they do the firm's billing.",
     aliases: [
       "paralegal",
       "legal assistant",
@@ -1742,7 +1750,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Represents clients, gives legal advice, and records the time billed on their matters.",
-    note: "An associate or employed attorney bills time; write-downs are approved by a partner and billing and trust deposits belong to someone else, so tick write-off approval only for an attorney who grants it.",
+    note: "An associate or employed attorney bills time; a partner approves write-downs, and billing and trust deposits belong to someone else, so tick Approve write-offs and voids only for an attorney who grants them.",
     aliases: [
       "lawyer",
       "associate attorney",
@@ -1778,7 +1786,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Delivers professional, technical, or personal services to clients and bills time or fees for the work.",
-    note: "Fee-earning staff usually hold no money duty; tick collect payment if they take it at the chair or the desk.",
+    note: "Fee-earning staff usually hold no money duty; tick Take payment from customers if they take it at the chair or the desk.",
     aliases: [
       "consultant",
       "senior consultant",
@@ -1813,6 +1821,13 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "scrum master",
       "qa lead",
       "nail technician",
+      "barber",
+      "hairstylist",
+      "hair stylist",
+      "groomer",
+      "pet groomer",
+      "personal trainer",
+      "fitness instructor",
     ],
   },
   {
@@ -1860,7 +1875,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "professional",
     entitlements: ["view_reports_only"],
     description:
-      "Works in a temporary or learning role and holds no financial duty unless assigned one.",
+      "Works in a temporary or learning role and holds no money duty unless assigned one.",
     note: "An intern holds no money duty by default; tick anything they actually do.",
     aliases: ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice"],
   },
@@ -1954,7 +1969,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "hospitality",
     entitlements: ["view_reports_only"],
     description:
-      "Cleans and services guest rooms and public areas of a hotel or property; holds no financial duty.",
+      "Cleans and services guest rooms and public areas of a hotel or property; holds no money duty.",
     note: "Housekeeping staff hold no money duty by default; tick anything they actually do.",
     aliases: [
       "housekeeper",
@@ -1981,7 +1996,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Greets service customers, writes the repair order, quotes and adjusts the work, and takes payment.",
-    note: "A service advisor writes and adjusts the repair order and takes and records the customer's payment at the counter; goodwill write-offs are approved by the service manager unless you tick them.",
+    note: "A service advisor writes and adjusts the repair order and takes and records the customer's payment at the counter; the service manager approves goodwill write-offs unless you tick Approve write-offs and voids.",
     aliases: ["service advisor", "service writer", "service consultant", "shop advisor"],
   },
   {
@@ -2021,7 +2036,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["post_payments", "post_adjustments", "view_reports_only"],
     description:
       "Processes the paperwork on vehicle sales: titles, registrations, and the posting of the deal to the books.",
-    note: "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the record is written.",
+    note: "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the clerk writes the record.",
     aliases: [
       "title clerk",
       "deal clerk",
@@ -2060,7 +2075,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "automotive",
     entitlements: ["view_reports_only"],
     description:
-      "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no financial duty.",
+      "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no money duty.",
     note: "Lot, detail and business-development-center staff hold no money duty by default; tick anything they actually do.",
     aliases: [
       "detailer",
@@ -2079,7 +2094,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "automotive",
     entitlements: ["view_reports_only"],
     description:
-      "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no financial duty.",
+      "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no money duty.",
     note: "A shop technician works the repair order; the advisor or cashier takes the money, so the technician holds no money duty by default.",
     aliases: [
       "shop technician",
@@ -2250,8 +2265,8 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["sign_checks", "approve_payroll", "review_card_statement", "view_reports_only"],
     description:
       "Serves on the board, oversees the finances, signs or approves payments, and reviews the reconciliations.",
-    note: "A volunteer treasurer co-signs, reads the executive director's card statement, and reviews the reconciliation someone else prepares; tick Reconcile bank only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
-    aliases: ["volunteer treasurer", "finance committee chair"],
+    note: "A volunteer treasurer co-signs, reads the executive director's card statement, and reviews the reconciliation someone else prepares; tick Reconcile the bank account only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
+    aliases: ["volunteer treasurer", "finance committee chair", "church treasurer"],
   },
   {
     id: "program-director",
@@ -2260,7 +2275,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["order_supplies", "approve_invoices", "view_reports_only"],
     description:
       "Plans and runs the organization's programs, supervises program staff, and manages the program budget and grant-funded costs.",
-    note: "A program director buys program supplies and approves program bills against the budget or grant; tick Confirm receipt if they also sign for the deliveries.",
+    note: "A program director buys program supplies and approves program bills against the budget or grant; tick Confirm receipt of goods / services if they also sign for the deliveries.",
     aliases: ["director of programs", "programs director", "program services director"],
   },
   {
@@ -2290,7 +2305,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Serves on the governing board of a nonprofit or association, approving budgets and policies and reading financial reports.",
-    note: "A board member approves budgets and reads reports; signing, reconciling and approving payroll belong to the treasurer if a board member holds them.",
+    note: "A board member approves budgets and reads reports. If a board member also signs, reconciles or approves payroll, give that person the Board Treasurer title instead.",
     aliases: [
       "board member",
       "trustee",
@@ -2299,6 +2314,51 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "board president",
       "board secretary",
       "board vice chair",
+    ],
+  },
+  {
+    id: "church-administrator",
+    title: "Church Administrator",
+    family: "nonprofit",
+    entitlements: [
+      "post_payments",
+      "prepare_deposit",
+      "enter_invoices",
+      "release_payment",
+      "enter_payroll",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Runs a congregation's office and finances: records offerings and gifts, makes the deposit, pays the bills, and runs payroll.",
+    note: "A church administrator records the offering, makes the deposit, pays the bills and runs payroll: the office manager's seat in a congregation. Untick what the treasurer or a counting team does; the offering count and the bank statement need someone else.",
+    aliases: [
+      "church business administrator",
+      "church business manager",
+      "parish administrator",
+      "church office manager",
+      "church secretary",
+    ],
+  },
+  {
+    id: "pastor",
+    title: "Pastor / Minister",
+    family: "nonprofit",
+    entitlements: ["view_reports_only"],
+    description:
+      "Leads a congregation's worship, teaching, and pastoral care and oversees its staff.",
+    note: "A pastor usually holds no money duty; tick Approve expense claims and card spending if they approve benevolence or discretionary-fund spending, and Sign / release checks if they sign.",
+    aliases: [
+      "pastor",
+      "senior pastor",
+      "lead pastor",
+      "associate pastor",
+      "minister",
+      "priest",
+      "rector",
+      "rabbi",
+      "imam",
+      "clergy",
     ],
   },
   // Marketing and communications
@@ -2310,7 +2370,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["order_supplies", "hold_company_card", "view_reports_only"],
     description:
       "Plans and runs marketing and communications, manages agencies and ad spend, and maintains the brand.",
-    note: "Marketing buys agency, print, and ad-platform services, usually on a company card the owner never itemises; entering and paying the bills belong to the office.",
+    note: "Marketing buys agency, print, and ad-platform services, usually on a company card the owner never itemizes; entering and paying the bills belong to the office.",
     aliases: [
       "marketing manager",
       "marketing director",
@@ -2399,7 +2459,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "Teacher / Caregiver",
     family: "education",
     entitlements: ["view_reports_only"],
-    description: "Teaches or cares for children or students and holds no financial duty.",
+    description: "Teaches or cares for children or students and holds no money duty.",
     note: "Teaching staff hold no money duty; they appear on the map for continuity.",
     aliases: [
       "teacher",
@@ -2431,9 +2491,8 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     family: "education",
     soc: "53-3051",
     entitlements: ["view_reports_only"],
-    description:
-      "Drives a bus or van carrying children, clients, or staff; holds no financial duty.",
-    note: "A bus or van driver carries children, clients or staff and collects nothing; tick Take payments if they collect fares.",
+    description: "Drives a bus or van carrying children, clients, or staff; holds no money duty.",
+    note: "A bus or van driver carries children, clients or staff and collects nothing; tick Take payment from customers if they collect fares.",
     aliases: [
       "bus driver",
       "school bus driver",
