@@ -1,9 +1,55 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
-import { formatUsd } from "@/lib/utils";
+import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
+import { formatUsd, formatUsdDelta } from "@/lib/utils";
 import { joinWithAnd, verb, count } from "../text";
 import { clamp } from "../number";
 import { lossPhrase } from "../evidence";
+import { tabLabel } from "../navigation";
+import { RISK_SCALE } from "../scoring/bands";
+
+/**
+ * The brief's sections, in reading order: the answer first (what to do this
+ * week, the moves, the warnings), then the figures behind it. The rules brief
+ * writes them and the model is asked for the same list.
+ */
+export const BRIEF_SECTION = {
+  situation: "Situation",
+  thisWeek: "This week",
+  moves: "Recommended moves",
+  warnings: "Warnings",
+  risks: "Biggest open risks",
+  cases: "What this has cost other businesses",
+  conditions: "Watched conditions",
+  cascades: "What else moves",
+  order: "Order of fixes (this app's model)",
+  lenses: "Four review lenses",
+  tradeoffs: "Tradeoffs",
+  sources: "Where the figures come from",
+} as const;
+
+export const BRIEF_SECTIONS: readonly string[] = Object.values(BRIEF_SECTION);
+
+/**
+ * When a warning fires. Every threshold is this app's own choice, not a
+ * benchmark, and the text that quotes one says so.
+ */
+export const WARNING_RULES = {
+  /** The risk index's "act now" band (scoring/bands). */
+  averageResidual: RISK_SCALE.actNow,
+  /** One critical-path risk is on the register already; two or more is a pattern. */
+  criticalPathCount: 2,
+  /** A scenario loss this app treats as large for a small business... */
+  scenarioRetainedUsd: 15_000,
+  /** ...assumed to surface within a quarter. */
+  scenarioDaysUntilFound: 90,
+  /** At this team size or below, separating every duty is rarely realistic. */
+  smallTeamSize: 6,
+} as const;
+
+/** The warning when nothing crosses a threshold; the critic lens says the same. */
+export const NO_ALERT_WARNING =
+  "Nothing is at a red alert; check again after a staff or insurance change.";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -64,25 +110,21 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "spof",
           label: row.name,
-          metric: `SPOF · ${row.riskScore ?? "?"} · ${row.owners[0]?.name ?? "unowned"}`,
+          metric: row.owners[0]
+            ? `only ${row.owners[0].name} can run it · risk index ${row.riskScore ?? "?"}/100`
+            : `nobody can run it · risk index ${row.riskScore ?? "?"}/100`,
           link: row.knowledgeId ? { tab: "knowledge", id: row.knowledgeId } : { tab: "knowledge" },
         });
       }
     }
 
     if (t.tool === "run_precog_scenario") {
-      const d = t.data as {
-        scenarioId: string;
-        title: string;
-        retained: { expected: number };
-        timelineDays: { p50: number };
-        dynamic: { expectedAnnualCostOfRisk: number } | null;
-      };
+      const d = t.data as ScenarioRunData;
       evidence.push({
         id: `ev-${++i}`,
         kind: "scenario",
         label: d.title,
-        metric: `assumed retained ${formatUsd(d.retained.expected)} · about ${d.timelineDays.p50}d · CoR ${formatUsd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+        metric: describeScenarioFigures(d),
         link: { tab: "precog", id: d.scenarioId },
       });
     }
@@ -92,8 +134,8 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "coso",
-        label: `COSO ${d.overall}`,
-        metric: d.status,
+        label: "Coverage check",
+        metric: `${d.overall}/100 · ${d.status}`,
         link: { tab: "coso" },
       });
     }
@@ -142,7 +184,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "insurance",
         label: "Cost of risk",
-        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (−${d.transfer.discountPctApplied}%) · CoR ${formatUsd(d.transfer.expectedAnnualCostOfRisk)}`,
+        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (${d.transfer.discountPctApplied}% discount) · yearly cost of risk ${formatUsd(d.transfer.expectedAnnualCostOfRisk)}`,
         link: { tab: "precog" },
       });
     }
@@ -160,7 +202,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "cascade",
           label: row.label,
-          metric: `ΔCoR ${formatUsd(row.deltaCor)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
+          metric: `yearly cost of risk ${formatUsdDelta(row.deltaCor)} · risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}`,
           link: { tab: "precog" },
         });
       }
@@ -175,7 +217,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "rag",
           label: h.title,
-          metric: `${h.domain} · score ${h.score}`,
+          metric: "control guidance",
           link: { tab: "intel" },
         });
       }
@@ -186,7 +228,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "ml",
-        label: "Leading indicators",
+        label: "Watched conditions",
         metric: `${d.breached} breached · ${d.watch} at watch`,
         link: { tab: "intel" },
       });
@@ -246,18 +288,20 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     | undefined;
 
   if (!cas?.topByCostOfRisk?.length) {
-    return ["Variables are coupled — re-run cascade simulation after profile changes."];
+    return [
+      "The premium, the deductible and the controls move together; run the what-else-moves check again after you change one.",
+    ];
   }
 
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, retained ${formatUsd(cas.baseline.retainedExpected)}, CoR ${formatUsd(cas.baseline.expectedAnnualCostOfRisk)}, residual ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatUsd(cas.baseline.retainedExpected)}, yearly cost of risk ${formatUsd(cas.baseline.expectedAnnualCostOfRisk)}, risk index ${cas.baseline.residualAverage}.`,
     );
   }
   for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: CoR ${formatUsd(row.deltaCor)}, retained ${formatUsd(row.deltaRetained)}, premium ${formatUsd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: yearly cost of risk ${formatUsdDelta(row.deltaCor)}, assumed retained ${formatUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -270,22 +314,28 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
     { breached?: number; watch?: number } | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
-    { retained: { expected: number }; timelineDays: { p50: number }; title: string } | undefined;
+    ScenarioRunData | undefined;
 
-  if ((residual?.averageResidual ?? 0) >= 60) {
-    warnings.push(`Avg residual ${residual!.averageResidual} is Act-now territory.`);
+  if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
+    warnings.push(
+      `The average risk index is ${residual!.averageResidual}/100, in the "act now" band (${WARNING_RULES.averageResidual} or more on this app's own index).`,
+    );
   }
-  if ((residual?.criticalPath ?? 0) >= 2) {
-    warnings.push(`Multiple critical-path residuals (${residual!.criticalPath}).`);
+  if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
+    warnings.push(`${residual!.criticalPath} risks sit on a critical path.`);
   }
   if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(
-      `${leading.breached} leading indicator(s) breached — the conditions that precede a loss are present.`,
+      `${count(leading.breached!, "watched condition")} breached: the conditions that come before a loss are present.`,
     );
   }
-  if (scenario && scenario.retained.expected > 15000 && scenario.timelineDays.p50 < 90) {
+  if (
+    scenario &&
+    scenario.retained.expected > WARNING_RULES.scenarioRetainedUsd &&
+    scenario.timelineDays.p50 < WARNING_RULES.scenarioDaysUntilFound
+  ) {
     warnings.push(
-      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
+      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; this app warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
@@ -307,7 +357,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
     warnings.push(`Debrief due: ${d.summary}`);
   }
   if (!warnings.length) {
-    warnings.push("No single red alert — still re-score after staff or insurance change.");
+    warnings.push(NO_ALERT_WARNING);
   }
   return warnings;
 }
@@ -436,7 +486,7 @@ export function localSynthesize(
         knowledgeId: string;
         name: string;
         criticality: string;
-        successor: { name: string } | null;
+        successor: { id: string; name: string } | null;
         documented: boolean;
         procedureLocation: string | null;
         trainingLogged: { reviewBy: string | null } | null;
@@ -460,7 +510,7 @@ export function localSynthesize(
       .slice(0, 2)
       .map((d) => d.label)
       .join("; ");
-    return `**${t.name}** — residual **${t.residual}/100** (${t.band}). Drivers: ${drivers || "n/a"}.`;
+    return `**${t.name}**: risk index **${t.residual}/100** (${t.band}).${drivers ? ` Drivers: ${drivers}.` : ""}`;
   });
 
   // Real losses behind the open gaps. Facts stated in cited sources, so the
@@ -473,7 +523,7 @@ export function localSynthesize(
   if (caseEv && caseEv.matchingCases > 0) {
     const largest = caseEv.largest;
     highestRisks.push(
-      `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} the open duty conflicts` +
+      `**${BRIEF_SECTION.cases}**: ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} the open duty conflicts` +
         (caseEv.lossRange
           ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
@@ -486,20 +536,20 @@ export function localSynthesize(
     (() => {
       const n = snap?.staff.teamSize;
       if (typeof n !== "number")
-        return "Team size unknown — enter your team to see how far duties can be separated.";
-      return n <= 6
-        ? `Team size ${n} — with this few people, separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
-        : `Team size ${n} — enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
+        return "Team size unknown: enter your team to see how far duties can be separated.";
+      return n <= WARNING_RULES.smallTeamSize
+        ? `Team of ${n}: at ${WARNING_RULES.smallTeamSize} people or fewer (this app's cut-off), separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
+        : `Team of ${n}: enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
     })(),
     leading
-      ? `Leading indicators: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
-      : "Check the leading indicators for conditions that precede a loss.",
+      ? `Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
+      : "Check the watched conditions on Patterns for what comes before a loss.",
     bestCascade
-      ? `Best cascade: **${bestCascade.label}** (ΔCoR ${formatUsd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
-      : "Simulate variable cascades.",
+      ? `Biggest knock-on effect: **${bestCascade.label}** (yearly cost of risk ${formatUsdDelta(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
+      : "Run the what-else-moves check on What could happen.",
     rag?.hits?.[0]
-      ? `RAG: _${rag.hits[0].title}_ — ${rag.hits[0].text.slice(0, 140)}…`
-      : "Retrieve control guidance for acceptance language.",
+      ? `Guidance: _${rag.hits[0].title}_: ${rag.hits[0].text.slice(0, 140)}…`
+      : "Read the control guidance on Patterns before you accept a risk.",
   ];
 
   // Planning cadences, not measurements: how soon the coach suggests reviewing
@@ -524,11 +574,10 @@ export function localSynthesize(
     };
   };
 
-  const reconfirmDecision = (stale: { name: string }[], unheld: boolean) => ({
+  const reconfirmDecision = (stale: { name: string }[]) => ({
     action: `Re-confirm the register entry for ${stale[0].name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`,
-    rationale: unheld
-      ? "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them."
-      : "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
+    rationale:
+      "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them.",
     evidenceIds: [] as string[],
     effort: "low" as const,
     horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
@@ -656,6 +705,12 @@ export function localSynthesize(
         effort: first.successor ? ("medium" as const) : ("high" as const),
         horizonDays: horizon,
         cascadeEffects: ["continuity after departure ↑", "continuity residual index ↓"],
+        link: {
+          tab: "knowledge",
+          id: first.knowledgeId,
+          step: "cover" as const,
+          personId: first.successor?.id,
+        },
       },
     ];
   };
@@ -712,11 +767,14 @@ export function localSynthesize(
   const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
-      action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
+      action:
+        beamAction ||
+        bestCascade?.label ||
+        "Turn on a second signer for payments and an independent bank reconciliation",
       rationale: beamAction
         ? "The order this app's lever model prefers, using its own weights; read it as an ordering, not a measurement."
         : bestCascade
-          ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
+          ? `The what-else-moves check puts this first: it lowers the yearly cost of risk and the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")
@@ -760,10 +818,10 @@ export function localSynthesize(
                 ? uncommittedSpof.suggestedTrainee
                   ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
                   : `Cross-train backup for ${uncommittedSpof.name}`
-                : "Cross-train top knowledge SPOF",
+                : "Train a second person on the work only one person can run",
               rationale:
                 uncommittedSpof?.nextStep ??
-                "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
+                "Work only one person can run is the continuity gap the watched conditions look for.",
               evidenceIds: evidence
                 .filter((e) => e.kind === "spof")
                 .map((e) => e.id)
@@ -771,25 +829,24 @@ export function localSynthesize(
               effort: uncommittedSpof?.documented ? ("low" as const) : ("medium" as const),
               horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
               cascadeEffects: ["continuity residual index ↓"],
+              link: uncommittedSpof?.knowledgeId
+                ? {
+                    tab: "knowledge",
+                    id: uncommittedSpof.knowledgeId,
+                    step: "cover" as const,
+                    personId: uncommittedSpof.suggestedTrainee?.id,
+                  }
+                : { tab: "knowledge" },
             },
           ]),
-    ...(checkIns
-      ? [
-          ...(checkIns.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
-          ...(checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld, true)] : []),
-        ]
-      : spofs?.some((s) => s.stale)
-        ? [
-            reconfirmDecision(
-              spofs.filter((s) => s.stale),
-              false,
-            ),
-          ]
-        : []),
+    // Register freshness comes from the check-in tool alone; it always runs.
+    ...(checkIns?.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
+    ...(checkIns && checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld)] : []),
     {
-      action: "Log residual accept/remediate decisions with review dates",
+      action:
+        "Write down in the Journal which open gaps you accept and which you will fix, each with a review date",
       rationale:
-        "COSO monitoring requires a trail; an open gap stays flagged until a decision is recorded.",
+        "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
       evidenceIds: evidence
         .filter((e) => e.kind === "sod" || e.kind === "rag")
         .map((e) => e.id)
@@ -800,55 +857,52 @@ export function localSynthesize(
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${bestCascade.label}**, then re-check the leading indicators and the residual register.`
-    : "This week: dual control + independent bank rec, then re-run Pioneer and re-check the leading indicators.";
+    ? `This week: **${bestCascade.label}**, then re-check the watched conditions and What is still exposed.`
+    : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
 
-  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading indicators **${leading?.breached ?? "?"} breached**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
+  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso?.overall ?? "?"}/100**, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
 
   const specialistMd = specialistNotes
     .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)
     .join("\n\n");
 
   const markdown = [
-    "## Situation",
+    `## ${BRIEF_SECTION.situation}`,
     situation,
     "",
-    "## Highest residual risks",
+    `## ${BRIEF_SECTION.thisWeek}`,
+    frontierNextMove,
+    "",
+    `## ${BRIEF_SECTION.moves}`,
+    ...decisions.map(renderDecision),
+    "",
+    `## ${BRIEF_SECTION.warnings}`,
+    ...warnings.map((w) => `- ${w}`),
+    "",
+    `## ${BRIEF_SECTION.risks}`,
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
-    "## Leading indicators",
+    `## ${BRIEF_SECTION.conditions}`,
     leading
       ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in this app, not benchmarks)`
       : "- Not checked in this run",
     "",
-    "## Variable cascades (what else moves)",
+    `## ${BRIEF_SECTION.cascades}`,
     ...variableCascades.map((c) => `- ${c}`),
     "",
-    "## Lever ordering (this app's model)",
+    `## ${BRIEF_SECTION.order}`,
     ...advancedReasoning.map((x) => `- ${x}`),
     "",
-    "## Specialist board",
+    `## ${BRIEF_SECTION.lenses}`,
     specialistMd,
     "",
-    "## Tradeoffs",
+    `## ${BRIEF_SECTION.tradeoffs}`,
     ...tradeoffs.map((t) => `- ${t}`),
     "",
-    "## Recommended moves",
-    ...decisions.map((d, i) => {
-      const c = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
-      return `${i + 1}. **${d.action}** (${d.effort} · ${d.horizonDays}d) — ${d.rationale}${c}`;
-    }),
-    "",
-    "## Chicken Little warnings",
-    ...warnings.map((w) => `- ${w}`),
-    "",
-    "## Frontier next move",
-    frontierNextMove,
-    "",
-    "## Evidence anchors",
+    `## ${BRIEF_SECTION.sources}`,
     ...evidence
       .slice(0, 12)
-      .map((e) => `- [${e.id}] **${e.label}** — ${e.metric ?? e.kind} → ${e.link.tab}`),
+      .map((e) => `- **${e.label}**: ${e.metric ?? e.kind} (see ${tabLabel(e.link.tab)})`),
   ].join("\n");
 
   return {
@@ -864,4 +918,10 @@ export function localSynthesize(
     markdown,
     evidence,
   };
+}
+
+/** "1. **Move one duty** (medium effort · within 14 days): why. *Also moves:* …" */
+export function renderDecision(d: PioneerDecision, i: number): string {
+  const also = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
+  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}${also}`;
 }

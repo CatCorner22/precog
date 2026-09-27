@@ -8,10 +8,9 @@ interface SpofRow {
   knowledgeId?: string;
   name: string;
   riskScore?: number;
-  owners: { name: string }[];
-  suggestedTrainee?: { name: string } | null;
+  owners: { id?: string; name: string; role?: string }[];
+  suggestedTrainee?: { id?: string; name: string } | null;
   documented?: boolean;
-  stale?: boolean;
   nextStep?: string | null;
   committed?: {
     subject: string;

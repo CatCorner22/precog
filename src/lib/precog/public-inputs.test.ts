@@ -159,7 +159,6 @@ describe("parsePioneerInput", () => {
     };
     const parsed = parsePioneerInput(wire);
     expect(parsed.question).toBe("What should I fix first?");
-    expect(parsed.preferLocal).toBe(false);
     expect(parsed.today).toBe("2026-09-23");
     expect(parsed.profile).toEqual(wire.profile);
     // And the canonical profile builds from it without complaint.

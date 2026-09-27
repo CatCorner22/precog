@@ -28,12 +28,13 @@ export function joinWithAnd(parts: readonly string[], max?: number): string {
 }
 
 /**
- * A label lower-cased for use mid-sentence, unless its first word is an
- * acronym: "Bank reconciliation" becomes "bank reconciliation", "ACH
- * initiation" stays as written.
+ * A label lower-cased for use mid-sentence ("Bank reconciliation" reads
+ * "bank reconciliation", "A second person" reads "a second person"), unless
+ * its first word is an acronym or a code ("ACH initiation", "A/R
+ * write-offs", "X-ray").
  */
 export function midSentence(label: string): string {
-  return label.replace(/^([A-Z])(?![A-Z])/, (m) => m.toLowerCase());
+  return /^(?:[A-Z][a-z]|A\s)/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
 
 /** "1 person", "3 people", "2 entries": the number and the noun that agrees with it. */

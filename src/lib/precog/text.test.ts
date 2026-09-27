@@ -100,5 +100,10 @@ describe("midSentence", () => {
     expect(midSentence("A weekly review")).toBe("a weekly review");
     expect(midSentence("ACH initiation")).toBe("ACH initiation");
     expect(midSentence("approve write-offs")).toBe("approve write-offs");
+    expect(midSentence("A second person releases payments")).toBe(
+      "a second person releases payments",
+    );
+    expect(midSentence("A/R write-offs")).toBe("A/R write-offs");
+    expect(midSentence("X-ray")).toBe("X-ray");
   });
 });

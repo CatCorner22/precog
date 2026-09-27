@@ -1,8 +1,6 @@
 import type { ControlDefinition, ControlId } from "../evidence/controls";
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
-import type { DualReleasePolicy } from "../controls/dual-release";
-import { formatUsd } from "@/lib/utils";
 import { midSentence } from "../text";
 
 /**
@@ -10,9 +8,17 @@ import { midSentence } from "../text";
  * when it watches either duty of the finding's pair. Controls that apply to
  * everyone regardless of duties (background checks, time away) or that watch
  * a pattern rather than a duty (comparing locations) answer no finding; they
- * still appear, after the ones that do.
+ * still appear, after the ones that do. "Split one duty out" watches every
+ * duty (UNIVERSAL_FIX): moving one duty of any pair closes it.
  */
 const ALL_DUTIES: EntitlementId[] = ENTITLEMENTS.map((e) => e.id);
+
+/**
+ * The one control that answers every open finding, because moving either duty
+ * of any pair closes it. It therefore leads or ties the ranking on every
+ * business with a finding, by design: it is the fix Start here names first.
+ */
+export const UNIVERSAL_FIX = "split-one-duty-out" satisfies ControlId;
 
 export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
   "owner-opens-bank-statement": [
@@ -60,7 +66,7 @@ export const CONTROL_DUTIES: Record<ControlId, readonly EntitlementId[]> = {
     "issue_refunds",
     "post_payments",
   ],
-  "split-one-duty-out": ALL_DUTIES,
+  [UNIVERSAL_FIX]: ALL_DUTIES,
   "permission-review": ["manage_user_access", "pms_admin_roles", "export_bulk_data"],
   "log-payments-at-the-mail": ["collect_cash", "post_payments", "prepare_deposit"],
   "independent-financial-review": ["post_journal_entries", "bank_reconcile"],
@@ -110,7 +116,8 @@ export function findingsAnswered(control: ControlId, findings: readonly OpenFind
  * findings each control answers, then by how many of the matching prosecuted
  * cases it would plausibly have caught, then by name. A control counted across
  * the whole case pool (a company-card review, say) no longer leads a list for
- * a team with no card finding.
+ * a team with no card finding. UNIVERSAL_FIX answers every finding, so it
+ * leads or ties whenever it is in the list.
  */
 export function rankFirstSteps<
   T extends { control: ControlDefinition; supportingCaseIds: readonly string[] },
@@ -123,80 +130,6 @@ export function rankFirstSteps<
         b.supportingCaseIds.length - a.supportingCaseIds.length ||
         a.control.label.localeCompare(b.control.label),
     );
-}
-
-/** A duty-conflict suggestion that quotes a dual-release threshold of its own, or the detector's generic note. */
-const STALE_DUAL_RELEASE = [
-  /dual release on payments\s*>\s*\$[\d,]+/i,
-  /^dual-release policy active on related channel$/i,
-];
-
-/**
- * The live dual-release policy as it applies to one rule, in one sentence, or
- * null when no channel of the policy addresses the rule. Thresholds are the
- * policy's own, so every screen quotes the same figure.
- */
-export function dualReleaseLine(policy: DualReleasePolicy, ruleId: string): string | null {
-  const covering = policy.rules.filter((r) => r.mitigatesRuleIds.includes(ruleId));
-  if (covering.length === 0) return null;
-  const on = policy.enabled ? covering.filter((r) => r.enabled) : [];
-  if (on.length === 0) {
-    return `Dual release is off for this in your policy; switching it on under Who controls what would require a second person on ${channelWords(covering)}`;
-  }
-  return `Your dual-release policy requires a second person on ${channelWords(on)}`;
-}
-
-/** "ACH / vendor electronic pay above $500; New vendor master at every amount" */
-function channelWords(rules: readonly DualReleasePolicy["rules"][number][]): string {
-  return rules
-    .map((r) =>
-      r.thresholdUsd > 0
-        ? `${r.label} above ${formatUsd(r.thresholdUsd)}`
-        : `${r.label} at every amount`,
-    )
-    .join("; ");
-}
-
-/**
- * What closes a gap, with any threshold taken from the live policy: suggestions
- * that quote their own dual-release figure, and the detector's generic "policy
- * active" note, give way to one sentence quoting the policy. Controls already
- * in place (the finding's controlsInPlace) are left out: they are done, not
- * steps to take.
- */
-export function closingSteps(
-  compensatingControls: readonly string[],
-  policy: DualReleasePolicy,
-  ruleId: string,
-  inPlace: readonly string[] = [],
-): string[] {
-  const kept = compensatingControls.filter(
-    (c) => !inPlace.includes(c) && !STALE_DUAL_RELEASE.some((re) => re.test(c)),
-  );
-  const line = dualReleaseLine(policy, ruleId);
-  return line ? [...kept, line] : kept;
-}
-
-/**
- * A recorded control that quotes its own dual-release figure ("Dual release on
- * payments > $1,000"), rewritten to the live policy: its threshold when the
- * policy covers the rule and is on, "off" when it is not, and no figure at all
- * when no policy is at hand.
- */
-export function withLiveThreshold(
-  text: string,
-  policy: DualReleasePolicy | undefined,
-  ruleIds: readonly string[],
-): string {
-  if (!STALE_DUAL_RELEASE[0].test(text)) return text;
-  if (!policy) return "Dual release above the thresholds in your dual-release policy";
-  const covering = policy.rules.filter(
-    (r) => r.enabled && r.mitigatesRuleIds.some((id) => ruleIds.includes(id)),
-  );
-  if (!policy.enabled || covering.length === 0) {
-    return "Dual release (off in your dual-release policy)";
-  }
-  return `Dual release per your policy: ${channelWords(covering)}`;
 }
 
 /** How a gap card is badged: severity until dual release covers it. */

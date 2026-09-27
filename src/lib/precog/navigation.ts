@@ -86,3 +86,17 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
 const ITEM_TABS: ReadonlySet<TabId> = new Set(["precog", "knowledge", "map", "layers"]);
 
 const ITEM_MAX = 120;
+
+/**
+ * A tab's name in the active wording ("Who controls what" for "sod" in plain
+ * wording; pass `say` from usePresentation for the toggle). Every "Open …"
+ * button reads it from TAB_WORDS, so a button never prints a tab's internal
+ * id; an unknown id is returned as given.
+ */
+export function tabLabel(
+  tab: string,
+  say: (plain: string, tactical: string) => string = (plain) => plain,
+): string {
+  const wording = TAB_WORDS.find((t) => t.id === tab);
+  return wording ? say(wording.label, wording.tactical) : tab;
+}

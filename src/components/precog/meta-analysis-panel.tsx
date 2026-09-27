@@ -5,12 +5,14 @@ import {
   type EpistemicItem,
 } from "@/lib/precog/llm/meta-analysis";
 import { usePractice } from "@/lib/precog/practice-context";
+import { usePresentation } from "@/lib/precog/presentation";
+import { johariPanes } from "@/components/precog/johari-pane";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Eye, EyeOff, HelpCircle, Radar, Search, Sparkles, Zap } from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
+import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 
 const CLASS_META: Record<
   EpistemicClass,
@@ -18,22 +20,22 @@ const CLASS_META: Record<
 > = {
   known_known: {
     label: "Known known",
-    blurb: "Measured — platform can evaluate with confidence",
+    blurb: "This app measures it",
     variant: "ok",
   },
   known_unknown: {
     label: "Known unknown",
-    blurb: "We know we're missing this — probe to close the gap",
+    blurb: "This app knows it cannot see this yet",
     variant: "warn",
   },
   unknown_unknown: {
     label: "Unknown unknown",
-    blurb: "Outside current model ontology — expand what we look for",
+    blurb: "Outside what this app models",
     variant: "danger",
   },
   unknown_known: {
     label: "Unknown known",
-    blurb: "Tacit knowledge the practice has but hasn't encoded",
+    blurb: "Your team knows it; the app does not",
     variant: "primary",
   },
 };
@@ -44,6 +46,8 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
   // The report is a pure function of the profile: it changes when the
   // business does, and re-running it on a timer would only repeat itself.
   const report = useMemo(() => runMetaAnalysis(profile), [profile]);
+  // Every pane comes from this business's own items, as on the Johari view.
+  const panes = useMemo(() => johariPanes(report.items), [report.items]);
 
   const filtered = report.items.filter((i) => {
     if (filter === "all") return true;
@@ -72,26 +76,22 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
           it models (unknown unknowns). It is a list to work through, not a score. It re-evaluates
           as your profile, dual release, and decisions change.
         </p>
-        <p className="mt-3 text-xs text-subtle">
-          Evaluated {new Date(report.generatedAt).toLocaleTimeString()} from the current profile ·{" "}
-          {report.practiceName}
-        </p>
+        <p className="mt-3 text-xs text-subtle">From the current profile · {report.practiceName}</p>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <Badge variant="danger">Critical / high unknowns</Badge>
-            <p className="mt-2 text-2xl font-semibold tabular">{report.summary.criticalUnknowns}</p>
-            <p className="text-xs text-muted">Need probes or ontology expansion</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <CountChip
+          label="Critical and high gaps"
+          hint="Need a check or a new input"
+          n={report.summary.criticalUnknowns}
+          active={filter === "critical"}
+          onClick={() => setFilter("critical")}
+          tone="danger"
+        />
         <CountChip
           label="Known knowns"
           n={report.summary.knownKnowns}
+          hint={CLASS_META.known_known.blurb}
           active={filter === "known_known"}
           onClick={() => setFilter("known_known")}
           tone="ok"
@@ -99,6 +99,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <CountChip
           label="Known unknowns"
           n={report.summary.knownUnknowns}
+          hint={CLASS_META.known_unknown.blurb}
           active={filter === "known_unknown"}
           onClick={() => setFilter("known_unknown")}
           tone="warn"
@@ -106,6 +107,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <CountChip
           label="Unknown unknowns"
           n={report.summary.unknownUnknowns}
+          hint={CLASS_META.unknown_unknown.blurb}
           active={filter === "unknown_unknown"}
           onClick={() => setFilter("unknown_unknown")}
           tone="danger"
@@ -113,16 +115,18 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <CountChip
           label="Unknown knowns"
           n={report.summary.unknownKnowns}
+          hint={CLASS_META.unknown_known.blurb}
           active={filter === "unknown_known"}
           onClick={() => setFilter("unknown_known")}
           tone="primary"
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter the list">
         <Button
           size="sm"
           variant={filter === "all" ? "default" : "secondary"}
+          aria-pressed={filter === "all"}
           onClick={() => setFilter("all")}
         >
           All items
@@ -130,6 +134,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <Button
           size="sm"
           variant={filter === "critical" ? "default" : "secondary"}
+          aria-pressed={filter === "critical"}
           onClick={() => setFilter("critical")}
         >
           <AlertTriangle className="size-3.5" />
@@ -141,7 +146,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="size-4 text-primary" />
-            Live analysis narrative
+            What the list says
           </CardTitle>
           <CardDescription>Updates as profile, dual release, and decisions change</CardDescription>
         </CardHeader>
@@ -169,10 +174,10 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Zap className="size-4" />
-              Real-time evaluation streams
+              What updates by itself
             </CardTitle>
             <CardDescription>
-              What re-computes instantly vs what still needs human import
+              What recalculates as you edit, and what still needs you to enter it
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -203,29 +208,25 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Eye className="size-4" />
-                Johari window (control system)
+                Johari window
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2 sm:grid-cols-2">
+              <JohariCell title="Open" icon={<Eye className="size-3" />} items={panes.open} />
               <JohariCell
-                title="Open"
-                icon={<Eye className="size-3" />}
-                items={report.johari.open}
-              />
-              <JohariCell
-                title="Blind (platform sees)"
+                title="Blind (the app sees, you may not)"
                 icon={<Search className="size-3" />}
-                items={report.johari.blind}
+                items={panes.blind}
               />
               <JohariCell
-                title="Hidden (practice knows)"
+                title="Hidden (your team knows)"
                 icon={<EyeOff className="size-3" />}
-                items={report.johari.hidden}
+                items={panes.hidden}
               />
               <JohariCell
                 title="Unknown"
                 icon={<HelpCircle className="size-3" />}
-                items={report.johari.unknown}
+                items={panes.unknown}
               />
             </CardContent>
           </Card>
@@ -234,9 +235,11 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Epistemic inventory ({filtered.length})</CardTitle>
+          <CardTitle className="text-base">
+            Everything this app can and cannot see ({filtered.length})
+          </CardTitle>
           <CardDescription>
-            Known unknowns admit ignorance. Unknown unknowns expand what we should look for next.
+            Known unknowns are the gaps this app admits; unknown unknowns are what to look for next.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -252,12 +255,14 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
 function CountChip({
   label,
+  hint,
   n,
   active,
   onClick,
   tone,
 }: {
   label: string;
+  hint?: string;
   n: number;
   active: boolean;
   onClick: () => void;
@@ -266,6 +271,7 @@ function CountChip({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
         "rounded-xl border px-3 py-3 text-left transition-colors",
@@ -276,6 +282,7 @@ function CountChip({
     >
       <Badge variant={tone}>{label}</Badge>
       <p className="mt-1 text-xl font-semibold tabular">{n}</p>
+      {hint && <p className="text-xs text-muted">{hint}</p>}
     </button>
   );
 }
@@ -300,6 +307,7 @@ function JohariCell({ title, icon, items }: { title: string; icon: ReactNode; it
 
 function ItemCard({ item, onNavigate }: { item: EpistemicItem; onNavigate?: NavFn }) {
   const meta = CLASS_META[item.classification];
+  const { say } = usePresentation();
   return (
     <div
       className={cn(
@@ -326,7 +334,7 @@ function ItemCard({ item, onNavigate }: { item: EpistemicItem; onNavigate?: NavF
       <p className="mt-1 text-xs text-subtle">Affects: {item.affects.join(" · ")}</p>
       {item.probe && (
         <div className="mt-2 rounded-md border border-border bg-panel px-2 py-1.5 text-xs">
-          <span className="font-medium text-fg">Probe ({item.probe.effort})</span>
+          <span className="font-medium text-fg">Check ({item.probe.effort})</span>
           <span className="text-muted"> · {item.probe.kind.replace("_", " ")}</span>
           <p className="mt-0.5 text-fg">{item.probe.action}</p>
           <p className="text-xs text-ok">{item.probe.expectedLift}</p>
@@ -339,7 +347,7 @@ function ItemCard({ item, onNavigate }: { item: EpistemicItem; onNavigate?: NavF
           className="mt-2 h-7 px-2 text-xs"
           onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
         >
-          Open {item.link.tab}
+          Open {tabLabel(item.link.tab, say)}
         </Button>
       )}
     </div>

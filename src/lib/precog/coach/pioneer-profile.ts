@@ -1,4 +1,3 @@
-import { normalizeRiskVariables } from "../practice-profile";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
@@ -6,6 +5,7 @@ import {
   DECISION_KIND_LABEL,
   defaultProfile,
   normalizePlannedAbsences,
+  normalizeRiskVariables,
   type DecisionEntry,
   type DecisionKind,
   type PlannedAbsence,

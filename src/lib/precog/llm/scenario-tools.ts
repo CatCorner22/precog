@@ -33,6 +33,33 @@ export interface ScenarioToolInput {
   noScenario: () => ToolResult;
 }
 
+/** The run_precog_scenario tool's data, as the brief and the review lenses read it. */
+export interface ScenarioRunData {
+  scenarioId: string;
+  title: string;
+  retained: { expected: number };
+  timelineDays: { p50: number };
+  /** Null when the scenario engine computed no insurance figures. */
+  dynamic: { expectedAnnualCostOfRisk: number } | null;
+}
+
+/**
+ * A scenario's figures as assumptions: "assumed retained $5,000 · about 90
+ * days until found · assumed yearly cost of risk $4,782". The cost of risk is
+ * left out, never printed as $0, when the engine computed none.
+ */
+export function describeScenarioFigures(
+  d: Pick<ScenarioRunData, "retained" | "timelineDays" | "dynamic">,
+): string {
+  return [
+    `assumed retained ${formatUsd(d.retained.expected)}`,
+    `about ${d.timelineDays.p50} days until found`,
+    ...(d.dynamic
+      ? [`assumed yearly cost of risk ${formatUsd(d.dynamic.expectedAnnualCostOfRisk)}`]
+      : []),
+  ].join(" · ");
+}
+
 export function runPrecogScenarioTool({
   tool,
   args,
@@ -54,7 +81,11 @@ export function runPrecogScenarioTool({
     tool,
     args: { scenarioId },
     ok: true,
-    summary: `${scenario.title}: retained ${formatUsd(result.retainedImpact.expected)}, CoR ${formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+    summary: `${scenario.title}: ${describeScenarioFigures({
+      retained: result.retainedImpact,
+      timelineDays: result.timelineDays,
+      dynamic: result.dynamic ?? null,
+    })}`,
     data: {
       scenarioId,
       title: scenario.title,

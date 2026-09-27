@@ -11,6 +11,7 @@ import {
   type SuggestionResult,
 } from "./suggest";
 import { boundedNumber } from "../number";
+import { ownerText } from "../llm/owner-text";
 
 const RISK_KINDS = new Set([
   "control",
@@ -64,11 +65,6 @@ function sanitizeIdea(i: Record<string, unknown>): SuggestedIdea | null {
       .slice(0, 200),
     status: "backlog",
   };
-}
-
-/** Owner-typed text goes inside <owner_text>; strip a closing tag so it cannot end the block early. */
-function ownerText(value: string): string {
-  return value.replaceAll("</owner_text>", "");
 }
 
 async function suggestWithGrok(
