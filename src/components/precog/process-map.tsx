@@ -767,10 +767,12 @@ export function ProcessMap({
             : `${count(graph.snapshots.length, "process", "processes")} · not assessed yet · drag to pan, scroll to zoom`}
         </p>
         {mapReady && (
-          <p className="mt-1 max-w-2xl text-xs text-subtle">
-            Heat and priority are 0–100 indices; severity (S) and likelihood (L) run from 1 to 5.{" "}
-            <IndexBasis className="inline" />
-          </p>
+          <div className="mt-1 max-w-2xl space-y-0.5">
+            <p className="text-xs text-subtle">
+              Heat and priority are 0–100 indices; severity (S) and likelihood (L) run from 1 to 5.
+            </p>
+            <IndexBasis />
+          </div>
         )}
         {notAssessedNote && <p className="mt-1 max-w-2xl text-xs text-muted">{notAssessedNote}</p>}
       </section>
