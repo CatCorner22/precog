@@ -126,7 +126,7 @@ describe("resolveTemplate", () => {
   it("marks controls no conflict rule covers as starters the owner has not confirmed", () => {
     const base = getIndustryTemplate("retail");
     const own = resolveTemplate({ industry: "retail", customPeople: base.people.slice(0, 2) });
-    for (const id of ["c-sod-ar", "c-ap", "c-ar"]) {
+    for (const id of ["c-sod-ar", "c-ap", "c-inventory"]) {
       expect(own.controls.find((c) => c.id === id)?.starter).toBe(true);
     }
     for (const id of ["c-cash", "c-sod-cash", "c-sod-billing", "c-sod-ap", "c-payroll"]) {
@@ -144,7 +144,7 @@ describe("resolveTemplate", () => {
       decisions: [{ linkedTab: "control", linkedId: "c-ap", linkedIndustry: "retail" }],
     });
     expect(confirmed.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
-    expect(confirmed.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    expect(confirmed.controls.find((c) => c.id === "c-inventory")?.starter).toBe(true);
     // An entry logged under another industry does not confirm this one's control.
     const elsewhere = resolveTemplate({
       industry: "retail",

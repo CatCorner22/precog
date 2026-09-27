@@ -1,14 +1,15 @@
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
-export const retailTemplate: IndustryTemplate = {
+/**
+ * A clothing boutique of about six people: the owner, a store manager who
+ * handles vendors, deposits and payroll, a lead cashier who knows the
+ * register overrides, an inventory lead, web-store fulfillment and a
+ * bookkeeper. It uses the shared controls and scenarios, and adds a receiving
+ * and count check of its own.
+ */
+export const retailTemplate: IndustrySample = {
   id: "retail",
-  businessName: "Harbor Lane Boutique",
   people: [
     { id: "p1", name: "Alex Rivera", role: "Owner", active: true, tenureYears: 9 },
     { id: "p2", name: "Sam Nguyen", role: "Store Manager", active: true, tenureYears: 5 },
@@ -17,6 +18,40 @@ export const retailTemplate: IndustryTemplate = {
     { id: "p5", name: "Riley Park", role: "E-commerce Fulfillment", active: true, tenureYears: 2 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
+  roleTemplates: {
+    Owner: [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Store Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_writeoffs",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Lead Cashier": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
+    "Inventory Lead": ["view_reports_only"],
+    "E-commerce Fulfillment": ["post_adjustments", "view_reports_only"],
+    Bookkeeper: [
+      "post_adjustments",
+      "post_payments",
+      "approve_writeoffs",
+      "bank_reconcile",
+      "create_vendor",
+      "release_payment",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -53,7 +88,7 @@ export const retailTemplate: IndustryTemplate = {
     {
       id: "k5",
       name: "E-commerce platform ops",
-      description: "Shopify admin, refunds, inventory sync rules.",
+      description: "Web store admin, refunds, inventory sync rules.",
       criticality: "important",
       category: "system",
       linkedProcessIds: ["proc-ecom"],
@@ -71,7 +106,7 @@ export const retailTemplate: IndustryTemplate = {
     { personId: "p3", knowledgeId: "k1", level: "expert" },
     { personId: "p3", knowledgeId: "k2", level: "expert" },
     { personId: "p2", knowledgeId: "k2", level: "proficient" },
-    { personId: "p2", knowledgeId: "k1", level: "proficient" },
+    { personId: "p2", knowledgeId: "k1", level: "basic" },
     { personId: "p4", knowledgeId: "k3", level: "expert" },
     { personId: "p5", knowledgeId: "k5", level: "expert" },
     { personId: "p2", knowledgeId: "k4", level: "expert" },
@@ -89,16 +124,17 @@ export const retailTemplate: IndustryTemplate = {
       stage: 0,
       ownerPersonIds: ["p3", "p2"],
       inputs: ["Customer purchases", "Drawer float", "Return receipts"],
-      outputs: ["Tendered sales", "Return credits", "Z-report"],
+      outputs: ["Tendered sales", "Return credits", "End-of-day register report"],
       risks: [
         {
           id: "r-pos-1",
-          title: "Return fraud / sweethearting",
+          title: "Return fraud and discounts for friends",
           kind: "fraud",
           severity: 4,
           likelihood: 3,
-          note: "Lead cashier sole expert on override codes.",
+          note: "The lead cashier is the sole expert on override codes.",
           linkedKnowledgeId: "k1",
+          linkedScenarioId: "sc-key-person-leaves",
         },
         {
           id: "r-pos-2",
@@ -116,7 +152,7 @@ export const retailTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Daily review of overrides > $50.",
+          note: "Daily review of overrides above the amount you set.",
           status: "planned",
         },
         {
@@ -144,7 +180,7 @@ export const retailTemplate: IndustryTemplate = {
       layer: "process",
       description: "Stock receiving, counts, and shrink tracking.",
       dependencies: ["proc-pos"],
-      controlIds: ["c-ar"],
+      controlIds: ["c-inventory"],
       stage: 1,
       ownerPersonIds: ["p4"],
       inputs: ["Purchase orders", "Vendor shipments", "Packing slips"],
@@ -157,6 +193,7 @@ export const retailTemplate: IndustryTemplate = {
           severity: 4,
           likelihood: 3,
           note: "Inventory lead can receive and adjust without second count.",
+          linkedControlId: "c-inventory",
         },
         {
           id: "r-inv-2",
@@ -230,11 +267,11 @@ export const retailTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-ecom-1",
-          title: "Refunds over $100 require manager approval in Shopify",
+          title: "Refunds above the amount you set need the store manager's approval",
           category: "control",
           effort: "low",
           impact: "medium",
-          note: "Use staff permissions so fulfillment can request and the store manager approves.",
+          note: "Use the web store's staff permissions so fulfillment can request and the store manager approves.",
           status: "planned",
         },
         {
@@ -265,16 +302,16 @@ export const retailTemplate: IndustryTemplate = {
       controlIds: ["c-cash", "c-sod-cash"],
       stage: 2,
       ownerPersonIds: ["p3"],
-      inputs: ["Drawer cash", "Card batch totals", "Z-report"],
+      inputs: ["Drawer cash", "Card batch totals", "End-of-day register report"],
       outputs: ["Bank deposit", "Over/short log"],
       risks: [
         {
           id: "r-cash-1",
-          title: "Posting + recon not segregated",
+          title: "One person posts payments and reconciles the bank",
           kind: "fraud",
           severity: 5,
           likelihood: 4,
-          note: "Classic retail skimming opportunity.",
+          note: "The classic path to skimming in a store.",
           linkedControlId: "c-sod-cash",
           linkedScenarioId: "sc-cash-sod-failure",
         },
@@ -304,7 +341,7 @@ export const retailTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "The owner compares each deposit to the Z-report before the bookkeeper posts it, so a short deposit surfaces the same day.",
+          note: "The owner compares each deposit to the end-of-day register report before the bookkeeper posts it, so a short deposit surfaces the same day.",
           status: "exploring",
         },
       ],
@@ -327,15 +364,15 @@ export const retailTemplate: IndustryTemplate = {
       stage: 3,
       ownerPersonIds: ["p2", "p6"],
       inputs: ["Vendor invoices", "Receiving records", "Freight bills"],
-      outputs: ["Paid vendors", "AP aging"],
+      outputs: ["Paid vendors", "Unpaid bills by age"],
       risks: [
         {
           id: "r-ap-1",
-          title: "Vendor setup + payment same person",
+          title: "One person sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious vendor path.",
+          note: "A fake vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -373,7 +410,7 @@ export const retailTemplate: IndustryTemplate = {
           id: "w-ap-1",
           kind: "muri",
           label: "Store manager owns vendors and payments alone",
-          note: "Often only the store manager knows vendor terms; AP stalls when they are off.",
+          note: "Often only the store manager knows vendor terms; bills go unpaid when they are off.",
         },
       ],
     },
@@ -420,7 +457,7 @@ export const retailTemplate: IndustryTemplate = {
         },
         {
           id: "i-ar-2",
-          title: "Owner sign-off on write-offs over $250",
+          title: "Owner signs off on write-offs above the amount you set",
           category: "policy",
           effort: "low",
           impact: "high",
@@ -433,7 +470,7 @@ export const retailTemplate: IndustryTemplate = {
           id: "w-ar-1",
           kind: "mura",
           label: "Month-end markdown pile-up",
-          note: "Adjustments are batched at month end instead of posted as they happen.",
+          note: "The bookkeeper batches adjustments at month end instead of posting them as they happen.",
         },
       ],
     },
@@ -491,52 +528,33 @@ export const retailTemplate: IndustryTemplate = {
           id: "w-pay-1",
           kind: "muda_rework",
           label: "Manual commission spreadsheet",
-          note: "Sales are re-keyed from POS into a spreadsheet every pay period.",
+          note: "Someone re-keys sales from the register into a spreadsheet every pay period.",
         },
       ],
     },
   ],
-  controls: baseFinancialControls(),
-  staffComposition: { ...DEFAULT_STAFF },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  controls: [
+    // Invoices are paid without the receiving count today (r-ap-2); the
+    // three-way match that would do it is still planned (i-ap-1). The store
+    // sells at the register and keeps no receivables to age.
+    ...baseFinancialControls({ "c-ap": { segregated: false } }).filter((c) => c.id !== "c-ar"),
+    {
+      id: "c-inventory",
+      name: "Receiving and count check",
+      description:
+        "Someone other than the receiver counts each delivery against the purchase order, and someone who does not adjust stock checks the cycle counts.",
+      duties: ["review", "reconciliation"],
+      segregated: false,
+      compensatingControls: [],
+      residualRiskAccepted: false,
+    },
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: baseFraudScenarios({
-    keyPersonTitle: "Lead cashier leaves with sole POS/returns knowledge",
+    keyPersonTitle: "Lead cashier leaves with sole register and returns knowledge",
     keyPersonDesc:
-      "The lead cashier (sole expert on POS overrides and return policy) resigns with 2 weeks notice. No cross-training documented.",
+      "The lead cashier (sole expert on POS overrides and return policy) resigns with two weeks' notice. Nobody else has been trained.",
     knowledgeId: "k1",
-    billingLabel: "Markdown / adjustment authority without dual control",
+    billingLabel: "Markdowns and adjustments posted without a second approval",
   }),
-  roleTemplates: {
-    Owner: [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Store Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_writeoffs",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Lead Cashier": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
-    "Inventory Lead": ["view_reports_only"],
-    "E-commerce Fulfillment": ["post_adjustments", "view_reports_only"],
-    Bookkeeper: [
-      "post_adjustments",
-      "post_payments",
-      "approve_writeoffs",
-      "create_vendor",
-      "release_payment",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

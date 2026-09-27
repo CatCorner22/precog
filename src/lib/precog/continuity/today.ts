@@ -1,6 +1,6 @@
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
 import type { IndustryId } from "../industry";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import { continuityCommitments, handoffCommitment } from "../decisions/follow-through";
 import { leaveDebriefs } from "./leave-debrief";

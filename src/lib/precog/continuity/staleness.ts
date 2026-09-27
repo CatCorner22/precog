@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { daysBetween, isCalendarDate } from "../dates";
 import {

@@ -104,8 +104,11 @@ describe("the sample business's map figures do not change", () => {
   // residual from the rows linked to it by id (its controls, register items
   // and their scenarios), not from a row sharing a word with its name:
   // scheduling (sole-held know-how) and payroll (payroll control) gain one,
-  // so calm moves from 39 to 30, the score from 72 to 69 and five processes
-  // are hot.
+  // so calm moves from 39 to 30 and the score from 72 to 69. The sample's
+  // team figures are then derived from its own people: the payroll control
+  // reads as the gap the office manager's duties show and the billing
+  // specialist reconciles the bank as the cash scenario says, so one more
+  // process runs hot (six), calm moves to 28 and the score to 68.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -118,17 +121,17 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(69);
+    expect(health.score).toBe(68);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 30],
+      ["calm", 28],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
-    expect(health.hotProcesses).toBe(5);
+    expect(health.hotProcesses).toBe(6);
     expect(health.unownedProcesses).toBe(0);
     expect(issues.map((i) => i.id)).toEqual([
       "record-proc-schedule",

@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import { joinWithAnd, firstName } from "../text";
 import { registerAssessed } from "./register-state";

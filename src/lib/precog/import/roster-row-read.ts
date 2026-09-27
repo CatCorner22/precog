@@ -1,5 +1,5 @@
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { readYesNo, type ImportIssue } from "./csv";
 import { readHireDate, tenureFromHireDate } from "./hire-date";

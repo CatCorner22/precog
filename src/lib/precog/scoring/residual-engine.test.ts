@@ -326,8 +326,9 @@ describe("starter controls on an owner's own business", () => {
     const tpl = resolveTemplate({ industry: "retail", customPeople: people });
     const summary = portfolioSummary(tpl, tpl.staffComposition);
     const scored = new Set(summary.all.map((r) => r.id));
-    for (const id of ["c-ap", "c-ar", "c-sod-ar"]) expect(scored.has(`ctrl-${id}`)).toBe(false);
-    expect(summary.starterControlsLeftOut.sort()).toEqual(["c-ap", "c-ar", "c-sod-ar"]);
+    const starters = ["c-ap", "c-inventory", "c-sod-ar"];
+    for (const id of starters) expect(scored.has(`ctrl-${id}`)).toBe(false);
+    expect(summary.starterControlsLeftOut.sort()).toEqual(starters);
   });
 
   it("scores a starter control once the owner confirms it", () => {

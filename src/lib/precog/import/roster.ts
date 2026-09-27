@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import { locateTable } from "./csv";
 import {
   addSkippedLines,

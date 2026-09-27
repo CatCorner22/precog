@@ -58,12 +58,7 @@ export function LayersPanel({
                 : "border-border bg-surface hover:border-border-strong hover:bg-elevated",
             )}
           >
-            <div className="flex items-start justify-between gap-2">
-              <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
-              <span className="text-xs tracking-wider text-subtle uppercase">
-                {meta.matrixName}
-              </span>
-            </div>
+            <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
             <h2 className="mt-3 font-semibold">{meta.name}</h2>
             <p className="mt-1 text-sm text-muted">{meta.blurb}</p>
             <p className="mt-3 text-xs text-subtle">{counts}</p>
@@ -209,7 +204,7 @@ export function LayerDetail({
   return (
     <LayerShell title={meta.name} subtitle={meta.blurb} action={action}>
       <ul className="space-y-2">
-        {(layerCopy[layer] ?? []).map((line) => (
+        {layerCopy[layer].map((line) => (
           <li
             key={line}
             className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-muted"

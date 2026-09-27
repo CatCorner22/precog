@@ -4,7 +4,7 @@ import { NOT_ASSESSED_HINT } from "@/lib/precog/continuity/planner-copy";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DocumentationReport } from "@/lib/precog/continuity/documentation";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
-import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import type { IndustryTemplate } from "@/lib/precog/templates";
 
 export function PlannerStats({
   registerReady,

@@ -105,14 +105,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       )}
 
       <div className="grid gap-3 md:grid-cols-4">
-        {FRAMEWORK_DUTIES.map((f, i) => (
+        {FRAMEWORK_DUTIES.map((f) => (
           <Card key={f.duty}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">{f.duty}</CardTitle>
               <CardDescription>{f.meaning}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted">{sodExamples[i]}</p>
+              <p className="text-xs text-muted">{sodExamples[f.key]}</p>
             </CardContent>
           </Card>
         ))}
@@ -162,8 +162,12 @@ function ViewSwitcher({ model }: { model: SodPanelModel }) {
 }
 
 const FRAMEWORK_DUTIES = [
-  { duty: "Authorization", meaning: "Approve before money or adjustments move" },
-  { duty: "Custody", meaning: "Handle assets (cash, checks, bank release)" },
-  { duty: "Recording", meaning: "Post transactions in books / systems" },
-  { duty: "Reconciliation", meaning: "Independent verification" },
+  {
+    key: "authorization",
+    duty: "Authorization",
+    meaning: "Approve before money or adjustments move",
+  },
+  { key: "custody", duty: "Custody", meaning: "Handle assets (cash, checks, bank release)" },
+  { key: "recording", duty: "Recording", meaning: "Post transactions in books / systems" },
+  { key: "reconciliation", duty: "Reconciliation", meaning: "Independent verification" },
 ] as const;

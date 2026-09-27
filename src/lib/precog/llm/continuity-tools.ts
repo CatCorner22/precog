@@ -24,7 +24,7 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import { findKnowledgeRisks } from "../engine";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { PracticeProfile } from "../practice-profile";
 import type { ToolName, ToolResult } from "./types";
 

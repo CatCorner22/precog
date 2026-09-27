@@ -6,12 +6,8 @@
 import type { DecisionInput } from "@/lib/precog/profile-actions";
 import type { ScenarioTemplate, StaffComposition } from "@/lib/precog/types";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
-import {
-  casesForSodRules,
-  citingCaseStats,
-  isOwnSector,
-  type CaseStudy,
-} from "@/lib/precog/evidence";
+import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
+import { scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
 import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 import { assumedAnnualFrequency } from "@/lib/precog/scoring/dynamic-variables";
@@ -48,22 +44,36 @@ export function scenarioConfirmation(scenario: ScenarioTemplate, now: Date): Dec
 }
 
 /**
- * The prosecuted cases behind a scenario, or null when no duty-conflict rule
- * links to it (a key person leaving gets no case list rather than a loosely
- * related one). Counts and medians use only the cases that cite a linked rule;
- * cases that merely share a scheme are shown after them, never counted.
+ * The prosecuted cases behind a scenario, or null when it has none (a key
+ * person leaving gets no case list rather than a loosely related one). The
+ * list is the templates' own (`scenarioCases` there: cases the scenario
+ * names, then cases showing a duty pair it plays out, whether the rule links
+ * to the scenario or the scenario names the rule). Counts and medians use
+ * only the cases that cite one of those rules; named cases show first, then
+ * citing cases, the owner's line of business first within each group.
  */
-export function scenarioCases(scenarioId: string, industryId: string): ScenarioCases | null {
-  const ruleIds = CONFLICT_RULES.filter((r) => r.linkedScenarioId === scenarioId).map((r) => r.id);
-  if (ruleIds.length === 0) return null;
-  const related = casesForSodRules(ruleIds);
+export function scenarioCases(
+  scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds" | "caseIds">,
+  industryId: string,
+): ScenarioCases | null {
+  const related = casesBehindScenario(scenario);
   if (related.length === 0) return null;
+  const ruleIds = scenarioRuleIds(scenario);
   const citing = citingCaseStats(ruleIds);
   const citingIds = new Set(citing.cases.map((c) => c.id));
+  const namedIds = new Set(scenario.caseIds ?? []);
   const ownSectorIds = new Set(related.filter((c) => isOwnSector(c, industryId)).map((c) => c.id));
-  const rank = (c: CaseStudy) => (citingIds.has(c.id) ? 2 : 0) + (ownSectorIds.has(c.id) ? 1 : 0);
+  const rank = (c: CaseStudy) =>
+    (namedIds.has(c.id) ? 4 : 0) + (citingIds.has(c.id) ? 2 : 0) + (ownSectorIds.has(c.id) ? 1 : 0);
   const ordered = [...related].sort((a, b) => rank(b) - rank(a));
   return { shown: ordered.slice(0, 3), total: related.length, citing, ownSectorIds };
+}
+
+/** The duty-conflict rules a scenario plays out: those it names and those linked to it. */
+export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">): string[] {
+  const ids = new Set(scenario.sodRuleIds ?? []);
+  for (const rule of CONFLICT_RULES) if (rule.linkedScenarioId === scenario.id) ids.add(rule.id);
+  return [...ids];
 }
 
 /**

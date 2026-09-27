@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getIndustryTemplate } from "@/lib/precog/templates";
+import { getIndustryTemplate, scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { withDecision } from "@/lib/precog/profile-actions";
 import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
-import { casesForSodRules, isOwnSector } from "@/lib/precog/evidence";
-import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { isOwnSector } from "@/lib/precog/evidence";
 import {
   applyWhatIf,
   deltaTone,
@@ -14,6 +13,7 @@ import {
   pickScenario,
   scenarioCases,
   scenarioConfirmation,
+  scenarioRuleIds,
   whatIfDiffers,
 } from "./scenario-page";
 
@@ -41,17 +41,17 @@ describe("scenarioConfirmation", () => {
 });
 
 describe("scenarioCases", () => {
-  const ruleIds = (scenarioId: string) =>
-    CONFLICT_RULES.filter((r) => r.linkedScenarioId === scenarioId).map((r) => r.id);
+  const scenario = (id: string) => dental.scenarios.find((s) => s.id === id)!;
 
-  it("returns nothing for a scenario no duty-conflict rule links to", () => {
-    expect(scenarioCases("not-linked", "dental")).toBeNull();
+  it("returns nothing for a scenario with no rule and no named case", () => {
+    expect(scenarioCases({ id: "not-linked" }, "dental")).toBeNull();
   });
 
-  it("counts only the cases that cite a linked rule", () => {
-    const cases = scenarioCases("sc-writeoff-abuse", "dental")!;
-    const wanted = new Set(ruleIds("sc-writeoff-abuse"));
-    expect(cases.total).toBe(casesForSodRules([...wanted]).length);
+  it("counts only the cases that cite one of the scenario's rules", () => {
+    const writeoff = scenario("sc-writeoff-abuse");
+    const cases = scenarioCases(writeoff, "dental")!;
+    const wanted = new Set(scenarioRuleIds(writeoff));
+    expect(cases.total).toBe(casesBehindScenario(writeoff).length);
     expect(cases.citing.count).toBeLessThanOrEqual(cases.total);
     for (const c of cases.citing.cases) {
       expect(c.sodRuleIds.some((id) => wanted.has(id))).toBe(true);
@@ -60,7 +60,7 @@ describe("scenarioCases", () => {
 
   it("shows a case from the owner's line of business ahead of other citing cases", () => {
     for (const scenarioId of ["sc-vendor-fraud", "sc-cash-sod-failure", "sc-writeoff-abuse"]) {
-      const cases = scenarioCases(scenarioId, "dental")!;
+      const cases = scenarioCases(scenario(scenarioId), "dental")!;
       const ownCiting = cases.citing.cases.find((c) => isOwnSector(c, "dental"));
       if (ownCiting) expect(cases.shown[0].id).toBe(ownCiting.id);
       for (const c of cases.shown) {

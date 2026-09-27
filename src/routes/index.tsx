@@ -418,7 +418,7 @@ const TAB_INTROS = {
     tactical: "Component health with deep links.",
   },
   layers: {
-    heading: "Matrix process layers",
+    heading: "Six layers of your business",
     plain:
       "Look at one layer of the business at a time: customers, work, know-how, controls, systems and continuity.",
     tactical: "Peel layers independently.",

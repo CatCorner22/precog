@@ -5,7 +5,7 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import type { IndustryId } from "../industry";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact } from "./absence-impact";
 import { daysBetween, isCalendarDate } from "../dates";

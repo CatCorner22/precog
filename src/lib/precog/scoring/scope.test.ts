@@ -64,18 +64,18 @@ describe("starter scenarios", () => {
     );
     const leaves = dental.scenarios.find((s) => s.id === "sc-front-desk-leaves")!;
     expect(leaves.description).toBe(
-      "The front desk lead (sole expert on insurance denial appeals) resigns with 2 weeks notice. No cross-training documented.",
+      "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has been trained.",
     );
     expect(leaves.mitigations.map((m) => m.label)).toContain(
-      "Record the front desk lead's denial playbook before exit",
+      "Record the front desk lead's denial playbook before they leave",
     );
     const restaurant = withOwnScenarioWording(own);
     expect(restaurant.scenarios[0].description).toMatch(/^The head server \(sole expert/);
     const general = withOwnScenarioWording(
       resolveTemplate({ industry: "general", customPeople: people }),
     );
-    // The general template names the role itself ("The AR admin"), for the sample too.
-    expect(general.scenarios[0].description).toMatch(/^The AR admin \(sole expert/);
+    // The general template names the role itself ("The billing admin"), for the sample too.
+    expect(general.scenarios[0].description).toMatch(/^The billing admin \(sole expert/);
     for (const tpl of [dental, restaurant, general]) {
       const text = JSON.stringify(tpl.scenarios);
       expect(text).not.toMatch(/\b(Jordan|Sam)\b/);

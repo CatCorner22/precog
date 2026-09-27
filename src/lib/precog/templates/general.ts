@@ -1,22 +1,59 @@
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
-export const generalTemplate: IndustryTemplate = {
+/**
+ * A general small business of about six people: the owner, an operations
+ * manager who handles vendors, payments and payroll, a sales lead, an admin
+ * who bills and collects, an accounts payable clerk and a bookkeeper. It uses
+ * the shared controls and scenarios as they are.
+ */
+export const generalTemplate: IndustrySample = {
   id: "general",
-  businessName: "Main Street Business Co.",
   people: [
-    { id: "p1", name: "Alex Owner", role: "Owner", active: true, tenureYears: 10 },
+    { id: "p1", name: "Alex Morgan", role: "Owner", active: true, tenureYears: 10 },
     { id: "p2", name: "Maya Chen", role: "Operations Manager", active: true, tenureYears: 6 },
     { id: "p3", name: "Jordan Blake", role: "Sales Lead", active: true, tenureYears: 4 },
     { id: "p4", name: "Sam Ortiz", role: "Admin / AR", active: true, tenureYears: 3 },
     { id: "p5", name: "Riley Kim", role: "AP Clerk", active: true, tenureYears: 2 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
+  roleTemplates: {
+    Owner: [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Operations Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_vendor",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Sales Lead": ["view_reports_only"],
+    "Admin / AR": [
+      "collect_cash",
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "view_reports_only",
+    ],
+    "AP Clerk": ["create_vendor", "release_payment", "view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "bank_reconcile",
+      "post_adjustments",
+      "approve_writeoffs",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -29,14 +66,14 @@ export const generalTemplate: IndustryTemplate = {
     {
       id: "k2",
       name: "Daily deposit & reconciliation",
-      description: "Cash/check deposits, bank rec, merchant batches.",
+      description: "Cash and check deposits, bank reconciliation, card batches.",
       criticality: "critical",
       category: "process",
       linkedProcessIds: ["proc-cash"],
     },
     {
       id: "k3",
-      name: "ERP / accounting admin",
+      name: "Accounting system admin",
       description: "Chart of accounts, user roles, report setup.",
       criticality: "critical",
       category: "system",
@@ -135,7 +172,7 @@ export const generalTemplate: IndustryTemplate = {
           id: "w-sales-1",
           kind: "muda_rework",
           label: "Quotes re-done after order intake",
-          note: "Handwritten or emailed quotes are re-keyed into the order system and often corrected.",
+          note: "Staff re-key handwritten or emailed quotes into the order system and often correct them.",
         },
       ],
     },
@@ -153,11 +190,11 @@ export const generalTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-bill-1",
-          title: "Billing SPOF",
+          title: "Only one person can bill",
           kind: "continuity",
           severity: 4,
           likelihood: 3,
-          note: "Admin/AR sole billing expert.",
+          note: "The billing admin is the sole billing expert.",
           linkedKnowledgeId: "k1",
           linkedScenarioId: "sc-key-person-leaves",
         },
@@ -186,7 +223,7 @@ export const generalTemplate: IndustryTemplate = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "The bookkeeper runs one billing cycle a month with the AR admin reviewing; steps written into a checklist.",
+          note: "The bookkeeper runs one billing cycle a month with the billing admin reviewing; steps written into a checklist.",
           status: "exploring",
         },
       ],
@@ -213,11 +250,11 @@ export const generalTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-cash-1",
-          title: "Posting + recon not segregated",
+          title: "One person posts payments and reconciles the bank",
           kind: "fraud",
           severity: 5,
           likelihood: 4,
-          note: "Classic SMB embezzlement path.",
+          note: "The classic path to embezzlement in a small business.",
           linkedControlId: "c-sod-cash",
           linkedScenarioId: "sc-cash-sod-failure",
         },
@@ -238,7 +275,7 @@ export const generalTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Statement goes to the owner first; owner initials the rec and questions any unmatched items.",
+          note: "Statement goes to the owner first; owner initials the reconciliation and questions any unmatched items.",
           status: "planned",
         },
         {
@@ -274,11 +311,11 @@ export const generalTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ap-1",
-          title: "Vendor setup + payment same person",
+          title: "One person sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious vendor path.",
+          note: "A fake vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -316,8 +353,8 @@ export const generalTemplate: IndustryTemplate = {
         {
           id: "w-ap-1",
           kind: "muri",
-          label: "AP clerk carries every vendor payment alone",
-          note: "No backup when the AP clerk is out; payments pile up and late fees follow.",
+          label: "The payables clerk carries every vendor payment alone",
+          note: "Nobody covers when the payables clerk is out; payments pile up and late fees follow.",
         },
       ],
     },
@@ -349,7 +386,7 @@ export const generalTemplate: IndustryTemplate = {
           kind: "revenue",
           severity: 3,
           likelihood: 4,
-          note: "Old balances drift into bad debt because collection calls are nobody's job.",
+          note: "The owner sees the aging each month, but collection calls are nobody's job, so old balances drift into bad debt.",
         },
       ],
       ideas: [
@@ -435,56 +472,18 @@ export const generalTemplate: IndustryTemplate = {
         {
           id: "w-pay-1",
           kind: "muda_rework",
-          label: "Timesheets corrected after submission",
-          note: "Missing punches fixed by hand every pay period instead of caught at the source.",
+          label: "Staff correct timesheets after submission",
+          note: "Someone fixes missing punches by hand every pay period instead of catching them at the source.",
         },
       ],
     },
   ],
   controls: baseFinancialControls(),
-  staffComposition: { ...DEFAULT_STAFF },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: baseFraudScenarios({
-    keyPersonTitle: "AR lead leaves with sole billing knowledge",
+    keyPersonTitle: "Billing admin leaves with sole billing knowledge",
     keyPersonDesc:
-      "The AR admin (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
+      "The billing admin (sole expert on customer billing) resigns with two weeks' notice. Invoicing stalls.",
     knowledgeId: "k1",
   }),
-  roleTemplates: {
-    Owner: [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Operations Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_vendor",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Sales Lead": ["view_reports_only"],
-    "Admin / AR": [
-      "collect_cash",
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "view_reports_only",
-    ],
-    "AP Clerk": ["create_vendor", "release_payment", "view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "bank_reconcile",
-      "post_adjustments",
-      "approve_writeoffs",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

@@ -11,6 +11,7 @@ import {
 import { confirmedScenarioIds, starterScenarioLabel } from "@/lib/precog/scoring/scope";
 import { industryMeta } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
+import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { CaseCard } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,8 +62,8 @@ export function SingleScenarioView({
     [profile.decisions, profile.industry],
   );
   const cases = useMemo(
-    () => scenarioCases(scenario.id, profile.industry),
-    [scenario.id, profile.industry],
+    () => scenarioCases(scenario, profile.industry),
+    [scenario, profile.industry],
   );
   if (!result) return null;
   const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
@@ -254,12 +255,12 @@ export function SingleScenarioView({
                 <p className="text-xs text-subtle">
                   Fraud figures:{" "}
                   <a
-                    href={tpl.crimeFraudStats.sourceUrl}
+                    href={DEFAULT_FRAUD_STATS.sourceUrl}
                     target="_blank"
                     rel="noreferrer noopener"
                     className="text-primary hover:underline"
                   >
-                    {tpl.crimeFraudStats.source}
+                    {DEFAULT_FRAUD_STATS.source}
                   </a>
                 </p>
               )}

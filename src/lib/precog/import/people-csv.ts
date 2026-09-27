@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { nameKey, stripInvisibleControls } from "../text";
 import {

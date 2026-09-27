@@ -21,7 +21,7 @@
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { resolveTemplate } from "../active-template";
 import type { PracticeProfile } from "../practice-profile";
-import { pluralTeamLabel } from "../templates/industry-copy";
+import { pluralTeamLabel } from "../industry";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 

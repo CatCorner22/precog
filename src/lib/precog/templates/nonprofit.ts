@@ -1,6 +1,10 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import { DEFAULT_FRAUD_STATS, DEFAULT_STAFF } from "./shared-controls";
+import type { IndustrySample } from "./types";
+import {
+  baseFinancialControls,
+  baseFraudScenarios,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
+} from "./shared-controls";
 
 /**
  * A nonprofit of 5 to 40 people: an executive director who reports to a
@@ -11,7 +15,8 @@ import { DEFAULT_FRAUD_STATS, DEFAULT_STAFF } from "./shared-controls";
  * themselves": the executive director's own conflicts count, and the check on
  * the executive director is the board, usually through its treasurer. The
  * controls are therefore worded for the executive director and the treasurer,
- * not an owner, while keeping the ids the conflict rules link to.
+ * not an owner, while keeping the shared ids and figures the conflict rules
+ * and the engines link to.
  *
  * The schemes follow those in the case library's nonprofit cases (see
  * evidence/cases.ts): a bookkeeper writing checks to herself, a finance
@@ -21,313 +26,8 @@ import { DEFAULT_FRAUD_STATS, DEFAULT_STAFF } from "./shared-controls";
  * donations and restricted gifts spent on something else are named as the
  * documented patterns they are; no figure below is a measured rate.
  */
-const nonprofitControls: ControlItem[] = [
-  {
-    id: "c-cash",
-    name: "Donation handling control",
-    description:
-      "Separate who opens the mail and handles event cash from who records gifts and who reconciles the bank.",
-    duties: ["custody", "recording", "reconciliation"],
-    segregated: false,
-    compensatingControls: ["Treasurer reads the bank statement monthly"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-sod-cash",
-    name: "SoD: gift posting vs reconciliation",
-    description: "The finance manager posts receipts and reconciles the bank.",
-    duties: ["recording", "reconciliation"],
-    segregated: false,
-    compensatingControls: ["Treasurer reviews the reconciliation quarterly"],
-    residualRiskAccepted: true,
-  },
-  {
-    id: "c-sod-billing",
-    name: "SoD: pledge and receivable write-offs",
-    description: "Pledges and grant receivables can be written off without a second approval.",
-    duties: ["authorization", "recording"],
-    segregated: false,
-    compensatingControls: ["Write-off list to the executive director monthly"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-sod-ap",
-    name: "SoD: vendor setup vs payment",
-    description: "The finance manager can add vendors and release payments.",
-    duties: ["authorization", "custody"],
-    segregated: false,
-    compensatingControls: ["Two signatures on payments above the amount the board set"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-sod-ar",
-    name: "SoD: pledge write-offs",
-    description: "Pledge write-offs approved by the executive director, entered by finance.",
-    duties: ["authorization", "recording"],
-    segregated: true,
-    compensatingControls: [],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-ap",
-    name: "Bill approval",
-    description:
-      "The program or department head approves each bill against the budget before it is paid.",
-    duties: ["review", "authorization"],
-    segregated: true,
-    compensatingControls: [],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-ar",
-    name: "Pledge and grant receivable review",
-    description: "Development and finance review open pledges and grant draws monthly.",
-    duties: ["review"],
-    segregated: true,
-    compensatingControls: [],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-payroll",
-    name: "Payroll approval",
-    description:
-      "The executive director approves each payroll; the board approves the executive director's pay.",
-    duties: ["authorization"],
-    segregated: true,
-    compensatingControls: [],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-gift-log",
-    name: "Two-person mail opening and gift log",
-    description:
-      "Two people open the mail and count event cash, log every check and cash gift, and hand the log to someone who does not record gifts.",
-    duties: ["custody", "recording"],
-    segregated: false,
-    compensatingControls: ["Finance compares the gift log with the deposit each week"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-restricted",
-    name: "Restricted-fund tracking",
-    description:
-      "Every restricted gift and grant has its own fund code, and spending against each restriction is reviewed quarterly by someone who does not code the expenses.",
-    duties: ["recording", "review"],
-    segregated: false,
-    compensatingControls: ["Treasurer reads the restricted-fund balances each quarter"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-cards",
-    name: "Card statement review",
-    description:
-      "Someone other than the cardholder matches every charge to a receipt and a program or grant; the treasurer reviews the executive director's card.",
-    duties: ["review"],
-    segregated: false,
-    compensatingControls: ["Card statements go to the executive director monthly"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-board-review",
-    name: "Treasurer bank statement review",
-    description:
-      "The treasurer receives bank statements directly and reads the reconciliation, cleared checks and transfers every month.",
-    duties: ["reconciliation", "review"],
-    segregated: false,
-    compensatingControls: ["Finance report to the board each quarter"],
-    residualRiskAccepted: false,
-  },
-];
-
-/*
- * Timelines and loss figures reuse the shared scenarios' illustrative model
- * inputs for the closest scheme (the cash scenario for skimming and card
- * abuse, the write-off scenario for restricted funds, vendor fraud for
- * invented vendors). They are assumptions for the model, not measurements.
- */
-const nonprofitScenarios: ScenarioTemplate[] = [
-  {
-    id: "sc-key-person-leaves",
-    title: "Grants manager leaves with sole restricted-fund knowledge",
-    description:
-      "The grants manager (sole expert on grant budgets and restricted funds) resigns mid-year. Funder reports and reimbursement requests fall behind and restricted balances are unclear.",
-    knowledgeId: "k2",
-    baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
-    baseFinancialImpact: { expected: 16500, low: 7000, high: 38000 },
-    cascadeLayers: ["knowledge", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m1",
-        label: "Cross-train finance on grant reporting with a written procedure",
-        effort: "medium",
-        riskReduction: 0.55,
-        costAnnual: 2400,
-      },
-      {
-        id: "m2",
-        label: "Record each grant's budget, restrictions and deadlines before exit",
-        effort: "low",
-        riskReduction: 0.35,
-        costAnnual: 400,
-      },
-    ],
-  },
-  {
-    id: "sc-cash-sod-failure",
-    title: "Finance manager posts, pays and reconciles alone",
-    description:
-      "The finance manager records receipts, releases payments and reconciles the bank, and the treasurer sees summaries, not the statement.",
-    controlId: "c-sod-cash",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m4",
-        label: "Treasurer reads the bank statement and reconciliation monthly",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m5",
-        label: "Someone who releases no payments reconciles the bank",
-        effort: "medium",
-        riskReduction: 0.7,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-writeoff-abuse",
-    title: "Pledges written off without a second approval",
-    description:
-      "A pledge paid by the donor can be written off as uncollectible and the payment kept, because nobody else approves write-offs.",
-    controlId: "c-sod-billing",
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    cascadeLayers: ["control", "knowledge", "process", "continuity"],
-    mitigations: [
-      {
-        id: "m7",
-        label: "Executive director approves pledge write-offs above a set amount",
-        effort: "low",
-        riskReduction: 0.6,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-vendor-fraud",
-    title: "Invented vendor paid on invented invoices",
-    description:
-      "The person who adds vendors also releases payments, so a company they control can be paid for services nobody received.",
-    controlId: "c-sod-ap",
-    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-    cascadeLayers: ["control", "source", "process", "continuity"],
-    mitigations: [
-      {
-        id: "m9",
-        label: "Second signer on payments above the amount the board set",
-        effort: "medium",
-        riskReduction: 0.75,
-        costAnnual: 0,
-      },
-      {
-        id: "m10",
-        label: "Executive director approves every new vendor",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-skimmed-donations",
-    title: "Donation checks and event cash kept before they are logged",
-    description:
-      "One person opens the mail or counts event cash and also records the gifts, so a gift that never reaches the log never reaches the bank, and the donor still gets a thank-you.",
-    controlId: "c-gift-log",
-    knowledgeId: "k1",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-np-1",
-        label: "Two people open the mail and count event cash, and both sign the log",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-np-2",
-        label: "Finance matches the donor database to deposits monthly",
-        effort: "low",
-        riskReduction: 0.45,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-restricted-diverted",
-    title: "Restricted grant money spent on general operations",
-    description:
-      "Restricted gifts and grant funds sit in the operating account with no fund code, so they pay rent, payroll or a shortfall elsewhere, and the organization owes the funder money it no longer has.",
-    controlId: "c-restricted",
-    knowledgeId: "k2",
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    cascadeLayers: ["control", "knowledge", "process", "continuity"],
-    mitigations: [
-      {
-        id: "m-np-3",
-        label: "A fund code for every restricted gift and grant",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-np-4",
-        label: "Treasurer reviews restricted balances against cash each quarter",
-        effort: "low",
-        riskReduction: 0.45,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-card-abuse",
-    title: "Organization cards used for personal spending",
-    description:
-      "Cardholders approve their own statements, and the executive director's card is reviewed by nobody, so personal travel, cash advances and purchases are booked as program costs.",
-    controlId: "c-cards",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-np-5",
-        label: "Someone other than the cardholder matches every charge to a receipt",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-np-6",
-        label: "Treasurer reviews the executive director's card monthly; cash advances blocked",
-        effort: "low",
-        riskReduction: 0.45,
-        costAnnual: 0,
-      },
-    ],
-  },
-];
-
-export const nonprofitTemplate: IndustryTemplate = {
+export const nonprofitTemplate: IndustrySample = {
   id: "nonprofit",
-  businessName: "Riverbend Community Alliance",
   people: [
     { id: "p1", name: "Grace Okafor", role: "Executive Director", active: true, tenureYears: 12 },
     {
@@ -350,6 +50,47 @@ export const nonprofitTemplate: IndustryTemplate = {
       tenureYears: 2,
     },
   ],
+  roleTemplates: {
+    "Executive Director": [
+      "approve_vendor",
+      "approve_payroll",
+      "approve_writeoffs",
+      "approve_expenses",
+      "sign_checks",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Finance & Operations Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "approve_writeoffs",
+      "enter_invoices",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "bank_reconcile",
+      "post_journal_entries",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+    "Development Director": [
+      "collect_cash",
+      "post_payments",
+      "edit_patient_master",
+      "view_reports_only",
+    ],
+    "Grants Manager": ["submit_claims", "post_journal_entries", "view_reports_only"],
+    "Program Director": [
+      "order_supplies",
+      "receive_goods",
+      "approve_invoices",
+      "view_reports_only",
+    ],
+    "Office Coordinator": ["collect_cash", "prepare_deposit", "view_reports_only"],
+    "Board Treasurer": ["sign_checks", "approve_payroll", "view_reports_only"],
+    "Volunteer Coordinator": ["view_reports_only"],
+  },
   knowledge: [
     {
       id: "k1",
@@ -468,7 +209,7 @@ export const nonprofitTemplate: IndustryTemplate = {
         },
         {
           id: "i-gift-2",
-          title: "Donor database reconciled to deposits monthly",
+          title: "Finance also matches the donor database to the deposits each week",
           category: "control",
           effort: "low",
           impact: "high",
@@ -515,6 +256,16 @@ export const nonprofitTemplate: IndustryTemplate = {
           severity: 4,
           likelihood: 3,
           note: "Federal awards follow cost principles; a disallowed cost is repaid, and a reimbursement request for costs not incurred is a false claim.",
+        },
+        {
+          id: "r-grant-3",
+          title: "Grant budgets known by one person",
+          kind: "continuity",
+          severity: 4,
+          likelihood: 3,
+          note: "Only the grants manager knows what each grant may pay for and when reports are due; reports and draws slip when they are out.",
+          linkedKnowledgeId: "k2",
+          linkedScenarioId: "sc-key-person-leaves",
         },
       ],
       ideas: [
@@ -611,7 +362,7 @@ export const nonprofitTemplate: IndustryTemplate = {
       layer: "process",
       description: "Multi-year pledges, grant draws, write-offs of uncollectible pledges.",
       dependencies: ["proc-cash", "proc-grants"],
-      controlIds: ["c-ar", "c-sod-ar"],
+      controlIds: ["c-ar", "c-sod-billing"],
       stage: 2,
       ownerPersonIds: ["p3", "p4"],
       inputs: ["Pledge agreements", "Grant payment schedules", "Aging report"],
@@ -624,6 +375,7 @@ export const nonprofitTemplate: IndustryTemplate = {
           severity: 4,
           likelihood: 2,
           note: "A paid pledge written off as uncollectible hides a payment kept.",
+          linkedControlId: "c-sod-billing",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -722,8 +474,8 @@ export const nonprofitTemplate: IndustryTemplate = {
         {
           id: "w-ap-1",
           kind: "muda_waiting",
-          label: "Checks wait for a board signer",
-          note: "Payments sit until a volunteer signer comes in, and vendors call about late payments.",
+          label: "Checks wait for the executive director's signature",
+          note: "Payments sit until the executive director is in the office to sign, and vendors call about late payments.",
         },
       ],
     },
@@ -794,7 +546,7 @@ export const nonprofitTemplate: IndustryTemplate = {
       dependencies: ["proc-ap", "proc-payroll"],
       controlIds: ["c-sod-cash", "c-board-review"],
       stage: 4,
-      ownerPersonIds: ["p7", "p1"],
+      ownerPersonIds: ["p7", "p1", "p2"],
       inputs: ["Bank statements", "Reconciliations", "Financial statements"],
       outputs: ["Treasurer's review", "Board minutes", "Audit and Form 990"],
       risks: [
@@ -848,47 +600,210 @@ export const nonprofitTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: nonprofitControls,
-  staffComposition: { ...DEFAULT_STAFF, teamSize: 8, avgTenureYears: 5.3, segregationScore: 34 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
-  scenarios: nonprofitScenarios,
-  roleTemplates: {
-    "Executive Director": [
-      "approve_vendor",
-      "approve_payroll",
-      "approve_writeoffs",
-      "approve_expenses",
-      "sign_checks",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Finance & Operations Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "enter_invoices",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "bank_reconcile",
-      "post_journal_entries",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-    "Development Director": [
-      "collect_cash",
-      "post_payments",
-      "edit_patient_master",
-      "view_reports_only",
-    ],
-    "Grants Manager": ["submit_claims", "post_journal_entries", "view_reports_only"],
-    "Program Director": [
-      "order_supplies",
-      "receive_goods",
-      "approve_invoices",
-      "view_reports_only",
-    ],
-    "Office Coordinator": ["collect_cash", "prepare_deposit", "view_reports_only"],
-    "Board Treasurer": ["sign_checks", "approve_payroll", "view_reports_only"],
-    "Volunteer Coordinator": ["view_reports_only"],
-  },
+  controls: [
+    // One pledge write-off control (c-sod-billing) covers what the shared set
+    // splits in two, so the shared A/R write-off control stays out.
+    ...baseFinancialControls({
+      "c-cash": {
+        name: "Donation handling control",
+        description:
+          "Separate who opens the mail and handles event cash from who records gifts and who reconciles the bank.",
+        compensatingControls: ["Finance compares the gift log with the deposit each week"],
+      },
+      "c-sod-cash": {
+        name: "Split duties: gift posting and reconciliation",
+        description: "The finance manager posts receipts and reconciles the bank.",
+        compensatingControls: ["Treasurer reads the reconciliation each quarter"],
+      },
+      "c-sod-billing": {
+        name: "Split duties: pledge and receivable write-offs",
+        description: "Pledges and grant receivables can be written off without a second approval.",
+        compensatingControls: ["Write-off list to the executive director monthly"],
+      },
+      "c-sod-ap": {
+        description: "The finance manager can add vendors and release payments.",
+      },
+      "c-ap": {
+        name: "Bill approval",
+        description:
+          "The program or department head approves each bill against the budget before it is paid.",
+      },
+      "c-ar": {
+        name: "Pledge and grant receivable review",
+        description: "Development and finance review open pledges and grant draws monthly.",
+      },
+      "c-payroll": {
+        description:
+          "The executive director approves each payroll; the board approves the executive director's pay.",
+      },
+    }).filter((c) => c.id !== "c-sod-ar"),
+    {
+      id: "c-gift-log",
+      name: "Two-person mail opening and gift log",
+      description:
+        "Two people open the mail and count event cash, log every check and cash gift, and hand the log to someone who does not record gifts.",
+      duties: ["custody", "recording"],
+      segregated: false,
+      compensatingControls: ["Finance compares the gift log with the deposit each week"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-restricted",
+      name: "Restricted-fund tracking",
+      description:
+        "Every restricted gift and grant has its own fund code, and spending against each restriction is reviewed quarterly by someone who does not code the expenses.",
+      duties: ["recording", "review"],
+      segregated: false,
+      compensatingControls: ["Treasurer reads the restricted-fund balances each quarter"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-cards",
+      name: "Card statement review",
+      description:
+        "Someone other than the cardholder matches every charge to a receipt and a program or grant; the treasurer reviews the executive director's card.",
+      duties: ["review"],
+      segregated: false,
+      compensatingControls: ["Card statements go to the executive director monthly"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-board-review",
+      name: "Treasurer bank statement review",
+      description:
+        "The treasurer receives bank statements directly and reads the reconciliation, cleared checks and transfers every month.",
+      duties: ["reconciliation", "review"],
+      segregated: false,
+      compensatingControls: ["Finance report to the board each quarter"],
+      residualRiskAccepted: false,
+    },
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
+  scenarios: [
+    ...baseFraudScenarios({
+      keyPersonTitle: "Grants manager leaves with sole restricted-fund knowledge",
+      keyPersonDesc:
+        "The grants manager (sole expert on grant budgets and restricted funds) resigns mid-year. Funder reports and reimbursement requests fall behind and restricted balances are unclear.",
+      knowledgeId: "k2",
+      changes: {
+        "sc-key-person-leaves": {
+          relabel: {
+            m1: "Cross-train finance on grant reporting with a written procedure",
+            m2: "Record each grant's budget, restrictions and deadlines before exit",
+          },
+        },
+        "sc-cash-sod-failure": {
+          title: "Finance manager posts, pays and reconciles alone",
+          description:
+            "The finance manager records receipts, releases payments and reconciles the bank, and the treasurer sees summaries, not the statement.",
+          relabel: {
+            m4: "Treasurer reads the bank statement and reconciliation monthly",
+            m5: "Someone who releases no payments reconciles the bank",
+          },
+        },
+        "sc-writeoff-abuse": {
+          title: "Pledges written off without a second approval",
+          description:
+            "A pledge paid by the donor can be written off as uncollectible and the payment kept, because nobody else approves write-offs.",
+          relabel: { m7: "Executive director approves pledge write-offs above a set amount" },
+        },
+        "sc-vendor-fraud": {
+          title: "Invented vendor paid on invented invoices",
+          description:
+            "The person who adds vendors also releases payments, so a company they control can be paid for services nobody received.",
+          relabel: { m9: "Second signer on payments above the amount the board set" },
+          extraMitigations: [
+            {
+              id: "m10",
+              label: "Executive director approves every new vendor",
+              effort: "low",
+              riskReduction: 0.5,
+              costAnnual: 0,
+            },
+          ],
+        },
+      },
+    }),
+    {
+      id: "sc-skimmed-donations",
+      title: "Donation checks and event cash kept before they are logged",
+      description:
+        "One person opens the mail or counts event cash and also records the gifts, so a gift that never reaches the log never reaches the bank, and the donor still gets a thank-you.",
+      controlId: "c-gift-log",
+      sodRuleIds: ["rule-collect-post", "rule-custody-rec"],
+      knowledgeId: "k1",
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-np-1",
+          label: "Two people open the mail and count event cash, and both sign the log",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-np-2",
+          label: "Finance also matches the donor database to the deposits each week",
+          effort: "low",
+          riskReduction: 0.45,
+          costAnnual: 0,
+        },
+      ],
+    },
+    {
+      id: "sc-restricted-diverted",
+      title: "Restricted grant money spent on general operations",
+      description:
+        "Restricted gifts and grant funds sit in the operating account with no fund code, so they pay rent, payroll or a shortfall elsewhere, and the organization owes the funder money it no longer has.",
+      controlId: "c-restricted",
+      sodRuleIds: ["rule-release-je"],
+      knowledgeId: "k2",
+      ...SCENARIO_FIGURES.writeoff,
+      cascadeLayers: ["control", "knowledge", "process", "continuity"],
+      mitigations: [
+        {
+          id: "m-np-3",
+          label: "A fund code for every restricted gift and grant",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-np-4",
+          label: "Treasurer reads the restricted-fund balances against cash each quarter",
+          effort: "low",
+          riskReduction: 0.45,
+          costAnnual: 0,
+        },
+      ],
+    },
+    {
+      id: "sc-card-abuse",
+      title: "Organization cards used for personal spending",
+      description:
+        "Cardholders approve their own statements, and the executive director's card is reviewed by nobody, so personal travel, cash advances and purchases are booked as program costs.",
+      controlId: "c-cards",
+      sodRuleIds: ["rule-card-review", "rule-card-approve"],
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-np-5",
+          label: "Someone other than the cardholder matches every charge to a receipt",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-np-6",
+          label:
+            "Treasurer reads the executive director's card statement monthly; cash advances blocked",
+          effort: "low",
+          riskReduction: 0.45,
+          costAnnual: 0,
+        },
+      ],
+    },
+  ],
 };

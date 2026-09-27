@@ -219,6 +219,14 @@ export interface ScenarioTemplate {
   baseFinancialImpact: { expected: number; low: number; high: number };
   cascadeLayers: MatrixLayerId[];
   mitigations: MitigationOption[];
+  /**
+   * Conflict rules whose duty pair this scenario plays out, for scenarios no
+   * rule links to (see ConflictRule.linkedScenarioId). The scenario page shows
+   * the prosecuted cases behind these rules.
+   */
+  sodRuleIds?: string[];
+  /** Library cases that show this scenario outright, listed first on its page. */
+  caseIds?: string[];
 }
 
 interface MitigationOption {

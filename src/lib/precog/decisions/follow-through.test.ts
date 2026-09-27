@@ -90,8 +90,11 @@ describe("captureDecisionSnapshot", () => {
   });
 
   it("counts accepted residual controls as closed SoD conflicts", () => {
+    const alreadyAccepted = new Set(
+      dental.controls.filter((c) => c.residualRiskAccepted).map((c) => c.id),
+    );
     const conflict = detectSodConflicts(dental, dental.staffComposition).conflicts.find(
-      (item) => item.linkedControlId,
+      (item) => item.linkedControlId && !alreadyAccepted.has(item.linkedControlId),
     );
     expect(conflict?.linkedControlId).toBeDefined();
     const accepted = {

@@ -1,4 +1,5 @@
 import type { IndustryTemplate } from "./templates";
+import { DEFAULT_FRAUD_STATS } from "./templates/shared-controls";
 import { industryMeta } from "./industry";
 import type {
   KnowledgeRisk,
@@ -137,7 +138,7 @@ export function runPrecogScenario(
     riskVariables?: RiskVariableState;
   },
 ): PrecogResult | null {
-  const { scenarios, staffComposition, crimeFraudStats } = tpl;
+  const { scenarios, staffComposition } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) return null;
 
@@ -207,10 +208,10 @@ export function runPrecogScenario(
   const crimeModifiers: string[] = [];
   if (flags.fraudRelated) {
     crimeModifiers.push(
-      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(crimeFraudStats.medianLossSmallOrgUsd)} against ${formatUsd(crimeFraudStats.medianLossAllUsd)} across all cases studied.`,
+      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd)} against ${formatUsd(DEFAULT_FRAUD_STATS.medianLossAllUsd)} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(crimeFraudStats.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(crimeFraudStats.lossIfRunsLongUsd)}.`,
+      `Median time from a scheme starting to being found: ${DEFAULT_FRAUD_STATS.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(DEFAULT_FRAUD_STATS.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(DEFAULT_FRAUD_STATS.lossIfRunsLongUsd)}.`,
     );
     crimeModifiers.push(
       `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,
@@ -261,7 +262,7 @@ export function runPrecogScenario(
     mitigations: scenario.mitigations,
     residualIfNothing:
       "If you accept this risk as it is, the exposure stays until your staffing, your insurance terms, or your controls change. The figures update when you change any setting.",
-    sources: [crimeFraudStats.source],
+    sources: [DEFAULT_FRAUD_STATS.source],
     assumptions: [
       "The base timeline and loss figures are assumptions the scenario author wrote; they were not drawn from a study or from any business.",
       "Staffing and control multipliers are this app's assumptions about direction and rough size.",
