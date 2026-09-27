@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings2, ShieldCheck } from "lucide-react";
 import { joinWithAnd } from "@/lib/precog/text";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
@@ -29,7 +30,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   } = usePractice();
   const s = profile.staff;
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
-  const businessKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
+  const businessKey = `${profile.businessId ?? DEFAULT_BUSINESS_ID}:${profile.industry}`;
   const [pendingChoice, setPendingChoice] = useState<{
     key: string;
     industry: IndustryId;

@@ -28,6 +28,7 @@ import { useEffect } from "react";
 import type { Workspace } from "./workspace-context";
 import { withRosterLeavers } from "./profile-actions";
 import { localDateKey } from "./dates";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * More than one business per account: the list, switching between them,
@@ -92,7 +93,7 @@ export function usePortfolio(input: {
       const existing = byId.get(s.id);
       if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt)) byId.set(s.id, s);
     }
-    byId.set(profile.businessId ?? "biz_default", summarizeBusiness(profile));
+    byId.set(profile.businessId ?? DEFAULT_BUSINESS_ID, summarizeBusiness(profile));
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- portfolioVersion tracks storage writes
   }, [
@@ -106,7 +107,7 @@ export function usePortfolio(input: {
 
   const switchBusiness = useCallback(
     async (id: string) => {
-      if (id === (profileRef.current.businessId ?? "biz_default")) return;
+      if (id === (profileRef.current.businessId ?? DEFAULT_BUSINESS_ID)) return;
       setSwitching(true);
       try {
         if (!(await flushActive()) || !mounted.current) return;
@@ -170,7 +171,7 @@ export function usePortfolio(input: {
       }
       const current = profileRef.current;
       if (current.onboardingComplete !== false) {
-        openBeforeSetup.current = current.businessId ?? "biz_default";
+        openBeforeSetup.current = current.businessId ?? DEFAULT_BUSINESS_ID;
       }
       void flushActive();
       // Setup opens for it: the owner's own team, or the sample under the
@@ -195,7 +196,7 @@ export function usePortfolio(input: {
   // else the most recently changed one; none on a first visit.
   const setupReturnsTo = useMemo<BusinessSummary | null>(() => {
     if (profile.onboardingComplete !== false) return null;
-    const activeId = profile.businessId ?? "biz_default";
+    const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
     const others = businesses.filter((b) => b.id !== activeId);
     return (
       others.find((b) => b.id === openBeforeSetup.current) ??
@@ -218,7 +219,7 @@ export function usePortfolio(input: {
   const retireUnfinished = useCallback(
     (previous: PracticeProfile) => {
       const keep = unfinishedBusinessToKeep(previous);
-      const id = previous.businessId ?? "biz_default";
+      const id = previous.businessId ?? DEFAULT_BUSINESS_ID;
       if (keep) savePortfolioEntry(keep, workspace.local);
       // Older versions listed the unfinished sample in the portfolio; a finished
       // business under the same id (another tab's) is left alone.
@@ -260,7 +261,7 @@ export function usePortfolio(input: {
 
   const deleteBusiness = useCallback(
     async (id: string) => {
-      const activeId = profileRef.current.businessId ?? "biz_default";
+      const activeId = profileRef.current.businessId ?? DEFAULT_BUSINESS_ID;
       if (id === activeId) return;
       if (cloudUser)
         await deleteBusinessRemote({ data: { id, expectedAccountId: workspace.accountId ?? "" } });

@@ -1,4 +1,5 @@
 import type { StorageLike } from "./local-data";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 export interface KeyedStorage extends StorageLike {
   readonly length: number;
@@ -112,7 +113,7 @@ export function removeAcknowledgedCopies(
   const matches = (value: unknown) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
     const { localRev: _rev, localBase: _base, ...profile } = value as Record<string, unknown>;
-    const id = typeof profile.businessId === "string" ? profile.businessId : "biz_default";
+    const id = typeof profile.businessId === "string" ? profile.businessId : DEFAULT_BUSINESS_ID;
     const saved = acknowledged.get(id);
     return saved !== undefined && canonical(profile) === canonical(saved);
   };

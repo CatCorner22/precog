@@ -31,6 +31,7 @@ import type { AccountLineage, LocalProfileStore } from "./save-conflict";
 import { canKeepLocalData, readLocalJson, writeLocal } from "./local-data";
 import type { ProfileAction } from "./profile-reducer";
 import { localDateKey } from "./dates";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 export type SyncStatus =
   "idle" | "loading" | "synced" | "local" | "local-error" | "error" | "conflict";
@@ -174,7 +175,7 @@ export function useCloudSync(input: {
 
   const saveCloud = useCallback(
     async (current: PracticeProfile) => {
-      const id = current.businessId ?? "biz_default";
+      const id = current.businessId ?? DEFAULT_BUSINESS_ID;
       const identity = identitySnapshot();
       if (!mounted.current || !identityUnchanged(identity) || identity.accountId !== userId)
         return false;
@@ -293,11 +294,11 @@ export function useCloudSync(input: {
         if (cancelled) return;
         cloudLoadedFor.current = userId;
         const local = profileRef.current;
-        const localId = local.businessId ?? "biz_default";
+        const localId = local.businessId ?? DEFAULT_BUSINESS_ID;
         if (res.found && res.profile) {
           // Cloud rows skip the client normaliser on the way in unless we run it here.
           const remoteProfile = normalizeProfile(res.profile);
-          const id = remoteProfile.businessId ?? "biz_default";
+          const id = remoteProfile.businessId ?? DEFAULT_BUSINESS_ID;
           if (res.revision !== null) rememberRevision(id, res.revision);
 
           // This is only the verified account's namespace. Guest or legacy work is
@@ -369,7 +370,7 @@ export function useCloudSync(input: {
       // and the account copy, so nothing is written from here.
       adopted.current = null;
       localStore.accept(took.rev, profile.updatedAt);
-      lineage.add(profile.businessId ?? "biz_default", profile.updatedAt);
+      lineage.add(profile.businessId ?? DEFAULT_BUSINESS_ID, profile.updatedAt);
       storedProfile.current = profile;
       lastLocalWrite.current = "saved";
       if (!cloudUser) setSyncStatus("local");
@@ -550,7 +551,7 @@ export function useCloudSync(input: {
     async (choice: "reload" | "overwrite") => {
       const conflict = saveConflictRef.current;
       if (!conflict) return;
-      const id = profileRef.current.businessId ?? "biz_default";
+      const id = profileRef.current.businessId ?? DEFAULT_BUSINESS_ID;
       saveConflictRef.current = null;
       setSaveConflict(null);
 

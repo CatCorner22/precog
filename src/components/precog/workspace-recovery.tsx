@@ -12,6 +12,7 @@ import {
 } from "@/lib/precog/practice-profile";
 import { downloadText } from "@/lib/download";
 import { readLocal, writeLocal } from "@/lib/precog/local-data";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /** Old unscoped data is quarantined, not attributed to whichever account signs in first. */
 function legacyEntries(session: boolean): Record<string, string> {
@@ -49,7 +50,7 @@ export function WorkspaceRecovery() {
     const raw = readStoredActiveProfile(guest);
     if (raw) {
       const profile = parseStoredProfile(raw);
-      all[profile.businessId ?? "biz_default"] = profile;
+      all[profile.businessId ?? DEFAULT_BUSINESS_ID] = profile;
     }
     setGuestCount(
       Object.values(all).filter(
@@ -97,7 +98,7 @@ export function WorkspaceRecovery() {
     const raw = readStoredActiveProfile(guest);
     if (raw) {
       const profile = parseStoredProfile(raw);
-      all[profile.businessId ?? "biz_default"] = profile;
+      all[profile.businessId ?? DEFAULT_BUSINESS_ID] = profile;
     }
     let copied = 0;
     for (const p of Object.values(all)) {
