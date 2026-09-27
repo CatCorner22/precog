@@ -19,7 +19,7 @@ export const Route = createFileRoute("/report")({
       {
         name: "description",
         content:
-          "Print-ready internal control priorities report: weekly actions, priority stack, SoD, knowledge SPOFs, and decision log.",
+          "Print-ready internal control priorities report: this week's actions, priority stack, duty conflicts, know-how held by one person, and the decisions log.",
       },
     ],
   }),

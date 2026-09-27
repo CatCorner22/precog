@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { formatDay } from "@/lib/precog/dates";
+import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 
 export const Route = createFileRoute("/terms")({
   component: TermsPage,
@@ -20,6 +22,7 @@ function TermsPage() {
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-2xl px-6 py-10">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Precog Pioneer</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Terms</h1>
+      <p className="mt-1 text-xs text-muted">Effective {formatDay(LEGAL_EFFECTIVE)}</p>
       <div className="mt-6 space-y-4 text-sm">
         <p>
           Precog helps an owner or advisor describe who holds which duties, which combinations

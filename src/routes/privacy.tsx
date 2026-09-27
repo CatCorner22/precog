@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { formatDay } from "@/lib/precog/dates";
+import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/account-store";
 
 export const Route = createFileRoute("/privacy")({
@@ -21,6 +23,7 @@ function PrivacyPage() {
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-2xl px-6 py-10">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Precog Pioneer</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Privacy</h1>
+      <p className="mt-1 text-xs text-muted">Effective {formatDay(LEGAL_EFFECTIVE)}</p>
       <p className="mt-3 text-sm text-muted">
         Precog holds employee names, job titles, and a map of who can move money. That is personal
         data and a description of control weaknesses. This page says where each copy lives.
