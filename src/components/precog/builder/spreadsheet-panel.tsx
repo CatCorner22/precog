@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import {
   parseProcessCsv,
   processesToCsv,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { DecisionEntry } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -34,13 +34,13 @@ function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
 
 function tpl(relations: KnowledgeRelation[], team = people): IndustryTemplate {
   return {
-    ...getBaseTemplate("general"),
+    ...getIndustryTemplate("general"),
     people: team,
     knowledge: [item("pms"), item("billing"), item("vendors", { documented: true })],
     relations,
     processes: [
       {
-        ...getBaseTemplate("general").processes[0],
+        ...getIndustryTemplate("general").processes[0],
         id: "proc-1",
         name: "Month-end close",
         ownerPersonIds: ["maya"],
@@ -260,7 +260,7 @@ describe("leavers", () => {
 describe("a leaver over a starter register nobody has marked", () => {
   it("does not promise that nothing leaves with them", () => {
     const starter: IndustryTemplate = {
-      ...getBaseTemplate("general"),
+      ...getIndustryTemplate("general"),
       people,
       relations: [],
       processes: [],

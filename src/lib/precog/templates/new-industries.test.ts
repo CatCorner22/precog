@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "../evidence";
 import { INDUSTRIES, industryHasOwner } from "../industry";
 import { matchJobTitle } from "../onboarding/job-catalog";
@@ -19,13 +19,13 @@ import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
 import { jobCatalogEntry } from "../onboarding/job-catalog";
 
-const findings = (id: Parameters<typeof getBaseTemplate>[0]) =>
-  detectSodConflicts(getBaseTemplate(id)).conflicts.map((c) => `${c.role}: ${c.ruleId}`);
+const findings = (id: Parameters<typeof getIndustryTemplate>[0]) =>
+  detectSodConflicts(getIndustryTemplate(id)).conflicts.map((c) => `${c.role}: ${c.ruleId}`);
 
 describe("every sample's links resolve inside its own template", () => {
   for (const { id } of INDUSTRIES) {
     it(`${id}: risks, scenarios and knowledge point at things that exist`, () => {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       const controls = new Set(tpl.controls.map((c) => c.id));
       const scenarios = new Set(tpl.scenarios.map((s) => s.id));
       const knowledge = new Set(tpl.knowledge.map((k) => k.id));
@@ -72,7 +72,7 @@ describe("construction sample", () => {
   });
 
   it("carries the fictitious-subcontractor, change-order, materials and field-time scenarios", () => {
-    const ids = getBaseTemplate("construction").scenarios.map((s) => s.id);
+    const ids = getIndustryTemplate("construction").scenarios.map((s) => s.id);
     expect(ids).toEqual(
       expect.arrayContaining([
         "sc-fictitious-sub",
@@ -105,7 +105,7 @@ describe("construction sample", () => {
 
 describe("nonprofit sample", () => {
   it("has no owner, so the executive director's conflicts count", () => {
-    const tpl = getBaseTemplate("nonprofit");
+    const tpl = getIndustryTemplate("nonprofit");
     expect(industryHasOwner("nonprofit")).toBe(false);
     expect(soleOwnerId(tpl.people)).toBeNull();
     const report = detectSodConflicts(tpl);
@@ -122,7 +122,7 @@ describe("nonprofit sample", () => {
   });
 
   it("words its controls for the executive director and treasurer, not an owner", () => {
-    const tpl = getBaseTemplate("nonprofit");
+    const tpl = getIndustryTemplate("nonprofit");
     const text = JSON.stringify([tpl.controls, tpl.scenarios, tpl.processes]);
     expect(text).not.toMatch(/\bowner\b/i);
   });
@@ -212,7 +212,7 @@ describe("the setup grid's first row in a nonprofit", () => {
 
 describe("added coverage in existing samples", () => {
   it("gives the professional-services sample a three-way trust reconciliation", () => {
-    const tpl = getBaseTemplate("professional_services");
+    const tpl = getIndustryTemplate("professional_services");
     expect(tpl.processes.some((p) => p.id === "proc-trust-rec")).toBe(true);
     expect(tpl.controls.map((c) => c.id)).toEqual(
       expect.arrayContaining(["c-trust-rec", "c-trust-disb"]),
@@ -221,7 +221,7 @@ describe("added coverage in existing samples", () => {
   });
 
   it("gives the restaurant sample sales tax and tip pool controls and scenarios", () => {
-    const tpl = getBaseTemplate("restaurant");
+    const tpl = getIndustryTemplate("restaurant");
     expect(tpl.processes.map((p) => p.id)).toEqual(
       expect.arrayContaining(["proc-tips", "proc-salestax"]),
     );
@@ -231,7 +231,7 @@ describe("added coverage in existing samples", () => {
   });
 
   it("gives the dental, medical and veterinary sample a controlled-drug log and diversion scenario", () => {
-    const tpl = getBaseTemplate("dental");
+    const tpl = getIndustryTemplate("dental");
     expect(tpl.processes.some((p) => p.id === "proc-controlled")).toBe(true);
     expect(tpl.controls.some((c) => c.id === "c-controlled")).toBe(true);
     expect(tpl.scenarios.some((s) => s.id === "sc-drug-diversion")).toBe(true);

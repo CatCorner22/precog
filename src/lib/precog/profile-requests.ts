@@ -1,7 +1,7 @@
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { resolveClientDate } from "./dates";
-import type { IndustryId } from "./industry";
-import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
+import { isIndustryId, type IndustryId } from "./industry";
+import { isBusinessId, validateProfileInput } from "./profile-input";
 import type { PracticeProfile } from "./practice-profile";
 
 /**

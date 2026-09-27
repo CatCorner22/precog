@@ -1,10 +1,9 @@
 import { toast } from "sonner";
-import { useState, type ReactNode } from "react";
-import { usePractice } from "@/lib/precog/practice-context";
+import { useId, useState, type ReactNode } from "react";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { useTemplate } from "@/lib/precog/use-template";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
@@ -13,21 +12,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Settings2, ShieldCheck } from "lucide-react";
 import { joinWithAnd } from "@/lib/precog/text";
 
-/** Business profile editor — feeds staff into residual scores, scenarios, and Pioneer. */
+/**
+ * Business profile editor — feeds staff into residual scores, scenarios, and
+ * Pioneer. On an own business the figures the team decides (team size, years
+ * of service when hire dates are known, items only one person knows) are
+ * shown, not set: the next team or register edit would put them back.
+ */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
   const {
     profile,
     setPracticeName,
     setIndustry,
     setStaff,
-    setDualRelease,
     resetSegregationToDerived,
     resetProfile,
     createBusiness,
     setCustomProcesses,
     setMapLayout,
   } = usePractice();
+  const template = useTemplate();
   const s = profile.staff;
+  const ownTeam = Boolean(profile.customPeople);
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
   const businessKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
   const [pendingChoice, setPendingChoice] = useState<{
@@ -42,14 +47,14 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
       : null;
   const setPendingIndustry = (industry: IndustryId | null) =>
     setPendingChoice(industry ? { key: businessKey, industry } : null);
-  const work = enteredWork(profile);
-  const entered = joinWithAnd(describeEnteredWork(work));
+  // Worked out only while an industry change waits for the owner, not on every keystroke.
+  const work = pendingIndustry ? enteredWork(profile) : null;
 
-  function loadTemplate(next: IndustryId) {
+  function loadSample(next: IndustryId) {
     setIndustry(next);
     setPendingIndustry(null);
     const tpl = getIndustryTemplate(next);
-    toast.success(`Loaded ${industryMeta(next).label} template`, {
+    toast.success(`Loaded the ${industryMeta(next).label} sample business`, {
       description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
     });
   }
@@ -59,36 +64,53 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     createBusiness(next);
     setPendingIndustry(null);
     toast.success(`Added ${industryMeta(next).demoName}`, {
-      description: `${kept} is saved in your businesses — switch back from the header any time.`,
+      description: `Your businesses still list ${kept}. Switch back from the header any time.`,
     });
   }
-  const template = useTemplate();
+
+  function resetToSample() {
+    const lost = [
+      joinWithAnd(describeEnteredWork(enteredWork(profile))),
+      profile.decisions.length ? "your decision log" : "",
+    ].filter(Boolean);
+    if (
+      lost.length &&
+      !window.confirm(
+        `Reset ${profile.practiceName} to the sample business? This discards ${lost.join(" and ")}.`,
+      )
+    )
+      return;
+    resetProfile();
+  }
+
   // Figures that are not facts about this business yet say so.
   const soleOwnerNote = registerAssessed(template)
-    ? undefined
+    ? "From Who knows what: the critical items only one person holds."
     : "Not assessed yet: this figure comes from Who knows what once someone is marked there.";
-  const tenureNote =
-    profile.customPeople &&
-    !template.people.some((p) => p.active && typeof p.tenureYears === "number")
-      ? "No hire dates were entered for your team, so this is the example business's figure."
-      : undefined;
-  const segregationNote = profile.customPeople ? (
-    profile.staff.segregationSource === "manual" ? (
+  const tenureFromTeam =
+    ownTeam && template.people.some((p) => p.active && typeof p.tenureYears === "number");
+  const tenureNote = ownTeam
+    ? tenureFromTeam
+      ? "From the hire dates on your team."
+      : "No hire dates were entered for your team, so this is the sample business's figure."
+    : undefined;
+  const segregationNote = ownTeam ? (
+    s.segregationSource === "manual" ? (
       <>
-        Manual override —{" "}
+        You set this by hand.{" "}
         <button
           type="button"
           onClick={resetSegregationToDerived}
           className="text-primary underline hover:text-fg"
         >
-          use score derived from your team
+          Use the score from your team's duties
         </button>
       </>
     ) : (
-      `Derived from your team's duties (${s.segregationScore}/100). Moving the slider overrides it.`
+      `From your team's duties (${s.segregationScore}/100). Moving the slider sets it by hand.`
     )
   ) : (
-    "Estimate — import or edit your team in the Map Builder to derive this."
+    "An estimate for the sample team. Import or edit your team in the map builder to work it out from their duties."
   );
 
   return (
@@ -102,9 +124,9 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           <SyncStatusBadge />
         </div>
         <CardDescription>
-          {profile.customPeople
+          {ownTeam
             ? "Industry sets the starter process map, register and scenarios; your team and the duties you ticked drive the findings and scores. Sign in to sync across devices."
-            : "Industry loads the sample business (process map, register, scenarios). Team size and control posture drive residual scores and your AI advisor. Sign in to sync across devices."}
+            : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual scores and your AI advisor. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -125,59 +147,15 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             ))}
           </select>
         </label>
-        {pendingIndustry && (
-          <div
-            role="group"
-            aria-label="Confirm industry change"
-            className={
-              hasEnteredWork(work)
-                ? "space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm"
-                : "space-y-2 rounded-lg border border-border bg-elevated/60 p-3 text-sm"
-            }
-          >
-            {hasEnteredWork(work) ? (
-              <>
-                <p>
-                  <span className="font-medium">
-                    {profile.practiceName} has {entered} entered here.
-                  </span>{" "}
-                  Loading the {industryMeta(pendingIndustry).label} demo replaces all of it with
-                  demo people and processes. Your decision log is kept.
-                </p>
-                <p className="text-muted">
-                  Running more than one kind of business? Keep {profile.practiceName} as it is and
-                  add the new one alongside it.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => addBusiness(pendingIndustry)}>
-                    Keep {profile.practiceName} and add a {industryMeta(pendingIndustry).label}{" "}
-                    business
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => loadTemplate(pendingIndustry)}>
-                    Replace with the demo
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPendingIndustry(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p>
-                  Load the {industryMeta(pendingIndustry).label} demo? This swaps in that industry's
-                  processes, people, scenarios and staff defaults. Your decision log is kept.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => loadTemplate(pendingIndustry)}>
-                    Load the {industryMeta(pendingIndustry).label} demo
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPendingIndustry(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+        {pendingIndustry && work && (
+          <IndustryChangeConfirm
+            businessName={profile.practiceName}
+            industryLabel={industryMeta(pendingIndustry).label}
+            entered={hasEnteredWork(work) ? joinWithAnd(describeEnteredWork(work)) : null}
+            onKeepAndAdd={() => addBusiness(pendingIndustry)}
+            onReplace={() => loadSample(pendingIndustry)}
+            onCancel={() => setPendingIndustry(null)}
+          />
         )}
         <label className="block text-sm">
           <span className="text-muted">Business name</span>
@@ -188,13 +166,21 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           />
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Slider
-            label="Team size"
-            value={s.teamSize}
-            min={1}
-            max={OWN_TEAM_MAX}
-            onChange={(v) => setStaff({ ...s, teamSize: v })}
-          />
+          {ownTeam ? (
+            <Figure
+              label="Team size"
+              value={s.teamSize}
+              note="From your team: the people marked as working here."
+            />
+          ) : (
+            <Slider
+              label="Team size"
+              value={s.teamSize}
+              min={1}
+              max={OWN_TEAM_MAX}
+              onChange={(v) => setStaff({ ...s, teamSize: v })}
+            />
+          )}
           <Slider
             label="Segregation score"
             value={s.segregationScore}
@@ -203,36 +189,37 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             onChange={(v) => setStaff({ ...s, segregationScore: v })}
             note={segregationNote}
           />
-          <Slider
-            label="Sole-owner knowledge items"
+          <Figure
+            label="Items only one person knows"
             value={s.soleOwnerKnowledgeCount}
-            min={0}
-            max={30}
-            onChange={(v) => setStaff({ ...s, soleOwnerKnowledgeCount: v })}
             note={soleOwnerNote}
           />
-          <Slider
-            label="Avg tenure (years)"
-            value={Math.round(s.avgTenureYears * 10) / 10}
-            min={0}
-            max={15}
-            step={0.5}
-            onChange={(v) => setStaff({ ...s, avgTenureYears: v })}
-            note={tenureNote}
-          />
+          {tenureFromTeam ? (
+            <Figure
+              label="Average years of service"
+              value={Math.round(s.avgTenureYears * 10) / 10}
+              note={tenureNote}
+            />
+          ) : (
+            <Slider
+              label="Average years of service"
+              value={Math.round(s.avgTenureYears * 10) / 10}
+              min={0}
+              max={15}
+              step={0.5}
+              onChange={(v) => setStaff({ ...s, avgTenureYears: v })}
+              note={tenureNote}
+            />
+          )}
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={s.dualControlPayments || profile.dualRelease.enabled}
-            onChange={(e) => {
-              const on = e.target.checked;
-              setStaff({ ...s, dualControlPayments: on });
-              setDualRelease({ ...profile.dualRelease, enabled: on });
-            }}
+            checked={s.dualControlPayments}
+            onChange={(e) => setStaff({ ...s, dualControlPayments: e.target.checked })}
             className="size-4 accent-[var(--color-primary)]"
           />
-          Dual control / dual release (master)
+          Two people approve every payment (dual release)
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -249,7 +236,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             Configure dual-release thresholds
           </Button>
         )}
-        {profile.customPeople ? (
+        {ownTeam ? (
           // An own business never goes back to the sample business from here.
           // Once the owner has edited the map, even by renaming a starter
           // process, this returns it to the starter map; their team, register
@@ -274,24 +261,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             </Button>
           )
         ) : (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              const lost = [entered, profile.decisions.length ? "your decision log" : ""].filter(
-                Boolean,
-              );
-              if (
-                lost.length &&
-                !window.confirm(
-                  `Reset ${profile.practiceName} to the demo? This discards ${lost.join(" and ")}.`,
-                )
-              )
-                return;
-              resetProfile();
-            }}
-          >
-            Reset to demo defaults
+          <Button size="sm" variant="secondary" onClick={resetToSample}>
+            Reset to the sample business
           </Button>
         )}
       </CardContent>
@@ -299,6 +270,86 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   );
 }
 
+/**
+ * The choice an industry change offers. With work entered it names what the
+ * sample business would replace and offers to keep this business and add
+ * the new one beside it.
+ */
+function IndustryChangeConfirm({
+  businessName,
+  industryLabel,
+  entered,
+  onKeepAndAdd,
+  onReplace,
+  onCancel,
+}: {
+  businessName: string;
+  industryLabel: string;
+  /** What would be lost, in words; null when nothing has been entered. */
+  entered: string | null;
+  onKeepAndAdd: () => void;
+  onReplace: () => void;
+  onCancel: () => void;
+}) {
+  if (!entered) {
+    return (
+      <div
+        role="group"
+        aria-label="Confirm industry change"
+        className="space-y-2 rounded-lg border border-border bg-elevated/60 p-3 text-sm"
+      >
+        <p>
+          Load the {industryLabel} sample business? This swaps in that industry's processes, people,
+          scenarios and staff defaults. You keep your decision log.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={onReplace}>
+            Load the {industryLabel} sample business
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      role="group"
+      aria-label="Confirm industry change"
+      className="space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm"
+    >
+      <p>
+        <span className="font-medium">
+          {businessName} has {entered} entered here.
+        </span>{" "}
+        Loading the {industryLabel} sample business replaces all of it with the sample's people and
+        processes. You keep your decision log.
+      </p>
+      <p className="text-muted">
+        Running more than one kind of business? Keep {businessName} as it is and add the new one
+        alongside it.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={onKeepAndAdd}>
+          Keep {businessName} and add a {industryLabel} business
+        </Button>
+        <Button size="sm" variant="danger" onClick={onReplace}>
+          Replace with the sample business
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A range input named by its label alone; the note that explains the figure
+ * (and may hold a button) sits beside the label, not inside it, and
+ * describes the input.
+ */
 function Slider({
   label,
   value,
@@ -316,22 +367,44 @@ function Slider({
   onChange: (v: number) => void;
   note?: ReactNode;
 }) {
+  const id = useId();
   return (
-    <label className="block text-sm">
-      <span className="flex justify-between text-muted">
-        <span>{label}</span>
-        <span className="tabular text-fg">{value}</span>
-      </span>
+    <div className="text-sm">
+      <div className="flex justify-between text-muted">
+        <label htmlFor={`${id}-input`}>{label}</label>
+        <span className="tabular text-fg" aria-hidden="true">
+          {value}
+        </span>
+      </div>
       <input
+        id={`${id}-input`}
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        aria-describedby={note ? `${id}-note` : undefined}
         className="mt-1 w-full accent-[var(--color-primary)]"
       />
-      {note && <span className="mt-1 block text-xs text-subtle">{note}</span>}
-    </label>
+      {note && (
+        <p id={`${id}-note`} className="mt-1 text-xs text-subtle">
+          {note}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A figure the business's own data decides, shown rather than set. */
+function Figure({ label, value, note }: { label: string; value: number; note?: ReactNode }) {
+  return (
+    <div className="text-sm">
+      <div className="flex justify-between text-muted">
+        <span>{label}</span>
+        <span className="tabular text-fg">{value}</span>
+      </div>
+      {note && <p className="mt-1 text-xs text-subtle">{note}</p>}
+    </div>
   );
 }

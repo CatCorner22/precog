@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { runLocalAgentLoop } from "./agent-loop";
 import { runSpecialistAgents } from "./multi-agent";
@@ -7,7 +7,7 @@ import { resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("local brief register freshness advice", () => {
   const [held, orphan] = dental.knowledge;

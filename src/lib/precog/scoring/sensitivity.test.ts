@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { scoreAllResidualRisks } from "./residual-engine";
 import { weightSensitivity } from "./sensitivity";
 import { bandForScore, DEFAULT_WEIGHTS } from "./weights";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const staff = dental.staffComposition;
 
 describe("weightSensitivity", () => {

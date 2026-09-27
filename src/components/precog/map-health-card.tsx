@@ -1,8 +1,7 @@
 import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { useEffect, useMemo } from "react";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { mapNotAssessedNote, mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
 import {
   buildProcessMapGraph,

@@ -7,7 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
 
 const DOMAINS: (PracticeProcessDomain | "all")[] = [

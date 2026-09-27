@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { collectDueItems, groupByDay, summarizeDue, type DueItem } from "@/lib/precog/builder/due";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import {
   normalizePlannedAbsences,
   type DecisionEntry,
@@ -36,7 +36,7 @@ function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
 
 function tpl(relations: KnowledgeRelation[], knowledge = [item("pms"), item("billing")]) {
   const base: IndustryTemplate = {
-    ...getBaseTemplate("general"),
+    ...getIndustryTemplate("general"),
     people,
     knowledge,
     relations,

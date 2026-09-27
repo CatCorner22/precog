@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Archive, Clock3, Download, RefreshCw, Save, Scale, Trash2, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import {
   createAssessmentSnapshot,
   deleteAssessmentSnapshot,
@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildAssignments } from "@/lib/precog/sod/detect";
 import { resolveTemplate } from "@/lib/precog/active-template";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   DEFAULT_VALUE_CASE,
   normalizeValueCase,

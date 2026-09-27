@@ -1,12 +1,13 @@
 import { CORE_POLICY_FIELDS } from "./scoring/insurance-record";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "./engine";
 import { INDUSTRIES } from "./industry";
 import { DEFAULT_RISK_VARIABLES } from "./scoring/dynamic-variables";
 import type { Person, StaffComposition } from "./types";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 /** An owner's own team: two people, no register marks. */
 const ownPeople: Person[] = [
@@ -92,7 +93,7 @@ describe("runPrecogScenario", () => {
 
   it("produces an ordered timeline and impact range for every scenario in every industry", () => {
     for (const { id } of INDUSTRIES) {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       for (const scenario of tpl.scenarios) {
         const r = runPrecogScenario(tpl, scenario.id);
         expect(r, `${id}/${scenario.id}`).not.toBeNull();
@@ -108,7 +109,7 @@ describe("runPrecogScenario", () => {
   });
 
   it("names the people the business serves, not patients, outside dental", () => {
-    const retail = getBaseTemplate("retail");
+    const retail = getIndustryTemplate("retail");
     const withSurface = retail.scenarios.find((s) => s.cascadeLayers.includes("surface"))!;
     const r = runPrecogScenario(retail, withSurface.id)!;
     const surface = r.cascade.find((c) => c.layer === "surface")!;

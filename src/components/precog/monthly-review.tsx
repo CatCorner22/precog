@@ -20,7 +20,7 @@ const RESULT_LABEL: Record<ReviewResult, string> = {
 
 /** The four monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {
-  const { profile, template, replaceProfile } = usePractice();
+  const { profile, template, setMonthlyReviews } = usePractice();
   const user = useCurrentUser();
   const today = localDateKey(useToday());
   const tasks = monthlyReviewTasks(
@@ -46,7 +46,7 @@ export function MonthlyReview() {
       ownerName,
       notes: note,
     });
-    replaceProfile({ ...profile, monthlyReviews: next });
+    setMonthlyReviews(next);
     if (!user || !profile.businessId) return;
     setBusy(key);
     try {

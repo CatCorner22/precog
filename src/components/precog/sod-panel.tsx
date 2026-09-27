@@ -1,6 +1,5 @@
 import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
 import { useMemo, useState } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   CONFLICT_RULES,
   ENTITLEMENTS,
@@ -9,7 +8,7 @@ import {
 } from "@/lib/precog/sod/conflict-rules";
 import { RuleCaseCard } from "./case-card";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";

@@ -6,7 +6,7 @@ import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 
 import type { Person } from "@/lib/precog/types";
-import { getBaseTemplate } from "@/lib/precog/active-template";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import { industryMeta } from "@/lib/precog/industry";
 
 import { diffMaps } from "@/lib/precog/builder/diff";
@@ -33,7 +33,7 @@ export function ChangesView({
   const baseline = useMemo(() => {
     if (against) return against;
     if (ownStart) return { processes: starterProcesses({ industry }), people };
-    const base = getBaseTemplate(industry);
+    const base = getIndustryTemplate(industry);
     return { processes: base.processes, people: base.people };
   }, [against, industry, ownStart, people]);
   const { added, removed, modified, peopleAdded, peopleRemoved, total } = diffMaps(baseline, {

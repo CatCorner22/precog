@@ -67,6 +67,23 @@ export function stripInvisibleControls(value: string): string {
   return value.replace(INVISIBLE_CONTROLS, "");
 }
 
+/**
+ * JSON with every object's keys in a fixed order, so two values with the same
+ * content give the same text however their keys were written. For comparing
+ * content, never for storing.
+ */
+export function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, entry: unknown) =>
+    entry && typeof entry === "object" && !Array.isArray(entry)
+      ? Object.fromEntries(
+          Object.entries(entry as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          ),
+        )
+      : entry,
+  );
+}
+
 const HONORIFIC = /^(dr|mr|mrs|ms|mx|prof|rev)\.?$/i;
 
 /**

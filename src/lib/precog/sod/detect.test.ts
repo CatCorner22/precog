@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person } from "../types";
 import { CONFLICT_RULES, type EntitlementId } from "./conflict-rules";
@@ -12,7 +12,7 @@ import {
 } from "./detect";
 import { ROLE_TEMPLATES } from "./role-templates";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 function oneClerk(entitlements: string[]): IndustryTemplate {
   const clerk: Person = { id: "x1", name: "Solo Clerk", role: "Clerk", active: true, entitlements };
@@ -231,7 +231,7 @@ describe("detectSodConflicts", () => {
 
 describe("release, payroll and reconciliation pairs", () => {
   const team = (entitlements: EntitlementId[]) =>
-    detectSodConflicts(getBaseTemplate("general"), undefined, {
+    detectSodConflicts(getIndustryTemplate("general"), undefined, {
       assignments: [{ personId: "p1", personName: "Pat", role: "Bookkeeper", entitlements }],
     });
 
@@ -256,7 +256,7 @@ describe("release, payroll and reconciliation pairs", () => {
     const hit = report.conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
     expect(hit.compensatingControls.length).toBeGreaterThan(0);
     expect(hit.controlsInPlace).toEqual([]);
-    const mitigated = detectSodConflicts(getBaseTemplate("general"), undefined, {
+    const mitigated = detectSodConflicts(getIndustryTemplate("general"), undefined, {
       assignments: [
         {
           personId: "p1",
@@ -273,7 +273,7 @@ describe("release, payroll and reconciliation pairs", () => {
 });
 
 describe("owner-aware and mitigation-aware detection", () => {
-  const general = getBaseTemplate("general");
+  const general = getIndustryTemplate("general");
   const one = (role: string, entitlements: EntitlementId[], extra: SodDetectionOptions = {}) =>
     detectSodConflicts(general, undefined, {
       assignments: [{ personId: "p1", personName: "Pat", role, entitlements }],
@@ -365,7 +365,7 @@ describe("owner-aware and mitigation-aware detection", () => {
 
 describe("recommendations", () => {
   it("never calls duties healthy while a high pair is open", () => {
-    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+    const report = detectSodConflicts(getIndustryTemplate("general"), undefined, {
       assignments: [
         {
           personId: "p1",
@@ -377,7 +377,7 @@ describe("recommendations", () => {
     });
     expect(report.summary.high).toBeGreaterThan(0);
     expect(report.recommendations.join(" ")).not.toMatch(/look healthy|look separated/);
-    const clean = detectSodConflicts(getBaseTemplate("general"), undefined, {
+    const clean = detectSodConflicts(getIndustryTemplate("general"), undefined, {
       assignments: [
         {
           personId: "p1",
@@ -395,7 +395,7 @@ describe("recommendations", () => {
 
 describe("unheld duties", () => {
   it("names the money duties nobody active holds", () => {
-    const report = detectSodConflicts(getBaseTemplate("general"), undefined, {
+    const report = detectSodConflicts(getIndustryTemplate("general"), undefined, {
       assignments: [
         {
           personId: "p1",

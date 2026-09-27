@@ -3,7 +3,7 @@
  *
  * Two calendars live here. The owner's local calendar (`localDateKey`,
  * `dateAfter`, `localDaysBetween`) is what every screen in the browser uses
- * for "today". The UTC calendar (`utcDay`, `daysBetween`, `shiftDay`,
+ * for "today". The UTC calendar (`isCalendarDate`, `daysBetween`, `shiftDay`,
  * `utcDateKey`, `serverUtcDay`) is for arithmetic on stored "YYYY-MM-DD"
  * strings and for server code that has no owner's clock to read.
  *
@@ -44,20 +44,7 @@ export function serverUtcDay(now: Date = new Date()): string {
   return utcDateKey(now);
 }
 
-/** The UTC midnight of a "YYYY-MM-DD" string in milliseconds, or null when it is not a real calendar date. */
-export function utcDay(value: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const [year, month, day] = value.split("-").map(Number);
-  const time = Date.UTC(year, month - 1, day);
-  if (Number.isNaN(time)) return null;
-  const date = new Date(time);
-  return date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-    ? time
-    : null;
-}
-
+/** True when `value` is a real "YYYY-MM-DD" day, and not later than `today` when one is given. */
 export function isCalendarDate(value: string, today?: string): boolean {
   const date = utcDay(value);
   if (date === null) return false;
@@ -127,6 +114,20 @@ export function formatDayRange(from: string, to: string): string {
     return `${DAY_SHORT.format(start)}–${end.getDate()}`;
   }
   return `${DAY_SHORT.format(start)} – ${DAY_SHORT.format(end)}`;
+}
+
+/** The UTC midnight of a "YYYY-MM-DD" string in milliseconds, or null when it is not a real calendar date. */
+function utcDay(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const time = Date.UTC(year, month - 1, day);
+  if (Number.isNaN(time)) return null;
+  const date = new Date(time);
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+    ? time
+    : null;
 }
 
 function startOfLocalDay(date: Date): Date {

@@ -1,6 +1,6 @@
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { useEffect, useMemo, useState } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";

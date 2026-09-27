@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
@@ -39,7 +40,7 @@ function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
 
 function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): IndustryTemplate {
   return {
-    ...getBaseTemplate("general"),
+    ...getIndustryTemplate("general"),
     people,
     knowledge,
     relations,
@@ -646,7 +647,7 @@ describe("soleOwnerCriticalCount", () => {
       "nonprofit",
       "general",
     ] as const) {
-      const base = getBaseTemplate(id);
+      const base = getIndustryTemplate(id);
       expect(soleOwnerCriticalCount(base)).toBe(base.staffComposition.soleOwnerKnowledgeCount);
     }
   });
@@ -654,7 +655,7 @@ describe("soleOwnerCriticalCount", () => {
 
 describe("resolveTemplate with a custom register", () => {
   it("uses custom knowledge and relations and drops relations to missing people or items", () => {
-    const base = getBaseTemplate("dental");
+    const base = getIndustryTemplate("dental");
     const knowledge = [item("custom-1")];
     const relations: KnowledgeRelation[] = [
       { personId: base.people[0].id, knowledgeId: "custom-1", level: "expert" },
@@ -672,7 +673,7 @@ describe("resolveTemplate with a custom register", () => {
   });
 
   it("leaves the default template untouched when no register is supplied", () => {
-    const base = getBaseTemplate("retail");
+    const base = getIndustryTemplate("retail");
     const t = resolveTemplate({ industry: "retail" });
     expect(t.knowledge).toBe(base.knowledge);
     expect(t.relations).toBe(base.relations);

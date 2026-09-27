@@ -5,6 +5,7 @@ import {
   joinWithAnd,
   nameKey,
   slug,
+  stableStringify,
   stripInvisibleControls,
   titleKey,
   uid,
@@ -80,5 +81,14 @@ describe("uid", () => {
     const ids = Array.from({ length: 2000 }, () => uid("ev"));
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids[0]).toMatch(/^ev_[a-z0-9]+_[a-z0-9]{1,6}$/);
+  });
+});
+
+describe("stableStringify", () => {
+  it("gives one text for the same content whatever the key order", () => {
+    expect(stableStringify({ b: 1, a: { d: [2, { f: 1, e: 0 }], c: null } })).toBe(
+      stableStringify({ a: { c: null, d: [2, { e: 0, f: 1 }] }, b: 1 }),
+    );
+    expect(stableStringify({ a: 1 })).not.toBe(stableStringify({ a: 2 }));
   });
 });

@@ -22,14 +22,14 @@ const SOURCE_LABEL = {
  * Nothing is written back to the accounting system. Unmatched rows wait for a person.
  */
 export function AccessReconcile() {
-  const { profile, template, replaceProfile } = usePractice();
+  const { profile, template, setAccessReconciliation } = usePractice();
   const today = localDateKey(useToday());
   const rec = profile.accessReconciliation;
   const [issues, setIssues] = useState<string[]>([]);
   const pending = pendingQueueCount(rec);
 
   function save(next: AccessReconciliation) {
-    replaceProfile({ ...profile, accessReconciliation: next });
+    setAccessReconciliation(next);
   }
 
   function onUsers(file: File) {

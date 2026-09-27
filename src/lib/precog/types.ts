@@ -175,17 +175,10 @@ export interface StaffComposition {
 }
 
 /**
- * Published fraud statistics, and the one modelling assumption the app makes.
- *
- * These figures used to be invented — an "industryEmbezzlementRate" of 18%,
- * varied per industry (16%, 18%, 22%) to look precise. No published source
- * gives an annual probability of occupational fraud for a small business in a
- * given industry, so those numbers asserted something nobody knows. They are
- * replaced here by what the research does establish, and the one number that
- * remains a judgement call is named as such rather than dressed as a measurement.
- *
- * Because no source supports per-industry variation, this record is shared
- * across every industry template rather than differing between them.
+ * Published fraud statistics, and the one modelling assumption the app makes
+ * (named as an assumption, not a measurement). No published source gives an
+ * annual probability of occupational fraud for a small business in a given
+ * industry, so one record is shared by every industry template.
  */
 export interface CrimeFraudStats {
   /**

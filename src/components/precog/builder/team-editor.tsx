@@ -1,8 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { useTemplate } from "@/lib/precog/use-template";
-
 import { Button } from "@/components/ui/button";
 
 import { cn } from "@/lib/utils";
@@ -18,7 +16,7 @@ import {
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
 import { industryHasOwner } from "@/lib/precog/industry";
-import { usePracticeActions } from "@/lib/precog/practice-context";
+import { usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { parseRoster } from "@/lib/precog/import/roster";
 import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";

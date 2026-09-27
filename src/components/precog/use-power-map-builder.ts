@@ -11,8 +11,7 @@ import {
   sodDetectionOptions,
   type RoleAssignment,
 } from "@/lib/precog/sod/detect";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { powerGuidance } from "@/lib/precog/sod/power-guidance";
 import { analyzeAbsenceImpact, analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
 import {

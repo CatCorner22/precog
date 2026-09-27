@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { normalizePlannedAbsences, type PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates/types";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -36,7 +36,7 @@ function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
 }
 
 function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): IndustryTemplate {
-  return { ...getBaseTemplate("general"), people, knowledge, relations, processes: [] };
+  return { ...getIndustryTemplate("general"), people, knowledge, relations, processes: [] };
 }
 
 function absence(id: string, personId: string, from: string, to: string): PlannedAbsence {
@@ -482,7 +482,7 @@ describe("normalizePlannedAbsences", () => {
 
 describe("leave booked over a starter register nobody has marked", () => {
   const starter: IndustryTemplate = {
-    ...getBaseTemplate("general"),
+    ...getIndustryTemplate("general"),
     people,
     relations: [],
     processes: [],

@@ -3,7 +3,7 @@ import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import { textPatch } from "@/lib/precog/builder/process-text";
 import type {
   LeanWasteKind,

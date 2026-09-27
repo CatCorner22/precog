@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import {
   buildProcessMapGraph,
   layoutProcessMap,
@@ -21,7 +21,7 @@ function overlaps(a: ReturnType<typeof box>, b: ReturnType<typeof box>) {
 }
 
 describe("layoutProcessMap", () => {
-  const tpl = getBaseTemplate("dental");
+  const tpl = getIndustryTemplate("dental");
   const graph = buildProcessMapGraph(tpl, undefined, {
     showRisks: true,
     showIdeas: true,
@@ -100,7 +100,7 @@ describe("layoutProcessMap", () => {
 
 describe("stageLanes", () => {
   it("returns one lane per stage in order with the top-left process origin", () => {
-    const tpl = getBaseTemplate("dental");
+    const tpl = getIndustryTemplate("dental");
     const graph = buildProcessMapGraph(tpl, undefined);
     const pos = layoutProcessMap(graph.nodes, graph.edges);
     const lanes = stageLanes(graph.nodes, pos);

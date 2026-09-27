@@ -1,4 +1,3 @@
-import type { SetStateAction } from "react";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -15,7 +14,7 @@ import {
 } from "./controls/dual-release";
 import { industryHasOwner, industryMeta, isDemoName, type IndustryId } from "./industry";
 import { resolveTemplate } from "./active-template";
-import { getIndustryTemplate } from "./templates";
+import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { type ContinuityStep } from "./continuity/absence-impact";
@@ -26,6 +25,10 @@ import {
 } from "./decisions/follow-through";
 import {
   defaultProfile,
+  MAX_DECISION_NOTE,
+  MAX_DECISION_SUBJECT,
+  MAX_DECISIONS,
+  withRiskFlags,
   type DecisionEntry,
   type DecisionKind,
   type DecisionReviewOutcome,
@@ -34,6 +37,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import type { MapSnapshot } from "./builder/map-history";
 import { adoptOwnTeam, processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import {
   confirmAccessRemoved,
@@ -42,6 +46,8 @@ import {
   noteDepartures,
   type Departure,
 } from "./continuity/access-removal";
+import type { ReviewRecord } from "./firm/reviews";
+import type { AccessReconciliation } from "./firm/reconcile";
 import { localDateKey, formatDay } from "./dates";
 import { nameKey, uid } from "./text";
 
@@ -50,32 +56,51 @@ import { nameKey, uid } from "./text";
  * profile to the next. The provider wraps each in a state update; tests and
  * server code can call them directly. None of them stamps `updatedAt` — the
  * reducer does that for every edit that produces a new object.
+ *
+ * Every edit that moves the team, the map or the register re-derives the
+ * staff figures from it, and every write of the staff figures keeps the risk
+ * variables' copy of the two control flags in step (`withRiskFlags`).
  */
-export const MAX_DECISIONS = 100;
+
+export interface DecisionInput {
+  subject: string;
+  kind: DecisionKind;
+  note: string;
+  reviewBy?: string;
+  residualAtDecision?: number;
+  linkedTab?: string;
+  linkedId?: string;
+  linkedStep?: ContinuityStep;
+  linkedPersonId?: string;
+  linkedAbsenceId?: string;
+}
+
 const MAX_MAP_VERSIONS = 12;
 const MAX_HEALTH_POINTS = 90;
 const MAX_SAVED_BLOCKS = 24;
 
-/** A React-style update (value or updater) applied to the current value. */
-export function resolveUpdate<T>(update: SetStateAction<T>, current: T): T {
-  return typeof update === "function" ? (update as (c: T) => T)(current) : update;
-}
+// ── Reads ──────────────────────────────────────────────────────────────────
 
 /**
- * Re-derive the staff figures that depend on the register. With a real team
- * everything derivable is derived; with template people only the sole-owner
- * count moves, read from the register in use (the sample's own register
- * included), so every screen shows the same figure.
+ * A React-style update (a value, or an updater of the current value) applied
+ * to `current`. `C` differs from `T` for the overrides whose value may be
+ * null ("back to the template") while the updater receives the list in use.
  */
-function deriveContinuityStaff(p: PracticeProfile): StaffComposition {
-  const tpl = resolveTemplate(p);
-  if (p.customPeople) {
-    return deriveStaffFromTeam(tpl, p.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl),
-    });
-  }
-  return { ...p.staff, soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl) };
+export function resolveUpdate<T, C = T>(update: T | ((current: C) => T), current: C): T {
+  return typeof update === "function" ? (update as (c: C) => T)(current) : update;
 }
+
+/** The people the map builder edits: the owner's, or the sample's. */
+export function currentPeople(p: PracticeProfile): Person[] {
+  return p.customPeople ?? getIndustryTemplate(p.industry).people;
+}
+
+/** True when the process map differs from the industry template. */
+export function isMapCustomized(p: PracticeProfile): boolean {
+  return Boolean(p.customProcesses || p.customPeople || Object.keys(p.mapLayout ?? {}).length > 0);
+}
+
+// ── Setup ──────────────────────────────────────────────────────────────────
 
 export function withPracticeName(p: PracticeProfile, name: string): PracticeProfile {
   return { ...p, practiceName: name.slice(0, 80) };
@@ -92,72 +117,88 @@ export function withIndustry(p: PracticeProfile, industry: IndustryId): Practice
   };
 }
 
-export function withStaff(p: PracticeProfile, raw: StaffComposition): PracticeProfile {
-  const scoreSet =
-    p.customPeople && raw.segregationScore !== p.staff.segregationScore
-      ? { ...raw, segregationSource: "manual" as const }
-      : raw;
-  // Flipping the bank-reconciliation flag by hand keeps it: later team
-  // edits no longer re-read it from the duties.
-  const next =
-    p.customPeople && raw.independentBankRec !== p.staff.independentBankRec
-      ? { ...scoreSet, bankRecSource: "manual" as const }
-      : scoreSet;
+/** Someone the roster left out who is on the team after all is not a leaver. */
+export function withRosterLeavers(
+  p: PracticeProfile,
+  people: readonly Person[],
+  leftOut: readonly Departure[],
+  today = localDateKey(new Date()),
+): PracticeProfile {
+  const onTeam = new Set(people.map((person) => nameKey(person.name)));
+  const gone = leftOut.filter((who) => !onTeam.has(nameKey(who.name)));
+  if (gone.length === 0) return p;
   return {
     ...p,
-    staff: next,
-    dualRelease: { ...p.dualRelease, enabled: next.dualControlPayments },
-    riskVariables: {
-      ...p.riskVariables,
-      hasDualControl: next.dualControlPayments,
-      hasIndependentBankRec: next.independentBankRec,
-    },
+    leaverAccessChecks: noteDepartures(
+      p.leaverAccessChecks ?? [],
+      gone,
+      "roster",
+      p.industry,
+      today,
+    ),
   };
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+
+/**
+ * The owner's figures. On an own team, a segregation score or bank
+ * reconciliation flag set by hand is marked manual, so later team edits no
+ * longer re-read it from the duties.
+ */
+export function withStaff(p: PracticeProfile, raw: StaffComposition): PracticeProfile {
+  const own = Boolean(p.customPeople);
+  return withStaffFigures(p, {
+    ...raw,
+    ...(own && raw.segregationScore !== p.staff.segregationScore
+      ? { segregationSource: "manual" as const }
+      : {}),
+    ...(own && raw.independentBankRec !== p.staff.independentBankRec
+      ? { bankRecSource: "manual" as const }
+      : {}),
+  });
 }
 
 export function withRiskVariables(p: PracticeProfile, next: RiskVariableState): PracticeProfile {
-  return {
-    ...p,
-    riskVariables: next,
-    staff: {
-      ...p.staff,
-      dualControlPayments: next.hasDualControl,
-      independentBankRec: next.hasIndependentBankRec,
-      ...(p.customPeople && next.hasIndependentBankRec !== p.staff.independentBankRec
-        ? { bankRecSource: "manual" as const }
-        : {}),
-    },
-    dualRelease: { ...p.dualRelease, enabled: next.hasDualControl },
+  const staff: StaffComposition = {
+    ...p.staff,
+    dualControlPayments: next.hasDualControl,
+    independentBankRec: next.hasIndependentBankRec,
+    ...(p.customPeople && next.hasIndependentBankRec !== p.staff.independentBankRec
+      ? { bankRecSource: "manual" as const }
+      : {}),
   };
+  return withStaffFigures({ ...p, riskVariables: next }, staff);
 }
 
+/** The dual-release policy; dual control on payments follows its master switch and payment rules. */
 export function withDualRelease(
   p: PracticeProfile,
   raw: DualReleasePolicy,
   now: Date,
 ): PracticeProfile {
   const dualRelease = mergeDualReleasePolicy(resolveTemplate(p), raw, p.staff);
-  const flags = staffFlagsFromDualRelease(dualRelease);
+  const staff = {
+    ...p.staff,
+    dualControlPayments: staffFlagsFromDualRelease(dualRelease).dualControlPayments,
+  };
   return {
     ...p,
     dualRelease: { ...dualRelease, updatedAt: now.toISOString() },
-    staff: { ...p.staff, dualControlPayments: flags.dualControlPayments },
-    riskVariables: { ...p.riskVariables, hasDualControl: flags.dualControlPayments },
+    staff,
+    riskVariables: withRiskFlags(p.riskVariables, staff),
   };
 }
 
-export interface DecisionInput {
-  subject: string;
-  kind: DecisionKind;
-  note: string;
-  reviewBy?: string;
-  residualAtDecision?: number;
-  linkedTab?: string;
-  linkedId?: string;
-  linkedStep?: ContinuityStep;
-  linkedPersonId?: string;
-  linkedAbsenceId?: string;
+/** Drops the manual segregation score: it is read from the team's duties again. */
+export function withDerivedSegregation(p: PracticeProfile): PracticeProfile {
+  return withStaffFromTeam(
+    { ...p, staff: { ...p.staff, segregationSource: "derived" } },
+    resolveTemplate(p),
+  );
 }
+
+// ── Journal ────────────────────────────────────────────────────────────────
 
 export function withDecision(
   p: PracticeProfile,
@@ -176,9 +217,9 @@ export function withDecision(
   const entry: DecisionEntry = {
     id,
     createdAt: now.toISOString(),
-    subject: input.subject.slice(0, 120),
+    subject: input.subject.slice(0, MAX_DECISION_SUBJECT),
     kind: input.kind,
-    note: input.note.slice(0, 800),
+    note: input.note.slice(0, MAX_DECISION_NOTE),
     reviewBy: input.reviewBy,
     residualAtDecision: input.residualAtDecision ?? snapshot.subjectResidual,
     linkedTab: input.linkedTab,
@@ -223,6 +264,8 @@ export function withDecisionReview(
   return { ...p, decisions: p.decisions.map((d) => (d.id === id ? reviewed : d)) };
 }
 
+// ── Leavers ────────────────────────────────────────────────────────────────
+
 /** The owner confirmed these leavers are off payroll and their logins removed. */
 export function withLeaversConfirmed(
   p: PracticeProfile,
@@ -244,10 +287,7 @@ export function withLeaversPrompted(p: PracticeProfile, checkIds: string[]): Pra
   return after.some((check, i) => check !== before[i]) ? { ...p, leaverAccessChecks: after } : p;
 }
 
-/** The people the map builder edits: the owner's, or the sample's. */
-export function currentPeople(p: PracticeProfile): Person[] {
-  return p.customPeople ?? getIndustryTemplate(p.industry).people;
-}
+// ── Team, map and register ─────────────────────────────────────────────────
 
 /**
  * Replace the team. Replacing the sample's people with the owner's gives the
@@ -266,18 +306,14 @@ export function withPeople(
       ? given.map((person) => (person.owner === false ? person : { ...person, owner: false }))
       : given;
   const base = next && replacesSampleTeam(p, next) ? adoptOwnTeam(p, next) : p;
-  const nextTemplate = next ? resolveTemplate({ ...base, customPeople: next }) : null;
-  const staff = nextTemplate
-    ? deriveStaffFromTeam(nextTemplate, base.staff, {
-        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(base.dualRelease, nextTemplate),
-      })
-    : base.staff;
+  const withTeam = { ...base, customPeople: next };
+  const derived = next ? withStaffFromTeam(withTeam, resolveTemplate(withTeam)) : withTeam;
   const sample = getIndustryTemplate(p.industry).people;
   const known = new Set(current.map((person) => person.id));
   const left = departuresBetween(current, next, sample);
-  let checks = base.leaverAccessChecks ?? [];
-  checks = noteDepartures(
-    checks,
+  const before = base.leaverAccessChecks ?? [];
+  let checks = noteDepartures(
+    before,
     left.filter((who) => who.personId && known.has(who.personId)),
     "marked",
     p.industry,
@@ -290,51 +326,27 @@ export function withPeople(
     p.industry,
     today,
   );
-  return {
-    ...base,
-    customPeople: next,
-    staff,
-    ...(checks !== (base.leaverAccessChecks ?? []) ? { leaverAccessChecks: checks } : {}),
-  };
+  return checks !== before ? { ...derived, leaverAccessChecks: checks } : derived;
 }
 
 export function withProcesses(p: PracticeProfile, next: ProcessNode[] | null): PracticeProfile {
-  const nextTemplate = p.customPeople ? resolveTemplate({ ...p, customProcesses: next }) : null;
-  const staff = nextTemplate
-    ? deriveStaffFromTeam(nextTemplate, p.staff, {
-        dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, nextTemplate),
-      })
-    : p.staff;
-  return { ...p, customProcesses: next, staff };
+  const withMap = { ...p, customProcesses: next };
+  return p.customPeople ? withStaffFromTeam(withMap, resolveTemplate(withMap)) : withMap;
 }
 
 export function withKnowledge(p: PracticeProfile, next: KnowledgeItem[] | null): PracticeProfile {
-  const withRegister = { ...p, customKnowledge: next };
-  return { ...withRegister, staff: deriveContinuityStaff(withRegister) };
+  return withContinuityStaff({ ...p, customKnowledge: next });
 }
 
 export function withRelations(
   p: PracticeProfile,
   next: KnowledgeRelation[] | null,
 ): PracticeProfile {
-  const withRegister = { ...p, customRelations: next };
-  return { ...withRegister, staff: deriveContinuityStaff(withRegister) };
+  return withContinuityStaff({ ...p, customRelations: next });
 }
 
 export function withPlannedAbsences(p: PracticeProfile, next: PlannedAbsence[]): PracticeProfile {
   return { ...p, plannedAbsences: next };
-}
-
-export function withDerivedSegregation(p: PracticeProfile): PracticeProfile {
-  const tpl = resolveTemplate(p);
-  return {
-    ...p,
-    staff: deriveStaffFromTeam(
-      tpl,
-      { ...p.staff, segregationSource: "derived" },
-      { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
-    ),
-  };
 }
 
 export function withMapLayout(
@@ -342,10 +354,6 @@ export function withMapLayout(
   next: Record<string, { x: number; y: number }>,
 ): PracticeProfile {
   return { ...p, mapLayout: next };
-}
-
-export function isMapCustomized(p: PracticeProfile): boolean {
-  return Boolean(p.customProcesses || p.customPeople || Object.keys(p.mapLayout ?? {}).length > 0);
 }
 
 export function withSavedBlocks(p: PracticeProfile, next: SavedProcessBlock[]): PracticeProfile {
@@ -386,33 +394,97 @@ export function withoutMapVersion(p: PracticeProfile, id: string): PracticeProfi
   return { ...p, mapVersions: (p.mapVersions ?? []).filter((v) => v.id !== id) };
 }
 
-export function withRestoredVersion(p: PracticeProfile, v: MapVersion): PracticeProfile {
+/**
+ * Put a map snapshot back (undo, redo): the processes, the team and the
+ * layout. The team goes through `withPeople`, so the staff figures, the
+ * nonprofit owner rule and the leaver checks follow the team that comes back,
+ * exactly as they do after an edit.
+ */
+export function withMapSnapshot(
+  p: PracticeProfile,
+  snapshot: MapSnapshot,
+  today: string,
+): PracticeProfile {
+  const withMap = withProcesses(
+    { ...p, mapLayout: snapshot.mapLayout ?? {} },
+    snapshot.customProcesses ?? null,
+  );
+  return withPeople(withMap, snapshot.customPeople ?? null, today);
+}
+
+export function withRestoredVersion(
+  p: PracticeProfile,
+  v: MapVersion,
+  today: string,
+): PracticeProfile {
+  return withMapSnapshot(
+    p,
+    {
+      customProcesses: structuredClone(v.processes),
+      customPeople: structuredClone(v.people),
+      mapLayout: { ...v.layout },
+    },
+    today,
+  );
+}
+
+// ── Records ────────────────────────────────────────────────────────────────
+
+/** Monthly close results, replaced as a list: a later result is appended by `recordReview`. */
+export function withMonthlyReviews(p: PracticeProfile, next: ReviewRecord[]): PracticeProfile {
+  return { ...p, monthlyReviews: next };
+}
+
+export function withAccessReconciliation(
+  p: PracticeProfile,
+  next: AccessReconciliation,
+): PracticeProfile {
+  return { ...p, accessReconciliation: next };
+}
+
+/** Stamps the day the report first went to the owner's advisor; a later click keeps the first stamp. */
+export function withReportSent(p: PracticeProfile, now: Date): PracticeProfile {
+  if (p.engagement?.reportSentAt) return p;
+  return { ...p, engagement: { ...p.engagement, reportSentAt: now.toISOString() } };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Sets the staff figures. The risk variables' copy of the two control flags
+ * follows them, and turning dual control on or off here turns the
+ * dual-release master switch with it.
+ */
+function withStaffFigures(p: PracticeProfile, staff: StaffComposition): PracticeProfile {
+  const switched = staff.dualControlPayments !== p.staff.dualControlPayments;
   return {
     ...p,
-    customProcesses: structuredClone(v.processes),
-    customPeople: structuredClone(v.people),
-    mapLayout: { ...v.layout },
+    staff,
+    riskVariables: withRiskFlags(p.riskVariables, staff),
+    dualRelease: switched
+      ? { ...p.dualRelease, enabled: staff.dualControlPayments }
+      : p.dualRelease,
   };
 }
 
-/** Someone the roster left out who is on the team after all is not a leaver. */
-export function withRosterLeavers(
-  p: PracticeProfile,
-  people: readonly Person[],
-  leftOut: readonly Departure[],
-  today = localDateKey(new Date()),
-): PracticeProfile {
-  const onTeam = new Set(people.map((person) => nameKey(person.name)));
-  const gone = leftOut.filter((who) => !onTeam.has(nameKey(who.name)));
-  if (gone.length === 0) return p;
-  return {
-    ...p,
-    leaverAccessChecks: noteDepartures(
-      p.leaverAccessChecks ?? [],
-      gone,
-      "roster",
-      p.industry,
-      today,
-    ),
-  };
+/** The staff figures re-read from a real team: everything derivable is derived. */
+function withStaffFromTeam(p: PracticeProfile, tpl: IndustryTemplate): PracticeProfile {
+  return withStaffFigures(
+    p,
+    deriveStaffFromTeam(tpl, p.staff, {
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl),
+    }),
+  );
+}
+
+/**
+ * Re-derive the staff figures that depend on the register. With a real team
+ * everything derivable is derived; with template people only the sole-owner
+ * count moves, read from the register in use (the sample's own register
+ * included), so every screen shows the same figure.
+ */
+function withContinuityStaff(p: PracticeProfile): PracticeProfile {
+  const tpl = resolveTemplate(p);
+  if (p.customPeople) return withStaffFromTeam(p, tpl);
+  return { ...p, staff: { ...p.staff, soleOwnerKnowledgeCount: soleOwnerCriticalCount(tpl) } };
 }

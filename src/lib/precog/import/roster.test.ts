@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parseHireDate, readHireDate, tenureFromHireDate } from "./people-csv";
 import { parseRoster } from "./roster";
 
-const general = getBaseTemplate("general");
+const general = getIndustryTemplate("general");
 const today = new Date("2026-09-22T00:00:00Z");
 const T = "\t";
 
@@ -1027,7 +1027,7 @@ describe("parseRoster", () => {
       '"1004","Nakamura, Daniel","Veterinarian","Associate Veterinarian","WCVH Medicine","Active - Payroll Eligible","15-Mar-2019"',
       '"1009","Greer, Tomas","Inventory Coordinator","Inventory & Purchasing Coordinator","WCVH Operations","Active - Payroll Eligible","02-May-2020"',
     ].join("\n");
-    const result = parseRoster(oracle, getBaseTemplate("dental"), { today });
+    const result = parseRoster(oracle, getIndustryTemplate("dental"), { today });
     // The owner's seat wins from any title column; otherwise the Job Name,
     // Oracle's standard classification, is read before the Position Name, and
     // the role shown is the title the duties came from.
@@ -1087,7 +1087,7 @@ describe("parseRoster", () => {
         '"Lam, Eve","Cashier","Inactive - Payroll Eligible"',
         '"Tan, Gus","Cashier","Terminated - On Leave"',
       ].join("\n"),
-      getBaseTemplate("dental"),
+      getIndustryTemplate("dental"),
       { today },
     );
     expect(result.people.map((p) => [p.name, p.active])).toEqual([
@@ -1237,7 +1237,7 @@ describe("parseRoster", () => {
         "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
         "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
       ].join("\n"),
-      getBaseTemplate("retail"),
+      getIndustryTemplate("retail"),
       { today },
     );
     expect(result.people.map((p) => [p.name, p.department])).toEqual([
@@ -1278,7 +1278,7 @@ describe("a pathological pasted line", () => {
     ["a possessive then 200,000 spaces", "Ana Ruiz, Owner's" + " ".repeat(200_000) + "x"],
   ])("reads %s in well under five seconds", (_label, line) => {
     const started = performance.now();
-    parseRoster(line, getBaseTemplate("general"));
+    parseRoster(line, getIndustryTemplate("general"));
     expect(performance.now() - started).toBeLessThan(5_000);
   });
 });
