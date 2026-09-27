@@ -12,6 +12,13 @@
  * 57 KB templates-and-scoring chunk, which the first screen always loaded
  * alongside it, into the entry itself. First-paint bytes did not move; the
  * total budget is the one that guards new weight.
+ *
+ * 2026-09-27: the eighth industry template (auto dealership / repair shop)
+ * adds 6 KB gzipped to that folded chunk: 196 KB to 202 KB. Every template
+ * ships in the entry today because the default profile resolves its industry
+ * synchronously; loading templates per industry would take the entry back
+ * down and is the change to make before a ninth. Largest-chunk budget raised
+ * to 210 KB for the room; the total budget is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,7 +26,7 @@ import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
-  largestChunkGzipBytes: 200 * 1024,
+  largestChunkGzipBytes: 210 * 1024,
   totalGzipBytes: 760 * 1024,
 };
 
