@@ -23,6 +23,7 @@ import {
   observedLossRange,
   recommendedStepsForRules,
 } from "../evidence";
+import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 
@@ -123,7 +124,13 @@ export function buildControlReportModel({
     ...matched.filter((c) => isOwnSector(c, profile.industry)),
     ...matched.filter((c) => !isOwnSector(c, profile.industry)),
   ];
-  const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
+  // Ranked as Start here ranks its "Do these first" list, so the screen and
+  // the printed report lead with the same step: first by how many of the
+  // open findings (not the owner's own pairs) each control answers.
+  const openFindings = sod.conflicts.filter(
+    (c) => !c.residualRiskAccepted && !c.dualReleaseMitigated && !c.ownerHeld,
+  );
+  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds), openFindings).slice(0, 6);
   // Count, median and detection routes describe the cases whose records
   // show these gaps; cases that only share a scheme are listed but not
   // counted as matches.

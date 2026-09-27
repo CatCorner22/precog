@@ -46,8 +46,9 @@ export function ControlReportEvidenceSection({
 
       <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>
       <p className="text-xs text-neutral-500">
-        Ordered by how many of the matching cases each control would plausibly have caught, in our
-        reading of the record. That reading is ours, not a finding from any case.
+        Ordered first by how many of the open findings each one answers, then by how many of the
+        matching cases it would plausibly have caught, in our reading of the record. That reading is
+        ours, not a finding from any case.
       </p>
       <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm">
         {steps.map((st) => (

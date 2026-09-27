@@ -25,6 +25,8 @@ import { ControlReportEvidenceSection } from "@/components/precog/control-report
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
+import { midSentence } from "@/lib/precog/sod/verdict";
+import type { DetectedConflict } from "@/lib/precog/sod/detect";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.
@@ -98,6 +100,9 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
     lossRange,
     found,
   } = data;
+  const sodRows = sod.conflicts
+    .slice()
+    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
   const history = profile.mapHealthHistory ?? [];
   const firstPoint = history[0];
   const healthDelta = mapReady && firstPoint ? mapHealth.score - firstPoint.score : null;
@@ -387,8 +392,37 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
               findings cannot see that seat.
             </p>
           )}
+          {sodRows.length > 0 && (
+            <>
+              <table className="mt-3 w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
+                    <th className="py-1.5 pr-2">Person</th>
+                    <th className="py-1.5 pr-2">Duties held together</th>
+                    <th className="py-1.5 pr-2">Severity</th>
+                    <th className="py-1.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sodRows.map((c) => (
+                    <tr key={c.id} className="border-b border-neutral-200 align-top">
+                      <td className="py-1.5 pr-2">{c.personName}</td>
+                      <td className="py-1.5 pr-2">
+                        {c.labelA} + {midSentence(c.labelB)}
+                      </td>
+                      <td className="py-1.5 pr-2">{SEVERITY_LABEL[c.severity]}</td>
+                      <td className="py-1.5 text-neutral-700">{conflictStatus(c)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-1 text-xs text-neutral-500">
+                Each row says what one person&apos;s duties allow, not anything they have done.
+              </p>
+            </>
+          )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            {sod.recommendations.slice(0, 4).map((r) => (
+            {sod.recommendations.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>
@@ -492,4 +526,28 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
       </article>
     </div>
   );
+}
+
+const SEVERITY_ORDER: Record<DetectedConflict["severity"], number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  family: 3,
+};
+
+const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  family: "Related duties",
+};
+
+/** Where a conflict stands: open, or why the business has set it aside. */
+function conflictStatus(
+  c: Pick<DetectedConflict, "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated">,
+): string {
+  if (c.ownerHeld) return "Owner's own duties";
+  if (c.residualRiskAccepted) return "Risk accepted by the owner";
+  if (c.dualReleaseMitigated) return "Covered by dual release";
+  return "Open";
 }
