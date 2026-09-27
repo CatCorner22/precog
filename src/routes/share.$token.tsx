@@ -2,6 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
 import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
+import {
+  PASSCODE_ATTEMPT_LIMIT,
+  PASSCODE_ATTEMPT_WINDOW_MINUTES,
+} from "@/lib/precog/builder/share-attempts";
 import { HEAT_BANDS } from "@/lib/precog/process-graph";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
@@ -76,7 +80,8 @@ function SharePage() {
     if (
       state.reason === "passcode" ||
       state.reason === "passcode_wrong" ||
-      state.reason === "rate_limited"
+      state.reason === "rate_limited" ||
+      state.reason === "locked"
     ) {
       return (
         <div className="flex min-h-dvh items-center justify-center bg-white p-8">
@@ -96,7 +101,9 @@ function SharePage() {
                 ? "Incorrect passcode"
                 : state.reason === "rate_limited"
                   ? "Too many attempts — wait a minute"
-                  : "Enter the passcode provided by the owner."}
+                  : state.reason === "locked"
+                    ? `After ${PASSCODE_ATTEMPT_LIMIT} wrong passcodes this link locks for ${PASSCODE_ATTEMPT_WINDOW_MINUTES} minutes. Ask the owner for the passcode and try again then.`
+                    : "Enter the passcode provided by the owner."}
             </p>
             <input
               type="password"

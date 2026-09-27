@@ -7,6 +7,7 @@ import {
   insertMapShare,
   listMapShareSummaries,
   MAX_LIVE_SHARES,
+  recordShareView,
   type NewMapShare,
 } from "./share-store";
 
@@ -132,5 +133,21 @@ describe("insertMapShare", () => {
       passcode_salt: "s",
       passcode_hash: "h",
     });
+  });
+});
+
+describe("recordShareView", () => {
+  it("logs one view per address per minute, however often the page is loaded", async () => {
+    await seedShare(0, { minutesAgo: 10 });
+    const view = (ipHash: string) =>
+      recordShareView(sql, { token: tok(0), ipHash, userAgent: "test" });
+    for (let i = 0; i < 5; i += 1) await view("ip-a");
+    await view("ip-b");
+    const count = async () =>
+      (await pg.query<{ n: number }>("select count(*)::int as n from map_share_views")).rows[0].n;
+    expect(await count()).toBe(2);
+    await pg.query("update map_share_views set viewed_at = now() - interval '2 minutes'");
+    await view("ip-a");
+    expect(await count()).toBe(3);
   });
 });

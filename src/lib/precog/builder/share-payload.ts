@@ -4,6 +4,7 @@ import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../p
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "./evidence";
 import type { SharedMapPayload } from "./share-schema";
+import { firstName } from "../text";
 
 /** Build the frozen share payload from the profile and its resolved template. */
 export function buildSharePayload(
@@ -78,41 +79,105 @@ export function buildSharePayload(
     note: note?.trim().slice(0, 600) || undefined,
   };
 
-  return redactNames ? redactSharePayload(payload) : payload;
+  return redactNames ? redactSharePayload(payload, tpl.people) : payload;
 }
 
-/** Replace people names with deterministic role labels for privacy-safe sharing. */
-export function redactSharePayload(payload: SharedMapPayload): SharedMapPayload {
-  const labels = new Map<string, string>();
-  const roleCounts = new Map<string, number>();
-  const labelFor = (name: string, role?: string) => {
-    const existing = labels.get(name);
-    if (existing) return existing;
-    const labelRole = role?.trim() || "Team member";
-    const count = roleCounts.get(labelRole) ?? 0;
-    const label = `${labelRole} ${String.fromCharCode(65 + count)}`;
-    roleCounts.set(labelRole, count + 1);
-    labels.set(name, label);
-    return label;
-  };
-
-  for (const person of payload.people) labelFor(person.name, person.role);
-  for (const process of payload.processes) {
-    for (const owner of process.owners) labelFor(owner);
-  }
-
-  const roleByName = new Map(payload.people.map((person) => [person.name, person.role]));
+/**
+ * Replace people's names with role labels ("Office Manager A") everywhere the
+ * payload carries text: the people list, process owners and every sentence
+ * (open issues, weekly actions, the health summary and hints, the note, and
+ * process, risk, control and evidence wording), full names and first names
+ * alike. Issues and actions name people ("Cara Voss has left", "Cross-train
+ * Ben"), so relabelling the people list alone left the names on the page.
+ *
+ * `team` is the whole team, people who have left included: a departed owner
+ * keeps their role in the label, and a name that appears only inside a
+ * sentence is still caught. The server calls this again without a team, so
+ * a payload already marked `namesHidden` comes back unchanged.
+ */
+export function redactSharePayload(
+  payload: SharedMapPayload,
+  team: readonly { name: string; role: string }[] = [],
+): SharedMapPayload {
+  if (payload.namesHidden) return payload;
+  const labels = roleLabels(payload, team);
+  const scrub = nameScrubber(labels);
   return {
     ...payload,
+    namesHidden: true,
+    health: {
+      ...payload.health,
+      summary: scrub(payload.health.summary),
+      dimensions: payload.health.dimensions.map((d) => ({ ...d, hint: scrub(d.hint) })),
+    },
+    processes: payload.processes.map((process) => ({
+      ...process,
+      name: scrub(process.name),
+      description: scrub(process.description),
+      owners: process.owners.map((owner) => labels.get(owner) ?? scrub(owner)),
+      controls: process.controls.map((c) => ({ ...c, name: scrub(c.name) })),
+      risks: process.risks.map((r) => ({ ...r, title: scrub(r.title) })),
+      evidence: process.evidence.map((e) => ({ ...e, label: scrub(e.label) })),
+    })),
     people: payload.people.map((person) => ({
       ...person,
       name: labels.get(person.name) ?? person.name,
     })),
-    processes: payload.processes.map((process) => ({
-      ...process,
-      owners: process.owners.map(
-        (owner) => labels.get(owner) ?? labelFor(owner, roleByName.get(owner)),
-      ),
-    })),
+    issues: payload.issues.map(scrub),
+    actions: payload.actions.map((a) => ({ ...a, title: scrub(a.title), why: scrub(a.why) })),
+    note: payload.note === undefined ? undefined : scrub(payload.note),
   };
+}
+
+/**
+ * One label per name: the listed people first, in order, then process owners,
+ * then anyone else on the team. Each role counts its own letters ("Hygienist
+ * A", "Hygienist B"); a name with no known role is a "Team member".
+ */
+function roleLabels(
+  payload: SharedMapPayload,
+  team: readonly { name: string; role: string }[],
+): Map<string, string> {
+  const roleOf = new Map(team.map((person) => [person.name, person.role]));
+  for (const person of payload.people) roleOf.set(person.name, person.role);
+  const labels = new Map<string, string>();
+  const perRole = new Map<string, number>();
+  const add = (name: string) => {
+    if (!name.trim() || labels.has(name)) return;
+    const role = roleOf.get(name)?.trim() || "Team member";
+    const n = perRole.get(role) ?? 0;
+    perRole.set(role, n + 1);
+    labels.set(name, `${role} ${n < 26 ? String.fromCharCode(65 + n) : n + 1}`);
+  };
+  for (const person of payload.people) add(person.name);
+  for (const process of payload.processes) process.owners.forEach(add);
+  for (const person of team) add(person.name);
+  return labels;
+}
+
+/**
+ * Replaces every labelled name in a sentence, whole words only and
+ * case-sensitive, so "Cara" goes but "Caramel" and "cara" stay. A first name
+ * two people share becomes "Team member", since it cannot say which one.
+ */
+function nameScrubber(labels: Map<string, string>): (text: string) => string {
+  const replacements = new Map<string, string>();
+  const byFirstName = new Map<string, string | null>();
+  for (const [name, label] of labels) {
+    replacements.set(name.trim(), label);
+    const first = firstName(name);
+    if (first.length < 2) continue;
+    const seen = byFirstName.get(first);
+    byFirstName.set(first, seen === undefined || seen === label ? label : null);
+  }
+  for (const [first, label] of byFirstName) {
+    if (!replacements.has(first)) replacements.set(first, label ?? "Team member");
+  }
+  if (!replacements.size) return (text) => text;
+  const alternatives = [...replacements.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives})(?![\\p{L}\\p{N}])`, "gu");
+  return (text) => text.replace(pattern, (name) => replacements.get(name) ?? name);
 }

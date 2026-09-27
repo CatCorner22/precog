@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { SharedMapPayload } from "./share-schema";
-import { redactSharePayload } from "./share-payload";
+import { resolveTemplate } from "../active-template";
+import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { firstName } from "../text";
+import { validateSharePayload, type SharedMapPayload } from "./share-schema";
+import { buildSharePayload, redactSharePayload } from "./share-payload";
 
 function payload(): SharedMapPayload {
   return {
@@ -56,10 +59,74 @@ describe("redactSharePayload", () => {
     expect(original.processes[0]?.owners).toEqual(["Ada", "Unknown"]);
   });
 
-  it("leaves the original payload unchanged when redaction is disabled", () => {
-    const original = payload();
-    const copy = { ...original };
-    expect(copy.people).toEqual(original.people);
-    expect(copy.processes).toEqual(original.processes);
+  it("replaces names inside issue, action and note sentences, first names included", () => {
+    const redacted = redactSharePayload(
+      {
+        ...payload(),
+        issues: ['"Payments" has no owner left on the team — Cara Voss has left'],
+        actions: [
+          { title: "Cross-train Bea on payments", why: "Cara was the only owner", effort: "low" },
+        ],
+        note: "Ask Ada. Caramel stays.",
+      },
+      [{ name: "Cara Voss", role: "Bookkeeper" }],
+    );
+    expect(redacted.issues).toEqual([
+      '"Payments" has no owner left on the team — Bookkeeper A has left',
+    ]);
+    expect(redacted.actions[0]).toMatchObject({
+      title: "Cross-train Manager B on payments",
+      why: "Bookkeeper A was the only owner",
+    });
+    expect(redacted.note).toBe("Ask Manager A. Caramel stays.");
+    expect(redacted.namesHidden).toBe(true);
+  });
+
+  it("returns a payload already marked namesHidden unchanged", () => {
+    const once = redactSharePayload(payload());
+    expect(redactSharePayload(once)).toBe(once);
+  });
+});
+
+describe("buildSharePayload", () => {
+  /** The dental sample as the owner's own team, with Jordan Blake marked as left. */
+  function teamWithLeaver(): PracticeProfile {
+    const profile = defaultProfile("dental");
+    const people = resolveTemplate(profile).people.map((p) =>
+      p.name === "Jordan Blake" ? { ...p, active: false } : p,
+    );
+    return { ...profile, customPeople: people };
+  }
+  const actions = [
+    {
+      title: "Cross-train Chris on Daily deposit & reconciliation",
+      why: "Jordan was the only listed owner and has left. Maya and Elena review it.",
+      effort: "low",
+    },
+  ];
+
+  it("keeps names when redaction is off", () => {
+    const shared = buildSharePayload(teamWithLeaver(), actions, "Call Maya", false);
+    expect(shared.people.map((p) => p.name)).toContain("Maya Chen");
+    expect(shared.processes.flatMap((p) => p.owners)).toContain("Jordan Blake");
+    expect(shared.namesHidden).toBeUndefined();
+  });
+
+  it("leaves no person's name or first name anywhere in a redacted share", () => {
+    const profile = teamWithLeaver();
+    const shared = buildSharePayload(profile, actions, "Call Maya", true);
+    const json = JSON.stringify(shared);
+    for (const person of resolveTemplate(profile).people) {
+      for (const word of [person.name, firstName(person.name)]) {
+        expect(json).not.toMatch(
+          new RegExp(`(?<![\\p{L}])${word.replace(".", "\\.")}(?![\\p{L}])`, "u"),
+        );
+      }
+    }
+    // The departed owner keeps a role, and the sentence about them uses it.
+    const cash = shared.processes.find((p) => p.id === "proc-cash");
+    expect(cash?.owners).toEqual(["Front Desk Lead A"]);
+    expect(shared.issues.some((i) => i.includes("Front Desk Lead A has left"))).toBe(true);
+    expect(() => validateSharePayload(shared)).not.toThrow();
   });
 });
