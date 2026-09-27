@@ -1,94 +1,23 @@
-import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
-import { useMemo, useState } from "react";
-import {
-  CONFLICT_RULES,
-  ENTITLEMENTS,
-  entitlementById,
-  entitlementLabel,
-} from "@/lib/precog/sod/conflict-rules";
-import { RuleCaseCard } from "./case-card";
-import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
+import { AlertTriangle, Grid3x3, Network, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { HEALTH_SCALE, healthLevel } from "@/lib/precog/scoring/bands";
+import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import type { NavFn } from "@/lib/precog/navigation";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
-import {
-  confirmTitleDuties,
-  peopleWithTitleDuties,
-  titleDutiesSentence,
-} from "@/lib/precog/sod/title-duties";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
-import { AlertTriangle, Grid3x3, Network, Shield, ShieldCheck, Users } from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
+import { StatTile } from "@/components/ui/stat-tile";
 import { joinWithAnd } from "@/lib/precog/text";
-
-const FRAMEWORK_DUTIES = [
-  { duty: "Authorization", meaning: "Approve before money or adjustments move" },
-  { duty: "Custody", meaning: "Handle assets (cash, checks, bank release)" },
-  { duty: "Recording", meaning: "Post transactions in books / systems" },
-  { duty: "Reconciliation", meaning: "Independent verification" },
-] as const;
+import { SodConflictsSection } from "./sod-conflicts-section";
+import { SodMatrixSection } from "./sod-matrix-section";
+import { SodRolesSection } from "./sod-roles-section";
+import { useSodPanel, type SodPanelModel, type SodView } from "./use-sod-panel";
 
 export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
-  const tpl = useTemplate();
-  const { profile, setCustomPeople } = usePractice();
-  // Duties still guessed from job titles: the findings below rest on them.
-  const titleDuties = profile.customPeople ? titleDutiesSentence(tpl.people) : "";
-  const titleDutyNames = peopleWithTitleDuties(tpl.people).map((person) => person.name);
-  const [view, setView] = useState<"conflicts" | "matrix" | "roles" | "dual" | "power">(
-    // People and their duty pairs first; the dual-release policy is one step away.
-    "conflicts",
-  );
-  const sodExamples = getIndustryCopy(profile.industry).sodExamples;
-  const [filterSeverity, setFilterSeverity] = useState<
-    "all" | "critical" | "high" | "medium" | "family"
-  >("all");
-
-  const report = useMemo(
-    () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
-    [tpl, profile.staff, profile.dualRelease],
-  );
-
-  // A business with two or more locations: say where each person works, and
-  // let the owner look at one location at a time.
-  const locations = useMemo(() => businessLocations(tpl.people), [tpl.people]);
-  const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
-  // null: people with no location on record.
-  const [location, setLocation] = useState<string | null | "all">("all");
-  const unplaced = report.conflicts.some((c) => !placesOf.has(c.personId));
-  const shownLocation =
-    location === "all" || location === null || locations.includes(location) ? location : "all";
-
-  const filtered = report.conflicts
-    .filter((c) => (filterSeverity === "all" ? true : c.severity === filterSeverity))
-    .filter(
-      (c) =>
-        locations.length < 2 ||
-        shownLocation === "all" ||
-        worksAt(placesOf.get(c.personId), shownLocation),
-    );
-
-  const matrixIds = useMemo(() => {
-    return ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => e.id);
-  }, []);
-
-  const cellMap = useMemo(() => {
-    const m = new Map<string, (typeof report.matrix)[0]>();
-    for (const cell of report.matrix) {
-      m.set(`${cell.row}|${cell.col}`, cell);
-    }
-    return m;
-  }, [report]);
-
-  const shortLabel = (id: string) => {
-    const e = entitlementById(id);
-    if (!e) return id;
-    return e.label.length > 22 ? e.label.slice(0, 20) + "…" : e.label;
-  };
+  const model = useSodPanel();
+  const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
+  const health = report.summary.segregationHealth;
 
   return (
     <div className="space-y-4">
@@ -96,58 +25,54 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Duty conflicts</Badge>
           <Badge variant={profile.dualRelease.enabled ? "ok" : "warn"}>
-            Dual release {profile.dualRelease.enabled ? "ON" : "OFF"}
+            Dual release {profile.dualRelease.enabled ? "on" : "off"}
           </Badge>
         </div>
         <h1 className="mt-3 text-xl font-semibold tracking-tight">
           Who can move money, or hide it, on their own
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Each person&apos;s duties are checked in pairs against {CONFLICT_RULES.length} named
-          rules, plus a catch-all for related duties in the same process. Turning on dual release
-          puts a second person on the payment channels you choose; the conflicts it covers drop in
-          score and say so.
+          We check every pair of duties a person holds against {CONFLICT_RULES.length} named rules,
+          plus a catch-all for related duties in the same process. Turning on dual release puts a
+          second person on the payment channels you choose; the conflicts it covers drop in rank and
+          say so.
         </p>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <Stat
+        <StatTile
           label="Segregation health"
-          value={String(report.summary.segregationHealth)}
-          hint="Higher is better · this app's index"
+          value={String(health)}
+          hint={`0 to 100 · ${healthLevel(health)} · this app's index`}
           tone={
-            report.summary.segregationHealth < HEALTH_SCALE.weak
-              ? "danger"
-              : report.summary.segregationHealth < HEALTH_SCALE.adequate
-                ? "warn"
-                : "ok"
+            health < HEALTH_SCALE.weak ? "danger" : health < HEALTH_SCALE.adequate ? "warn" : "ok"
           }
         />
-        <Stat
+        <StatTile
           label="Critical open"
           value={String(report.summary.critical)}
-          hint="Unmitigated"
+          hint="Not narrowed"
           tone="danger"
         />
-        <Stat
+        <StatTile
           label="High open"
           value={String(report.summary.high)}
-          hint="Unmitigated"
+          hint="Not narrowed"
           tone="warn"
         />
-        <Stat
+        <StatTile
           label="Narrowed by dual release"
           value={String(report.summary.dualReleaseMitigated)}
-          hint="By dual release"
+          hint="Two people needed above the threshold"
           tone="ok"
         />
-        <Stat
+        <StatTile
           label="People"
           value={String(report.summary.peopleWithConflicts)}
           hint={`of ${report.assignments.length}`}
           tone="primary"
         />
-        <Stat
+        <StatTile
           label="Open, no decision"
           value={String(report.summary.openWithoutAcceptance)}
           hint="Not accepted or narrowed"
@@ -157,7 +82,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       {report.summary.unheldDuties.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
           Nobody active is marked for:{" "}
-          {report.summary.unheldDuties.map((d) => entLabel(d)).join(", ")}. Somebody does each of
+          {report.summary.unheldDuties.map(entitlementLabel).join(", ")}. Somebody does each of
           these in every business that handles money; mark who, or the map cannot see that seat.
         </p>
       )}
@@ -165,19 +90,14 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       {titleDuties && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           <p>
-            {titleDuties} Check them in the power map: {titleDutyNames.slice(0, 6).join(", ")}
-            {titleDutyNames.length > 6 ? ` and ${titleDutyNames.length - 6} more` : ""}.
+            {titleDuties} Check them in the power map: {joinWithAnd(titleDutyNames, 6)}.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setView("power")}>
               <Network className="size-3.5" aria-hidden />
               Open the power map
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setCustomPeople((people) => confirmTitleDuties(people))}
-            >
+            <Button size="sm" variant="secondary" onClick={model.confirmTitleGuesses}>
               I checked them: they are right
             </Button>
           </div>
@@ -198,419 +118,52 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={view === "power" ? "default" : "secondary"}
-          onClick={() => setView("power")}
-        >
-          <Network className="size-3.5" />
-          Power map
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "dual" ? "default" : "secondary"}
-          onClick={() => setView("dual")}
-        >
-          <ShieldCheck className="size-3.5" />
-          Dual release
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "conflicts" ? "default" : "secondary"}
-          onClick={() => setView("conflicts")}
-        >
-          <AlertTriangle className="size-3.5" />
-          Conflicts ({report.conflicts.length})
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "matrix" ? "default" : "secondary"}
-          onClick={() => setView("matrix")}
-        >
-          <Grid3x3 className="size-3.5" />
-          Conflict matrix
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "roles" ? "default" : "secondary"}
-          onClick={() => setView("roles")}
-        >
-          <Users className="size-3.5" />
-          Role entitlements
-        </Button>
+      <ViewSwitcher model={model} />
+
+      <div role="tabpanel" id={`sod-view-${view}`} aria-labelledby={`sod-tab-${view}`}>
+        {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
+        {view === "power" && <PowerMapBuilder />}
+        {view === "conflicts" && <SodConflictsSection model={model} onNavigate={onNavigate} />}
+        {view === "matrix" && <SodMatrixSection report={report} />}
+        {view === "roles" && <SodRolesSection model={model} />}
       </div>
-
-      {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
-
-      {view === "power" && <PowerMapBuilder />}
-
-      {view === "conflicts" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="size-4" />
-              Detected conflicts
-            </CardTitle>
-            <CardDescription>
-              Pairwise scan · dual-release mitigation · residual acceptance
-            </CardDescription>
-            <div className="flex flex-wrap gap-1.5 pt-2">
-              {(["all", "critical", "high", "medium", "family"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setFilterSeverity(s)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs capitalize",
-                    filterSeverity === s
-                      ? "border-primary/40 bg-primary/10"
-                      : "border-border bg-elevated text-muted",
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            {locations.length > 1 && (
-              <div
-                role="group"
-                aria-label="Show conflicts for one location"
-                className="flex flex-wrap items-center gap-1.5 pt-1"
-              >
-                <span className="text-xs text-muted">Location:</span>
-                {[
-                  { key: "all", label: "All locations", value: "all" as const },
-                  ...locations.map((place) => ({ key: place, label: place, value: place })),
-                  ...(unplaced ? [{ key: "none", label: "No location given", value: null }] : []),
-                ].map((option) => {
-                  const count =
-                    option.value === "all"
-                      ? report.conflicts.length
-                      : report.conflicts.filter((c) =>
-                          worksAt(placesOf.get(c.personId), option.value),
-                        ).length;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      aria-pressed={shownLocation === option.value}
-                      onClick={() => setLocation(option.value)}
-                      className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-xs",
-                        shownLocation === option.value
-                          ? "border-primary/40 bg-primary/10"
-                          : "border-border bg-elevated text-muted",
-                      )}
-                    >
-                      {option.label} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {filtered.length === 0 && (
-              <p className="text-sm text-muted">No conflicts in this filter.</p>
-            )}
-            {filtered.map((c) => (
-              <div
-                key={c.id}
-                className={cn(
-                  "rounded-xl border px-3 py-3 text-sm",
-                  c.dualReleaseMitigated
-                    ? "border-ok/30 bg-ok/5"
-                    : c.ownerHeld
-                      ? "border-border bg-elevated"
-                      : c.severity === "critical"
-                        ? "border-danger/30 bg-danger/5"
-                        : c.severity === "high"
-                          ? "border-warn/30 bg-warn/5"
-                          : "border-border bg-elevated",
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* An owner-held pair is error and tax exposure, not theft: it
-                      carries a neutral badge, not the severity colour. */}
-                  <Badge
-                    variant={
-                      c.dualReleaseMitigated
-                        ? "ok"
-                        : c.ownerHeld
-                          ? "default"
-                          : c.severity === "critical"
-                            ? "danger"
-                            : c.severity === "high"
-                              ? "warn"
-                              : "default"
-                    }
-                  >
-                    {c.ownerHeld ? `Owner-held · ${c.score}` : `${c.severity} · ${c.score}`}
-                  </Badge>
-                  {c.dualReleaseMitigated && <Badge variant="ok">Dual release mitigates</Badge>}
-                  {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
-                  <span className="text-xs text-muted">
-                    {c.personName} · {c.role}
-                    {placesOf.has(c.personId) &&
-                      ` · ${joinWithAnd(placesOf.get(c.personId) ?? [])}`}
-                  </span>
-                </div>
-                <p className="mt-1.5 font-medium">{c.title}</p>
-                <p className="mt-1 text-xs text-muted">
-                  <span className="text-fg">{c.labelA}</span>
-                  {" × "}
-                  <span className="text-fg">{c.labelB}</span>
-                </p>
-                <p className="mt-1 text-xs text-muted">{c.why}</p>
-                <p className="mt-1 text-xs text-subtle">Fraud path: {c.fraudPath}</p>
-                {c.controlsInPlace.length > 0 && (
-                  <p className="mt-2 text-xs text-ok">
-                    Already in place: {c.controlsInPlace.join("; ")}
-                  </p>
-                )}
-                {c.compensatingControls.some((x) => !c.controlsInPlace.includes(x)) && (
-                  <p className="mt-2 text-xs text-muted">
-                    Until the duties are split:{" "}
-                    {c.compensatingControls
-                      .filter((x) => !c.controlsInPlace.includes(x))
-                      .join("; ")}
-                  </p>
-                )}
-                {/*
-                  The case that makes this finding concrete. Without it a duty
-                  conflict reads as an auditor's preference; with it, the owner
-                  can see what the same arrangement cost a real business and
-                  how long it ran before anyone noticed.
-                */}
-                <ConflictEvidence ruleId={c.ruleId} industryId={profile.industry} />
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {c.linkedScenarioId && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 text-xs"
-                      onClick={() => onNavigate?.("precog", c.linkedScenarioId)}
-                    >
-                      Precog scenario
-                    </Button>
-                  )}
-                  {c.processIds[0] && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      onClick={() => onNavigate?.("map", c.processIds[0])}
-                    >
-                      Process map
-                    </Button>
-                  )}
-                  {!c.dualReleaseMitigated && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => setView("dual")}
-                    >
-                      Configure dual release
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            <div className="rounded-lg border border-border bg-panel p-3">
-              <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                Recommendations
-              </p>
-              <ul className="mt-2 space-y-1 text-sm text-muted">
-                {report.recommendations.map((r) => (
-                  <li key={r}>· {r}</li>
-                ))}
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {view === "matrix" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Entitlement conflict matrix</CardTitle>
-            <CardDescription>
-              Red cells = incompatible pair in the rulebook (or duty-family matrix)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="border-collapse text-xs">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 z-10 bg-surface p-1 text-left text-muted">
-                    Entitlement
-                  </th>
-                  {matrixIds.map((id) => (
-                    <th
-                      key={id}
-                      className="max-w-[56px] p-1 text-left font-normal text-muted"
-                      title={entLabel(id)}
-                    >
-                      <span className="inline-block max-w-[52px] origin-bottom-left -rotate-45 truncate">
-                        {shortLabel(id).split(" ")[0]}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {matrixIds.map((row) => (
-                  <tr key={row}>
-                    <th
-                      className="sticky left-0 z-10 max-w-[120px] truncate bg-surface p-1 text-left font-medium text-fg"
-                      title={entLabel(row)}
-                    >
-                      {shortLabel(row)}
-                    </th>
-                    {matrixIds.map((col) => {
-                      const cell = cellMap.get(`${row}|${col}`);
-                      const status = cell?.status ?? "safe";
-                      return (
-                        <td key={col} className="p-0.5">
-                          <span
-                            className={cn(
-                              "flex size-6 items-center justify-center rounded",
-                              status === "self" && "bg-elevated text-subtle",
-                              status === "safe" && "bg-ok/15 text-ok",
-                              status === "conflict" &&
-                                cell?.severity === "critical" &&
-                                "bg-danger/40 text-danger",
-                              status === "conflict" &&
-                                cell?.severity === "high" &&
-                                "bg-warn/40 text-warn",
-                              status === "conflict" &&
-                                (cell?.severity === "medium" || cell?.severity === "family") &&
-                                "bg-warn/20 text-warn",
-                            )}
-                            title={
-                              status === "conflict"
-                                ? `${entLabel(row)} × ${entLabel(col)} (${cell?.severity})`
-                                : status === "self"
-                                  ? "Same entitlement"
-                                  : "Compatible"
-                            }
-                          >
-                            {status === "conflict" ? "×" : status === "self" ? "·" : "✓"}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {view === "roles" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Role → entitlement map</CardTitle>
-            <CardDescription>
-              Templates used for detection. Dual release does not remove entitlements — it
-              compensates when two people must sign.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {report.assignments.map((a) => {
-              const n = report.conflicts.filter((c) => c.personId === a.personId).length;
-              const mitigated = report.conflicts.filter(
-                (c) => c.personId === a.personId && c.dualReleaseMitigated,
-              ).length;
-              return (
-                <div
-                  key={a.personId}
-                  className="rounded-xl border border-border bg-elevated px-3 py-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{a.personName}</p>
-                      <p className="text-xs text-muted">
-                        {a.role}
-                        {placesOf.has(a.personId) &&
-                          ` · ${joinWithAnd(placesOf.get(a.personId) ?? [])}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Badge variant={n > 0 ? "danger" : "ok"}>
-                        {n} conflict{n === 1 ? "" : "s"}
-                      </Badge>
-                      {mitigated > 0 && <Badge variant="ok">{mitigated} dual-mitigated</Badge>}
-                    </div>
-                  </div>
-                  <ul className="mt-2 flex flex-wrap gap-1">
-                    {a.entitlements.map((e) => (
-                      <li key={e}>
-                        <Badge variant="default">{entLabel(e)}</Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
 
-const entLabel = entitlementLabel;
-
-function Stat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone: "danger" | "warn" | "ok" | "primary";
-}) {
+function ViewSwitcher({ model }: { model: SodPanelModel }) {
+  const { view, setView, report } = model;
+  const views: { id: SodView; label: string; icon: LucideIcon }[] = [
+    { id: "power", label: "Power map", icon: Network },
+    { id: "dual", label: "Dual release", icon: ShieldCheck },
+    { id: "conflicts", label: `Conflicts (${report.conflicts.length})`, icon: AlertTriangle },
+    { id: "matrix", label: "Conflict matrix", icon: Grid3x3 },
+    { id: "roles", label: "Duties by person", icon: Users },
+  ];
   return (
-    <Card>
-      <CardContent className="p-4">
-        <Badge
-          variant={
-            tone === "danger"
-              ? "danger"
-              : tone === "warn"
-                ? "warn"
-                : tone === "ok"
-                  ? "ok"
-                  : "primary"
-          }
+    <div role="tablist" aria-label="Duty conflict views" className="flex flex-wrap gap-2">
+      {views.map(({ id, label, icon: Icon }) => (
+        <Button
+          key={id}
+          id={`sod-tab-${id}`}
+          role="tab"
+          aria-selected={view === id}
+          aria-controls={`sod-view-${id}`}
+          size="sm"
+          variant={view === id ? "default" : "secondary"}
+          onClick={() => setView(id)}
         >
+          <Icon className="size-3.5" aria-hidden />
           {label}
-        </Badge>
-        <p className="mt-2 text-2xl font-semibold tabular">{value}</p>
-        <p className="text-xs text-muted">{hint}</p>
-      </CardContent>
-    </Card>
+        </Button>
+      ))}
+    </div>
   );
 }
 
-/**
- * The most relevant prosecuted case for a duty conflict.
- *
- * A case that cites the rule leads, from the owner's own line of business
- * when the library has one ("This arrangement, in your line of business"),
- * otherwise from anywhere ("somewhere real"). A family finding, which no case
- * cites, shows a case that shares a scheme under "A related scheme, somewhere
- * real". Renders nothing when the library has no match rather than showing a
- * filler message: a finding with no case behind it should look exactly as
- * bare as it is.
- */
-function ConflictEvidence({ ruleId, industryId }: { ruleId: string; industryId: string }) {
-  return <RuleCaseCard ruleId={ruleId} industryId={industryId} className="mt-2" />;
-}
+const FRAMEWORK_DUTIES = [
+  { duty: "Authorization", meaning: "Approve before money or adjustments move" },
+  { duty: "Custody", meaning: "Handle assets (cash, checks, bank release)" },
+  { duty: "Recording", meaning: "Post transactions in books / systems" },
+  { duty: "Reconciliation", meaning: "Independent verification" },
+] as const;

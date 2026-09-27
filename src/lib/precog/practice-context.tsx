@@ -30,6 +30,7 @@ import type {
 } from "./types";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
+import type { AccessReconciliation } from "./firm/reconcile";
 import type { IndustryId } from "./industry";
 import { confirmedControlIds, controlsInPlace, resolveTemplate } from "./active-template";
 import type { IndustryTemplate } from "./templates";
@@ -48,7 +49,6 @@ import { processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import type { Departure } from "./continuity/access-removal";
 import type { ReviewRecord } from "./firm/reviews";
-import type { AccessReconciliation } from "./firm/reconcile";
 import { profileReducer } from "./profile-reducer";
 import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
@@ -144,8 +144,8 @@ export interface PracticeActions {
   replaceProfile: (profile: PracticeProfile) => void;
   /** Monthly close: replace the list of results (value or updater). */
   setMonthlyReviews: (v: SetStateAction<ReviewRecord[]>) => void;
-  /** The user and vendor export compared with the duty map. */
-  setAccessReconciliation: (next: AccessReconciliation) => void;
+  /** The user and vendor export compared with the duty map (value or updater); keeps map undo. */
+  setAccessReconciliation: (v: SetStateAction<AccessReconciliation | undefined>) => void;
   /** The owner sent the report; the first stamp is kept. */
   markReportSent: () => void;
   resetProfile: () => void;
@@ -440,9 +440,15 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withMonthlyReviews(p, resolveUpdate(v, p.monthlyReviews ?? [])));
   }, []);
 
-  const setAccessReconciliation = useCallback((next: AccessReconciliation) => {
-    setProfile((p) => withAccessReconciliation(p, next));
-  }, []);
+  const setAccessReconciliation = useCallback(
+    (v: SetStateAction<AccessReconciliation | undefined>) => {
+      setProfile((p) => {
+        const next = resolveUpdate(v, p.accessReconciliation);
+        return next ? withAccessReconciliation(p, next) : p;
+      });
+    },
+    [],
+  );
 
   const markReportSent = useCallback(() => {
     setProfile((p) => withReportSent(p, new Date()));

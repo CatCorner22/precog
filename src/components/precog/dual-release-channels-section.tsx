@@ -1,10 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo } from "react";
+import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { cn, formatUsd } from "@/lib/utils";
 import type { DualReleasePanelModel } from "@/components/precog/use-dual-release-panel";
 
 export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelModel }) {
-  const { policy, coverage, toggleChannel, setThreshold } = model;
+  const { tpl, policy, coverage, toggleChannel, setThreshold } = model;
+  // The app's starting amount per channel: a threshold still equal to it is
+  // marked, so the owner can tell an amount they chose from one the app chose.
+  const appDefault = useMemo(
+    () => new Map(defaultDualReleasePolicy(tpl).rules.map((r) => [r.channel, r.thresholdUsd])),
+    [tpl],
+  );
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -14,13 +22,21 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="text-sm">{c.label}</CardTitle>
               <div className="flex gap-1">
-                {c.activeExceptions > 0 && <Badge variant="warn">{c.activeExceptions} ex</Badge>}
-                <Badge variant={c.covered ? "ok" : "default"}>{c.covered ? "active" : "off"}</Badge>
+                {c.activeExceptions > 0 && (
+                  <Badge variant="warn">
+                    {c.activeExceptions} exception{c.activeExceptions === 1 ? "" : "s"}
+                  </Badge>
+                )}
+                <Badge variant={c.covered ? "ok" : "default"}>{c.covered ? "On" : "Off"}</Badge>
               </div>
             </div>
             <CardDescription>
-              Base {formatUsd(c.thresholdUsd)}
-              {c.thresholdUsd === 0 ? " (always dual)" : "+"}
+              {c.thresholdUsd === 0
+                ? "Two people on every amount"
+                : `Two people above ${formatUsd(c.thresholdUsd)}`}
+              {appDefault.get(c.channel) === c.thresholdUsd && (
+                <span className="text-subtle"> · app default, change it below</span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -32,10 +48,10 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
                 onChange={(e) => toggleChannel(c.channel, e.target.checked)}
                 className="size-3.5 accent-[var(--color-primary)]"
               />
-              Channel enabled
+              Channel on
             </label>
             <label className="block text-xs text-muted">
-              Base threshold (USD)
+              Two people above this amount (USD)
               <input
                 type="number"
                 min={0}
@@ -60,7 +76,7 @@ export function DualReleasePolicyOptionsCard({ model }: { model: DualReleasePane
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Policy options</CardTitle>
-        <CardDescription>How hard the gate is</CardDescription>
+        <CardDescription>Who may sign second, and what happens when nobody does</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <label className="flex items-center gap-2">
@@ -79,12 +95,13 @@ export function DualReleasePolicyOptionsCard({ model }: { model: DualReleasePane
             onChange={(e) => setPolicyOption({ hardBlockWithoutSecond: e.target.checked })}
             className="size-4 accent-[var(--color-primary)]"
           />
-          Hard-block release if second signer missing
+          Stop the payment when the second signer is missing
         </label>
         <p className="rounded-lg border border-border bg-panel p-3 text-xs text-muted">
-          Exceptions never hide themselves: the simulator shows base vs effective threshold and
-          residual notes. An active dual-waive shows here and in every evaluation; whether it
-          affects your premium depends on your carrier's control warranties.
+          Every exception stays visible: the simulator shows the channel&apos;s threshold next to
+          the one the exception sets, with the risk you keep. An active waiver shows here and in
+          every check. Whether it changes your premium depends on what your policy requires you to
+          have in place; ask your broker.
         </p>
       </CardContent>
     </Card>
