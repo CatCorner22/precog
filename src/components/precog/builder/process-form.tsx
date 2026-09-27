@@ -1,23 +1,19 @@
-import { EvidenceList } from "@/components/precog/builder/evidence-list";
-import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
-
-import { useEffect, useMemo, useRef, useState } from "react";
-
-import { useTemplate } from "@/lib/precog/practice-context";
-import { textPatch } from "@/lib/precog/builder/process-text";
-import type {
-  LeanWasteKind,
-  ProcessIdea,
-  ProcessNode,
-  ProcessRisk,
-  ProcessRiskKind,
-  ProcessWaste,
-} from "@/lib/precog/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, BookOpen, Lightbulb, Recycle, Save, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-import { cn } from "@/lib/utils";
-import { AlertTriangle, BookOpen, Lightbulb, Recycle, Trash2 } from "lucide-react";
+import { inputCls, labelCls } from "@/components/ui/field-classes";
+import { ChipPicker, SectionHeader } from "@/components/precog/builder/chips";
+import { EvidenceList } from "@/components/precog/builder/evidence-list";
+import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
+import { useAddForm } from "@/components/precog/builder/use-add-form";
+import type { ProcessTextFields } from "@/lib/precog/builder/process-text";
+import {
+  commitFormText,
+  initialFormText,
+  PROCESS_TEXT_LIMITS as LIMITS,
+  syncFormText,
+} from "@/lib/precog/builder/process-text-sync";
 import {
   CADENCE_LABEL,
   PROCESS_CADENCES,
@@ -25,20 +21,39 @@ import {
   parseCadence,
   processDocumentationState,
 } from "@/lib/precog/process-record";
-
-import { Save } from "lucide-react";
-
 import {
-  RISK_KINDS,
   IDEA_CATEGORIES,
-  EFFORTS,
-  IDEA_STATUS,
+  IDEA_CATEGORY_LABEL,
+  IDEA_STATUSES,
+  IDEA_STATUS_LABEL,
+  ideaSummary,
+  LEVELS,
+  LEVEL_LABEL,
+  RISK_KINDS,
+  RISK_KIND_LABEL,
+  RISK_SCALE_STEPS,
+  riskSummary,
   WASTE_KINDS,
-  inputCls,
-  labelCls,
-} from "@/components/precog/builder/form-shared";
-import { ChipPicker, SectionHeader } from "@/components/precog/builder/chips";
+  WASTE_KIND_LABEL,
+} from "@/lib/precog/process-vocab";
 import { uid } from "@/lib/precog/text";
+import type {
+  LeanWasteKind,
+  Person,
+  ProcessIdea,
+  ProcessNode,
+  ProcessRisk,
+  ProcessRiskKind,
+  ProcessWaste,
+} from "@/lib/precog/types";
+import { useTemplate } from "@/lib/precog/practice-context";
+import { cn } from "@/lib/utils";
+
+/**
+ * The selected process's editor in the map builder. Panels lay out by the
+ * builder card's width (container queries), not the window's, since the card
+ * sits in a narrow column on a laptop.
+ */
 export function ProcessForm({
   process,
   all,
@@ -53,46 +68,40 @@ export function ProcessForm({
   onSaveAsBlock: () => void;
 }) {
   const tpl = useTemplate();
-  const [name, setName] = useState(process.name);
-  const [desc, setDesc] = useState(process.description);
-  const [inputs, setInputs] = useState((process.inputs ?? []).join(", "));
-  const [outputs, setOutputs] = useState((process.outputs ?? []).join(", "));
-  const [systems, setSystems] = useState((process.systems ?? []).join(", "));
-  const [location, setLocation] = useState(process.procedureLocation ?? "");
+  // The form's own copy of the text fields. An undo, import or restore that
+  // changes the process text replaces the copy, so a stale copy is never
+  // committed back over the change.
+  const [text, setText] = useState(() => initialFormText(process));
+  const synced = syncFormText(text, process);
+  if (synced !== text) setText(synced);
+  const { name, desc, inputs, outputs, systems, location } = synced.fields;
+  const setField = (field: keyof ProcessTextFields, value: string) =>
+    setText((t) => ({ ...t, fields: { ...t.fields, [field]: value } }));
+
+  // The latest fields, process and callback, for the debounce and the
+  // unmount commit, which run outside render.
+  const latest = useRef({ fields: synced.fields, process, onChange });
+  useEffect(() => {
+    latest.current = { fields: synced.fields, process, onChange };
+  });
+  const commit = useCallback(() => {
+    const { fields, process: current, onChange: write } = latest.current;
+    const { patch, seenKey } = commitFormText(fields, current);
+    if (!Object.keys(patch).length) return;
+    setText((t) => ({ ...t, seenKey }));
+    write(patch);
+  }, []);
 
   // Debounce text field commits so typing doesn't thrash the graph.
   useEffect(() => {
-    const t = setTimeout(() => {
-      const patch = textPatch({ name, desc, inputs, outputs, systems, location }, process);
-      if (Object.keys(patch).length) onChange(patch);
-    }, 350);
+    const t = setTimeout(commit, 350);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, desc, inputs, outputs, systems, location]);
+  }, [synced.fields, commit]);
 
   // The form remounts for each process, so an edit still inside the debounce
   // window when the owner selects another process, or closes the panel, is
   // committed as the form unmounts instead of being dropped.
-  const latest = useRef({
-    fields: { name, desc, inputs, outputs, systems, location },
-    process,
-    onChange,
-  });
-  useEffect(() => {
-    latest.current = {
-      fields: { name, desc, inputs, outputs, systems, location },
-      process,
-      onChange,
-    };
-  });
-  useEffect(
-    () => () => {
-      const { fields, process: current, onChange: commit } = latest.current;
-      const patch = textPatch(fields, current);
-      if (Object.keys(patch).length) commit(patch);
-    },
-    [],
-  );
+  useEffect(() => commit, [commit]);
 
   const docState = processDocumentationState(process);
 
@@ -103,17 +112,19 @@ export function ProcessForm({
 
   const toggleIn = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  const owners = process.ownerPersonIds ?? [];
 
   return (
     <div className="space-y-3 border-t border-border pt-3">
-      <div className="grid gap-2 sm:grid-cols-[1fr_88px]">
+      <div className="grid gap-2 @sm:grid-cols-[1fr_88px]">
         <label>
           <span className={labelCls}>Name</span>
           <input
             className={inputCls}
             data-builder-field="name"
+            maxLength={LIMITS.name}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => setField("name", e.target.value)}
           />
         </label>
         <label>
@@ -131,25 +142,35 @@ export function ProcessForm({
           </select>
         </label>
       </div>
-      <label>
-        <span className={labelCls}>Description</span>
+      <label className="block">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className={labelCls}>Description</span>
+          <span className="text-xs text-subtle tabular">
+            {desc.length} / {LIMITS.description}
+          </span>
+        </span>
         <textarea
           className={cn(inputCls, "min-h-[52px] resize-y")}
+          maxLength={LIMITS.description}
           value={desc}
-          onChange={(e) => setDesc(e.target.value)}
+          onChange={(e) => setField("desc", e.target.value)}
         />
       </label>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 @sm:grid-cols-2">
         <label>
           <span className={labelCls}>Inputs (comma-separated)</span>
-          <input className={inputCls} value={inputs} onChange={(e) => setInputs(e.target.value)} />
+          <input
+            className={inputCls}
+            value={inputs}
+            onChange={(e) => setField("inputs", e.target.value)}
+          />
         </label>
         <label>
           <span className={labelCls}>Outputs</span>
           <input
             className={inputCls}
             value={outputs}
-            onChange={(e) => setOutputs(e.target.value)}
+            onChange={(e) => setField("outputs", e.target.value)}
           />
         </label>
       </div>
@@ -164,7 +185,7 @@ export function ProcessForm({
             written steps live.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 @sm:grid-cols-2">
           <label>
             <span className={labelCls}>How often it runs</span>
             <select
@@ -186,11 +207,11 @@ export function ProcessForm({
               className={inputCls}
               placeholder="Practice management system, bank portal"
               value={systems}
-              onChange={(e) => setSystems(e.target.value)}
+              onChange={(e) => setField("systems", e.target.value)}
             />
           </label>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 @sm:grid-cols-2">
           <label>
             <span className={labelCls}>Written procedure</span>
             <select
@@ -202,7 +223,7 @@ export function ProcessForm({
                   documented: v === "" ? undefined : v === "yes",
                   ...(v !== "yes" ? { procedureLocation: undefined } : {}),
                 });
-                if (v !== "yes") setLocation("");
+                if (v !== "yes") setField("location", "");
               }}
             >
               <option value="">Not recorded</option>
@@ -215,9 +236,10 @@ export function ProcessForm({
             <input
               className={inputCls}
               placeholder="Shared drive path, binder, or link"
+              maxLength={LIMITS.location}
               value={location}
               disabled={!process.documented}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={(e) => setField("location", e.target.value)}
             />
           </label>
         </div>
@@ -244,10 +266,10 @@ export function ProcessForm({
         onToggle={(id) => onChange({ dependencies: toggleIn(process.dependencies, id) })}
       />
       <ChipPicker
-        label="Owners"
-        options={tpl.people.map((p) => ({ id: p.id, label: `${p.name} · ${p.role}` }))}
-        selected={process.ownerPersonIds ?? []}
-        onToggle={(id) => onChange({ ownerPersonIds: toggleIn(process.ownerPersonIds ?? [], id) })}
+        label="Process owners"
+        options={ownerOptions(tpl.people, owners)}
+        selected={owners}
+        onToggle={(id) => onChange({ ownerPersonIds: toggleIn(owners, id) })}
       />
       <ChipPicker
         label="Controls"
@@ -289,6 +311,23 @@ export function ProcessForm({
   );
 }
 
+/**
+ * People who can own the process: everyone still working here, then anyone
+ * who has left but still holds it, marked "(left)" so the owner can take
+ * them off.
+ */
+function ownerOptions(people: Person[], selected: string[]) {
+  const label = (p: Person) => `${p.name} · ${p.role}`;
+  return [
+    ...people.filter((p) => p.active).map((p) => ({ id: p.id, label: label(p) })),
+    ...people
+      .filter((p) => !p.active && selected.includes(p.id))
+      .map((p) => ({ id: p.id, label: `${label(p)} (left)`, tone: "danger" as const })),
+  ];
+}
+
+type Option = { id: string; label: string };
+
 function RiskList({
   risks,
   onChange,
@@ -298,47 +337,34 @@ function RiskList({
 }: {
   risks: ProcessRisk[];
   onChange: (r: ProcessRisk[]) => void;
-  knowledgeOptions: { id: string; label: string }[];
-  controlOptions: { id: string; label: string }[];
-  scenarioOptions: { id: string; label: string }[];
+  knowledgeOptions: Option[];
+  controlOptions: Option[];
+  scenarioOptions: Option[];
 }) {
-  const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<ProcessRiskKind>("fraud");
-  const [sev, setSev] = useState(3);
-  const [lik, setLik] = useState(3);
-  const [note, setNote] = useState("");
-  const [knowledgeId, setKnowledgeId] = useState("");
-  const [controlId, setControlId] = useState("");
-  const [scenarioId, setScenarioId] = useState("");
-
-  function commit() {
-    if (!title.trim()) return;
-    onChange([
-      ...risks,
-      {
-        id: uid("r"),
-        title: title.trim().slice(0, 80),
-        kind,
-        severity: sev as ProcessRisk["severity"],
-        likelihood: lik as ProcessRisk["likelihood"],
-        note: note.trim().slice(0, 200),
-        linkedKnowledgeId: knowledgeId || undefined,
-        linkedControlId: controlId || undefined,
-        linkedScenarioId: scenarioId || undefined,
-      },
-    ]);
-    setTitle("");
-    setNote("");
-    setKnowledgeId("");
-    setControlId("");
-    setScenarioId("");
-    setAdding(false);
-  }
+  const form = useAddForm(
+    {
+      title: "",
+      note: "",
+      kind: "fraud" as ProcessRiskKind,
+      severity: 3 as ProcessRisk["severity"],
+      likelihood: 3 as ProcessRisk["likelihood"],
+      linkedControlId: "",
+      linkedScenarioId: "",
+      linkedKnowledgeId: "",
+    },
+    ["kind", "severity", "likelihood"],
+  );
+  const { draft, set } = form;
 
   function updateRisk(id: string, patch: Partial<ProcessRisk>) {
     onChange(risks.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
+
+  const links = [
+    { field: "linkedControlId", label: "Linked control", options: controlOptions },
+    { field: "linkedScenarioId", label: "Linked scenario", options: scenarioOptions },
+    { field: "linkedKnowledgeId", label: "Linked knowledge", options: knowledgeOptions },
+  ] as const;
 
   return (
     <div className="space-y-1.5">
@@ -346,8 +372,8 @@ function RiskList({
         icon={<AlertTriangle className="size-3 text-danger" />}
         title="Risks"
         count={risks.length}
-        adding={adding}
-        onAdd={() => setAdding((v) => !v)}
+        adding={form.adding}
+        onAdd={form.toggle}
       />
       {risks.map((r) => (
         <div
@@ -358,7 +384,7 @@ function RiskList({
             <div className="min-w-0 flex-1">
               <p className="font-medium text-fg">{r.title}</p>
               <p className="text-subtle">
-                {r.kind} · S{r.severity}×L{r.likelihood}
+                {riskSummary(r)}
                 {r.note ? ` · ${r.note}` : ""}
               </p>
             </div>
@@ -366,91 +392,78 @@ function RiskList({
               type="button"
               onClick={() => onChange(risks.filter((x) => x.id !== r.id))}
               className="text-subtle hover:text-danger"
-              aria-label="Remove risk"
+              aria-label={`Remove risk ${r.title}`}
             >
               <Trash2 className="size-3" />
             </button>
           </div>
-          <div className="grid gap-1 sm:grid-cols-3">
-            <select
-              className={inputCls}
-              value={r.linkedControlId ?? ""}
-              onChange={(e) => updateRisk(r.id, { linkedControlId: e.target.value || undefined })}
-            >
-              <option value="">Link control…</option>
-              {controlOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputCls}
-              value={r.linkedScenarioId ?? ""}
-              onChange={(e) => updateRisk(r.id, { linkedScenarioId: e.target.value || undefined })}
-            >
-              <option value="">Link scenario…</option>
-              {scenarioOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputCls}
-              value={r.linkedKnowledgeId ?? ""}
-              onChange={(e) => updateRisk(r.id, { linkedKnowledgeId: e.target.value || undefined })}
-            >
-              <option value="">Link knowledge…</option>
-              {knowledgeOptions.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-1 @md:grid-cols-3">
+            {links.map((link) => (
+              <select
+                key={link.field}
+                className={inputCls}
+                aria-label={`${link.label} for ${r.title}`}
+                value={r[link.field] ?? ""}
+                onChange={(e) => updateRisk(r.id, { [link.field]: e.target.value || undefined })}
+              >
+                <option value="">{link.label}: none</option>
+                {link.options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ))}
           </div>
         </div>
       ))}
-      {adding && (
+      {form.adding && (
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
           <input
             className={inputCls}
             placeholder="Risk title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            aria-label="Risk title"
+            maxLength={LIMITS.itemTitle}
+            value={draft.title}
+            onChange={(e) => set("title", e.target.value)}
             autoFocus
           />
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid gap-1.5 @sm:grid-cols-3">
             <select
               className={inputCls}
-              value={kind}
-              onChange={(e) => setKind(e.target.value as ProcessRiskKind)}
+              aria-label="Kind of risk"
+              value={draft.kind}
+              onChange={(e) => set("kind", e.target.value as ProcessRiskKind)}
             >
               {RISK_KINDS.map((k) => (
                 <option key={k} value={k}>
-                  {k}
+                  {RISK_KIND_LABEL[k]}
                 </option>
               ))}
             </select>
             <select
               className={inputCls}
-              value={sev}
-              onChange={(e) => setSev(Number(e.target.value))}
+              aria-label="Severity, 1 to 5"
+              value={draft.severity}
+              onChange={(e) => set("severity", Number(e.target.value) as ProcessRisk["severity"])}
             >
-              {[1, 2, 3, 4, 5].map((n) => (
+              {RISK_SCALE_STEPS.map((n) => (
                 <option key={n} value={n}>
-                  Severity {n}
+                  Severity {n} of 5
                 </option>
               ))}
             </select>
             <select
               className={inputCls}
-              value={lik}
-              onChange={(e) => setLik(Number(e.target.value))}
+              aria-label="Likelihood, 1 to 5"
+              value={draft.likelihood}
+              onChange={(e) =>
+                set("likelihood", Number(e.target.value) as ProcessRisk["likelihood"])
+              }
             >
-              {[1, 2, 3, 4, 5].map((n) => (
+              {RISK_SCALE_STEPS.map((n) => (
                 <option key={n} value={n}>
-                  Likelihood {n}
+                  Likelihood {n} of 5
                 </option>
               ))}
             </select>
@@ -458,48 +471,51 @@ function RiskList({
           <input
             className={inputCls}
             placeholder="Note (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            aria-label="Note"
+            maxLength={LIMITS.itemNote}
+            value={draft.note}
+            onChange={(e) => set("note", e.target.value)}
           />
-          <div className="grid gap-1 sm:grid-cols-3">
-            <select
-              className={inputCls}
-              value={controlId}
-              onChange={(e) => setControlId(e.target.value)}
-            >
-              <option value="">Link control (optional)</option>
-              {controlOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputCls}
-              value={scenarioId}
-              onChange={(e) => setScenarioId(e.target.value)}
-            >
-              <option value="">Link scenario (optional)</option>
-              {scenarioOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputCls}
-              value={knowledgeId}
-              onChange={(e) => setKnowledgeId(e.target.value)}
-            >
-              <option value="">Link knowledge (optional)</option>
-              {knowledgeOptions.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-1 @md:grid-cols-3">
+            {links.map((link) => (
+              <select
+                key={link.field}
+                className={inputCls}
+                aria-label={link.label}
+                value={draft[link.field]}
+                onChange={(e) => set(link.field, e.target.value)}
+              >
+                <option value="">{link.label}: none</option>
+                {link.options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ))}
           </div>
-          <Button size="sm" onClick={commit} disabled={!title.trim()}>
+          <Button
+            size="sm"
+            disabled={!form.ready}
+            onClick={() =>
+              form.submit((d) =>
+                onChange([
+                  ...risks,
+                  {
+                    id: uid("r"),
+                    title: d.title.trim(),
+                    kind: d.kind,
+                    severity: d.severity,
+                    likelihood: d.likelihood,
+                    note: d.note.trim(),
+                    linkedKnowledgeId: d.linkedKnowledgeId || undefined,
+                    linkedControlId: d.linkedControlId || undefined,
+                    linkedScenarioId: d.linkedScenarioId || undefined,
+                  },
+                ]),
+              )
+            }
+          >
             Add risk
           </Button>
         </div>
@@ -515,32 +531,18 @@ function IdeaList({
   ideas: ProcessIdea[];
   onChange: (i: ProcessIdea[]) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<ProcessIdea["category"]>("control");
-  const [effort, setEffort] = useState<ProcessIdea["effort"]>("low");
-  const [impact, setImpact] = useState<ProcessIdea["impact"]>("high");
-  const [status, setStatus] = useState<ProcessIdea["status"]>("backlog");
-  const [note, setNote] = useState("");
-
-  function commit() {
-    if (!title.trim()) return;
-    onChange([
-      ...ideas,
-      {
-        id: uid("i"),
-        title: title.trim().slice(0, 80),
-        category,
-        effort,
-        impact,
-        status,
-        note: note.trim().slice(0, 200),
-      },
-    ]);
-    setTitle("");
-    setNote("");
-    setAdding(false);
-  }
+  const form = useAddForm(
+    {
+      title: "",
+      note: "",
+      category: "control" as ProcessIdea["category"],
+      effort: "low" as ProcessIdea["effort"],
+      impact: "high" as ProcessIdea["impact"],
+      status: "backlog" as ProcessIdea["status"],
+    },
+    ["category", "effort", "impact", "status"],
+  );
+  const { draft, set } = form;
 
   return (
     <div className="space-y-1.5">
@@ -548,8 +550,8 @@ function IdeaList({
         icon={<Lightbulb className="size-3 text-warn" />}
         title="Improvement ideas"
         count={ideas.length}
-        adding={adding}
-        onAdd={() => setAdding((v) => !v)}
+        adding={form.adding}
+        onAdd={form.toggle}
       />
       {ideas.map((i) => (
         <div
@@ -558,12 +560,11 @@ function IdeaList({
         >
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{i.title}</p>
-            <p className="text-subtle">
-              {i.category} · {i.effort} effort · {i.impact} impact · {i.status}
-            </p>
+            <p className="text-subtle">{ideaSummary(i)}</p>
           </div>
           <select
             className="rounded border border-border bg-surface px-1 text-xs text-muted"
+            aria-label={`Status of ${i.title}`}
             value={i.status}
             onChange={(e) =>
               onChange(
@@ -573,9 +574,9 @@ function IdeaList({
               )
             }
           >
-            {IDEA_STATUS.map((s) => (
+            {IDEA_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {IDEA_STATUS_LABEL[s]}
               </option>
             ))}
           </select>
@@ -583,63 +584,69 @@ function IdeaList({
             type="button"
             onClick={() => onChange(ideas.filter((x) => x.id !== i.id))}
             className="text-subtle hover:text-danger"
-            aria-label="Remove idea"
+            aria-label={`Remove idea ${i.title}`}
           >
             <Trash2 className="size-3" />
           </button>
         </div>
       ))}
-      {adding && (
+      {form.adding && (
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
           <input
             className={inputCls}
             placeholder="Idea title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            aria-label="Idea title"
+            maxLength={LIMITS.itemTitle}
+            value={draft.title}
+            onChange={(e) => set("title", e.target.value)}
             autoFocus
           />
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-1.5 @md:grid-cols-4">
             <select
               className={inputCls}
-              value={category}
-              onChange={(e) => setCategory(e.target.value as ProcessIdea["category"])}
+              aria-label="Category"
+              value={draft.category}
+              onChange={(e) => set("category", e.target.value as ProcessIdea["category"])}
             >
               {IDEA_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {IDEA_CATEGORY_LABEL[c]}
                 </option>
               ))}
             </select>
             <select
               className={inputCls}
-              value={effort}
-              onChange={(e) => setEffort(e.target.value as ProcessIdea["effort"])}
+              aria-label="Effort"
+              value={draft.effort}
+              onChange={(e) => set("effort", e.target.value as ProcessIdea["effort"])}
             >
-              {EFFORTS.map((c) => (
+              {LEVELS.map((c) => (
                 <option key={c} value={c}>
-                  {c} effort
+                  {LEVEL_LABEL[c]} effort
                 </option>
               ))}
             </select>
             <select
               className={inputCls}
-              value={impact}
-              onChange={(e) => setImpact(e.target.value as ProcessIdea["impact"])}
+              aria-label="Impact"
+              value={draft.impact}
+              onChange={(e) => set("impact", e.target.value as ProcessIdea["impact"])}
             >
-              {EFFORTS.map((c) => (
+              {LEVELS.map((c) => (
                 <option key={c} value={c}>
-                  {c} impact
+                  {LEVEL_LABEL[c]} impact
                 </option>
               ))}
             </select>
             <select
               className={inputCls}
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ProcessIdea["status"])}
+              aria-label="Status"
+              value={draft.status}
+              onChange={(e) => set("status", e.target.value as ProcessIdea["status"])}
             >
-              {IDEA_STATUS.map((c) => (
+              {IDEA_STATUSES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {IDEA_STATUS_LABEL[c]}
                 </option>
               ))}
             </select>
@@ -647,10 +654,31 @@ function IdeaList({
           <input
             className={inputCls}
             placeholder="Note (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            aria-label="Note"
+            maxLength={LIMITS.itemNote}
+            value={draft.note}
+            onChange={(e) => set("note", e.target.value)}
           />
-          <Button size="sm" onClick={commit} disabled={!title.trim()}>
+          <Button
+            size="sm"
+            disabled={!form.ready}
+            onClick={() =>
+              form.submit((d) =>
+                onChange([
+                  ...ideas,
+                  {
+                    id: uid("i"),
+                    title: d.title.trim(),
+                    category: d.category,
+                    effort: d.effort,
+                    impact: d.impact,
+                    status: d.status,
+                    note: d.note.trim(),
+                  },
+                ]),
+              )
+            }
+          >
             Add idea
           </Button>
         </div>
@@ -666,21 +694,8 @@ function WasteList({
   wastes: ProcessWaste[];
   onChange: (w: ProcessWaste[]) => void;
 }) {
-  const [adding, setAdding] = useState(false);
-  const [kind, setKind] = useState<LeanWasteKind>("muda_waiting");
-  const [label, setLabel] = useState("");
-  const [note, setNote] = useState("");
-
-  function commit() {
-    if (!label.trim()) return;
-    onChange([
-      ...wastes,
-      { id: uid("w"), kind, label: label.trim().slice(0, 80), note: note.trim().slice(0, 200) },
-    ]);
-    setLabel("");
-    setNote("");
-    setAdding(false);
-  }
+  const form = useAddForm({ title: "", note: "", kind: "muda_waiting" as LeanWasteKind }, ["kind"]);
+  const { draft, set } = form;
 
   return (
     <div className="space-y-1.5">
@@ -688,8 +703,8 @@ function WasteList({
         icon={<Recycle className="size-3 text-muted" />}
         title="Lean waste"
         count={wastes.length}
-        adding={adding}
-        onAdd={() => setAdding((v) => !v)}
+        adding={form.adding}
+        onAdd={form.toggle}
       />
       {wastes.map((w) => (
         <div
@@ -699,7 +714,7 @@ function WasteList({
           <div className="min-w-0 flex-1">
             <p className="font-medium text-fg">{w.label}</p>
             <p className="text-subtle">
-              {WASTE_KINDS.find((k) => k.id === w.kind)?.label ?? w.kind}
+              {WASTE_KIND_LABEL[w.kind] ?? w.kind}
               {w.note ? ` · ${w.note}` : ""}
             </p>
           </div>
@@ -707,41 +722,57 @@ function WasteList({
             type="button"
             onClick={() => onChange(wastes.filter((x) => x.id !== w.id))}
             className="text-subtle hover:text-danger"
-            aria-label="Remove waste"
+            aria-label={`Remove waste ${w.label}`}
           >
             <Trash2 className="size-3" />
           </button>
         </div>
       ))}
-      {adding && (
+      {form.adding && (
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
           <div className="grid grid-cols-[120px_1fr] gap-1.5">
             <select
               className={inputCls}
-              value={kind}
-              onChange={(e) => setKind(e.target.value as LeanWasteKind)}
+              aria-label="Kind of waste"
+              value={draft.kind}
+              onChange={(e) => set("kind", e.target.value as LeanWasteKind)}
             >
               {WASTE_KINDS.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.label}
+                <option key={k} value={k}>
+                  {WASTE_KIND_LABEL[k]}
                 </option>
               ))}
             </select>
             <input
               className={inputCls}
               placeholder="What is wasted?"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              aria-label="What is wasted"
+              maxLength={LIMITS.itemTitle}
+              value={draft.title}
+              onChange={(e) => set("title", e.target.value)}
               autoFocus
             />
           </div>
           <input
             className={inputCls}
             placeholder="Note (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            aria-label="Note"
+            maxLength={LIMITS.itemNote}
+            value={draft.note}
+            onChange={(e) => set("note", e.target.value)}
           />
-          <Button size="sm" onClick={commit} disabled={!label.trim()}>
+          <Button
+            size="sm"
+            disabled={!form.ready}
+            onClick={() =>
+              form.submit((d) =>
+                onChange([
+                  ...wastes,
+                  { id: uid("w"), kind: d.kind, label: d.title.trim(), note: d.note.trim() },
+                ]),
+              )
+            }
+          >
             Add waste
           </Button>
         </div>

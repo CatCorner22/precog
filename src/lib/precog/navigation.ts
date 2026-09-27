@@ -47,7 +47,8 @@ export type NavFn = (tab: string, id?: string) => void;
 export interface HomeSearch {
   tab?: TabId;
   item?: string;
-  build?: true;
+  /** Build mode on How work flows; "validate" also opens the builder's Validate panel. */
+  build?: true | "validate";
 }
 
 export const TAB_IDS: readonly TabId[] = TAB_WORDS.map((t) => t.id);
@@ -74,11 +75,17 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
       ? raw.trim() || undefined
       : undefined;
   const build =
-    tab === "map" && (search.build === true || search.build === "1" || search.build === 1);
+    tab !== "map"
+      ? undefined
+      : search.build === "validate"
+        ? ("validate" as const)
+        : search.build === true || search.build === "1" || search.build === 1
+          ? (true as const)
+          : undefined;
   return {
     ...(tab ? { tab } : {}),
     ...(item ? { item } : {}),
-    ...(build ? { build: true as const } : {}),
+    ...(build ? { build } : {}),
   };
 }
 

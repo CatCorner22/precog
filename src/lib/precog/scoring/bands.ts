@@ -32,6 +32,20 @@ export function healthLevel(score: number): HealthLevel {
   return "critical";
 }
 
+/** The colour every health index is drawn in, by level: one scale for the badge, ring, bars and pill. */
+export type HealthTone = "ok" | "primary" | "warn" | "danger";
+
+export function healthTone(score: number): HealthTone {
+  return HEALTH_TONE[healthLevel(score)];
+}
+
+const HEALTH_TONE: Record<HealthLevel, HealthTone> = {
+  strong: "ok",
+  adequate: "primary",
+  weak: "warn",
+  critical: "danger",
+};
+
 /** The one sentence every index surface shows beside its number. */
 export const INDEX_BASIS =
   "Indices are this app's weighting of your answers, not measurements. The bands order attention; no study set them.";

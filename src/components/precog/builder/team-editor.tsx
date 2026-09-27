@@ -1,76 +1,42 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-import { cn } from "@/lib/utils";
-import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
-import type { Person } from "@/lib/precog/types";
-
-import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { ROLE_TEMPLATES } from "@/lib/precog/sod/role-templates";
+import { inputCls } from "@/components/ui/field-classes";
+import { ChipPicker, type ChipOption } from "@/components/precog/builder/chips";
+import { localDateKey } from "@/lib/precog/dates";
+import { downloadCsv } from "@/lib/download";
+import {
+  dutiesUnknown,
+  effectiveDuties,
+  mergeImportedPeople,
+  parsePeopleCsv,
+  peopleToCsv,
+  removedPeopleImpact,
+} from "@/lib/precog/import/people-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
+import { parseRoster } from "@/lib/precog/import/roster";
+import { industryHasOwner } from "@/lib/precog/industry";
+import { clamp } from "@/lib/precog/number";
 import {
   JOB_CATALOG,
   JOB_FAMILY_LABEL,
   jobCatalogEntry,
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
-import { industryHasOwner } from "@/lib/precog/industry";
+import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";
+import { placeholderNames } from "@/lib/precog/onboarding/add-people";
+import { personLocations } from "@/lib/precog/person-location";
 import { usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
-import { parseRoster } from "@/lib/precog/import/roster";
-import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";
+import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "@/lib/precog/sod/owner-role";
-import {
-  effectiveDuties,
-  mergeImportedPeople,
-  parsePeopleCsv,
-  removedPeopleImpact,
-  peopleToCsv,
-} from "@/lib/precog/import/people-csv";
-import type { ImportIssue } from "@/lib/precog/import/csv";
-import { placeholderNames } from "@/lib/precog/onboarding/add-people";
-import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
-import { personLocations } from "@/lib/precog/person-location";
-import { downloadCsv } from "@/lib/download";
-import { localDateKey } from "@/lib/precog/dates";
-import { stripInvisibleControls, joinWithAnd, count, verb, slug } from "@/lib/precog/text";
-import { clamp } from "@/lib/precog/number";
-function EntitlementPicker({
-  selected,
-  onChange,
-}: {
-  selected: EntitlementId[];
-  onChange: (next: EntitlementId[]) => void;
-}) {
-  const toggle = (id: EntitlementId) =>
-    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+import { count, joinWithAnd, stripInvisibleControls, uniqueId, verb } from "@/lib/precog/text";
+import type { Person } from "@/lib/precog/types";
+import { cn } from "@/lib/utils";
 
-  return (
-    <div className="mt-1 flex flex-wrap gap-1">
-      {OPERATING_DUTIES.map((e) => {
-        const on = selected.includes(e.id);
-        return (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() => toggle(e.id)}
-            className={cn(
-              "rounded-md border px-1.5 py-0.5 text-xs",
-              on
-                ? "border-primary/50 bg-primary/15 text-fg"
-                : "border-border bg-elevated text-muted",
-            )}
-            title={e.label}
-          >
-            {e.label.split(" / ")[0].slice(0, 28)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
+/** The builder's team list: add, import, mark as left, and set each person's duties. */
 export function TeamEditor({
   people,
   onChange,
@@ -110,9 +76,7 @@ export function TeamEditor({
     const added: Person[] = [];
     const taken = new Set(people.map((p) => p.id));
     for (const personName of names) {
-      let id = `p-${slug(personName)}`;
-      let n = 2;
-      while (taken.has(id)) id = `p-${slug(personName)}-${n++}`;
+      const id = uniqueId("p", personName, taken, "person");
       taken.add(id);
       added.push({
         id,
@@ -131,16 +95,14 @@ export function TeamEditor({
     const finalRole = stripInvisibleControls(
       useCustom ? customRole : catalogChoice ? catalogChoice.title : role,
     ).trim();
-    if (!name.trim() || !finalRole) return;
-    let id = `p-${slug(name)}`;
-    let n = 2;
-    while (people.some((p) => p.id === id)) id = `p-${slug(name)}-${n++}`;
+    // A right-to-left override in a name would reverse every sentence naming them.
+    const finalName = stripInvisibleControls(name).trim().slice(0, 60);
+    if (!finalName || !finalRole) return;
     onChange([
       ...people,
       {
-        id,
-        // A right-to-left override in a name would reverse every sentence naming them.
-        name: stripInvisibleControls(name).trim().slice(0, 60),
+        id: uniqueId("p", finalName, new Set(people.map((p) => p.id)), "person"),
+        name: finalName,
         role: finalRole.slice(0, MAX_ROLE_LENGTH),
         active: true,
         tenureYears: tenure === "" || !Number.isFinite(tenure) ? undefined : clamp(tenure, 0, 60),
@@ -153,11 +115,15 @@ export function TeamEditor({
             : undefined,
       },
     ]);
+    // The job title stays for the next person; tenure is theirs alone.
     setName("");
     setCustomRole("");
+    setTenure("");
     setEntitlements([]);
-    toast.success(`${name.trim()} added to the team`);
+    toast.success(`${finalName} added to the team`);
   }
+  const canAdd =
+    stripInvisibleControls(name).trim().length > 0 && (!useCustom || customRole.trim().length > 0);
 
   function updatePerson(id: string, patch: Partial<Person>) {
     onChange(people.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -245,52 +211,50 @@ export function TeamEditor({
   }
 
   function applyImport(result: ReturnType<typeof parsePeopleCsv>, replace: boolean) {
-    {
-      const issues = [...result.issues];
-      const impact = removedPeopleImpact(tpl, replace ? result.removed : []);
-      if (replace && result.removed.length && (impact.assignments || impact.processOwnerships)) {
-        const names = result.removed.map((p) => p.name);
-        const shown =
-          names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
-        const lost = [
-          impact.assignments
-            ? `${impact.assignments} who-knows-what assignment${verb(impact.assignments, "", "s")}`
-            : "",
-          impact.processOwnerships
-            ? `${impact.processOwnerships} process owner slot${verb(impact.processOwnerships, "", "s")}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" and ");
-        issues.push({
-          row: 0,
-          message: `${shown} ${verb(names.length, "is", "are")} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
-        });
-      }
-      setImportIssues(issues);
-      if (!result.people.length) {
-        toast.error(result.issues[0]?.message ?? "No people imported");
-        return;
-      }
-      const merged = mergeImportedPeople(people, result.people);
-      onChange(replace ? result.people : merged.people);
-      recordOnLeave(result.onLeave ?? []);
-      const removed = replace ? result.removed.length : 0;
-      const recognised = result.titles.filter((t) => t.catalogTitle).length;
-      const counts = [
-        `${merged.added.length} added`,
-        `${merged.updated.length} updated`,
-        `${result.people.length - merged.added.length - merged.updated.length} unchanged`,
-        `${removed} removed`,
-      ].join(", ");
-      toast.success(
-        `Read ${count(result.people.length, "person", "people")}: ${counts}${
-          recognised
-            ? `; ${recognised} job ${verb(recognised, "title", "titles")} read from the catalog`
-            : ""
-        }${issues.length ? `; ${issues.length} thing(s) need attention` : ""}`,
-      );
+    const issues = [...result.issues];
+    const impact = removedPeopleImpact(tpl, replace ? result.removed : []);
+    if (replace && result.removed.length && (impact.assignments || impact.processOwnerships)) {
+      const names = result.removed.map((p) => p.name);
+      const shown =
+        names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
+      const lost = [
+        impact.assignments
+          ? `${impact.assignments} who-knows-what assignment${verb(impact.assignments, "", "s")}`
+          : "",
+        impact.processOwnerships
+          ? `${impact.processOwnerships} process owner slot${verb(impact.processOwnerships, "", "s")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" and ");
+      issues.push({
+        row: 0,
+        message: `${shown} ${verb(names.length, "is", "are")} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
+      });
     }
+    setImportIssues(issues);
+    if (!result.people.length) {
+      toast.error(result.issues[0]?.message ?? "No people imported");
+      return;
+    }
+    const merged = mergeImportedPeople(people, result.people);
+    onChange(replace ? result.people : merged.people);
+    recordOnLeave(result.onLeave ?? []);
+    const removed = replace ? result.removed.length : 0;
+    const recognised = result.titles.filter((t) => t.catalogTitle).length;
+    const counts = [
+      `${merged.added.length} added`,
+      `${merged.updated.length} updated`,
+      `${result.people.length - merged.added.length - merged.updated.length} unchanged`,
+      `${removed} removed`,
+    ].join(", ");
+    toast.success(
+      `Read ${count(result.people.length, "person", "people")}: ${counts}${
+        recognised
+          ? `; ${recognised} job ${verb(recognised, "title", "titles")} read from the catalog`
+          : ""
+      }${issues.length ? `; ${count(issues.length, "issue")} to check below` : ""}`,
+    );
   }
 
   /**
@@ -331,7 +295,8 @@ export function TeamEditor({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-xs text-muted">
-        Roles drive SoD detection — pick the closest match so conflicts are scored correctly.
+        Each person&apos;s job title sets their usual duties, and the duty-conflict check reads
+        those duties. Pick the closest title, then adjust the duties if they differ.
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>
@@ -400,7 +365,6 @@ export function TeamEditor({
       )}
       <ul className="space-y-1">
         {people.map((p) => {
-          const knownRole = roleOptions.includes(p.role);
           const editing = editingId === p.id;
           return (
             <li
@@ -425,7 +389,7 @@ export function TeamEditor({
                   {p.active && p.lastDay && (
                     <span className="text-subtle"> · last day {p.lastDay}</span>
                   )}
-                  {!knownRole && !p.entitlements?.length && !ROLE_TEMPLATES[p.role] && (
+                  {dutiesUnknown(p, roleTemplates) && (
                     <span className="text-warn"> · needs duties</span>
                   )}
                 </span>
@@ -475,33 +439,46 @@ export function TeamEditor({
                 </label>
               )}
               {editing && (
-                <EntitlementPicker
-                  // The duties the conflict engine reads for this person,
-                  // their role's when none are set, so a tick edits that set.
-                  selected={effectiveDuties(p, roleTemplates) as EntitlementId[]}
-                  onChange={(next) =>
-                    updatePerson(p.id, {
-                      // Clearing every duty keeps "no duties" rather than
-                      // falling back to the role's.
-                      entitlements: next.length ? next : ["view_reports_only"],
-                      // Ticked by the owner: no longer the job title's guess.
-                      dutiesFromTitle: undefined,
-                    })
-                  }
-                />
+                <div className="mt-2">
+                  <ChipPicker
+                    label="Duties"
+                    options={DUTY_OPTIONS}
+                    // The duties the conflict engine reads for this person,
+                    // their role's when none are set, so a tick edits that set.
+                    selected={effectiveDuties(p, roleTemplates)}
+                    onToggle={(id) => {
+                      const next = toggleIn(effectiveDuties(p, roleTemplates), id);
+                      updatePerson(p.id, {
+                        // Clearing every duty keeps "no duties" rather than
+                        // falling back to the role's.
+                        entitlements: next.length
+                          ? (next as EntitlementId[])
+                          : ["view_reports_only"],
+                        // Ticked by the owner: no longer the job title's guess.
+                        dutiesFromTitle: undefined,
+                      });
+                    }}
+                  />
+                </div>
               )}
             </li>
           );
         })}
       </ul>
-      <div className="grid gap-1.5 sm:grid-cols-[1fr_1fr_64px]">
+      <div className="grid gap-1.5 @sm:grid-cols-[1fr_1fr_64px]">
         <input
           className={inputCls}
+          aria-label="Name"
           placeholder="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <select className={inputCls} value={role} onChange={(e) => setRole(e.target.value)}>
+        <select
+          className={inputCls}
+          aria-label="Job title"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
           <optgroup label="Roles in this line of business">
             {roleOptions.map((r) => (
               <option key={r} value={r}>
@@ -528,8 +505,9 @@ export function TeamEditor({
           step={0.5}
           value={tenure}
           onChange={(e) => setTenure(e.target.value === "" ? "" : Number(e.target.value))}
-          placeholder="Tenure (yrs)"
-          title="Tenure in years — leave blank if unknown"
+          aria-label="Years here (leave blank if unknown)"
+          placeholder="Years"
+          title="Years here — leave blank if unknown"
         />
       </div>
       {catalogChoice && (
@@ -557,19 +535,33 @@ export function TeamEditor({
         <>
           <input
             className={inputCls}
-            placeholder="Role title"
+            aria-label="Job title"
+            placeholder="Job title"
             value={customRole}
             onChange={(e) => setCustomRole(e.target.value)}
           />
-          <div>
-            <span className={labelCls}>Duty entitlements (for SoD scoring)</span>
-            <EntitlementPicker selected={entitlements} onChange={setEntitlements} />
-          </div>
+          <ChipPicker
+            label="Duties (the duty-conflict check reads these)"
+            options={DUTY_OPTIONS}
+            selected={entitlements}
+            onToggle={(id) => setEntitlements((cur) => toggleIn(cur, id as EntitlementId))}
+          />
         </>
       )}
-      <Button size="sm" variant="secondary" onClick={add} disabled={!name.trim()}>
+      <Button size="sm" variant="secondary" onClick={add} disabled={!canAdd}>
         <Plus className="size-3.5" /> Add team member
       </Button>
     </div>
   );
+}
+
+/** Every duty the owner can tick, shortened to its first wording; the full label shows on hover. */
+const DUTY_OPTIONS: ChipOption[] = OPERATING_DUTIES.map((e) => ({
+  id: e.id,
+  label: e.label.split(" / ")[0].slice(0, 28),
+  title: e.label,
+}));
+
+function toggleIn<T extends string>(list: readonly T[], id: T): T[] {
+  return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 }

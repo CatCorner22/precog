@@ -1,21 +1,12 @@
-import type { ProcessNode } from "@/lib/precog/types";
+import { Loader2, RotateCw } from "lucide-react";
 
+import { labelCls } from "@/components/ui/field-classes";
+import { ruleBasedReason } from "@/components/precog/builder/grok-status";
+import type { MapReview } from "@/lib/precog/builder/review";
+import type { ProcessNode } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 
-import { Loader2 } from "lucide-react";
-
-import type { MapReview } from "@/lib/precog/builder/review";
-
-import { RotateCw } from "lucide-react";
-
-import { labelCls } from "@/components/precog/builder/form-shared";
-const GRADE_TONE: Record<MapReview["grade"], string> = {
-  A: "bg-ok/15 text-ok border-ok/40",
-  B: "bg-primary/15 text-primary border-primary/40",
-  C: "bg-warn/15 text-warn border-warn/40",
-  F: "bg-danger/25 text-danger border-danger/60",
-};
-
+/** The builder's map review: a grade, sections of findings, the next move and where to start. */
 export function ReviewPanel({
   review,
   loading,
@@ -70,12 +61,16 @@ export function ReviewPanel({
           </p>
         </div>
       </div>
-      {review.sections.map((s) => (
-        <div key={s.heading}>
+      {ruleBasedReason(review.source, review.grokStatus) && (
+        <p className="text-xs text-subtle">{ruleBasedReason(review.source, review.grokStatus)}</p>
+      )}
+      {/* Grok can repeat a heading or a point; the review is fixed once received, so index keys hold. */}
+      {review.sections.map((s, sectionIndex) => (
+        <div key={`${sectionIndex}-${s.heading}`}>
           <p className={labelCls}>{s.heading}</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
-            {s.points.map((pt) => (
-              <li key={pt} className="text-fg/90">
+            {s.points.map((pt, pointIndex) => (
+              <li key={`${pointIndex}-${pt}`} className="text-fg/90">
                 {pt}
               </li>
             ))}
@@ -106,3 +101,10 @@ export function ReviewPanel({
     </div>
   );
 }
+
+const GRADE_TONE: Record<MapReview["grade"], string> = {
+  A: "bg-ok/15 text-ok border-ok/40",
+  B: "bg-primary/15 text-primary border-primary/40",
+  C: "bg-warn/15 text-warn border-warn/40",
+  F: "bg-danger/25 text-danger border-danger/60",
+};

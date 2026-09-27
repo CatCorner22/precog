@@ -61,7 +61,7 @@ function Home() {
   const navigate = Route.useNavigate();
   const tab: TabId = search.tab ?? "start";
   const item = search.item ?? null;
-  const build = search.build === true;
+  const build = search.build ?? false;
   const layer: MatrixLayerId = item && item in MATRIX_LAYERS ? (item as MatrixLayerId) : "control";
   const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
 
@@ -76,7 +76,7 @@ function Home() {
    * names no tab is reported in development instead of silently ignored.
    */
   const openTab = useCallback(
-    (target: string, nextItem?: string | null, nextBuild?: boolean) => {
+    (target: string, nextItem?: string | null, nextBuild?: boolean | "validate") => {
       if (!isNavTarget(target)) {
         if (import.meta.env.DEV) console.warn(`No tab named "${target}"`);
         return;
@@ -88,7 +88,9 @@ function Home() {
         search: {
           ...(next !== "start" ? { tab: next } : {}),
           ...(id ? { item: id } : {}),
-          ...(next === "map" && nextBuild ? { build: true as const } : {}),
+          ...(next === "map" && nextBuild
+            ? { build: nextBuild === "validate" ? ("validate" as const) : (true as const) }
+            : {}),
         },
         resetScroll: false,
       });
@@ -282,9 +284,10 @@ function Home() {
                 {tab === "command" && <Dashboard sodReport={sodReport} onOpen={openTab} />}
                 {tab === "map" && (
                   <ProcessMap
-                    key={build ? "build" : "view"}
+                    key={String(build)}
                     initialProcessId={item}
-                    initialBuild={build}
+                    initialBuild={build !== false}
+                    initialPanel={build === "validate" ? "validate" : undefined}
                     onNavigate={openTab}
                   />
                 )}

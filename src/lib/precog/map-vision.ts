@@ -1,7 +1,9 @@
 /**
- * Map vision modes: Risk Predator (thermal) + Risk Terminator (threat scan).
- * Priority scoring for process / control nodes.
+ * The map's three views (standard, heat and priority; the code keeps the
+ * older ids "predator" and "terminator" for the last two), its layers, and
+ * the priority scoring for process, risk, control and knowledge cards.
  */
+import { type MapGraphNode, type ProcessMapSnapshot } from "./process-graph";
 import { HEAT_BANDS } from "./scoring/bands";
 import { clamp } from "./number";
 
@@ -29,56 +31,56 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
     label: "Processes",
     visible: true,
     interactive: true,
-    description: "Value-stream steps — always primary targets",
+    description: "The steps your business runs, in stage order",
   },
   {
     id: "risk",
     label: "Risks",
     visible: true,
     interactive: true,
-    description: "Severity × likelihood tags",
+    description: "Risks on each process, sized by severity and likelihood",
   },
   {
     id: "control",
     label: "SoD / controls",
     visible: true,
     interactive: true,
-    description: "Open control gaps — high predator heat",
+    description: "Duties one person holds that should be split",
   },
   {
     id: "knowledge",
     label: "Knowledge",
     visible: true,
     interactive: true,
-    description: "SPOF knowledge nodes",
+    description: "Know-how only one person holds",
   },
   {
     id: "depends",
     label: "Dependencies",
     visible: true,
     interactive: true,
-    description: "Process→process feed edges (cascade risk)",
+    description: "Which process feeds which; a stall spreads along these",
   },
   {
     id: "idea",
     label: "Ideas",
     visible: true,
     interactive: false,
-    description: "Improvements — visible context, not threat targets",
+    description: "Improvement ideas; shown for context, not ranked",
   },
   {
     id: "waste",
     label: "Lean waste",
     visible: false,
     interactive: false,
-    description: "Muda tags — passive context",
+    description: "Lean waste: delays and rework you tagged",
   },
   {
     id: "person",
     label: "Owners",
     visible: true,
     interactive: false,
-    description: "People — passive unless you flip interactive",
+    description: "Who owns each process; tick clickable to select them",
   },
 ];
 
@@ -217,4 +219,73 @@ export function scorePriority(input: {
         : "Contained impact · monitor";
 
   return { priority, reasons, impactHint, immediate };
+}
+
+/**
+ * The priority stack: every scored process, and its risks, open control gaps
+ * and sole-holder knowledge, ranked by composite priority (highest first).
+ * `isScored` leaves out processes the map does not score (untouched starter
+ * processes, or everything before the map is assessed) with their cards.
+ * Risk and control heat is read from the graph's own card, so the stack and
+ * the canvas show one number for one card.
+ */
+export function buildPriorityTargets(
+  graph: { nodes: MapGraphNode[]; snapshots: ProcessMapSnapshot[] },
+  isScored: (processId: string) => boolean,
+): PriorityTarget[] {
+  const cardHeat = new Map(graph.nodes.map((n) => [n.id, n.severity ?? 0]));
+  const targets: PriorityTarget[] = [];
+  const push = (
+    base: Pick<PriorityTarget, "id" | "kind" | "label" | "processId" | "heat">,
+    scored: ReturnType<typeof scorePriority>,
+  ) =>
+    targets.push({
+      ...base,
+      priority: scored.priority,
+      band: priorityBand(scored.priority),
+      impactHint: scored.impactHint,
+      reasons: scored.reasons,
+      immediate: scored.immediate,
+    });
+
+  for (const snap of graph.snapshots) {
+    const processId = snap.process.id;
+    if (!isScored(processId)) continue;
+    push(
+      { id: processId, kind: "process", label: snap.process.name, processId, heat: snap.heat },
+      scorePriority({
+        heat: snap.heat,
+        kind: "process",
+        residualScore: snap.residualScore,
+        dependencyCount: snap.process.dependencies?.length ?? 0,
+        controlOpen: snap.controlGaps.some((c) => !c.segregated),
+      }),
+    );
+    for (const r of snap.risks) {
+      const heat = cardHeat.get(`${processId}::risk::${r.id}`) ?? 0;
+      push(
+        { id: r.id, kind: "risk", label: r.title, processId, heat },
+        scorePriority({
+          heat,
+          kind: "risk",
+          riskSeverity: r.severity,
+          riskLikelihood: r.likelihood,
+        }),
+      );
+    }
+    for (const c of snap.controlGaps.filter((x) => !x.segregated)) {
+      const heat = cardHeat.get(`${processId}::ctrl::${c.id}`) ?? 0;
+      push(
+        { id: c.id, kind: "control", label: c.name, processId, heat },
+        scorePriority({ heat, kind: "control", controlOpen: true }),
+      );
+    }
+    for (const k of snap.knowledgeItems.filter((x) => x.soleOwner)) {
+      push(
+        { id: k.id, kind: "knowledge", label: k.name, processId, heat: k.riskScore },
+        scorePriority({ heat: k.riskScore, kind: "knowledge", soleOwner: true }),
+      );
+    }
+  }
+  return targets.sort((a, b) => b.priority - a.priority);
 }

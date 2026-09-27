@@ -11,9 +11,7 @@ import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import type { detectSodConflicts } from "@/lib/precog/sod/detect";
-import { computeMapHealth } from "@/lib/precog/process-health";
-import { buildProcessMapGraph } from "@/lib/precog/process-graph";
-import { validateProcessMap } from "@/lib/precog/process-validation";
+import { useScoredMap } from "@/lib/precog/builder/use-scored-map";
 import { industryMeta, pluralTeamLabel } from "@/lib/precog/industry";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
@@ -35,7 +33,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  * mode. Like `NavFn` it takes the tab as a string (a `NavTarget`); the shell
  * checks it.
  */
-export type OpenTab = (tab: string, item?: string | null, build?: boolean) => void;
+export type OpenTab = (tab: string, item?: string | null, build?: boolean | "validate") => void;
 
 /**
  * The Dashboard tab: the headline, the six scores, this week's plan, and the
@@ -51,7 +49,7 @@ export function Dashboard({
   onOpen: OpenTab;
 }) {
   const tpl = useTemplate();
-  const { profile, mapCustomized } = usePractice();
+  const { profile } = usePractice();
   const { say } = usePresentation();
   const industry = industryMeta(profile.industry);
 
@@ -95,16 +93,9 @@ export function Dashboard({
   const top = ranked[0];
   const conflicts = sodReport.conflicts.length;
 
-  const mapHealth = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
-    const issues = validateProcessMap(
-      tpl.processes,
-      tpl.people,
-      new Set(tpl.controls.map((c) => c.id)),
-      profile.mapLayout ?? {},
-    );
-    return computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
+  // Scored as the map page scores it: untouched starter processes are left out.
+  const scoredMap = useScoredMap();
+  const mapHealth = scoredMap.health;
   // A starter map nobody has assigned, or an empty map, has no health to show.
   const mapReady = mapAssessed(profile);
 
@@ -162,8 +153,10 @@ export function Dashboard({
       </section>
 
       <MapHealthCard
+        map={scoredMap}
         onOpenMap={(id) => onOpen("map", id)}
         onBuildMap={() => onOpen("map", null, true)}
+        onFixIssues={() => onOpen("map", null, "validate")}
       />
 
       <IndexBasis />

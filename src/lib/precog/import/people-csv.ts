@@ -15,6 +15,7 @@ import { parseRoster } from "./roster";
 import { looksLikeRosterHeader, mapColumns, startsWithColumnHeading } from "./roster-columns";
 import { readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
 import { personDuties } from "../sod/assignments";
+import { ROLE_TEMPLATES } from "../sod/role-templates";
 
 export interface PeopleImportResult {
   people: Person[];
@@ -225,6 +226,16 @@ export function effectiveDuties(
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): string[] {
   return personDuties(person, roleTemplates);
+}
+
+/** True when neither the person nor their role gives any duties, so effectiveDuties falls back to reports only. */
+export function dutiesUnknown(
+  person: Pick<Person, "role" | "entitlements">,
+  roleTemplates: Readonly<Record<string, readonly string[]>>,
+): boolean {
+  return (
+    !person.entitlements?.length && !(roleTemplates[person.role] ?? ROLE_TEMPLATES[person.role])
+  );
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */

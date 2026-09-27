@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 import { personLocations } from "@/lib/precog/person-location";
 import type { Departure } from "@/lib/precog/continuity/access-removal";
 import { Plus, Trash2 } from "lucide-react";
-import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
+import { fieldCls } from "@/components/ui/field-classes";
 
 import {
   dutiesHeldByTitle,
@@ -672,7 +672,7 @@ export function IndustryOnboarding() {
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-muted">Business name</span>
                 <input
-                  className={cn(inputCls, "max-w-md")}
+                  className={cn(fieldCls, "max-w-md")}
                   placeholder={industry?.demoName ? `e.g. ${industry.demoName}` : "Business name"}
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -793,7 +793,7 @@ export function IndustryOnboarding() {
                           >
                             <input
                               id={nameInputId(index)}
-                              className={cn(inputCls, "w-28 sm:w-36")}
+                              className={cn(fieldCls, "w-28 sm:w-36")}
                               placeholder={index === 0 ? "Your name" : "Name"}
                               aria-label={`Person ${index + 1} name`}
                               value={row.name}
@@ -850,7 +850,7 @@ export function IndustryOnboarding() {
                           </th>
                           <td className="border-b border-border p-1.5" data-role-cell={rowKey}>
                             <input
-                              className={cn(inputCls, "w-44 sm:w-52")}
+                              className={cn(fieldCls, "w-44 sm:w-52")}
                               placeholder="e.g. Bookkeeper"
                               aria-label={`${who} job title`}
                               list="job-title-options"
@@ -969,7 +969,7 @@ export function IndustryOnboarding() {
                   <label className="flex flex-col gap-1 text-xs">
                     <span className="text-muted">Job title</span>
                     <select
-                      className={cn(inputCls, "w-56 max-w-full")}
+                      className={cn(fieldCls, "w-56 max-w-full")}
                       value={bulkRole}
                       onChange={(e) => setBulkTitle(e.target.value)}
                     >
@@ -983,7 +983,7 @@ export function IndustryOnboarding() {
                   <label className="flex flex-col gap-1 text-xs">
                     <span className="text-muted">Duty</span>
                     <select
-                      className={cn(inputCls, "w-56 max-w-full")}
+                      className={cn(fieldCls, "w-56 max-w-full")}
                       value={bulkPick}
                       onChange={(e) => setBulkDuty(e.target.value as EntitlementId)}
                       disabled={bulkDuties.length === 0}
@@ -1028,7 +1028,7 @@ export function IndustryOnboarding() {
                       are updated, not added twice. People marked inactive are left out.
                     </p>
                     <textarea
-                      className={cn(inputCls, "min-h-28 w-full font-mono text-xs")}
+                      className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}
                       aria-label="Pasted roster"
                       placeholder={
                         "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Front Desk"
@@ -1080,7 +1080,7 @@ export function IndustryOnboarding() {
                       <label className="flex flex-col gap-1 text-xs">
                         <span className="text-muted">Job title</span>
                         <select
-                          className={cn(inputCls, "w-64 max-w-full")}
+                          className={cn(fieldCls, "w-64 max-w-full")}
                           value={quickTitle}
                           onChange={(e) => setQuickTitle(e.target.value)}
                         >
@@ -1105,7 +1105,7 @@ export function IndustryOnboarding() {
                           type="number"
                           min={1}
                           max={20}
-                          className={cn(inputCls, "w-20")}
+                          className={cn(fieldCls, "w-20")}
                           value={quickCountText}
                           onChange={(e) => setQuickCountText(e.target.value)}
                           onBlur={() => setQuickCountText(String(quickCount))}

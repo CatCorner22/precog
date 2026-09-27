@@ -4,7 +4,7 @@ import { RotateCcw } from "lucide-react";
 import { restoreDeletedClient, setClientOwnerEmail } from "@/lib/precog/firm/server";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
-import { fieldCls } from "@/components/precog/builder/form-shared";
+import { fieldCls } from "@/components/ui/field-classes";
 import { cn } from "@/lib/utils";
 import { count } from "@/lib/precog/text";
 

@@ -1,16 +1,14 @@
 import { useMemo } from "react";
 
-import { usePracticeState } from "@/lib/precog/practice-context";
-
-import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 
-import type { Person } from "@/lib/precog/types";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { industryMeta } from "@/lib/precog/industry";
 
 import { diffMaps } from "@/lib/precog/builder/diff";
 import { starterProcesses } from "@/lib/precog/builder/map-state";
+import { industryMeta } from "@/lib/precog/industry";
+import { usePracticeState } from "@/lib/precog/practice-context";
+import type { Person, ProcessNode } from "@/lib/precog/types";
 
 export function ChangesView({
   processes,
@@ -36,10 +34,10 @@ export function ChangesView({
     const base = getIndustryTemplate(industry);
     return { processes: base.processes, people: base.people };
   }, [against, industry, ownStart, people]);
-  const { added, removed, modified, peopleAdded, peopleRemoved, total } = diffMaps(baseline, {
-    processes,
-    people,
-  });
+  const { added, removed, modified, peopleAdded, peopleRemoved, total } = useMemo(
+    () => diffMaps(baseline, { processes, people }),
+    [baseline, processes, people],
+  );
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">

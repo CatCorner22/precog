@@ -12,6 +12,7 @@ import {
   stripInvisibleControls,
   titleKey,
   uid,
+  uniqueId,
   verb,
 } from "./text";
 
@@ -119,5 +120,18 @@ describe("midSentence", () => {
     );
     expect(midSentence("A/R write-offs")).toBe("A/R write-offs");
     expect(midSentence("X-ray")).toBe("X-ray");
+  });
+});
+
+describe("uniqueId", () => {
+  it("adds -2, -3 until the id is free", () => {
+    const taken = new Set(["p-ana-ruiz", "p-ana-ruiz-2"]);
+    expect(uniqueId("p", "Ana Ruiz", taken)).toBe("p-ana-ruiz-3");
+    expect(uniqueId("p", "Ben", taken)).toBe("p-ben");
+  });
+
+  it("never returns the bare prefix for a name with no Latin letters", () => {
+    expect(uniqueId("p", "李明", new Set(), "person")).toBe("p-person");
+    expect(uniqueId("p", "王芳", new Set(["p-person"]), "person")).toBe("p-person-2");
   });
 });

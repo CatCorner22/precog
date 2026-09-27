@@ -8,7 +8,7 @@ import {
 import { clamp } from "@/lib/precog/number";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { cn } from "@/lib/utils";
-import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
+import { fieldCls } from "@/components/ui/field-classes";
 
 /** The short note under a row's job title: which catalog job ticked its duties. */
 export function SeatNote({ seat }: { seat: SeatReading | undefined }) {
@@ -47,7 +47,7 @@ export function AddDutyControl({
   return (
     <div className="mt-1 flex max-w-[11rem] items-center gap-1">
       <select
-        className={cn(inputCls, "min-h-7 min-w-0 flex-1 px-1 py-0.5 text-xs")}
+        className={cn(fieldCls, "min-h-7 min-w-0 flex-1 px-1 py-0.5 text-xs")}
         aria-label={`Other duty for ${who}`}
         data-add-duty
         value={chosen}
@@ -141,7 +141,7 @@ export function YearsHereInput({
         max={60}
         step={0.5}
         inputMode="decimal"
-        className={cn(inputCls, "min-h-7 w-16 px-1 py-0.5 text-xs")}
+        className={cn(fieldCls, "min-h-7 w-16 px-1 py-0.5 text-xs")}
         aria-label={`${who}: years of service`}
         value={text}
         onChange={(e) => setText(e.target.value)}

@@ -17,7 +17,7 @@ import type {
   InviteRole,
 } from "@/lib/precog/firm/store";
 import { formatDay } from "@/lib/precog/dates";
-import { fieldCls } from "@/components/precog/builder/form-shared";
+import { fieldCls } from "@/components/ui/field-classes";
 
 const ROLE_LABEL: Record<FirmRole, string> = {
   owner: "Owner",
