@@ -2,7 +2,7 @@ import { resolveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
 import type { PracticeProfile } from "../practice-profile";
-import { evidenceStatus } from "./evidence";
+import { evidenceStatus } from "../builder/evidence";
 import type { SharedMapPayload } from "./share-schema";
 import { firstName } from "../text";
 

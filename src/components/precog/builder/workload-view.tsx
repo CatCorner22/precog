@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/what-if";
+import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/workload";
 import { ChevronRight } from "lucide-react";
 
 export function WorkloadView({

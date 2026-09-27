@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 import { Loader2 } from "lucide-react";
 
-import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
-import { SHARE_PASSCODE_MIN } from "@/lib/precog/builder/share-schema";
+import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
+import { SHARE_PASSCODE_MIN } from "@/lib/precog/share/share-schema";
 
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Link } from "@tanstack/react-router";
@@ -22,7 +22,7 @@ export function SharePanel({
   buildPayload: (
     note?: string,
     redactNames?: boolean,
-  ) => import("@/lib/precog/builder/share-schema").SharedMapPayload;
+  ) => import("@/lib/precog/share/share-schema").SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [note, setNote] = useState("");

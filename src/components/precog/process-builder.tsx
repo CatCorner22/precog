@@ -30,13 +30,8 @@ import { industryMeta } from "@/lib/precog/industry";
 import { Blocks, GitCompare, Redo2, ShieldCheck, Undo2 } from "lucide-react";
 import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
-import {
-  analyzeWorkload,
-  healthDelta,
-  LOAD_BANDS,
-  previewMapHealth,
-  type HealthDelta,
-} from "@/lib/precog/builder/what-if";
+import { healthDelta, previewMapHealth, type HealthDelta } from "@/lib/precog/builder/what-if";
+import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
 import { ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
 import { BuilderTour } from "@/components/precog/builder-tour";
 import { useBuilderTour } from "@/components/precog/builder-tour-state";
@@ -48,7 +43,7 @@ import { Camera, ClipboardCheck, History } from "lucide-react";
 import { rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { summarizeEvidence } from "@/lib/precog/builder/evidence";
 
-import { buildSharePayload } from "@/lib/precog/builder/share-payload";
+import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
 

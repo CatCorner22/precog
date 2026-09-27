@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
+import { loadMapShare, type SharedMapPayload } from "@/lib/precog/share/share-server";
 import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
 import {
   PASSCODE_ATTEMPT_LIMIT,
   PASSCODE_ATTEMPT_WINDOW_MINUTES,
-} from "@/lib/precog/builder/share-attempts";
+} from "@/lib/precog/share/share-attempts";
 import { HEAT_BANDS } from "@/lib/precog/process-graph";
 import type { EvidenceFrequency } from "@/lib/precog/types";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
