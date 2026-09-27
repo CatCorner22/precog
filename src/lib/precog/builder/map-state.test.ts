@@ -59,9 +59,15 @@ describe("mapAssessed", () => {
     expect(mapAssessed({ ...profile, customProcesses: [] })).toBe(false);
   });
 
+  it("is false for the sample business once every process is deleted", () => {
+    expect(mapAssessed({ industry: "restaurant", customProcesses: [] })).toBe(false);
+    expect(mapNotAssessedNote({ industry: "restaurant", customProcesses: [] })).toBe(
+      "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.",
+    );
+  });
+
   it("is true for the sample business and once the owner edits the map or assigns an owner", () => {
     expect(mapAssessed({ industry: "dental" })).toBe(true);
-    expect(mapAssessed({ industry: "restaurant", customProcesses: [] })).toBe(true);
     const profile = ruiz();
     const first = resolveTemplate(profile).processes[0];
     const assigned = resolveTemplate({

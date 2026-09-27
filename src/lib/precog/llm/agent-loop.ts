@@ -6,6 +6,7 @@ import { runSpecialistAgents } from "./multi-agent";
 import { grokChat } from "./grok-client.server";
 import type { AgentRunResult, EvidenceRef, ReasoningStep, ToolResult } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
+import { ownerText } from "./prompt-text";
 import {
   chickenLittleCritique,
   extractEvidence,
@@ -155,7 +156,7 @@ Plain-spoken, active voice. Use only numbers the tools returned.`;
 
   const user = `QUESTION:
 <owner_text>
-${question.replaceAll("</owner_text>", "")}
+${ownerText(question)}
 </owner_text>
 
 TOOLS:

@@ -47,17 +47,12 @@ export function mapSource(profile: MapProfile): MapSource {
  * and every procedure as unwritten, and an empty map scores nothing at all.
  * Neither is a fact about the business, so the figures wait until the owner
  * assigns an owner to a process or builds their own map with at least one
- * process on it. The sample business is scored as it always was.
+ * process on it. The sample business is scored as it always was, unless
+ * every process on it was deleted.
  */
 export function mapAssessed(profile: MapProfile): boolean {
-  switch (mapSource(profile)) {
-    case "sample":
-      return true;
-    case "starter":
-      return false;
-    case "own":
-      return !profile.customProcesses || profile.customProcesses.length > 0;
-  }
+  if (profile.customProcesses?.length === 0) return false;
+  return mapSource(profile) !== "starter";
 }
 
 /** A process with its owners left out, keys sorted, for comparing content alone. */
