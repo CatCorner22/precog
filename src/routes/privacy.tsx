@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { formatDay } from "@/lib/precog/dates";
+import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/account-store";
 
 export const Route = createFileRoute("/privacy")({
@@ -21,6 +23,7 @@ function PrivacyPage() {
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-2xl px-6 py-10">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Precog Pioneer</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Privacy</h1>
+      <p className="mt-1 text-xs text-muted">Effective {formatDay(LEGAL_EFFECTIVE)}</p>
       <p className="mt-3 text-sm text-muted">
         Precog holds employee names, job titles, and a map of who can move money. That is personal
         data and a description of control weaknesses. This page says where each copy lives.
@@ -38,10 +41,28 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What is synced when you sign in</h2>
         <p>
-          Sign-in uses Google or X through the app’s auth broker. The session cookie stays on this
-          app. A signed-in save stores the business profile, assessment snapshots, and firm
-          workspace (firm name, client list, engagement stamps, and the monthly review log) in the
-          database, tied to your account. Another customer’s account cannot read them.
+          Sign-in uses Google or X through the app’s auth broker, or an email and password kept by
+          this app. For an email account the database holds your name, your email address, and a
+          hash of the password, never the password itself. The session cookie stays on this app. A
+          signed-in save stores the business profile, assessment snapshots, and firm workspace (firm
+          name, client list, engagement stamps, and the monthly review log) in the database, tied to
+          your account. Another customer’s account cannot read them.
+        </p>
+        <p>
+          When you connect QuickBooks Online, the database keeps the connection tokens, encrypted,
+          and the last twelve readings of the vendor and employee lists. Disconnecting deletes the
+          tokens and those readings.
+        </p>
+        <p>
+          When a firm pays through Stripe, the database keeps the Stripe customer and subscription
+          ids, the plan status, and the date the assessment was paid. The card itself goes to
+          Stripe; Precog never sees the card number.
+        </p>
+        <p>
+          A signed-in account with a business gets a weekly reminder email at its sign-in address,
+          sent through Resend, listing what is due. Turn it off under Reminders in the firm
+          workspace. If you turn on reminders for client owners, each owner gets a short note at the
+          address on their client card.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it

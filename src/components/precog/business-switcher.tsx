@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
 import { inputCls } from "@/components/precog/builder/form-shared";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -33,7 +34,7 @@ export function BusinessSwitcher() {
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState<IndustryId>("general");
   const ref = useRef<HTMLDivElement>(null);
-  const activeId = profile.businessId ?? "biz_default";
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
 
   useEffect(() => {
     if (!open) return;

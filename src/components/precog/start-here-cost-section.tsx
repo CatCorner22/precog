@@ -1,7 +1,8 @@
 import { Clock, Eye, ExternalLink, TrendingDown } from "lucide-react";
 import { SectionHeading, StatTile } from "./start-here-parts";
-import { joinClauses, ROUTE_CLAUSE } from "./start-here-copy";
-import { durationPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
+import { caseMedianComparison, joinClauses, ROUTE_CLAUSE } from "./start-here-copy";
+import { CASE_LIBRARY, durationPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
+import { count } from "@/lib/precog/text";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
@@ -19,6 +20,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
     medianDuration,
     delayCurve,
   } = model;
+  const comparison = caseMedianComparison(lossRange?.median, medianLoss?.numeric);
 
   return (
     <section className="space-y-3">
@@ -37,15 +39,19 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {lossRange && (
           <StatTile
-            label="Median loss in these prosecuted cases"
+            label={`Median loss in the ${count(lossRange.n, "prosecuted case")} behind this page`}
             value={formatUsd(lossRange.median)}
-            detail={`${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)} across ${lossRange.n} cases`}
+            detail={`${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)}${
+              lossRange.n < citing.count
+                ? `, across the ${lossRange.n} of ${citing.count} that state a figure`
+                : ""
+            }`}
           />
         )}
         {duration && (
           <StatTile
             label="How long they ran undetected"
-            value={`${Math.round(duration.median)} months`}
+            value={durationPhrase(duration.median)}
             detail={`Longest in this set: ${durationPhrase(duration.longest)}`}
           />
         )}
@@ -53,8 +59,8 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
           <StatTile
             label={
               smallOrg
-                ? "Median loss, organizations under 100 employees"
-                : "Median loss, given an investigated fraud"
+                ? "Median loss in the fraud study, organizations under 100 employees"
+                : "Median loss in the fraud study, given an investigated fraud"
             }
             value={medianLossValue ?? medianLoss.value}
             detail={medianLoss.study}
@@ -74,15 +80,15 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
       {lossRange && medianLoss && (
         <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
           <span className="font-medium text-muted">Read these numbers as conditional. </span>
-          Neither figure is a forecast for your business. Both describe what happened <em>
-            given
-          </em>{" "}
-          that a fraud occurred and was found: {medianLossValue ?? medianLoss.value} is the median
-          across investigated cases
-          {smallOrg ? " at organizations under 100 employees" : ""}, and the case range above is
-          higher still because federal prosecutors do not charge small thefts. Nothing here
-          estimates how likely any of it is to happen to you — that depends on the gaps listed at
-          the top of this page, not on a median.
+          Neither figure predicts your business. Both describe what happened once a fraud occurred
+          and was found. {medianLossValue ?? medianLoss.value} is the median across investigated
+          cases{smallOrg ? " at organizations under 100 employees" : ""}.{" "}
+          {comparison === "higher" &&
+            `The case median above sits higher: every case in this library was prosecuted by a U.S. Attorney's Office, and the smallest loss in it is ${formatUsd(SMALLEST_CASE_LOSS)}. `}
+          {comparison === "lower" &&
+            `The case median above sits lower; it rests on ${count(lossRange.n, "case")}. `}
+          Nothing here says how likely any of it is for you; that depends on the gaps listed at the
+          top of this page.
         </p>
       )}
 
@@ -142,3 +148,8 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
     </section>
   );
 }
+
+/** The smallest stated loss in the case library, quoted when the case median sits above the study's. */
+const SMALLEST_CASE_LOSS = Math.min(
+  ...CASE_LIBRARY.filter((c) => c.lossUsd > 0).map((c) => c.lossUsd),
+);

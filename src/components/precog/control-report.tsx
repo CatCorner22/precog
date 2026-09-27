@@ -1,30 +1,32 @@
-import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
+import { ArrowLeft, Printer } from "lucide-react";
+import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { getFirm } from "@/lib/precog/firm/server";
 import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import { useTemplate } from "@/lib/precog/use-template";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { registerAssessed, trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
+import type { DetectedConflict } from "@/lib/precog/sod/detect";
+import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
-import { isDecisionOpen, linkedKnowledgeId } from "@/lib/precog/decisions/follow-through";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
-import { ArrowLeft, Printer } from "lucide-react";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import { REPORT_CAVEATS } from "@/lib/precog/report/report-summary";
 import { ControlReportContinuitySections } from "@/components/precog/control-report-continuity-sections";
-import { ControlReportEvidenceSection } from "@/components/precog/control-report-evidence-section";
+import {
+  ControlReportCaseAppendix,
+  ControlReportEvidenceSection,
+} from "@/components/precog/control-report-evidence-section";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
-import { firstName } from "@/lib/precog/text";
+import { count, firstName, midSentence, verb } from "@/lib/precog/text";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.
@@ -33,31 +35,18 @@ import { firstName } from "@/lib/precog/text";
  */
 export function ControlReport({ locked = null }: { locked?: ReportVersionRow | null }) {
   const { profile, mapCustomized, replaceProfile } = usePractice();
-  const { user, isPending } = useCurrentUserState();
-  const [firmName, setFirmName] = useState<string | null>(null);
-  useEffect(() => {
-    if (isPending || !user) return;
-    let cancel = false;
-    void getFirm()
-      .then((res) => {
-        if (!cancel) setFirmName(res.firm?.name ?? null);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancel = true;
-    };
-  }, [isPending, user]);
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
-  const registerReady = registerAssessed(tpl);
+  const month = today.slice(0, 7);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
   const mapFrom = mapSource(profile);
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
+  const sentAt = profile.engagement?.reportSentAt;
 
   const data = useMemo(
     () =>
@@ -72,49 +61,16 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
       }),
     [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName],
   );
-
-  const {
-    policyNote,
-    threat,
-    portfolio,
-    sod,
-    continuity,
-    staleness,
-    checkIns,
-    docs,
-    cards,
-    leave,
-    debriefs,
-    leaving,
-    slips,
-    committed,
-    coso,
-    actions,
-    mapHealth,
-    issues,
-    evidence,
-    citing,
-    steps,
-    lossRange,
-    found,
-  } = data;
-  const history = profile.mapHealthHistory ?? [];
-  const firstPoint = history[0];
-  const healthDelta = mapReady && firstPoint ? mapHealth.score - firstPoint.score : null;
-  const top = threat.targetDeck.slice(0, 12);
-  const openDecisions = profile.decisions.slice(0, 10);
-  const continuityDecisions = profile.decisions.filter((d) =>
-    linkedKnowledgeId(d, profile.industry),
-  );
-  const openContinuity = continuityDecisions
-    .filter((d) => isDecisionOpen(d))
-    .sort((a, b) => (a.reviewBy ?? "").localeCompare(b.reviewBy ?? ""));
-  const doneContinuity = continuityDecisions.filter(
-    (d) => !isDecisionOpen(d) && d.reviews?.[d.reviews.length - 1]?.outcome === "done",
-  ).length;
-  const droppedContinuity = continuityDecisions.filter(
-    (d) => !isDecisionOpen(d) && d.reviews?.[d.reviews.length - 1]?.outcome !== "done",
-  ).length;
+  const { threat, portfolio, sod, coso, mapHealth, healthDelta, decisionLog } = data;
+  const mapIssues = data.issues.filter((i) => i.severity !== "info");
+  const sodRows = sod.conflicts
+    .slice()
+    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
+  const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
+  const reviews = REVIEW_ITEMS.map((item) => ({
+    item,
+    latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
+  }));
 
   return (
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
@@ -126,7 +82,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           >
             <ArrowLeft className="size-4" /> Back to dashboard
           </Link>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {locked ? (
               <Link
                 to="/report"
@@ -135,21 +91,29 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                 Back to the current report
               </Link>
             ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  replaceProfile({
-                    ...profile,
-                    engagement: {
-                      ...profile.engagement,
-                      reportSentAt: profile.engagement?.reportSentAt ?? new Date().toISOString(),
-                    },
-                  });
-                }}
-              >
-                {profile.engagement?.reportSentAt ? "Report marked sent" : "Mark report sent"}
-              </Button>
+              !sample && (
+                <>
+                  <span role="status" className="text-xs text-neutral-600">
+                    {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={Boolean(sentAt)}
+                    onClick={() => {
+                      replaceProfile({
+                        ...profile,
+                        engagement: {
+                          ...profile.engagement,
+                          reportSentAt: new Date().toISOString(),
+                        },
+                      });
+                    }}
+                  >
+                    {sentAt ? "Report marked sent" : "Mark report sent"}
+                  </Button>
+                </>
+              )
             )}
             <Button size="sm" onClick={() => window.print()}>
               <Printer className="size-3.5" /> Print / Save as PDF
@@ -165,7 +129,6 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             Internal control priorities{sample ? " · sample business" : ""}
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
-          {firmName && <p className="mt-1 text-sm text-neutral-700">Prepared by {firmName}</p>}
           {locked && (
             <p className="mt-1 text-sm font-medium text-neutral-800">
               {versionProvenance(locked)}
@@ -202,30 +165,13 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </section>
         )}
 
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold">Monthly review</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            Results the owner recorded for {today.slice(0, 7)}. Earlier results stay in the business
-            record and, when signed in, in the account log.
-          </p>
-          <ul className="mt-2 space-y-1 text-sm">
-            {REVIEW_ITEMS.map((item) => {
-              const latest = latestReview(
-                profile.monthlyReviews ?? [],
-                item.key,
-                today.slice(0, 7),
-              );
-              return (
-                <li key={item.key}>
-                  {item.title}:{" "}
-                  {latest
-                    ? `${latest.result}${latest.ownerName ? ` — ${latest.ownerName}` : ""}`
-                    : "not recorded"}
-                </li>
-              );
-            })}
+        <Section title="Executive summary">
+          <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">
+            {data.summary.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
           </ul>
-        </section>
+        </Section>
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Kpi
@@ -246,7 +192,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           <Kpi
             label="SoD health"
             value={String(sod.summary.segregationHealth)}
-            hint={`${sod.summary.critical} critical conflicts`}
+            hint={count(sod.summary.critical, "critical conflict")}
           />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
@@ -259,8 +205,8 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             <>
               <p className="text-sm text-neutral-700">
                 {mapHealth.summary}{" "}
-                {healthDelta !== null && healthDelta !== 0 && firstPoint
-                  ? `Score has moved ${healthDelta > 0 ? "+" : ""}${healthDelta} points since ${formatDay(firstPoint.at)}.`
+                {healthDelta
+                  ? `Score has moved ${healthDelta.points > 0 ? "+" : ""}${healthDelta.points} points since ${formatDay(healthDelta.since)}.`
                   : ""}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -270,7 +216,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                       <span className="text-xs font-medium">{d.label}</span>
                       <span className="text-sm font-bold tabular">{d.score}</span>
                     </div>
-                    <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+                    <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200" aria-hidden>
                       <div
                         className="h-full rounded-full bg-neutral-800"
                         style={{ width: `${d.score}%` }}
@@ -280,31 +226,20 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                   </div>
                 ))}
               </div>
-              {issues.filter((i) => i.severity !== "info").length > 0 && (
+              {mapIssues.length > 0 && (
                 <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-neutral-700">
-                  {issues
-                    .filter((i) => i.severity !== "info")
-                    .slice(0, 6)
-                    .map((i) => (
-                      <li key={i.id}>{i.message}</li>
-                    ))}
+                  {mapIssues.slice(0, 6).map((i) => (
+                    <li key={i.id}>{i.message}</li>
+                  ))}
                 </ul>
               )}
             </>
           )}
         </Section>
 
-        <Section title="Executive summary">
-          <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed">
-            {threat.missionBrief.slice(0, 5).map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </Section>
-
         <Section title="This week's actions">
           <ol className="space-y-2">
-            {actions.map((a, i) => (
+            {data.actions.map((a, i) => (
               <li key={a.id} className="flex gap-3 text-sm">
                 <span className="w-5 shrink-0 font-semibold tabular text-neutral-500">
                   {i + 1}.
@@ -323,6 +258,25 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </ol>
         </Section>
 
+        <Section title={`Monthly review · ${monthLabel(month)}`}>
+          {reviews.some((r) => r.latest) ? (
+            <ul className="space-y-1 text-sm">
+              {reviews.map(({ item, latest }) => (
+                <li key={item.key}>
+                  {item.title}:{" "}
+                  {latest
+                    ? `${latest.result}${latest.ownerName ? ` — ${latest.ownerName}` : ""}`
+                    : "not recorded"}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-neutral-700">
+              No monthly review results recorded for {monthLabel(month)}.
+            </p>
+          )}
+        </Section>
+
         <Section title="Priority stack">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -337,14 +291,11 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
                 </tr>
               </thead>
               <tbody>
-                {top.map((t, i) => (
+                {threat.targetDeck.map((t, i) => (
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
-                    <td className="py-1.5 pr-2">
-                      <p className="font-medium">{t.label}</p>
-                      <p className="text-xs text-neutral-600">{t.impactHint}</p>
-                    </td>
-                    <td className="py-1.5 pr-2 capitalize text-neutral-700">{t.kind}</td>
+                    <td className="py-1.5 pr-2 font-medium">{t.label}</td>
+                    <td className="py-1.5 pr-2 text-neutral-700">{KIND_LABEL[t.kind] ?? t.kind}</td>
                     <td className="py-1.5 pr-2">
                       <span
                         className={
@@ -369,7 +320,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </div>
           <p className="mt-2 text-xs text-neutral-600">
             Assumed loss is the scenario&apos;s assumption in this app, not a measured figure.
-            {policyNote ? ` Insurance: ${policyNote}.` : ""}
+            {data.policyNote ? ` Insurance: ${data.policyNote}.` : ""}
           </p>
         </Section>
 
@@ -379,52 +330,66 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length} people.{" "}
             {sod.summary.dualReleaseMitigated} mitigated by dual release.
           </p>
-          {sod.summary.unheldDuties.length > 0 && (
+          {unheld.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
-              Nobody active is marked for:{" "}
-              {sod.summary.unheldDuties.map((d) => entitlementLabel(d)).join(", ")}. Somebody does
-              each of these in every business that handles money; until the team records who, these
-              findings cannot see that seat.
+              Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
+              {verb(unheld.length, "this", "each of these")} in every {industry.teamLabel} that
+              handles money; until the team records who, the findings cannot cover{" "}
+              {verb(unheld.length, "that duty", "those duties")}.
             </p>
           )}
+          {sodRows.length > 0 && (
+            <>
+              <table className="mt-3 w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
+                    <th className="py-1.5 pr-2">Person</th>
+                    <th className="py-1.5 pr-2">Duties held together</th>
+                    <th className="py-1.5 pr-2">Severity</th>
+                    <th className="py-1.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sodRows.map((c) => (
+                    <tr key={c.id} className="border-b border-neutral-200 align-top">
+                      <td className="py-1.5 pr-2">{c.personName}</td>
+                      <td className="py-1.5 pr-2">
+                        {c.labelA} + {midSentence(c.labelB)}
+                      </td>
+                      <td className="py-1.5 pr-2">{SEVERITY_LABEL[c.severity]}</td>
+                      <td className="py-1.5 text-neutral-700">{conflictStatus(c)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-1 text-xs text-neutral-500">
+                Each row says what one person&apos;s duties allow, not anything they have done.
+              </p>
+            </>
+          )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-            {sod.recommendations.slice(0, 4).map((r) => (
+            {sod.recommendations.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>
         </Section>
 
         <ControlReportEvidenceSection
-          evidence={evidence}
-          citing={citing}
-          steps={steps}
-          lossRange={lossRange}
-          found={found}
+          evidence={data.evidence}
+          citing={data.citing}
+          steps={data.steps}
+          lossRange={data.lossRange}
+          found={data.found}
+          statsScope={data.statsScope}
         />
 
         <ControlReportContinuitySections
-          registerReady={registerReady}
-          tpl={tpl}
-          industry={industry}
+          model={data}
           trackFreshness={trackFreshness}
           today={today}
-          profile={profile}
-          continuityDecisions={continuityDecisions}
-          openContinuity={openContinuity}
-          doneContinuity={doneContinuity}
-          droppedContinuity={droppedContinuity}
-          model={{
-            continuity,
-            staleness,
-            checkIns,
-            docs,
-            cards,
-            leave,
-            debriefs,
-            leaving,
-            slips,
-            committed,
-          }}
+          industryId={profile.industry}
+          industryLabel={industry.label}
+          knowledgeCount={tpl.knowledge.length}
         />
 
         <Section title="Process map">
@@ -464,32 +429,80 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </ul>
         </Section>
 
-        {openDecisions.length > 0 && (
+        {decisionLog.shown.length > 0 && (
           <Section title="Decision log">
             <ul className="space-y-1.5 text-sm">
-              {openDecisions.map((d) => (
+              {decisionLog.shown.map(({ decision: d, status }) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">
                   <p>
                     <span className="font-medium">{DECISION_KIND_LABEL[d.kind]}</span> · {d.subject}
                     <span className="text-neutral-500">
                       {" "}
-                      · {formatDay(d.createdAt)}
-                      {d.reviewBy ? ` · review ${formatDay(d.reviewBy)}` : ""}
+                      · {status} · logged {formatDay(d.createdAt)}
+                      {d.reviewBy && status === "open" ? ` · review ${formatDay(d.reviewBy)}` : ""}
                     </span>
                   </p>
                   {d.note && <p className="text-neutral-600">{d.note}</p>}
                 </li>
               ))}
             </ul>
+            {decisionLog.more > 0 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                The {decisionLog.shown.length} newest decisions are shown;{" "}
+                {count(decisionLog.more, "earlier decision is", "earlier decisions are")} not.
+              </p>
+            )}
           </Section>
         )}
 
         <footer className="mt-8 border-t border-neutral-300 pt-3 text-xs leading-relaxed text-neutral-500">
-          {threat.caveats.join(" ")} Educational internal-control decision support — not actuarial,
-          legal, or forensic advice, and never an accusation against any person. Generated by Precog
-          Pioneer.
+          {REPORT_CAVEATS} Educational internal-control decision support — not actuarial, legal, or
+          forensic advice, and never an accusation against any person. Generated by Precog Pioneer.
         </footer>
+
+        <ControlReportCaseAppendix evidence={data.evidence} />
       </article>
     </div>
   );
+}
+
+/** Plain names for the priority stack's target kinds. */
+const KIND_LABEL: Record<string, string> = {
+  sod: "Duty conflict",
+  control: "Control",
+  knowledge: "Know-how held by one person",
+  scenario: "Scenario",
+  process: "Process",
+};
+
+const SEVERITY_ORDER: Record<DetectedConflict["severity"], number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  family: 3,
+};
+
+const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  family: "Related duties",
+};
+
+const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
+
+/** Where a conflict stands: open, or why the business has set it aside. */
+function conflictStatus(
+  c: Pick<DetectedConflict, "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated">,
+): string {
+  if (c.ownerHeld) return "Owner's own duties";
+  if (c.residualRiskAccepted) return "Risk accepted by the owner";
+  if (c.dualReleaseMitigated) return "Covered by dual release";
+  return "Open";
+}
+
+/** "2026-09" as "September 2026". */
+function monthLabel(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  return year && month ? MONTH.format(new Date(year, month - 1, 1)) : period;
 }

@@ -35,11 +35,12 @@ import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store"
 import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export function ValueProofCenter() {
   const workspace = useWorkspace();
   const { profile } = usePracticeState();
-  const businessId = profile.businessId ?? "biz_default";
+  const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const [inputs, setInputs] = useState<ValueCaseInputs>(DEFAULT_VALUE_CASE);
   // Inputs the owner typed into, so a figure they enter that happens to equal
   // the app default still counts as theirs.

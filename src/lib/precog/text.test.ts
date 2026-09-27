@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  midSentence,
   count,
   firstName,
   joinWithAnd,
@@ -80,5 +81,14 @@ describe("uid", () => {
     const ids = Array.from({ length: 2000 }, () => uid("ev"));
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids[0]).toMatch(/^ev_[a-z0-9]+_[a-z0-9]{1,6}$/);
+  });
+});
+
+describe("midSentence", () => {
+  it("lower-cases the first word unless it is an acronym", () => {
+    expect(midSentence("Bank reconciliation")).toBe("bank reconciliation");
+    expect(midSentence("A weekly review")).toBe("a weekly review");
+    expect(midSentence("ACH initiation")).toBe("ACH initiation");
+    expect(midSentence("approve write-offs")).toBe("approve write-offs");
   });
 });

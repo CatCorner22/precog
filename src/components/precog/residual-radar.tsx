@@ -266,7 +266,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           </Card>
         </div>
       </div>
-      <ScoringBasis template={template} staff={profile.staff} sensitivity={sensitivity} />
+      <ScoringBasis sensitivity={sensitivity} />
     </div>
   );
 }

@@ -31,6 +31,7 @@ import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 import { uid } from "./text";
 import { boundedNumber } from "./number";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
@@ -275,7 +276,7 @@ export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
   const tpl = getIndustryTemplate(p.industry);
   const history = p.mapHealthHistory ?? [];
   return {
-    id: p.businessId ?? "biz_default",
+    id: p.businessId ?? DEFAULT_BUSINESS_ID,
     name: p.practiceName,
     industry: p.industry,
     updatedAt: p.updatedAt,
@@ -304,7 +305,7 @@ export function loadPortfolio(storage = browserStorage()): Record<string, Practi
  */
 export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): void {
   if (profile.onboardingComplete === false) return;
-  const id = profile.businessId ?? "biz_default";
+  const id = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const all = loadPortfolio(storage);
   all[id] = { ...profile, businessId: id };
   writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);

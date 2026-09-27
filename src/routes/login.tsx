@@ -2,6 +2,9 @@ import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "@/lib/auth/email-password";
+import { signInErrorMessage } from "@/lib/auth/sign-in-error";
+import { PILOT_OFFER } from "@/lib/precog/firm/pricing";
+import { formatUsd } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 
@@ -10,7 +13,8 @@ export const Route = createFileRoute("/login")({
 });
 
 const inputCls =
-  "w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle focus:border-primary/50";
+  "mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle focus:border-primary/50";
+const labelCls = "block text-xs font-medium text-muted";
 
 function Login() {
   return (
@@ -19,35 +23,69 @@ function Login() {
         <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog Pioneer</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-muted">
-          Sync your business profile, decision journal, and control settings across devices.
+          An account keeps your businesses, snapshots, and shared map links on every device you sign
+          in from. Signing in is free. Advisors who look after several businesses can add the{" "}
+          {PILOT_OFFER.monthlyLabel.toLowerCase()} ({formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month
+          for up to {PILOT_OFFER.monthlyClients} clients).
         </p>
-        <div className="mt-6 space-y-2">
-          {authEnabled ? (
-            GROK_PROVIDERS.map((p) => (
-              <Button
-                key={p.providerId}
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/" })}
-              >
-                Continue with {p.label}
-              </Button>
-            ))
-          ) : (
-            <p className="text-sm text-muted">Sign-in is disabled in this environment.</p>
-          )}
-        </div>
+        {authEnabled ? (
+          <ProviderButtons />
+        ) : (
+          <p className="mt-6 text-sm text-muted">Sign-in is disabled in this environment.</p>
+        )}
         {authEnabled && emailAndPasswordEnabled && <EmailPasswordForm />}
         <Link
           to="/"
           className="mt-6 block text-center text-sm text-muted underline-offset-4 hover:text-fg hover:underline"
         >
-          Continue as guest demo
+          Continue without an account — your work stays in this browser
         </Link>
         <LegalFooter className="mt-4 justify-center" />
       </div>
     </main>
+  );
+}
+
+/**
+ * Google and X sign-in. A blocked or cancelled pop-up and a broker error each
+ * show a message, and the buttons wait while a sign-in is under way.
+ */
+function ProviderButtons() {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function start(providerId: string) {
+    setError(null);
+    setBusy(true);
+    try {
+      await signIn(providerId, { callbackURL: "/" });
+    } catch (err) {
+      setError(signInErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-2">
+      {GROK_PROVIDERS.map((p) => (
+        <Button
+          key={p.providerId}
+          type="button"
+          variant="secondary"
+          className="w-full"
+          disabled={busy}
+          onClick={() => void start(p.providerId)}
+        >
+          Continue with {p.label}
+        </Button>
+      ))}
+      {error && (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -111,40 +149,46 @@ function EmailPasswordForm() {
         </button>
       </div>
       {mode === "create" && (
+        <label className={labelCls}>
+          Name
+          <input
+            className={inputCls}
+            type="text"
+            name="name"
+            autoComplete="name"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+          />
+        </label>
+      )}
+      <label className={labelCls}>
+        Email
         <input
           className={inputCls}
-          type="text"
-          name="name"
-          autoComplete="name"
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={80}
+          type="email"
+          name="email"
+          autoComplete="email"
+          placeholder="you@firm.com"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
-      )}
-      <input
-        className={inputCls}
-        type="email"
-        name="email"
-        autoComplete="email"
-        placeholder="you@firm.com"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        className={inputCls}
-        type="password"
-        name="password"
-        autoComplete={mode === "create" ? "new-password" : "current-password"}
-        placeholder={
-          mode === "create" ? `Password (${PASSWORD_MIN_LENGTH}+ characters)` : "Password"
-        }
-        required
-        minLength={PASSWORD_MIN_LENGTH}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      </label>
+      <label className={labelCls}>
+        {mode === "create" ? `Password (at least ${PASSWORD_MIN_LENGTH} characters)` : "Password"}
+        <input
+          className={inputCls}
+          type="password"
+          name="password"
+          autoComplete={mode === "create" ? "new-password" : "current-password"}
+          required
+          minLength={PASSWORD_MIN_LENGTH}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
       {error && (
         <p role="alert" className="text-xs text-danger">
           {error}

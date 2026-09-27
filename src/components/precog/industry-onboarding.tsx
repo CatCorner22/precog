@@ -80,6 +80,7 @@ import { SeatNote, AddDutyControl } from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
 import { titleKey } from "@/lib/precog/text";
 import { clamp } from "@/lib/precog/number";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 export function IndustryOnboarding() {
   const workspace = useWorkspace();
   const {
@@ -132,7 +133,7 @@ export function IndustryOnboarding() {
   const [restoredEarlier, setRestoredEarlier] = useState(false);
   // This browser keeps nothing the app writes (site data blocked).
   const [keepsNothing, setKeepsNothing] = useState(false);
-  const businessId = profile.businessId ?? "biz_default";
+  const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   // Restore after mount, so the server-rendered dialog and the first client
   // render agree; then keep the draft in step with every edit, including the
   // line of business picked and a roster pasted but not yet used.

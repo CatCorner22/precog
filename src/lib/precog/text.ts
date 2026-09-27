@@ -27,6 +27,15 @@ export function joinWithAnd(parts: readonly string[], max?: number): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
+/**
+ * A label lower-cased for use mid-sentence, unless its first word is an
+ * acronym: "Bank reconciliation" becomes "bank reconciliation", "ACH
+ * initiation" stays as written.
+ */
+export function midSentence(label: string): string {
+  return label.replace(/^([A-Z])(?![A-Z])/, (m) => m.toLowerCase());
+}
+
 /** "1 person", "3 people", "2 entries": the number and the noun that agrees with it. */
 export function count(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;

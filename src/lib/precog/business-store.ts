@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * Revision-checked write of one business row.
@@ -420,7 +421,7 @@ export async function loadActiveBusiness<
   const active = pointer[0];
   if (!active) return null;
   const businessId =
-    typeof active.profile.businessId === "string" ? active.profile.businessId : "biz_default";
+    typeof active.profile.businessId === "string" ? active.profile.businessId : DEFAULT_BUSINESS_ID;
 
   const pointerOwner = active.profile.ownerUserId;
   const permitted =

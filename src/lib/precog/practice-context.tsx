@@ -1,4 +1,5 @@
 import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 /* eslint-disable react-refresh/only-export-components */
 
 import {
@@ -320,7 +321,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   const activateProfile = useCallback(
     (next: PracticeProfile) => {
       clearHistory();
-      lineage.start(next.businessId ?? "biz_default", next.updatedAt);
+      lineage.start(next.businessId ?? DEFAULT_BUSINESS_ID, next.updatedAt);
       setProfile({ load: next });
     },
     [lineage, clearHistory],
