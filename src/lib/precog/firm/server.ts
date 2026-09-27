@@ -507,7 +507,7 @@ async function emailInvitation(
     return true;
   } catch (err) {
     const { reportServerError } = await import("@/lib/observability/report.server");
-    reportServerError(err, "firm-invite-email");
+    await reportServerError(err, "firm-invite-email");
     return false;
   }
 }

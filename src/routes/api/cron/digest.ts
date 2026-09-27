@@ -85,7 +85,7 @@ async function stage<T>(
   } catch (err) {
     failures.push(name);
     const { reportServerError } = await import("@/lib/observability/report.server");
-    reportServerError(err, `cron-${name}`);
+    await reportServerError(err, `cron-${name}`);
     return null;
   }
 }

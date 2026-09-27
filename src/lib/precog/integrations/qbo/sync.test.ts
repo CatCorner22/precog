@@ -10,7 +10,17 @@ import {
   saveConnection,
   statusOf,
 } from "./store";
-import { removeConnection, syncConnection, syncDueConnections } from "./sync.server";
+import {
+  recordReadingFailure,
+  removeConnection,
+  syncConnection,
+  syncDueConnections,
+} from "./sync.server";
+
+const report = vi.hoisted(() => ({
+  error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
+}));
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
 
 /** A stand-in for Intuit: named-list rows by entity, and every query it was asked. */
 function fakeIntuit(books: { Vendor: object[]; Employee: object[] }) {
@@ -187,6 +197,22 @@ describe("QuickBooks reading", () => {
       "QuickBooks no longer accepts this connection. Disconnect and connect again.",
     );
     expect(row.lastSyncedAt).toBe(connection.lastSyncedAt);
+  });
+
+  it("waits for the error report before it records a failed reading", async () => {
+    const connection = await connect(db.sql);
+    let deliver = () => {};
+    report.error.mockImplementationOnce(() => new Promise<void>((resolve) => (deliver = resolve)));
+    let settled = false;
+    const recorded = recordReadingFailure(db.sql, connection, new Error("boom")).then((text) => {
+      settled = true;
+      return text;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+    deliver();
+    await recorded;
+    expect(report.error).toHaveBeenCalledWith(expect.any(Error), "qbo-reading");
   });
 
   it("skips expired connections in the scheduled pass and flags them for reconnecting", async () => {

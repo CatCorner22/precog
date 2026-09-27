@@ -115,7 +115,7 @@ export async function recordReadingFailure(
   connection: Pick<ConnectionRow, "ownerUserId" | "businessId">,
   err: unknown,
 ): Promise<string> {
-  reportServerError(err, "qbo-reading");
+  await reportServerError(err, "qbo-reading");
   const message = readingFailureMessage(err);
   await markSynced(sql, connection.ownerUserId, connection.businessId, message);
   return message;
