@@ -154,7 +154,7 @@ try {
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL(base + "/");
   await oldTab
-    .getByText(/The account changed/)
+    .getByText(/The signed-in account changed/)
     .first()
     .waitFor();
   assert.equal(

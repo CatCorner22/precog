@@ -29,3 +29,13 @@ export const GROK_PROVIDERS: readonly GrokProvider[] = [
   { providerId: "grok-google", idp: "google", label: "Google" },
   { providerId: "grok-x", idp: "twitter", label: "X" },
 ];
+
+/**
+ * What the live-preview sign-in pop-up (`popup.server.ts`) posts to the
+ * opener (`client.ts`): the new session token, or the reason sign-in failed.
+ */
+export type PopupMessage = {
+  source: "grok-auth-popup";
+  token: string | null;
+  error?: string;
+};

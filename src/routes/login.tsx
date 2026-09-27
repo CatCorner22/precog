@@ -1,6 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import {
+  GROK_PROVIDERS,
+  authClient,
+  authEnabled,
+  signIn,
+  signInErrorMessage,
+} from "@/lib/auth/client";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "@/lib/auth/email-password";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
@@ -13,6 +19,12 @@ const inputCls =
   "w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-fg placeholder:text-subtle focus:border-primary/50";
 
 function Login() {
+  const [providerError, setProviderError] = useState<string | null>(null);
+  // A failed or cancelled provider step returns here with `?error=<code>`.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code) setProviderError(signInErrorMessage(code));
+  }, []);
   return (
     <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
@@ -29,13 +41,25 @@ function Login() {
                 type="button"
                 variant="secondary"
                 className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+                onClick={() => {
+                  setProviderError(null);
+                  signIn(p.providerId, { callbackURL: "/" }).catch((error: unknown) =>
+                    setProviderError(
+                      error instanceof Error ? error.message : signInErrorMessage("sign_in_failed"),
+                    ),
+                  );
+                }}
               >
                 Continue with {p.label}
               </Button>
             ))
           ) : (
             <p className="text-sm text-muted">Sign-in is disabled in this environment.</p>
+          )}
+          {providerError && (
+            <p role="alert" className="text-xs text-danger">
+              {providerError}
+            </p>
           )}
         </div>
         {authEnabled && emailAndPasswordEnabled && <EmailPasswordForm />}

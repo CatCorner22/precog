@@ -2,13 +2,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "@/lib/db";
-import { toSql, transactionScope } from "@/lib/sql-transaction";
+import { pgliteSql } from "@/lib/pglite-sql";
 
 /**
  * An embedded Postgres with every file in migrations/ applied, for store
  * tests: the real schema (composite keys, constraints, cascades), not a
- * hand-written stand-in. Same placeholder rewriting as src/lib/db.ts `toSql`,
- * without importing the app's db bootstrap.
+ * hand-written stand-in. The same `Sql` adapter as the preview
+ * (src/lib/pglite-sql.ts), without importing the app's db bootstrap.
  */
 export interface TestDb {
   pg: PGlite;
@@ -21,19 +21,9 @@ export interface TestDb {
 
 const MIGRATIONS_DIR = join(process.cwd(), "migrations");
 
-export function pgliteSql(db: PGlite): Sql {
-  const sql = toSql(
-    async <T>(text: string, params: unknown[]) => (await db.query<T>(text, params)).rows,
-  );
-  sql.transaction = (work) =>
-    db.transaction((tx) =>
-      transactionScope(
-        async <T>(text: string, params: unknown[]) => (await tx.query<T>(text, params)).rows,
-        work,
-      ),
-    );
-  return sql;
-}
+/** Inserts one verified user row; shared with ./safety-db.ts. */
+export const SEED_USER_SQL = `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+  values ($1, $1, $2, true, now(), now())`;
 
 export async function openTestDb(): Promise<TestDb> {
   const pg = new PGlite();
@@ -44,11 +34,7 @@ export async function openTestDb(): Promise<TestDb> {
     pg,
     sql: pgliteSql(pg),
     seedUser: async (id, email = `${id}@example.test`) => {
-      await pg.query(
-        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-         values ($1, $1, $2, true, now(), now())`,
-        [id, email],
-      );
+      await pg.query(SEED_USER_SQL, [id, email]);
     },
     clear: async (...tables) => {
       await pg.exec(tables.map((t) => `delete from ${t};`).join(" "));

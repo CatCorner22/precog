@@ -11,7 +11,8 @@ let sent = 0;
 const seen = new Set<string>();
 
 export function reportClientError(error: unknown, at?: string | null): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isChunkLoadError(error) || isBenignBrowserNoise(error))
+    return;
   const event = toErrorEvent(error, {
     where: "client",
     at: at ?? window.location.pathname,
@@ -36,6 +37,16 @@ export function reportClientError(error: unknown, at?: string | null): void {
   }
 }
 
+/**
+ * A stale bundle after a deploy: the page asks for a chunk the new release
+ * renamed. A reload fixes it, so it is not a crash worth reporting.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError/i.test(
+    describe(error),
+  );
+}
+
 /** Uncaught errors and rejected promises outside React's error boundaries. */
 export function installGlobalErrorReporting(): () => void {
   if (typeof window === "undefined") return () => undefined;
@@ -51,4 +62,14 @@ export function installGlobalErrorReporting(): () => void {
     window.removeEventListener("error", onError);
     window.removeEventListener("unhandledrejection", onRejection);
   };
+}
+
+/** The browser's harmless ResizeObserver notice, which every layout change can raise. */
+function isBenignBrowserNoise(error: unknown): boolean {
+  return /ResizeObserver loop/i.test(describe(error));
+}
+
+function describe(error: unknown): string {
+  if (error instanceof Error) return `${error.name} ${error.message}`;
+  return typeof error === "string" ? error : "";
 }

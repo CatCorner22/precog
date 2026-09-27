@@ -14,7 +14,12 @@ import {
   type SetStateAction,
 } from "react";
 import { toast } from "sonner";
-import { identityLocked, subscribeIdentity } from "@/lib/auth/identity-change";
+import {
+  identityLockReason,
+  subscribeIdentity,
+  type IdentityLock,
+} from "@/lib/auth/identity-change";
+import { ACCOUNT_CHANGED_MESSAGE } from "@/lib/auth/expected-account";
 import { WorkspaceProvider, useWorkspace } from "./workspace-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type {
@@ -273,19 +278,18 @@ export function PracticeContextPublisher({
  */
 export function PracticeProvider({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
-  const locked = useSyncExternalStore(subscribeIdentity, identityLocked, () => false);
-  if (isPending || locked)
+  const lock = useSyncExternalStore(subscribeIdentity, identityLockReason, () => null);
+  if (isPending || lock)
     return (
       <main className="p-6" role="status">
-        {locked ? (
+        {lock ? IDENTITY_LOCK_TEXT[lock] : "Checking your account…"}
+        {(lock === "other-tab" || lock === "changed") && (
           <>
-            The account changed. Reload to open the current account.{" "}
-            <button type="button" onClick={() => window.location.reload()}>
-              Reload securely
+            {" "}
+            <button type="button" className="underline" onClick={() => window.location.reload()}>
+              Reload
             </button>
           </>
-        ) : (
-          "Checking your account…"
         )}
       </main>
     );
@@ -296,6 +300,14 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
     </WorkspaceProvider>
   );
 }
+
+/** This tab's own sign-in or sign-out needs no reload; another tab's change does. */
+const IDENTITY_LOCK_TEXT: Record<IdentityLock, string> = {
+  "signing-in": "Signing you in…",
+  "signing-out": "Signing you out…",
+  "other-tab": "Another tab is signing in or out. This page continues when it finishes.",
+  changed: ACCOUNT_CHANGED_MESSAGE,
+};
 
 function AccountPracticeProvider({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();

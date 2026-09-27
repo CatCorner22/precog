@@ -1,7 +1,7 @@
 import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
-import { getSql } from "@/lib/db";
+import { databaseConfigured, getSql } from "@/lib/db";
 import { withinDailyBudget } from "./daily-usage";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 import type { GrokAccess } from "./types";
@@ -46,7 +46,7 @@ export async function resolveLlmAccess(
   if (!ipResult.allowed) throw new TooManyRequestsError(ipResult.retryAfterMs);
 
   let userId: string | null = null;
-  if (!authConfigured && !process.env.DATABASE_URL?.trim()) {
+  if (!authConfigured && !databaseConfigured) {
     userId = DEV_USER_ID;
   } else {
     userId = (await getSessionUser(bearerToken))?.id ?? null;

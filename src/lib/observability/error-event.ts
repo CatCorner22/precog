@@ -22,9 +22,16 @@ const MAX_AT_CHARS = 200;
 
 const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
 const BEARER = /bearer\s+[\w.~+/=-]+/gi;
-/** Long opaque strings: session tokens, share tokens, API keys, base64 blobs. */
-const TOKEN = /\b[A-Za-z0-9_-]{32,}\b/g;
-const JWT = /\b[\w-]+\.[\w-]+\.[\w-]+\b/g;
+/**
+ * Long opaque strings: session tokens, share tokens, API keys, base64 blobs.
+ * A long hashed bundle name (`chunk-<hash>.js`) is a file, not a secret.
+ */
+const TOKEN = /\b[A-Za-z0-9_-]{32,}\b(?!\.(?:[cm]?js|jsx|tsx?|css|map)\b)/g;
+/**
+ * Three base64url segments, each at least 16 characters (a JWT header alone
+ * is 20), so hostnames, versions and dotted file names survive.
+ */
+const JWT = /\b[\w-]{16,}\.[\w-]{16,}\.[\w-]{16,}\b/g;
 /**
  * Double-quoted text is what a person typed: a business name, a note, a
  * vendor. Straight apostrophes stay, so "can't" in a message survives.
@@ -62,10 +69,9 @@ export function toErrorEvent(
   input: { where: ErrorEvent["where"]; at?: string | null; release?: string | null; now?: Date },
 ): ErrorEvent {
   const err = error instanceof Error ? error : null;
-  const rawMessage = err ? err.message : typeof error === "string" ? error : "Unknown error";
   return {
-    message: scrubText(rawMessage || "Unknown error", MAX_MESSAGE_CHARS),
-    name: err?.name?.slice(0, 80) || "Error",
+    message: scrubText(messageOf(error) || "Unknown error", MAX_MESSAGE_CHARS),
+    name: nameOf(error)?.slice(0, 80) || "Error",
     stack: err?.stack ? scrubText(err.stack, MAX_STACK_CHARS) : null,
     where: input.where,
     at: scrubLocation(input.at),
@@ -89,4 +95,35 @@ export function isErrorEventPayload(value: unknown): value is ErrorEvent {
     typeof v.occurredAt === "string" &&
     (v.release === null || typeof v.release === "string")
   );
+}
+
+/**
+ * A rejection is often not an Error: a library's `{ message, code }`, a
+ * failed fetch's Response, a DOMException-like object. Keep what it says.
+ */
+function messageOf(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (typeof Response !== "undefined" && error instanceof Response)
+    return `HTTP ${error.status}${error.statusText ? ` ${error.statusText}` : ""}`;
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+    try {
+      return JSON.stringify(error).slice(0, MAX_MESSAGE_CHARS);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return "Unknown error";
+}
+
+function nameOf(error: unknown): string | undefined {
+  if (error instanceof Error) return error.name;
+  if (typeof Response !== "undefined" && error instanceof Response) return "Response";
+  if (error && typeof error === "object") {
+    const name = (error as { name?: unknown }).name;
+    if (typeof name === "string") return name;
+  }
+  return undefined;
 }
