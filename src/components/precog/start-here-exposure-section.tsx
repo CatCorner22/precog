@@ -1,16 +1,15 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { BADGE_VARIANT, LONG_SERVICE_YEARS, lower } from "./start-here-copy";
+import { BADGE_VARIANT, LONG_SERVICE_YEARS } from "./start-here-copy";
 import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
 import { closingSteps, gapBadge } from "@/lib/precog/coach/first-steps";
-import { midSentence } from "@/lib/precog/sod/verdict";
 import { personLabel } from "@/lib/precog/person-label";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
-import { joinWithAnd } from "@/lib/precog/text";
+import { joinWithAnd, midSentence } from "@/lib/precog/text";
 
 export function StartHereExposureSection({
   model,
@@ -137,7 +136,7 @@ export function StartHereExposureSection({
                   </div>
                   <CardTitle as="h3" className="leading-snug">
                     {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
-                    {lower(conflict.labelA)} and {lower(conflict.labelB)}
+                    {midSentence(conflict.labelA)} and {midSentence(conflict.labelB)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">

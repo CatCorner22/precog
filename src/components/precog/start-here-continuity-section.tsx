@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "./use-start-here";
 import { formatDayRange } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
+import type { AbsenceWindow } from "@/lib/precog/continuity/planned-absence";
+import { outStopsNote, WEIGHTED_SHARE_NOTE } from "./start-here-copy";
 
 export function StartHereContinuitySection({
   model,
@@ -84,13 +86,13 @@ export function StartHereContinuitySection({
                     </div>
                     {o.stops.length === 0 ? (
                       <p className="mt-1 text-xs text-muted">
-                        Everything they run, someone else can run alone.
+                        {outStopsNote(0, waitingFor(o.window), staffingToday.assessed)}
                       </p>
                     ) : (
                       <ul className="mt-1 space-y-1 text-xs text-muted">
                         {o.stops.slice(0, 4).map((s) => (
                           <li key={s.item.id} className="flex flex-wrap items-center gap-x-2">
-                            <span className="text-foreground">{s.item.name}</span>
+                            <span className="text-fg">{s.item.name}</span>
                             <span>
                               {s.standIn
                                 ? `→ ${firstName(s.standIn.name)}${s.cold ? " (starting cold)" : ""}`
@@ -213,6 +215,9 @@ export function StartHereContinuitySection({
                   done items whose coverage or documentation regressed
                 </p>
               </div>
+              <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">
+                {WEIGHTED_SHARE_NOTE}
+              </p>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -240,4 +245,11 @@ export function StartHereContinuitySection({
       </Card>
     </section>
   );
+}
+
+/** Must-do entries nobody can run alone that already waited before this absence began. */
+function waitingFor(window: AbsenceWindow): number {
+  return (window.todayImpact ?? window.impact).alreadyStopped.filter(
+    (k) => k.criticality !== "nice-to-have",
+  ).length;
 }

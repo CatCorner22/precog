@@ -16,6 +16,7 @@ import {
 import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
 import { closingSteps } from "./first-steps";
 import { personLabel } from "../person-label";
+import { midSentence } from "../text";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -96,14 +97,9 @@ export function openConflictsByPerson(
   );
 }
 
-/** Lower-cases the first letter for mid-sentence use, keeping acronyms ("ACH") as written. */
-function lower(label: string): string {
-  return label.replace(/^([A-Z])(?![A-Z])/, (m) => m.toLowerCase());
-}
-
 /** "set up suppliers and release payments" */
 function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
-  return `${lower(c.labelA)} and ${lower(c.labelB)}`;
+  return `${midSentence(c.labelA)} and ${midSentence(c.labelB)}`;
 }
 
 /** The owner-doable statement step, phrased for "This week: ...". */
@@ -128,8 +124,8 @@ function conflictDecision(
     first.controlsInPlace,
   )[0];
   return {
-    action: `Give one of ${person.personName}'s duties to someone else: ${lower(first.labelA)} or ${lower(first.labelB)}`,
-    rationale: `${personLabel(person.personName, person.role)} can both ${pairWords(first)}, a ${first.severity === "family" ? "duty" : first.severity} conflict${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${lower(meanwhile).replace(/\.$/, "")}.` : ""}`,
+    action: `Give one of ${person.personName}'s duties to someone else: ${midSentence(first.labelA)} or ${midSentence(first.labelB)}`,
+    rationale: `${personLabel(person.personName, person.role)} can both ${pairWords(first)}, a ${first.severity === "family" ? "duty" : first.severity} conflict${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${midSentence(meanwhile).replace(/\.$/, "")}.` : ""}`,
     evidenceIds: [],
     effort: "medium",
     horizonDays: 14,
@@ -209,7 +205,7 @@ function conflictLine(p: PersonConflicts): string {
 /** The one move for the next seven days when a conflict leads. */
 function thisWeek(p: PersonConflicts): string {
   const c = p.conflicts[0];
-  return `This week: give one of ${p.personName}'s duties (${lower(c.labelA)} or ${lower(c.labelB)}) to someone else, and ${STATEMENT_THIS_WEEK}.`;
+  return `This week: give one of ${p.personName}'s duties (${midSentence(c.labelA)} or ${midSentence(c.labelB)}) to someone else, and ${STATEMENT_THIS_WEEK}.`;
 }
 
 /**

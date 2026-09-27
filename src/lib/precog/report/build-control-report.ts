@@ -26,6 +26,8 @@ import {
 import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { registerAssessed } from "../continuity/register-state";
+import { continuityFollowThrough, decisionLog, executiveSummary } from "./report-summary";
 
 /**
  * Everything the printed report shows, computed once from the template and
@@ -138,8 +140,31 @@ export function buildControlReportModel({
   const statsFrom = citing.count > 0 ? citing.cases : evidence;
   const lossRange = observedLossRange(statsFrom);
   const found = detectionBreakdown(statsFrom);
+  // Which cases the figures describe, and how many stated losses are only a
+  // floor ("at least $X"), so the report can say both beside the median.
+  const statsScope = {
+    cases: citing.count > 0 ? ("citing" as const) : ("related" as const),
+    count: statsFrom.length,
+    floors: statsFrom.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
+  };
   const docs = documentationDebt(tpl);
+  const firstPoint = profile.mapHealthHistory?.[0];
+  const healthDelta =
+    mapReady && firstPoint && mapHealth.score !== firstPoint.score
+      ? { points: mapHealth.score - firstPoint.score, since: firstPoint.at }
+      : null;
+  const registerReady = registerAssessed(tpl);
+  const summary = executiveSummary({
+    conflicts: sod.conflicts,
+    firstStep: steps[0]?.control.label ?? null,
+    registerReady,
+    coverageIndex: continuity.coverageIndex,
+    singlePoints: continuity.singlePoints.length,
+    mapHealth: mapReady ? mapHealth : null,
+    topPriority: threat.targetDeck[0]?.label ?? null,
+  });
   return {
+    summary,
     threat,
     portfolio,
     sod,
@@ -162,7 +187,12 @@ export function buildControlReportModel({
     steps,
     lossRange,
     found,
+    statsScope,
     policyNote,
+    healthDelta,
+    registerReady,
+    decisionLog: decisionLog(profile.decisions),
+    followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };
 }
 
