@@ -26,7 +26,7 @@ import {
   type PlannedAbsenceReport,
 } from "@/lib/precog/continuity/planned-absence";
 import type { PlannedAbsence } from "@/lib/precog/practice-profile";
-import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import type { IndustryTemplate } from "@/lib/precog/templates";
 import { joinWithAnd, firstName } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";

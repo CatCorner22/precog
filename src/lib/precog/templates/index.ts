@@ -1,4 +1,4 @@
-import { industryMeta, type IndustryId } from "../industry";
+import { DEFAULT_INDUSTRY, industryMeta, type IndustryId } from "../industry";
 import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustrySample, IndustryTemplate } from "./types";
 import { CASE_LIBRARY, casesForSodRules } from "../evidence";
@@ -6,7 +6,6 @@ import type { CaseStudy } from "../evidence/types";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts } from "../sod/detect";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
-import { DEFAULT_FRAUD_STATS } from "./shared-controls";
 import { dentalTemplate } from "./dental";
 import { retailTemplate } from "./retail";
 import { professionalServicesTemplate } from "./professional-services";
@@ -19,7 +18,7 @@ export type { IndustryTemplate } from "./types";
 
 /** The sample business for an industry, with its derived figures (see IndustrySample). */
 export function getIndustryTemplate(id: IndustryId): IndustryTemplate {
-  const key = id in REGISTRY ? id : "dental";
+  const key = id in REGISTRY ? id : DEFAULT_INDUSTRY;
   return (BUILT[key] ??= sampleTemplate(REGISTRY[key]));
 }
 
@@ -70,7 +69,6 @@ function sampleTemplate(sample: IndustrySample): IndustryTemplate {
       segregationScore: 0,
       ...safeguards,
     },
-    crimeFraudStats: DEFAULT_FRAUD_STATS,
   };
   const tpl = { ...draft, controls: controlsAsHeld(draft) };
   // The sample states who reconciles; its people carry no duty lists to read it from.

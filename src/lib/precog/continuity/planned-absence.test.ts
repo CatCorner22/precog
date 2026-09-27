@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { normalizePlannedAbsences, type PlannedAbsence } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   absencesNeedingAttention,

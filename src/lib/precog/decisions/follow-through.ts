@@ -23,7 +23,7 @@ import type {
 import { portfolioSummary } from "../scoring/residual-engine";
 import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person, StaffComposition } from "../types";
 import { localDateKey, dateAfter } from "../dates";
 

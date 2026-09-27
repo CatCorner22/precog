@@ -10,6 +10,7 @@ import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals } from "./counterfactual";
 import { computeEvoi } from "./evoi";
 import type { IndustryTemplate } from "../../templates";
+import { DEFAULT_FRAUD_STATS } from "../../templates/shared-controls";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { rankDangerousScenarios, runPrecogScenario } from "../../engine";
@@ -79,7 +80,7 @@ export function runAdvancedReasoning(
     : null;
 
   const bayes = initBayesianState({
-    assumedPrior: tpl.crimeFraudStats.assumedControlFailurePrior,
+    assumedPrior: DEFAULT_FRAUD_STATS.assumedControlFailurePrior,
     retainedExpected: top?.retainedImpact.expected ?? 25000,
     residualAverage: residual,
     leadingPressure: leading.pressureIndex,

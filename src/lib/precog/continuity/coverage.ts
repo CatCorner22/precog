@@ -7,7 +7,7 @@
  * the status labels order attention, and the backup ranking is a heuristic
  * described in `suggestBackups`.
  */
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import { registerAssessed } from "./register-state";
 import type {
   Criticality,

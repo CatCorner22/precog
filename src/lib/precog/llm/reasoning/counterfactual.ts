@@ -7,6 +7,7 @@ import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { simulateCascadeLever, type CascadeLeverId } from "../../scoring/variable-cascade";
 import { initBayesianState, updateBayesianWithLever, type BayesianState } from "./bayesian";
 import type { IndustryTemplate } from "../../templates";
+import { DEFAULT_FRAUD_STATS } from "../../templates/shared-controls";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { runPrecogScenario } from "../../engine";
@@ -88,7 +89,7 @@ export function runCounterfactuals(
     : null;
 
   const baseBayes = initBayesianState({
-    assumedPrior: tpl.crimeFraudStats.assumedControlFailurePrior,
+    assumedPrior: DEFAULT_FRAUD_STATS.assumedControlFailurePrior,
     retainedExpected: topResult?.retainedImpact.expected ?? 25000,
     residualAverage: portfolioSummary(tpl, staff).averageResidual,
     leadingPressure: leading.pressureIndex,

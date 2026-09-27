@@ -1,6 +1,12 @@
 import type { IndustrySample } from "./types";
 import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
+/**
+ * A general small business of about six people: the owner, an operations
+ * manager who handles vendors, payments and payroll, a sales lead, an admin
+ * who bills and collects, an accounts payable clerk and a bookkeeper. It uses
+ * the shared controls and scenarios as they are.
+ */
 export const generalTemplate: IndustrySample = {
   id: "general",
   people: [
@@ -11,6 +17,43 @@ export const generalTemplate: IndustrySample = {
     { id: "p5", name: "Riley Kim", role: "AP Clerk", active: true, tenureYears: 2 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
+  roleTemplates: {
+    Owner: [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Operations Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_vendor",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Sales Lead": ["view_reports_only"],
+    "Admin / AR": [
+      "collect_cash",
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "view_reports_only",
+    ],
+    "AP Clerk": ["create_vendor", "release_payment", "view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "bank_reconcile",
+      "post_adjustments",
+      "approve_writeoffs",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -443,41 +486,4 @@ export const generalTemplate: IndustrySample = {
       "The AR admin (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
     knowledgeId: "k1",
   }),
-  roleTemplates: {
-    Owner: [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Operations Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_vendor",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Sales Lead": ["view_reports_only"],
-    "Admin / AR": [
-      "collect_cash",
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "view_reports_only",
-    ],
-    "AP Clerk": ["create_vendor", "release_payment", "view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "bank_reconcile",
-      "post_adjustments",
-      "approve_writeoffs",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

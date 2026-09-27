@@ -32,7 +32,7 @@ import {
   leavers,
 } from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
-import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import type { IndustryTemplate } from "@/lib/precog/templates";
 import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
   casesForControl,

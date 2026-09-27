@@ -95,8 +95,20 @@ export function industryHasOwner(id: string | undefined): boolean {
   return id !== "nonprofit";
 }
 
+/**
+ * The industry whose sample stands in when a stored industry is not one the
+ * app knows. Every lookup by industry (metadata, sample, copy) falls back to
+ * it, so an unknown value never mixes one industry's team with another's words.
+ */
+export const DEFAULT_INDUSTRY: IndustryId = "dental";
+
 export function industryMeta(id: IndustryId): IndustryMeta {
-  return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES[0];
+  return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES.find((i) => i.id === DEFAULT_INDUSTRY)!;
+}
+
+/** The plural of the industry's word for a business: "practices", "companies", "businesses". */
+export function pluralTeamLabel(id: IndustryId): string {
+  return industryMeta(id).teamLabelPlural;
 }
 
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));

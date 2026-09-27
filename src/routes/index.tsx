@@ -42,7 +42,6 @@ import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
-import { pluralTeamLabel } from "@/lib/precog/templates/industry-copy";
 import { assessCoso, type DeepLinkTarget } from "@/lib/precog/coso";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
@@ -70,7 +69,7 @@ import {
   buildProcessMapGraph,
   validateProcessMap,
 } from "@/lib/precog/process-graph";
-import { industryMeta } from "@/lib/precog/industry";
+import { industryMeta, pluralTeamLabel } from "@/lib/precog/industry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

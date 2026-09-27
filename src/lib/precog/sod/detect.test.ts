@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { CONFLICT_RULES, type EntitlementId } from "./conflict-rules";
 import {

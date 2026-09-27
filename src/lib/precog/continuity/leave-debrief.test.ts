@@ -5,7 +5,7 @@ import {
   type DecisionEntry,
   type PlannedAbsence,
 } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   DEBRIEF_WINDOW_DAYS,

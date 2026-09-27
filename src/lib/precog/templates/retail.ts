@@ -1,6 +1,13 @@
 import type { IndustrySample } from "./types";
 import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
+/**
+ * A clothing boutique of about six people: the owner, a store manager who
+ * handles vendors, deposits and payroll, a lead cashier who knows the
+ * register overrides, an inventory lead, web-store fulfillment and a
+ * bookkeeper. It uses the shared controls and scenarios, and adds a receiving
+ * and count check of its own.
+ */
 export const retailTemplate: IndustrySample = {
   id: "retail",
   people: [
@@ -11,6 +18,40 @@ export const retailTemplate: IndustrySample = {
     { id: "p5", name: "Riley Park", role: "E-commerce Fulfillment", active: true, tenureYears: 2 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
+  roleTemplates: {
+    Owner: [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Store Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_writeoffs",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Lead Cashier": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
+    "Inventory Lead": ["view_reports_only"],
+    "E-commerce Fulfillment": ["post_adjustments", "view_reports_only"],
+    Bookkeeper: [
+      "post_adjustments",
+      "post_payments",
+      "approve_writeoffs",
+      "bank_reconcile",
+      "create_vendor",
+      "release_payment",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -515,38 +556,4 @@ export const retailTemplate: IndustrySample = {
     knowledgeId: "k1",
     billingLabel: "Markdown / adjustment authority without dual control",
   }),
-  roleTemplates: {
-    Owner: [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Store Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_writeoffs",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Lead Cashier": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
-    "Inventory Lead": ["view_reports_only"],
-    "E-commerce Fulfillment": ["post_adjustments", "view_reports_only"],
-    Bookkeeper: [
-      "post_adjustments",
-      "post_payments",
-      "approve_writeoffs",
-      "bank_reconcile",
-      "create_vendor",
-      "release_payment",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

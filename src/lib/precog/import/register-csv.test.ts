@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { coverageReport } from "../continuity/coverage";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import { parseRegisterCsv, registerTemplateCsv, registerToCsv } from "./register-csv";
 

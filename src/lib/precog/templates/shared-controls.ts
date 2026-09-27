@@ -1,6 +1,18 @@
 import type { ControlItem, ScenarioTemplate, CrimeFraudStats } from "../types";
 import type { SamplePaymentSafeguards } from "./types";
 
+type Mitigation = ScenarioTemplate["mitigations"][number];
+
+/** How one sample words a shared scenario: its own text, relabelled mitigations, extra ones. */
+export type ScenarioChange = Partial<
+  Pick<ScenarioTemplate, "title" | "description" | "knowledgeId" | "controlId" | "sodRuleIds">
+> & {
+  /** New labels for shared mitigations, by mitigation id. */
+  relabel?: Partial<Record<string, string>>;
+  /** Mitigations only this sample offers, after the shared ones. */
+  extraMitigations?: Mitigation[];
+};
+
 /**
  * Core financial SoD controls reused across industry templates. `changes`
  * rewords or re-flags a control by id for one sample, so every sample keeps
@@ -15,6 +27,146 @@ export function baseFinancialControls(
     compensatingControls: [...c.compensatingControls],
     ...changes[c.id],
   }));
+}
+
+/**
+ * The key-person scenario, worded for the sample's own expert, followed by
+ * the shared fraud scenarios (see sharedFraudScenarios).
+ */
+export function baseFraudScenarios(opts: {
+  keyPersonTitle: string;
+  keyPersonDesc: string;
+  knowledgeId: string;
+  billingLabel?: string;
+  changes?: Partial<Record<string, ScenarioChange>>;
+}): ScenarioTemplate[] {
+  const keyPerson: ScenarioTemplate = {
+    id: "sc-key-person-leaves",
+    title: opts.keyPersonTitle,
+    description: opts.keyPersonDesc,
+    knowledgeId: opts.knowledgeId,
+    ...SCENARIO_FIGURES.keyPerson,
+    cascadeLayers: ["knowledge", "process", "surface", "continuity"],
+    mitigations: [
+      {
+        id: "m1",
+        label: "Cross-train backup with documented SOP",
+        effort: "medium",
+        riskReduction: 0.55,
+        costAnnual: 2400,
+      },
+      {
+        id: "m2",
+        label: "Record tribal knowledge before exit",
+        effort: "low",
+        riskReduction: 0.35,
+        costAnnual: 400,
+      },
+    ],
+  };
+  const changes = { ...opts.changes };
+  if (opts.billingLabel) {
+    changes["sc-writeoff-abuse"] = { title: opts.billingLabel, ...changes["sc-writeoff-abuse"] };
+  }
+  return [
+    applyScenarioChange(keyPerson, changes["sc-key-person-leaves"]),
+    ...sharedFraudScenarios(changes),
+  ];
+}
+
+/**
+ * The three fraud scenarios every sample shares (cash posting and
+ * reconciliation, write-offs, vendor setup and payment), reworded by id.
+ */
+export function sharedFraudScenarios(
+  changes: Partial<Record<string, ScenarioChange>> = {},
+): ScenarioTemplate[] {
+  return SHARED_FRAUD_SCENARIOS.map((s) => applyScenarioChange(s, changes[s.id]));
+}
+
+/**
+ * Timeline and loss inputs for each kind of scenario. They are illustrative
+ * model inputs, not measurements, and every sample reuses the set for the
+ * closest scheme so one change moves them all: the cash scenario for
+ * skimming, card abuse, payroll padding, trust money and sales tax; the
+ * write-off scenario for non-cash theft, restricted funds and the tip pool;
+ * vendor fraud for invented vendors, subcontractors and kickbacks.
+ */
+export const SCENARIO_FIGURES = {
+  keyPerson: {
+    baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
+    baseFinancialImpact: { expected: 16500, low: 7000, high: 38000 },
+  },
+  cash: {
+    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
+    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
+  },
+  writeoff: {
+    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
+    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
+  },
+  vendor: {
+    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
+    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
+  },
+} satisfies Record<string, Pick<ScenarioTemplate, "baseTimelineDays" | "baseFinancialImpact">>;
+
+/**
+ * No sample has either payment safeguard yet: one person can release a
+ * payment and nobody independent reconciles the bank. The other team figures
+ * are derived from each sample's people (see IndustrySample).
+ */
+export const SAMPLE_SAFEGUARDS: SamplePaymentSafeguards = {
+  dualControlPayments: false,
+  independentBankRec: false,
+};
+
+/**
+ * Published fraud statistics, shared by every industry.
+ *
+ * Every figure below comes from the ACFE's Occupational Fraud 2026: A Report
+ * to the Nations — 2,402 cases across 143 countries, investigated and closed
+ * between January 2024 and September 2025. The one exception is the prior,
+ * which is labelled as the assumption it is.
+ *
+ * This record is deliberately identical across industries. The previous
+ * per-industry rates (dental 18%, professional services 16%, restaurant 22%)
+ * implied a precision no study supports, and the variation between them was
+ * invented.
+ */
+export const DEFAULT_FRAUD_STATS: CrimeFraudStats = {
+  // Not a measurement. See CrimeFraudStats for why this is an assumption and
+  // why it does not vary by industry.
+  assumedControlFailurePrior: 0.15,
+  medianLossSmallOrgUsd: 126_000,
+  medianLossAllUsd: 104_000,
+  revenueLossRateAnnual: 0.05,
+  medianDetectionMonths: 12,
+  lossIfCaughtEarlyUsd: 40_000,
+  // Published as "exceeding $1.1 million" — an open-ended floor. Recorded as
+  // that floor rather than a manufactured precise figure.
+  lossIfRunsLongUsd: 1_100_000,
+  shareFoundUnderSixMonths: 0.33,
+  shareRunningOverFiveYears: 0.05,
+  source:
+    "ACFE, Occupational Fraud 2026: A Report to the Nations (2,402 cases, 143 countries). Figures describe organizations that suffered an investigated fraud; they are not a forecast for any particular business.",
+  sourceUrl: "https://www.acfe.com/fraud-resources/report-to-the-nations",
+};
+
+function applyScenarioChange(
+  scenario: ScenarioTemplate,
+  change: ScenarioChange | undefined,
+): ScenarioTemplate {
+  if (!change) return { ...scenario, mitigations: scenario.mitigations.map((m) => ({ ...m })) };
+  const { relabel = {}, extraMitigations = [], ...text } = change;
+  return {
+    ...scenario,
+    ...text,
+    mitigations: [
+      ...scenario.mitigations.map((m) => ({ ...m, label: relabel[m.id] ?? m.label })),
+      ...extraMitigations,
+    ],
+  };
 }
 
 const BASE_CONTROLS: readonly ControlItem[] = [
@@ -92,141 +244,64 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
 ];
 
-export function baseFraudScenarios(opts: {
-  keyPersonTitle: string;
-  keyPersonDesc: string;
-  knowledgeId: string;
-  billingLabel?: string;
-}): ScenarioTemplate[] {
-  return [
-    {
-      id: "sc-key-person-leaves",
-      title: opts.keyPersonTitle,
-      description: opts.keyPersonDesc,
-      knowledgeId: opts.knowledgeId,
-      baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
-      baseFinancialImpact: { expected: 16500, low: 7000, high: 38000 },
-      cascadeLayers: ["knowledge", "process", "surface", "continuity"],
-      mitigations: [
-        {
-          id: "m1",
-          label: "Cross-train backup with documented SOP",
-          effort: "medium",
-          riskReduction: 0.55,
-          costAnnual: 2400,
-        },
-        {
-          id: "m2",
-          label: "Record tribal knowledge before exit",
-          effort: "low",
-          riskReduction: 0.35,
-          costAnnual: 400,
-        },
-      ],
-    },
-    {
-      id: "sc-cash-sod-failure",
-      title: "Unsegregated cash + reconciliation control fails",
-      description: "Same person posts payments and reconciles bank with weak independent review.",
-      controlId: "c-sod-cash",
-      baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-      baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-      cascadeLayers: ["control", "process", "surface", "continuity"],
-      mitigations: [
-        {
-          id: "m4",
-          label: "Independent bank recon by owner weekly",
-          effort: "low",
-          riskReduction: 0.5,
-          costAnnual: 0,
-        },
-        {
-          id: "m5",
-          label: "Split posting vs deposit custody",
-          effort: "medium",
-          riskReduction: 0.7,
-          costAnnual: 0,
-        },
-      ],
-    },
-    {
-      id: "sc-writeoff-abuse",
-      title: opts.billingLabel ?? "Write-off authority without dual control",
-      description:
-        "Staff can post large adjustments without independent approval — revenue leakage path.",
-      controlId: "c-sod-billing",
-      baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-      baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-      cascadeLayers: ["control", "knowledge", "process", "continuity"],
-      mitigations: [
-        {
-          id: "m7",
-          label: "Require owner approval above threshold",
-          effort: "low",
-          riskReduction: 0.6,
-          costAnnual: 0,
-        },
-      ],
-    },
-    {
-      id: "sc-vendor-fraud",
-      title: "Vendor setup + payment not segregated",
-      description: "AP can create vendors and release payments — fictitious vendor path.",
-      controlId: "c-sod-ap",
-      baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-      baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
-      cascadeLayers: ["control", "source", "process", "continuity"],
-      mitigations: [
-        {
-          id: "m9",
-          label: "Dual bank release on ACH above threshold",
-          effort: "medium",
-          riskReduction: 0.75,
-          costAnnual: 0,
-        },
-      ],
-    },
-  ];
-}
-
-/**
- * No sample has either payment safeguard yet: one person can release a
- * payment and nobody independent reconciles the bank. The other team figures
- * are derived from each sample's people (see IndustrySample).
- */
-export const SAMPLE_SAFEGUARDS: SamplePaymentSafeguards = {
-  dualControlPayments: false,
-  independentBankRec: false,
-};
-
-/**
- * Published fraud statistics, shared by every industry.
- *
- * Every figure below comes from the ACFE's Occupational Fraud 2026: A Report
- * to the Nations — 2,402 cases across 143 countries, investigated and closed
- * between January 2024 and September 2025. The one exception is the prior,
- * which is labelled as the assumption it is.
- *
- * This record is deliberately identical across industries. The previous
- * per-industry rates (dental 18%, professional services 16%, restaurant 22%)
- * implied a precision no study supports, and the variation between them was
- * invented.
- */
-export const DEFAULT_FRAUD_STATS: CrimeFraudStats = {
-  // Not a measurement. See CrimeFraudStats for why this is an assumption and
-  // why it does not vary by industry.
-  assumedControlFailurePrior: 0.15,
-  medianLossSmallOrgUsd: 126_000,
-  medianLossAllUsd: 104_000,
-  revenueLossRateAnnual: 0.05,
-  medianDetectionMonths: 12,
-  lossIfCaughtEarlyUsd: 40_000,
-  // Published as "exceeding $1.1 million" — an open-ended floor. Recorded as
-  // that floor rather than a manufactured precise figure.
-  lossIfRunsLongUsd: 1_100_000,
-  shareFoundUnderSixMonths: 0.33,
-  shareRunningOverFiveYears: 0.05,
-  source:
-    "ACFE, Occupational Fraud 2026: A Report to the Nations (2,402 cases, 143 countries). Figures describe organizations that suffered an investigated fraud; they are not a forecast for any particular business.",
-  sourceUrl: "https://www.acfe.com/fraud-resources/report-to-the-nations",
-};
+const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
+  {
+    id: "sc-cash-sod-failure",
+    title: "Unsegregated cash + reconciliation control fails",
+    description: "Same person posts payments and reconciles bank with weak independent review.",
+    controlId: "c-sod-cash",
+    ...SCENARIO_FIGURES.cash,
+    cascadeLayers: ["control", "process", "surface", "continuity"],
+    mitigations: [
+      {
+        id: "m4",
+        label: "Independent bank recon by owner weekly",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m5",
+        label: "Split posting vs deposit custody",
+        effort: "medium",
+        riskReduction: 0.7,
+        costAnnual: 0,
+      },
+    ],
+  },
+  {
+    id: "sc-writeoff-abuse",
+    title: "Write-off authority without dual control",
+    description:
+      "Staff can post large adjustments without independent approval — revenue leakage path.",
+    controlId: "c-sod-billing",
+    ...SCENARIO_FIGURES.writeoff,
+    cascadeLayers: ["control", "knowledge", "process", "continuity"],
+    mitigations: [
+      {
+        id: "m7",
+        label: "Require owner approval above threshold",
+        effort: "low",
+        riskReduction: 0.6,
+        costAnnual: 0,
+      },
+    ],
+  },
+  {
+    id: "sc-vendor-fraud",
+    title: "Vendor setup + payment not segregated",
+    description: "AP can create vendors and release payments — fictitious vendor path.",
+    controlId: "c-sod-ap",
+    ...SCENARIO_FIGURES.vendor,
+    cascadeLayers: ["control", "source", "process", "continuity"],
+    mitigations: [
+      {
+        id: "m9",
+        label: "Dual bank release on ACH above threshold",
+        effort: "medium",
+        riskReduction: 0.75,
+        costAnnual: 0,
+      },
+    ],
+  },
+];

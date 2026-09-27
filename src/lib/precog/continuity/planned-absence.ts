@@ -1,6 +1,6 @@
 import type { IndustryId } from "../industry";
 import type { PlannedAbsence } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import { absenceImpact, listOr, type AbsenceImpact, type AbsenceStop } from "./absence-impact";
 import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";

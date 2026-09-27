@@ -1,8 +1,18 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustrySample } from "./types";
-import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
+import {
+  baseFinancialControls,
+  baseFraudScenarios,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
+} from "./shared-controls";
 
 /**
+ * A consulting firm of about six people: a managing partner, an office
+ * manager who holds the client funds and handles vendors and payroll, a
+ * senior consultant, a billing coordinator, an admin assistant and a
+ * bookkeeper who deposits, pays and reconciles. It uses the shared controls
+ * and scenarios, and adds client trust funds.
+ *
  * Client trust funds. A firm that holds client money before it is earned
  * (retainers, advance fees, money held for a client's costs) keeps it apart
  * from its own, recorded by client, and reconciles it monthly: the bank
@@ -14,71 +24,6 @@ import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./
  * another's is the misappropriation pattern the reconciliation exists to
  * catch; no rate is given for it here.
  */
-const trustControls: ControlItem[] = [
-  {
-    id: "c-trust-rec",
-    name: "Three-way trust reconciliation",
-    description:
-      "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a partner who did not prepare the reconciliation reviews and signs it.",
-    duties: ["reconciliation", "review"],
-    segregated: false,
-    compensatingControls: ["Managing partner reads the trust bank statement monthly"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-trust-disb",
-    name: "Trust disbursement approval",
-    description:
-      "No money leaves the trust account without a matter, enough funds in that client's ledger, and a partner's approval; only partners sign trust checks or release trust wires.",
-    duties: ["authorization", "custody"],
-    segregated: false,
-    compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
-    residualRiskAccepted: false,
-  },
-];
-
-/*
- * Timeline and loss figures reuse the shared cash scenario's illustrative
- * model inputs; they are assumptions, not measurements.
- */
-const trustScenarios: ScenarioTemplate[] = [
-  {
-    id: "sc-trust-misappropriation",
-    title: "Client trust money taken and covered with other clients' funds",
-    description:
-      "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
-    controlId: "c-trust-rec",
-    sodRuleIds: ["rule-release-rec", "rule-cash-rec"],
-    knowledgeId: "k7",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-trust-1",
-        label: "A partner who did not prepare it signs the three-way reconciliation monthly",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-trust-2",
-        label: "Only partners approve and sign trust disbursements",
-        effort: "low",
-        riskReduction: 0.6,
-        costAnnual: 0,
-      },
-      {
-        id: "m-trust-3",
-        label: "Trust bank statements go to the managing partner first",
-        effort: "low",
-        riskReduction: 0.35,
-        costAnnual: 0,
-      },
-    ],
-  },
-];
-
 export const professionalServicesTemplate: IndustrySample = {
   id: "professional_services",
   people: [
@@ -89,6 +34,44 @@ export const professionalServicesTemplate: IndustrySample = {
     { id: "p5", name: "Riley Kim", role: "Admin Assistant", active: true, tenureYears: 2 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
+  roleTemplates: {
+    "Managing Partner": [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Office Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_vendor",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Senior Consultant": ["view_reports_only"],
+    "Billing Coordinator": [
+      "post_adjustments",
+      "post_payments",
+      "approve_writeoffs",
+      "view_reports_only",
+    ],
+    "Admin Assistant": ["view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "prepare_deposit",
+      "bank_reconcile",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -646,7 +629,29 @@ export const professionalServicesTemplate: IndustrySample = {
       ],
     },
   ],
-  controls: [...baseFinancialControls(), ...trustControls],
+  controls: [
+    ...baseFinancialControls(),
+    {
+      id: "c-trust-rec",
+      name: "Three-way trust reconciliation",
+      description:
+        "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a partner who did not prepare the reconciliation reviews and signs it.",
+      duties: ["reconciliation", "review"],
+      segregated: false,
+      compensatingControls: ["Managing partner reads the trust bank statement monthly"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-trust-disb",
+      name: "Trust disbursement approval",
+      description:
+        "No money leaves the trust account without a matter, enough funds in that client's ledger, and a partner's approval; only partners sign trust checks or release trust wires.",
+      duties: ["authorization", "custody"],
+      segregated: false,
+      compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
+      residualRiskAccepted: false,
+    },
+  ],
   staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
@@ -656,44 +661,39 @@ export const professionalServicesTemplate: IndustrySample = {
       knowledgeId: "k1",
       billingLabel: "Client write-offs without partner approval",
     }),
-    ...trustScenarios,
+    {
+      id: "sc-trust-misappropriation",
+      title: "Client trust money taken and covered with other clients' funds",
+      description:
+        "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
+      controlId: "c-trust-rec",
+      sodRuleIds: ["rule-release-rec", "rule-cash-rec"],
+      knowledgeId: "k7",
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-trust-1",
+          label: "A partner who did not prepare it signs the three-way reconciliation monthly",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-trust-2",
+          label: "Only partners approve and sign trust disbursements",
+          effort: "low",
+          riskReduction: 0.6,
+          costAnnual: 0,
+        },
+        {
+          id: "m-trust-3",
+          label: "Trust bank statements go to the managing partner first",
+          effort: "low",
+          riskReduction: 0.35,
+          costAnnual: 0,
+        },
+      ],
+    },
   ],
-  roleTemplates: {
-    "Managing Partner": [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Office Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_vendor",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Senior Consultant": ["view_reports_only"],
-    "Billing Coordinator": [
-      "post_adjustments",
-      "post_payments",
-      "approve_writeoffs",
-      "view_reports_only",
-    ],
-    "Admin Assistant": ["view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "prepare_deposit",
-      "bank_reconcile",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

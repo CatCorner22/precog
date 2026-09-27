@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import { controlOptions, detectSodConflicts } from "./detect";
 import type { EntitlementId } from "./conflict-rules";

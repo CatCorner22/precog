@@ -37,6 +37,7 @@ import {
 } from "./scenario-tools";
 import { formatUsd } from "@/lib/utils";
 import { localDateKey } from "../dates";
+import { DEFAULT_FRAUD_STATS } from "../templates/shared-controls";
 
 export interface ToolContext {
   /** The business being advised. Every tool is a pure function of this. */
@@ -158,7 +159,7 @@ export function executeTool(
 ): ToolResult {
   const profile = profileOf(ctx);
   const tpl = resolveTemplate(profile);
-  const { people, knowledge, relations, crimeFraudStats } = tpl;
+  const { people, knowledge, relations } = tpl;
   const staff: StaffComposition = profile.staff;
   const practiceName = profile.practiceName || tpl.businessName;
   const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
@@ -221,10 +222,10 @@ export function executeTool(
               dailyCashExposure: riskVars.dailyCashExposure,
             },
             publishedFraudStats: {
-              medianLossSmallOrgUsd: crimeFraudStats.medianLossSmallOrgUsd,
-              medianDetectionMonths: crimeFraudStats.medianDetectionMonths,
-              medianLossAllUsd: crimeFraudStats.medianLossAllUsd,
-              statsSource: crimeFraudStats.source,
+              medianLossSmallOrgUsd: DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd,
+              medianDetectionMonths: DEFAULT_FRAUD_STATS.medianDetectionMonths,
+              medianLossAllUsd: DEFAULT_FRAUD_STATS.medianLossAllUsd,
+              statsSource: DEFAULT_FRAUD_STATS.source,
             },
           },
           links: [{ tab: "command", label: "Command" }],

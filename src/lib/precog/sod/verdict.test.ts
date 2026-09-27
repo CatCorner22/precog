@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import { buildAssignments, detectSodConflicts } from "./detect";
 import { concentrationHeadline, separatedPairs } from "./verdict";
 

@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { csvCell, locateTable, parseRows, sniffDelimiter, normalizeHeader } from "./csv";
 import { datesAreDayFirst } from "./hire-date";

@@ -11,7 +11,7 @@
  * Import is a merge by default: rows add or update, processes missing from the
  * file are kept and reported. `mode: "replace"` removes them instead.
  */
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
 import { csvCell, parseRows, normalizeHeader } from "./csv";

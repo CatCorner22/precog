@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "../active-template";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
 import { absenceImpact, contingencyCards, ownerlessProcesses } from "./absence-impact";

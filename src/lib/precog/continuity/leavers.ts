@@ -1,6 +1,6 @@
 import type { DecisionEntry } from "../practice-profile";
 import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
 import { daysBetween, isCalendarDate, formatDayRange } from "../dates";

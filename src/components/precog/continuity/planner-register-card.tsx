@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CoverageReport, ItemCoverage } from "@/lib/precog/continuity/coverage";
 import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
-import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import type { IndustryTemplate } from "@/lib/precog/templates";
 import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
 
 export function PlannerRegisterCard({

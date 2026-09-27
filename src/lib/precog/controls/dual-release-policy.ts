@@ -356,7 +356,7 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       channels: ["ach"],
       action: "raise_threshold",
       thresholdUsd: 3500,
-      payeeContains: copy.dualReleaseSeed.exceptionPayeeContains,
+      payeeContains: copy.dualReleaseSeed.defaultPayee,
       enabled: true,
       reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
       approvedByPersonId: "p1",

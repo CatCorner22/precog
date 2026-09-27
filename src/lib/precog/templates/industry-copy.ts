@@ -1,26 +1,36 @@
 import type { MatrixLayerId } from "../types";
-import { industryMeta, type IndustryId } from "../industry";
+import { DEFAULT_INDUSTRY, type IndustryId } from "../industry";
+
+/** The four duties the segregation-of-duties cards illustrate. */
+export type SodDuty = "authorization" | "custody" | "recording" | "reconciliation";
+
+/** The layers whose card lists industry examples; the others list the business's own records. */
+export type LayerCopyId = Extract<MatrixLayerId, "surface" | "source" | "continuity">;
 
 export interface IndustryCopyBundle {
-  /** Authorization, custody, recording, reconciliation examples for SoD cards. */
-  sodExamples: [string, string, string, string];
-  layerCopy: Partial<Record<MatrixLayerId, string[]>>;
+  /** An example of each duty in this industry, for the segregation-of-duties cards. */
+  sodExamples: Record<SodDuty, string>;
+  layerCopy: Record<LayerCopyId, string[]>;
   dualReleaseSeed: {
+    /** The trusted payee the sample exception names; it matches payees containing this name. */
     defaultPayee: string;
-    exceptionPayeeContains: string;
     exceptionLabel: string;
   };
   pioneerPrompts: string[];
 }
 
+export function getIndustryCopy(id: IndustryId): IndustryCopyBundle {
+  return INDUSTRY_COPY[id] ?? INDUSTRY_COPY[DEFAULT_INDUSTRY];
+}
+
 const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
   dental: {
-    sodExamples: [
-      "Owner approves write-offs, large AP, payroll",
-      "Drawer, deposits, ACH initiation",
-      "Payment posting in PMS, invoices, claim adjustments",
-      "Bank rec, deposit vs PMS, adjustment review",
-    ],
+    sodExamples: {
+      authorization: "Owner approves write-offs, large AP, payroll",
+      custody: "Drawer, deposits, ACH initiation",
+      recording: "Payment posting in PMS, invoices, claim adjustments",
+      reconciliation: "Bank rec, deposit vs PMS, adjustment review",
+    },
     layerCopy: {
       surface: [
         "Chair and exam-room use, and same-day openings",
@@ -41,7 +51,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Northgate Lab Services",
-      exceptionPayeeContains: "northgate lab services",
       exceptionLabel: "Trusted lab ACH raise",
     },
     pioneerPrompts: [
@@ -53,12 +62,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   retail: {
-    sodExamples: [
-      "Owner approves large markdowns, vendor terms, payroll",
-      "Cash drawer, card batches, bank deposits",
-      "POS posting, inventory adjustments, refund entries",
-      "Bank rec, shrink reports, override log review",
-    ],
+    sodExamples: {
+      authorization: "Owner approves large markdowns, vendor terms, payroll",
+      custody: "Cash drawer, card batches, bank deposits",
+      recording: "POS posting, inventory adjustments, refund entries",
+      reconciliation: "Bank rec, shrink reports, override log review",
+    },
     layerCopy: {
       surface: [
         "Foot traffic and conversion by daypart",
@@ -79,7 +88,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Pacific Apparel Wholesale",
-      exceptionPayeeContains: "pacific apparel",
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
@@ -91,12 +99,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   restaurant: {
-    sodExamples: [
-      "Owner approves comps, vendor terms, payroll",
-      "Cash tips, safe, nightly deposits",
-      "POS sales posting, voids, inventory usage",
-      "Bank rec, tip pool reconciliation, liquor variance",
-    ],
+    sodExamples: {
+      authorization: "Owner approves comps, vendor terms, payroll",
+      custody: "Cash tips, safe, nightly deposits",
+      recording: "POS sales posting, voids, inventory usage",
+      reconciliation: "Bank rec, tip pool reconciliation, liquor variance",
+    },
     layerCopy: {
       surface: [
         "Covers and average check by shift",
@@ -117,7 +125,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Valley Produce Co.",
-      exceptionPayeeContains: "valley produce",
       exceptionLabel: "Trusted produce vendor ACH raise",
     },
     pioneerPrompts: [
@@ -129,12 +136,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   professional_services: {
-    sodExamples: [
-      "Partner approves write-offs, trust moves, payroll",
-      "Client trust deposits, operating cash",
-      "Time billing, invoicing, trust ledger entries",
-      "Bank rec, trust reconciliation, WIP review",
-    ],
+    sodExamples: {
+      authorization: "Partner approves write-offs, trust moves, payroll",
+      custody: "Client trust deposits, operating cash",
+      recording: "Time billing, invoicing, trust ledger entries",
+      reconciliation: "Bank rec, trust reconciliation, WIP review",
+    },
     layerCopy: {
       surface: [
         "Utilization and realization by practice area",
@@ -155,7 +162,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "CloudLegal Research LLC",
-      exceptionPayeeContains: "cloudlegal",
       exceptionLabel: "Trusted vendor ACH raise",
     },
     pioneerPrompts: [
@@ -167,12 +173,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   construction: {
-    sodExamples: [
-      "Owner approves new subcontractors, large change orders, payroll",
-      "Client checks, deposits, subcontractor and supplier payments",
-      "Pay applications, job cost entries, change-order log",
-      "Bank rec, job cost vs estimate, lien waiver log",
-    ],
+    sodExamples: {
+      authorization: "Owner approves new subcontractors, large change orders, payroll",
+      custody: "Client checks, deposits, subcontractor and supplier payments",
+      recording: "Pay applications, job cost entries, change-order log",
+      reconciliation: "Bank rec, job cost vs estimate, lien waiver log",
+    },
     layerCopy: {
       surface: [
         "Jobs in progress, schedule slips and weather days",
@@ -193,7 +199,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Keystone Concrete Supply",
-      exceptionPayeeContains: "keystone concrete",
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
@@ -205,12 +210,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   nonprofit: {
-    sodExamples: [
-      "Executive director and board treasurer approve budgets, payroll, new vendors",
-      "Mail and event cash, deposits, organization cards",
-      "Gift entry, grant expense coding, vendor bills",
-      "Bank rec, donor database vs deposits, restricted-fund review",
-    ],
+    sodExamples: {
+      authorization: "Executive director and board treasurer approve budgets, payroll, new vendors",
+      custody: "Mail and event cash, deposits, organization cards",
+      recording: "Gift entry, grant expense coding, vendor bills",
+      reconciliation: "Bank rec, donor database vs deposits, restricted-fund review",
+    },
     layerCopy: {
       surface: [
         "Giving by month and campaign",
@@ -231,7 +236,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Lakeside Printing Co.",
-      exceptionPayeeContains: "lakeside printing",
       exceptionLabel: "Trusted vendor ACH raise",
     },
     pioneerPrompts: [
@@ -243,12 +247,12 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
   general: {
-    sodExamples: [
-      "Owner approves large expenses, payroll, write-offs",
-      "Petty cash, checks, ACH initiation",
-      "Invoice posting, journal entries, adjustments",
-      "Bank rec, expense review, vendor statement match",
-    ],
+    sodExamples: {
+      authorization: "Owner approves large expenses, payroll, write-offs",
+      custody: "Petty cash, checks, ACH initiation",
+      recording: "Invoice posting, journal entries, adjustments",
+      reconciliation: "Bank rec, expense review, vendor statement match",
+    },
     layerCopy: {
       surface: [
         "Weekly revenue and expense variance",
@@ -269,7 +273,6 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     dualReleaseSeed: {
       defaultPayee: "Main Street Supplies Inc.",
-      exceptionPayeeContains: "main street supplies",
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
@@ -281,12 +284,3 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     ],
   },
 };
-
-export function getIndustryCopy(id: IndustryId): IndustryCopyBundle {
-  return INDUSTRY_COPY[id] ?? INDUSTRY_COPY.general;
-}
-
-/** The plural of the industry's word for a business: "practices", "companies", "businesses". */
-export function pluralTeamLabel(id: IndustryId): string {
-  return industryMeta(id).teamLabelPlural;
-}

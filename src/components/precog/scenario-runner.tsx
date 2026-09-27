@@ -27,6 +27,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatUsd, formatPct } from "@/lib/utils";
 import { observedLossRange } from "@/lib/precog/evidence";
 import { scenarioCases } from "@/lib/precog/templates";
+import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { CaseCard } from "@/components/precog/case-card";
 import { CheckCircle2, GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
 import { dateAfter } from "@/lib/precog/dates";
@@ -510,12 +511,12 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
                 <CardContent className="space-y-2 text-sm">
                   <p className="text-muted">
                     For comparison, across investigated cases in the ACFE&rsquo;s 2026 study: median
-                    time to detection {tpl.crimeFraudStats.medianDetectionMonths} months; median
+                    time to detection {DEFAULT_FRAUD_STATS.medianDetectionMonths} months; median
                     loss at organizations under 100 staff{" "}
-                    {formatUsd(tpl.crimeFraudStats.medianLossSmallOrgUsd)}. Those describe other
+                    {formatUsd(DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd)}. Those describe other
                     organizations, not this scenario.{" "}
                     <a
-                      href={tpl.crimeFraudStats.sourceUrl}
+                      href={DEFAULT_FRAUD_STATS.sourceUrl}
                       target="_blank"
                       rel="noreferrer noopener"
                       className="text-primary hover:underline"

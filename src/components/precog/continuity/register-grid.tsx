@@ -20,7 +20,7 @@ import {
   REGISTER_RESPONSIVE_PEOPLE,
   registerOverResponsiveLimit,
 } from "@/lib/precog/continuity/register-window";
-import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import type { IndustryTemplate } from "@/lib/precog/templates";
 import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
 import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
 import { Badge } from "@/components/ui/badge";

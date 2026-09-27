@@ -1,8 +1,19 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustrySample } from "./types";
-import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
+import {
+  baseFinancialControls,
+  baseFraudScenarios,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
+} from "./shared-controls";
 
 /**
+ * A full-service restaurant with a bar and about six people: the owner, who
+ * is also the chef, a general manager who handles vendors, deposits, voids
+ * and payroll, a head server who closes out shifts and runs the tip pool, a
+ * line cook lead, a bar manager and a bookkeeper. It uses the shared cash,
+ * write-off and vendor controls and scenarios (a restaurant has no
+ * receivables), and adds sales tax and the tip pool.
+ *
  * Sales tax and tips. Sales tax a restaurant collects is the state's money
  * from the moment it is collected, and in many states the person responsible
  * for paying it over is personally liable when it is not. Tips belong to the
@@ -13,93 +24,6 @@ import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./
  * schemes below, tax collected but not paid and a tip pool shifted or held
  * back, follow from those rules; no rate is given for either.
  */
-const taxAndTipControls: ControlItem[] = [
-  {
-    id: "c-salestax",
-    name: "Sales tax return review",
-    description:
-      "Each return's taxable sales tie to the POS sales report, and someone other than the preparer sees the state's confirmation that the payment arrived.",
-    duties: ["review", "reconciliation"],
-    segregated: false,
-    compensatingControls: ["Owner reads the state tax account online each quarter"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-tip-pool",
-    name: "Tip pool distribution review",
-    description:
-      "Pool shares follow a written policy; someone outside the pool checks each distribution against POS tips and hours, and no manager or supervisor draws from it.",
-    duties: ["review", "authorization"],
-    segregated: false,
-    compensatingControls: ["Staff can see their own tip totals in the POS"],
-    residualRiskAccepted: false,
-  },
-];
-
-/*
- * Timeline and loss figures reuse the shared scenarios' illustrative model
- * inputs (the cash scenario for sales tax, the write-off scenario for the tip
- * pool); they are assumptions, not measurements.
- */
-const taxAndTipScenarios: ScenarioTemplate[] = [
-  {
-    id: "sc-salestax-unremitted",
-    title: "Sales tax collected but not paid to the state",
-    description:
-      "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
-    controlId: "c-salestax",
-    sodRuleIds: ["rule-release-rec"],
-    knowledgeId: "k7",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-tax-1",
-        label: "Tie every return to the POS report and file the state's payment confirmation",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-tax-2",
-        label: "Owner checks the state tax account each quarter",
-        effort: "low",
-        riskReduction: 0.45,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-tip-pool-manipulation",
-    title: "Tip pool shares shifted or paid to a manager",
-    description:
-      "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
-    controlId: "c-tip-pool",
-    sodRuleIds: ["rule-payroll"],
-    knowledgeId: "k1",
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    cascadeLayers: ["control", "knowledge", "process", "continuity"],
-    mitigations: [
-      {
-        id: "m-tip-1",
-        label: "Written pool policy, and each distribution checked by someone outside the pool",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-tip-2",
-        label: "Staff see their own POS tip totals each pay period",
-        effort: "low",
-        riskReduction: 0.35,
-        costAnnual: 0,
-      },
-    ],
-  },
-];
-
 export const restaurantTemplate: IndustrySample = {
   id: "restaurant",
   people: [
@@ -116,6 +40,37 @@ export const restaurantTemplate: IndustrySample = {
     { id: "p5", name: "Riley Kim", role: "Bar Manager", active: true, tenureYears: 3 },
     { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 2 },
   ],
+  roleTemplates: {
+    "Owner / Executive Chef": [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "General Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_writeoffs",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Head Server": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
+    "Line Cook Lead": ["view_reports_only"],
+    "Bar Manager": ["collect_cash", "post_adjustments", "view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "bank_reconcile",
+      "post_adjustments",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -730,10 +685,30 @@ export const restaurantTemplate: IndustrySample = {
       ],
     },
   ],
-  // A restaurant keeps no receivables, so the receivables controls stay out.
+  // A restaurant keeps no receivables, so the receivables controls stay out;
+  // sales tax and the tip pool are its own.
   controls: [
     ...baseFinancialControls().filter((c) => c.id !== "c-ar" && c.id !== "c-sod-ar"),
-    ...taxAndTipControls,
+    {
+      id: "c-salestax",
+      name: "Sales tax return review",
+      description:
+        "Each return's taxable sales tie to the POS sales report, and someone other than the preparer sees the state's confirmation that the payment arrived.",
+      duties: ["review", "reconciliation"],
+      segregated: false,
+      compensatingControls: ["Owner reads the state tax account online each quarter"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-tip-pool",
+      name: "Tip pool distribution review",
+      description:
+        "Pool shares follow a written policy; someone outside the pool checks each distribution against POS tips and hours, and no manager or supervisor draws from it.",
+      duties: ["review", "authorization"],
+      segregated: false,
+      compensatingControls: ["Staff can see their own tip totals in the POS"],
+      residualRiskAccepted: false,
+    },
   ],
   staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
@@ -744,37 +719,59 @@ export const restaurantTemplate: IndustrySample = {
       knowledgeId: "k1",
       billingLabel: "Void/comp authority without owner review",
     }),
-    ...taxAndTipScenarios,
+    {
+      id: "sc-salestax-unremitted",
+      title: "Sales tax collected but not paid to the state",
+      description:
+        "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
+      controlId: "c-salestax",
+      sodRuleIds: ["rule-release-rec"],
+      knowledgeId: "k7",
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-tax-1",
+          label: "Tie every return to the POS report and file the state's payment confirmation",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-tax-2",
+          label: "Owner checks the state tax account each quarter",
+          effort: "low",
+          riskReduction: 0.45,
+          costAnnual: 0,
+        },
+      ],
+    },
+    {
+      id: "sc-tip-pool-manipulation",
+      title: "Tip pool shares shifted or paid to a manager",
+      description:
+        "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
+      controlId: "c-tip-pool",
+      sodRuleIds: ["rule-payroll"],
+      knowledgeId: "k1",
+      ...SCENARIO_FIGURES.writeoff,
+      cascadeLayers: ["control", "knowledge", "process", "continuity"],
+      mitigations: [
+        {
+          id: "m-tip-1",
+          label: "Written pool policy, and each distribution checked by someone outside the pool",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-tip-2",
+          label: "Staff see their own POS tip totals each pay period",
+          effort: "low",
+          riskReduction: 0.35,
+          costAnnual: 0,
+        },
+      ],
+    },
   ],
-  roleTemplates: {
-    "Owner / Executive Chef": [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "General Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_writeoffs",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Head Server": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
-    "Line Cook Lead": ["view_reports_only"],
-    "Bar Manager": ["collect_cash", "post_adjustments", "view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "bank_reconcile",
-      "post_adjustments",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

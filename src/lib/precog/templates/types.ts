@@ -2,7 +2,6 @@ import type { EntitlementId } from "../sod/conflict-rules";
 import type { IndustryId } from "../industry";
 import type {
   ControlItem,
-  CrimeFraudStats,
   KnowledgeItem,
   KnowledgeRelation,
   Person,
@@ -23,7 +22,6 @@ export interface IndustryTemplate {
   processes: ProcessNode[];
   controls: ControlItem[];
   staffComposition: StaffComposition;
-  crimeFraudStats: CrimeFraudStats;
   scenarios: ScenarioTemplate[];
 }
 
@@ -42,7 +40,7 @@ export type SamplePaymentSafeguards = Pick<
  */
 export interface IndustrySample extends Omit<
   IndustryTemplate,
-  "businessName" | "staffComposition" | "crimeFraudStats"
+  "businessName" | "staffComposition"
 > {
   staffComposition: SamplePaymentSafeguards;
 }

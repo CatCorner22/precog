@@ -1,5 +1,5 @@
 import { usePracticeState } from "./practice-context";
-import type { IndustryTemplate } from "./templates/types";
+import type { IndustryTemplate } from "./templates";
 
 /** The active profile's industry template with its custom people/processes applied. */
 export function useTemplate(): IndustryTemplate {

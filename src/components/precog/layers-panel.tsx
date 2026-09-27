@@ -210,7 +210,7 @@ export function LayerDetail({
   return (
     <LayerShell title={meta.name} subtitle={meta.blurb} action={action}>
       <ul className="space-y-2">
-        {(layerCopy[layer] ?? []).map((line) => (
+        {layerCopy[layer].map((line) => (
           <li
             key={line}
             className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-muted"
