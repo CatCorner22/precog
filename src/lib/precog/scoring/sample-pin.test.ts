@@ -58,8 +58,10 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   specialist and the retail bookkeeper reconcile the bank as their cash
  *   scenarios say, the restaurant's tip pool has the one expert its
  *   scenario names, and the nonprofit's finance manager can post and approve
- *   pledge write-offs as its write-off scenario says. Residuals, threat
- *   decks and COSO scores move accordingly.
+ *   pledge write-offs as its write-off scenario says. The restaurant and
+ *   the retail store carry no receivables controls, and the store files
+ *   receiving under a receiving and count check. Residuals, threat decks
+ *   and COSO scores move accordingly.
  */
 const PINNED: Record<
   string,
@@ -134,7 +136,7 @@ const PINNED: Record<
     tornado: ["seg:10", "spof:8", "dual:6", "bank:6", "team:5"],
   },
   retail: {
-    averageResidual: 78,
+    averageResidual: 80,
     rows: [
       "ctrl-c-sod-ap:82/12/100",
       "ctrl-c-ap:79/12/100",
@@ -153,7 +155,6 @@ const PINNED: Record<
       "scen-sc-key-person-leaves:51/23/65",
       "ctrl-c-sod-ar:67/38/60",
       "scen-sc-writeoff-abuse:42/23/53",
-      "ctrl-c-ar:57/38/51",
       "know-k2:65/70/28",
     ],
     threatIndex: 93,
@@ -183,7 +184,7 @@ const PINNED: Record<
       "sc-cash-sod-failure:77411:5000:169:4867",
       "sc-writeoff-abuse:43445:5000:241:4782",
     ],
-    tornado: ["seg:12", "spof:9", "dual:6", "bank:6", "team:6"],
+    tornado: ["seg:13", "spof:10", "dual:7", "bank:7", "team:6"],
   },
   professional_services: {
     averageResidual: 76,

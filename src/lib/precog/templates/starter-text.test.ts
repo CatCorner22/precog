@@ -14,6 +14,9 @@ const INDUSTRIES: IndustryId[] = [
   "general",
 ];
 
+/** Dollar figures set by law rather than by the sample, which an owner's business shares. */
+const STATUTORY_FIGURES = /gifts? of \$250 or more/;
+
 /** Every piece of text a starter process, register item or scenario shows, with where it sits. */
 function texts(value: unknown, path: string, out: [string, string][] = []): [string, string][] {
   if (typeof value === "string") out.push([path, value]);
@@ -44,12 +47,19 @@ describe("starter text an owner's own business inherits", () => {
       expect(hits).toEqual([]);
     });
 
-    it(`quotes no sample dollar threshold as the owner's in the ${id} map ideas`, () => {
-      const ideas = texts(
-        getIndustryTemplate(id).processes.map((p) => p.ideas ?? []),
-        "ideas",
-      ).filter(([, text]) => /\$\s?\d/.test(text) && /threshold|dual/i.test(text));
-      expect(ideas).toEqual([]);
+    it(`quotes no sample dollar threshold as the owner's in the ${id} map or scenarios`, () => {
+      const tpl = getIndustryTemplate(id);
+      const quoted = [
+        ...texts(
+          tpl.processes.map((p) => [p.ideas ?? [], p.risks ?? [], p.wastes ?? []]),
+          "processes",
+        ),
+        ...texts(
+          tpl.scenarios.map((sc) => sc.mitigations.map((m) => m.label)),
+          "mitigations",
+        ),
+      ].filter(([, text]) => /\$\s?\d/.test(text) && !STATUTORY_FIGURES.test(text));
+      expect(quoted).toEqual([]);
     });
   }
 });

@@ -50,7 +50,7 @@ describe("pioneerProfileFrom", () => {
     });
     const tpl = resolveTemplate(p);
     expect(tpl.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
-    expect(tpl.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    expect(tpl.controls.find((c) => c.id === "c-inventory")?.starter).toBe(true);
     expect(p.decisions.map((d) => d.linkedTab)).toEqual(["control", "precog"]);
   });
 

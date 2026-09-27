@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate } from "../active-template";
 import { CASE_LIBRARY, sectorsForIndustry } from "../evidence";
-import { INDUSTRIES, industryHasOwner } from "../industry";
+import { INDUSTRIES, industryHasOwner, industryMeta } from "../industry";
 import { matchJobTitle } from "../onboarding/job-catalog";
 import { STRONG_LEVELS } from "../continuity/coverage";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
@@ -44,6 +44,22 @@ describe("every sample's links resolve inside its own template", () => {
       }
       expect(new Set(tpl.scenarios.map((s) => s.id)).size).toBe(tpl.scenarios.length);
       expect(new Set(tpl.controls.map((c) => c.id)).size).toBe(tpl.controls.length);
+      const mitigations = tpl.scenarios.flatMap((s) => s.mitigations.map((m) => m.id));
+      expect(new Set(mitigations).size).toBe(mitigations.length);
+    });
+
+    it(`${id}: every control sits on the map or behind a risk or scenario`, () => {
+      const tpl = getBaseTemplate(id);
+      const used = new Set([
+        ...tpl.processes.flatMap((p) => p.controlIds),
+        ...tpl.processes.flatMap((p) => (p.risks ?? []).map((r) => r.linkedControlId)),
+        ...tpl.scenarios.map((s) => s.controlId),
+      ]);
+      expect(tpl.controls.map((c) => c.id).filter((c) => !used.has(c))).toEqual([]);
+    });
+
+    it(`${id}: is called by the one name the industry list gives it`, () => {
+      expect(getBaseTemplate(id).businessName).toBe(industryMeta(id).demoName);
     });
   }
 });

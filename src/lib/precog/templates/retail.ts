@@ -535,8 +535,9 @@ export const retailTemplate: IndustrySample = {
   ],
   controls: [
     // Invoices are paid without the receiving count today (r-ap-2); the
-    // three-way match that would do it is still planned (i-ap-1).
-    ...baseFinancialControls({ "c-ap": { segregated: false } }),
+    // three-way match that would do it is still planned (i-ap-1). The store
+    // sells at the register and keeps no receivables to age.
+    ...baseFinancialControls({ "c-ap": { segregated: false } }).filter((c) => c.id !== "c-ar"),
     {
       id: "c-inventory",
       name: "Receiving and count check",
