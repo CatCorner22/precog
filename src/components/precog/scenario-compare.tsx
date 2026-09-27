@@ -519,9 +519,9 @@ function CompareResults({
                         d && TONE[deltaTone(d.vsBaseline.retainedDelta)],
                       )}
                     >
-                      {c.id === report.baselineId
+                      {c.id === report.baselineId || !d
                         ? "—"
-                        : formatMoneyChange(d?.vsBaseline.retainedDelta ?? 0)}
+                        : formatMoneyChange(d.vsBaseline.retainedDelta)}
                     </td>
                   </tr>
                 );

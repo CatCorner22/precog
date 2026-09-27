@@ -193,7 +193,16 @@ describe("small edits", () => {
 
 describe("the control flags stay in step", () => {
   const team: Person[] = [
-    { id: "a", name: "Ana", role: "Owner", active: true, owner: true, entitlements: [] },
+    // Ana's duties are listed: with none, she would read her role's, and an
+    // owner who releases payments and reconciles counts as independent (G04b).
+    {
+      id: "a",
+      name: "Ana",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll"],
+    },
     { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
     { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
   ];

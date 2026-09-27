@@ -1,9 +1,25 @@
-import type { ValueEvidence } from "./value-evidence";
-import { joinWithAnd } from "./text";
+import {
+  VALUE_EVIDENCE_KIND_LABEL,
+  formatEvidenceAmount,
+  summarizeValueEvidence,
+  type ValueEvidence,
+} from "./value-evidence";
+import { formatDay } from "./dates";
+import { count, joinWithAnd } from "./text";
 import { formatUsd, formatPct } from "../utils";
 import { boundedNumber } from "./number";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
+
+/**
+ * The modeled range around the base avoided loss: half and one and a half
+ * times the base. This app's assumption, not a statistical interval.
+ */
+export const MODELED_RANGE = { low: 0.5, high: 1.5 } as const;
+
+/** The sentence that says where Low and High come from, for the memo and the card. */
+export const MODELED_RANGE_NOTE =
+  "Low and High assume the control reduction is half, or one and a half times, the base figure (this app's assumption).";
 
 export type ValueCaseInputs = {
   reviewHoursBefore: number;
@@ -28,11 +44,6 @@ export const DEFAULT_VALUE_CASE: ValueCaseInputs = {
   controlEffectiveness: 0.35,
   annualProgramCost: 12_000,
 };
-
-function bounded(value: unknown, minimum: number, maximum: number) {
-  const numeric = typeof value === "number" ? value : Number(value);
-  return boundedNumber(numeric, { min: minimum, max: maximum, fallback: minimum });
-}
 
 export function normalizeValueCase(
   value: Partial<ValueCaseInputs> | null | undefined,
@@ -73,6 +84,11 @@ export function normalizeValueCase(
       1_000_000_000,
     ),
   };
+}
+
+function bounded(value: unknown, minimum: number, maximum: number) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return boundedNumber(numeric, { min: minimum, max: maximum, fallback: minimum });
 }
 
 export type ValueInputKey = keyof ValueCaseInputs;
@@ -124,19 +140,6 @@ function enteredValueInputs(
     if (inputs[key] !== DEFAULT_VALUE_CASE[key]) out.add(key);
   }
   return out;
-}
-
-/**
- * True once the owner has entered at least one observed input (hours, cost,
- * recoveries, program cost). Until then the observed metrics are the app's own
- * defaults and must not be shown as a return.
- */
-export function hasOwnObservations(
-  raw: ValueCaseInputs,
-  typed: Iterable<ValueInputKey> = [],
-): boolean {
-  const entered = enteredValueInputs(raw, typed);
-  return OBSERVED_INPUTS.some((key) => entered.has(key));
 }
 
 /** One observed figure: shown only when observed, with any app default it still uses named. */
@@ -275,9 +278,9 @@ export function calculateValueCase(raw: ValueCaseInputs) {
     },
     modeled: {
       expectedLossBefore,
-      low: modeledAvoidedLoss * 0.5,
+      low: modeledAvoidedLoss * MODELED_RANGE.low,
       base: modeledAvoidedLoss,
-      high: modeledAvoidedLoss * 1.5,
+      high: modeledAvoidedLoss * MODELED_RANGE.high,
     },
   };
 }
@@ -314,12 +317,18 @@ export function createValueCaseMemo(
     `- ${label}: ${f.observed && f.value !== null ? `${show(f.value)}${uses(f)}` : notYet(f)}`;
   const assumption = (key: ValueInputKey) =>
     status.entered.has(key) ? "your assumption" : "app default";
+  const cell = (text: string) => text.replaceAll("|", "\\|") || "—";
   const evidenceRows = evidence.length
     ? evidence.map(
         (item) =>
-          `| ${item.verified ? "Verified" : "Unverified"} | ${item.kind} | ${item.description.replaceAll("|", "\\|")} | ${item.source.replaceAll("|", "\\|") || "—"} |`,
+          `| ${item.verified ? "Verified" : "Unverified"} | ${VALUE_EVIDENCE_KIND_LABEL[item.kind]} | ${cell(item.description)} | ${formatEvidenceAmount(item)} | ${item.observedAt ? formatDay(item.observedAt) : "—"} | ${cell(item.source)} |`,
       )
-    : ["| — | — | No evidence recorded | — |"];
+    : ["| — | — | No evidence recorded | — | — | — |"];
+  const register = summarizeValueEvidence(evidence, generatedAt);
+  const typedRecoveries = status.entered.has("directRecoveries")
+    ? value.inputs.directRecoveries
+    : null;
+  const recoveriesDiffer = typedRecoveries !== null && typedRecoveries !== register.recoveries;
   const observedSection =
     status.anyObservation || evidence.length > 0
       ? [
@@ -327,7 +336,9 @@ export function createValueCaseMemo(
           "",
           line("Annual review hours returned", status.hours, (v) => v.toLocaleString("en-US")),
           line("Observed value (labor and documented recoveries)", status.value, formatUsd),
-          `- Documented recoveries: ${status.entered.has("directRecoveries") ? formatUsd(value.inputs.directRecoveries) : "not yet observed"}`,
+          `- Documented recoveries: ${typedRecoveries !== null ? formatUsd(typedRecoveries) : "not yet observed"}`,
+          `- Verified recoveries in the evidence register: ${formatUsd(register.recoveries)} (${register.verified} verified of ${count(register.total, "item")})${recoveriesDiffer ? "; this differs from the documented recoveries above" : ""}`,
+          `- Verified hours in the evidence register: ${register.hours.toLocaleString("en-US")}`,
           `- Annual program cost: ${status.entered.has("annualProgramCost") ? formatUsd(value.inputs.annualProgramCost) : "not yet observed"}`,
           line("Net observed value", status.net, formatUsd),
           line("Observed ROI", status.roi, (v) => formatPct(v, 1)),
@@ -350,14 +361,14 @@ export function createValueCaseMemo(
     `- Annual exposure (${assumption("annualExposure")}): ${formatUsd(value.inputs.annualExposure)}`,
     `- Baseline event probability (${assumption("eventProbability")}): ${formatPct(value.inputs.eventProbability, 1)}`,
     `- Estimated control effectiveness (${assumption("controlEffectiveness")}): ${formatPct(value.inputs.controlEffectiveness, 1)}`,
-    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)}`,
+    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)} (base ×${MODELED_RANGE.low} and ×${MODELED_RANGE.high}, this app's assumption)`,
     "",
     "> Modeled avoided loss is a decision scenario, not booked savings. Validate assumptions independently and report it separately from observed value.",
     "",
     "## Evidence register",
     "",
-    "| Status | Type | Observation | Source |",
-    "| --- | --- | --- | --- |",
+    "| Status | Type | Observation | Amount | Observed | Source |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...evidenceRows,
     "",
   ].join("\n");

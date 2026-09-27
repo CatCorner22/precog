@@ -28,6 +28,17 @@ describe("weightSensitivity", () => {
     }
   });
 
+  it("returns the trials in trial order and the most sensitive ones sorted", () => {
+    const report = weightSensitivity(dental, staff);
+    expect(report.perturbations[0]).toMatchObject({
+      group: "inherent",
+      key: Object.keys(DEFAULT_WEIGHTS.inherent)[0],
+      direction: "up",
+    });
+    const sizes = report.mostSensitive.map((p) => Math.abs(p.delta));
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a));
+  });
+
   it("collapses every range when perturbation is zero", () => {
     const report = weightSensitivity(dental, staff, 0);
     expect(report.topOrderStable).toBe(true);

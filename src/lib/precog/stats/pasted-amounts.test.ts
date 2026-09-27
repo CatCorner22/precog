@@ -24,8 +24,8 @@ describe("parsePastedAmounts", () => {
     const result = parsePastedAmounts("Date,Amount\n2026-01-02,50\n2026-01-03,(5)");
     expect(result.undated).toBe(false);
     expect(result.transactions).toEqual([
-      { id: "txn-1", date: "2026-01-02", amount: 50 },
-      { id: "txn-2", date: "2026-01-03", amount: -5 },
+      { id: "txn-1", date: "2026-01-02", amount: 50, row: 2 },
+      { id: "txn-2", date: "2026-01-03", amount: -5, row: 3 },
     ]);
   });
 

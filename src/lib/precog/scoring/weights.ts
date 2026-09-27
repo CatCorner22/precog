@@ -165,9 +165,13 @@ export const ACTION_BANDS: {
   },
 ];
 
+/**
+ * The band a 0–100 score falls in: the highest band whose minimum it reaches,
+ * so a score between two integer bands (39.5) stays in the lower one.
+ */
 export function bandForScore(score: number): (typeof ACTION_BANDS)[number] {
   const s = clamp(score, 0, 100);
-  return (
-    ACTION_BANDS.find((b) => s >= b.min && s <= b.max) ?? ACTION_BANDS[ACTION_BANDS.length - 1]
-  );
+  let found = ACTION_BANDS[0];
+  for (const band of ACTION_BANDS) if (s >= band.min) found = band;
+  return found;
 }

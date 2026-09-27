@@ -23,20 +23,6 @@ export function isOwnBusiness(tpl: Pick<IndustryTemplate, "id" | "people">): boo
 export const REGISTER_NOT_ASSESSED =
   "Register not assessed yet: mark who can do each item on Who knows what.";
 
-/**
- * Whether the process map describes the owner's own processes, judged from the
- * template alone (use mapAssessed in builder/map-state where a profile is at
- * hand). For the owner's own people, a map in which no process has an owner is
- * the starter map nobody has worked on, and an empty map has nothing to score.
- */
-export function templateMapAssessed(
-  tpl: Pick<IndustryTemplate, "id" | "people" | "processes">,
-): boolean {
-  if (!isOwnBusiness(tpl)) return true;
-  if (tpl.processes.length === 0) return false;
-  return tpl.processes.some((p) => (p.ownerPersonIds ?? []).length > 0);
-}
-
 /** A decision the owner logged on a scenario, as the journal stores it. */
 export interface ScenarioDecision {
   linkedTab?: string;

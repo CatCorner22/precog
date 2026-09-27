@@ -40,30 +40,37 @@ import {
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { formatUsd } from "../utils";
 import { clamp } from "./number";
+import { count } from "./text";
 
 type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
 
-interface ThreatTarget extends PriorityTarget {
-  domain: ThreatDomain;
-  residual?: number;
-  expectedLoss?: number;
-  p50Days?: number;
-  roe: string[];
-}
-
 export interface ThreatAssessmentReport {
-  generatedAt: string;
   ao: string;
   overallThreatIndex: number;
   classificationLabel: string;
   leadingPressure: number;
   leadingBand: string;
   targetDeck: ThreatTarget[];
-  matrix: { impact: number; likelihood: number; label: string; id: string }[];
   missionBrief: string[];
   roeSummary: string[];
   caveats: string[];
 }
+
+interface ThreatTarget extends PriorityTarget {
+  domain: ThreatDomain;
+  residual?: number;
+  /**
+   * The scenario's assumed loss after insurance (the retained loss) under the
+   * owner's settings, on every row that carries one.
+   */
+  expectedLoss?: number;
+  p50Days?: number;
+  roe: string[];
+}
+
+/** What the Priority figure is, for any table or card that prints it. */
+export const THREAT_PRIORITY_BASIS =
+  "Priority is this app's ranking index, 0 to 100: it orders what to look at first and measures nothing.";
 
 export function buildThreatAssessment(input: {
   tpl: IndustryTemplate;
@@ -100,13 +107,18 @@ export function buildThreatAssessment(input: {
   const leading = scoreLeadingIndicators(tpl, staff, {
     ...DEFAULT_RISK_VARIABLES,
     ...(riskVariables ?? {}),
-    hasDualControl: riskVariables?.hasDualControl ?? staff.dualControlPayments,
-    hasIndependentBankRec: riskVariables?.hasIndependentBankRec ?? staff.independentBankRec,
   });
+  // One basis for every loss figure in the deck: the ranked scenario's
+  // retained loss under the owner's settings.
+  const rankedById = new Map(ranked.map((row) => [row.scenario.id, row]));
 
   const targets: ThreatTarget[] = [];
 
   for (const item of portfolio.top.slice(0, 6)) {
+    const scenarioRow =
+      item.category === "scenario" && item.linkedScenarioId
+        ? rankedById.get(item.linkedScenarioId)
+        : undefined;
     const scored = scorePriority({
       heat: item.residual,
       kind:
@@ -137,8 +149,8 @@ export function buildThreatAssessment(input: {
             ? "control"
             : "portfolio",
       residual: item.residual,
-      expectedLoss: item.expectedLoss,
-      p50Days: item.p50Days,
+      expectedLoss: scenarioRow ? retainedLoss(scenarioRow.result) : undefined,
+      p50Days: scenarioRow?.result.timelineDays.p50 ?? item.p50Days,
       roe: deriveRoe(item.category, item.name, item.residual),
     });
   }
@@ -149,7 +161,8 @@ export function buildThreatAssessment(input: {
     .filter((c) => !c.ownerHeld)
     .filter((c, i, all) => all.findIndex((o) => o.ruleId === c.ruleId) === i);
   for (const c of sodTargets.slice(0, 4)) {
-    const heat = c.severity === "critical" ? 92 : c.severity === "high" ? 78 : 55;
+    const heat =
+      SOD_HEAT[c.severity === "critical" || c.severity === "high" ? c.severity : "other"];
     const scored = scorePriority({
       heat,
       kind: "control",
@@ -164,10 +177,7 @@ export function buildThreatAssessment(input: {
       band,
       heat,
       impactHint: scored.impactHint,
-      reasons: [
-        c.why?.slice(0, 120) || "Incompatible duties concentrated",
-        ...scored.reasons,
-      ].slice(0, 3),
+      reasons: [c.why || "Incompatible duties concentrated", ...scored.reasons].slice(0, 3),
       immediate: scored.immediate || c.severity === "critical",
       domain: "sod",
       residual: heat,
@@ -209,13 +219,13 @@ export function buildThreatAssessment(input: {
   }
 
   for (const row of ranked.slice(0, 3)) {
-    const residualProxy = Math.min(
-      95,
-      Math.round(
-        (row.result.retainedImpact?.expected ?? row.result.financialImpact.expected) / 2000 +
-          (240 - row.result.timelineDays.p50) / 4,
-      ),
-    );
+    // The scenario's heat is its own residual-risk row, the labelled index
+    // the Residual radar shows for the same scenario. Register and control
+    // rows can also link to the scenario (a departure scenario names the item
+    // the leaver holds), so the scenario row is found by its id.
+    const residualProxy =
+      portfolio.all.find((r) => r.category === "scenario" && r.linkedScenarioId === row.scenario.id)
+        ?.residual ?? 0;
     const scored = scorePriority({
       heat: residualProxy,
       kind: "process",
@@ -233,14 +243,12 @@ export function buildThreatAssessment(input: {
       impactHint: scored.impactHint,
       reasons: [
         `about ${row.result.timelineDays.p50} assumed days until found`,
-        `Retained ~${formatUsd(
-          row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
-        )}${policyNote ? ` (${policyNote})` : ""}`,
+        `Retained ~${formatUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
       ],
       immediate: scored.immediate,
       domain: "scenario",
       residual: residualProxy,
-      expectedLoss: row.result.retainedImpact?.expected ?? row.result.financialImpact.expected,
+      expectedLoss: retainedLoss(row.result),
       p50Days: row.result.timelineDays.p50,
       roe: [
         "Run Precog scenario compare (do-nothing vs controls)",
@@ -266,84 +274,86 @@ export function buildThreatAssessment(input: {
   );
   const classificationLabel = PRIORITY_BAND_LABEL[priorityBand(overallThreatIndex)];
 
-  const matrix = deck.slice(0, 8).map((t) => ({
-    id: t.id,
-    label: t.label,
-    impact: Math.min(
-      100,
-      Math.round(t.expectedLoss ? Math.min(100, t.expectedLoss / 1500) : t.heat * 0.9),
-    ),
-    likelihood: Math.min(100, Math.round(t.heat * 0.85 + (t.immediate ? 10 : 0))),
-  }));
-
   const openSod = tpl.controls.filter((c) => !c.segregated).length;
+  const soleHeld = knowledgeRisks.filter((r) => r.soleOwner).length;
+  const unheld = knowledgeRisks.filter((r) => r.ownerCount === 0).length;
+  const breached = leading.indicators.filter((i) => i.status === "breach").length;
+  const watched = leading.indicators.filter((i) => i.status === "watch").length;
 
   return {
-    generatedAt: new Date().toISOString(),
     ao: practiceName,
     overallThreatIndex,
     classificationLabel,
     leadingPressure: leading.pressureIndex,
     leadingBand: leading.band,
     targetDeck: deck,
-    matrix,
     missionBrief: [
-      `AO: ${practiceName} — small ${industryMeta(tpl.id).teamLabel} residual & control assessment.`,
-      `Portfolio avg residual ${portfolio.averageResidual} · critical path ${portfolio.criticalPath} · act-now ${portfolio.actNow}.`,
-      `SoD: ${sod.summary.critical} critical conflict(s), ${openSod} static segregation gap(s).`,
+      `${practiceName}: where money can move without a second person in this ${industryMeta(tpl.id).teamLabel}, and what to fix first.`,
+      `Average residual risk ${portfolio.averageResidual} of 100 (this app's index); ${count(portfolio.criticalPath, "item")} to act on before anything else and ${portfolio.actNow} more to act on now.`,
+      `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
-        ? `Knowledge: ${knowledgeRisks.filter((r) => r.soleOwner).length} item(s) one person holds, ${knowledgeRisks.filter((r) => r.ownerCount === 0).length} nobody holds.`
-        : `Knowledge: ${REGISTER_NOT_ASSESSED}`,
+        ? `Know-how: ${count(soleHeld, "item")} only one person can do; ${unheld} nobody can.`
+        : `Know-how: ${REGISTER_NOT_ASSESSED}`,
       ...(scenariosLeftOut > 0
         ? [
             `Scenarios: ${starterScenarioLabel(tpl.id)} (${scenariosLeftOut}) are left out. ${MAKE_SCENARIO_YOURS}`,
           ]
         : []),
-      `Leading indicators: ${leading.indicators.filter((i) => i.status === "breach").length} breached, ${leading.indicators.filter((i) => i.status === "watch").length} at watch.`,
+      `Early-warning checks: ${breached} breached, ${watched} to watch.`,
       "This is an educational internal-control screen — not an accusation against any person.",
     ],
     roeSummary: [
-      "Prioritize WHITE HOT / CRITICAL targets first.",
-      "Prefer detective controls with same-week ROI (owner bank rec, dual-release thresholds).",
-      "Document residual acceptance with review date when further control is not cost-effective.",
-      "Cross-train SPOF knowledge before the next key-person absence.",
+      "Work on the highest-priority items first.",
+      "Prefer checks that pay off within a week, such as the owner reconciling the bank or a second approver above a set amount.",
+      "When a further control is not worth its cost, record that you accept the remaining risk and when you will review it.",
+      "Cross-train a backup for any task only one person can do before that person's next absence.",
     ],
     caveats: [
-      "Threat Assessment is decision-support for process and control design.",
-      "It never labels individuals as threats; targets are control gaps and residual exposures.",
-      "Sample sizes, demo priors, and industry statistics are educational — not forensic conclusions.",
+      "This assessment supports decisions about process and control design.",
+      "The indices are this app's weightings of your answers; the case figures describe other businesses. Neither is a finding about any person.",
+      THREAT_PRIORITY_BASIS,
     ],
   };
 }
 
+/** The retained loss (after insurance) of an engine run. */
+function retainedLoss(result: { retainedImpact: { expected: number } }): number {
+  return result.retainedImpact.expected;
+}
+
+/**
+ * Next steps for a residual row. Know-how rows get cross-training steps; money
+ * rows are matched on whole words of their name, so "appeals" is not accounts
+ * payable and "markdown" is not accounts receivable.
+ */
 function deriveRoe(category: string, name: string, residual: number): string[] {
   const lower = name.toLowerCase();
-  if (lower.includes("cash") || lower.includes("deposit") || lower.includes("payment")) {
+  if (category === "knowledge") {
+    return [
+      "Cross-train backup within 30 days",
+      "Write the procedure into the practice playbook",
+      "Re-score residual after backup proficiency",
+    ];
+  }
+  if (/\b(cash|deposits?|payments?)\b/.test(lower)) {
     return [
       "Owner independent bank reconciliation this week",
       "Dual control on deposit bag / day-sheet match",
       "Camera coverage of cash drawer if not already present",
     ];
   }
-  if (lower.includes("write") || lower.includes("adjust") || lower.includes("ar")) {
+  if (/\b(write-?offs?|adjust\w*|ar|receivables?)\b/.test(lower)) {
     return [
       "Require reason codes + owner threshold on write-offs",
       "Monthly aging of adjustments report",
       "Separate adjuster from payment poster when staffing allows",
     ];
   }
-  if (lower.includes("vendor") || lower.includes("ap") || lower.includes("payable")) {
+  if (/\b(vendors?|ap|payables?)\b/.test(lower)) {
     return [
       "Dual approval for new vendor setup",
       "Monthly new-vendor review by owner",
       "Separate vendor master from payment release",
-    ];
-  }
-  if (category === "knowledge") {
-    return [
-      "Cross-train backup within 30 days",
-      "Write the procedure into the practice playbook",
-      "Re-score residual after backup proficiency",
     ];
   }
   if (residual >= 70) {
@@ -359,3 +369,9 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
     "Revisit at next residual acceptance review",
   ];
 }
+
+/**
+ * Heat of a duty-conflict card by the conflict's severity: this app's
+ * weighting, set so a critical conflict ranks with the hottest residual rows.
+ */
+const SOD_HEAT = { critical: 92, high: 78, other: 55 } as const;

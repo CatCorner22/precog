@@ -38,7 +38,8 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   (professional-services threat index 90 to 91).
  * - Each sample's sole-owner count is read from its own register, as an
  *   owner's is, instead of a preset. Only the restaurant preset disagreed
- *   with its register (2 against 1), so only the restaurant figures move. * - Content added to three samples moves their figures, and only theirs:
+ *   with its register (2 against 1), so only the restaurant figures move.
+ * - Content added to three samples moves their figures, and only theirs:
  *   the dental and medical sample gains a controlled-drugs process, control,
  *   register item and scenario; the professional-services sample a
  *   three-way trust reconciliation process, two trust controls, a register
@@ -69,6 +70,12 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  * - The tornado's cross-training lever gives every item one person holds a
  *   real second holder, so the register rows move with it and it leads most
  *   samples; the "grow the team" lever is gone.
+ * - A scenario card in the threat deck takes its heat from the scenario's own
+ *   residual-risk row (the index the Residual radar shows) instead of an
+ *   unlabelled blend of retained dollars and days (S08-models-processes-013).
+ *   For every sample that row equals the heat the card already showed, so no
+ *   deck figure moves. (A departure scenario's register row, which links to
+ *   the same scenario, is not its heat.)
  */
 const PINNED: Record<
   string,

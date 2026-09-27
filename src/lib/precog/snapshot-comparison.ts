@@ -3,11 +3,7 @@ import type { PracticeProfile } from "./practice-profile";
 import { diffAssignments } from "./sod/assignment-diff";
 import type { RoleAssignment } from "./sod/detect";
 import { observedValueStatus, type ValueCaseInputs } from "./value-case";
-import {
-  assessEvidenceQuality,
-  summarizeValueEvidence,
-  type ValueEvidence,
-} from "./value-evidence";
+import { summarizeValueEvidence, type ValueEvidence } from "./value-evidence";
 import { formatSigned, formatUsdDelta } from "../utils";
 
 export function compareAssessmentStates(
@@ -48,8 +44,6 @@ export function compareAssessmentStates(
   const archivedAsOf = archived.asOf ?? currentAsOf;
   const currentEvidence = summarizeValueEvidence(current.evidence, currentAsOf);
   const archivedEvidence = summarizeValueEvidence(archived.evidence, archivedAsOf);
-  const currentQuality = assessEvidenceQuality(current.evidence, currentAsOf);
-  const archivedQuality = assessEvidenceQuality(archived.evidence, archivedAsOf);
   return {
     teamSizeDelta: current.profile.staff.teamSize - archived.profile.staff.teamSize,
     riskChanges: riskVariableChanges.length,
@@ -64,7 +58,7 @@ export function compareAssessmentStates(
       currentValue === null || archivedValue === null ? null : currentValue - archivedValue,
     verifiedEvidenceDelta: currentEvidence.verified - archivedEvidence.verified,
     verifiedRecoveryDelta: currentEvidence.recoveries - archivedEvidence.recoveries,
-    evidenceReadinessDelta: currentQuality.score - archivedQuality.score,
+    evidenceReadinessDelta: currentEvidence.score - archivedEvidence.score,
   };
 }
 
