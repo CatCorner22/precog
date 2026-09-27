@@ -25,10 +25,9 @@ export function ControlReportEvidenceSection({
   if (evidence.length === 0) return null;
 
   const caseById = new Map(evidence.map((c) => [c.id, c]));
-  const scope = statsScope.cases === "citing" ? "cases that show these gaps" : "related cases";
 
   return (
-    <Section title="What these gaps have cost other businesses">
+    <Section title="What these gaps have cost other organizations">
       <p className="text-sm text-neutral-700">
         {citing.count > 0
           ? `${citing.count} prosecuted ${citing.count === 1 ? "case shows" : "cases show"} the open duty conflicts above${
@@ -36,9 +35,9 @@ export function ControlReportEvidenceSection({
                 ? `; ${evidence.length - citing.count} more share their schemes`
                 : ""
             }.`
-          : `No prosecuted case in the library shows these exact conflicts; the ${evidence.length} listed share their schemes.`}
+          : `No case in the library shows these exact pairs, so no loss figure is given for them; the ${evidence.length} listed share their schemes.`}
         {lossRange
-          ? ` Of the ${statsScope.count} ${scope}, ${lossRange.n} state a loss: median ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)}${
+          ? ` Of the ${statsScope.count} cases that show these gaps, ${lossRange.n} state a loss: median ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)}${
               statsScope.floors > 0
                 ? `; ${count(statsScope.floors, "of those figures is", "of those figures are")} only a floor ("at least"), so the median understates the loss`
                 : ""
@@ -52,8 +51,8 @@ export function ControlReportEvidenceSection({
         {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
       </p>
       <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-        These describe other organizations, not this business, and they are prosecuted cases, so
-        small thefts are absent. They are a reference class, not a forecast. The{" "}
+        These describe other organizations, not this business, and these are prosecuted cases, so
+        they leave out small thefts. They are a reference class, not a forecast. The{" "}
         {count(evidence.length, "case")} and{" "}
         {evidence.length === 1 ? "its source" : "their sources"} are listed in the appendix.
       </p>

@@ -3,26 +3,26 @@ import { SectionHeading } from "./start-here-parts";
 import { effortPhrase } from "./start-here-copy";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { StartHereModel } from "./use-start-here";
+import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { lossPhrase } from "@/lib/precog/evidence";
 
-export function StartHereFirstStepsSection({ model }: { model: StartHereModel }) {
-  const { steps, caseById, tips, soleKnowledge } = model;
+export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
+  const { steps, caseById, tips, hotlineGap, soleKnowledge } = model;
 
   return (
     <section className="space-y-3">
       <SectionHeading
         icon={<ArrowRight className="size-4" aria-hidden />}
         title="Do these first"
-        subtitle="Ordered first by how many of your open findings each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is where the loss is decided."
+        subtitle="Ordered first by how many of your open findings each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
       />
 
       <Card>
         <CardContent className="pt-5">
           {steps.length === 0 ? (
             <p className="text-sm leading-relaxed text-muted">
-              Nothing outstanding from the duty-conflict findings. The two items below still apply
-              to every business regardless.
+              Nothing outstanding from the duty-conflict findings. What follows applies to every
+              business.
             </p>
           ) : (
             <ol className="space-y-3">
@@ -76,6 +76,12 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel })
               worried about.
             </p>
             <p className="text-sm leading-relaxed text-muted">{tips.soWhat}</p>
+            {hotlineGap && (
+              <p className="text-sm leading-relaxed text-muted">
+                {hotlineGap.label}: {hotlineGap.value}.
+              </p>
+            )}
+            {tips.caveat && <p className="text-xs leading-relaxed text-subtle">{tips.caveat}</p>}
             <a
               href={tips.source.url}
               target="_blank"

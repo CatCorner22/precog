@@ -44,9 +44,6 @@ export const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "data-destruction": "Company data deleted or wiped by an insider",
 };
 
-/** Years of service at which the departure model calls a person long-serving. */
-export const LONG_SERVICE_YEARS = 5;
-
 /** Detection routes as a clause in a sentence: "it was the owner looking". */
 export const ROUTE_CLAUSE: Record<string, string> = {
   "owner-review": "the owner looking",

@@ -278,7 +278,7 @@ function Home() {
               onReset={() => openTab("start")}
             >
               <Suspense fallback={<TabLoading />}>
-                {tab === "start" && <StartHere onOpenDetail={openTab} />}
+                {tab === "start" && <StartHere onOpenDetail={openTab} sod={sodReport} />}
                 {tab === "command" && <Dashboard sodReport={sodReport} onOpen={openTab} />}
                 {tab === "map" && (
                   <ProcessMap

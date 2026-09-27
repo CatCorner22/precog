@@ -18,11 +18,10 @@ import { assessCoso } from "../coso";
 import {
   casesForSodRules,
   citingCaseStats,
-  detectionBreakdown,
   isOwnSector,
-  observedLossRange,
   recommendedStepsForRules,
 } from "../evidence";
+import { openFindings, partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
 import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
@@ -112,13 +111,13 @@ export function buildControlReportModel({
     profile.mapLayout ?? {},
   );
   const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  const openRuleIds = [
-    ...new Set(
-      sod.conflicts
-        .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated)
-        .map((c) => c.ruleId),
-    ),
-  ];
+  // Open as Start here counts it: not accepted, not the owner's own pair, and
+  // not closed by dual release at every amount.
+  const open = openFindings(
+    sod.conflicts,
+    partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
+  );
+  const openRuleIds = ruleIdsOf(open);
   const matched = casesForSodRules(openRuleIds);
   // Same line of business first; the reader's own sector is the part they
   // check, so it should not sit at the end of the list.
@@ -128,24 +127,19 @@ export function buildControlReportModel({
   ];
   // Ranked as Start here ranks its "Do these first" list, so the screen and
   // the printed report lead with the same step: first by how many of the
-  // open findings (not the owner's own pairs) each control answers.
-  const openFindings = sod.conflicts.filter(
-    (c) => !c.residualRiskAccepted && !c.dualReleaseMitigated && !c.ownerHeld,
-  );
-  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds), openFindings).slice(0, 6);
-  // Count, median and detection routes describe the cases whose records
-  // show these gaps; cases that only share a scheme are listed but not
-  // counted as matches.
+  // open findings each control answers.
+  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds), open).slice(0, 6);
+  // Count, median and detection routes describe only the cases whose records
+  // show these gaps. Cases that merely share a scheme are listed but never
+  // counted, so when no case shows the gaps the report gives no loss figure.
   const citing = citingCaseStats(openRuleIds);
-  const statsFrom = citing.count > 0 ? citing.cases : evidence;
-  const lossRange = observedLossRange(statsFrom);
-  const found = detectionBreakdown(statsFrom);
-  // Which cases the figures describe, and how many stated losses are only a
-  // floor ("at least $X"), so the report can say both beside the median.
+  const lossRange = citing.loss;
+  const found = citing.detection;
+  // How many stated losses are only a floor ("at least $X"), so the report
+  // can say so beside the median.
   const statsScope = {
-    cases: citing.count > 0 ? ("citing" as const) : ("related" as const),
-    count: statsFrom.length,
-    floors: statsFrom.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
+    count: citing.count,
+    floors: citing.cases.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
   };
   const docs = documentationDebt(tpl);
   const firstPoint = profile.mapHealthHistory?.[0];
