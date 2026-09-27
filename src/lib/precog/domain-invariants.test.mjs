@@ -91,14 +91,13 @@ describe("domain invariants", () => {
       verified: 1,
       recoveries: 500,
       hours: 0,
-      completion: 50,
+      unsourced: 1,
+      stale: 1,
+      future: 0,
+      score: 50,
     });
     assert.equal(valueEvidence.formatEvidenceAmount(records[0]), "$500");
     assert.equal(valueEvidence.formatEvidenceAmount({ kind: "time", amount: 12.5 }), "12.5 hrs");
-    assert.deepEqual(
-      valueEvidence.assessEvidenceQuality(records, new Date("2026-09-20T00:00:00.000Z")),
-      { unsourced: 1, stale: 1, future: 0, verified: 1, score: 50 },
-    );
     const unsourcedVerified = valueEvidence.normalizeValueEvidence([
       {
         id: "unsafe",
@@ -123,18 +122,21 @@ describe("domain invariants", () => {
       },
     ]);
     assert.equal(impossibleDate[0].observedAt, "");
-    const futureQuality = valueEvidence.assessEvidenceQuality(
-      [{ ...records[0], observedAt: "2026-09-21" }],
-      new Date("2026-09-20T00:00:00.000Z"),
-    );
-    assert.deepEqual(futureQuality, { unsourced: 0, stale: 0, future: 1, verified: 0, score: 0 });
-    // The totals the Value screen applies follow the same rule as the quality score.
+    // The totals the Value screen applies follow the same rule as the readiness score.
     const futureSummary = valueEvidence.summarizeValueEvidence(
       [{ ...records[0], observedAt: "2026-09-21" }],
       asOf,
     );
-    assert.equal(futureSummary.verified, 0);
-    assert.equal(futureSummary.recoveries, 0);
+    assert.deepEqual(futureSummary, {
+      total: 1,
+      verified: 0,
+      recoveries: 0,
+      hours: 0,
+      unsourced: 0,
+      stale: 0,
+      future: 1,
+      score: 0,
+    });
     const undatedSummary = valueEvidence.summarizeValueEvidence(
       [{ ...records[0], observedAt: "" }],
       asOf,
@@ -194,7 +196,10 @@ describe("domain invariants", () => {
         },
       ],
     );
-    assert.match(memoWithEvidence, /\| Verified \| recovery \| Vendor \\\| refund \| AP-7 \|/);
+    assert.match(
+      memoWithEvidence,
+      /\| Verified \| Recovery \| Vendor \\\| refund \| \$500 \| Jan 1, 2026 \| AP-7 \|/,
+    );
     const reconciledHours = valueCase.applyVerifiedAnnualHours(result.inputs, 40);
     assert.equal(reconciledHours.reviewHoursAfter, 20);
     assert.equal(valueCase.calculateValueCase(reconciledHours).observed.hoursSaved, 40);

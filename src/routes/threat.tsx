@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { ThreatAssessmentPanel } from "@/components/precog/threat-assessment";
 
 export const Route = createFileRoute("/threat")({
@@ -16,12 +16,5 @@ export const Route = createFileRoute("/threat")({
 });
 
 function ThreatPage() {
-  return (
-    <div>
-      <ThreatAssessmentPanel />
-      <div className="sr-only">
-        <Link to="/">Return to Command</Link>
-      </div>
-    </div>
-  );
+  return <ThreatAssessmentPanel />;
 }

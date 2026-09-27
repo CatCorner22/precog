@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getBaseTemplate, resolveTemplate } from "./active-template";
 import { defaultProfile } from "./practice-profile";
+import { rankDangerousScenarios } from "./engine";
 import { buildThreatAssessment } from "./threat-scoring";
 import type { Person } from "./types";
 
@@ -39,7 +40,7 @@ describe("buildThreatAssessment for an own business", () => {
       expect(report.targetDeck.some((t) => t.label === s.title)).toBe(false);
     }
     expect(report.missionBrief).toContain(
-      "Knowledge: Register not assessed yet: mark who can do each item on Who knows what.",
+      "Know-how: Register not assessed yet: mark who can do each item on Who knows what.",
     );
     expect(report.missionBrief.some((l) => l.startsWith("Scenarios: Starter scenarios"))).toBe(
       true,
@@ -70,6 +71,78 @@ describe("buildThreatAssessment for the sample", () => {
     const tpl = getBaseTemplate("dental");
     const p = defaultProfile("dental");
     const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
-    expect(report.missionBrief).toContain("Knowledge: 5 item(s) one person holds, 0 nobody holds.");
+    expect(report.missionBrief).toContain(
+      "Know-how: 5 items only one person can do; 0 nobody can.",
+    );
+  });
+
+  it("writes the executive summary and footer without military or internal shorthand", () => {
+    const tpl = getBaseTemplate("dental");
+    const p = defaultProfile("dental");
+    const report = buildThreatAssessment({ tpl, practiceName: "Bright Smiles", staff: p.staff });
+    const text = [...report.missionBrief, ...report.roeSummary, ...report.caveats].join(" ");
+    expect(report.missionBrief[0]).toMatch(/^Bright Smiles: where money can move/);
+    expect(text).not.toMatch(
+      /\bAO\b|WHITE HOT|act-now|critical path|static segregation|demo priors|SPOF|\(s\)|\bSoD\b/,
+    );
+    expect(report.caveats.join(" ")).toContain("Priority is this app's ranking index");
+  });
+
+  it("prints each duty conflict's full explanation", () => {
+    const tpl = getBaseTemplate("dental");
+    const p = defaultProfile("dental");
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
+    const sod = report.targetDeck.filter((t) => t.domain === "sod");
+    expect(sod.length).toBeGreaterThan(0);
+    for (const t of sod) expect(t.reasons[0]).toMatch(/[.!?]$/);
+  });
+
+  it("carries the loss after insurance on every row that has a loss", () => {
+    for (const industry of ["dental", "general"] as const) {
+      const tpl = getBaseTemplate(industry);
+      const p = defaultProfile(industry);
+      const report = buildThreatAssessment({
+        tpl,
+        practiceName: "x",
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+      });
+      const ranked = rankDangerousScenarios(tpl, {
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+      });
+      const withLoss = report.targetDeck.filter((t) => t.expectedLoss !== undefined);
+      expect(withLoss.length).toBeGreaterThan(0);
+      for (const t of withLoss) {
+        const id = t.id.replace(/^scen-/, "");
+        const row = ranked.find((r) => r.scenario.id === id)!;
+        expect(t.expectedLoss).toBe(row.result.retainedImpact.expected);
+      }
+    }
+  });
+});
+
+describe("next steps for a residual row", () => {
+  const steps = (industry: "dental" | "construction" | "retail", name: string) => {
+    const tpl = getBaseTemplate(industry);
+    const p = defaultProfile(industry);
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
+    return report.targetDeck.find((t) => t.label === name)?.roe;
+  };
+
+  it("does not read 'ap' or 'ar' inside ordinary words", () => {
+    const cases = [
+      ["dental", "Insurance denial appeals"],
+      ["construction", "Pay applications & retainage"],
+      ["retail", "Markdown / discount authority"],
+    ] as const;
+    let seen = 0;
+    for (const [industry, name] of cases) {
+      const roe = steps(industry, name);
+      if (!roe) continue;
+      seen++;
+      expect(roe.join(" ")).not.toMatch(/vendor|write-offs/i);
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });

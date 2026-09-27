@@ -31,10 +31,16 @@ interface CompareDelta {
 
 /**
  * Winners are column ids, or "" when no column earns the title. Comparing the
- * futures of one scenario, the "Do nothing" baseline never wins: a winner must
- * beat it outright, with the assumed gross loss breaking a tie on retained
- * loss or cost of risk (a default deductible can make every retained figure
- * the same while the gross loss differs by tens of thousands).
+ * futures of one scenario, the "Do nothing" baseline never wins and a winner
+ * must beat it on the figure itself; the assumed gross loss only breaks a tie
+ * between options. A default deductible can make every retained figure the
+ * same while the gross loss differs by tens of thousands: then no option wins
+ * by retained loss, `tieNote` says why, and `winnerByGross` names the option
+ * with the lowest loss before insurance.
+ *
+ * Deltas and the baseline exist only for futures ("Do nothing" is the
+ * baseline). Comparing different scenarios has no baseline, so `baselineId`
+ * is "" and `deltas` is empty.
  */
 export interface CompareReport {
   mode: "futures" | "cross";
@@ -44,64 +50,23 @@ export interface CompareReport {
   winnerByRetained: string;
   winnerByPriority: string;
   winnerByAnnualCor: string;
+  winnerByGross: string;
+  tieNote: string | null;
   staff: StaffComposition;
 }
 
-function lossMetric(result: PrecogResult): number {
-  return result.retainedImpact?.expected ?? result.financialImpact.expected;
-}
+/** Shown when every future of a scenario retains the same loss. */
+export const RETAINED_TIE_NOTE =
+  "Your deductible absorbs every option's remaining loss, so retained loss does not tell the options apart; compare the assumed loss before insurance instead.";
 
-function annualCor(result: PrecogResult): number {
-  return result.dynamic?.expectedAnnualCostOfRisk ?? lossMetric(result);
-}
-
-function grossMetric(result: PrecogResult): number {
-  return result.financialImpact.expected;
-}
-
-function priorityIndex(result: PrecogResult, authoredDays: number): number {
-  return lossMetric(result) * (1 / Math.max(14, authoredDays));
-}
-
-function buildCompareColumn(
-  tpl: IndustryTemplate,
-  scenarioId: string,
-  mitigationIds: string[],
-  staff: StaffComposition,
-  label?: string,
-  riskVariables?: RiskVariableState,
-): CompareColumn | null {
-  const { scenarios } = tpl;
-  const scenario = scenarios.find((s) => s.id === scenarioId);
-  const result = runPrecogScenario(tpl, scenarioId, {
-    mitigationIds,
-    staff,
-    riskVariables,
-  });
-  if (!scenario || !result) return null;
-
-  const annualMitigationCost = scenario.mitigations
-    .filter((m) => mitigationIds.includes(m.id))
-    .reduce((s, m) => s + m.costAnnual, 0);
-
-  const mitLabel =
-    mitigationIds.length === 0
-      ? "Do nothing"
-      : scenario.mitigations
-          .filter((m) => mitigationIds.includes(m.id))
-          .map((m) => m.label)
-          .join(" + ");
-
-  return {
-    id: `${scenarioId}__${mitigationIds.slice().sort().join(",") || "none"}`,
-    label: label ?? `${scenario.title} · ${mitLabel}`,
-    scenarioId,
-    mitigationIds,
-    result,
-    priorityIndex: priorityIndex(result, scenario.baseTimelineDays.p50),
-    annualMitigationCost,
-  };
-}
+export const COMPARE_PALETTE = [
+  "var(--color-primary)",
+  "var(--color-accent)",
+  "var(--color-warn)",
+  "var(--color-danger)",
+  "var(--color-ok)",
+  "var(--color-muted)",
+];
 
 export function compareScenarios(
   tpl: IndustryTemplate,
@@ -166,10 +131,67 @@ export function compareScenarioFutures(
   return finalizeReport(columns, staffResolved, "futures");
 }
 
+function lossMetric(result: PrecogResult): number {
+  return result.retainedImpact?.expected ?? result.financialImpact.expected;
+}
+
+function annualCor(result: PrecogResult): number {
+  return result.dynamic?.expectedAnnualCostOfRisk ?? lossMetric(result);
+}
+
+function grossMetric(result: PrecogResult): number {
+  return result.financialImpact.expected;
+}
+
+function priorityIndex(result: PrecogResult, authoredDays: number): number {
+  return lossMetric(result) * (1 / Math.max(14, authoredDays));
+}
+
+function buildCompareColumn(
+  tpl: IndustryTemplate,
+  scenarioId: string,
+  mitigationIds: string[],
+  staff: StaffComposition,
+  label?: string,
+  riskVariables?: RiskVariableState,
+): CompareColumn | null {
+  const { scenarios } = tpl;
+  const scenario = scenarios.find((s) => s.id === scenarioId);
+  const result = runPrecogScenario(tpl, scenarioId, {
+    mitigationIds,
+    staff,
+    riskVariables,
+  });
+  if (!scenario || !result) return null;
+
+  const annualMitigationCost = scenario.mitigations
+    .filter((m) => mitigationIds.includes(m.id))
+    .reduce((s, m) => s + m.costAnnual, 0);
+
+  const mitLabel =
+    mitigationIds.length === 0
+      ? "Do nothing"
+      : scenario.mitigations
+          .filter((m) => mitigationIds.includes(m.id))
+          .map((m) => m.label)
+          .join(" + ");
+
+  return {
+    id: `${scenarioId}__${mitigationIds.slice().sort().join(",") || "none"}`,
+    label: label ?? `${scenario.title} · ${mitLabel}`,
+    scenarioId,
+    mitigationIds,
+    result,
+    priorityIndex: priorityIndex(result, scenario.baseTimelineDays.p50),
+    annualMitigationCost,
+  };
+}
+
 /**
  * The column that does best on `key` (lower is better), with the assumed gross
- * loss breaking ties. In futures mode the baseline is not a candidate and a
- * winner must beat it outright; otherwise there is no winner.
+ * loss breaking ties between candidates. In futures mode the baseline is not a
+ * candidate and a winner must beat it on `key` itself; otherwise there is no
+ * winner.
  */
 function pickWinner(
   columns: CompareColumn[],
@@ -182,7 +204,7 @@ function pickWinner(
   const candidates = mode === "futures" ? columns.slice(1) : columns;
   if (candidates.length === 0) return "";
   const best = candidates.reduce((a, b) => (better(b, a) ? b : a));
-  if (mode === "futures" && !better(best, baseline)) return "";
+  if (mode === "futures" && !(key(best) < key(baseline))) return "";
   return best.id;
 }
 
@@ -200,14 +222,15 @@ function finalizeReport(
       winnerByRetained: "",
       winnerByPriority: "",
       winnerByAnnualCor: "",
+      winnerByGross: "",
+      tieNote: null,
       staff,
     };
   }
 
-  const baselineId = columns[0].id;
+  const futures = mode === "futures";
   const baseline = columns[0];
-
-  const deltas: CompareDelta[] = columns.map((c) => {
+  const deltas: CompareDelta[] = (futures ? columns : []).map((c) => {
     const el = c.result.financialImpact.expected - baseline.result.financialImpact.expected;
     const ret = lossMetric(c.result) - lossMetric(baseline.result);
     const p50 = c.result.timelineDays.p50 - baseline.result.timelineDays.p50;
@@ -223,23 +246,21 @@ function finalizeReport(
     };
   });
 
+  const retainedTied =
+    futures &&
+    columns.length > 1 &&
+    columns.every((c) => lossMetric(c.result) === lossMetric(baseline.result));
+
   return {
     mode,
-    baselineId,
+    baselineId: futures ? baseline.id : "",
     columns,
     deltas,
     winnerByRetained: pickWinner(columns, mode, (c) => lossMetric(c.result)),
     winnerByPriority: pickWinner(columns, mode, (c) => c.priorityIndex),
     winnerByAnnualCor: pickWinner(columns, mode, (c) => annualCor(c.result)),
+    winnerByGross: pickWinner(columns, mode, (c) => grossMetric(c.result)),
+    tieNote: retainedTied ? RETAINED_TIE_NOTE : null,
     staff,
   };
 }
-
-export const COMPARE_PALETTE = [
-  "var(--color-primary)",
-  "var(--color-accent)",
-  "var(--color-warn)",
-  "var(--color-danger)",
-  "var(--color-ok)",
-  "var(--color-muted)",
-];
