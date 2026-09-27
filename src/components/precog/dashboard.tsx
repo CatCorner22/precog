@@ -16,6 +16,7 @@ import { industryMeta, pluralTeamLabel } from "@/lib/precog/industry";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
+import { tabLabel } from "@/lib/precog/navigation";
 import { count } from "@/lib/precog/text";
 import { formatUsd } from "@/lib/utils";
 import { IndexBasis } from "@/components/precog/index-basis";
@@ -127,14 +128,14 @@ export function Dashboard({
             )}
           </Button>
           <Button variant="secondary" onClick={() => onOpen("map")}>
-            {say("How work flows", "Process map")}
+            {tabLabel("map", say)}
           </Button>
           <Button variant="secondary" onClick={() => onOpen("map", null, true)}>
             <Hammer className="size-4" />
             Build your map
           </Button>
           <Button variant="outline" onClick={() => onOpen("pioneer")}>
-            {say("Ask a question", "Ask advisor")}
+            {tabLabel("pioneer", say)}
           </Button>
           <Link
             to="/threat"

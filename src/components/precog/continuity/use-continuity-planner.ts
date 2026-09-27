@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useToday } from "@/lib/use-today";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   usePracticeActions,
   usePracticeState,
@@ -202,6 +203,7 @@ function useJournalSteps(
   tpl: IndustryTemplate,
   todayDate: Date,
 ) {
+  const journalName = useTabName()("journal");
   const today = localDateKey(todayDate);
   const commitments = useMemo(
     () => continuityCommitments(profile.decisions, tpl, today),
@@ -235,7 +237,7 @@ function useJournalSteps(
     });
   const confirmLogged = (reviewBy: string, steps = 1) =>
     toast.success(
-      `${steps === 1 ? "Logged" : `${steps} steps logged`} in the Journal — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
+      `${steps === 1 ? "Logged" : `${steps} steps logged`} in the ${journalName} — the register is re-checked at the review on ${formatDay(reviewBy)}.`,
     );
   /** One step on one item, reviewed in 30 days. */
   const logStep = (
@@ -266,7 +268,7 @@ function useJournalSteps(
       log(k.name, a.text, k.id, a.step, due, undefined, stepAbsenceId(a.step, absenceId));
     confirmLogged(due, pending.length);
   };
-  return { trackedBy, stepTracked, logStep, logMove, logGap, logAbsenceAction };
+  return { name: journalName, trackedBy, stepTracked, logStep, logMove, logGap, logAbsenceAction };
 }
 
 /**
@@ -571,7 +573,9 @@ function useLeave(
       `${first} covered ${entry.item.name} ${during(debrief)}; not yet able to run it alone.`,
     );
     if (entry.training) {
-      toast.success(`Cross-training ${first} on ${entry.item.name} is already in the Journal.`);
+      toast.success(
+        `Cross-training ${first} on ${entry.item.name} is already in the ${journal.name}.`,
+      );
     } else {
       journal.logStep(
         entry.item.name,

@@ -148,7 +148,7 @@ export function evaluateRelease(
         ...tieNote,
       ],
       nextSteps: [
-        "Log the accepted risk in the decision journal.",
+        "Log the accepted risk in the Decisions log.",
         "Review the exception again before it expires.",
       ],
       controlCredit: {

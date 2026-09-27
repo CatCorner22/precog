@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
   type DecisionEntry,
@@ -50,6 +51,7 @@ export function DecisionJournal({
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
+  const tabName = useTabName();
   const {
     profile,
     template,
@@ -182,7 +184,7 @@ export function DecisionJournal({
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">Decision journal</Badge>
+        <Badge variant="accent">{tabName("journal")}</Badge>
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen

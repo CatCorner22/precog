@@ -143,7 +143,7 @@ describe("get_knowledge_spofs journal commitments", () => {
       overdue: false,
     });
     expect(row?.documentationCommitted).toBeNull();
-    expect(result.summary).toContain("1 already being cross-trained per the Journal");
+    expect(result.summary).toContain("1 already being cross-trained per the Decisions log");
     expect(result.summary).not.toContain("past review date");
   });
 
@@ -168,7 +168,7 @@ describe("get_knowledge_spofs journal commitments", () => {
     const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
     expect(row?.committed).toBeNull();
     expect(row?.documentationCommitted).toMatchObject({ step: "document" });
-    expect(result.summary).not.toContain("per the Journal");
+    expect(result.summary).not.toContain("per the Decisions log");
   });
 });
 

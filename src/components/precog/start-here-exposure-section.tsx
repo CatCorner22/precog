@@ -13,6 +13,7 @@ import type { StartHereModel, TenureNoteModel } from "@/lib/precog/start-here/mo
 import type { NavFn } from "@/lib/precog/navigation";
 import { joinWithAnd, midSentence, verb } from "@/lib/precog/text";
 import { industryMeta } from "@/lib/precog/industry";
+import { useTabName } from "@/lib/precog/presentation";
 
 export function StartHereExposureSection({
   model,
@@ -21,6 +22,7 @@ export function StartHereExposureSection({
   model: StartHereModel["exposure"];
   onOpenDetail: NavFn;
 }) {
+  const tabName = useTabName();
   const {
     industryId,
     openConflicts,
@@ -68,7 +70,7 @@ export function StartHereExposureSection({
             onClick={() => onOpenDetail("sod")}
             className="font-medium text-primary underline underline-offset-2 hover:text-fg"
           >
-            Check them in Who controls what.
+            Check them in {tabName("sod")}.
           </button>
         </p>
       )}

@@ -128,8 +128,8 @@ export function knownUnknowns(
       id: "ku-decision-followthrough",
       title: "Remediation completion evidence",
       description: decisions.length
-        ? `${count(decisions.length, "Journal entry", "Journal entries")}, ${reviewed} with a review recorded.`
-        : "No Journal entry yet, so no fix has a recorded review.",
+        ? `${count(decisions.length, "Decisions log entry", "Decisions log entries")}, ${reviewed} with a review recorded.`
+        : "No Decisions log entry yet, so no fix has a recorded review.",
       severity: decisions.length < 2 ? "medium" : "low",
       affects: ["monitoring", "coso"],
       confidenceDrag: decisions.length < 2 ? 0.05 : 0.02,
@@ -172,7 +172,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
         action:
           "Read your cyber policy's terms and note the date of the last test restore from backup (outside this app)",
         effort: "hours",
-        expectedLift: "Opens a new residual domain the coach can score",
+        expectedLift: "Opens a new residual domain Pioneer can score",
       },
       link: { tab: "layers" },
     },
@@ -222,9 +222,9 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
     },
     {
       id: "uu-ai-tooling-risk",
-      title: "This coach's own model risk",
+      title: "Pioneer's own model risk",
       description:
-        "The coach's advice can create false confidence. This list exists to say that residual scores rest on this app's assumptions, not on measurements.",
+        "Pioneer's advice can create false confidence. This list exists to say that residual scores rest on this app's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,

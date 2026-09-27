@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
+import { tabLabel, type TabId } from "./navigation";
+
 /**
  * Presentation mode.
  *
@@ -76,4 +78,14 @@ export function usePresentation(): PresentationValue {
     };
   }
   return ctx;
+}
+
+/**
+ * A tab's name in the active wording, for body copy that names a tab
+ * ("Logged in the Decisions log" in plain mode, "Logged in the Journal" in
+ * tactical), so a sentence never disagrees with the tab strip.
+ */
+export function useTabName(): (tab: TabId) => string {
+  const { say } = usePresentation();
+  return (tab) => tabLabel(tab, say);
 }

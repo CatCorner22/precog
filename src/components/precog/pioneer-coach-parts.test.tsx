@@ -102,7 +102,7 @@ describe("CoachResultView", () => {
   it("puts the brief first and the trace behind a closed disclosure", () => {
     const html = view(result());
     const brief = html.indexOf("Your brief");
-    const moves = html.indexOf("Add a move to the Journal");
+    const moves = html.indexOf("Add a move to the Decisions log");
     const built = html.indexOf("How this brief was built");
     expect(brief).toBeGreaterThanOrEqual(0);
     expect(brief).toBeLessThan(moves);
@@ -116,8 +116,8 @@ describe("CoachResultView", () => {
 
   it("shows the top moves with 'Show all', and a logged move as added", () => {
     const html = view(result(), ["Move 1"]);
-    expect(html.match(/Add to the Journal</g)).toHaveLength(MOVES_PREVIEW - 1);
-    expect(html).toContain("Added to the Journal");
+    expect(html.match(/Add to the Decisions log</g)).toHaveLength(MOVES_PREVIEW - 1);
+    expect(html).toContain("Added to the Decisions log");
     expect(html).toContain("Show all 5");
     expect(html).not.toContain("Move 5");
   });

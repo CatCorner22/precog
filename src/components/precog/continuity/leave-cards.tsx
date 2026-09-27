@@ -36,6 +36,7 @@ import type { Person } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   CRITICALITY_LABEL,
   LEVEL_SHORT,
@@ -243,6 +244,7 @@ export function LeaverCard({
   tracked: StepCommitment;
   onLog: (a: AbsenceAction) => void;
 }) {
+  const tabName = useTabName();
   /** False while nobody is marked on the register: the hand-over cannot be worked out. */
   const assessed = l.assessed;
   const first = firstName(l.person.name);
@@ -310,7 +312,7 @@ export function LeaverCard({
         <>
           <div className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
             Hand-over checklist · {l.handover.length} only {first} can run alone
-            {l.unlogged > 0 && ` · ${l.unlogged} not yet in the Journal`}
+            {l.unlogged > 0 && ` · ${l.unlogged} not yet in the ${tabName("journal")}`}
           </div>
           <ul className="mt-1 space-y-1">
             {l.handover.map((h) => (
@@ -359,6 +361,7 @@ export function LeaverCard({
 }
 
 function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) => void }) {
+  const tabName = useTabName();
   const journal = h.training ?? h.documenting;
   return (
     <li className="rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60">
@@ -383,7 +386,7 @@ function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) 
         </span>
         {journal?.reviewBy && (
           <span className="text-xs text-subtle">
-            In the Journal · {h.training ? "training" : "writing it down"} · review by{" "}
+            In the {tabName("journal")} · {h.training ? "training" : "writing it down"} · review by{" "}
             {formatDay(journal.reviewBy)}
           </span>
         )}
@@ -411,6 +414,7 @@ export function LeaveDebriefCard({
   onClose: (entry: DebriefItem) => void;
   onDismiss: () => void;
 }) {
+  const tabName = useTabName();
   const first = firstName(debrief.person.name);
   /** Who the owner says actually stepped in, when the register had nobody lined up. */
   const [pickedStandIn, setPickedStandIn] = useState<Record<string, string>>({});
@@ -454,7 +458,9 @@ export function LeaveDebriefCard({
                     {standInFirst} today: {LEVEL_SHORT[e.standInLevel]}
                   </span>
                 )}
-                {e.handoff && <span className="text-xs text-subtle">Hand-off in the Journal</span>}
+                {e.handoff && (
+                  <span className="text-xs text-subtle">Hand-off in the {tabName("journal")}</span>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

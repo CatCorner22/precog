@@ -73,7 +73,7 @@ export function collectDueItems(
       id: `dec-${d.id}`,
       kind: "decision",
       title: `Re-review: ${d.subject}`,
-      detail: `Journal decision (${d.kind.replace("_", " ")})`,
+      detail: `Decisions log entry (${d.kind.replace("_", " ")})`,
       dueAt: due,
       daysLeft,
       status: classify(daysLeft),

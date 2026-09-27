@@ -123,7 +123,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" aria-hidden />
-          Precog Pioneer
+          Pioneer
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Every answer is built from this app&rsquo;s own records: what is still exposed, duty
@@ -134,7 +134,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Ask a question</CardTitle>
+          <CardTitle>Ask Pioneer</CardTitle>
           <CardDescription>Answers use only this app&rsquo;s own figures.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

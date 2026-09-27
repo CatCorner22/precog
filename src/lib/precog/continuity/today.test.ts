@@ -232,7 +232,7 @@ describe("todayBrief", () => {
     expect(brief.leaving[0].handover.map((h) => h.item.id).sort()).toEqual(["payroll", "pms"]);
     expect(brief.gone).toEqual([]);
     expect(brief.headline).toBe(
-      "Maya leaves in 12 days — 2 entries to hand over, 2 not yet in the Journal.",
+      "Maya leaves in 12 days — 2 entries to hand over, 2 not yet in the Decisions log.",
     );
   });
 

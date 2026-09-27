@@ -12,6 +12,7 @@ import { INDUSTRIES, industryHasOwner, type IndustryId } from "@/lib/precog/indu
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { ownBusinessName } from "@/lib/precog/business-lifecycle";
 import { canKeepLocalData } from "@/lib/precog/local-data";
@@ -80,6 +81,7 @@ import { clamp } from "@/lib/precog/number";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
 export function IndustryOnboarding() {
+  const tabName = useTabName();
   const workspace = useWorkspace();
   const {
     profile,
@@ -652,7 +654,7 @@ export function IndustryOnboarding() {
               </h2>
               <CardDescription>
                 Name your people and tick the money duties each one handles today; you can refine
-                everything later in Who controls what.
+                everything later in {tabName("sod")}.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

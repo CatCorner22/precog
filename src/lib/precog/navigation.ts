@@ -10,7 +10,7 @@ export const TAB_WORDS = [
   { id: "start", label: "Start here", tactical: "Start here" },
   { id: "command", label: "Dashboard", tactical: "Command" },
   { id: "map", label: "How work flows", tactical: "Process map" },
-  { id: "pioneer", label: "Ask a question", tactical: "Advisor" },
+  { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
   { id: "intel", label: "Patterns", tactical: "Intel" },
   { id: "residual", label: "What is still exposed", tactical: "Residual" },
   { id: "coso", label: "Coverage check", tactical: "COSO" },

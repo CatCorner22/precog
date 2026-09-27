@@ -421,7 +421,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
         </Section>
 
         {decisionLog.shown.length > 0 && (
-          <Section title="Decision log">
+          <Section title="Decisions log">
             <ul className="space-y-1.5 text-sm">
               {decisionLog.shown.map(({ decision: d, status }) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">

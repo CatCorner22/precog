@@ -74,7 +74,7 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
   ).length;
   const commitmentSummary =
     committedRows > 0
-      ? `; ${committedRows} already being cross-trained per the Journal${overdueRows > 0 ? ` (${overdueRows} past review date)` : ""} — do not recommend those again, ask whether they happened`
+      ? `; ${committedRows} already being cross-trained per the Decisions log${overdueRows > 0 ? ` (${overdueRows} past review date)` : ""} — do not recommend those again, ask whether they happened`
       : "";
   return {
     ok: true,

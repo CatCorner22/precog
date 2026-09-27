@@ -9,6 +9,7 @@ import { CRITICALITY_LABEL } from "@/lib/precog/continuity/planner-copy";
 import { formatDay } from "@/lib/precog/dates";
 import type { KnowledgeItem } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+import { useTabName } from "@/lib/precog/presentation";
 
 /**
  * "In the Journal · review by Oct 26, 2026" once a step is logged, otherwise
@@ -23,10 +24,11 @@ export function JournalStepStatus({
   onLog: () => void;
   inline?: boolean;
 }) {
+  const tabName = useTabName();
   if (commitment) {
     return (
       <span className={cn("text-xs text-subtle", inline ? "ml-2" : "block")}>
-        In the Journal
+        In the {tabName("journal")}
         {commitment.reviewBy ? ` · review by ${formatDay(commitment.reviewBy)}` : ""}
       </span>
     );

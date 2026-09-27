@@ -8,6 +8,7 @@ import type { StartHereModel } from "@/lib/precog/start-here/model";
 import type { NavFn } from "@/lib/precog/navigation";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { formatDayRange } from "@/lib/precog/dates";
+import { useTabName } from "@/lib/precog/presentation";
 import { count, firstName } from "@/lib/precog/text";
 import type { AbsenceWindow } from "@/lib/precog/continuity/planned-absence";
 import { outStopsNote, WEIGHTED_SHARE_NOTE } from "./start-here-copy";
@@ -19,6 +20,7 @@ export function StartHereContinuitySection({
   model: StartHereModel["continuity"];
   onOpenDetail: NavFn;
 }) {
+  const tabName = useTabName();
   const {
     isSampleTeam,
     industryLabel,
@@ -136,7 +138,9 @@ export function StartHereContinuitySection({
                           : `${l.handover.length} to hand over`}
                     </span>
                     {l.status === "notice" && l.unlogged > 0 && (
-                      <span className="text-xs text-warn">· {l.unlogged} not in the Journal</span>
+                      <span className="text-xs text-warn">
+                        · {l.unlogged} not yet in the {tabName("journal")}
+                      </span>
                     )}
                   </li>
                 ))}
@@ -234,7 +238,7 @@ export function StartHereContinuitySection({
               onClick={() => onOpenDetail("knowledge")}
               className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
-              Open Who knows what
+              Open {tabName("knowledge")}
               <ArrowRight className="size-3.5" aria-hidden />
             </button>
           </div>

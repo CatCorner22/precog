@@ -246,7 +246,7 @@ export function describeLeaver(l: Leaver): string {
     n === 0 ? "" : `${n} register ${n === 1 ? "entry" : "entries"} only ${first} can run alone`;
   return `${when}: ${[stops, ...parts].filter(Boolean).join(" — ")}${
     l.unlogged > 0 && n > 0
-      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} logged in the Journal`
+      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} logged in the Decisions log`
       : ""
   }.`;
 }

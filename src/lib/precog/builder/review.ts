@@ -136,7 +136,7 @@ export function reviewLocally(input: ReviewInput): MapReview {
     );
   if (hot[0])
     moves.push(
-      `Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Journal.`,
+      `Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Decisions log.`,
     );
   if (input.overburdened[0])
     moves.push(

@@ -63,7 +63,7 @@ describe("runMetaAnalysis follows the business's own facts", () => {
     const base = defaultProfile("retail");
     const bare = runMetaAnalysis({ ...base, decisions: [] });
     expect(bare.recommendations[0]).toBe(
-      "Give the app more to work with: turn on dual release and log a first decision in the Journal.",
+      "Give the app more to work with: turn on dual release and log a first decision in the Decisions log.",
     );
     const done = runMetaAnalysis({
       ...base,
@@ -92,7 +92,7 @@ describe("runMetaAnalysis follows the business's own facts", () => {
       runMetaAnalysis({ ...defaultProfile("general"), decisions }).items.find(
         (i) => i.id === "ku-decision-followthrough",
       )!.description;
-    expect(gap([])).toBe("No Journal entry yet, so no fix has a recorded review.");
+    expect(gap([])).toBe("No Decisions log entry yet, so no fix has a recorded review.");
     expect(
       gap([
         { id: "a", createdAt: "2026-01-01", subject: "x", kind: "remediate", note: "" },
@@ -111,6 +111,6 @@ describe("runMetaAnalysis follows the business's own facts", () => {
           ],
         },
       ]),
-    ).toBe("2 Journal entries, 1 with a review recorded.");
+    ).toBe("2 Decisions log entries, 1 with a review recorded.");
   });
 });

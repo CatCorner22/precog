@@ -598,7 +598,7 @@ export function localSynthesize(
             w.status === "current"
               ? `In progress: ${c.name} is covered while ${w.person.name} ${out}${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`
               : `In progress: hand-off of ${c.name} before ${w.person.name} is out${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`,
-          rationale: `You already logged the hand-off in the Journal${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
+          rationale: `You already logged the hand-off in the Decisions log${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.journal),
@@ -683,7 +683,7 @@ export function localSynthesize(
       return [
         {
           action: `In progress: ${name}'s hand-over of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
-          rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Journal; close each as done once the successor can run it, before ${l.lastDay}.`,
+          rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Decisions log; close each as done once the successor can run it, before ${l.lastDay}.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: horizon,
@@ -793,10 +793,10 @@ export function localSynthesize(
             action: commitment.overdue
               ? `Review overdue: can ${commitment.trainee?.name ?? "the backup"} run ${committedSpof.name} alone yet?`
               : `In progress: ${commitment.trainee?.name ?? "a backup"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
-            rationale: `You already logged "${commitment.subject}" in the Journal, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
+            rationale: `You already logged "${commitment.subject}" in the Decisions log, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
               commitment.overdue
                 ? "Close it as done there — which updates the register — or push the review date if training is still under way."
-                : "Nothing new to start; when the training is finished, close it as done in the Journal so the register catches up."
+                : "Nothing new to start; when the training is finished, close it as done in the Decisions log so the register catches up."
             }`,
             evidenceIds: evidence
               .filter((e) => e.kind === "spof")
@@ -844,7 +844,7 @@ export function localSynthesize(
     ...(checkIns && checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld)] : []),
     {
       action:
-        "Write down in the Journal which open gaps you accept and which you will fix, each with a review date",
+        "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date",
       rationale:
         "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
       evidenceIds: evidence

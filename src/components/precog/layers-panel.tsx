@@ -1,6 +1,8 @@
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import type { TabId } from "@/lib/precog/navigation";
+import { useTabName } from "@/lib/precog/presentation";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,10 +22,10 @@ const ORDER: MatrixLayerId[] = [
 ];
 
 /** The tab that shows each layer in full, for the link under its list. */
-const FULL_VIEW: Partial<Record<MatrixLayerId, { tab: string; label: string }>> = {
-  control: { tab: "sod", label: "Open Who controls what" },
-  knowledge: { tab: "knowledge", label: "Open Who knows what" },
-  process: { tab: "map", label: "Open How work flows" },
+const FULL_VIEW: Partial<Record<MatrixLayerId, TabId>> = {
+  control: "sod",
+  knowledge: "knowledge",
+  process: "map",
 };
 
 export function LayersPanel({
@@ -84,9 +86,12 @@ export function LayerDetail({
   /** Opens the tab that shows this layer in full. */
   onOpenTab?: (tab: string) => void;
 }) {
+  const tabName = useTabName();
   const full = FULL_VIEW[layer];
   const action =
-    full && onOpenTab ? { label: full.label, onClick: () => onOpenTab(full.tab) } : undefined;
+    full && onOpenTab
+      ? { label: `Open ${tabName(full)}`, onClick: () => onOpenTab(full) }
+      : undefined;
   const { profile, addDecision } = usePractice();
   const { processes, controls, knowledge } = useTemplate();
   const layerCopy = getIndustryCopy(profile.industry).layerCopy;
@@ -156,7 +161,7 @@ export function LayerDetail({
                 <p className="mt-1 text-xs text-subtle">
                   Already in place: {c.compensatingControls.join("; ")}
                   {ownBusiness &&
-                    " (from your decisions log; remove an entry there to take it off)"}
+                    ` (from your ${tabName("journal")}; remove an entry there to take it off)`}
                 </p>
               )}
               {ownBusiness && !c.starter && !c.segregated && (
@@ -253,6 +258,7 @@ function LayerShell({
  * still held by one person.
  */
 function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
+  const tabName = useTabName();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   if (!open) {
@@ -287,8 +293,8 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
         />
       </label>
       <p className="text-xs text-subtle">
-        It goes in your decisions log with a review date in 90 days. It lowers these findings&apos;
-        scores a little but does not close them: one person still holds both duties.
+        It goes in your {tabName("journal")} with a review date in 90 days. It lowers these
+        findings&apos; scores a little but does not close them: one person still holds both duties.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={!trimmed}>

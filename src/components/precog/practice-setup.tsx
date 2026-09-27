@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { useId, useState, type ReactNode } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
@@ -20,6 +21,7 @@ import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
  * shown, not set: the next team or register edit would put them back.
  */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
+  const tabName = useTabName();
   const {
     profile,
     setPracticeName,
@@ -72,7 +74,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   function resetToSample() {
     const lost = [
       joinWithAnd(describeEnteredWork(enteredWork(profile))),
-      profile.decisions.length ? "your decision log" : "",
+      profile.decisions.length ? `your ${tabName("journal")}` : "",
     ].filter(Boolean);
     if (
       lost.length &&
@@ -127,7 +129,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <CardDescription>
           {ownTeam
             ? "Industry sets the starter process map, register and scenarios; your team and the duties you ticked drive the findings and scores. Sign in to sync across devices."
-            : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual scores and your AI advisor. Sign in to sync across devices."}
+            : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual scores and Pioneer's briefs. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -292,6 +294,7 @@ function IndustryChangeConfirm({
   onReplace: () => void;
   onCancel: () => void;
 }) {
+  const tabName = useTabName();
   if (!entered) {
     return (
       <div
@@ -301,7 +304,7 @@ function IndustryChangeConfirm({
       >
         <p>
           Load the {industryLabel} sample business? This swaps in that industry's processes, people,
-          scenarios and staff defaults. You keep your decision log.
+          scenarios and staff defaults. You keep your {tabName("journal")}.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={onReplace}>
@@ -325,7 +328,7 @@ function IndustryChangeConfirm({
           {businessName} has {entered} entered here.
         </span>{" "}
         Loading the {industryLabel} sample business replaces all of it with the sample's people and
-        processes. You keep your decision log.
+        processes. You keep your {tabName("journal")}.
       </p>
       <p className="text-muted">
         Running more than one kind of business? Keep {businessName} as it is and add the new one

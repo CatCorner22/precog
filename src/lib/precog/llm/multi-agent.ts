@@ -66,7 +66,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     title: "Controls: who can do what alone",
     bullets: [
       sod
-        ? `${count(sod.length, "duty conflict")}; ${sod.filter((s) => !s.residualRiskAccepted).length} not yet accepted or fixed. Write each decision down in the Journal.`
+        ? `${count(sod.length, "duty conflict")}; ${sod.filter((s) => !s.residualRiskAccepted).length} not yet accepted or fixed. Write each decision down in the Decisions log.`
         : "No duty-conflict check in this run.",
       rag?.hits?.[0]
         ? `Guidance: ${rag.hits[0].title}: ${rag.hits[0].text.slice(0, 160)}…`
@@ -103,7 +103,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
   }
   if (!criticBullets.length) criticBullets.push(NO_ALERT_WARNING);
   criticBullets.push(
-    "Fixing one control can lower the premium and change how much risk you accept; record the change in the Journal.",
+    "Fixing one control can lower the premium and change how much risk you accept; record the change in the Decisions log.",
   );
 
   notes.push({

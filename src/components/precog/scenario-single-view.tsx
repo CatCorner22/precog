@@ -11,6 +11,7 @@ import {
 import { confirmedScenarioIds, starterScenarioLabel } from "@/lib/precog/scoring/scope";
 import { industryMeta } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { CaseCard } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ export function SingleScenarioView({
   onView: (view: ScenarioView) => void;
   staffWhatIf: StaffWhatIf;
 }) {
+  const tabName = useTabName();
   const { profile, addDecision } = usePractice();
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
@@ -115,8 +117,8 @@ export function SingleScenarioView({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel p-3 text-sm">
           <p className="max-w-2xl text-muted">
             &ldquo;{scenario.title}&rdquo; is a starter scenario from the example. If it could
-            happen in your business, make it yours: it is logged in your Decisions log with a review
-            date and starts counting in the threat index and your totals.
+            happen in your business, make it yours: it is logged in your {tabName("journal")} with a
+            review date and starts counting in the threat index and your totals.
           </p>
           <Button size="sm" onClick={() => addDecision(scenarioConfirmation(scenario, new Date()))}>
             <CheckCircle2 className="size-3.5" />

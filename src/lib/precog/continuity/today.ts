@@ -187,7 +187,7 @@ function headline(b: TodayBrief): string | null {
       ? "the app cannot tell yet what depends on them alone"
       : l.handover.length === 0
         ? "nothing on the register depends on them alone"
-        : `${count(l.handover.length, "entry", "entries")} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`;
+        : `${count(l.handover.length, "entry", "entries")} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Decisions log` : ""}`;
     return `${first} ${leaverLead(l.daysLeft)} — ${work}.`;
   }
   if (b.debriefs > 0) {

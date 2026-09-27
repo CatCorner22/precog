@@ -117,7 +117,7 @@ const TOOLS = {
   },
   get_knowledge_spofs: {
     description:
-      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, whether each entry was confirmed in the last 90 days, and whether the owner has already logged that step in the Journal (with its review date) so it is followed up rather than recommended again.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, whether each entry was confirmed in the last 90 days, and whether the owner has already logged that step in the Decisions log (with its review date) so it is followed up rather than recommended again.",
     run: knowledgeSpofs,
   },
   get_register_checkins: {
@@ -127,7 +127,7 @@ const TOOLS = {
   },
   get_planned_absences: {
     description:
-      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Journal. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them. Also `leavers`: people who have given notice (last working day, days left, or already past it and still counted as cover), with the hand-over each must complete before they go — every register entry only they can run alone, the successor to train, what is not written down, processes needing a new owner, and which steps are already in the Journal.",
+      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Decisions log. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them. Also `leavers`: people who have given notice (last working day, days left, or already past it and still counted as cover), with the hand-over each must complete before they go — every register entry only they can run alone, the successor to train, what is not written down, processes needing a new owner, and which steps are already in the Decisions log.",
     run: plannedAbsences,
   },
   get_knowledge_graph: {

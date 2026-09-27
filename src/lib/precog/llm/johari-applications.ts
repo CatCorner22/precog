@@ -130,7 +130,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       axes: { self: false, others: true },
       riskIfLarge:
         "High — owner overconfidence; the insurance and residual figures drift from the owner's own account.",
-      goal: "Move BLIND into OPEN through regular feedback (the coach's brief, the residual ranking, duty-conflict badges).",
+      goal: "Move BLIND into OPEN through regular feedback (Pioneer's brief, the residual ranking, duty-conflict badges).",
       examples: [
         "The app flags one person who can both add a vendor and pay it; the owner thought 'we're too small for that'",
         "Watched conditions breached while the owner rates the culture as strong",
@@ -152,7 +152,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
           from: "blind",
           to: "open",
           mechanism: "feedback",
-          action: "Ask the coach: 'What am I not seeing in cash and bill-payment controls?'",
+          action: "Ask Pioneer: 'What am I not seeing in cash and bill-payment controls?'",
           effort: "minutes",
           precogTab: "pioneer",
         },
@@ -167,8 +167,8 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
         "What the business knows but never recorded: who is never left alone with the deposit, informal void workarounds, family members as the two signers, dual-release waivers nobody logged.",
       axes: { self: true, others: false },
       riskIfLarge:
-        "High — the app under-scores the risk, the coach gives false comfort, and an audit surprises the owner.",
-      goal: "Move HIDDEN into OPEN by writing it into the profile, the register, dual-release exceptions and the Journal.",
+        "High — the app under-scores the risk, Pioneer gives false comfort, and an audit surprises the owner.",
+      goal: "Move HIDDEN into OPEN by writing it into the profile, the register, dual-release exceptions and the Decisions log.",
       examples: [
         "The owner knows two staff who check each other's work share a home; the app does not model that",
         "A shared login to the main business system 'for speed' was never recorded as a control failure",
@@ -263,7 +263,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       summary:
         "Classic Johari: enlarge open leadership arena through feedback and selective disclosure.",
       selfLabel: "Owner self-view",
-      othersLabel: "Staff, coach and app view",
+      othersLabel: "Team, Pioneer and app view",
       openExample: "Owner states 'I approve write-offs >$150' and dual-release enforces it",
       blindExample: "Staff see owner rarely reviews exception reports; residual shows it",
       hiddenExample: "Owner distrusts a specific employee but never changes access",
@@ -330,7 +330,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     },
     {
       domain: "ai_coach_trust",
-      title: "AI coach trustworthiness",
+      title: "How far to trust Pioneer",
       summary:
         "The what-the-app-can-see check is the Johari window for the tool itself: what it knows, and where trusting it blindly goes wrong.",
       selfLabel: "What the model claims",
@@ -339,7 +339,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       blindExample: "A residual of 35 read as 'safe' without looking at the known gaps",
       hiddenExample: "The model's limits stay out of sight until someone opens the gaps list",
       unknownExample: "Ways things could go wrong that the model was never built to see",
-      primaryMove: "Read every coach brief next to the list of known gaps",
+      primaryMove: "Read every Pioneer brief next to the list of known gaps",
       whyItMatters: "Keeps an AI answer from giving false comfort, a modern blind spot.",
     },
     {
@@ -347,7 +347,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       title: "Psychological safety & reporting",
       summary: "Culture of silence keeps fraud signals in UNKNOWN or HIDDEN for observers.",
       selfLabel: "Staff private concerns",
-      othersLabel: "Ways to raise a concern, the Journal, what the owner hears",
+      othersLabel: "Ways to raise a concern, the Decisions log, what the owner hears",
       openExample: "Anonymous pulse + clear escalate path used once",
       blindExample: "Owner thinks 'open door' works; staff disagree",
       hiddenExample: "Front desk sees cash shortfalls, doesn't report",
@@ -381,7 +381,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   antiPatterns: [
     "Growing OPEN with paperwork only (facade compliance)",
     "Using dual-release waivers without a note on the risk (HIDDEN debt)",
-    "Treating the coach's figures as truth without reading the known gaps (AI blind spot)",
+    "Treating Pioneer's figures as truth without reading the known gaps (AI blind spot)",
     "Never asking staff about reporting safety (culture UNKNOWN stays forever)",
     "One-time Johari workshop with no re-measure",
   ],
@@ -402,7 +402,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     },
     {
       name: "Hidden disclosure events",
-      how: "Journal entries, register links and exceptions added after interviews",
+      how: "Decisions log entries, register links and exceptions added after interviews",
       target: "≥2 per month during onboarding",
       basis:
         "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",

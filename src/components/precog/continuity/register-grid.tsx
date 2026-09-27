@@ -22,6 +22,7 @@ import type { RegisterEditor } from "@/components/precog/continuity/use-continui
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTabName } from "@/lib/precog/presentation";
 
 /** The editable register: add an item, page through it, and mark each person's level. */
 export function RegisterGrid({
@@ -35,6 +36,7 @@ export function RegisterGrid({
   tpl: IndustryTemplate;
   trackFreshness: boolean;
 }) {
+  const tabName = useTabName();
   const {
     importIssues,
     people,
@@ -124,8 +126,8 @@ export function RegisterGrid({
 
       {people.length === 0 ? (
         <p className="text-sm text-muted">
-          Nobody is on the active team yet. Add your people on the How work flows tab, then mark who
-          can do each item here.
+          Nobody is on the active team yet. Add your people on the {tabName("map")} tab, then mark
+          who can do each item here.
         </p>
       ) : (
         <div className="space-y-2">

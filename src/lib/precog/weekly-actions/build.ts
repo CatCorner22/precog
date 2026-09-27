@@ -535,7 +535,7 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
       title: top.successor
         ? `${lead}: train ${successor} on ${top.item.name}${others > 0 ? ` and ${others} more` : ""}`
         : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand over)` : ""}`,
-      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Journal)` : ""}.${remaining}`,
+      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Decisions log)` : ""}.${remaining}`,
       effort: top.successor ? "medium" : "high",
       tab: "knowledge",
       priority: top.item.criticality === "critical" ? urgency : urgency - NOT_CRITICAL_DISCOUNT,
@@ -841,7 +841,7 @@ function committedAction(
             : c.step === "locate"
               ? `Review overdue: where does the ${c.item.name} procedure live?`
               : `Review overdue: ${c.item.name} hand-off`,
-      why: `${logged} Close it in the Journal as done, which updates the register, or push the review date if it is still in progress.`,
+      why: `${logged} Close it in the Decisions log as done, which updates the register, or push the review date if it is still in progress.`,
       effort: "low",
       tab: "journal",
       priority,
@@ -850,7 +850,7 @@ function committedAction(
   return {
     id: `commit-${c.decision.id}`,
     title: `In progress: ${what}${c.reviewBy ? ` — review ${formatDay(c.reviewBy)}` : ""}`,
-    why: `${logged} Nothing new to start; if it has already happened, close it as done in the Journal.`,
+    why: `${logged} Nothing new to start; if it has already happened, close it as done in the Decisions log.`,
     effort: "low",
     tab: "journal",
     priority: PRIORITY.inProgress,

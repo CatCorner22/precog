@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   LEAVER_ACCESS_ITEMS,
   leaverLabel,
@@ -79,6 +80,7 @@ function AccessChecklist({
  * view of Who knows what.
  */
 export function LeaverAccessPrompt() {
+  const tabName = useTabName();
   const { profile, template, confirmLeaverAccess, markLeaverPrompted } = usePractice();
   const pending = useMemo(
     () => unpromptedAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
@@ -114,7 +116,7 @@ export function LeaverAccessPrompt() {
             confirmLeaverAccess(ids);
             toast.success(
               one ? `Recorded for ${pending[0].name}.` : `Recorded for ${pending.length} people.`,
-              { description: "Dated in the decisions log." },
+              { description: `Dated in the ${tabName("journal")}.` },
             );
           }}
         >
@@ -135,6 +137,7 @@ export function LeaverAccessPrompt() {
  * business.
  */
 export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?: boolean }) {
+  const tabName = useTabName();
   const { profile, template, confirmLeaverAccess } = usePractice();
   const open = useMemo(
     () => openAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
@@ -194,7 +197,7 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
                     confirmLeaverAccess([check.id]);
                     setExpanded(null);
                     toast.success(`Recorded for ${check.name}.`, {
-                      description: "Dated in the decisions log.",
+                      description: `Dated in the ${tabName("journal")}.`,
                     });
                   }}
                 />

@@ -32,7 +32,7 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What stays in this browser</h2>
         <p>
-          Until you sign in, the business profile, decision journal, monthly review notes, and
+          Until you sign in, the business profile, Decisions log, monthly review notes, and
           access-import queue are stored in this browser only. A private window or a full site-data
           clear removes them. They are not sent to a server.
         </p>
@@ -75,7 +75,7 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What is sent to the model</h2>
         <p>
-          The advisor answers on this device from your profile with no model call until you ask a
+          Pioneer answers on this device from your profile with no model call until you ask a
           question while signed in and a model key is configured. That question, plus the tool
           results it needs (names, duties, gaps, and notes you typed), is sent to xAI to write the
           brief. Logged-out use never makes that call. Do not paste patient, customer, or account

@@ -80,7 +80,7 @@ export function CoachResultView({
       {result.decisions.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>Add a move to the Journal</CardTitle>
+            <CardTitle>{`Add a move to the ${tabLabel("journal", say)}`}</CardTitle>
             <CardDescription>
               A logged move gets a review date, and the next brief follows it up instead of
               recommending it again.
@@ -103,7 +103,7 @@ export function CoachResultView({
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="secondary" disabled={done} onClick={() => onLog(d)}>
                       {done ? <Check className="size-3.5" /> : <BookOpen className="size-3.5" />}
-                      {done ? "Added to the Journal" : "Add to the Journal"}
+                      {`${done ? "Added to the" : "Add to the"} ${tabLabel("journal", say)}`}
                     </Button>
                     {done && (
                       <Button size="sm" variant="ghost" onClick={() => onNavigate?.("journal")}>

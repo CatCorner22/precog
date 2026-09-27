@@ -374,11 +374,11 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
     },
     {
       id: "rt-pioneer",
-      label: "Coach brief",
+      label: "Pioneer brief",
       ready: true,
       latencyClass: "subsecond",
       description:
-        "The coach rebuilds its brief from the current profile without waiting for a batch job.",
+        "Pioneer rebuilds its brief from the current profile without waiting for a batch job.",
       dependency: "tool catalog",
     },
     {
@@ -444,7 +444,7 @@ function recommendationsFor(
   const { profile, decisions } = facts;
   const missing = [
     profile.dualRelease.enabled ? "" : "turn on dual release",
-    decisions.length ? "" : "log a first decision in the Journal",
+    decisions.length ? "" : "log a first decision in the Decisions log",
   ].filter(Boolean);
   const topGap = probes.find((i) => i.classification === "known_unknown");
   const topOutside = items.find((i) => i.classification === "unknown_unknown");
@@ -456,7 +456,7 @@ function recommendationsFor(
     topGap ? `Close the top known gap: ${topGap.title}.` : "",
     topOutside ? `Look into the top area outside the model: ${topOutside.title}.` : "",
     "Schedule a weekly export of voids, payments, and write-offs so the app can watch transaction-level conditions.",
-    "Re-run this check after any dual-release exception, staff change, or new Journal decision.",
+    "Re-run this check after any dual-release exception, staff change, or new Decisions log entry.",
   ].filter(Boolean);
 }
 

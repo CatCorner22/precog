@@ -91,7 +91,7 @@ describe("buildWeeklyActions journal awareness", () => {
       }),
     );
     expect(actions.find((a) => a.id === "commit-d-cover")?.why).toContain(
-      "Close it in the Journal",
+      "Close it in the Decisions log",
     );
     expect(actions.some((a) => a.id === `spof-${item.id}`)).toBe(false);
   });

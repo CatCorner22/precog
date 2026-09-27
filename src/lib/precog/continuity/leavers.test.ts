@@ -127,7 +127,7 @@ describe("leavers", () => {
   it("describes the hand-over in one sentence", () => {
     const [maya] = leavers(register, [decision({})], "2026-10-02");
     expect(describeLeaver(maya)).toBe(
-      "Maya leaves in 12 days (last day Oct 14): 2 register entries only Maya can run alone — train Chris on pms — train Chris on vendors — 1 process needs a new owner; 1 of 2 logged in the Journal.",
+      "Maya leaves in 12 days (last day Oct 14): 2 register entries only Maya can run alone — train Chris on pms — train Chris on vendors — 1 process needs a new owner; 1 of 2 logged in the Decisions log.",
     );
     expect(handoverDeadline(maya, "2026-10-02")).toBe("2026-10-14");
     expect(leaverLead(0)).toBe("last day today");

@@ -9,8 +9,10 @@ import { DualReleaseExceptionsCard } from "@/components/precog/dual-release-exce
 import { StatTile } from "@/components/ui/stat-tile";
 import { DualReleaseSimulatorCard } from "@/components/precog/dual-release-simulator-card";
 import { useDualReleasePanel } from "@/components/precog/use-dual-release-panel";
+import { useTabName } from "@/lib/precog/presentation";
 
 export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
+  const tabName = useTabName();
   const model = useDualReleasePanel();
   const { policy, exSummary, toggleMaster, logAsRemediation } = model;
 
@@ -34,7 +36,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Set the amount above which two people must release a payment, per channel.{" "}
           <strong className="text-fg">Exceptions</strong> for trusted payees, temporary raises, or
-          rare waivers are dated, carry a reason, and go to the decision journal.
+          rare waivers are dated, carry a reason, and go to the {tabName("journal")}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
@@ -45,7 +47,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
             {policy.enabled ? "Disable dual release" : "Enable dual release"}
           </Button>
           <Button size="sm" variant="secondary" onClick={logAsRemediation}>
-            Log in decision journal
+            Add to the {tabName("journal")}
           </Button>
           {onOpenSod && (
             <Button size="sm" variant="outline" onClick={onOpenSod}>
