@@ -1,38 +1,39 @@
 import { Button } from "@/components/ui/button";
-import { Stat } from "@/components/precog/continuity/leave-cards";
+import type {
+  PlannerFigures,
+  RegisterEditor,
+} from "@/components/precog/continuity/use-continuity-planner";
 import { NOT_ASSESSED_HINT } from "@/lib/precog/continuity/planner-copy";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DocumentationReport } from "@/lib/precog/continuity/documentation";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
-import type { IndustryTemplate } from "@/lib/precog/templates";
+import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import { cn } from "@/lib/utils";
 
+/** The five tiles at the top of the planner; blank until someone is marked on the register. */
 export function PlannerStats({
-  registerReady,
+  registerAssessed,
   report,
   docs,
-  singlePoints,
-  importantSinglePoints,
-  mostDepended,
+  figures: { singlePoints, importantSinglePoints, mostDepended },
 }: {
-  registerReady: boolean;
+  registerAssessed: boolean;
   report: CoverageReport;
   docs: DocumentationReport;
-  singlePoints: { count: number; nobody: number; onePerson: number };
-  importantSinglePoints: number;
-  mostDepended: CoverageReport["people"][number] | undefined;
+  figures: PlannerFigures;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <Stat
         label="Backed up"
-        value={registerReady ? `${report.coverageIndex}%` : "—"}
+        value={registerAssessed ? `${report.coverageIndex}%` : "—"}
         hint={
-          registerReady
+          registerAssessed
             ? "Share of work two or more people can run alone (weighted by criticality)."
             : NOT_ASSESSED_HINT
         }
         tone={
-          !registerReady
+          !registerAssessed
             ? "default"
             : report.coverageIndex >= 70
               ? "ok"
@@ -43,9 +44,9 @@ export function PlannerStats({
       />
       <Stat
         label="Single points"
-        value={registerReady ? String(singlePoints.count) : "—"}
+        value={registerAssessed ? String(singlePoints.count) : "—"}
         hint={
-          registerReady
+          registerAssessed
             ? `Items the business stops without: ${singlePoints.nobody} with nobody and ${singlePoints.onePerson} with one person who can run them alone.${
                 importantSinglePoints > 0
                   ? ` ${importantSinglePoints} more ${importantSinglePoints === 1 ? "hurts" : "hurt"} within a week.`
@@ -53,28 +54,28 @@ export function PlannerStats({
               }`
             : NOT_ASSESSED_HINT
         }
-        tone={!registerReady ? "default" : singlePoints.count === 0 ? "ok" : "danger"}
+        tone={!registerAssessed ? "default" : singlePoints.count === 0 ? "ok" : "danger"}
       />
       <Stat
         label="Learners in place"
-        value={registerReady ? String(report.counts.thin) : "—"}
+        value={registerAssessed ? String(report.counts.thin) : "—"}
         hint={
-          registerReady
+          registerAssessed
             ? "One person can run it and someone else has started learning."
             : NOT_ASSESSED_HINT
         }
-        tone={registerReady ? "warn" : "default"}
+        tone={registerAssessed ? "warn" : "default"}
       />
       <Stat
         label="Written down"
-        value={registerReady ? `${docs.documentedIndex}%` : "—"}
+        value={registerAssessed ? `${docs.documentedIndex}%` : "—"}
         hint={
-          registerReady
+          registerAssessed
             ? `${docs.counts.none} with nothing written, ${docs.counts.unlocated} written but location not recorded.`
             : NOT_ASSESSED_HINT
         }
         tone={
-          !registerReady
+          !registerAssessed
             ? "default"
             : docs.documentedIndex >= 70
               ? "ok"
@@ -85,31 +86,33 @@ export function PlannerStats({
       />
       <Stat
         label="Most depended on"
-        value={registerReady && mostDepended ? mostDepended.person.name : "—"}
+        value={registerAssessed && mostDepended ? mostDepended.person.name : "—"}
         hint={
-          registerReady && mostDepended
+          registerAssessed && mostDepended
             ? `${mostDepended.dependence}% of must-do work stops if they are out (app's own index).`
-            : registerReady
+            : registerAssessed
               ? "Add people to see who the business leans on."
               : NOT_ASSESSED_HINT
         }
-        tone={registerReady && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"}
+        tone={
+          registerAssessed && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"
+        }
       />
     </div>
   );
 }
 
+/** What the register is (a starter list or an empty own list) and how to begin. */
 export function PlannerRegisterBanners({
-  registerFrom,
+  register,
   industry,
   tpl,
-  onClearStarter,
 }: {
-  registerFrom: "starter" | "own" | "sample";
+  register: Pick<RegisterEditor, "source" | "clearStarter">;
   industry: IndustryId;
   tpl: IndustryTemplate;
-  onClearStarter: () => void;
 }) {
+  const registerFrom = register.source;
   return (
     <>
       {registerFrom === "starter" && (
@@ -122,7 +125,7 @@ export function PlannerRegisterBanners({
             like yours usually runs on. Mark who can do each, edit or delete what does not apply, or
             start from a blank list. The figures above stay blank until someone is marked.
           </p>
-          <Button size="sm" variant="secondary" className="mt-3" onClick={onClearStarter}>
+          <Button size="sm" variant="secondary" className="mt-3" onClick={register.clearStarter}>
             Start from a blank list
           </Button>
         </div>
@@ -134,5 +137,34 @@ export function PlannerRegisterBanners({
         </div>
       )}
     </>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone: "ok" | "warn" | "danger" | "default";
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
+      <div
+        className={cn(
+          "mt-1 truncate text-2xl font-semibold",
+          tone === "ok" && "text-ok",
+          tone === "warn" && "text-warn",
+          tone === "danger" && "text-danger",
+        )}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-xs text-muted">{hint}</div>
+    </div>
   );
 }

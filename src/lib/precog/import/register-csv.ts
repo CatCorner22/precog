@@ -25,6 +25,7 @@ import {
   type ImportIssue,
 } from "./csv";
 import { nameKey, slug, stripInvisibleControls, verb } from "../text";
+import { defaultCategory } from "../continuity/knowledge-category";
 
 export interface RegisterImportResult {
   knowledge: KnowledgeItem[];
@@ -273,7 +274,7 @@ export function parseRegisterCsv(
       name: name.slice(0, 80),
       kind,
       criticality,
-      category: existing?.category ?? (kind === "knowledge" ? "tribal" : "process"),
+      category: existing?.category ?? defaultCategory(kind),
       description,
       linkedProcessIds: existing?.linkedProcessIds ?? [],
       documented,

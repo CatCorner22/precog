@@ -9,7 +9,6 @@ import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import {
   captureDecisionSnapshot,
   continuitySlips,
-  decisionDelta,
   decisionsDue,
   isDecisionOpen,
   linkedKnowledgeId,
@@ -18,165 +17,30 @@ import {
   slipLabels,
   type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
-import { DOCUMENTATION_LABEL } from "@/lib/precog/continuity/documentation";
 import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import { useToday } from "@/lib/precog/decisions/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange, lossPhrase } from "@/lib/precog/evidence";
-import { formatUsd } from "@/lib/utils";
+import { cn, formatUsd } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
+import { inputClass } from "@/lib/precog/continuity/planner-copy";
+import { deleteDecisionPrompt, reviewDelta } from "@/components/precog/decision-journal-text";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
-function signed(value: number): string {
-  return value < 0 ? `−${Math.abs(value)}` : `+${value}`;
-}
+const KIND_VARIANT: Record<DecisionKind, "warn" | "ok" | "primary"> = {
+  accept_residual: "warn",
+  remediate: "ok",
+  monitor: "primary",
+  insure: "primary",
+};
 
-function reviewDelta(
-  d: DecisionEntry,
-  current: ReturnType<typeof captureDecisionSnapshot>,
-): string {
-  const delta = decisionDelta(d, current);
-  if (!delta || !d.snapshot) return "no snapshot on record";
-  if (!delta.comparable) {
-    return `scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}) — values not directly comparable`;
-  }
-  if (delta.continuity && d.snapshot.continuity && current.continuity) {
-    const c = delta.continuity;
-    const item = c.itemThen
-      ? `${STATUS_LABEL[c.itemThen].toLowerCase()} → ${
-          c.itemNow ? STATUS_LABEL[c.itemNow].toLowerCase() : "no longer on the register"
-        } · `
-      : "";
-    const docs =
-      c.docsThen && c.docsNow && c.docsThen !== c.docsNow
-        ? `${DOCUMENTATION_LABEL[c.docsThen].toLowerCase()} → ${DOCUMENTATION_LABEL[c.docsNow].toLowerCase()} · `
-        : "";
-    return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${signed(c.coverageIndex)}) · single points of failure ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints}`;
-  }
-  if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
-    return `residual ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${signed(delta.subject)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
-  }
-  return `portfolio avg ${d.snapshot.averageResidual} → ${current.averageResidual} (${signed(delta.average)}) · open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts}`;
-}
-
-/**
- * "Done" for a register step, when the register does not yet say so: closing
- * the decision also writes the outcome to the register (and re-confirms the
- * entry), so the Journal and the register cannot drift apart. "Done anyway"
- * closes without touching the register.
- */
-function RegisterCloseOutControls({
-  closeOut,
-  onDone,
-  onDoneAnyway,
-}: {
-  closeOut: RegisterCloseOut;
-  onDone: (write: RegisterWrite, note: string) => void;
-  onDoneAnyway: () => void;
-}) {
-  const [personId, setPersonId] = useState(
-    closeOut.step === "cover" ? (closeOut.trainee ?? closeOut.candidates[0])?.id : undefined,
-  );
-  const [location, setLocation] = useState("");
-  const person =
-    closeOut.step === "cover" ? closeOut.candidates.find((p) => p.id === personId) : undefined;
-  const trimmedLocation = location.trim();
-  const inputClass = "rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-fg";
-
-  return (
-    <div className="mt-2 space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-2.5 text-xs">
-      <p className="text-muted">
-        {closeOut.step === "cover"
-          ? `The register still says "${closeOut.item.name}" is ${STATUS_LABEL[closeOut.status].toLowerCase()}. Who can run it alone now?`
-          : closeOut.step === "document"
-            ? `The register still says nothing is written down for "${closeOut.item.name}".`
-            : `The register still has no location for the written "${closeOut.item.name}" procedure.`}
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        {closeOut.step === "cover" && closeOut.candidates.length > 0 && (
-          <select
-            value={personId}
-            onChange={(e) => setPersonId(e.target.value)}
-            className={inputClass}
-            aria-label="Who can now run it alone"
-          >
-            {closeOut.candidates.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {closeOut.step !== "cover" && (
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder={
-              closeOut.step === "document"
-                ? "Where it lives (optional)"
-                : "Where it lives — drive path, binder, link"
-            }
-            className={`${inputClass} min-w-56 flex-1`}
-            aria-label="Where the written procedure lives"
-          />
-        )}
-        {closeOut.step === "cover" && person && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              onDone(
-                { kind: "level", knowledgeId: closeOut.item.id, personId: person.id },
-                `${person.name} can now run it alone`,
-              )
-            }
-          >
-            Done — {firstName(person.name)} can now do it alone
-          </Button>
-        )}
-        {closeOut.step === "document" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              onDone(
-                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
-                trimmedLocation ? `Written down at ${trimmedLocation}` : "Written down",
-              )
-            }
-          >
-            Done — it&apos;s written down
-          </Button>
-        )}
-        {closeOut.step === "locate" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!trimmedLocation}
-            onClick={() =>
-              onDone(
-                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
-                `Procedure lives at ${trimmedLocation}`,
-              )
-            }
-          >
-            Done — it lives there
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" className="text-muted" onClick={onDoneAnyway}>
-          Done anyway
-        </Button>
-      </div>
-    </div>
-  );
-}
-
+/** What closing a register step as done writes back to the register. */
 type RegisterWrite =
   | { kind: "level"; knowledgeId: string; personId: string }
   | { kind: "documented"; knowledgeId: string; location: string };
@@ -232,6 +96,7 @@ export function DecisionJournal({
   const today = useToday();
   const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
+  const overdueIds = useMemo(() => new Set(due.overdue.map((d) => d.id)), [due.overdue]);
   const slips = useMemo(
     () => continuitySlips(profile.decisions, template),
     [profile.decisions, template],
@@ -295,7 +160,7 @@ export function DecisionJournal({
     addDecision({
       subject: subject.trim(),
       kind,
-      note: note.trim() || DECISION_KIND_LABEL[kind],
+      note: note.trim(),
       reviewBy: dateAfter(today, reviewDays),
       residualAtDecision: match?.residual,
       linkedTab:
@@ -410,20 +275,12 @@ export function DecisionJournal({
                     className="rounded-lg border border-border bg-elevated px-3 py-2.5"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant={
-                          d.kind === "accept_residual"
-                            ? "warn"
-                            : d.kind === "remediate"
-                              ? "ok"
-                              : "primary"
-                        }
-                      >
-                        {DECISION_KIND_LABEL[d.kind]}
-                      </Badge>
+                      <Badge variant={KIND_VARIANT[d.kind]}>{DECISION_KIND_LABEL[d.kind]}</Badge>
                       <span className="font-medium">{d.subject}</span>
                       {d.reviewBy && (
-                        <span className="text-xs text-subtle">review by {d.reviewBy}</span>
+                        <span className="text-xs text-subtle">
+                          review by {formatDay(d.reviewBy)}
+                        </span>
                       )}
                     </div>
                     <p className="mt-1 text-xs tabular text-muted">
@@ -470,7 +327,9 @@ export function DecisionJournal({
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Log a decision</CardTitle>
-              <CardDescription>Plain language. Owner-owned. Review-dated.</CardDescription>
+              <CardDescription>
+                Say it plainly, name who owns it, and set a review date.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <label className="block text-sm">
@@ -494,6 +353,7 @@ export function DecisionJournal({
                   <button
                     key={k}
                     type="button"
+                    aria-pressed={kind === k}
                     onClick={() => setKind(k)}
                     className={
                       kind === k
@@ -576,24 +436,13 @@ export function DecisionJournal({
               </p>
             )}
             {orderedDecisions.map((d) => {
-              const past =
-                isDecisionOpen(d) && Boolean(d.reviewBy) && d.reviewBy! < localDateKey(today);
+              const past = overdueIds.has(d.id);
               return (
                 <div key={d.id} className="rounded-xl border border-border bg-elevated px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge
-                          variant={
-                            d.kind === "accept_residual"
-                              ? "warn"
-                              : d.kind === "remediate"
-                                ? "ok"
-                                : "primary"
-                          }
-                        >
-                          {DECISION_KIND_LABEL[d.kind]}
-                        </Badge>
+                        <Badge variant={KIND_VARIANT[d.kind]}>{DECISION_KIND_LABEL[d.kind]}</Badge>
                         {!isDecisionOpen(d) && <Badge variant="default">Closed</Badge>}
                         {past && <Badge variant="danger">Review overdue</Badge>}
                         {d.residualAtDecision != null && (
@@ -603,10 +452,12 @@ export function DecisionJournal({
                         )}
                       </div>
                       <p className="mt-1 font-medium">{d.subject}</p>
-                      <p className="mt-0.5 text-sm text-muted">{d.note}</p>
+                      {d.note && d.note !== DECISION_KIND_LABEL[d.kind] && (
+                        <p className="mt-0.5 text-sm text-muted">{d.note}</p>
+                      )}
                       <p className="mt-1 text-xs text-subtle">
                         {formatDay(d.createdAt)}
-                        {d.reviewBy ? ` · review by ${d.reviewBy}` : ""}
+                        {d.reviewBy ? ` · review by ${formatDay(d.reviewBy)}` : ""}
                         {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                       </p>
                     </div>
@@ -623,7 +474,9 @@ export function DecisionJournal({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => removeDecision(d.id)}
+                        onClick={() => {
+                          if (window.confirm(deleteDecisionPrompt(d))) removeDecision(d.id);
+                        }}
                         aria-label="Delete decision"
                       >
                         <Trash2 className="size-3.5" />
@@ -635,6 +488,118 @@ export function DecisionJournal({
             })}
           </CardContent>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Done" for a register step, when the register does not yet say so: closing
+ * the decision also writes the outcome to the register (and re-confirms the
+ * entry), so the Journal and the register cannot drift apart. "Done anyway"
+ * closes without touching the register.
+ */
+function RegisterCloseOutControls({
+  closeOut,
+  onDone,
+  onDoneAnyway,
+}: {
+  closeOut: RegisterCloseOut;
+  onDone: (write: RegisterWrite, note: string) => void;
+  onDoneAnyway: () => void;
+}) {
+  const [personId, setPersonId] = useState(
+    closeOut.step === "cover" ? (closeOut.trainee ?? closeOut.candidates[0])?.id : undefined,
+  );
+  const [location, setLocation] = useState("");
+  const person =
+    closeOut.step === "cover" ? closeOut.candidates.find((p) => p.id === personId) : undefined;
+  const trimmedLocation = location.trim();
+  const fieldClass = cn(inputClass, "py-1 text-xs");
+
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-2.5 text-xs">
+      <p className="text-muted">
+        {closeOut.step === "cover"
+          ? `The register still says "${closeOut.item.name}" is ${STATUS_LABEL[closeOut.status].toLowerCase()}. Who can run it alone now?`
+          : closeOut.step === "document"
+            ? `The register still says nothing is written down for "${closeOut.item.name}".`
+            : `The register still has no location for the written "${closeOut.item.name}" procedure.`}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {closeOut.step === "cover" && closeOut.candidates.length > 0 && (
+          <select
+            value={personId}
+            onChange={(e) => setPersonId(e.target.value)}
+            className={fieldClass}
+            aria-label="Who can now run it alone"
+          >
+            {closeOut.candidates.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {closeOut.step !== "cover" && (
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder={
+              closeOut.step === "document"
+                ? "Where it lives (optional)"
+                : "Where it lives — drive path, binder, link"
+            }
+            className={cn(fieldClass, "min-w-56 flex-1")}
+            aria-label="Where the written procedure lives"
+          />
+        )}
+        {closeOut.step === "cover" && person && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "level", knowledgeId: closeOut.item.id, personId: person.id },
+                `${person.name} can now run it alone`,
+              )
+            }
+          >
+            Done — {firstName(person.name)} can now do it alone
+          </Button>
+        )}
+        {closeOut.step === "document" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                trimmedLocation ? `Written down at ${trimmedLocation}` : "Written down",
+              )
+            }
+          >
+            Done — it&apos;s written down
+          </Button>
+        )}
+        {closeOut.step === "locate" && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!trimmedLocation}
+            onClick={() =>
+              onDone(
+                { kind: "documented", knowledgeId: closeOut.item.id, location: trimmedLocation },
+                `Procedure lives at ${trimmedLocation}`,
+              )
+            }
+          >
+            Done — it lives there
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" className="text-muted" onClick={onDoneAnyway}>
+          Done anyway
+        </Button>
       </div>
     </div>
   );

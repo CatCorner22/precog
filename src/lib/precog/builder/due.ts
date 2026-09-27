@@ -5,7 +5,7 @@
 import { FREQUENCY_DAYS, FREQUENCY_LABEL, evidenceStatus } from "./evidence";
 import type { PracticeProfile } from "../practice-profile";
 import type { EvidenceItem, Person, ProcessNode } from "../types";
-import { DAY_MS, localDateKey, localDaysBetween } from "../dates";
+import { DAY_MS, localDateKey, localDaysBetween, parseLocalDay } from "../dates";
 
 type DueKind = "evidence" | "decision" | "snapshot";
 
@@ -73,8 +73,9 @@ export function collectDueItems(
   }
 
   for (const d of profile.decisions) {
-    if (!d.reviewBy) continue;
-    const due = new Date(d.reviewBy);
+    // The review day is a local calendar day; parsed as UTC it lands a day early west of UTC.
+    const due = d.reviewBy ? parseLocalDay(d.reviewBy) : null;
+    if (!due) continue;
     const daysLeft = dayDiff(due);
     if (daysLeft > 60) continue;
     items.push({
