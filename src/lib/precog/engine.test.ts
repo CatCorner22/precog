@@ -57,7 +57,7 @@ describe("findKnowledgeRisks", () => {
     expect(new Set(risks.map((r) => r.riskScore)).size).toBe(1);
   });
 
-  it("reports nothing for a starter register nobody has marked", () => {
+  it("reports nothing for a sample register nobody has marked", () => {
     // The industry's starter list with no relations is not a fact about the business.
     expect(findKnowledgeRisks({ ...dental, relations: [] })).toEqual([]);
     const own = resolveTemplate({
@@ -275,7 +275,7 @@ describe("insurance on an own business", () => {
 });
 
 describe("scenarios in scope", () => {
-  it("ranks none of the starter scenarios for an own business until one is confirmed", () => {
+  it("ranks none of the sample scenarios for an own business until one is confirmed", () => {
     expect(rankDangerousScenarios(ownDental)).toEqual([]);
     const ranked = rankDangerousScenarios(ownDental, {
       confirmedScenarioIds: new Set(["sc-cash-sod-failure"]),

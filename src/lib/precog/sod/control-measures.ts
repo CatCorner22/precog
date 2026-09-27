@@ -252,7 +252,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         `${cap(w.overseer)} reads the payroll change report every cycle against the signed forms`,
-        "Compare the people paid against the people scheduled and the terminated list",
+        "Compare the people paid against the people scheduled and the list of people who have left",
       ],
       [
         "Reverse unauthorized changes and recover any pay they produced",
@@ -298,7 +298,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     approve_payroll: measures(
       [
         "Read the payroll register and the changes from the last run before release",
-        "Set approval deadlines and backup approvers",
+        "Set approval deadlines and stand-in approvers",
       ],
       [
         "Have someone who does not run payroll give the final approval, within a bank limit",

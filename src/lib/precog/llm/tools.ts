@@ -117,17 +117,17 @@ const TOOLS = {
   },
   get_knowledge_spofs: {
     description:
-      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's continuity register, whether each entry was confirmed in the last 90 days, and whether the owner has already logged that step in the Decisions log (with its review date) so it is followed up rather than recommended again.",
+      "Duties and know-how only one person can run alone, plus documentation gaps, with the suggested trainee and next step from the owner's Who knows what register, whether each entry was confirmed in the last 90 days, and whether the owner has already logged that step in the Decisions log (with its review date) so it is followed up rather than recommended again.",
     run: knowledgeSpofs,
   },
   get_register_checkins: {
     description:
-      "Who the owner should sit down with to re-confirm the continuity register: per active person, the entries not confirmed in 90 days that the register says they can do, and how many of those nobody else can run alone; plus stale entries nobody active holds.",
+      "Who the owner should sit down with to re-confirm the Who knows what register: per active person, the entries not confirmed in 90 days that the register says they can do, and how many of those nobody else can run alone; plus stale entries nobody active holds.",
     run: registerCheckins,
   },
   get_planned_absences: {
     description:
-      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected cover, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who is left, and whether a hand-off is already logged in the Decisions log. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them. Also `leavers`: people who have given notice (last working day, days left, or already past it and still counted as cover), with the hand-over each must complete before they go — every register entry only they can run alone, the successor to train, what is not written down, processes needing a new owner, and which steps are already in the Decisions log.",
+      "Absences from the owner's register that have started or start within 30 days — planned leave and unplanned ones recorded on the day (sick, emergency; `unplanned: true`, speak of these as unexpected absences, never as leave): who is away and when, days of lead time, which duties stop while they (and anyone whose absence overlaps) are out, the stand-in for each, who remains, and whether a hand-off is already logged in the Decisions log. Also absences that just ended and await a debrief: who covered which duty for how many days, and whether the register can now promote them. Also `leavers`: people who have given notice (last working day, days left, or already past it and still counted as a stand-in), with the hand-off each must complete before they go — every register entry only they can run alone, the successor to train, what is not written down, processes needing a new owner, and which steps are already in the Decisions log.",
     run: plannedAbsences,
   },
   get_knowledge_graph: {
@@ -332,10 +332,10 @@ function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
   const leftOut = [
     p.knowledgeAssessed ? "" : "register items (not assessed yet)",
     p.starterScenariosLeftOut.length
-      ? `${p.starterScenariosLeftOut.length} unconfirmed starter scenario(s)`
+      ? `${p.starterScenariosLeftOut.length} unconfirmed sample scenario(s)`
       : "",
     p.starterControlsLeftOut.length
-      ? `${p.starterControlsLeftOut.length} unconfirmed starter control(s)`
+      ? `${p.starterControlsLeftOut.length} unconfirmed sample control(s)`
       : "",
   ].filter(Boolean);
   return {
@@ -393,7 +393,7 @@ function processRecords({ profile, tpl }: ToolInputs): ToolOutput {
       summary:
         tpl.processes.length === 0
           ? "The process map is not assessed: it is empty, so the owner has not yet listed the processes the business runs. Do not quote map figures; advise the owner to add their processes on How work flows."
-          : `The process map is not assessed: it holds ${tpl.processes.length} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.`,
+          : `The process map is not assessed: it holds ${tpl.processes.length} sample processes from the ${industryMeta(tpl.id).label.toLowerCase()} sample with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.`,
       data: {
         assessed: false,
         processes: tpl.processes.map((p) => ({

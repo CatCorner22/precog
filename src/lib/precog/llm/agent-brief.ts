@@ -101,7 +101,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           metric:
             spof.itemCount === 0
               ? "not assessed yet · the register is empty"
-              : `not assessed yet · nobody marked on ${spof.itemCount} starter item(s)`,
+              : `not assessed yet · nobody marked on ${spof.itemCount} sample item(s)`,
           link: { tab: "knowledge" },
         });
       }
@@ -638,7 +638,7 @@ export function localSynthesize(
             ? `${first.standIn.name} covers ${first.name} today while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
             : `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
           : `Decide who covers ${first.name} while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
-        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Still in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else remains in the business."}`,
         evidenceIds: [] as string[],
         effort: first.standIn ? ("low" as const) : ("medium" as const),
         horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.crossTrain),
@@ -654,7 +654,7 @@ export function localSynthesize(
       return [
         {
           action: `Mark ${name} as left on the register`,
-          rationale: `${l.summary} Until then the coverage figures count ${name} as a backup${l.handover.length > 0 ? ` for ${count(l.handover.length, "entry", "entries")} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
+          rationale: `${l.summary} Until then the coverage figures count ${name} as a stand-in${l.handover.length > 0 ? ` for ${count(l.handover.length, "entry", "entries")} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: 1,
@@ -682,7 +682,7 @@ export function localSynthesize(
       const c = committed[0];
       return [
         {
-          action: `In progress: ${name}'s hand-over of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
+          action: `In progress: ${name}'s hand-off of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
           rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Decisions log; close each as done once the successor can run it, before ${l.lastDay}.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
@@ -700,7 +700,7 @@ export function localSynthesize(
         action: first.successor
           ? `Train ${first.successor.name} on ${first.name} before ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`
           : `Decide who takes ${first.name} when ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")} — hire, outsource or retire ${verb(noOne.length, "it", "them")}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has gone, nobody can.` : ""}${l.remaining.length ? ` Left in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")} — hire, outsource or retire ${verb(noOne.length, "it", "them")}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has left, nobody can.` : ""}${l.remaining.length ? ` Still in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else remains in the business."}`,
         evidenceIds: [] as string[],
         effort: first.successor ? ("medium" as const) : ("high" as const),
         horizonDays: horizon,
@@ -727,7 +727,7 @@ export function localSynthesize(
             ? `${d.person.name} is back: can ${lead.standIn.name} run ${lead.name} alone now?${more > 0 ? ` — and ${more} more` : ""}`
             : `${d.person.name} is back: close the ${lead.name} hand-off${more > 0 ? ` — and ${more} more` : ""}`
           : `${d.person.name} is back: who covered ${lead.name}?${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${lead.question} ${d.unplanned ? "Unexpected cover" : "Leave"} is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
+        rationale: `${lead.question} ${d.unplanned ? "An unexpected absence" : "Leave"} is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
         evidenceIds: [] as string[],
         effort: "low" as const,
         horizonDays: REVIEW_HORIZON_DAYS.journal,
@@ -743,7 +743,7 @@ export function localSynthesize(
     rationale:
       itemCount === 0
         ? "The register on Who knows what is empty, so nothing yet shows who alone can run what. Until it lists the work, no continuity figure describes this business."
-        : "Nobody is marked on the starter register yet, so it cannot show who alone can run what. Mark each item on Who knows what; until then, no continuity figure describes this business.",
+        : "Nobody is marked on the sample register yet, so it cannot show who alone can run what. Mark each item on Who knows what; until then, no continuity figure describes this business.",
     evidenceIds: evidence
       .filter((e) => e.kind === "spof")
       .map((e) => e.id)
@@ -753,7 +753,7 @@ export function localSynthesize(
     cascadeEffects: ["register accuracy ↑"],
   });
   const beamAction = adv?.recommendedSequence?.join(" → ");
-  // Entries a leaver must hand over are advised as their hand-over, not as
+  // Entries a leaver must hand off are advised as their hand-off, not as
   // ordinary cross-training on top.
   const handingOver = new Set(
     (leave?.leavers ?? [])
@@ -791,8 +791,8 @@ export function localSynthesize(
       ? [
           {
             action: commitment.overdue
-              ? `Review overdue: can ${commitment.trainee?.name ?? "the backup"} run ${committedSpof.name} alone yet?`
-              : `In progress: ${commitment.trainee?.name ?? "a backup"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
+              ? `Review overdue: can ${commitment.trainee?.name ?? "the stand-in"} run ${committedSpof.name} alone yet?`
+              : `In progress: ${commitment.trainee?.name ?? "a stand-in"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
             rationale: `You already logged "${commitment.subject}" in the Decisions log, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
               commitment.overdue
                 ? "Close it as done there — which updates the register — or push the review date if training is still under way."
@@ -817,7 +817,7 @@ export function localSynthesize(
               action: uncommittedSpof
                 ? uncommittedSpof.suggestedTrainee
                   ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
-                  : `Cross-train backup for ${uncommittedSpof.name}`
+                  : `Cross-train a stand-in for ${uncommittedSpof.name}`
                 : "Train a second person on the work only one person can run",
               rationale:
                 uncommittedSpof?.nextStep ??

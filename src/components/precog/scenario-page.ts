@@ -36,7 +36,7 @@ export function scenarioConfirmation(scenario: ScenarioTemplate, now: Date): Dec
   return {
     subject: `Scenario: ${scenario.title}`,
     kind: "monitor",
-    note: "Confirmed this starter scenario could happen here. Its losses and timelines are still the example's assumptions; review them against your own figures.",
+    note: "Confirmed this sample scenario could happen here. Its losses and timelines are still the sample's assumptions; review them against your own figures.",
     reviewBy: dateAfter(now, 90),
     linkedTab: "precog",
     linkedId: scenario.id,

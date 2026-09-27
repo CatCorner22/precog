@@ -83,7 +83,7 @@ function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
         >
           <Workflow className="size-3" />
           {d.unscored
-            ? "starter · not assessed"
+            ? "sample · not assessed"
             : vision === "predator"
               ? `THERMAL ${priority}`
               : vision === "terminator"

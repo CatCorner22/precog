@@ -17,7 +17,7 @@ describe("registerSource", () => {
     );
   });
 
-  it("is a starter list for a fresh own business (own people, nobody marked)", () => {
+  it("is a sample list for a fresh own business (own people, nobody marked)", () => {
     const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
     expect(registerSource(profile)).toBe("starter");
   });
@@ -35,7 +35,7 @@ describe("registerSource", () => {
 });
 
 describe("registerAssessed", () => {
-  it("is false for a starter list with nobody marked and for an empty list", () => {
+  it("is false for a sample list with nobody marked and for an empty list", () => {
     const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
     const starter = resolveTemplate(profile);
     expect(starter.knowledge.length).toBeGreaterThan(0);
@@ -64,7 +64,7 @@ describe("registerAssessed", () => {
 });
 
 describe("trackRegisterFreshness", () => {
-  it("is off for the sample and for an unassessed starter list, on for a marked own register", () => {
+  it("is off for the sample and for an unassessed sample list, on for a marked own register", () => {
     expect(
       trackRegisterFreshness({ industry: "dental" }, resolveTemplate({ industry: "dental" })),
     ).toBe(false);
@@ -79,7 +79,7 @@ describe("trackRegisterFreshness", () => {
   });
 });
 
-describe("a starter list copied back unchanged", () => {
+describe("a sample list copied back unchanged", () => {
   const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
   const starter = resolveTemplate(profile).knowledge;
 

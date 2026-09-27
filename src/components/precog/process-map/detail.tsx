@@ -148,7 +148,7 @@ export function ProcessDetail({
             }}
           />
           {unscored ? (
-            <Badge variant="default">Starter · not assessed</Badge>
+            <Badge variant="default">Sample · not assessed</Badge>
           ) : (
             <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
               heat {snapshot.heat}
@@ -169,7 +169,7 @@ export function ProcessDetail({
       <CardContent className="space-y-3 text-sm">
         {unscored && (
           <p className="text-xs text-muted">
-            A starter process from the industry example, as yet untouched. Its risks and notes are
+            A sample process from the industry sample, as yet untouched. Its risks and notes are
             what such a process usually carries, not findings about your business; assign an owner
             or edit it and it is scored.
           </p>

@@ -32,7 +32,7 @@ describe("pioneerProfileFrom", () => {
     expect(p.staff.teamSize).toBe(getIndustryTemplate("restaurant").staffComposition.teamSize);
   });
 
-  it("keeps the journal links that confirm a starter control and a scenario", () => {
+  it("keeps the journal links that confirm a sample control and a scenario", () => {
     const people = retail.people.slice(0, 2);
     const entry = (id: string, linkedTab: string, linkedId: string) => ({
       id,

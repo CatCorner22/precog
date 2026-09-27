@@ -43,7 +43,7 @@ describe("register confirmations", () => {
 
   it("says what a reset throws away", () => {
     expect(resetRegisterPrompt(register, "Dental")).toBe(
-      "Replace your 2 items and 3 marks with the dental starter list? Your items and every mark on them are lost, and this cannot be undone.",
+      "Replace your 2 items and 3 marks with the dental sample list? Your items and every mark on them are lost, and this cannot be undone.",
     );
   });
 

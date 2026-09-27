@@ -199,7 +199,7 @@ describe("cascade figures match the scenario engine", () => {
 });
 
 describe("which scenario the cascade models", () => {
-  it("flags a starter scenario nobody confirmed as out of scope for an own business", () => {
+  it("flags a sample scenario nobody confirmed as out of scope for an own business", () => {
     const all = simulateAllCascades(own, DEFAULT_RISK_VARIABLES, own.staffComposition);
     expect(all.scenarioInScope).toBe(false);
     expect(all.scopeNote).toMatch(/left out/);

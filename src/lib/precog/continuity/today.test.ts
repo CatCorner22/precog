@@ -221,7 +221,7 @@ describe("todayBrief", () => {
     expect(brief.headline).toBe("1 absence just ended — debrief the stand-ins.");
   });
 
-  it("counts down to a leaver's last day with the hand-over and what is not yet in the Journal", () => {
+  it("counts down to a leaver's last day with the hand-off and what is not yet in the Journal", () => {
     const leaving = {
       ...register,
       people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-11-17" } : p)),
@@ -232,7 +232,7 @@ describe("todayBrief", () => {
     expect(brief.leaving[0].handover.map((h) => h.item.id).sort()).toEqual(["payroll", "pms"]);
     expect(brief.gone).toEqual([]);
     expect(brief.headline).toBe(
-      "Maya leaves in 12 days — 2 entries to hand over, 2 not yet in the Decisions log.",
+      "Maya leaves in 12 days — 2 entries to hand off, 2 not yet in the Decisions log.",
     );
   });
 
@@ -272,7 +272,7 @@ describe("todayBrief", () => {
     expect(brief.gone).toHaveLength(1);
     expect(brief.gone[0]).toMatchObject({ daysLeft: -2, status: "gone" });
     expect(brief.headline).toBe(
-      "Maya left 2 days ago but still counts as cover — mark Maya as left (2 entries only Maya could run alone).",
+      "Maya left 2 days ago but still counts as a stand-in — mark Maya as left (2 entries only Maya could run alone).",
     );
 
     const withSick = todayBrief(
@@ -306,7 +306,7 @@ describe("todayBrief", () => {
   });
 });
 
-describe("today's brief over a starter register nobody has marked", () => {
+describe("today's brief over a sample register nobody has marked", () => {
   it("says it cannot tell what stops when someone calls in sick", () => {
     const starter: IndustryTemplate = {
       ...getIndustryTemplate("general"),

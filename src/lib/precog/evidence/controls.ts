@@ -76,7 +76,7 @@ export type ControlCadence =
   | "each claim"
   | "each purchase"
   | "each hire"
-  | "each departure"
+  | "whenever someone leaves"
   | "each void or refund";
 
 /** What a control costs, in words: "Minutes to set up, then monthly", "A day to set up". */
@@ -260,7 +260,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "terminated-staff-vs-payroll": {
     id: "terminated-staff-vs-payroll",
     label: "Compare the list of people who have left against everyone paid this month",
-    why: "A ghost employee is almost always a real former employee whose record was quietly reactivated. The departed list is the one thing the payroll operator does not control.",
+    why: "A ghost employee is almost always a real person who has left and whose record was quietly reactivated. The list of people who have left is the one thing the payroll operator does not control.",
     setup: "minutes",
     cadence: "monthly",
   },
@@ -330,9 +330,9 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "same-day-access-removal",
     label:
       "Remove every login, administrator right, and shared password the day a person's duties change or they leave",
-    why: "Access that outlives the job is how a departed or demoted employee reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
+    why: "Access that outlives the job is how someone who has left or been demoted reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
     setup: "an hour",
-    cadence: "each departure",
+    cadence: "whenever someone leaves",
   },
   "check-stock-custody": {
     id: "check-stock-custody",

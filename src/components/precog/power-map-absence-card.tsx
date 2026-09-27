@@ -13,7 +13,7 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
         <CardTitle className="text-base">Absence stress test</CardTitle>
         <CardDescription>
           Temporarily remove one person from the model to see which duties stop and which lose
-          backup coverage. This simulation does not change assignments.
+          stand-in cover. This simulation does not change assignments.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-[280px_1fr]">
@@ -35,7 +35,7 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
         {absenceImpact ? (
           <div className="grid gap-2 sm:grid-cols-3">
             <StatTile
-              label="Duty backup after absence"
+              label="Stand-in cover after absence"
               value={`${absenceImpact.remainingResilienceScore}/100`}
               hint={`${absenceImpact.scoreChange} points`}
               tone={absenceImpact.scoreChange < 0 ? "danger" : "ok"}
@@ -47,7 +47,7 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
               tone={absenceImpact.newlyUnassigned.length > 0 ? "danger" : "ok"}
             />
             <StatTile
-              label="Backups lost"
+              label="Stand-ins lost"
               value={String(absenceImpact.newlySinglePoint.length)}
               hint="Now dependent on one person"
               tone={absenceImpact.newlySinglePoint.length > 0 ? "danger" : "ok"}

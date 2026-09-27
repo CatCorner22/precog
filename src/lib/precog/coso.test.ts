@@ -46,7 +46,7 @@ describe("assessCoso", () => {
     expect(assessCoso(own, clean).priorityFindings.some((f) => f.id === "ce-spof")).toBe(false);
   });
 
-  it("says the register is not assessed instead of scoring the starter list", () => {
+  it("says the register is not assessed instead of scoring the sample list", () => {
     const a = assessCoso(own, clean);
     const competence = a.components
       .find((c) => c.id === "control_environment")!
@@ -59,14 +59,14 @@ describe("assessCoso", () => {
     expect(a.priorityFindings.some((f) => f.id.startsWith("ic-k"))).toBe(false);
   });
 
-  it("leaves starter scenarios out until the owner confirms one", () => {
+  it("leaves sample scenarios out until the owner confirms one", () => {
     const none = assessCoso(own, clean);
     expect(none.priorityFindings.some((f) => f.id === "ra-top")).toBe(false);
     const p7 = none.components
       .find((c) => c.id === "risk_assessment")!
       .principles.find((p) => p.number === 7)!;
     expect(p7.notAssessed).toBe(true);
-    expect(p7.note).toMatch(/^Starter scenarios from the general small business example/);
+    expect(p7.note).toMatch(/^Sample scenarios from the general small business sample/);
     const one = assessCoso(own, clean, { confirmedScenarioIds: new Set(["sc-vendor-fraud"]) });
     const top = one.priorityFindings.find((f) => f.id === "ra-top")!;
     expect(top.label).toBe("Top residual future: One person sets up vendors and pays them");
@@ -136,8 +136,8 @@ describe("priority findings", () => {
   });
 });
 
-describe("starter controls in COSO", () => {
-  it("does not count a starter control the owner has not confirmed as a duty conflict", () => {
+describe("sample controls in COSO", () => {
+  it("does not count a sample control the owner has not confirmed as a duty conflict", () => {
     const tpl = resolveTemplate({ industry: "dental", customPeople: people });
     const starters = tpl.controls.filter((c) => c.starter && !c.segregated);
     expect(starters.length).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe("starter controls in COSO", () => {
     const p10 = a.components
       .find((c) => c.id === "control_activities")!
       .principles.find((p) => p.number === 10)!;
-    expect(p10.note).toMatch(/starter controls? not yet confirmed/);
+    expect(p10.note).toMatch(/sample controls? not yet confirmed/);
   });
 });
 

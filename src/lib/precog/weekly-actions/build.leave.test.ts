@@ -57,7 +57,7 @@ describe("buildWeeklyActions planned leave", () => {
     expect(action?.title).toContain(`hand off ${item.name} to`);
     expect(action?.effort).toBe("low");
     expect(action?.why).toContain("Hand off by Apr 12.");
-    expect(action?.why).toContain("Left in the business");
+    expect(action?.why).toContain("Still in the business");
     expect(action?.tab).toBe("knowledge");
     expect(action?.priority).toBe(85);
   });

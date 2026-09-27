@@ -316,9 +316,9 @@ function Home() {
                     <TabIntro id="knowledge" />
                     <ContinuityPlanner initialKnowledgeId={item} />
                     <div>
-                      <h2 className="text-base font-semibold">Knowledge continuity map</h2>
+                      <h2 className="text-base font-semibold">The register as a drawing</h2>
                       <p className="text-sm text-muted">
-                        The same register as a people-to-knowledge map.
+                        The same register, drawn as people and what each of them knows.
                       </p>
                     </div>
                     <KnowledgeMap initialKnowledgeId={item} />

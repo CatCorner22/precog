@@ -306,5 +306,4 @@ export function usePortfolio(input: {
   };
 }
 
-const CHOOSE_A_VERSION_FIRST =
-  "Choose a version in the banner at the top first, so no work is lost.";
+const CHOOSE_A_VERSION_FIRST = "Choose a copy in the banner at the top first, so no work is lost.";

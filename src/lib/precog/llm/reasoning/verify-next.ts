@@ -48,7 +48,7 @@ const CHECKS: (VerifyNextItem & { appliesFirst: (f: Facts) => boolean })[] = [
   {
     id: "evoi_spof_interview",
     observation:
-      "30-minute knowledge interview with each person who alone holds a duty, and name a backup",
+      "30-minute knowledge interview with each person who alone holds a duty, and name a stand-in",
     effort: "medium",
     rationale: "Confirms who can really cover each duty nobody else can run alone today.",
     appliesFirst: (f) => f.staff.soleOwnerKnowledgeCount > 0,

@@ -147,7 +147,9 @@ export function reviewLocally(input: ReviewInput): MapReview {
       `Your weakest dimension is ${weakest.label} (${weakest.score}) — ${weakest.hint.toLowerCase()}.`,
     );
   if (!moves.length)
-    moves.push("Snapshot this version, then revisit monthly as the team and processes change.");
+    moves.push(
+      "Save a version of this map, then revisit monthly as the team and processes change.",
+    );
 
   const nextMove = unowned.length
     ? `Assign an owner to "${unowned[0].name}" this week.`

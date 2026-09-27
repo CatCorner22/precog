@@ -163,7 +163,7 @@ const PRIORITY = {
   inProgress: 40,
 } as const;
 
-/** Leave or a leaver's hand-over about work that is not critical ranks this much lower. */
+/** Leave or a leaver's hand-off about work that is not critical ranks this much lower. */
 const NOT_CRITICAL_DISCOUNT = 10;
 /** A leaver who leaves only processes, no register entries, ranks this much lower. */
 const PROCESSES_ONLY_DISCOUNT = 15;
@@ -243,7 +243,7 @@ interface WeeklyContext {
   departing: Leaver[];
   /** Entries someone just covered during leave: asked about as a debrief, not recommended as fresh cross-training on top. */
   debriefing: Set<string>;
-  /** Entries a leaver must hand over: advised as part of their hand-over, not as ordinary cross-training on top. */
+  /** Entries a leaver must hand off: advised as part of their hand-off, not as ordinary cross-training on top. */
   handingOver: Set<string>;
 }
 
@@ -391,7 +391,7 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
           ? `Find someone to own ${m.item.name}`
           : m.trainee
             ? `${m.status === "thin" ? "Finish training" : "Cross-train"} ${firstName(m.trainee.name)} on ${m.item.name}`
-            : `Cross-train a backup for ${m.item.name}`,
+            : `Cross-train a stand-in for ${m.item.name}`,
       why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare what they do with what should be done.`,
       effort: m.item.documented ? "low" : "medium",
       tab: "knowledge",
@@ -465,7 +465,7 @@ function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAc
         w.status === "upcoming"
           ? ` Hand off by ${formatDayNear(handoffDeadline(w, today), today)}.`
           : coverToday
-      }${w.impact.remaining.length ? ` Left in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else is left in the business."}`,
+      }${w.impact.remaining.length ? ` Still in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else remains in the business."}`,
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
       priority: lead.item.criticality === "critical" ? urgency : urgency - NOT_CRITICAL_DISCOUNT,
@@ -475,7 +475,7 @@ function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAc
 }
 
 /**
- * Someone working their notice: the hand-over is the week's continuity work,
+ * Someone working their notice: the hand-off is the week's continuity work,
  * with a hard deadline. Once the last day has passed the only step left is to
  * take them out of the coverage figures.
  */
@@ -488,7 +488,7 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
       actions.push({
         id: `leaver-${l.person.id}`,
         title: `${lead}: mark ${first} as left`,
-        why: `${first}'s last day was ${formatDayNear(l.lastDay, today)} but ${first} still counts as cover${l.handover.length > 0 ? ` for ${count(l.handover.length, "register entry", "register entries")} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
+        why: `${first}'s last day was ${formatDayNear(l.lastDay, today)} but ${first} still counts as a stand-in${l.handover.length > 0 ? ` for ${count(l.handover.length, "register entry", "register entries")} nobody else can run alone` : ""}. Mark ${first} as left on the register so the coverage figures show the real gap; the record stays in the history.`,
         effort: "low",
         tab: "knowledge",
         priority: PRIORITY.leaverGone,
@@ -504,8 +504,8 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
           : PRIORITY.leaverLater;
     const deadline = formatDayNear(handoverDeadline(l, today), today);
     const remaining = l.remaining.length
-      ? ` Left in the business after ${formatDayNear(l.lastDay, today)}: ${l.remaining.map((p) => firstName(p.name)).join(", ")}.`
-      : " Nobody else is left in the business.";
+      ? ` Still in the business after ${formatDayNear(l.lastDay, today)}: ${l.remaining.map((p) => firstName(p.name)).join(", ")}.`
+      : " Nobody else remains in the business.";
     if (l.handover.length === 0) {
       const orphaned = l.orphanedProcesses;
       actions.push({
@@ -534,8 +534,8 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
       id: `leaver-${l.person.id}`,
       title: top.successor
         ? `${lead}: train ${successor} on ${top.item.name}${others > 0 ? ` and ${others} more` : ""}`
-        : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand over)` : ""}`,
-      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand over by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Decisions log)` : ""}.${remaining}`,
+        : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand off)` : ""}`,
+      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand off by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Decisions log)` : ""}.${remaining}`,
       effort: top.successor ? "medium" : "high",
       tab: "knowledge",
       priority: top.item.criticality === "critical" ? urgency : urgency - NOT_CRITICAL_DISCOUNT,
@@ -546,7 +546,7 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
 
 /**
  * A process whose every listed owner has been marked as left still looks
- * owned on the map; the owner slot is the leaver's last unfinished hand-over.
+ * owned on the map; the owner slot is the leaver's last unfinished hand-off.
  */
 function ownerlessProcessActions({ tpl, mapReady }: WeeklyContext): WeeklyAction[] {
   if (!mapReady) return [];
@@ -765,8 +765,8 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
           }
         : {
             id: "map-start",
-            title: `Assign an owner to each of the ${starterCount} starter processes`,
-            why: `Your map holds ${starterCount} starter processes from the ${industryMeta(tpl.id).label.toLowerCase()} example and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
+            title: `Assign an owner to each of the ${starterCount} sample processes`,
+            why: `Your map holds ${starterCount} sample processes from the ${industryMeta(tpl.id).label.toLowerCase()} sample and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
             effort: "low",
             tab: "map",
             priority: PRIORITY.mapStart,

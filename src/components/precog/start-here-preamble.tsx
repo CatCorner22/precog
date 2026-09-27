@@ -60,10 +60,10 @@ export function StartHerePreamble({
             These gaps describe the sample team, not yours yet.
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
-            The names and duty assignments below come from the loaded {industryLabel} example. Staff
+            The names and duty assignments below come from the loaded {industryLabel} sample. Staff
             settings such as team size affect the scoring but cannot say who does what, so the
-            conflicts shown are the example&rsquo;s until you enter your own people and their
-            duties. Setup opens for your own business; the sample stays in the business menu.
+            conflicts shown are the sample&rsquo;s until you enter your own people and their duties.
+            Setup opens for your own business; the sample stays in the business menu.
           </p>
           <button
             type="button"

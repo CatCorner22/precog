@@ -90,7 +90,7 @@ export function ThreatAssessmentPanel() {
             className="mx-auto max-w-7xl px-4 pb-2 text-xs font-medium text-warn sm:px-6"
             role="note"
           >
-            Sample business: fictional people and figures, not your business.{" "}
+            Sample business: sample people and figures, not your business.{" "}
             <Link to="/" className="underline underline-offset-2">
               Set up your own
             </Link>

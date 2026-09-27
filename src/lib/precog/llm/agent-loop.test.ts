@@ -128,7 +128,7 @@ describe("local brief leavers", () => {
       ...extra,
     });
 
-  it("makes the hand-over the decision, due by the last day, and warns about it", () => {
+  it("makes the hand-off the decision, due by the last day, and warns about it", () => {
     const { brief } = runLocalAgentLoop("continuity", {
       profile: profileWith("2025-04-20"),
       today: "2025-04-01",
@@ -178,7 +178,7 @@ describe("local brief before the register is assessed", () => {
   ] as const;
 
   it.each(industries)(
-    "answers for a new %s business whose starter register has nobody marked",
+    "answers for a new %s business whose sample register has nobody marked",
     (industry) => {
       const people = buildOwnTeam([
         { name: "Pat Owner", role: "Owner", duties: ["sign_checks", "bank_reconcile"] },

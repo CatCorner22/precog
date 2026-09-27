@@ -15,6 +15,7 @@ import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { withLiveThreshold } from "./controls/dual-release-wording";
 import { formatUsd } from "../utils";
 import { count, joinWithAnd } from "./text";
+import { tabLabel } from "./navigation";
 
 export type CosoComponentId =
   | "control_environment"
@@ -256,7 +257,7 @@ export function assessCoso(
           number: 9,
           name: "Assess change",
           status: "weak",
-          note: "Not assessed: leavers and role changes are tracked on the continuity planner, not scored here.",
+          note: "Not assessed: people leaving and role changes are tracked on the continuity planner, not scored here.",
           notAssessed: true,
         },
       ],
@@ -303,7 +304,7 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: healthLevel(controlActivitiesScore),
-          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "starter control")} not yet confirmed as running here.` : ""}`,
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "sample control")} not yet confirmed as running here.` : ""}`,
         },
         {
           number: 11,
@@ -400,7 +401,7 @@ export function assessCoso(
           ],
       primaryActions: [
         {
-          label: "Open knowledge map",
+          label: `Open ${tabLabel("knowledge")}`,
           link: {
             type: "knowledge",
             knowledgeId: spofs[0]?.knowledgeId,

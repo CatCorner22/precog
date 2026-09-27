@@ -106,7 +106,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       examples: [
         "Owner and app both know the owner alone reconciles the bank each week",
         "Transfers over $500 need a second approver, and the rule is written down and switched on",
-        "Every critical duty only one person can do is listed with a named backup",
+        "Every critical duty only one person can do is listed with a named stand-in",
       ],
       moves: [
         {
@@ -292,7 +292,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
         "Who can do each duty is OPEN; unwritten expertise is HIDDEN; cross-training gaps may be BLIND.",
       selfLabel: "What experts know they know",
       othersLabel: "What the register records",
-      openExample: "Written steps for the hardest recurring task, with a named backup",
+      openExample: "Written steps for the hardest recurring task, with a named stand-in",
       blindExample: "The app shows one person holds a duty; they believe 'anyone can do it'",
       hiddenExample: "Vendor relationships only the office manager holds, written nowhere",
       unknownExample: "A key person planning to leave, unknown to the owner and the app",

@@ -24,7 +24,7 @@ describe("rankDepartureRisk", () => {
     const jordan = ranked.find((d) => d.person.name === "Jordan Blake")!;
     expect(jordan.orphanedProcesses.map((p) => p.id)).toContain("proc-cash");
     expect(jordan.coveredProcesses.map((p) => p.id)).toContain("proc-schedule");
-    expect(jordan.recommendations[0]).toMatch(/^Name a backup owner on "Cash handling & deposits"/);
+    expect(jordan.recommendations[0]).toMatch(/^Name a new owner on "Cash handling & deposits"/);
   });
 
   it("counts the people whose departure orphans a process or critical knowledge", () => {

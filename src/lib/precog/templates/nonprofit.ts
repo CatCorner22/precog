@@ -284,7 +284,7 @@ export const nonprofitTemplate: IndustrySample = {
           category: "training",
           effort: "low",
           impact: "medium",
-          note: "Budgets, deadlines and allowed costs for each grant in one place a backup can read.",
+          note: "Budgets, deadlines and allowed costs for each grant in one place a stand-in can read.",
           status: "exploring",
         },
       ],
@@ -497,7 +497,7 @@ export const nonprofitTemplate: IndustrySample = {
           kind: "fraud",
           severity: 4,
           likelihood: 2,
-          note: "A raise, extra check or former employee added by the person running payroll reaches the bank unseen.",
+          note: "A raise, an extra check, or someone who has left put back on payroll by the person running payroll reaches the bank unseen.",
           linkedControlId: "c-payroll",
         },
         {
@@ -582,7 +582,7 @@ export const nonprofitTemplate: IndustrySample = {
         },
         {
           id: "i-board-2",
-          title: "Written close checklist a backup can follow",
+          title: "Written close checklist a stand-in can follow",
           category: "training",
           effort: "medium",
           impact: "high",

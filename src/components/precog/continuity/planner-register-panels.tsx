@@ -112,7 +112,7 @@ export function DocumentationPlanCard({
       <CardHeader>
         <CardTitle>Write it down</CardTitle>
         <CardDescription>
-          A backup is only as good as the procedure the backup can follow. Items with nothing
+          A stand-in is only as good as the procedure the stand-in can follow. Items with nothing
           written down, or a procedure nobody has said where to find, ranked by how much stops if
           the one person who knows is out.
         </CardDescription>
@@ -376,7 +376,7 @@ export function CheckInDropsCard({
                   </div>
                   <p className="text-muted">
                     {d.remaining.length === 0
-                      ? "Nobody left on the active team can run this alone."
+                      ? "Nobody still on the team can run this alone."
                       : `${joinWithAnd(d.remaining.map((p) => p.name))} ${verb(
                           d.remaining.length,
                           "is",
@@ -448,7 +448,7 @@ export function SelectedKnowledgeCard({
               checked={Boolean(selected.item.documented)}
               onChange={(e) => updateItem(selected.item.id, { documented: e.target.checked })}
             />
-            A written procedure exists that a backup could follow
+            A written procedure exists that a stand-in could follow
           </label>
         </div>
         {selected.item.documented && (

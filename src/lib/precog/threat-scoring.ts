@@ -211,9 +211,9 @@ export function buildThreatAssessment(input: {
       domain: "knowledge",
       residual: heat,
       roe: [
-        "Cross-train a backup within 30 days",
+        "Cross-train a stand-in within 30 days",
         "Document the procedure in the business playbook",
-        "Re-score residual after backup is proficient",
+        "Re-score residual risk once the stand-in can do the work",
       ],
     });
   }
@@ -306,7 +306,7 @@ export function buildThreatAssessment(input: {
       "Work on the highest-priority items first.",
       "Prefer checks that pay off within a week, such as the owner reconciling the bank or a second approver above a set amount.",
       "When a further control is not worth its cost, record that you accept the remaining risk and when you will review it.",
-      "Cross-train a backup for any task only one person can do before that person's next absence.",
+      "Cross-train a stand-in for any duty only one person can do before that person's next absence.",
     ],
     caveats: [
       "This assessment supports decisions about process and control design.",
@@ -330,9 +330,9 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
   const lower = name.toLowerCase();
   if (category === "knowledge") {
     return [
-      "Cross-train backup within 30 days",
+      "Cross-train a stand-in within 30 days",
       "Write the procedure into the business playbook",
-      "Re-score residual after backup proficiency",
+      "Re-score residual risk once the stand-in can do the work",
     ];
   }
   if (/\b(cash|deposits?|payments?)\b/.test(lower)) {

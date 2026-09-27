@@ -171,7 +171,7 @@ export function TeamEditor({
     }
     if (
       !window.confirm(
-        `Mark ${p.name} as left? They stay on the list for history but no longer hold any duty or count as cover.`,
+        `Mark ${p.name} as left? They stay on the list for history but no longer hold any duty or count as a stand-in.`,
       )
     ) {
       return;
@@ -219,7 +219,7 @@ export function TeamEditor({
         names.slice(0, 3).join(", ") + (names.length > 3 ? ` and ${names.length - 3} more` : "");
       const lost = [
         impact.assignments
-          ? `${impact.assignments} who-knows-what assignment${verb(impact.assignments, "", "s")}`
+          ? `${impact.assignments} register mark${verb(impact.assignments, "", "s")}`
           : "",
         impact.processOwnerships
           ? `${impact.processOwnerships} process owner slot${verb(impact.processOwnerships, "", "s")}`

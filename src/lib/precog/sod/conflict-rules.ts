@@ -576,9 +576,9 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "enter_payroll",
     severity: "high",
     title: "Change employee records + run payroll",
-    why: "Whoever can add a name, change a pay rate, or change a bank account and also run the payroll can pay anyone they invent. An Idaho district manager reactivated departed employees' records and entered their hours for three years; a St. Louis warehouse supervisor kept a person who never worked there on payroll for six and a half years.",
+    why: "Whoever can add a name, change a pay rate, or change a bank account and also run the payroll can pay anyone they invent. An Idaho district manager reactivated the records of employees who had left and entered their hours for three years; a St. Louis warehouse supervisor kept a person who never worked there on payroll for six and a half years.",
     fraudPath:
-      "Reactivate a former employee, point the deposit at your own account, enter the hours",
+      "Reactivate someone who has left, point the deposit at your own account, enter the hours",
     compensatingDefaults: [
       "Owner reads the new-hire, rate-change, and bank-change report every payroll",
       "Owner compares the people paid against the people scheduled",
@@ -785,7 +785,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_payroll",
     severity: "high",
     title: "Enter + approve payroll",
-    why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to former employees whose records he reactivated.",
+    why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to employees who had left and whose records he reactivated.",
     fraudPath: "Add hours, a raise, or a reimbursement to your own pay",
     compensatingDefaults: ["Owner always approves final file", "Exception report"],
     linkedControlId: "c-payroll",

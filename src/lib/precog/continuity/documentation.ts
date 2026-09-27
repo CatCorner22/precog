@@ -79,7 +79,7 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
       } else if (i.status === "single" || i.status === "uncovered") {
         action = `Have ${author.name} write down "${i.item.name}" — it lives only in ${firstName(author.name)}'s head today.`;
       } else {
-        action = `Have ${author.name} write down "${i.item.name}" so the backup follows the same steps.`;
+        action = `Have ${author.name} write down "${i.item.name}" so the stand-in follows the same steps.`;
       }
     } else {
       action = `Record where the written procedure for "${i.item.name}" lives (drive path, binder, link) so a stand-in can find it without ${author ? author.name : "asking around"}.`;

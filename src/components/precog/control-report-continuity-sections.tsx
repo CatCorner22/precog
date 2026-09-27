@@ -78,7 +78,7 @@ export function ControlReportContinuitySections({
             Not assessed yet.{" "}
             {knowledgeCount === 0
               ? "The register is empty: the business has not yet listed the duties and know-how it runs on."
-              : `The register holds ${knowledgeCount} starter items from the ${industryLabel.toLowerCase()} example with nobody marked on any of them, so no continuity figure is reported.`}
+              : `The register holds ${knowledgeCount} sample items from the ${industryLabel.toLowerCase()} sample with nobody marked on any of them, so no continuity figure is reported.`}
           </p>
         ) : (
           <>
@@ -329,7 +329,7 @@ function ControlReportLeaveSection({
                 </p>
               )}
               <p className="mt-2 text-xs text-neutral-600">
-                Left in the business:{" "}
+                Still in the business:{" "}
                 {w.impact.remaining.length > 0
                   ? w.impact.remaining.map((p) => p.name).join(", ")
                   : "nobody"}
@@ -424,9 +424,9 @@ function ControlReportLeavingSection({
   today: string;
 }) {
   return (
-    <Section title="Leaving the team — hand-over before the last day">
+    <Section title="Leaving the team — hand-off before the last day">
       <p className="text-xs text-neutral-500">
-        People working their notice still count as cover until their last day. Before that date,
+        People working their notice still count as stand-ins until their last day. Before that date,
         hand every register entry only they can run to a named successor, write it down, and file it
         where the successor can find it; give processes they alone own a new owner. Once the date
         has passed, record them as left so the coverage figures stop counting them (the record stays
@@ -444,10 +444,10 @@ function ControlReportLeavingSection({
               </span>
               <span className="text-xs text-neutral-600">
                 {l.status === "gone"
-                  ? "Still counted as cover — mark as left"
+                  ? "Still counted as a stand-in — mark as left"
                   : l.handover.length === 0
                     ? "Nothing on the register depends on them alone"
-                    : `${count(l.handover.length, "entry", "entries")} to hand over by ${formatDay(handoverDeadline(l, today))}${l.unlogged > 0 ? `, ${l.unlogged} not yet logged` : ""}`}
+                    : `${count(l.handover.length, "entry", "entries")} to hand off by ${formatDay(handoverDeadline(l, today))}${l.unlogged > 0 ? `, ${l.unlogged} not yet logged` : ""}`}
               </span>
             </div>
             {l.handover.length > 0 && (
@@ -470,7 +470,7 @@ function ControlReportLeavingSection({
                       <td className="py-1 pr-2">
                         {h.successor
                           ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_LABEL[h.successorLevel].toLowerCase()})` : " (starting cold)"}`
-                          : "Nobody left to take it"}
+                          : "Nobody remaining to take it"}
                       </td>
                       <td className="py-1 pr-2">
                         {!h.item.documented
@@ -497,8 +497,8 @@ function ControlReportLeavingSection({
             )}
             <p className="mt-1 text-xs text-neutral-600">
               {l.remaining.length > 0
-                ? `Left in the business after ${formatDay(l.lastDay)}: ${l.remaining.map((p) => p.name).join(", ")}.`
-                : "Nobody else is left in the business."}
+                ? `Still in the business after ${formatDay(l.lastDay)}: ${l.remaining.map((p) => p.name).join(", ")}.`
+                : "Nobody else remains in the business."}
             </p>
           </li>
         ))}

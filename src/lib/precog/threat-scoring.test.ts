@@ -25,7 +25,7 @@ describe("buildThreatAssessment for an own business", () => {
   });
   const p = defaultProfile("restaurant");
 
-  it("leaves out the starter register and starter scenarios, and says so", () => {
+  it("leaves out the sample register and sample scenarios, and says so", () => {
     const report = buildThreatAssessment({
       tpl: own,
       practiceName: "Tavern",
@@ -43,9 +43,7 @@ describe("buildThreatAssessment for an own business", () => {
     expect(report.missionBrief).toContain(
       "Know-how: Register not assessed yet: mark who can do each item on Who knows what.",
     );
-    expect(report.missionBrief.some((l) => l.startsWith("Scenarios: Starter scenarios"))).toBe(
-      true,
-    );
+    expect(report.missionBrief.some((l) => l.startsWith("Scenarios: Sample scenarios"))).toBe(true);
   });
 
   it("counts a scenario the owner confirmed, with the day figure in plain words", () => {

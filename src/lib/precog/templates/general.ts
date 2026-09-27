@@ -460,7 +460,7 @@ export const generalTemplate: IndustrySample = {
         },
         {
           id: "i-pay-2",
-          title: "Payroll checklist and backup processor",
+          title: "Payroll checklist and a stand-in who can run payroll",
           category: "training",
           effort: "low",
           impact: "medium",

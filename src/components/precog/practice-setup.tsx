@@ -128,7 +128,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         </div>
         <CardDescription>
           {ownTeam
-            ? "Industry sets the starter process map, register and scenarios; your team and the duties you ticked drive the gaps and scores. Sign in to sync across devices."
+            ? "Industry sets the sample process map, register and scenarios; your team and the duties you ticked drive the gaps and scores. Sign in to sync across devices."
             : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual scores and Pioneer's briefs. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
@@ -251,16 +251,16 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
               onClick={() => {
                 if (
                   !window.confirm(
-                    "Go back to the starter map? This discards your process map edits. Your team, register and journal stay.",
+                    "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay.",
                   )
                 )
                   return;
                 setCustomProcesses(null);
                 setMapLayout({});
-                toast.success("Back to the starter map");
+                toast.success("Back to the sample process map");
               }}
             >
-              Back to the starter map
+              Back to the sample process map
             </Button>
           )
         ) : (

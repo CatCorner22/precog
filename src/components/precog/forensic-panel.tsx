@@ -75,7 +75,7 @@ export function ForensicPanel() {
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" onClick={loadDemo}>
-              Load a demo sample
+              Load sample data
             </Button>
             <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
               <Upload className="size-3.5" />
@@ -128,7 +128,7 @@ export function ForensicPanel() {
           <CardTitle className="text-base">Screen summary</CardTitle>
           <CardDescription>
             {source === "demo"
-              ? `Demo data: a generated 60-day sample from a dental office (${report.n} records), not your records.`
+              ? `Sample data: 60 generated days from a dental office (${report.n} records), not your records.`
               : `${report.n} transaction records loaded`}
           </CardDescription>
           {undated && report.n > 0 && (
@@ -184,7 +184,7 @@ export function ForensicPanel() {
             </>
           ) : (
             <p className="text-sm text-muted">
-              Load a demo sample or your own transaction data to run the screen.
+              Load sample data or your own transaction data to run the screen.
             </p>
           )}
         </CardContent>

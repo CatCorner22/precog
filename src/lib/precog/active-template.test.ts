@@ -135,7 +135,7 @@ describe("resolveTemplate", () => {
     expect(base.controls.some((c) => c.starter)).toBe(false);
   });
 
-  it("stops marking a starter control once the owner logs that it runs here", () => {
+  it("stops marking a sample control once the owner logs that it runs here", () => {
     const base = getIndustryTemplate("retail");
     const people = base.people.slice(0, 2);
     const confirmed = resolveTemplate({

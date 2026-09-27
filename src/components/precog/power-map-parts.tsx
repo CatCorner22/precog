@@ -51,7 +51,7 @@ export function CoveragePlanOption({ plan, onApply }: { plan: CoveragePlan; onAp
         {plan.toRole} · {plan.currentWorkload} current duties
       </span>
       <span className="mt-1 block text-xs font-medium text-ok">
-        +{plan.continuityGain} duty backup · no new conflicts
+        +{plan.continuityGain} stand-in cover · no new duty conflicts
       </span>
     </button>
   );

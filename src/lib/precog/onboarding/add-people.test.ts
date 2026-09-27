@@ -59,7 +59,7 @@ describe("applyPaste", () => {
     expect(applied.rows).toBeNull();
     expect(applied.keepPaste).toBe(true);
     expect(applied.note).toBe(
-      "The paste marks all 2 people inactive, so the table adds none of them: Bo Chen and Al Wu.",
+      "The paste marks all 2 people as having left, so the table adds none of them: Bo Chen and Al Wu.",
     );
     expect(applied.leftOut.map((who) => who.name)).toEqual(["Bo Chen", "Al Wu"]);
   });

@@ -246,7 +246,7 @@ describe("own business scope", () => {
     expect(unassessed).toBeLessThan(allShared);
   });
 
-  it("scores starter scenarios only once the owner confirms one", () => {
+  it("scores sample scenarios only once the owner confirms one", () => {
     const none = portfolioSummary(own, own.staffComposition);
     expect(none.all.filter((s) => s.category === "scenario")).toEqual([]);
     expect(none.starterScenariosLeftOut).toEqual(own.scenarios.map((s) => s.id));
@@ -318,7 +318,7 @@ describe("scenario rows and the owner's risk variables", () => {
   });
 });
 
-describe("starter controls on an owner's own business", () => {
+describe("sample controls on an owner's own business", () => {
   const base = getIndustryTemplate("retail");
   const people = base.people.slice(0, 2);
 
@@ -331,7 +331,7 @@ describe("starter controls on an owner's own business", () => {
     expect(summary.starterControlsLeftOut.sort()).toEqual(starters);
   });
 
-  it("scores a starter control once the owner confirms it", () => {
+  it("scores a sample control once the owner confirms it", () => {
     const tpl = resolveTemplate({
       industry: "retail",
       customPeople: people,

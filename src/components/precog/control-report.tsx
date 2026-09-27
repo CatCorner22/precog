@@ -129,7 +129,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           <p className="mt-1 text-sm text-neutral-600">
             {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
             {mapFrom === "starter"
-              ? "starter process map"
+              ? "sample process map"
               : mapCustomized
                 ? "custom process map"
                 : "industry template map"}{" "}
@@ -144,7 +144,8 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             aria-label="Sample business"
           >
             <p className="font-semibold">
-              Sample business: the people, scores and findings in this report are fictional.
+              Sample business: the people, scores and findings in this report come from the sample,
+              not from a real business.
             </p>
             <p className="mt-1">
               It describes the {industry.label.toLowerCase()} sample team, not your business.{" "}
@@ -386,8 +387,8 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
         <Section title="Process map">
           {mapFrom === "starter" && (
             <p className="mb-2 text-sm text-neutral-700">
-              Starter map from the {industry.label.toLowerCase()} example: {tpl.processes.length}{" "}
-              processes, none with an owner yet.
+              Sample process map from the {industry.label.toLowerCase()} sample:{" "}
+              {tpl.processes.length} processes, none with an owner yet.
             </p>
           )}
           {mapNote && mapFrom !== "starter" && (

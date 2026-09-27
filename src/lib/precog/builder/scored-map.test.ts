@@ -52,7 +52,7 @@ describe("scoreMap", () => {
     expect(health.hotProcesses).toBe(mapHot);
   });
 
-  it("drops issues about untouched starter processes and keeps the rest", () => {
+  it("drops issues about untouched sample processes and keeps the rest", () => {
     const profile = oneOwnerAssigned();
     const starter = untouchedStarterProcessIds(profile);
     const { issues } = score(profile);

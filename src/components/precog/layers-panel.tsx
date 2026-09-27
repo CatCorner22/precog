@@ -135,7 +135,7 @@ export function LayerDetail({
               {c.starter && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <p className="text-xs text-subtle">
-                    From the industry example. Nobody has confirmed this control runs in your
+                    From the industry sample. Nobody has confirmed this control runs in your
                     business, so the app does not score it yet.
                   </p>
                   <Button
@@ -187,7 +187,7 @@ export function LayerDetail({
 
   if (layer === "knowledge") {
     return (
-      <LayerShell title={meta.name} subtitle="Who can do each task, and who alone." action={action}>
+      <LayerShell title={meta.name} subtitle="Who can do each duty, and who alone." action={action}>
         <ul className="space-y-2">
           {knowledge.map((k) => (
             <li

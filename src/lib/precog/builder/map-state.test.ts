@@ -34,7 +34,7 @@ describe("mapSource", () => {
     expect(mapSource({ industry: "dental", customProcesses: [] })).toBe("sample");
   });
 
-  it("is a starter map for a fresh own business (own people, nobody assigned)", () => {
+  it("is a sample process map for a fresh own business (own people, nobody assigned)", () => {
     const profile = ruiz();
     expect(profile.customProcesses ?? null).toBeNull();
     expect(resolveTemplate(profile).processes.every((p) => !p.ownerPersonIds?.length)).toBe(true);
@@ -56,7 +56,7 @@ describe("mapSource", () => {
 });
 
 describe("mapAssessed", () => {
-  it("is false for a starter map and for an own map with no processes", () => {
+  it("is false for a sample process map and for an own map with no processes", () => {
     const profile = ruiz();
     expect(mapAssessed(profile)).toBe(false);
     expect(mapAssessed({ ...profile, customProcesses: [] })).toBe(false);
@@ -83,14 +83,14 @@ describe("mapAssessed", () => {
 });
 
 describe("mapNotAssessedNote", () => {
-  it("names the starter process count and the industry example, in one sentence", () => {
+  it("names the sample process count and the industry sample, in one sentence", () => {
     const profile = ruiz();
     expect(starterMapFacts(profile)).toEqual({
       count: 8,
-      example: "dental / medical / veterinary office example",
+      example: "dental / medical / veterinary office sample",
     });
     expect(mapNotAssessedNote(profile)).toBe(
-      "Your map holds 8 starter processes from the dental / medical / veterinary office example and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
+      "Your map holds 8 sample processes from the dental / medical / veterinary office sample and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
     );
   });
 
@@ -153,7 +153,7 @@ describe("the sample business's map figures do not change", () => {
 });
 
 describe("untouchedStarterProcessIds", () => {
-  it("keeps every other starter process a starter when the owner assigns one owner", () => {
+  it("keeps every other sample process a starter when the owner assigns one owner", () => {
     const profile = ruiz();
     const processes = resolveTemplate(profile).processes;
     expect(untouchedStarterProcessIds(profile).size).toBe(processes.length);
@@ -168,7 +168,7 @@ describe("untouchedStarterProcessIds", () => {
     expect(left.size).toBe(processes.length - 1);
   });
 
-  it("treats a renamed or re-described starter process as the owner's own", () => {
+  it("treats a renamed or re-described sample process as the owner's own", () => {
     const profile = ruiz();
     const processes = resolveTemplate(profile).processes;
     const edited = {
@@ -205,21 +205,21 @@ describe("starterProcesses", () => {
   });
 });
 
-describe("a starter map the owner only renamed", () => {
+describe("a sample process map the owner only renamed", () => {
   const people = [{ id: "own-1", name: "Ana", role: "Owner", active: true }];
   const starter = getIndustryTemplate("retail").processes.map((p) => ({
     ...p,
     ownerPersonIds: [],
   }));
 
-  it("stays a starter map, not assessed, when a process is renamed with nobody assigned", () => {
+  it("stays a sample process map, not assessed, when a process is renamed with nobody assigned", () => {
     const renamed = starter.map((p, i) => (i === 0 ? { ...p, name: "Our sales desk" } : p));
     const profile = { industry: "retail" as const, customPeople: people, customProcesses: renamed };
     expect(mapSource(profile)).toBe("starter");
     expect(mapAssessed(profile)).toBe(false);
   });
 
-  it("stays a starter map when the processes are only reordered", () => {
+  it("stays a sample process map when the processes are only reordered", () => {
     const profile = {
       industry: "retail" as const,
       customPeople: people,

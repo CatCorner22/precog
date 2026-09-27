@@ -31,7 +31,7 @@ const WEIGHT_LABEL: Record<string, string> = {
   independentReconciliation: "Independent reconciliation",
   compensatingControls: "Compensating controls",
   monitoringCadence: "Monitoring frequency",
-  knowledgeRedundancy: "Backup know-how",
+  knowledgeRedundancy: "Know-how with a stand-in",
   smallTeamUplift: "Small-team uplift",
   soleOwnerUpliftPerItem: "Uplift per item one person holds",
   soleOwnerUpliftCap: "Most the one-person uplift can add",

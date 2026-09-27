@@ -93,7 +93,7 @@ export function MapHealthCard({
           </div>
           <p className="mt-3 text-xs text-subtle">
             {starter
-              ? `${starter.count} starter processes · starter map from the ${starter.example}`
+              ? `${starter.count} sample processes · sample process map from the ${starter.example}`
               : "0 processes · your own map"}
           </p>
         </CardContent>

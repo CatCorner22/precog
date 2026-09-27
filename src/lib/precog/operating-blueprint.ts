@@ -248,7 +248,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
       optimal: ["Automated access reconciliation from exports", "Alerts on admin role changes"],
       fallback: ["Semi-annual access listing reviewed by the owner"],
       evidence: ["User list export", "Access review sign-off", "Audit log sample"],
-      cadence: "On every hire and leaver; quarterly review",
+      cadence: "On every hire and every person leaving; quarterly review",
     },
     {
       id: "close-report",

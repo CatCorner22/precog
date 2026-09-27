@@ -200,7 +200,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       confidenceDrag: 0.09,
       probe: {
         kind: "interview",
-        action: "Designate backup second signer + attorney-in-fact for 30-day cover",
+        action: "Name a stand-in second signer and an attorney-in-fact for a 30-day absence",
         effort: "hours",
         expectedLift: "Removes silent assumption that owner is always the control",
       },

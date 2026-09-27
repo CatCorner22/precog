@@ -54,7 +54,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
           viewBox={`0 0 ${MAP_WIDTH} ${layout.height}`}
           className="w-full min-w-[560px]"
           role="group"
-          aria-label="Knowledge continuity map: people on the left, register items on the right"
+          aria-label="The Who knows what register as a drawing: people on the left, register items on the right"
         >
           {layout.edges.map((e) => {
             const isHot = e.to.risk?.soleOwner && e.to.criticality === "critical";

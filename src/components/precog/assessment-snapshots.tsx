@@ -115,8 +115,8 @@ export function AssessmentSnapshots() {
     const replaced =
       "line of business, name, team, process map, register, controls, team figures, risk inputs, known leave, decisions and value proof";
     const question = ofThisBusiness(item)
-      ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, leaver checks and access checks stay. Save a snapshot first if you want to keep the current version.`
-      : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, leaver checks and access checks stay. Restore it into ${into} anyway?`;
+      ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, and pay and login checks for people who have left stay. Save a snapshot first if you want to keep what is there now.`
+      : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, and pay and login checks for people who have left stay. Restore it into ${into} anyway?`;
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);

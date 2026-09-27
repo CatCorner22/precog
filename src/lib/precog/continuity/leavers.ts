@@ -7,7 +7,7 @@ import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
 import { firstName, joinWithAnd, quoted } from "../text";
 
-/** A hand-over with this many days or fewer left is urgent. */
+/** A hand-off with this many days or fewer left is urgent. */
 export const HANDOVER_URGENT_DAYS = 7;
 
 export interface HandoverItem {
@@ -26,7 +26,7 @@ export interface HandoverItem {
 
 export interface Leaver {
   person: Person;
-  /** False while nobody is marked on the register: the hand-over cannot be worked out yet. */
+  /** False while nobody is marked on the register: the hand-off cannot be worked out yet. */
   assessed: boolean;
   lastDay: string;
   /** Days until the last day: 0 on the day itself, negative once it has passed. */
@@ -42,12 +42,12 @@ export interface Leaver {
   remaining: Person[];
   /** 0–100 share of must-do work that leaves with them today (same weighted index as PersonLoad.dependence). */
   dependence: number;
-  /** Hand-over items with no cross-training step in the Journal yet. */
+  /** Hand-off items with no cross-training step in the Journal yet. */
   unlogged: number;
   actions: AbsenceAction[];
 }
 
-/** The date to have hand-over steps done by: the last day, or today once it has passed. */
+/** The date to have hand-off steps done by: the last day, or today once it has passed. */
 export function handoverDeadline(leaver: Pick<Leaver, "lastDay">, today: string): string {
   return leaver.lastDay < today ? today : leaver.lastDay;
 }
@@ -59,7 +59,7 @@ export function handoverDeadline(leaver: Pick<Leaver, "lastDay">, today: string)
  *
  * Coverage is judged as of each person's last day, with everyone whose last
  * day falls on or before it already gone: two people who share payroll and
- * both resign each get payroll on their hand-over list, pointed at someone
+ * both resign each get payroll on their hand-off list, pointed at someone
  * who is staying, rather than each counting the other as cover.
  */
 export function leavers(
@@ -167,7 +167,7 @@ function handoverActions(
       text:
         remaining.length === 0
           ? `Nobody else is on the team to take ${names(nobody, 2)} — hire or line up an outside provider before ${first} goes.`
-          : `Nobody left has touched ${names(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
+          : `Nobody remaining has touched ${names(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
       step: "cover",
       knowledgeIds: ids(nobody),
     });

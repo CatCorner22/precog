@@ -115,7 +115,7 @@ function simulateDeparture(
   const recommendations: string[] = [];
   if (orphanedProcesses.length)
     recommendations.push(
-      `Name a backup owner on ${orphanedProcesses
+      `Name a new owner on ${orphanedProcesses
         .slice(0, 3)
         .map((p) => `"${p.name}"`)
         .join(
@@ -134,7 +134,7 @@ function simulateDeparture(
       "Years in the role usually mean know-how nobody wrote down — walk through the processes and knowledge above with a successor and record what they say.",
     );
   if (!recommendations.length)
-    recommendations.push("Coverage looks good; keep backups current as processes change.");
+    recommendations.push("Coverage looks good; keep stand-ins current as processes change.");
 
   return {
     person,

@@ -106,7 +106,7 @@ export function starterMapFacts(profile: Pick<PracticeProfile, "industry">): {
 } {
   return {
     count: getIndustryTemplate(profile.industry).processes.length,
-    example: `${industryMeta(profile.industry).label.toLowerCase()} example`,
+    example: `${industryMeta(profile.industry).label.toLowerCase()} sample`,
   };
 }
 
@@ -118,7 +118,7 @@ export function mapNotAssessedNote(profile: MapProfile): string | null {
   if (mapAssessed(profile)) return null;
   if (mapSource(profile) === "starter") {
     const { count, example } = starterMapFacts(profile);
-    return `Your map holds ${count} starter processes from the ${example} and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.`;
+    return `Your map holds ${count} sample processes from the ${example} and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.`;
   }
   return "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.";
 }

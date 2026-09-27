@@ -621,8 +621,8 @@ export function useCloudSync(input: {
             lastLocalWrite.current = "saved";
           }
           activateProfile(theirs);
-          toast("Loaded the version saved in the other tab.", {
-            description: `This tab's version is kept as “${kept}” in your businesses.`,
+          toast("Loaded the copy saved in the other tab.", {
+            description: `This tab's copy is kept as “${kept}” in your businesses.`,
           });
           return;
         }
@@ -634,8 +634,8 @@ export function useCloudSync(input: {
         if (result.kind === "saved") storedProfile.current = mine;
         savePortfolioEntry(mine, workspace.local);
         setSyncStatus(result.kind === "saved" ? "local" : "local-error");
-        toast("Kept this tab's version.", {
-          description: `The other tab's version is kept as “${kept}” in your businesses.`,
+        toast("Kept this tab's copy.", {
+          description: `The other tab's copy is kept as “${kept}” in your businesses.`,
         });
         return;
       }
@@ -656,16 +656,16 @@ export function useCloudSync(input: {
         skipNextCloudSave.current = true;
         activateProfile(accountCopy);
         setSyncStatus("synced");
-        toast("Loaded the version saved in your account.", {
-          description: `This device's version is kept as “${kept}” in your businesses.`,
+        toast("Loaded the copy saved in your account.", {
+          description: `This device's copy is kept as “${kept}” in your businesses.`,
         });
         return;
       }
 
       const kept = keepAsCopy(conflict.remote, "copy from your account");
       setSyncStatus("saving");
-      toast("Kept this device's version.", {
-        description: `The account's version is kept as “${kept}” in your businesses.`,
+      toast("Kept this device's copy.", {
+        description: `The account's copy is kept as “${kept}” in your businesses.`,
       });
       await saveCloud(profileRef.current).catch(reportCloudError);
     },

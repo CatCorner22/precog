@@ -54,7 +54,7 @@ export function OutTomorrowCard({
           If someone is out tomorrow
         </CardTitle>
         <CardDescription>
-          Sick, on leave, or gone. What stops, who picks it up, and what to do first.
+          Sick, on leave, or leaving. What stops, who picks it up, and what to do first.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -189,8 +189,8 @@ export function PlannedLeaveCard({
           Out today and planned leave
         </CardTitle>
         <CardDescription>
-          Someone called in sick? Press their name and today&apos;s cover sheet appears: what stops,
-          who steps in, where the procedure lives. Known absences — holidays, parental leave,
+          Someone called in sick? Press their name and today&apos;s stand-in sheet appears: what
+          stops, who steps in, where the procedure lives. Known absences — holidays, parental leave,
           surgery — go in the form. The app flags overlapping absences, and once anyone is back a
           debrief asks whether the stand-in can now run it alone.
         </CardDescription>
@@ -341,7 +341,7 @@ export function PlannedLeaveCard({
   );
 }
 
-/** People who have given notice: their last day, the hand-over, and who picks up what. */
+/** People who have given notice: their last day, the hand-off, and who picks up what. */
 export function LeavingTeamCard({
   leaving,
   today,
@@ -361,9 +361,9 @@ export function LeavingTeamCard({
           Leaving the team
         </CardTitle>
         <CardDescription>
-          Someone has given notice? Record their last day. They keep counting as cover until then,
-          and the hand-over below lists everything only they can run, who to train and what to write
-          down &mdash; each step due before they go.
+          Someone has given notice? Record their last day. They keep counting as a stand-in until
+          then, and the hand-off below lists everything only they can run, who to train and what to
+          write down &mdash; each step due before they go.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -405,7 +405,7 @@ export function LeavingTeamCard({
           <p className="text-xs text-muted">
             Nobody has given notice. When someone does, record the date here rather than removing
             them &mdash; the weekly plan, printed report and Pioneer will count down to it and chase
-            the hand-over.
+            the hand-off.
           </p>
         )}
         {leaving.list.map((l) => (

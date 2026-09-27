@@ -159,7 +159,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     id: "sc-field-time-padding",
     title: "Padded field hours and crew members who never worked",
     description:
-      "Timesheets from the field go to payroll without a check against the daily reports. Extra hours, or a former crew member left on payroll with a changed bank account, are paid with the rest of the run.",
+      "Timesheets from the field go to payroll without a check against the daily reports. Extra hours, or a crew member who has left but stays on payroll with a changed bank account, are paid with the rest of the run.",
     controlId: "c-field-time",
     sodRuleIds: ["rule-payroll-master-run", "rule-payroll"],
     knowledgeId: "k5",

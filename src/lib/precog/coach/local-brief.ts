@@ -290,7 +290,7 @@ function ownerStatementDecision(): PioneerDecision {
 function registerDecision(): PioneerDecision {
   return {
     action: "Mark who can do each item on Who knows what",
-    rationale: `${REGISTER_NOT_ASSESSED} Until then the brief cannot say who covers what, and it does not guess from the industry example.`,
+    rationale: `${REGISTER_NOT_ASSESSED} Until then the brief cannot say who covers what, and it does not guess from the industry sample.`,
     evidenceIds: [],
     effort: "low",
     horizonDays: 7,
@@ -515,7 +515,7 @@ function ownFirstBrief(
     tpl,
     confirmedScenarioIds(profile.decisions, profile.industry),
   ).map((sc) => sc.title);
-  const starterTag = `(${starterScenarioLabel(profile.industry).replace(/^Starter scenarios/, "starter scenario")}, not counted in your totals)`;
+  const starterTag = `(${starterScenarioLabel(profile.industry).replace(/^Sample scenarios/, "sample scenario")}, not counted in your totals)`;
   const labelStarter = (line: string) =>
     starterTitles.some((t) => line.includes(t)) && !line.includes(starterTag)
       ? `${line} ${starterTag}`

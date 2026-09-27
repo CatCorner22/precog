@@ -50,18 +50,18 @@ export function createGovernanceReport(
     ),
     ...(report.conflicts.length ? [] : ["| — | — | No conflicts detected | — | — |"]),
     "",
-    "## Continuity register",
+    "## Who knows what register",
     "",
     ...coverage.unassigned.map(
       (item) => `- **Nobody holds:** ${clean(item.label)} (risk ${item.riskWeight}/5)`,
     ),
     ...coverage.singlePoints.map(
       (item) =>
-        `- **Backup required:** ${clean(item.label)} — currently only ${clean(item.assignees[0]?.personName ?? "one assignee")}`,
+        `- **Stand-in required:** ${clean(item.label)} — currently only ${clean(item.assignees[0]?.personName ?? "one assignee")}`,
     ),
     ...(coverage.unassigned.length || coverage.singlePoints.length
       ? []
-      : ["- Every high-risk duty has a holder and a backup."]),
+      : ["- Every high-risk duty has a holder and a stand-in."]),
     "",
     "## Duty charters",
     "",

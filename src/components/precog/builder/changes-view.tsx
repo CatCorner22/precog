@@ -45,7 +45,7 @@ export function ChangesView({
         <span className="font-medium text-fg">{total}</span> change{total === 1 ? "" : "s"} vs{" "}
         {label ??
           (ownStart
-            ? `the starter map you began from (${industryMeta(industry).label.toLowerCase()} example)`
+            ? `the sample process map you began from (${industryMeta(industry).label.toLowerCase()} sample)`
             : `the ${industryMeta(industry).label} template`)}
         .
       </p>

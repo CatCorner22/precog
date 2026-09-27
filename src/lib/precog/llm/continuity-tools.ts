@@ -42,7 +42,7 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
       summary:
         tpl.knowledge.length === 0
           ? "Continuity is not assessed: the register is empty, so the owner has not listed the duties and know-how the business runs on. Do not quote coverage figures."
-          : `Continuity is not assessed: the register holds ${tpl.knowledge.length} starter item(s) from the industry example with nobody marked on any of them. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
+          : `Continuity is not assessed: the register holds ${tpl.knowledge.length} sample item(s) from the industry sample with nobody marked on any of them. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
       data: {
         assessed: false,
         items: tpl.knowledge.map((k) => ({

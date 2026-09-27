@@ -81,7 +81,7 @@ export function SingleScenarioView({
         <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
           <p className="text-sm font-medium text-warn">{starterScenarioLabel(profile.industry)}</p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
-            These scenarios come with the example business. Their losses and timelines are the
+            These scenarios come with the sample business. Their losses and timelines are the
             example&rsquo;s assumptions, not facts about your business, so they stay out of the
             threat index and your totals until you pick one and choose &ldquo;This could happen
             here&rdquo;.
@@ -116,9 +116,9 @@ export function SingleScenarioView({
       {scenarioIsStarter && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel p-3 text-sm">
           <p className="max-w-2xl text-muted">
-            &ldquo;{scenario.title}&rdquo; is a starter scenario from the example. If it could
-            happen in your business, make it yours: it is logged in your {tabName("journal")} with a
-            review date and starts counting in the threat index and your totals.
+            &ldquo;{scenario.title}&rdquo; is a sample scenario. If it could happen in your
+            business, make it yours: it is logged in your {tabName("journal")} with a review date
+            and starts counting in the threat index and your totals.
           </p>
           <Button size="sm" onClick={() => addDecision(scenarioConfirmation(scenario, new Date()))}>
             <CheckCircle2 className="size-3.5" />

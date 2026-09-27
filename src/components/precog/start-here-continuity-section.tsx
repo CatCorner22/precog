@@ -59,13 +59,13 @@ export function StartHereContinuitySection({
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
               >
                 {staffingToday.out.length > 0
-                  ? "Open the cover sheet"
+                  ? "Open today's stand-in sheet"
                   : staffingToday.gone.length > 0
                     ? "Mark them as left"
                     : staffingToday.startingSoon.length > 0
                       ? "Log the hand-offs"
                       : staffingToday.leaving.length > 0
-                        ? "Open the hand-over"
+                        ? "Open the hand-off"
                         : "Debrief the stand-ins"}
                 <ArrowRight className="size-3.5" aria-hidden />
               </button>
@@ -132,10 +132,10 @@ export function StartHereContinuitySection({
                     </Badge>
                     <span className="text-xs text-muted">
                       {l.status === "gone"
-                        ? "still counted as cover"
+                        ? "still counted as a stand-in"
                         : l.handover.length === 0
                           ? "nothing depends on them alone"
-                          : `${l.handover.length} to hand over`}
+                          : `${l.handover.length} to hand off`}
                     </span>
                     {l.status === "notice" && l.unlogged > 0 && (
                       <span className="text-xs text-warn">
@@ -177,7 +177,7 @@ export function StartHereContinuitySection({
               <p className="mt-1 text-sm leading-relaxed text-muted">
                 {registerSize === 0
                   ? "Your register is empty. List the duties and know-how the business runs on and mark who can do each, and these figures fill in."
-                  : `Your register holds ${registerSize} starter items from the ${industryLabel} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
+                  : `Your register holds ${registerSize} sample items from the ${industryLabel} sample, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
               </p>
             </div>
           ) : (

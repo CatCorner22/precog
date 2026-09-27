@@ -124,7 +124,7 @@ describe("leavers", () => {
     expect(handoverDeadline(maya, "2026-10-17")).toBe("2026-10-17");
   });
 
-  it("describes the hand-over in one sentence", () => {
+  it("describes the hand-off in one sentence", () => {
     const [maya] = leavers(register, [decision({})], "2026-10-02");
     expect(describeLeaver(maya)).toBe(
       "Maya leaves in 12 days (last day Oct 14): 2 register entries only Maya can run alone — train Chris on pms — train Chris on vendors — 1 process needs a new owner; 1 of 2 logged in the Decisions log.",
@@ -249,7 +249,7 @@ describe("leavers", () => {
   });
 });
 
-describe("a leaver over a starter register nobody has marked", () => {
+describe("a leaver over a sample register nobody has marked", () => {
   it("does not promise that nothing leaves with them", () => {
     const starter: IndustryTemplate = {
       ...getIndustryTemplate("general"),

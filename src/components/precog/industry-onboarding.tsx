@@ -637,7 +637,7 @@ export function IndustryOnboarding() {
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                The sample is a fictional team; every gap on it says so until you enter your own.
+                The sample team is made up; every gap on it says so until you enter your own.
               </p>
               {cancelLink}
             </CardContent>
@@ -1026,7 +1026,8 @@ export function IndustryOnboarding() {
                       <span className="font-mono">Name, Job title</span>. Job titles such as
                       Bookkeeper, Office Manager, AP Specialist, or Cashier are read from a catalog
                       of common jobs and their usual duties are ticked. People already in the table
-                      are updated, not added twice. People marked inactive are left out.
+                      are updated, not added twice. People the roster marks as having left are
+                      skipped.
                     </p>
                     <textarea
                       className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}

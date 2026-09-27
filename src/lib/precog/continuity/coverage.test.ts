@@ -573,7 +573,7 @@ describe("documentationDebt", () => {
       /^Have Ana write down "bank-rec" — it lives only in Ana's head/,
     );
     expect(d.gaps[1].action).toMatch(/^Record where the written procedure for "deposits" lives/);
-    expect(d.gaps[2].action).toMatch(/so the backup follows the same steps/);
+    expect(d.gaps[2].action).toMatch(/so the stand-in follows the same steps/);
     expect(d.gaps[3].author?.id).toBe("b");
     expect(d.counts).toEqual({ none: 2, unlocated: 2, located: 1 });
     expect(d.documentedIndex).toBe(25);
@@ -741,8 +741,8 @@ function ownClinic(relations: KnowledgeRelation[] | null = null): IndustryTempla
   });
 }
 
-describe("starter register nobody has marked", () => {
-  it("names nobody to own a starter item, instead of the alphabetically first employee", () => {
+describe("sample register nobody has marked", () => {
+  it("names nobody to own a sample item, instead of the alphabetically first employee", () => {
     const r = coverageReport(ownClinic());
     expect(r.plan.length).toBe(r.items.length);
     for (const move of r.plan) {
@@ -850,7 +850,7 @@ describe("absence simulator on a register with gaps", () => {
     expect(all.remaining).toEqual([]);
     expect(all.stops.map((s) => s.item.id)).toEqual(["payroll"]);
     expect(all.actions[0].text).toBe(
-      "Nobody is left in the business while Ana, Ben and Cy are out. Line up outside cover or close for those days.",
+      "Nobody remains in the business while Ana, Ben and Cy are out. Line up outside help or close for those days.",
     );
     expect(all.actions.some((a) => /Nothing (more )?stops/.test(a.text))).toBe(false);
   });

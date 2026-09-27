@@ -417,7 +417,7 @@ function familyFinding(
         : (FAMILY_WHY[[familyA, familyB].sort().join("-")] ??
           `One person both ${FAMILY_VERB[familyA]} and ${FAMILY_VERB[familyB]}, so no step in that sequence gets a second look.`),
       fraudPath: same
-        ? "Complete both steps alone, with no handover anyone would notice"
+        ? "Complete both steps alone, with no hand-off anyone would notice"
         : "Act, then write or check the record of the act, unobserved",
       score: clampScore(raw),
       compensatingControls: [

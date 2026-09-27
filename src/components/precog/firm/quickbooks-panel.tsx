@@ -175,7 +175,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   if (drift.employeesReleased.length) {
     lines.push({
       label: "Released from payroll",
-      text: `${names(drift.employeesReleased)} — confirm their logins are gone and mark them as left on the map.`,
+      text: `${names(drift.employeesReleased)} — confirm their logins are removed and mark them as left on the map.`,
       warn: true,
     });
   }
@@ -192,7 +192,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   if (drift.vendorsAdded.length)
     lines.push({ label: "New vendors", text: names(drift.vendorsAdded) });
   if (drift.vendorsRemoved.length)
-    lines.push({ label: "Vendors gone", text: names(drift.vendorsRemoved) });
+    lines.push({ label: "Vendors removed", text: names(drift.vendorsRemoved) });
   if (drift.employeesAdded.length)
     lines.push({ label: "New employees", text: names(drift.employeesAdded) });
   if (drift.employeesNotOnMap.length) {

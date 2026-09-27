@@ -624,7 +624,9 @@ export function ProcessMap({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Interactive process map</Badge>
           {mapSource(profile) === "starter" ? (
-            <Badge variant="default">Starter map from the {starterMapFacts(profile).example}</Badge>
+            <Badge variant="default">
+              Sample process map from the {starterMapFacts(profile).example}
+            </Badge>
           ) : starterLeft > 0 ? (
             <Badge variant="default">
               Your map · {starterLeft} of {graph.snapshots.length} processes still from the starter

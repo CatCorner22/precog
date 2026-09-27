@@ -466,7 +466,7 @@ describe("normalizePlannedAbsences", () => {
   });
 });
 
-describe("leave booked over a starter register nobody has marked", () => {
+describe("leave booked over a sample register nobody has marked", () => {
   const starter: IndustryTemplate = {
     ...getIndustryTemplate("general"),
     people,

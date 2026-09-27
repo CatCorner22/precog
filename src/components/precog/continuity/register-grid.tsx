@@ -312,7 +312,7 @@ export function RegisterGrid({
       <p className="text-xs text-muted">
         Levels:{" "}
         {LEVEL_ORDER.map((l) => `${LEVEL_SHORT[l]} = ${LEVEL_LABEL[l].toLowerCase()}`).join(" · ")}.
-        Only "Expert" and "Can do" count as a real backup.
+        Only "Expert" and "Can do" count as a real stand-in.
       </p>
     </>
   );

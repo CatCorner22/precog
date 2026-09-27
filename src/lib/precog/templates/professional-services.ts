@@ -307,7 +307,7 @@ export const professionalServicesTemplate: IndustrySample = {
         },
         {
           id: "i-trust-2",
-          title: "Written trust handling SOP with backup owner",
+          title: "Written trust handling SOP with a stand-in owner",
           category: "training",
           effort: "medium",
           impact: "high",

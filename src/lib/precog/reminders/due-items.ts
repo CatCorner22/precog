@@ -108,7 +108,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       .join(", ");
     add({
       key: `handover:${leaver.person.id}:${leaver.lastDay}`,
-      title: `${leaver.person.name} leaves on ${formatDay(leaver.lastDay)}: ${count(open.length, "task")} still to hand over`,
+      title: `${leaver.person.name} leaves on ${formatDay(leaver.lastDay)}: ${count(open.length, "task")} still to hand off`,
       detail,
       ownerDetail: detail,
       dueOn: deadline,

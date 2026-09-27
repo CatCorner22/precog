@@ -118,7 +118,7 @@ export function PlannerRegisterBanners({
       {registerFrom === "starter" && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
           <p className="font-medium">
-            Starter list from the {industryMeta(industry).label.toLowerCase()} example
+            Sample list from the {industryMeta(industry).label.toLowerCase()} sample
           </p>
           <p className="mt-1 leading-relaxed text-muted">
             These {tpl.knowledge.length} duties and pieces of know-how are what a business like

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { RegisterEditor } from "@/components/precog/continuity/use-continuity-planner";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
+import { useTabName } from "@/lib/precog/presentation";
 
 /** The register card: import, export and reset in the header, the grid below. */
 export function PlannerRegisterCard({
@@ -19,16 +20,17 @@ export function PlannerRegisterCard({
   tpl: IndustryTemplate;
   trackFreshness: boolean;
 }) {
+  const tabName = useTabName();
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
         <div>
-          <CardTitle>Who can do what</CardTitle>
+          <CardTitle>{`${tabName("knowledge")} register`}</CardTitle>
           <CardDescription>
-            Every duty, task and piece of know-how the business runs on, and who can do it. Anyone
-            can hold as many as they like; each item should have at least two people who can run it
+            Every duty and piece of know-how the business runs on, and who can do it. Anyone can
+            hold as many as they like; each item should have at least two people who can run it
             alone.
           </CardDescription>
         </div>
@@ -74,9 +76,9 @@ export function PlannerRegisterCard({
               variant="ghost"
               size="sm"
               onClick={register.resetToTemplate}
-              title="Replace your register with the industry's starter list"
+              title="Replace your register with the industry's sample list"
             >
-              <RotateCcw className="h-3.5 w-3.5" /> Back to starter list
+              <RotateCcw className="h-3.5 w-3.5" /> Back to sample list
             </Button>
           )}
         </div>

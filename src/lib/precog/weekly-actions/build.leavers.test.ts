@@ -40,15 +40,15 @@ function build(people: Person[], decisions: DecisionEntry[] = [], today = "2025-
 const notice = setLastDay(dental.people, maya.id, "2025-04-20");
 
 describe("buildWeeklyActions leavers", () => {
-  it("makes the hand-over the week's continuity action, with a deadline no later than the last day", () => {
+  it("makes the hand-off the week's continuity action, with a deadline no later than the last day", () => {
     const actions = build(notice);
     const action = actions.find((a) => a.id === `leaver-${maya.id}`);
     expect(action?.title).toBe(
       `${firstName(maya.name)} leaves in 19 days: train ${firstName(chris.name)} on ${item.name}`,
     );
-    expect(action?.why).toContain("Hand over by Apr 20.");
+    expect(action?.why).toContain("Hand off by Apr 20.");
     expect(action?.why).toContain("1 has nothing written down");
-    expect(action?.why).toContain("Left in the business after Apr 20:");
+    expect(action?.why).toContain("Still in the business after Apr 20:");
     expect(action?.effort).toBe("medium");
     expect(action?.priority).toBe(87);
     expect(action?.tab).toBe("knowledge");
@@ -62,7 +62,7 @@ describe("buildWeeklyActions leavers", () => {
     expect(action?.priority).toBe(91);
   });
 
-  it("asks about a logged training step at hand-over urgency instead of giving fresh advice", () => {
+  it("asks about a logged training step at hand-off urgency instead of giving fresh advice", () => {
     const logged: DecisionEntry = {
       id: "d-train",
       createdAt: "2025-04-01T09:00:00.000Z",
@@ -92,7 +92,7 @@ describe("buildWeeklyActions leavers", () => {
     expect(action?.title).toBe(
       `${firstName(maya.name)} left 3 days ago: mark ${firstName(maya.name)} as left`,
     );
-    expect(action?.why).toContain("still counts as cover for 1 register entry");
+    expect(action?.why).toContain("still counts as a stand-in for 1 register entry");
     expect(action?.priority).toBe(93);
   });
 

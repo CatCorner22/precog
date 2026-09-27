@@ -391,13 +391,13 @@ export function ProcessBuilder({
   function resetToTemplate() {
     const ownTeam = Boolean(profile.customPeople);
     const question = ownTeam
-      ? "Go back to the starter map? This discards your process map edits. Your team, register and journal stay."
+      ? "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay."
       : "Discard your custom map and team, and restore the industry template?";
     if (!window.confirm(question)) return;
     setCustomProcesses(null);
     if (!ownTeam) setCustomPeople(null);
     setMapLayout({});
-    toast.success(ownTeam ? "Back to the starter map" : "Template restored");
+    toast.success("Back to the sample process map");
   }
 
   function exportMap() {
@@ -679,7 +679,7 @@ export function ProcessBuilder({
           )}
           {mapCustomized && (
             <Button size="sm" variant="ghost" onClick={resetToTemplate}>
-              <RotateCcw className="size-3.5" /> {profile.customPeople ? "Starter map" : "Template"}
+              <RotateCcw className="size-3.5" /> Sample process map
             </Button>
           )}
         </div>

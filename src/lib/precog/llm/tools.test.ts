@@ -393,7 +393,7 @@ describe("get_planned_absences", () => {
     expect(result.summary).not.toContain("Debrief due");
   });
 
-  it("exposes who has given notice with the hand-over they owe before their last day", () => {
+  it("exposes who has given notice with the hand-off they owe before their last day", () => {
     const result = executeTool("get_planned_absences", {
       profile: profileWith({
         plannedAbsences: [],
@@ -509,7 +509,7 @@ describe("get_process_records", () => {
 });
 
 describe("get_process_records on a map that is not assessed", () => {
-  it("carries assessed: false and tells the coach not to quote map figures for a starter map", () => {
+  it("carries assessed: false and tells the coach not to quote map figures for a sample process map", () => {
     const profile = ownBusinessProfile(defaultProfile(), {
       practiceName: "Ruiz Dental",
       people: buildOwnTeam([
@@ -524,7 +524,7 @@ describe("get_process_records on a map that is not assessed", () => {
     expect(data.processes).toHaveLength(8);
     expect(data.processes.every((p) => p.owners.length === 0)).toBe(true);
     expect(r.summary).toBe(
-      "The process map is not assessed: it holds 8 starter processes from the dental / medical / veterinary office example with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+      "The process map is not assessed: it holds 8 sample processes from the dental / medical / veterinary office sample with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
     );
     expect(JSON.stringify(r.data)).not.toContain("documentedIndex");
   });

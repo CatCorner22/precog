@@ -179,7 +179,7 @@ export function absenceImpact(
   const ids = (list: AbsenceStop[]) => list.map((s) => s.item.id);
   if (remaining.length === 0)
     actions.push({
-      text: `Nobody is left in the business while ${names} ${single ? "is" : "are"} out. Line up outside cover or close for those days.`,
+      text: `Nobody remains in the business while ${names} ${single ? "is" : "are"} out. Line up outside help or close for those days.`,
       step: "cover",
       knowledgeIds: [],
     });

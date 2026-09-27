@@ -173,7 +173,7 @@ function headline(b: TodayBrief): string | null {
   if (b.gone.length > 0) {
     const l = b.gone[0];
     const first = firstName(l.person.name);
-    return `${first} ${leaverLead(l.daysLeft)} but still counts as cover — mark ${first} as left${l.handover.length > 0 ? ` (${count(l.handover.length, "entry", "entries")} only ${first} could run alone)` : ""}.`;
+    return `${first} ${leaverLead(l.daysLeft)} but still counts as a stand-in — mark ${first} as left${l.handover.length > 0 ? ` (${count(l.handover.length, "entry", "entries")} only ${first} could run alone)` : ""}.`;
   }
   if (b.startingSoon.length > 0) {
     const w = b.startingSoon[0];
@@ -187,7 +187,7 @@ function headline(b: TodayBrief): string | null {
       ? "the app cannot tell yet what depends on them alone"
       : l.handover.length === 0
         ? "nothing on the register depends on them alone"
-        : `${count(l.handover.length, "entry", "entries")} to hand over${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Decisions log` : ""}`;
+        : `${count(l.handover.length, "entry", "entries")} to hand off${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Decisions log` : ""}`;
     return `${first} ${leaverLead(l.daysLeft)} — ${work}.`;
   }
   if (b.debriefs > 0) {

@@ -36,7 +36,7 @@ const ownTeam: Person[] = [
   },
 ];
 
-describe("the first edit to an owner's starter map", () => {
+describe("the first edit to an owner's sample process map", () => {
   it("carries no sample owner ids into the owner's saved map", () => {
     const own = ownBusinessProfile(defaultProfile("general"), {
       practiceName: "Own Co",

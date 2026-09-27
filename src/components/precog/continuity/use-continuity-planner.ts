@@ -439,7 +439,7 @@ function useRegisterEditor(
     /** The starter list with nobody marked holds nothing of the owner's, so no confirmation. */
     clearStarter: () => setCustomKnowledge([]),
     importCsv,
-    exportCsv: () => downloadCsv("precog-who-can-do-what.csv", registerToCsv(tpl)),
+    exportCsv: () => downloadCsv("precog-who-knows-what.csv", registerToCsv(tpl)),
     exportTemplate: () => downloadCsv("precog-register-template.csv", registerTemplateCsv(tpl)),
   };
 }
@@ -654,7 +654,7 @@ function useLeaving(
     setPersonId("");
     setLastDayInput("");
     toast.success(
-      `${firstName(person.name)}'s last day recorded — the hand-over checklist is below.`,
+      `${firstName(person.name)}'s last day recorded — the hand-off checklist is below.`,
     );
   };
   const changeLastDay = (l: Leaver, day: string) => {
@@ -676,7 +676,7 @@ function useLeaving(
     }
     if (
       !window.confirm(
-        `Mark ${l.person.name} as left? ${first} stays in the history but no longer counts as cover for anything on the register${
+        `Mark ${l.person.name} as left? ${first} stays in the history but no longer counts as a stand-in for anything on the register${
           l.handover.length > 0
             ? ` — ${count(l.handover.length, "entry", "entries")} will have nobody who can run ${verb(l.handover.length, "it", "them")} alone`
             : ""

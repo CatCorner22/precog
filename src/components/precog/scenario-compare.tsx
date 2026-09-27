@@ -162,8 +162,8 @@ export function ScenarioCompare({
         <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm text-muted">
           <span className="font-medium text-warn">{starterScenarioLabel(profile.industry)}.</span>{" "}
           {confirmed.size > 0
-            ? `${confirmed.size} of them ${verb(confirmed.size, "is", "are")} yours; the rest are the example's assumptions.`
-            : "Their losses and timelines are the example's assumptions, not facts about your business."}{" "}
+            ? `${confirmed.size} of them ${verb(confirmed.size, "is", "are")} yours; the rest are the sample's assumptions.`
+            : "Their losses and timelines are the sample's assumptions, not facts about your business."}{" "}
           {MAKE_SCENARIO_YOURS}
         </p>
       )}

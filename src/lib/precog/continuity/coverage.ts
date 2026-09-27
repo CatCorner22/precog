@@ -324,7 +324,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
       const doc = i.item.documented
         ? ""
-        : " Write the steps down first so the backup has something to follow.";
+        : " Write the steps down first so the stand-in has something to follow.";
       let action: string;
       if (i.status === "uncovered" && !marked) {
         action = `Nobody is marked on "${i.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`;

@@ -45,8 +45,8 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
       <h2 className="text-lg font-semibold">Reminders</h2>
       <p className="mt-1 text-sm text-muted">
         Once a week, what is due across your clients arrives by email: decisions past their review
-        date, leavers whose logins are not confirmed gone, leave with nobody named to cover, and the
-        monthly review still open. We announce each item once.
+        date, people who have left whose logins are not yet confirmed removed, leave with nobody
+        named to cover, and the monthly review still open. We announce each item once.
       </p>
       {!mailConfigured && (
         <p className="mt-2 text-sm text-warn">

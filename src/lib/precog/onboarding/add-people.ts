@@ -64,7 +64,7 @@ export function applyPaste(
   if (incoming.length === 0) {
     const note =
       result.people.length > 0
-        ? `The paste marks all ${count(result.people.length, "person", "people")} inactive, so the table adds none of them: ${joinWithAnd(inactiveNames, 5)}.`
+        ? `The paste marks all ${count(result.people.length, "person", "people")} as having left, so the table adds none of them: ${joinWithAnd(inactiveNames, 5)}.`
         : (result.issues[0]?.message ?? "No names found. One person per line: Name, Title.");
     return { rows: null, note, keepPaste: true, leftOut: departures };
   }

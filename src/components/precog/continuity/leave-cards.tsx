@@ -194,7 +194,10 @@ export function LeaveWindow({
             </div>
           )}
           <div className="mt-2">
-            <PeopleLine label="Left in the business" people={impact.remaining.map((p) => p.name)} />
+            <PeopleLine
+              label="Still in the business"
+              people={impact.remaining.map((p) => p.name)}
+            />
           </div>
           {impact.orphanedProcesses.length > 0 && (
             <p className="mt-1 text-xs text-muted">
@@ -224,7 +227,7 @@ export function LeaveWindow({
   );
 }
 
-/** One person leaving: the hand-over checklist, who stays, and marking them as left. */
+/** One person leaving: the hand-off checklist, who stays, and marking them as left. */
 export function LeaverCard({
   leaver: l,
   today,
@@ -245,7 +248,7 @@ export function LeaverCard({
   onLog: (a: AbsenceAction) => void;
 }) {
   const tabName = useTabName();
-  /** False while nobody is marked on the register: the hand-over cannot be worked out. */
+  /** False while nobody is marked on the register: the hand-off cannot be worked out. */
   const assessed = l.assessed;
   const first = firstName(l.person.name);
   const gone = l.status === "gone";
@@ -304,14 +307,14 @@ export function LeaverCard({
       </p>
       {gone && (
         <p className="mt-1 text-xs text-danger">
-          {first}&apos;s last day has passed but {first} still counts as cover. Mark as left to take{" "}
-          {first} out of the coverage figures; the record stays in the history.
+          {first}&apos;s last day has passed but {first} still counts as a stand-in. Mark as left to
+          take {first} out of the coverage figures; the record stays in the history.
         </p>
       )}
       {assessed && l.handover.length > 0 && (
         <>
           <div className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
-            Hand-over checklist · {l.handover.length} only {first} can run alone
+            Hand-off checklist · {l.handover.length} only {first} can run alone
             {l.unlogged > 0 && ` · ${l.unlogged} not yet in the ${tabName("journal")}`}
           </div>
           <ul className="mt-1 space-y-1">
@@ -334,7 +337,7 @@ export function LeaverCard({
       <div className="mt-2">
         <PeopleLine
           label={
-            gone ? "Left in the business" : `Left in the business after ${formatDay(l.lastDay)}`
+            gone ? "Still in the business" : `Still in the business after ${formatDay(l.lastDay)}`
           }
           people={l.remaining.map((p) => p.name)}
         />

@@ -11,9 +11,9 @@ export function SaveConflictBanner() {
   const when = savedWhen(saveConflict.remoteUpdatedAt);
 
   const situation = otherTab
-    ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither version is overwritten.`
+    ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither copy is overwritten.`
     : saveConflict.reason === "sign-in"
-      ? `This device has work on this business from before you signed in, and your account holds a different version (saved ${when}). Nothing has been overwritten yet.`
+      ? `This device has work on this business from before you signed in, and your account holds a different copy (saved ${when}). Nothing has been overwritten yet.`
       : `This business was changed on another device or tab (saved ${when}). Your latest edits here are not saved to your account yet.`;
 
   return (
@@ -23,15 +23,14 @@ export function SaveConflictBanner() {
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-sm text-fg">
-          {situation} Choose one; the version you do not choose is kept as a copy in your
-          businesses.
+          {situation} Choose one; the one you do not choose is kept as a copy in your businesses.
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => void resolveSaveConflict("reload")}>
-            {otherTab ? "Use the other tab's version" : "Use the account's version"}
+            {otherTab ? "Use the other tab's copy" : "Use the account's copy"}
           </Button>
           <Button size="sm" variant="danger" onClick={() => void resolveSaveConflict("overwrite")}>
-            {otherTab ? "Keep this tab's version" : "Keep this device's version"}
+            {otherTab ? "Keep this tab's copy" : "Keep this device's copy"}
           </Button>
         </div>
       </div>

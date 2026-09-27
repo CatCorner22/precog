@@ -59,7 +59,7 @@ const PATTERNS: Pattern[] = [
     ],
     ideas: [
       {
-        title: "Blind drawer count at every handoff",
+        title: "Blind drawer count at every hand-off",
         category: "control",
         effort: "low",
         impact: "high",
@@ -282,11 +282,11 @@ const GENERIC: Pattern = {
   ],
   ideas: [
     {
-      title: "Write a one-page SOP and name a backup",
+      title: "Write a one-page SOP and name a stand-in",
       category: "training",
       effort: "low",
       impact: "medium",
-      note: "Screen-record the steps; have the backup run it once a quarter.",
+      note: "Screen-record the steps; have the stand-in run it once a quarter.",
       status: "backlog",
     },
     {

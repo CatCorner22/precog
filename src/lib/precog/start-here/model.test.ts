@@ -153,7 +153,7 @@ describe("buildStartHereModel tenure", () => {
 });
 
 describe("buildStartHereModel continuity and first steps", () => {
-  it("reports an unassessed starter register without figures", () => {
+  it("reports an unassessed sample register without figures", () => {
     const { profile, template } = sample("general");
     const model = buildStartHereModel({ profile, template, today: TODAY });
     expect(model.continuity.registerSize).toBe(template.knowledge.length);

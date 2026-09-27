@@ -74,8 +74,8 @@ export function SuggestPanel({
       </div>
       {!result && !loading && (
         <p className="text-xs text-muted">
-          Get starter risks, improvement ideas, and matching controls for this process based on its
-          name and description.
+          Get suggested risks, improvement ideas, and matching controls for this process based on
+          its name and description.
         </p>
       )}
       {error && <p className="text-xs text-danger">{error}</p>}

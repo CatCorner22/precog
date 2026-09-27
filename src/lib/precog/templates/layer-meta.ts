@@ -24,6 +24,6 @@ export const LAYER_META: Record<MatrixLayerId, { name: string; blurb: string }> 
   },
   continuity: {
     name: "What stops if someone leaves",
-    blurb: "What breaks when a key person or system is gone.",
+    blurb: "What breaks when a key person is out or a system is down.",
   },
 };
