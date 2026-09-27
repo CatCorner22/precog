@@ -424,11 +424,11 @@ function ControlReportLeavingSection({
   return (
     <Section title="Leaving the team — hand-over before the last day">
       <p className="text-xs text-neutral-500">
-        People working their notice still count as cover until their last day. Every register entry
-        only they can run alone must be handed to a named successor, written down and placed where
-        the successor can find it before that date; processes they alone own need a new owner. Once
-        the date has passed, record them as left so the coverage figures stop counting them (the
-        record stays in the history).
+        People working their notice still count as cover until their last day. Before that date,
+        hand every register entry only they can run to a named successor, write it down, and file it
+        where the successor can find it; give processes they alone own a new owner. Once the date
+        has passed, record them as left so the coverage figures stop counting them (the record stays
+        in the history).
       </p>
       <ul className="mt-2 space-y-3">
         {leaving.slice(0, 6).map((l) => (
@@ -657,8 +657,8 @@ function ControlReportFollowThroughSection({
           {doneContinuity > 0
             ? droppedContinuity > 0
               ? "Nothing open and nothing slipped — every step closed as done still holds; the rest were dropped as no longer relevant."
-              : "Nothing open and nothing slipped — every logged step has been completed and still holds."
-            : "Nothing open — every logged step was closed as no longer relevant, so none has been completed."}
+              : "Nothing open and nothing slipped — you completed every logged step and each still holds."
+            : "Nothing open — you closed every logged step as no longer relevant, so none was completed."}
         </p>
       )}
     </Section>

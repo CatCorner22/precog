@@ -73,7 +73,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
           <Section title="What we think would have caught it">
             <p className="mb-1.5 text-xs text-subtle">
               Our reading of the public record, not a finding from the case. Where the source says
-              how the theft was found, that route is shown below.
+              how the theft was found, the card names that route below.
             </p>
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step, i) => (

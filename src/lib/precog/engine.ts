@@ -20,6 +20,7 @@ import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
 import { formatUsd } from "../utils";
+import { count } from "./text";
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -190,7 +191,7 @@ export function runPrecogScenario(
     );
   if (staff.soleOwnerKnowledgeCount >= 1)
     staffModifiers.push(
-      `Assumed uplift: ${staff.soleOwnerKnowledgeCount} critical knowledge item(s) held by one person.`,
+      `Assumed uplift: ${count(staff.soleOwnerKnowledgeCount, "critical knowledge item")} held by one person.`,
     );
   if (staff.segregationScore < 50)
     staffModifiers.push(
