@@ -742,7 +742,7 @@ export function ProcessMap({
             <div className="mt-1 flex justify-between text-xs text-white/55">
               <span>Blue · low</span>
               <span>Priority</span>
-              <span>White-hot · act now</span>
+              <span>White-hot · fix first</span>
             </div>
           </div>
         )}

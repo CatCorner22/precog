@@ -88,13 +88,13 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Critical path"
+          label="Fix first"
           value={String(summary.criticalPath)}
           hint={`Index ${RISK_SCALE.critical} or more`}
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Act now"
+          label="Fix soon"
           value={String(summary.actNow)}
           hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
         />
@@ -128,8 +128,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             )}
             <p className="text-xs text-subtle">
               {showAll
-                ? `All ${summary.all.length} risks, highest residual risk score first.`
-                : `Top ${rows.length} of ${summary.all.length} risks, highest residual risk score first.`}{" "}
+                ? `All ${summary.all.length} risks, highest residual risk first.`
+                : `Top ${rows.length} of ${summary.all.length} risks, highest residual risk first.`}{" "}
               Each row shows inherent risk, control effectiveness, and the range across weight
               trials.
             </p>
@@ -195,7 +195,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Selected risk anatomy</CardTitle>
-              <CardDescription>Drivers that move this residual risk score</CardDescription>
+              <CardDescription>Drivers that move this residual risk</CardDescription>
             </CardHeader>
             <CardContent>
               {active ? (
@@ -260,7 +260,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             <CardHeader>
               <CardTitle className="text-base">Which lever moves it most</CardTitle>
               <CardDescription>
-                Approximate drop in the average residual risk score if each lever is pulled
+                Approximate drop in the average residual risk if each lever is pulled
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -273,7 +273,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                 <TornadoBars rows={tornadoData} />
               )}
               <p className="mt-2 text-xs text-subtle">
-                Average residual risk score now: {tornado.baseAverage}.
+                Average residual risk now: {tornado.baseAverage}.
                 {tornadoData.length > 0 ? " Pull the longest bar first." : ""}
               </p>
             </CardContent>
@@ -289,7 +289,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
 function TornadoBars({ rows }: { rows: { name: string; delta: number }[] }) {
   const max = Math.max(...rows.map((row) => Math.abs(row.delta)), 0.1);
   return (
-    <ol className="space-y-2" aria-label="Drop in average residual risk score for each lever">
+    <ol className="space-y-2" aria-label="Drop in average residual risk for each lever">
       {rows.map((row) => (
         <li key={row.name} className="text-xs">
           <span className="flex justify-between gap-2">

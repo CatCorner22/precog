@@ -70,10 +70,10 @@ describe("runAdvancedReasoning", () => {
   it("names the lever with the largest residual drop as the best single lever", () => {
     const report = reasoning(defaultProfile("dental"));
     expect(report.counterfactual.bestIntervention).toBe(
-      "Cameras + dual control + bank rec (stack)",
+      "Cameras + dual release + bank reconciliation (stack)",
     );
     expect(report.synthesis[3]).toBe(
-      "Strongest causal path to the owner's decision: dual control.",
+      "Strongest causal path to the owner's decision: dual release.",
     );
   });
 

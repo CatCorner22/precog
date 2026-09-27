@@ -664,9 +664,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "high",
     title: "Control logins + release payments",
-    why: "The person who decides who can log in to the payment or banking system can also send payments, so they can create or borrow a second approver's login and release a payment that dual release was meant to stop.",
-    fraudPath:
-      "Give yourself a second approver's login, then release a payment with both approvals",
+    why: "The person who decides who can log in to the payment or banking system can also send payments, so they can create or borrow a second signer's login and release a payment that dual release was meant to stop.",
+    fraudPath: "Give yourself a second signer's login, then release a payment with both approvals",
     compensatingDefaults: [
       "Access to the bank and payment systems is managed by the owner, not by anyone who releases payments",
       "The bank alerts the owner to every new user or permission change",
@@ -762,7 +761,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Create + approve vendor",
     why: "Adding a supplier and approving it are the same step, so nothing stands between an invented payee and the payment run.",
     fraudPath: "Approve a supplier you set up yourself",
-    compensatingDefaults: ["Owner signs new vendor form", "Bank dual control"],
+    compensatingDefaults: ["Owner signs new vendor form", "Bank dual release"],
     linkedControlId: "c-sod-ap",
   },
   {

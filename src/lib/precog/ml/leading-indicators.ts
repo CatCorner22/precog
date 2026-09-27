@@ -84,7 +84,7 @@ export function scoreLeadingIndicators(
     },
     {
       id: "li_dual",
-      label: "Dual control on payments",
+      label: "Dual release on payments",
       value: staff.dualControlPayments ? 1 : 0,
       threshold: 1,
       status: staff.dualControlPayments ? "ok" : "breach",

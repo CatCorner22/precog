@@ -223,7 +223,7 @@ function inventoryItems(
       title: "Dual-release policy state",
       description: dual.enabled
         ? `Policy on · ${count((dual.exceptions ?? []).filter((e) => e.enabled).length, "active exception")}.`
-        : "Policy off, so dual control earns no credit.",
+        : "Policy off, so dual release earns no credit.",
       severity: dual.enabled ? "low" : "medium",
       affects: ["sod", "insurance", "controls"],
       confidenceDrag: dual.enabled ? 0 : 0.08,
@@ -234,7 +234,7 @@ function inventoryItems(
       id: "kk-residual-portfolio",
       classification: "known_known",
       title: "Residual risk ranking",
-      description: `Average residual ${portfolio.averageResidual}; ${portfolio.criticalPath} on the critical path.`,
+      description: `Average residual ${portfolio.averageResidual}; ${portfolio.criticalPath} in the "fix first" band.`,
       severity: "low",
       affects: ["residual", "pioneer"],
       confidenceDrag: 0,

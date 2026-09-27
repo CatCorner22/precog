@@ -15,7 +15,7 @@ function critic(averageResidual: number): string[] {
 
 describe("the critic's residual threshold", () => {
   it("calls residual elevated at the app's act-now band and not below it", () => {
-    const elevated = /"act now" band/;
+    const elevated = /"fix soon" band/;
     expect(critic(RISK_SCALE.actNow - 3).some((b) => elevated.test(b))).toBe(false);
     expect(critic(RISK_SCALE.actNow).some((b) => elevated.test(b))).toBe(true);
   });

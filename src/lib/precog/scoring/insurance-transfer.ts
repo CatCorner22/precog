@@ -194,14 +194,14 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
     },
     {
       id: "dual",
-      label: "Dual control",
+      label: "Dual release",
       pct: v.discountDualControlPct,
       active: v.hasDualControl,
       reason: reason(
         v.hasDualControl,
         v.discountDualControlPct,
-        "Dual control",
-        "No dual control, so no credit.",
+        "Dual release",
+        "No dual release, so no credit.",
       ),
     },
     {

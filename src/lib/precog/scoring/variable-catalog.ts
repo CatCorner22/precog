@@ -116,19 +116,19 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "hasDualControl",
-    label: "Dual control on payments / deposits",
+    label: "Dual release on payments / deposits",
     category: "financial_control",
     kind: "boolean",
-    description: "Two-person rule for ACH release or deposit custody vs posting.",
+    description: "A second signer for ACH release, or deposit custody kept apart from posting.",
     likelihoodEffect:
-      "This app assumes dual control lowers the chance of a fraud starting (see the multiplier it applies).",
+      "This app assumes dual release lowers the chance of a fraud starting (see the multiplier it applies).",
     severityEffect: "Limits size of unauthorized transfers.",
     defaultValue: DEFAULT_RISK_VARIABLES.hasDualControl,
     unlocksDiscount: true,
   },
   {
     id: "discountDualControlPct",
-    label: "Credit from your quote: dual control",
+    label: "Credit from your quote: dual release",
     category: "insurance",
     kind: "percent",
     description:

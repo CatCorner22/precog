@@ -5,7 +5,7 @@ import { BAND_VARIANT, overallBand } from "./threat-bands";
 describe("overallBand", () => {
   it("gives one reading per index: 72-74 is critical and red, 50-54 is watch, not amber", () => {
     for (const index of [72, 73, 74]) {
-      expect(PRIORITY_BAND_LABEL[overallBand(index)]).toBe("CRITICAL");
+      expect(PRIORITY_BAND_LABEL[overallBand(index)]).toBe("Fix soon");
       expect(BAND_VARIANT[overallBand(index)]).toBe("danger");
     }
     for (const index of [50, 54]) {

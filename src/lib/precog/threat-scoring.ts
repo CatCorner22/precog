@@ -304,7 +304,7 @@ export function buildThreatAssessment(input: {
     ],
     roeSummary: [
       "Work on the highest-priority items first.",
-      "Prefer checks that pay off within a week, such as the owner reconciling the bank or a second approver above a set amount.",
+      "Prefer checks that pay off within a week, such as the owner reconciling the bank or a second signer above a set amount.",
       "When a further control is not worth its cost, record that you accept the remaining risk and when you will review it.",
       "Cross-train a stand-in for any duty only one person can do before that person's next absence.",
     ],
@@ -338,7 +338,7 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
   if (/\b(cash|deposits?|payments?)\b/.test(lower)) {
     return [
       "Owner independent bank reconciliation this week",
-      "Dual control on deposit bag / day-sheet match",
+      "Dual release on the deposit bag / day-sheet match",
       "Camera coverage of cash drawer if not already present",
     ];
   }

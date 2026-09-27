@@ -129,7 +129,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <CardDescription>
           {ownTeam
             ? "Industry sets the sample process map, register and scenarios; your team and the duties you ticked drive the gaps and scores. Sign in to sync across devices."
-            : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual scores and Pioneer's briefs. Sign in to sync across devices."}
+            : "Industry loads the sample business (process map, register, scenarios). Team size and which controls run drive residual risk and Pioneer's briefs. Sign in to sync across devices."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

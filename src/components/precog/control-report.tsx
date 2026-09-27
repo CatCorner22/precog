@@ -167,30 +167,30 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Kpi
-            label="Map health"
+            label="Map health score"
             value={mapReady ? String(mapHealth.score) : "—"}
             hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           />
           <Kpi
-            label="Threat index"
+            label="Priority index"
             value={String(threat.overallThreatIndex)}
             hint={threat.classificationLabel}
           />
           <Kpi
-            label="Avg residual"
+            label="Average residual risk score"
             value={String(portfolio.averageResidual)}
-            hint={`${portfolio.criticalPath} on critical path`}
+            hint={`${portfolio.criticalPath} to fix first`}
           />
           <Kpi
-            label="SoD health"
+            label="Duty separation index"
             value={String(sod.summary.segregationHealth)}
             hint={count(sod.summary.critical, "critical duty conflict")}
           />
-          <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
+          <Kpi label="Coverage check" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
         <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
-        <Section title="Process map health">
+        <Section title="Map health">
           {mapNote ? (
             <p className="text-sm text-neutral-700">Not assessed yet. {mapNote}</p>
           ) : (

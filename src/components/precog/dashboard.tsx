@@ -170,7 +170,7 @@ export function Dashboard({
       <IndexBasis />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
-          label="Map health"
+          label="Map health score"
           value={mapReady ? String(mapHealth.score) : "—"}
           hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           tone={

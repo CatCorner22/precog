@@ -27,7 +27,7 @@ const WEIGHT_LABEL: Record<string, string> = {
   detectionDifficulty: "Detection difficulty",
   cascadePotential: "Knock-on effects",
   segregationQuality: "Separation of duties",
-  dualAuthorization: "Two-person approval",
+  dualAuthorization: "Dual release",
   independentReconciliation: "Independent reconciliation",
   compensatingControls: "Compensating controls",
   monitoringCadence: "Monitoring frequency",

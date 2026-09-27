@@ -318,7 +318,7 @@ function dualControlActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   return [
     {
       id: "dual-control",
-      title: "Enable dual control on payments",
+      title: "Turn on dual release for payments",
       why: "Separates payment release from vendor setup, so an invented supplier needs a second person to get paid. Narrows the path above the threshold; does not close it below.",
       effort: "medium",
       tab: "sod",

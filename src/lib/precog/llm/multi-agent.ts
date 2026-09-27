@@ -93,7 +93,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
   const criticBullets: string[] = [];
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     criticBullets.push(
-      `The average risk index is in the "act now" band; waiting is a choice with a price.`,
+      `The average risk index is in the "fix soon" band; waiting is a choice with a price.`,
     );
   }
   if (leading && leading.breached > 0) {

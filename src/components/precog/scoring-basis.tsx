@@ -51,9 +51,9 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
               <div className="rounded-lg border border-border bg-elevated p-3">
                 <p className="font-medium">Risk scale · higher is worse</p>
                 <p className="mt-1 text-muted">
-                  Accept &amp; monitor under {RISK_SCALE.mitigate} · Mitigate {RISK_SCALE.mitigate}–
-                  {RISK_SCALE.actNow - 1} · Act now {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·
-                  Critical path {RISK_SCALE.critical}+
+                  Watch under {RISK_SCALE.mitigate} · Worth doing {RISK_SCALE.mitigate}–
+                  {RISK_SCALE.actNow - 1} · Fix soon {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·
+                  Fix first {RISK_SCALE.critical}+
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-elevated p-3">

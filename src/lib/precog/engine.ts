@@ -64,7 +64,7 @@ const ASSUMED_STAFF_UPLIFT: readonly {
     applies: (s) => !s.dualControlPayments,
     factor: 1.08,
     sentence: () =>
-      "Assumed uplift: no dual control on payments, so one person can release money alone.",
+      "Assumed uplift: no dual release on payments, so one person can release money alone.",
   },
   {
     applies: (s) => !s.independentBankRec,

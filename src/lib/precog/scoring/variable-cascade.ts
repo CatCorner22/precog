@@ -112,8 +112,8 @@ export interface CascadeReport {
 export const CASCADE_LEVERS: CascadeLever[] = [
   {
     id: "enable_dual_control",
-    label: "Turn on dual control (payments/deposits)",
-    description: "Two-person rule for release/custody.",
+    label: "Turn on dual release (payments/deposits)",
+    description: "A second signer for release or custody.",
     affects: [
       "lowers fraud likelihood",
       "shrinks scheme size",
@@ -196,7 +196,7 @@ export const CASCADE_LEVERS: CascadeLever[] = [
   },
   {
     id: "add_cameras_discount_stack",
-    label: "Cameras + dual control + bank rec (stack)",
+    label: "Cameras + dual release + bank reconciliation (stack)",
     description: "Full control stack that maximizes earned credits under cap.",
     affects: [
       "lowers likelihood sharply",
@@ -232,7 +232,7 @@ export const CASCADE_LEVERS: CascadeLever[] = [
       "can lower the staffing uplift on residual risk",
       "can lower the assumed loss on scenarios",
       "can lower the portfolio's average residual risk",
-      "works best with dual control and an independent bank reconciliation",
+      "works best with dual release and an independent bank reconciliation",
     ],
   },
 ];
@@ -589,7 +589,7 @@ function secondOrderNotes(leverId: CascadeLeverId, deltas: MetricDelta[]): strin
   }
   if (leverId === "enable_dual_control" && !byKey.detectionLagMultiplier) {
     notes.push(
-      "Dual control cuts the opportunity but does not replace an independent reconciliation, so finding a problem can still be slow.",
+      "Dual release cuts the opportunity but does not replace an independent reconciliation, so finding a problem can still be slow.",
     );
   }
   if (leverId === "add_cameras_discount_stack") {

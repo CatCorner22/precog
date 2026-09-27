@@ -48,7 +48,7 @@ export function computeLikelihoodSeverity(
     grossSeverity *= 0.85;
     drivers.push({
       id: "dual-l",
-      label: "Dual control",
+      label: "Dual release",
       effect: "Assumed −28% fraud likelihood; −15% scheme size",
       on: "likelihood",
     });

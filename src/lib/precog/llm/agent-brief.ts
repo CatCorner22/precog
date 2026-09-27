@@ -318,11 +318,11 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     warnings.push(
-      `The average risk index is ${residual!.averageResidual}/100, in the "act now" band (${WARNING_RULES.averageResidual} or more on this app's own index).`,
+      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on this app's own index).`,
     );
   }
   if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
-    warnings.push(`${residual!.criticalPath} risks sit on a critical path.`);
+    warnings.push(`${residual!.criticalPath} risks are in the "fix first" band.`);
   }
   if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(

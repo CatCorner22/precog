@@ -27,7 +27,7 @@ export interface SavedProcessBlock {
 const PROCESS_BLOCKS: ProcessBlock[] = [
   {
     id: "block-dual-payment",
-    name: "Dual-control payment release",
+    name: "Dual release on payments",
     description: "Vendor payment with separate setup and release roles.",
     category: "vendor",
     template: {
@@ -53,7 +53,7 @@ const PROCESS_BLOCKS: ProcessBlock[] = [
       ideas: [
         {
           id: "i-dual",
-          title: "Require a second approver to release payments",
+          title: "Require a second signer to release payments",
           category: "control",
           effort: "low",
           impact: "high",

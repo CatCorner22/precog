@@ -66,7 +66,7 @@ export function knownUnknowns(
       id: "ku-pms-audit-log",
       title: `${capitalize(words.system)} void / adjustment audit log`,
       description:
-        "Write-off dual release thresholds exist, but live void/adjustment velocity is not streamed.",
+        "Write-off dual-release thresholds exist, but live void/adjustment velocity is not streamed.",
       severity: "high",
       affects: ["watched conditions", "ar process", "sod"],
       confidenceDrag: 0.1,
@@ -224,7 +224,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       id: "uu-ai-tooling-risk",
       title: "Pioneer's own model risk",
       description:
-        "Pioneer's advice can create false confidence. This list exists to say that residual scores rest on this app's assumptions, not on measurements.",
+        "Pioneer's advice can create false confidence. This list exists to say that residual risk scores rest on this app's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,

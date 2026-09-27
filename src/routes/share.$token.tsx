@@ -187,7 +187,7 @@ function SharePage() {
         <section className="mt-6 grid gap-4 sm:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center justify-center rounded-lg border border-neutral-300 px-6 py-4">
             <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-              Map health
+              Map health score
             </p>
             <p className="text-5xl font-bold tabular">{payload.health.score}</p>
             <p className="text-sm font-medium text-neutral-700">{payload.health.bandLabel}</p>

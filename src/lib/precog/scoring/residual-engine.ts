@@ -162,7 +162,7 @@ export function tornadoSensitivity(
   const trials: { id: string; label: string; staff: StaffComposition; tpl?: IndustryTemplate }[] = [
     {
       id: "dual",
-      label: "Enable dual control on payments",
+      label: "Turn on dual release for payments",
       staff: { ...baseStaffResolved, dualControlPayments: true },
     },
     {
@@ -566,7 +566,7 @@ function controlEffectiveness(
       label: "No compensating control",
       direction: "increases",
       weight: 0.8,
-      detail: "Gap is open without detective or dual-control backup.",
+      detail: "Gap is open with no detective control and no dual release.",
     });
   }
   if (c.residualRiskAccepted) {
@@ -575,7 +575,7 @@ function controlEffectiveness(
       label: "Residual risk accepted",
       direction: "increases",
       weight: 0.2,
-      detail: "Documented acceptance still leaves residual score elevated for monitoring.",
+      detail: "Documented acceptance still leaves residual risk elevated for monitoring.",
     });
   }
 

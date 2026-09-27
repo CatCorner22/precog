@@ -135,11 +135,11 @@ export function priorityBand(score: number): PriorityBand {
 }
 
 export const PRIORITY_BAND_LABEL: Record<PriorityBand, string> = {
-  white_hot: "WHITE HOT",
-  critical: "CRITICAL",
-  elevated: "ELEVATED",
-  watch: "WATCH",
-  cold: "COLD",
+  white_hot: "Fix first",
+  critical: "Fix soon",
+  elevated: "Worth doing",
+  watch: "Watch",
+  cold: "Fine for now",
 };
 
 export interface PriorityTarget {

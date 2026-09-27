@@ -482,7 +482,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Have someone else release what you set up, and require two-step sign-in",
-        "Use saved payee templates, an approved-payee list, payment limits, and a second approver",
+        "Use saved payee templates, an approved-payee list, payment limits, and a second signer",
       ],
       [
         "Alert on new payees, changed templates, and unusual transfers",

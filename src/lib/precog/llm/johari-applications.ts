@@ -105,7 +105,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       goal: "Grow this pane: more shared, evidenced control truth.",
       examples: [
         "Owner and app both know the owner alone reconciles the bank each week",
-        "Transfers over $500 need a second approver, and the rule is written down and switched on",
+        "Transfers over $500 need a second signer, and the rule is written down and switched on",
         "Every critical duty only one person can do is listed with a named stand-in",
       ],
       moves: [
@@ -134,7 +134,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       examples: [
         "The app flags one person who can both add a vendor and pay it; the owner thought 'we're too small for that'",
         "Watched conditions breached while the owner rates the culture as strong",
-        "Exceptions to dual release pile up until the insurance credit for dual control is at risk",
+        "Exceptions to dual release pile up until the insurance credit for dual release is at risk",
       ],
       moves: [
         {
@@ -264,7 +264,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
         "Classic Johari: enlarge open leadership arena through feedback and selective disclosure.",
       selfLabel: "Owner self-view",
       othersLabel: "Team, Pioneer and app view",
-      openExample: "Owner states 'I approve write-offs >$150' and dual-release enforces it",
+      openExample: "Owner states 'I approve write-offs >$150' and dual release enforces it",
       blindExample: "Staff see owner rarely reviews exception reports; residual shows it",
       hiddenExample: "Owner distrusts a specific person but never changes access",
       unknownExample: "Neither party sees burnout leading to control shortcuts",
@@ -307,7 +307,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       selfLabel: "How roles were meant to be split",
       othersLabel: "The duty-conflict check and the release simulator",
       openExample: "Duty conflicts listed, each marked when dual release covers it",
-      blindExample: "The owner has not noticed raised thresholds wore away the dual-control credit",
+      blindExample: "The owner has not noticed raised thresholds wore away the dual-release credit",
       hiddenExample: "The two signers share a household, and nobody said so",
       unknownExample: "Fraud that needs three people, which a two-duty check cannot see",
       primaryMove: "Every month: read the duty-conflict list and the exception list",
@@ -320,7 +320,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       summary: "Application answers are HIDDEN until disclosed; loss runs move UNKNOWN → OPEN.",
       selfLabel: "The owner's account of the risk",
       othersLabel: "The insurer and the cost-of-risk figure",
-      openExample: "Dual control + cameras reflected in discount variables",
+      openExample: "Dual release + cameras reflected in discount variables",
       blindExample: "The insurer would decline; the owner thinks the premium is 'fine'",
       hiddenExample: "Prior employee theft never reported to carrier",
       unknownExample: "Emerging cyber endorsement gaps",

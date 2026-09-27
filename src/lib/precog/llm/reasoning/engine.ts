@@ -101,7 +101,7 @@ function reasoningBaseline(
 
 /** The levers traced to the decision, with the words the synthesis uses for each. */
 const CAUSAL_LABEL = {
-  dual_control: "dual control",
+  dual_control: "dual release",
   bank_rec: "independent bank reconciliation",
   cameras: "cameras",
   segregation: "separation of duties",
