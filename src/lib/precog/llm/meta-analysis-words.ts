@@ -118,6 +118,22 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     revenueShock: "Backlog / largest client / material price shock",
     revenueProbe: "Add backlog and largest client concentration to the business profile",
   },
+  automotive: {
+    system: "DMS",
+    payer: "customer",
+    pair: "service advisor + office manager",
+    partners: "Parts supplier / sublet shop / warranty administrator",
+    partnerFraud: "inflated sublet bills, parts credits routed to the wrong account",
+    partnerCheck: "Match sublet invoices and parts credits to repair orders for 30 days",
+    regulator: "Consumer-protection and titling enforcement",
+    regulatorDetail:
+      "Title and registration fee findings and financing or advertising violations are not linked to control failures (e.g. fees collected but never remitted, deal terms changed after signing).",
+    regulatorProbe: "Add a title-fee remittance finding scenario tied to deal posting entitlements",
+    hostageData: "Full DMS hostage, credit-application data extortion",
+    revenueShock: "New-versus-used mix / manufacturer allocation / warranty rate shock",
+    revenueProbe:
+      "Add new-versus-used mix and largest manufacturer concentration to the business profile",
+  },
   nonprofit: {
     system: "donor database",
     payer: "donor",

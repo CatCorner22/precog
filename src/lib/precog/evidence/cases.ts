@@ -979,7 +979,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     id: "case-granger-auto-dealership-office-manager-wires",
     title:
       "Auto dealership office manager wired $1.4 million to his own bank account over 14 years and hid it with journal entries",
-    sector: "retail",
+    sector: "automotive",
     schemes: ["check-tampering"],
     howItWorked:
       "The office manager of Granger Motors, an auto dealership in Granger, Iowa, ran the dealership's accounting system and payroll. From about January 1998 until May 2012 he caused money to be wired or deposited from the dealership to his personal bank account and made fraudulent journal entries so the books still balanced. He admitted taking more than $1.4 million and spent it on international airline tickets, hotels, restaurant meals, golf items, and jewelry.",
@@ -1602,7 +1602,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     id: "case-burlington-dealership-cash",
     title:
       "Dealership office manager of 23 years took customer cash receipts and edited the accounting entries to match",
-    sector: "retail",
+    sector: "automotive",
     schemes: ["skimming", "check-tampering"],
     howItWorked:
       "The office manager of automobile dealerships in Burlington, Vermont, employed there for 23 years and in charge of all accounting with check-signing authority from about 2012, took cash paid by customers and also wrote checks to herself for non-business purposes, beginning no later than 2013. She concealed it by manipulating and falsifying entries for individual transactions in the dealerships' accounting system. An officer of the business found it in January 2024 and she was fired the same month.",

@@ -92,6 +92,18 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     feeApproval: "owner approval",
     business: "company",
   },
+  automotive: {
+    payer: "customer",
+    system: "DMS",
+    postingTarget: "the correct repair order, deal or schedule",
+    receipts: "customer, warranty and lender",
+    ledger: "customer account or deal",
+    masterRecord: "customer identity, vehicle, lienholder, and contact records",
+    sensitiveChanges: "Sensitive identity, lienholder and payoff changes",
+    exportData: "customer, credit-application, or financial data",
+    feeApproval: "dealer principal approval",
+    business: "dealership",
+  },
   nonprofit: {
     payer: "donor",
     system: "donor database",
