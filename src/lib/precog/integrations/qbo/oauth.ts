@@ -3,8 +3,8 @@ import { constantTimeEqual, fromBase64Url, hmacSha256, toBase64Url } from "@/lib
 /**
  * The OAuth 2.0 dance with Intuit, minus the network: the authorize URL and a
  * signed `state` that carries the account and business back to the callback,
- * so the callback needs no session of its own. HMAC via WebCrypto, so the
- * same code runs in a test without Node-only modules.
+ * which checks that the signed-in session is that same account. HMAC via
+ * WebCrypto, so the same code runs in a test without Node-only modules.
  */
 /** Where Intuit sends the browser back; the route file declares the same path. */
 export const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";

@@ -140,6 +140,12 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
               </span>
             )}
           </p>
+          {status.connection.needsReconnect && (
+            <p className="mt-2 text-sm text-danger">
+              QuickBooks no longer accepts this connection, so the monthly reading has stopped.
+              Disconnect, then connect QuickBooks again.
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void sync()} disabled={busy}>
               <RefreshCw className="size-3.5" /> Read the books now

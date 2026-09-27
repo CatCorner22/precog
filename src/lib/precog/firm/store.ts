@@ -45,9 +45,13 @@ export interface ClientEngagementRow {
   name: string;
   ownerUserId: string;
   shared: boolean;
+  /** The engagement stamps as last posted; the firm page posts again when its own differ. */
+  startedAt: string | null;
+  mapCompletedAt: string | null;
   reportSentAt: string | null;
   /** Null until someone opens the client on the firm page and its conflicts are counted. */
   openFindings: number | null;
+  acceptedFindings: number;
   lastReviewAt: string | null;
   ownerEmail: string | null;
 }
@@ -412,13 +416,17 @@ export async function listClientEngagements(
     id: string;
     user_id: string;
     name: string;
+    started_at: string | null;
+    map_completed_at: string | null;
     report_sent_at: string | null;
     open_findings: number | string | null;
+    accepted_findings: number | string | null;
     last_review_at: string | null;
     owner_email: string | null;
   }>`
     select
-      b.id, b.user_id, b.name, e.report_sent_at, e.open_findings, e.owner_email,
+      b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
+      e.open_findings, e.accepted_findings, e.owner_email,
       (
         select max(r.recorded_at) from review_events r
         where r.user_id = b.user_id and r.business_id = b.id
@@ -435,8 +443,11 @@ export async function listClientEngagements(
     name: r.name,
     ownerUserId: r.user_id,
     shared: r.user_id !== userId,
+    startedAt: toIsoTimestampOrNull(r.started_at),
+    mapCompletedAt: toIsoTimestampOrNull(r.map_completed_at),
     reportSentAt: toIsoTimestampOrNull(r.report_sent_at),
     openFindings: r.open_findings === null ? null : Number(r.open_findings),
+    acceptedFindings: Number(r.accepted_findings ?? 0),
     lastReviewAt: toIsoTimestampOrNull(r.last_review_at),
     ownerEmail: r.owner_email,
   }));

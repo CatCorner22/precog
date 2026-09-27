@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto";
 import { env } from "@/lib/env.server";
 
 /**
@@ -74,6 +81,22 @@ function tokenKeys(): { id: string; key: Buffer }[] {
 
 function deriveKey(master: string, purpose: string): Buffer {
   return Buffer.from(hkdfSync("sha256", master, "precog-integrations", purpose, 32));
+}
+
+/**
+ * A keyed digest for a value that is only ever compared for equality (a
+ * vendor's account number, address or email). Same input, same digest;
+ * the value itself is not recoverable from the database.
+ */
+export function digestSecret(value: string): string {
+  // Keyed on the current INTEGRATION_KEY only: after a rotation the stored
+  // digests differ from new ones until the next reading replaces them.
+  const master = env("INTEGRATION_KEY");
+  if (!master) throw new Error("INTEGRATION_KEY is not set");
+  const mac = createHmac("sha256", deriveKey(master, "qbo-snapshot"))
+    .update(value, "utf8")
+    .digest();
+  return `hmac:${mac.subarray(0, 16).toString("base64url")}`;
 }
 
 const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
