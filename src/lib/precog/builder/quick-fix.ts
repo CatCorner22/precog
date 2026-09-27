@@ -5,19 +5,12 @@ import type { IndustryTemplate } from "../templates";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { ControlItem, Person, ProcessNode } from "../types";
 
-function tokens(s: string): string[] {
-  return s
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length > 3);
-}
-
-function overlap(a: string[], b: string[]): number {
-  const set = new Set(b);
-  return a.filter((t) => set.has(t)).length;
-}
-
-/** Best-guess owner: role entitlements touch this process, else most-related role, else least-loaded person. */
+/**
+ * Best-guess owner: role entitlements touch this process, else most-related
+ * role, else least-loaded person. Someone with a last day set is leaving, so
+ * they are proposed only when nobody else is active: naming them would reopen
+ * the gap on their last day.
+ */
 export function suggestOwnerForProcess(
   tpl: IndustryTemplate,
   process: ProcessNode,
@@ -46,14 +39,21 @@ export function suggestOwnerForProcess(
       if (d?.ownerPersonIds?.includes(p.id)) score += 2;
     }
     const load = processes.filter((x) => x.ownerPersonIds?.includes(p.id)).length;
-    return { p, score, load };
+    return { p, score, load, leaving: p.lastDay ? 1 : 0 };
   });
 
-  scored.sort((a, b) => b.score - a.score || a.load - b.load);
+  scored.sort((a, b) => a.leaving - b.leaving || b.score - a.score || a.load - b.load);
   return scored[0]?.p ?? null;
 }
 
-/** Best-guess control: matches risk kinds and process name; prefers controls not yet on the process. */
+/**
+ * Best-guess control for a process: one not yet on it that shares at least one
+ * word with the process name, description or risk titles. Among those, a
+ * control that authorizes or reconciles wins on a process with fraud risks,
+ * and an unsegregated one wins a tie. Null when no control shares a word:
+ * mapping an unrelated control would raise the map's health score with
+ * nothing behind it.
+ */
 export function suggestControlForProcess(
   process: ProcessNode,
   controls: ControlItem[],
@@ -65,13 +65,28 @@ export function suggestControlForProcess(
   );
   const hasFraud = (process.risks ?? []).some((r) => r.kind === "fraud");
 
-  const scored = available.map((c) => {
-    let score = overlap(tokens(`${c.name} ${c.description}`), procTokens) * 3;
-    if (hasFraud && (c.duties.includes("authorization") || c.duties.includes("reconciliation")))
-      score += 2;
-    if (!c.segregated) score += 1; // surfacing a gap is more useful than a green tick
-    return { c, score };
-  });
+  const scored = available
+    .map((c) => {
+      const shared = overlap(tokens(`${c.name} ${c.description}`), procTokens);
+      let score = shared * 3;
+      if (hasFraud && (c.duties.includes("authorization") || c.duties.includes("reconciliation")))
+        score += 2;
+      if (!c.segregated) score += 1; // surfacing a gap is more useful than a green tick
+      return { c, shared, score };
+    })
+    .filter((x) => x.shared > 0);
   scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.score > 0 ? scored[0].c : available[0];
+  return scored[0]?.c ?? null;
+}
+
+function tokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 3);
+}
+
+function overlap(a: string[], b: string[]): number {
+  const set = new Set(b);
+  return a.filter((t) => set.has(t)).length;
 }

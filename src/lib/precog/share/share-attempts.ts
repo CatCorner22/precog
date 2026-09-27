@@ -6,6 +6,23 @@ export const PASSCODE_ATTEMPT_LIMIT = 10;
 export const PASSCODE_ATTEMPT_WINDOW_MINUTES = 15;
 /** Failed-guess log rows (which carry an IP hash) are kept this many days. */
 export const PASSCODE_ATTEMPT_RETENTION_DAYS = 30;
+/** Bytes of scrypt output stored per passcode. */
+const PASSCODE_KEY_BYTES = 32;
+
+/**
+ * The scrypt hash of a passcode with its salt, as hex. Asynchronous, so
+ * hashing never blocks the event loop that also serves public share loads.
+ * Creating a link and checking a guess both use it, so the two cannot drift.
+ */
+export async function hashPasscode(passcode: string, salt: string): Promise<string> {
+  const { scrypt } = await import("node:crypto");
+  const key = await new Promise<Buffer>((resolve, reject) =>
+    scrypt(passcode, salt, PASSCODE_KEY_BYTES, (err, derived) =>
+      err ? reject(err) : resolve(derived),
+    ),
+  );
+  return key.toString("hex");
+}
 
 /**
  * Reserves one guess on the share before the passcode is checked. The count

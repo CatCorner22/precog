@@ -11,7 +11,7 @@ import { runSpecialistAgents } from "./multi-agent";
 import { callModel, type LlmAccess } from "./guard.server";
 import type { AgentRunResult, ReasoningStep, ToolResult } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
-import { ownerJson, ownerText } from "./owner-text";
+import { ownerJson, ownerText } from "./prompt-text";
 import {
   BRIEF_SECTIONS,
   chickenLittleCritique,

@@ -1,4 +1,4 @@
-import { PASSCODE_ATTEMPT_WINDOW_MINUTES } from "./share-attempts";
+import { PASSCODE_ATTEMPT_LIMIT, PASSCODE_ATTEMPT_WINDOW_MINUTES } from "../share/share-attempts";
 import { FREQUENCY_LABEL, type EvidenceStatus } from "./evidence";
 import type { EvidenceFrequency } from "../types";
 import { firstName } from "../text";
@@ -21,6 +21,11 @@ export function shareErrorView(reason: string): ShareErrorView {
       return {
         kind: "passcode",
         message: `Too many passcode attempts. Wait up to ${PASSCODE_ATTEMPT_WINDOW_MINUTES} minutes, then try again.`,
+      };
+    case "locked":
+      return {
+        kind: "passcode",
+        message: `After ${PASSCODE_ATTEMPT_LIMIT} wrong passcodes this link locks for ${PASSCODE_ATTEMPT_WINDOW_MINUTES} minutes. Ask the owner for the passcode and try again then.`,
       };
     case "revoked":
       return { kind: "message", message: "The owner revoked this link.", retry: false };

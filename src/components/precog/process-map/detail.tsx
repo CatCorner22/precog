@@ -37,6 +37,7 @@ export function VisionChip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         active && !accent && "border-primary/40 bg-primary/15 text-fg",
@@ -72,7 +73,7 @@ export function StandardLegend() {
   return (
     <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
       <p className="font-semibold text-fg">Map legend</p>
-      <p className="mt-1 text-muted">Border heat: cool → hot (danger)</p>
+      <p className="mt-1 text-muted">Process border shows heat, cool → hot:</p>
       <div
         className="mt-1.5 h-1.5 rounded-full"
         style={{
@@ -80,6 +81,10 @@ export function StandardLegend() {
             "linear-gradient(90deg, var(--color-border-strong), var(--color-primary), var(--color-warn), var(--color-danger))",
         }}
       />
+      <p className="mt-1.5 text-muted">
+        Small cards are colored by kind: red risk or control, amber idea, blue knowledge, green
+        person, grey waste.
+      </p>
     </div>
   );
 }

@@ -6,9 +6,9 @@ import { Copy, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls, labelCls } from "@/components/ui/field-classes";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import type { SharedMapPayload } from "@/lib/precog/builder/share-schema";
-import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
-import type { ShareSummary } from "@/lib/precog/builder/share-store";
+import { SHARE_PASSCODE_MIN, type SharedMapPayload } from "@/lib/precog/share/share-schema";
+import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
+import type { ShareSummary } from "@/lib/precog/share/share-store";
 import { formatDayShort } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
@@ -77,7 +77,7 @@ export function SharePanel({
           expiresAt: res.expiresAt,
           revoked: false,
           redacted: redactNames,
-          hasPasscode: passcode.trim().length >= 8,
+          hasPasscode: res.hasPasscode,
           views: 0,
           lastViewedAt: null,
         },
@@ -179,7 +179,7 @@ export function SharePanel({
           <input
             type="password"
             className={cn(inputCls, "min-w-0 flex-1")}
-            placeholder="8+ characters; share it separately"
+            placeholder={`${SHARE_PASSCODE_MIN}+ characters; share it separately`}
             value={passcode}
             onChange={(e) => setPasscode(e.target.value)}
           />

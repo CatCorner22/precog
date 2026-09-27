@@ -53,12 +53,12 @@ const PROCESS_BLOCKS: ProcessBlock[] = [
       ideas: [
         {
           id: "i-dual",
-          title: "Enable dual release in Precog policy",
+          title: "Require a second approver to release payments",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Wire the dual-release simulator to your real approvers.",
-          status: "planned",
+          note: "Set the release threshold in your bank or accounting software and record who the two approvers are.",
+          status: "backlog",
         },
       ],
       wastes: [],
@@ -219,20 +219,6 @@ export function blocksForIndustry(industry: IndustryId): ProcessBlock[] {
   return PROCESS_BLOCKS.filter((b) => !b.industries || b.industries.includes(industry));
 }
 
-function cloneNestedIds(template: Omit<ProcessNode, "id">): Omit<ProcessNode, "id"> {
-  return {
-    ...template,
-    risks: (template.risks ?? []).map((r) => ({ ...r, id: uid("r") })),
-    ideas: (template.ideas ?? []).map((i) => ({ ...i, id: uid("i") })),
-    wastes: (template.wastes ?? []).map((w) => ({ ...w, id: uid("w") })),
-    dependencies: [...template.dependencies],
-    controlIds: [...template.controlIds],
-    ownerPersonIds: [...(template.ownerPersonIds ?? [])],
-    inputs: [...(template.inputs ?? [])],
-    outputs: [...(template.outputs ?? [])],
-  };
-}
-
 /** Instantiate a block as a new process node with fresh IDs. */
 export function instantiateBlock(
   block: ProcessBlock | SavedProcessBlock,
@@ -252,6 +238,12 @@ export function instantiateBlock(
   };
 }
 
+/**
+ * Save a process as a reusable block. A block is a pattern, not a copy of
+ * this map's facts: its owners, its links to other processes and its
+ * evidence history (when a review was last done, and by whom) stay behind,
+ * so an inserted block starts unowned, unwired and never reviewed.
+ */
 export function processToSavedBlock(process: ProcessNode): SavedProcessBlock {
   const { id: _id, ...template } = process;
   return {
@@ -259,7 +251,32 @@ export function processToSavedBlock(process: ProcessNode): SavedProcessBlock {
     name: process.name,
     description: process.description,
     category: "ops",
-    template: cloneNestedIds(template),
+    template: cloneNestedIds({
+      ...template,
+      ownerPersonIds: [],
+      dependencies: [],
+      evidence: (template.evidence ?? []).map(({ id, label, frequency }) => ({
+        id,
+        label,
+        frequency,
+      })),
+    }),
     createdAt: new Date().toISOString(),
+  };
+}
+
+/** A copy of a block's template whose nested risks, ideas, wastes and evidence get fresh ids and arrays. */
+function cloneNestedIds(template: Omit<ProcessNode, "id">): Omit<ProcessNode, "id"> {
+  return {
+    ...template,
+    risks: (template.risks ?? []).map((r) => ({ ...r, id: uid("r") })),
+    ideas: (template.ideas ?? []).map((i) => ({ ...i, id: uid("i") })),
+    wastes: (template.wastes ?? []).map((w) => ({ ...w, id: uid("w") })),
+    evidence: (template.evidence ?? []).map((e) => ({ ...e, id: uid("e") })),
+    dependencies: [...template.dependencies],
+    controlIds: [...template.controlIds],
+    ownerPersonIds: [...(template.ownerPersonIds ?? [])],
+    inputs: [...(template.inputs ?? [])],
+    outputs: [...(template.outputs ?? [])],
   };
 }

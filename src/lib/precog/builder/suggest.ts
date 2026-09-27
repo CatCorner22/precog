@@ -36,9 +36,10 @@ interface Pattern {
   ideas: SuggestedIdea[];
 }
 
+/** Each `match` reads whole words only: "multiple" is not "tip", "account" is not "count". */
 const PATTERNS: Pattern[] = [
   {
-    match: /cash|deposit|drawer|tip|till|register|safe/i,
+    match: /\b(cash|deposits?|drawers?|tips?|till|registers?|safe)\b/i,
     controls: ["c-cash", "c-sod-cash"],
     risks: [
       {
@@ -76,7 +77,7 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /payroll|wages|timesheet|hours|commission|bonus/i,
+    match: /\b(payroll|wages?|timesheets?|hours|commissions?|bonus(es)?)\b/i,
     controls: ["c-payroll"],
     risks: [
       {
@@ -106,7 +107,7 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /vendor|payable|\bAP\b|invoice|supplier|purchas|procure/i,
+    match: /\b(vendors?|payables?|AP|invoices?|suppliers?|purchas\w*|procure\w*)\b/i,
     controls: ["c-ap", "c-sod-ap"],
     risks: [
       {
@@ -145,7 +146,7 @@ const PATTERNS: Pattern[] = [
   },
   {
     match:
-      /billing|receivable|\bAR\b|collection|write.?off|credit|markdown|void|comp|adjust|refund|discount/i,
+      /\b(billing|receivables?|AR|collections?|write.?offs?|credits?|markdowns?|voids?|comps?|adjust\w*|refunds?|discounts?)\b/i,
     controls: ["c-sod-billing", "c-sod-ar", "c-ar"],
     risks: [
       {
@@ -175,7 +176,7 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /inventory|receiving|stock|warehouse|shrink|count|supplies/i,
+    match: /\b(inventory|receiving|stock|warehouse|shrink\w*|counts?|supplies)\b/i,
     controls: ["c-ap", "c-sod-ap"],
     risks: [
       {
@@ -205,7 +206,7 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /sales|quote|\bPOS\b|return|checkout|order|e-?com|online/i,
+    match: /\b(sales|quotes?|POS|returns?|checkout|orders?|e-?com\w*|online)\b/i,
     controls: ["c-cash"],
     risks: [
       {
@@ -235,7 +236,7 @@ const PATTERNS: Pattern[] = [
     ],
   },
   {
-    match: /trust|retainer|escrow|client funds/i,
+    match: /\b(trust|retainers?|escrow|client funds)\b/i,
     controls: ["c-cash", "c-sod-cash"],
     risks: [
       {
@@ -259,7 +260,10 @@ const PATTERNS: Pattern[] = [
   },
 ];
 
-const GENERIC: Pick<Pattern, "risks" | "ideas"> = {
+/** Continuity and review basics every process gets after its matched patterns. */
+const GENERIC: Pattern = {
+  match: /(?!)/,
+  controls: [],
   risks: [
     {
       title: "Only one person knows how this runs",
@@ -314,7 +318,7 @@ export function suggestLocally(input: SuggestionInput): SuggestionResult {
   const ideas: SuggestedIdea[] = [];
   const controlIds = new Set<string>();
 
-  for (const p of [...hits, GENERIC as Pattern]) {
+  for (const p of [...hits, GENERIC]) {
     for (const r of p.risks) {
       if (risks.length >= 4) break;
       if (existingRisks.has(norm(r.title)) || risks.some((x) => x.title === r.title)) continue;
@@ -325,7 +329,7 @@ export function suggestLocally(input: SuggestionInput): SuggestionResult {
       if (existingIdeas.has(norm(i.title)) || ideas.some((x) => x.title === i.title)) continue;
       ideas.push(i);
     }
-    for (const c of p.controls ?? []) if (available.has(c)) controlIds.add(c);
+    for (const c of p.controls) if (available.has(c)) controlIds.add(c);
   }
 
   const matched = hits.length

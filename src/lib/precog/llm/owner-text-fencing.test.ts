@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ownerJson, ownerText } from "./owner-text";
+import { ownerJson, ownerText } from "./prompt-text";
 
 describe("ownerText", () => {
   it("strips every owner tag, whatever its case or spacing", () => {

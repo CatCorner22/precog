@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
+import { loadMapShare, type SharedMapPayload } from "@/lib/precog/share/share-server";
 import { evidenceLine, ownerTag, shareErrorView } from "@/lib/precog/builder/share-view";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { Eye, Lock, ShieldCheck } from "lucide-react";

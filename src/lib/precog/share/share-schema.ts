@@ -3,6 +3,12 @@ import { invalidRequest, RequestError, requireObject } from "@/lib/request-error
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { clamp } from "../number";
 
+/** Largest stored share, in bytes of JSON. */
+export const MAX_SHARE_BYTES = 256 * 1024;
+
+const str = (max: number) => z.string().max(max);
+const num = z.number().finite();
+
 /**
  * Shape check for a map share before it is stored and later rendered on a
  * public page. React escaping keeps the page XSS-safe already; this turns a
@@ -10,11 +16,6 @@ import { clamp } from "../number";
  * of a 500 (or a row the share page cannot render). Limits are generous for a
  * real map and tight enough that a share cannot be used as blob storage.
  */
-export const MAX_SHARE_BYTES = 256 * 1024;
-
-const str = (max: number) => z.string().max(max);
-const num = z.number().finite();
-
 const sharedMapPayloadSchema = z.object({
   version: z.literal(1),
   businessName: str(80),
@@ -65,6 +66,8 @@ const sharedMapPayloadSchema = z.object({
   issues: z.array(str(500)).max(500),
   actions: z.array(z.object({ title: str(200), why: str(1_000), effort: str(40) })).max(200),
   note: str(2_000).optional(),
+  /** Set by redactSharePayload: people's names are replaced with role labels. */
+  namesHidden: z.boolean().optional(),
 });
 
 /** Frozen, self-contained view of a map for the public share page. */
@@ -74,23 +77,27 @@ export type SharedMapPayload = z.infer<typeof sharedMapPayloadSchema>;
 export function validateSharePayload(input: unknown): SharedMapPayload {
   const bytes = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
   if (bytes > MAX_SHARE_BYTES) {
-    throw new RequestError(413, `Share is too large (${Math.ceil(bytes / 1024)} KB; limit 256 KB)`);
+    throw new RequestError(
+      413,
+      `This map is too large to share (${Math.ceil(bytes / 1024)} KB; the limit is ${MAX_SHARE_BYTES / 1024} KB). Shorten process descriptions or share fewer processes.`,
+    );
   }
   const parsed = sharedMapPayloadSchema.safeParse(input);
   if (!parsed.success) {
+    // The field path is for the server log; the owner gets a sentence.
     const first = parsed.error.issues[0];
-    const where = first?.path.length ? ` at ${first.path.join(".")}` : "";
+    console.warn("Refused a map share", first?.path.join("."), first?.message);
     throw new RequestError(
       400,
-      `Share payload is not valid${where}: ${first?.message ?? "unknown"}`,
+      "This share could not be created from the map as it stands. Reload the page and try again.",
     );
   }
   return parsed.data;
 }
 
 /** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
-const SHARE_PASSCODE_MIN = 8;
-const SHARE_PASSCODE_MAX = 64;
+export const SHARE_PASSCODE_MIN = 8;
+export const SHARE_PASSCODE_MAX = 64;
 
 export interface CreateShareInput {
   payload: SharedMapPayload;

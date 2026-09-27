@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { formatDay } from "@/lib/precog/dates";
 import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
-import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/builder/share-store";
+import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/share/share-store";
 
 export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,

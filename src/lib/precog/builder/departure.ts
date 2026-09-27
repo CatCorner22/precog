@@ -21,9 +21,43 @@ export interface DepartureImpact {
   orphanedKnowledge: { id: string; name: string; criticality: string }[];
   /** Knowledge items they hold strongly that others also hold. */
   sharedKnowledge: { id: string; name: string }[];
-  /** 0–100 — how much this departure would hurt. */
+  /**
+   * 0–100 departure index computed by simulateDeparture from this app's own
+   * weights: 2.2 per health point lost, 12 per orphaned process, 15 per
+   * orphaned critical knowledge item, 7 per other orphaned item, and up to 10
+   * for tenure. It orders the team for attention; no study sets it, and it is
+   * not a measured loss.
+   */
   impact: number;
   recommendations: string[];
+}
+
+/** Rank the whole team by departure impact, highest first. */
+export function rankDepartureRisk(
+  tpl: IndustryTemplate,
+  processes: ProcessNode[],
+  people: Person[],
+  staff: StaffComposition,
+): DepartureImpact[] {
+  // The map as it stands is the same baseline for every person: score it once.
+  const before = previewMapHealth(tpl, processes, staff, { people }).score;
+  return people
+    .filter((p) => p.active)
+    .map((p) => simulateDeparture(tpl, p, processes, people, staff, before))
+    .sort((a, b) => b.impact - a.impact);
+}
+
+/**
+ * How many people the business cannot lose: those whose departure would
+ * orphan at least one process or critical knowledge item. (Not a "bus
+ * factor", which counts the fewest people whose loss stops the work.)
+ */
+export function singlePointsOfFailure(impacts: DepartureImpact[]): number {
+  return impacts.filter(
+    (i) =>
+      i.orphanedProcesses.length > 0 ||
+      i.orphanedKnowledge.some((k) => k.criticality === "critical"),
+  ).length;
 }
 
 function simulateDeparture(
@@ -32,6 +66,7 @@ function simulateDeparture(
   processes: ProcessNode[],
   people: Person[],
   staff: StaffComposition,
+  healthBefore: number,
 ): DepartureImpact {
   const remainingPeople = people.filter((p) => p.id !== person.id);
   const nextProcesses = processes.map((p) => ({
@@ -39,7 +74,6 @@ function simulateDeparture(
     ownerPersonIds: (p.ownerPersonIds ?? []).filter((id) => id !== person.id),
   }));
 
-  const before = previewMapHealth(tpl, processes, staff, { people });
   const after = previewMapHealth(tpl, nextProcesses, staff, { people: remainingPeople });
 
   const owned = processes.filter((p) => (p.ownerPersonIds ?? []).includes(person.id));
@@ -70,7 +104,7 @@ function simulateDeparture(
   const impact = Math.min(
     100,
     Math.round(
-      Math.max(0, before.score - after.score) * 2.2 +
+      Math.max(0, healthBefore - after.score) * 2.2 +
         orphanedProcesses.length * 12 +
         criticalKnowledge * 15 +
         (orphanedKnowledge.length - criticalKnowledge) * 7 +
@@ -104,9 +138,9 @@ function simulateDeparture(
 
   return {
     person,
-    healthBefore: before.score,
+    healthBefore,
     healthAfter: after.score,
-    healthDelta: after.score - before.score,
+    healthDelta: after.score - healthBefore,
     orphanedProcesses,
     coveredProcesses,
     orphanedKnowledge,
@@ -114,26 +148,4 @@ function simulateDeparture(
     impact,
     recommendations,
   };
-}
-
-/** Rank the whole team by departure impact — a bus-factor view. */
-export function rankDepartureRisk(
-  tpl: IndustryTemplate,
-  processes: ProcessNode[],
-  people: Person[],
-  staff: StaffComposition,
-): DepartureImpact[] {
-  return people
-    .filter((p) => p.active)
-    .map((p) => simulateDeparture(tpl, p, processes, people, staff))
-    .sort((a, b) => b.impact - a.impact);
-}
-
-/** Number of people whose loss would orphan at least one process or critical knowledge item. */
-export function busFactor(impacts: DepartureImpact[]): number {
-  return impacts.filter(
-    (i) =>
-      i.orphanedProcesses.length > 0 ||
-      i.orphanedKnowledge.some((k) => k.criticality === "critical"),
-  ).length;
 }

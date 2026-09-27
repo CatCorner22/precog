@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { IndexBasis } from "@/components/precog/index-basis";
 import { IndexColumnCaption, RankedRow } from "@/components/precog/builder/ranked-row";
-import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/what-if";
+import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/workload";
 import { casesForSodRules } from "@/lib/precog/evidence";
 import { count } from "@/lib/precog/text";
 

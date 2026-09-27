@@ -64,13 +64,9 @@ import {
 import type { MapReview } from "@/lib/precog/builder/review";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
-import { buildSharePayload } from "@/lib/precog/builder/share-payload";
-import {
-  analyzeWorkload,
-  healthDelta,
-  LOAD_BANDS,
-  type HealthDelta,
-} from "@/lib/precog/builder/what-if";
+import { buildSharePayload } from "@/lib/precog/share/share-payload";
+import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
+import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
 import { formatDayShort } from "@/lib/precog/dates";
 import { downloadText } from "@/lib/download";
 import { industryMeta } from "@/lib/precog/industry";

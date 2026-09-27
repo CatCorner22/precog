@@ -146,3 +146,24 @@ export async function purgeOldShareViews(sql: Sql): Promise<void> {
     where viewed_at < now() - make_interval(days => ${SHARE_VIEW_RETENTION_DAYS})
   `;
 }
+
+/**
+ * Logs one view of a shared map, at most one per address per minute: a
+ * crawler or a looping tab would otherwise add a row per request, inflating
+ * the owner's view count and the table until the next purge.
+ */
+export async function recordShareView(
+  sql: Sql,
+  view: { token: string; ipHash: string; userAgent: string | null },
+): Promise<void> {
+  await sql`
+    insert into map_share_views (token, ip_hash, user_agent)
+    select ${view.token}::text, ${view.ipHash}::text, ${view.userAgent}::text
+    where not exists (
+      select 1 from map_share_views
+      where token = ${view.token}
+        and ip_hash = ${view.ipHash}
+        and viewed_at > now() - interval '1 minute'
+    )
+  `;
+}

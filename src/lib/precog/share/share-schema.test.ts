@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { buildSharePayload } from "./share-payload";
 import { MAX_SHARE_BYTES, parseCreateShareInput, validateSharePayload } from "./share-schema";
 
 describe("validateSharePayload", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("accepts what buildSharePayload produces for every industry", () => {
     for (const industry of [
       "dental",
@@ -21,8 +23,9 @@ describe("validateSharePayload", () => {
   });
 
   it("rejects a payload that is not an object", () => {
-    expect(() => validateSharePayload("nope")).toThrow(/not valid/);
-    expect(() => validateSharePayload(null)).toThrow(/not valid/);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(() => validateSharePayload("nope")).toThrow(/could not be created/);
+    expect(() => validateSharePayload(null)).toThrow(/could not be created/);
   });
 
   it("answers a bad or oversized payload with a 4xx status", () => {
@@ -34,20 +37,27 @@ describe("validateSharePayload", () => {
       }
       return undefined;
     };
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const payload = buildSharePayload(defaultProfile("dental"), []);
     expect(statusOf(null)).toBe(400);
     expect(statusOf({ ...payload, note: "x".repeat(MAX_SHARE_BYTES + 1) })).toBe(413);
   });
 
-  it("rejects an unknown industry and says where", () => {
+  it("rejects an unknown industry, logs where and tells the owner in a sentence", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const payload = buildSharePayload(defaultProfile("dental"), []);
-    expect(() => validateSharePayload({ ...payload, industry: "crypto" })).toThrow(/at industry/);
+    expect(() => validateSharePayload({ ...payload, industry: "crypto" })).toThrow(
+      "This share could not be created from the map as it stands. Reload the page and try again.",
+    );
+    expect(warn.mock.calls[0]?.[1]).toBe("industry");
   });
 
   it("rejects a payload over the byte cap before parsing it", () => {
     const payload = buildSharePayload(defaultProfile("dental"), []);
     const huge = { ...payload, note: "x".repeat(MAX_SHARE_BYTES + 1) };
-    expect(() => validateSharePayload(huge)).toThrow(/too large/);
+    expect(() => validateSharePayload(huge)).toThrow(
+      /^This map is too large to share \(\d+ KB; the limit is 256 KB\)\. Shorten process descriptions or share fewer processes\.$/,
+    );
   });
 
   it("rejects a process list that would not render (missing name)", () => {
@@ -56,7 +66,9 @@ describe("validateSharePayload", () => {
       ...payload,
       processes: [{ ...payload.processes[0], name: undefined }],
     };
-    expect(() => validateSharePayload(broken)).toThrow(/processes\.0\.name/);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(() => validateSharePayload(broken)).toThrow(/could not be created/);
+    expect(warn.mock.calls[0]?.[1]).toBe("processes.0.name");
   });
 });
 

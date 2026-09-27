@@ -4,6 +4,7 @@ import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
   checkPasscodeGuess,
+  hashPasscode,
   PASSCODE_ATTEMPT_LIMIT,
   PASSCODE_ATTEMPT_RETENTION_DAYS,
   passcodeLocked,
@@ -147,5 +148,14 @@ describe("failed-guess log", () => {
     await recordPasscodeFailure(sql, TOKEN, "hash");
     await pg.query("delete from map_shares where token = $1", [TOKEN]);
     expect(await logRows()).toBe(0);
+  });
+});
+
+describe("hashPasscode", () => {
+  it("derives the same 32-byte hex hash for the same passcode and salt, and another for another salt", async () => {
+    const a = await hashPasscode("correct horse", "salt-1");
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(await hashPasscode("correct horse", "salt-1")).toBe(a);
+    expect(await hashPasscode("correct horse", "salt-2")).not.toBe(a);
   });
 });

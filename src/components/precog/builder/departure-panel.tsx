@@ -3,7 +3,7 @@ import { useState } from "react";
 import { labelCls } from "@/components/ui/field-classes";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { IndexColumnCaption, RankedRow } from "@/components/precog/builder/ranked-row";
-import { busFactor, type DepartureImpact } from "@/lib/precog/builder/departure";
+import { singlePointsOfFailure, type DepartureImpact } from "@/lib/precog/builder/departure";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { count } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ export function DeparturePanel({
   onAddStandIn: (processId: string, leavingPersonId: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(impacts[0]?.person.id ?? null);
-  const bus = busFactor(impacts);
+  const bus = singlePointsOfFailure(impacts);
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
