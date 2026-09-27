@@ -1,12 +1,8 @@
 import type { IndustryTemplate } from "../templates/types";
 import { locateTable } from "./csv";
-import {
-  addSkippedLines,
-  looksLikeRosterHeader,
-  parsePeopleRows,
-  splitListLine,
-  type PeopleImportResult,
-} from "./people-csv";
+import { addSkippedLines, parsePeopleRows, type PeopleImportResult } from "./people-csv";
+import { looksLikeRosterHeader } from "./roster-columns";
+import { splitListLine } from "./roster-lines";
 import { stripInvisibleControls } from "../text";
 
 const LIST_HEADER = ["name", "role", "department"];
@@ -76,7 +72,6 @@ export function parseRoster(
     return {
       people: [],
       issues: [],
-      unknownEntitlements: [],
       titles: [],
       removed: tpl.people,
       skipped: 0,

@@ -4,7 +4,7 @@ import { RegisterGrid } from "@/components/precog/continuity/register-grid";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CoverageReport, ItemCoverage } from "@/lib/precog/continuity/coverage";
-import type { RegisterImportIssue } from "@/lib/precog/import/register-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { Criticality, KnowledgeKind, KnowledgeLevel, Person } from "@/lib/precog/types";
 
@@ -43,8 +43,8 @@ export function PlannerRegisterCard({
 }: {
   registerFrom: "starter" | "own" | "sample";
   tpl: IndustryTemplate;
-  importIssues: RegisterImportIssue[];
-  setImportIssues: (issues: RegisterImportIssue[]) => void;
+  importIssues: ImportIssue[];
+  setImportIssues: (issues: ImportIssue[]) => void;
   addItem: () => void;
   draftName: string;
   setDraftName: (value: string) => void;

@@ -69,8 +69,6 @@ const ACTIVE_WORDS = [
   "rehired",
 ];
 
-const TRUE_WORDS = ["1", "true", "yes", "y", "t", "x"];
-
 export function statusKey(value: string): string {
   return value
     .trim()
@@ -123,8 +121,4 @@ export function isOnLeave(value: string): boolean {
 export function isKnownActive(value: string): boolean {
   const key = statusKey(value);
   return matchesStatusWord(key, ACTIVE_WORDS) || /\b(leave|loa)\b/.test(key);
-}
-
-export function isTrue(value: string): boolean {
-  return TRUE_WORDS.includes(value.trim().toLowerCase());
 }

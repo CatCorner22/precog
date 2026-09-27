@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvCell, locateTable, parseRows, sniffDelimiter } from "./csv";
+import { csvCell, locateTable, parseRows, readYesNo, sniffDelimiter } from "./csv";
 
 const isHeader = (cells: readonly string[]) => cells.some((cell) => cell.trim() === "Name");
 
@@ -9,6 +9,7 @@ describe("sniffDelimiter", () => {
     expect(sniffDelimiter("Name | Title | Department")).toBe("|");
     expect(sniffDelimiter("Name|Title|Department")).toBe("|");
     expect(sniffDelimiter("Nom;Prénom;Poste")).toBe(";");
+    expect(sniffDelimiter("Name|Title\nAna Ruiz|Owner")).toBe("|");
     expect(sniffDelimiter("Name,Title")).toBe(",");
     expect(sniffDelimiter("Name")).toBe(",");
     expect(sniffDelimiter("Worker Report - as of 09/01/2026\n\nEmployee ID\tWorker")).toBe(",");
@@ -24,6 +25,13 @@ describe("parseRows", () => {
     expect(parseRows('"Ruiz, Ana",Owner\n"Ochoa, Ben",Bookkeeper')).toEqual([
       ["Ruiz, Ana", "Owner"],
       ["Ochoa, Ben", "Bookkeeper"],
+    ]);
+  });
+
+  it("reads a quoted cell typed after a space as quoted", () => {
+    expect(parseRows(' "Ruiz, Ana",Owner\nAna Ruiz, "Front Desk, Evenings"')).toEqual([
+      ["Ruiz, Ana", "Owner"],
+      ["Ana Ruiz", "Front Desk, Evenings"],
     ]);
   });
 });
@@ -91,5 +99,18 @@ describe("csvCell", () => {
     const values = ["=cmd|' /C calc'!A0", "+1 555 0100", "@home", "Ana Ruiz", "-5"];
     const line = values.map(csvCell).join(",");
     expect(parseRows(line)[0]).toEqual(values);
+  });
+});
+
+describe("readYesNo", () => {
+  it("reads the shared yes and no words, the importer's own words, and nothing else", () => {
+    expect(["yes", "Y", "true", "t", "1", "x"].map((v) => readYesNo(v))).toEqual(
+      Array(6).fill(true),
+    );
+    expect(["no", "N", "false", "f", "0"].map((v) => readYesNo(v))).toEqual(Array(5).fill(false));
+    expect(readYesNo("")).toBeUndefined();
+    expect(readYesNo("maybe")).toBeUndefined();
+    expect(readYesNo("Written", { yes: ["written"] })).toBe(true);
+    expect(readYesNo("none", { no: ["none"] })).toBe(false);
   });
 });

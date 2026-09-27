@@ -1,5 +1,5 @@
-import { normalizeHeader } from "./csv";
 /** Roster CSV column aliases and header detection. */
+import { normalizeHeader } from "./csv";
 
 const HEADER_ALIASES = {
   name: [
@@ -187,6 +187,8 @@ const ALIAS_KEYS: Record<Field, string[]> = Object.fromEntries(
   FIELDS.map((field) => [field, HEADER_ALIASES[field].map(normalizeHeader)]),
 ) as Record<Field, string[]>;
 
+const PREFERRED_NAME = normalizeHeader("preferred name");
+
 /** Rank of the alias a header cell matches (0 is best), or -1 when it matches none. */
 function aliasRank(cell: string, field: Field): number {
   const key = normalizeHeader(cell);
@@ -230,6 +232,16 @@ export function looksLikeRosterHeader(cells: readonly string[]): boolean {
   if (fields.includes("name")) return true;
   if (fields.includes("first_name") && fields.includes("last_name")) return true;
   return cells.filter(hasHeaderWord).length >= 3;
+}
+
+/**
+ * True when a line of two or more cells starts with a known column heading
+ * other than a name ("role,active", "Employee #,Title"): a header without a
+ * name column, not a person.
+ */
+export function startsWithColumnHeading(cells: readonly string[]): boolean {
+  const field = headerField(cells[0] ?? "");
+  return cells.length > 1 && field !== undefined && field !== "name";
 }
 
 export interface ColumnMap {
@@ -277,7 +289,7 @@ export function mapColumns(header: readonly string[], rows: readonly string[][])
   const split = firstName !== undefined && lastName !== undefined;
   // A preferred name is a nickname; with first and last name columns present it is never the whole name.
   const preferred =
-    name !== undefined && aliasRank(header[name], "name") === ALIAS_KEYS.name.length - 1;
+    name !== undefined && ALIAS_KEYS.name[aliasRank(header[name], "name")] === PREFERRED_NAME;
   return {
     name: split && preferred ? undefined : name,
     first: firstName,

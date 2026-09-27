@@ -65,7 +65,6 @@ describe("registerToCsv", () => {
   it("round-trips through parseRegisterCsv keeping ids, links and many-to-many levels", () => {
     const result = parseRegisterCsv(registerToCsv(tpl), tpl);
     expect(result.issues).toEqual([]);
-    expect(result.unknownPeople).toEqual([]);
     expect(result.knowledge).toEqual(knowledge);
     const key = (r: { personId: string; knowledgeId: string; level: string }) =>
       `${r.knowledgeId}|${r.personId}|${r.level}`;
@@ -163,9 +162,12 @@ describe("parseRegisterCsv", () => {
   it("skips columns for people not on the active team and reports them once", () => {
     const csv = "item,Ana Ruiz,Dee Former,Nobody Here\r\nRun payroll,expert,expert,expert\r\n";
     const result = parseRegisterCsv(csv, tpl);
-    expect(result.unknownPeople).toEqual(["Dee Former", "Nobody Here"]);
     expect(result.issues).toEqual([
-      { row: 0, message: "Not on the active team, skipped: Dee Former, Nobody Here" },
+      {
+        row: 0,
+        message:
+          "These columns name people not on the active team, so the importer skipped them: Dee Former, Nobody Here",
+      },
     ]);
     expect(result.relations).toEqual([
       { personId: "p-ana", knowledgeId: "k-payroll", level: "expert" },
@@ -188,8 +190,8 @@ describe("parseRegisterCsv", () => {
         message: '"guru" is not a level for Ana Ruiz; use expert, can do, learning or aware',
       },
       { row: 2, message: "Item name is required" },
-      { row: 3, message: 'Duplicate item "RUN PAYROLL" skipped' },
-      { row: 4, message: 'Duplicate item "Run payroll" skipped' },
+      { row: 3, message: '"RUN PAYROLL" appears twice; the importer skipped the second row' },
+      { row: 4, message: '"Run payroll" appears twice; the importer skipped the second row' },
     ]);
     expect(result.knowledge).toHaveLength(1);
     expect(result.knowledge[0]).toMatchObject({
@@ -215,7 +217,49 @@ describe("parseRegisterCsv", () => {
     ]);
     const result = parseRegisterCsv("item\r\nA\r\nB\r\nC\r\n", tpl, { maxRows: 2 });
     expect(result.knowledge.map((k) => k.name)).toEqual(["A", "B"]);
-    expect(result.issues).toEqual([{ row: 3, message: "Import truncated to 2 rows" }]);
+    expect(result.issues).toEqual([
+      { row: 3, message: "This import reads the first 2 rows; it did not read 1 more row" },
+    ]);
+  });
+});
+
+describe("parseRegisterCsv: invisible characters and delimiters", () => {
+  const tpl = { ...dental, people, knowledge, relations: [] } as IndustryTemplate;
+
+  it("strips a right-to-left override and a zero-width space from an item name", () => {
+    const r = parseRegisterCsv("item\n\u202ERun payroll\u200B", tpl);
+    expect(r.knowledge.map((k) => [k.id, k.name])).toEqual([["k-payroll", "Run payroll"]]);
+  });
+
+  it("reads a semicolon file and a tab file", () => {
+    for (const text of [
+      "item;kind;Ana Ruiz\nRun payroll;duty;expert",
+      "item\tkind\tAna Ruiz\nRun payroll\tduty\texpert",
+    ]) {
+      const r = parseRegisterCsv(text, tpl);
+      expect(r.issues).toEqual([]);
+      expect(r.relations).toEqual([
+        { personId: "p-ana", knowledgeId: "k-payroll", level: "expert" },
+      ]);
+    }
+  });
+});
+
+describe("documented and level cells", () => {
+  const tpl = { ...dental, people, knowledge, relations: [] } as IndustryTemplate;
+
+  it("reports a documented value that is neither yes nor no and keeps the one on record", () => {
+    const r = parseRegisterCsv("item,documented\nRun payroll,maybe\nVendor quirks,x", tpl);
+    expect(r.knowledge.map((k) => k.documented)).toEqual([false, true]);
+    expect(r.issues).toEqual([
+      { row: 1, message: 'Documented "maybe" should be yes or no; kept no' },
+    ]);
+  });
+
+  it("reads N/A and a dash in a level cell as no level", () => {
+    const r = parseRegisterCsv("item,Ana Ruiz,Ben Lee\nRun payroll,N/A,—", tpl);
+    expect(r.issues).toEqual([]);
+    expect(r.relations).toEqual([]);
   });
 });
 
@@ -255,7 +299,13 @@ describe("last confirmed column", () => {
         tpl,
       );
       expect(result.knowledge[0].confirmedAt, value).toBe("2025-01-15");
+      expect(result.issues.map((issue) => issue.message).join(" "), value).toMatch(
+        value === "2099-01-01" ? /is after today/ : /is not a date/,
+      );
     }
+    const blank = parseRegisterCsv("item,last checked,Ana Ruiz\r\nVendor quirks,,expert\r\n", tpl);
+    expect(blank.knowledge[0].confirmedAt).toBe("2025-01-15");
+    expect(blank.issues).toEqual([]);
   });
 });
 

@@ -1,6 +1,14 @@
-import { nameKey } from "../text";
+import { count, nameKey } from "../text";
+
 /** Cell separators the importers understand. */
 export type Delimiter = "," | "\t" | ";" | "|";
+
+/** Something an importer could not read or changed, for the owner to check. */
+export interface ImportIssue {
+  /** 1-based data row (0 = the whole file). */
+  row: number;
+  message: string;
+}
 
 /** A header cell for alias matching: "#" and "№" read as "number", then the `nameKey` of the rest. */
 export function normalizeHeader(cell: string): string {
@@ -33,8 +41,11 @@ export function parseRows(text: string, delimiter: Delimiter = ","): string[][] 
       }
       continue;
     }
-    if (char === '"' && field.length === 0) {
+    // A quote opens a quoted cell at its start, even after spaces typed by
+    // hand: ` "Ruiz, Ana",Owner`.
+    if (char === '"' && field.trim().length === 0) {
       quoted = true;
+      field = "";
     } else if (char === delimiter) {
       row.push(field);
       field = "";
@@ -80,11 +91,13 @@ function unguardCsvCell(value: string): string {
 
 /**
  * The delimiter the first line uses: a tab when pasted from a spreadsheet, a
- * pipe for a pipe-separated table, else a comma or semicolon.
+ * pipe for a pipe-separated table ("Name|Title", or pipes between spaces or
+ * between three or more cells even beside commas), else a comma or semicolon.
  */
 export function sniffDelimiter(text: string): Delimiter {
   const first = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
   if (first.includes("\t")) return "\t";
+  if (first.includes("|") && !first.includes(",")) return "|";
   if (/\s\|\s/.test(first) || first.split("|").length > 2) return "|";
   if (!first.includes(",") && first.includes(";")) return ";";
   return ",";
@@ -134,3 +147,33 @@ export function locateTable(
   }
   return undefined;
 }
+
+/** What an importer says when a file has more rows than one import reads. */
+export function rowCapMessage(maxRows: number, dropped: number): string {
+  return `This import reads the first ${maxRows} rows; it did not read ${count(dropped, "more row")}`;
+}
+
+/** Extra words a "documented" cell may use in the process and register sheets. */
+export const DOCUMENTED_WORDS = {
+  yes: ["documented", "written"],
+  no: ["none", "not documented", "undocumented", "-"],
+} as const;
+
+/**
+ * A yes/no cell: true for yes, y, true, t, 1 or x; false for no, n, false,
+ * f or 0; undefined when the cell is blank or says neither. An importer can
+ * add its own words, such as "documented".
+ */
+export function readYesNo(
+  cell: string,
+  extra: { yes?: readonly string[]; no?: readonly string[] } = {},
+): boolean | undefined {
+  const value = cell.trim().toLowerCase();
+  if (!value) return undefined;
+  if (YES_WORDS.includes(value) || extra.yes?.includes(value)) return true;
+  if (NO_WORDS.includes(value) || extra.no?.includes(value)) return false;
+  return undefined;
+}
+
+const YES_WORDS: readonly string[] = ["yes", "y", "true", "t", "1", "x"];
+const NO_WORDS: readonly string[] = ["no", "n", "false", "f", "0"];

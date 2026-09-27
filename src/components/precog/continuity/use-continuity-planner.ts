@@ -17,7 +17,8 @@ import {
   linkedContinuityStep,
   linkedKnowledgeId,
 } from "@/lib/precog/decisions/follow-through";
-import { parseRegisterCsv, type RegisterImportIssue } from "@/lib/precog/import/register-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
+import { parseRegisterCsv } from "@/lib/precog/import/register-csv";
 import {
   absenceImpact,
   type AbsenceAction,
@@ -405,7 +406,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     setCustomPeople((current) => markLeft(current, l.person.id, today));
     toast.success(`${first} marked as left.`);
   };
-  const [importIssues, setImportIssues] = useState<RegisterImportIssue[]>([]);
+  const [importIssues, setImportIssues] = useState<ImportIssue[]>([]);
 
   const selected: ItemCoverage | undefined =
     report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];

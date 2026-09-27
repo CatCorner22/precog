@@ -27,8 +27,8 @@ import {
   parsePeopleCsv,
   removedPeopleImpact,
   peopleToCsv,
-  type PeopleImportIssue,
 } from "@/lib/precog/import/people-csv";
+import type { ImportIssue } from "@/lib/precog/import/csv";
 import { placeholderNames } from "@/lib/precog/onboarding/own-team";
 import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
 import { personLocations } from "@/lib/precog/person-location";
@@ -88,7 +88,7 @@ export function TeamEditor({
   const [tenure, setTenure] = useState<number | "">("");
   const [entitlements, setEntitlements] = useState<EntitlementId[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [importIssues, setImportIssues] = useState<PeopleImportIssue[]>([]);
+  const [importIssues, setImportIssues] = useState<ImportIssue[]>([]);
   const [showPaste, setShowPaste] = useState(false);
   const [howMany, setHowMany] = useState(1);
   const [paste, setPaste] = useState("");

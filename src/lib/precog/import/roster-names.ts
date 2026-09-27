@@ -1,5 +1,6 @@
 /** Name-shape checks for a roster: credentials, generations, companies, and "Last, First". */
 
+/** Name parts after a comma that are a credential or generation, not a first name. */
 export const NAME_SUFFIXES = new Set([
   "jr",
   "sr",
@@ -72,8 +73,6 @@ const COMPANY_WORDS = new Set([
   "holdings",
   "services",
 ]);
-
-/** First cell of a report footer row: totals, counts, page numbers, run stamps. */
 
 export function wordKey(value: string): string {
   return value.toLowerCase().replace(/\./g, "").trim();

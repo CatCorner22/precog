@@ -105,7 +105,7 @@ export function SpreadsheetPanel({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => downloadCsv("precog-process-template.csv", processTemplateCsv())}
+          onClick={() => downloadCsv("precog-process-template.csv", processTemplateCsv(tpl))}
         >
           Blank template
         </Button>

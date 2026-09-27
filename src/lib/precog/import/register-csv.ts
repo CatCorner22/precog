@@ -1,3 +1,9 @@
+/**
+ * Continuity register as a spreadsheet: one row per duty/task/know-how item,
+ * one column per active team member holding that person's level
+ * (expert / can do / learning / aware, or blank). This is the same grid the
+ * planner shows, so owners can fill it in Excel and import it back.
+ */
 import type { IndustryTemplate } from "../templates/types";
 import type {
   Criticality,
@@ -8,27 +14,22 @@ import type {
   Person,
 } from "../types";
 import { isCalendarDate, localDateKey } from "../dates";
-import { csvCell, parseRows, normalizeHeader } from "./csv";
-import { slug, nameKey } from "../text";
-
-/**
- * Continuity register as a spreadsheet: one row per duty/task/know-how item,
- * one column per active team member holding that person's level
- * (expert / can do / learning / aware, or blank). This is the same grid the
- * planner shows, so owners can fill it in Excel and import it back.
- */
-
-export interface RegisterImportIssue {
-  row: number;
-  message: string;
-}
+import {
+  csvCell,
+  DOCUMENTED_WORDS,
+  normalizeHeader,
+  parseRows,
+  readYesNo,
+  rowCapMessage,
+  sniffDelimiter,
+  type ImportIssue,
+} from "./csv";
+import { nameKey, slug, stripInvisibleControls, verb } from "../text";
 
 export interface RegisterImportResult {
   knowledge: KnowledgeItem[];
   relations: KnowledgeRelation[];
-  issues: RegisterImportIssue[];
-  /** Column headings that matched nobody on the active team; their levels were skipped. */
-  unknownPeople: string[];
+  issues: ImportIssue[];
 }
 
 const REGISTER_CSV_COLUMNS = [
@@ -112,8 +113,8 @@ const LEVEL_ALIASES: Record<string, KnowledgeLevel> = {
   "1": "aware",
 };
 
-const NONE_TOKENS = new Set(["", "-", "none", "no", "n", "0"]);
-const TRUE_TOKENS = new Set(["true", "yes", "y", "1", "x", "documented", "written"]);
+/** Level cells that mean the person does not hold the item. */
+const NO_LEVEL = new Set(["", "-", "–", "—", "none", "no", "n", "0", "n/a", "na"]);
 
 const LEVEL_CELL: Record<KnowledgeLevel, string> = {
   expert: "expert",
@@ -128,8 +129,8 @@ export function parseRegisterCsv(
   opts: { maxRows?: number; today?: string } = {},
 ): RegisterImportResult {
   const today = opts.today ?? localDateKey(new Date());
-  const rows = parseRows(text);
-  const issues: RegisterImportIssue[] = [];
+  const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
+  const issues: ImportIssue[] = [];
   const header = rows[0] ?? [];
   const columns = new Map<(typeof REGISTER_CSV_COLUMNS)[number], number>();
   for (const key of REGISTER_CSV_COLUMNS) {
@@ -144,7 +145,6 @@ export function parseRegisterCsv(
       knowledge: [],
       relations: [],
       issues: [{ row: 0, message: "Missing an item column (duty, task or know-how name)" }],
-      unknownPeople: [],
     };
   }
 
@@ -159,7 +159,10 @@ export function parseRegisterCsv(
     const person = activePeople.find((p) => nameKey(p.name) === nameKey(heading));
     if (person) {
       if (personColumns.some((c) => c.person.id === person.id)) {
-        issues.push({ row: 0, message: `Duplicate column for ${person.name}` });
+        issues.push({
+          row: 0,
+          message: `Two columns name ${person.name}; the importer read the first`,
+        });
       } else {
         personColumns.push({ index, person });
       }
@@ -170,7 +173,7 @@ export function parseRegisterCsv(
   if (unknownPeople.length) {
     issues.push({
       row: 0,
-      message: `Not on the active team, skipped: ${unknownPeople.join(", ")}`,
+      message: `${verb(unknownPeople.length, "This column names someone", "These columns name people")} not on the active team, so the importer skipped ${verb(unknownPeople.length, "it", "them")}: ${unknownPeople.join(", ")}`,
     });
   }
 
@@ -179,7 +182,7 @@ export function parseRegisterCsv(
   const dataRows = rows.slice(1);
   const rowsToImport = dataRows.slice(0, maxRows);
   if (dataRows.length > maxRows) {
-    issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
+    issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
 
   const existingByName = new Map(tpl.knowledge.map((k) => [nameKey(k.name), k]));
@@ -201,7 +204,10 @@ export function parseRegisterCsv(
     }
     const itemKey = nameKey(name);
     if (seenNames.has(itemKey)) {
-      issues.push({ row: rowNumber, message: `Duplicate item "${name}" skipped` });
+      issues.push({
+        row: rowNumber,
+        message: `"${name}" appears twice; the importer skipped the second row`,
+      });
       return;
     }
     seenNames.add(itemKey);
@@ -226,17 +232,32 @@ export function parseRegisterCsv(
         });
     }
     const documentedValue = cell(cells, "documented");
-    const documented = documentedValue
-      ? TRUE_TOKENS.has(documentedValue.toLowerCase())
-      : Boolean(existing?.documented);
+    let documented = Boolean(existing?.documented);
+    if (documentedValue) {
+      const read = readYesNo(documentedValue, DOCUMENTED_WORDS);
+      if (read === undefined) {
+        issues.push({
+          row: rowNumber,
+          message: `Documented "${documentedValue}" should be yes or no; kept ${documented ? "yes" : "no"}`,
+        });
+      } else documented = read;
+    }
     const procedureLocation = columns.has("procedure location")
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
+    // A blank or unreadable date keeps the confirmation on record; only an
+    // unreadable one is reported.
     const confirmedValue = cell(cells, "last confirmed");
-    const confirmedAt =
-      isCalendarDate(confirmedValue, today) || !columns.has("last confirmed")
-        ? confirmedValue || existing?.confirmedAt
-        : existing?.confirmedAt;
+    let confirmedAt = existing?.confirmedAt;
+    if (isCalendarDate(confirmedValue, today)) confirmedAt = confirmedValue;
+    else if (confirmedValue) {
+      issues.push({
+        row: rowNumber,
+        message: isCalendarDate(confirmedValue)
+          ? `Last confirmed ${confirmedValue} is after today; the date on record was kept`
+          : `Last confirmed "${confirmedValue}" is not a date; write it as YYYY-MM-DD`,
+      });
+    }
     const description = columns.has("description")
       ? cell(cells, "description").slice(0, 500)
       : (existing?.description ?? "");
@@ -262,7 +283,7 @@ export function parseRegisterCsv(
 
     for (const { index: col, person } of personColumns) {
       const raw = (cells[col] ?? "").trim();
-      if (NONE_TOKENS.has(raw.toLowerCase())) continue;
+      if (NO_LEVEL.has(raw.toLowerCase())) continue;
       const level = LEVEL_ALIASES[nameKey(raw)];
       if (!level) {
         issues.push({
@@ -275,7 +296,7 @@ export function parseRegisterCsv(
     }
   });
 
-  return { knowledge, relations, issues, unknownPeople };
+  return { knowledge, relations, issues };
 }
 
 export function registerToCsv(tpl: IndustryTemplate): string {
