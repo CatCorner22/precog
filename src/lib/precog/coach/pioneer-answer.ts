@@ -1,4 +1,5 @@
 import { runGrokAgentLoop, type ModelStatus } from "../llm/agent-loop";
+import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type { AgentRunResult, DecisionLink, EvidenceRef, GrokAccess } from "../llm/types";
 import { invalidRequest } from "@/lib/request-errors";
@@ -92,8 +93,9 @@ export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData
  */
 export async function answerPioneer(
   data: PioneerRequestData,
-  grok: GrokAccess,
+  access: LlmAccess,
 ): Promise<PioneerCoachResult | PioneerCoachError> {
+  const grok = access.grok;
   const question = data.question || DEFAULT_COACH_QUESTION;
   const ctx: ToolContext = { profile: data.profile, question, today: data.today };
 
@@ -101,7 +103,7 @@ export async function answerPioneer(
     const local = localBrief(question, ctx, data.profile);
     const result =
       grok === "allowed"
-        ? await runGrokAgentLoop(local)
+        ? await runGrokAgentLoop(local, access)
         : { ...local, modelStatus: "not-asked" as const };
     const warnings = [...result.brief.chickenLittleWarnings];
     const why = modelWarning(grok, result.modelStatus);

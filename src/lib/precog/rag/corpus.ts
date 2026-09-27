@@ -10,6 +10,8 @@
  */
 
 import type { IndustryId } from "../industry";
+import { DEFAULT_FRAUD_STATS as ACFE } from "../templates/shared-controls";
+import { formatUsd } from "@/lib/utils";
 
 type ChunkBasis =
   | {
@@ -61,7 +63,7 @@ const ACFE_RTTN: ChunkBasis = {
   kind: "cited",
   publisher: "Association of Certified Fraud Examiners",
   document: "Occupational Fraud 2026: A Report to the Nations",
-  url: "https://www.acfe.com/fraud-resources/report-to-the-nations",
+  url: ACFE.sourceUrl,
 };
 const NIST_AI_RMF: ChunkBasis = {
   kind: "cited",
@@ -113,7 +115,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "COSO five components",
     domain: "coso",
     tags: ["coso", "control environment", "monitoring", "risk assessment"],
-    text: "COSO Internal Control — Integrated Framework has five components: Control Environment, Risk Assessment, Control Activities, Information & Communication, and Monitoring Activities. Reasonable assurance means residual risk is reduced to an acceptable level, not eliminated. Small dental practices still own all five components; compensating controls and owner monitoring substitute for full segregation of duties.",
+    text: "COSO Internal Control — Integrated Framework has five components: Control Environment, Risk Assessment, Control Activities, Information & Communication, and Monitoring Activities. Reasonable assurance means residual risk is reduced to an acceptable level, not eliminated. A small business still owns all five components; compensating controls and owner monitoring substitute for full segregation of duties.",
     basis: COSO_ICIF,
   },
   {
@@ -157,7 +159,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Classic segregation of duties",
     domain: "sod",
     tags: ["sod", "custody", "authorization", "recording"],
-    text: "Classic SoD separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person dental office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
+    text: "Classic SoD separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
     basis: practice(
       "Standard segregation-of-duties doctrine as applied to a four-to-eight-person office.",
     ),
@@ -187,7 +189,8 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Detection lag multiplies loss",
     domain: "fraud",
     tags: ["detection", "timeline", "embezzlement", "bank rec"],
-    text: "The ACFE's Occupational Fraud 2026: A Report to the Nations puts the median time from the start of a scheme to its discovery at twelve months. Schemes caught within six months had a median loss of $40,000; those that ran more than five years, more than $1.1 million. Independent bank reconciliation and surprise cash counts are detection controls that shorten that window. Cameras help after the fact but do not replace reconciliation.",
+    // Figures read from the one stats record, so a new edition updates both.
+    text: `The ACFE's ${ACFE_RTTN.document} puts the median time from the start of a scheme to its discovery at ${ACFE.medianDetectionMonths} months. Schemes caught within six months had a median loss of ${formatUsd(ACFE.lossIfCaughtEarlyUsd)}; those that ran more than five years, more than ${formatUsd(ACFE.lossIfRunsLongUsd)}. Independent bank reconciliation and surprise cash counts are detection controls that shorten that window. Cameras help after the fact but do not replace reconciliation.`,
     basis: ACFE_RTTN,
   },
   {
@@ -227,10 +230,10 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
   },
   {
     id: "ai-shadow-ai",
-    title: "Shadow AI and model risk for practices",
+    title: "Shadow AI and model risk for small businesses",
     domain: "ai_governance",
-    tags: ["ai", "shadow ai", "phi", "model risk", "nist"],
-    text: "Small practices adopting AI for notes, coding, or chatbots face model risk, PHI leakage, and shadow AI (uncontrolled tools). NIST's AI Risk Management Framework organizes the response as Govern, Map, Measure, and Manage. In practice for a small business: keep an inventory of AI use cases, never paste PHI into unapproved tools, and require human review for financially relevant outputs such as write-offs and claim-coding overrides.",
+    tags: ["ai", "shadow ai", "private data", "model risk", "nist"],
+    text: "Small businesses adopting AI for notes, bookkeeping, or chatbots face model risk, leaks of private customer data, and shadow AI (uncontrolled tools). NIST's AI Risk Management Framework organizes the response as Govern, Map, Measure, and Manage. In practice for a small business: keep an inventory of AI use cases, never paste private customer data into unapproved tools, and require human review for financially relevant outputs such as write-offs and billing overrides.",
     basis: NIST_AI_RMF,
   },
   {
@@ -448,21 +451,30 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Document control design, execution, and corrective action",
     domain: "coso",
     tags: ["green book", "documentation", "evidence", "deficiency", "corrective action"],
-    text: "The GAO Green Book organizes internal control into five components and 17 principles and emphasizes appropriate documentation. For a small practice, retain who performed and reviewed each key control, the date, exceptions found, evidence inspected, corrective owner, and due date. Escalate deficiencies based on impact and likelihood, and verify corrective actions rather than closing them on assertion alone.",
+    text: "The GAO Green Book organizes internal control into five components and 17 principles and emphasizes appropriate documentation. For a small business, retain who performed and reviewed each key control, the date, exceptions found, evidence inspected, corrective owner, and due date. Escalate deficiencies based on impact and likelihood, and verify corrective actions rather than closing them on assertion alone.",
     basis: GAO_GREEN_BOOK,
   },
   {
     id: "logical-access-leavers",
     title: "Logical access and workforce changes",
     domain: "cybersecurity",
-    tags: ["access", "least privilege", "mfa", "termination", "pms", "banking", "audit log"],
-    text: "Access control should follow least privilege and unique user identity. Avoid shared PMS, accounting, email, and banking credentials; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
+    tags: [
+      "access",
+      "least privilege",
+      "mfa",
+      "termination",
+      "shared login",
+      "banking",
+      "audit log",
+    ],
+    text: "Access control should follow least privilege and unique user identity. Avoid shared logins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
     basis: NIST_CSF,
   },
   {
     id: "hipaa-risk-analysis",
     title: "HIPAA security risk analysis and safeguards",
     domain: "privacy",
+    industry: "dental",
     tags: ["hipaa", "phi", "ephi", "risk analysis", "audit controls", "dental", "security"],
     text: "A dental practice handling electronic protected health information should perform an accurate and thorough risk analysis, implement reasonable and appropriate administrative, physical, and technical safeguards, and revisit the analysis when systems or operations change. Internal-control evidence should include system inventory, access decisions, security incidents, contingency procedures, and audit-control review. This educational summary is not a legal compliance determination.",
     basis: HHS_HIPAA_RISK,
@@ -477,18 +489,18 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
   },
   {
     id: "refund-controls",
-    title: "Patient refunds and credit-balance controls",
-    domain: "dental_ops",
-    tags: ["refund", "credit balance", "patient", "approval", "original payment"],
-    text: "Patient refunds combine cash disbursement and account adjustment risk. Require a documented credit-balance basis, approval independent of preparation, pay back to the original payment method when feasible, prohibit the same person from creating a fictitious credit and releasing the refund, and reconcile the refund register to the ledger and bank activity.",
-    basis: practice("Refund and credit-balance control practice for a small practice."),
+    title: "Refunds and credit-balance controls",
+    domain: "sod",
+    tags: ["refund", "credit balance", "approval", "original payment"],
+    text: "Refunds combine cash disbursement and account adjustment risk. Require a documented credit-balance basis, approval independent of preparation, pay back to the original payment method when feasible, prohibit the same person from creating a fictitious credit and releasing the refund, and reconcile the refund register to the ledger and bank activity.",
+    basis: practice("Refund and credit-balance control practice for a small business."),
   },
   {
     id: "backup-recovery-tests",
     title: "Backups require restoration tests",
     domain: "continuity",
     tags: ["backup", "restore", "ransomware", "continuity", "recovery", "immutable"],
-    text: "A successful backup job is not proof of recoverability. Keep protected or offline copies for critical PMS, imaging, accounting, and configuration data; define recovery priorities and responsible owners; and test restoration on a schedule. Record recovery time, gaps, and remediation. Restrict deletion of backups from ordinary administrator credentials.",
+    text: "A successful backup job is not proof of recoverability. Keep protected or offline copies of the main business system, accounting, and configuration data; define recovery priorities and responsible owners; and test restoration on a schedule. Record recovery time, gaps, and remediation. Restrict deletion of backups from ordinary administrator credentials.",
     basis: NIST_CSF,
   },
   {
@@ -496,7 +508,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Incident response roles and escalation",
     domain: "cybersecurity",
     tags: ["incident response", "ransomware", "breach", "escalation", "communications"],
-    text: "Define who can isolate systems, contact vendors and counsel, preserve evidence, communicate with patients, and authorize recovery before an incident. Maintain an offline contact list, decision thresholds, and a short exercise schedule. After an event, document lessons learned and update risk analysis, safeguards, and continuity plans.",
+    text: "Define who can isolate systems, contact vendors and counsel, preserve evidence, communicate with customers or clients, and authorize recovery before an incident. Maintain an offline contact list, decision thresholds, and a short exercise schedule. After an event, document lessons learned and update risk analysis, safeguards, and continuity plans.",
     basis: NIST_CSF,
   },
   {
@@ -509,10 +521,17 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
   },
   {
     id: "system-change-management",
-    title: "Control changes to financial and clinical systems",
+    title: "Control changes to financial and operating systems",
     domain: "cybersecurity",
-    tags: ["change management", "configuration", "pms", "accounting", "testing", "rollback"],
-    text: "Changes to PMS, accounting, payment, interface, and security configurations can alter control behavior. Record the request and business reason, require appropriate approval, test high-risk changes away from production when feasible, preserve prior configuration or a rollback path, restrict production change access, and review emergency changes after implementation.",
+    tags: [
+      "change management",
+      "configuration",
+      "business system",
+      "accounting",
+      "testing",
+      "rollback",
+    ],
+    text: "Changes to the main business system, accounting, payment, interface, and security configurations can alter control behavior. Record the request and business reason, require appropriate approval, test high-risk changes away from production when feasible, preserve prior configuration or a rollback path, restrict production change access, and review emergency changes after implementation.",
     basis: NIST_CSF,
   },
   {

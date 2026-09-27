@@ -1,19 +1,5 @@
 import type { IndustryId } from "../industry";
 
-export function bandReadiness(n: number): "high" | "solid" | "partial" | "fragile" {
-  if (n >= 80) return "high";
-  if (n >= 60) return "solid";
-  if (n >= 40) return "partial";
-  return "fragile";
-}
-
-export function bandConfidence(n: number): "high" | "good" | "moderate" | "low" {
-  if (n >= 78) return "high";
-  if (n >= 60) return "good";
-  if (n >= 42) return "moderate";
-  return "low";
-}
-
 /** The words the inventory uses for this line of business. Wording only: no item is added or dropped. */
 export interface InventoryWords {
   /** The system of record: "PMS", "POS", "billing system". */
@@ -41,7 +27,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
   dental: {
     system: "PMS",
     payer: "patient",
-    pair: "front desk + OM",
+    pair: "front desk + office manager",
     partners: "Lab / DSO / clearinghouse",
     partnerFraud: "inflated lab bills, claim re-routing",
     partnerCheck: "Reconcile lab invoices to cases completed for 30 days",

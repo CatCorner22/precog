@@ -10,17 +10,24 @@ import {
 } from "./pioneer-answer";
 import { localBrief } from "./local-brief";
 import { pioneerProfileFrom } from "./pioneer-profile";
+import type { LlmAccess } from "../llm/guard.server";
 
 vi.mock("./pioneer-profile", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./pioneer-profile")>();
   return { ...actual, pioneerProfileFrom: vi.fn(actual.pioneerProfileFrom) };
 });
+// The daily model budget lives in the database; these tests are about the brief.
+vi.mock("../llm/daily-usage", () => ({ withinDailyBudget: async () => true }));
 vi.mock("./local-brief", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./local-brief")>();
   return { ...actual, localBrief: vi.fn(actual.localBrief) };
 });
 
 const TODAY = utcDateKey(new Date());
+
+function access(grok: LlmAccess["grok"]): LlmAccess {
+  return { userId: grok === "unauthenticated" ? null : "owner-1", grok };
+}
 
 function request(question = ""): PioneerRequestData {
   return readPioneerRequest({
@@ -64,7 +71,7 @@ describe("answerPioneer", () => {
   });
 
   it("answers the default question when none is sent, with the rules brief and no model", async () => {
-    const res = await answerPioneer(request(""), "no_api_key");
+    const res = await answerPioneer(request(""), access("no_api_key"));
     if (!res.ok) throw new Error(res.error);
     expect(res.source).toBe("local-agent");
     expect(res.modelStatus).toBe("not-asked");
@@ -77,7 +84,10 @@ describe("answerPioneer", () => {
   });
 
   it("tells a signed-out caller that signing in gets the Grok-written brief", async () => {
-    const res = await answerPioneer(request("What should I fix this week?"), "unauthenticated");
+    const res = await answerPioneer(
+      request("What should I fix this week?"),
+      access("unauthenticated"),
+    );
     if (!res.ok) throw new Error(res.error);
     expect(res.warnings.at(-1)).toMatch(/^Sign in to have Grok write the brief/);
   });
@@ -86,7 +96,7 @@ describe("answerPioneer", () => {
     vi.stubEnv("XAI_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("no", { status: 401 })));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const res = await answerPioneer(request("What should I fix this week?"), "allowed");
+    const res = await answerPioneer(request("What should I fix this week?"), access("allowed"));
     if (!res.ok) throw new Error(res.error);
     expect(res.modelStatus).toBe("failed");
     expect(res.warnings).toContain(MODEL_FAILED_WARNING);
@@ -97,7 +107,7 @@ describe("answerPioneer", () => {
     vi.mocked(localBrief).mockImplementationOnce(() => {
       throw new Error("boom");
     });
-    await expect(answerPioneer(request("x"), "no_api_key")).resolves.toEqual({
+    await expect(answerPioneer(request("x"), access("no_api_key"))).resolves.toEqual({
       ok: false,
       error: PIONEER_FAILED_MESSAGE,
     });

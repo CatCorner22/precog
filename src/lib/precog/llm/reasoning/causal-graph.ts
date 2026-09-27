@@ -1,7 +1,8 @@
 /**
- * Multi-hop causal scoring over practice risk graph.
- * Nodes: controls, insurance terms, residual categories, outcomes.
- * Edges carry signed influence weights for path amplification.
+ * Multi-hop causal paths over this app's risk graph: controls and insurance
+ * terms at the roots, the owner's decision at the end. Edge weights are this
+ * app's, and one sign convention holds throughout: a positive weight means
+ * "more of the source means more exposure or more pressure to act".
  */
 
 export type CausalNodeId =
@@ -21,18 +22,62 @@ export type CausalNodeId =
   | "timeline_p50"
   | "owner_decision";
 
+export interface CausalPath {
+  /** Product of the edge weights along the path. */
+  score: number;
+  narrative: string;
+}
+
 interface CausalEdge {
   from: CausalNodeId;
   to: CausalNodeId;
-  weight: number; // signed influence magnitude
+  /** Signed influence; see the file header for the sign convention. */
+  weight: number;
   label: string;
 }
 
-export interface CausalPath {
-  nodes: CausalNodeId[];
-  edges: CausalEdge[];
-  score: number;
-  narrative: string;
+/** For each intervention: its strongest paths to the owner's decision and their signed sum. */
+export function summarizeCausalInfluence<T extends CausalNodeId>(
+  interventions: T[],
+): { intervention: T; topPaths: CausalPath[]; netToDecision: number }[] {
+  return interventions.map((intervention) => {
+    const topPaths = findCausalPaths(intervention, "owner_decision", 4, 5);
+    const netToDecision = topPaths.reduce((s, p) => s + p.score, 0);
+    return { intervention, topPaths, netToDecision };
+  });
+}
+
+/**
+ * Every path from start to goal of at most maxEdges edges, strongest first
+ * (by the magnitude of the product of edge weights), cut to maxPaths.
+ */
+function findCausalPaths(
+  start: CausalNodeId,
+  goal: CausalNodeId,
+  maxEdges: number,
+  maxPaths: number,
+): CausalPath[] {
+  const paths: CausalPath[] = [];
+
+  function dfs(node: CausalNodeId, trail: CausalNodeId[], edges: CausalEdge[], score: number) {
+    if (node === goal && edges.length > 0) {
+      const narrative = edges.map((e) => `${e.from}→${e.to} (${e.label})`).join("; ");
+      paths.push({ score, narrative });
+      return;
+    }
+    if (edges.length >= maxEdges) return;
+    for (const e of neighbors(node)) {
+      if (trail.includes(e.to)) continue;
+      dfs(e.to, [...trail, e.to], [...edges, e], score * e.weight);
+    }
+  }
+
+  dfs(start, [start], [], 1);
+  return paths.sort((a, b) => Math.abs(b.score) - Math.abs(a.score)).slice(0, maxPaths);
+}
+
+function neighbors(from: CausalNodeId): CausalEdge[] {
+  return CAUSAL_EDGES.filter((e) => e.from === from);
 }
 
 const CAUSAL_EDGES: CausalEdge[] = [
@@ -54,8 +99,8 @@ const CAUSAL_EDGES: CausalEdge[] = [
   {
     from: "detection_lag",
     to: "timeline_p50",
-    weight: -0.5,
-    label: "faster detection stretches p50",
+    weight: 0.5,
+    label: "longer lag stretches the days until found",
   },
   {
     from: "deductible",
@@ -80,49 +125,3 @@ const CAUSAL_EDGES: CausalEdge[] = [
   { from: "annual_cor", to: "owner_decision", weight: 0.85, label: "CoR prices the decision" },
   { from: "timeline_p50", to: "owner_decision", weight: 0.35, label: "urgency signal" },
 ];
-
-function neighbors(from: CausalNodeId): CausalEdge[] {
-  return CAUSAL_EDGES.filter((e) => e.from === from);
-}
-
-/** DFS paths up to maxDepth; score = product of |weights| with sign of product. */
-function findCausalPaths(
-  start: CausalNodeId,
-  goal: CausalNodeId,
-  maxDepth = 4,
-  maxPaths = 8,
-): CausalPath[] {
-  const paths: CausalPath[] = [];
-
-  function dfs(node: CausalNodeId, trail: CausalNodeId[], edges: CausalEdge[], score: number) {
-    if (paths.length >= maxPaths) return;
-    if (trail.length > maxDepth) return;
-    if (node === goal && trail.length > 1) {
-      const narrative = edges.map((e) => `${e.from}→${e.to} (${e.label})`).join("; ");
-      paths.push({
-        nodes: [...trail],
-        edges: [...edges],
-        score,
-        narrative,
-      });
-      return;
-    }
-    for (const e of neighbors(node)) {
-      if (trail.includes(e.to)) continue;
-      dfs(e.to, [...trail, e.to], [...edges, e], score * e.weight);
-    }
-  }
-
-  dfs(start, [start], [], 1);
-  return paths.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
-}
-
-export function summarizeCausalInfluence(
-  interventions: CausalNodeId[],
-): { intervention: CausalNodeId; topPaths: CausalPath[]; netToDecision: number }[] {
-  return interventions.map((intervention) => {
-    const topPaths = findCausalPaths(intervention, "owner_decision", 4, 5);
-    const netToDecision = topPaths.reduce((s, p) => s + p.score, 0);
-    return { intervention, topPaths, netToDecision };
-  });
-}

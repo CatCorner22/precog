@@ -1,148 +1,105 @@
 /**
- * Twin-world counterfactuals: factual world vs intervention world.
- * Measures PEHE-style difference on residual, CoR, Bayesian EAL.
+ * One lever at a time: the business as it is against the same business with a
+ * single lever switched on, on the two figures the product shows (the residual
+ * index and the top scenario's annual cost of risk).
  */
 import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { simulateCascadeLever, type CascadeLeverId } from "../../scoring/variable-cascade";
-import { initBayesianState, updateBayesianWithLever, type BayesianState } from "./bayesian";
 import type { IndustryTemplate } from "../../templates";
-import { DEFAULT_FRAUD_STATS } from "../../templates/shared-controls";
 import { portfolioSummary } from "../../scoring/residual-engine";
-import { scoreLeadingIndicators } from "../../ml/leading-indicators";
 import { runPrecogScenario } from "../../engine";
-import { rankDangerousScenarios } from "../../engine";
-
-interface TwinWorld {
-  label: string;
-  residual: number;
-  annualCor: number;
-  retained: number;
-  likelihood: number;
-  bayesEal: number;
-  bayesPFail: number;
-  bayesPFailCi: { low: number; high: number };
-}
 
 export interface CounterfactualResult {
-  factual: TwinWorld;
+  /** Improving levers first, by residual drop and then cost-of-risk drop. */
   counterfactuals: {
     leverId: CascadeLeverId;
     label: string;
-    world: TwinWorld;
-    delta: {
-      residual: number;
-      annualCor: number;
-      retained: number;
-      bayesEal: number;
-      bayesPFail: number;
-    };
+    delta: { residual: number; annualCor: number };
     wouldImprove: boolean;
     narrative: string;
   }[];
+  /** The lever that lowers the residual index most, or NO_IMPROVEMENT. */
   bestIntervention: string;
-  method: string;
 }
 
-function worldFrom(
-  tpl: IndustryTemplate,
-  label: string,
-  staff: StaffComposition,
-  vars: RiskVariableState,
-  bayes: BayesianState,
-): TwinWorld {
-  const portfolio = portfolioSummary(tpl, staff);
-  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: vars });
-  const top = ranked[0];
-  const result = top
-    ? runPrecogScenario(tpl, top.scenario.id, { staff, riskVariables: vars })
-    : null;
-  return {
-    label,
-    residual: portfolio.averageResidual,
-    annualCor: result?.dynamic?.expectedAnnualCostOfRisk ?? bayes.expectedAnnualLoss,
-    retained: result?.retainedImpact.expected ?? 0,
-    likelihood: result?.dynamic?.likelihoodMultiplier ?? 1,
-    bayesEal: bayes.expectedAnnualLoss,
-    bayesPFail: bayes.failureProbability.mean,
-    bayesPFailCi: bayes.failureProbability.ci95,
-  };
+/** The starting point every lever is compared against. */
+export interface ReasoningBaseline {
+  residual: number;
+  /** The scenario whose cost of risk is compared; the most dangerous one as the business stands. */
+  topScenarioId: string | null;
 }
+
+export const NO_IMPROVEMENT = "None of these levers improves on the current setup";
+
+/** A residual drop smaller than this (in index points) does not count as an improvement. */
+const RESIDUAL_STEP = 1;
+/** A cost-of-risk drop smaller than this (in dollars a year) does not count as an improvement. */
+const COR_STEP = 50;
+
+const DEFAULT_LEVERS: CascadeLeverId[] = [
+  "enable_dual_control",
+  "enable_independent_bank_rec",
+  "enable_cameras",
+  "add_cameras_discount_stack",
+  "raise_deductible_10k",
+  "lower_deductible_1k",
+];
 
 export function runCounterfactuals(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   vars: RiskVariableState,
-  leverIds: CascadeLeverId[] = [
-    "enable_dual_control",
-    "enable_independent_bank_rec",
-    "enable_cameras",
-    "add_cameras_discount_stack",
-    "raise_deductible_10k",
-    "lower_deductible_1k",
-  ],
+  baseline: ReasoningBaseline,
+  leverIds: CascadeLeverId[] = DEFAULT_LEVERS,
 ): CounterfactualResult {
-  const leading = scoreLeadingIndicators(tpl, staff, vars);
-  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: vars });
-  const topResult = ranked[0]
-    ? runPrecogScenario(tpl, ranked[0].scenario.id, { staff, riskVariables: vars })
-    : null;
-
-  const baseBayes = initBayesianState({
-    assumedPrior: DEFAULT_FRAUD_STATS.assumedControlFailurePrior,
-    retainedExpected: topResult?.retainedImpact.expected ?? 25000,
-    residualAverage: portfolioSummary(tpl, staff).averageResidual,
-    leadingPressure: leading.pressureIndex,
-    dualControl: staff.dualControlPayments,
-    independentBankRec: staff.independentBankRec,
-  });
-
-  const factual = worldFrom(tpl, "Factual (as-is)", staff, vars, baseBayes);
+  const factualCor = annualCostOfRisk(tpl, baseline.topScenarioId, staff, vars);
 
   const counterfactuals = leverIds.map((leverId) => {
     const sim = simulateCascadeLever(tpl, leverId, vars, staff);
-    const likelihoodDrop = Math.max(0, factual.likelihood - sim.after.likelihoodMultiplier);
-    const severityDrop = Math.max(
-      0,
-      1 - sim.after.retainedExpected / Math.max(1, sim.before.retainedExpected),
-    );
-    const bayes = updateBayesianWithLever(baseBayes, {
-      likelihoodDrop,
-      severityDrop: Math.min(0.5, severityDrop),
-      label: sim.lever.label,
-    });
-    const world = worldFrom(tpl, sim.lever.label, sim.staffAfter, sim.variablesAfter, bayes);
     const delta = {
-      residual: world.residual - factual.residual,
-      annualCor: world.annualCor - factual.annualCor,
-      retained: world.retained - factual.retained,
-      bayesEal: world.bayesEal - factual.bayesEal,
-      bayesPFail: world.bayesPFail - factual.bayesPFail,
+      residual: portfolioSummary(tpl, sim.staffAfter).averageResidual - baseline.residual,
+      annualCor:
+        annualCostOfRisk(tpl, baseline.topScenarioId, sim.staffAfter, sim.variablesAfter) -
+        factualCor,
     };
-    const wouldImprove = delta.residual < -0.5 || delta.annualCor < -50 || delta.bayesEal < -50;
-    const narrative = wouldImprove
-      ? `Switching on "${sim.lever.label}" lowers the residual index by about ${Math.abs(Math.round(delta.residual))} points and lowers the cost-of-risk figure.`
-      : `"${sim.lever.label}" does not clearly improve on the current setup.`;
-
+    const residualDrop = Math.round(-delta.residual);
+    const lowersResidual = residualDrop >= RESIDUAL_STEP;
+    const lowersCor = delta.annualCor <= -COR_STEP;
+    const effects = [
+      lowersResidual ? `lowers the residual index by about ${residualDrop} points` : "",
+      lowersCor ? "lowers the cost-of-risk figure" : "",
+    ].filter(Boolean);
     return {
       leverId,
       label: sim.lever.label,
-      world,
       delta,
-      wouldImprove,
-      narrative,
+      wouldImprove: effects.length > 0,
+      narrative: effects.length
+        ? `Switching on "${sim.lever.label}" ${effects.join(" and ")}.`
+        : `"${sim.lever.label}" does not clearly improve on the current setup.`,
     };
   });
 
   counterfactuals.sort(
     (a, b) =>
-      a.delta.bayesEal + a.delta.annualCor * 0.5 - (b.delta.bayesEal + b.delta.annualCor * 0.5),
+      Number(b.wouldImprove) - Number(a.wouldImprove) ||
+      a.delta.residual - b.delta.residual ||
+      a.delta.annualCor - b.delta.annualCor,
   );
 
-  return {
-    factual,
-    counterfactuals,
-    bestIntervention: counterfactuals[0]?.label ?? "none",
-    method: "twin-world counterfactuals + Bayesian EAL (educational)",
-  };
+  const best = counterfactuals.find((c) => c.wouldImprove);
+  return { counterfactuals, bestIntervention: best?.label ?? NO_IMPROVEMENT };
+}
+
+/** The annual cost of risk of one scenario for a given team and settings; 0 when none is in scope. */
+function annualCostOfRisk(
+  tpl: IndustryTemplate,
+  scenarioId: string | null,
+  staff: StaffComposition,
+  vars: RiskVariableState,
+): number {
+  if (!scenarioId) return 0;
+  const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: vars });
+  return result?.dynamic?.expectedAnnualCostOfRisk ?? 0;
 }

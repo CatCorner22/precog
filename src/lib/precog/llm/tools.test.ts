@@ -1,24 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getIndustryTemplate } from "../templates";
-import { executeTool, planTools } from "./tools";
+import { executeTool, planTools, TOOL_CATALOG } from "./tools";
+import { INDUSTRIES } from "../industry";
+import { getIndustryCopy } from "../templates/industry-copy";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
+import { citingCaseStats } from "../evidence";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { formatUsd } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
 
 describe("get_knowledge_spofs freshness", () => {
   it("does not flag freshness before a custom register exists", () => {
-    const result = executeTool(
-      "get_knowledge_spofs",
-      {},
-      {
-        profile: pioneerProfileFrom({ industry: "dental" }),
-      },
-    );
+    const result = executeTool("get_knowledge_spofs", {
+      profile: pioneerProfileFrom({ industry: "dental" }),
+    });
     const rows = result.data as { stale: boolean }[];
 
     expect(rows.every((row) => row.stale === false)).toBe(true);
@@ -26,17 +27,13 @@ describe("get_knowledge_spofs freshness", () => {
   });
 
   it("flags unconfirmed entries in a custom register", () => {
-    const result = executeTool(
-      "get_knowledge_spofs",
-      {},
-      {
-        profile: pioneerProfileFrom({
-          industry: "dental",
-          customKnowledge: dental.knowledge.map(({ confirmedAt: _confirmedAt, ...item }) => item),
-          customRelations: dental.relations,
-        }),
-      },
-    );
+    const result = executeTool("get_knowledge_spofs", {
+      profile: pioneerProfileFrom({
+        industry: "dental",
+        customKnowledge: dental.knowledge.map(({ confirmedAt: _confirmedAt, ...item }) => item),
+        customRelations: dental.relations,
+      }),
+    });
     const rows = result.data as { stale: boolean }[];
 
     expect(rows.some((row) => row.stale)).toBe(true);
@@ -51,8 +48,8 @@ describe("get_knowledge_spofs freshness", () => {
       customRelations: dental.relations,
     });
 
-    const serverDay = executeTool("get_knowledge_spofs", {}, { profile });
-    const ownerDay = executeTool("get_knowledge_spofs", {}, { profile, today: ownerToday });
+    const serverDay = executeTool("get_knowledge_spofs", { profile });
+    const ownerDay = executeTool("get_knowledge_spofs", { profile, today: ownerToday });
 
     expect((serverDay.data as { stale: boolean }[]).some((row) => row.stale)).toBe(true);
     expect((ownerDay.data as { stale: boolean }[]).every((row) => !row.stale)).toBe(true);
@@ -62,32 +59,26 @@ describe("get_knowledge_spofs freshness", () => {
 
 describe("get_register_checkins", () => {
   it("is inert until the owner enters their own register", () => {
-    const result = executeTool(
-      "get_register_checkins",
-      {},
-      { profile: pioneerProfileFrom({ industry: "dental" }) },
-    );
+    const result = executeTool("get_register_checkins", {
+      profile: pioneerProfileFrom({ industry: "dental" }),
+    });
     expect(result.data).toEqual({ checkIns: [], unheld: [], tracked: false });
   });
 
   it("groups stale entries by the person to sit down with, and lists unheld ones", () => {
     const [held, orphan] = dental.knowledge;
     const holder = dental.people.find((p) => p.active)!;
-    const result = executeTool(
-      "get_register_checkins",
-      {},
-      {
-        profile: pioneerProfileFrom({
-          industry: "dental",
-          customKnowledge: [
-            { ...held, confirmedAt: undefined },
-            { ...orphan, confirmedAt: undefined },
-          ],
-          customRelations: [{ personId: holder.id, knowledgeId: held.id, level: "expert" }],
-        }),
-        today: "2026-01-01",
-      },
-    );
+    const result = executeTool("get_register_checkins", {
+      profile: pioneerProfileFrom({
+        industry: "dental",
+        customKnowledge: [
+          { ...held, confirmedAt: undefined },
+          { ...orphan, confirmedAt: undefined },
+        ],
+        customRelations: [{ personId: holder.id, knowledgeId: held.id, level: "expert" }],
+      }),
+      today: "2026-01-01",
+    });
     const data = result.data as {
       tracked: boolean;
       checkIns: { person: { name: string }; soleCount: number; items: { name: string }[] }[];
@@ -139,11 +130,10 @@ describe("get_knowledge_spofs journal commitments", () => {
   };
 
   it("carries an open cross-training decision on the row it belongs to", () => {
-    const result = executeTool(
-      "get_knowledge_spofs",
-      {},
-      { profile: profileWith([commitment]), today: "2025-04-01" },
-    );
+    const result = executeTool("get_knowledge_spofs", {
+      profile: profileWith([commitment]),
+      today: "2025-04-01",
+    });
     const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
     expect(row?.committed).toEqual({
       subject: commitment.subject,
@@ -158,28 +148,23 @@ describe("get_knowledge_spofs journal commitments", () => {
   });
 
   it("flags the commitment as past its review date on the owner's day", () => {
-    const result = executeTool(
-      "get_knowledge_spofs",
-      {},
-      { profile: profileWith([commitment]), today: "2025-05-02" },
-    );
+    const result = executeTool("get_knowledge_spofs", {
+      profile: profileWith([commitment]),
+      today: "2025-05-02",
+    });
     const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
     expect(row?.committed?.overdue).toBe(true);
     expect(result.summary).toContain("(1 past review date)");
   });
 
   it("reports nothing committed for closed decisions or other steps", () => {
-    const result = executeTool(
-      "get_knowledge_spofs",
-      {},
-      {
-        profile: profileWith([
-          { ...commitment, status: "closed" },
-          { ...commitment, id: "doc", linkedStep: "document" },
-        ]),
-        today: "2025-04-01",
-      },
-    );
+    const result = executeTool("get_knowledge_spofs", {
+      profile: profileWith([
+        { ...commitment, status: "closed" },
+        { ...commitment, id: "doc", linkedStep: "document" },
+      ]),
+      today: "2025-04-01",
+    });
     const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
     expect(row?.committed).toBeNull();
     expect(row?.documentationCommitted).toMatchObject({ step: "document" });
@@ -283,11 +268,10 @@ describe("get_planned_absences", () => {
     });
 
   it("returns leave within 30 days with stops, stand-ins, overlaps and who is left", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      { profile: profileWith({}), today: "2025-04-01" },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({}),
+      today: "2025-04-01",
+    });
     const data = result.data as Leave;
     expect(data.windows.map((w) => w.person.id)).toEqual([holder.id, backup.id]);
     expect(data.later).toBe(1);
@@ -311,30 +295,26 @@ describe("get_planned_absences", () => {
   });
 
   it("marks a hand-off already logged in the Journal", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: profileWith({
-          decisions: [
-            {
-              id: "h-1",
-              createdAt: "2025-04-01T09:00:00.000Z",
-              subject: item.name,
-              kind: "remediate",
-              note: "",
-              reviewBy: "2025-04-12",
-              linkedTab: "knowledge",
-              linkedId: item.id,
-              linkedIndustry: "dental",
-              linkedStep: "handoff",
-              status: "open",
-            },
-          ],
-        }),
-        today: "2025-04-01",
-      },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({
+        decisions: [
+          {
+            id: "h-1",
+            createdAt: "2025-04-01T09:00:00.000Z",
+            subject: item.name,
+            kind: "remediate",
+            note: "",
+            reviewBy: "2025-04-12",
+            linkedTab: "knowledge",
+            linkedId: item.id,
+            linkedIndustry: "dental",
+            linkedStep: "handoff",
+            status: "open",
+          },
+        ],
+      }),
+      today: "2025-04-01",
+    });
     const data = result.data as Leave;
     expect(data.windows[0].stops[0].handoffCommitted).toMatchObject({
       reviewBy: "2025-04-12",
@@ -343,36 +323,31 @@ describe("get_planned_absences", () => {
   });
 
   it("reports no leave when the register has none", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      { profile: profileWith({ plannedAbsences: [] }), today: "2025-04-01" },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({ plannedAbsences: [] }),
+      today: "2025-04-01",
+    });
     expect(result.summary).toBe("Nobody on the register is out or has leave booked");
     expect((result.data as Leave).windows).toEqual([]);
     expect((result.data as Leave).debriefs).toEqual([]);
   });
 
   it("flags an absence recorded on the day as unplanned and words it as unexpected", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: profileWith({
-          plannedAbsences: [
-            {
-              id: "sick",
-              personId: holder.id,
-              industry: "dental",
-              from: "2025-04-01",
-              to: "2025-04-01",
-              unplanned: true,
-            },
-          ],
-        }),
-        today: "2025-04-01",
-      },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({
+        plannedAbsences: [
+          {
+            id: "sick",
+            personId: holder.id,
+            industry: "dental",
+            from: "2025-04-01",
+            to: "2025-04-01",
+            unplanned: true,
+          },
+        ],
+      }),
+      today: "2025-04-01",
+    });
     const [w] = (result.data as Leave).windows;
     expect(w).toMatchObject({ unplanned: true, status: "current", daysUntil: 0 });
     expect(result.summary).toContain(
@@ -381,11 +356,10 @@ describe("get_planned_absences", () => {
   });
 
   it("lists leave that just ended as a debrief with the stand-in to promote", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      { profile: profileWith({}), today: "2025-04-22" },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({}),
+      today: "2025-04-22",
+    });
     const data = result.data as Leave;
     expect(data.debriefs.map((d) => d.absenceId)).toEqual(["abs-1"]);
     const [d] = data.debriefs;
@@ -406,53 +380,45 @@ describe("get_planned_absences", () => {
 
   it("drops a debrief the owner has already answered", () => {
     const profile = profileWith({});
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: {
-          ...profile,
-          plannedAbsences: (profile.plannedAbsences ?? []).map((a) =>
-            a.id === "abs-1" ? { ...a, debriefedAt: "2025-04-21" } : a,
-          ),
-        },
-        today: "2025-04-22",
+    const result = executeTool("get_planned_absences", {
+      profile: {
+        ...profile,
+        plannedAbsences: (profile.plannedAbsences ?? []).map((a) =>
+          a.id === "abs-1" ? { ...a, debriefedAt: "2025-04-21" } : a,
+        ),
       },
-    );
+      today: "2025-04-22",
+    });
     expect((result.data as Leave).debriefs).toEqual([]);
     expect(result.summary).not.toContain("Debrief due");
   });
 
   it("exposes who has given notice with the hand-over they owe before their last day", () => {
-    const result = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: profileWith({
-          plannedAbsences: [],
-          customPeople: dental.people.map((p) =>
-            p.id === holder.id ? { ...p, lastDay: "2025-04-30" } : p,
-          ),
-          decisions: [
-            {
-              id: "t-1",
-              createdAt: "2025-04-01T09:00:00.000Z",
-              subject: item.name,
-              kind: "remediate",
-              note: "",
-              reviewBy: "2025-04-25",
-              linkedTab: "knowledge",
-              linkedId: item.id,
-              linkedIndustry: "dental",
-              linkedStep: "cover",
-              linkedPersonId: backup.id,
-              status: "open",
-            },
-          ],
-        }),
-        today: "2025-04-01",
-      },
-    );
+    const result = executeTool("get_planned_absences", {
+      profile: profileWith({
+        plannedAbsences: [],
+        customPeople: dental.people.map((p) =>
+          p.id === holder.id ? { ...p, lastDay: "2025-04-30" } : p,
+        ),
+        decisions: [
+          {
+            id: "t-1",
+            createdAt: "2025-04-01T09:00:00.000Z",
+            subject: item.name,
+            kind: "remediate",
+            note: "",
+            reviewBy: "2025-04-25",
+            linkedTab: "knowledge",
+            linkedId: item.id,
+            linkedIndustry: "dental",
+            linkedStep: "cover",
+            linkedPersonId: backup.id,
+            status: "open",
+          },
+        ],
+      }),
+      today: "2025-04-01",
+    });
     const data = result.data as Leave;
     expect(data.windows).toEqual([]);
     expect(data.leavers).toHaveLength(1);
@@ -479,36 +445,28 @@ describe("get_planned_absences", () => {
   });
 
   it("flags someone past their last day who still counts as cover, and drops them once marked left", () => {
-    const gone = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: profileWith({
-          plannedAbsences: [],
-          customPeople: dental.people.map((p) =>
-            p.id === holder.id ? { ...p, lastDay: "2025-04-10" } : p,
-          ),
-        }),
-        today: "2025-04-14",
-      },
-    );
+    const gone = executeTool("get_planned_absences", {
+      profile: profileWith({
+        plannedAbsences: [],
+        customPeople: dental.people.map((p) =>
+          p.id === holder.id ? { ...p, lastDay: "2025-04-10" } : p,
+        ),
+      }),
+      today: "2025-04-14",
+    });
     const [l] = (gone.data as Leave).leavers;
     expect(l).toMatchObject({ status: "gone", daysLeft: -4, handoverBy: "2025-04-14" });
     expect(l.summary).toContain(`mark ${firstName(holder.name)} as left`);
 
-    const left = executeTool(
-      "get_planned_absences",
-      {},
-      {
-        profile: profileWith({
-          plannedAbsences: [],
-          customPeople: dental.people.map((p) =>
-            p.id === holder.id ? { ...p, lastDay: "2025-04-10", active: false } : p,
-          ),
-        }),
-        today: "2025-04-14",
-      },
-    );
+    const left = executeTool("get_planned_absences", {
+      profile: profileWith({
+        plannedAbsences: [],
+        customPeople: dental.people.map((p) =>
+          p.id === holder.id ? { ...p, lastDay: "2025-04-10", active: false } : p,
+        ),
+      }),
+      today: "2025-04-14",
+    });
     expect((left.data as Leave).leavers).toEqual([]);
     expect(left.summary).not.toContain("Leaving:");
   });
@@ -525,7 +483,7 @@ describe("get_process_records", () => {
           ? { ...p, cadence: "annual", documented: true }
           : { ...p, cadence: "daily" },
     );
-    const r = executeTool("get_process_records", {}, { profile });
+    const r = executeTool("get_process_records", { profile });
     expect(r.ok).toBe(true);
     const data = r.data as {
       documentedIndex: number;
@@ -559,7 +517,7 @@ describe("get_process_records on a map that is not assessed", () => {
         { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
       ]),
     });
-    const r = executeTool("get_process_records", {}, { profile });
+    const r = executeTool("get_process_records", { profile });
     expect(r.ok).toBe(true);
     const data = r.data as { assessed: boolean; processes: { name: string; owners: string[] }[] };
     expect(data.assessed).toBe(false);
@@ -576,17 +534,75 @@ describe("get_process_records on a map that is not assessed", () => {
       practiceName: "Ruiz Dental",
       people: buildOwnTeam([{ name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] }]),
     });
-    const r = executeTool(
-      "get_process_records",
-      {},
-      { profile: { ...profile, customProcesses: [] } },
-    );
+    const r = executeTool("get_process_records", { profile: { ...profile, customProcesses: [] } });
     expect(r.summary).toMatch(/^The process map is not assessed: it is empty/);
   });
 
   it("reports the sample business's records as before", () => {
-    const r = executeTool("get_process_records", {}, { profile: defaultProfile() });
+    const r = executeTool("get_process_records", { profile: defaultProfile() });
     expect((r.data as { assessed?: boolean }).assessed).toBeUndefined();
     expect(r.summary).toMatch(/written, findable procedure/);
+  });
+});
+
+describe("get_case_evidence", () => {
+  for (const industry of ["dental", "retail", "nonprofit"] as const) {
+    it(`states the same case count and median as Start here (${industry})`, () => {
+      const profile = defaultProfile(industry);
+      const tpl = resolveTemplate(profile);
+      const sod = detectSodConflicts(
+        tpl,
+        profile.staff,
+        sodDetectionOptions(tpl, profile.dualRelease),
+      );
+      // Start here's rule set: open, not accepted, not held by the owner.
+      const startHereRules = [
+        ...new Set(
+          sod.conflicts.filter((c) => !c.residualRiskAccepted && !c.ownerHeld).map((c) => c.ruleId),
+        ),
+      ];
+      const startHere = citingCaseStats(startHereRules);
+      const result = executeTool("get_case_evidence", { profile });
+      expect(startHere.count).toBeGreaterThan(0);
+      expect(result.summary).toBe(
+        `${startHere.count} prosecuted case(s) show the open duty conflicts; median stated loss ${formatUsd(startHere.loss!.median)}`,
+      );
+      expect((result.data as { matchingCases: number }).matchingCases).toBe(startHere.count);
+    });
+  }
+});
+
+describe("executeTool when a tool throws", () => {
+  it("reports a fixed sentence, never the internal error text", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const broken = { ...defaultProfile("dental"), staff: undefined } as unknown as PracticeProfile;
+    const result = executeTool("get_practice_snapshot", { profile: broken });
+    expect(result.ok).toBe(false);
+    expect(result.summary).toBe("This tool could not run for this business.");
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+});
+
+describe("planTools", () => {
+  it("plans the duty conflicts for every built-in question, whatever its words", () => {
+    for (const { id } of INDUSTRIES) {
+      for (const prompt of getIndustryCopy(id).pioneerPrompts) {
+        expect(planTools(prompt), `${id}: ${prompt}`).toContain("get_sod_conflicts");
+      }
+    }
+    expect(planTools("Give me a plain-English board brief on residual risk.")).toContain(
+      "get_sod_conflicts",
+    );
+  });
+
+  it("only plans tools the registry can run, and the catalog lists each tool once", () => {
+    const names = TOOL_CATALOG.map((t) => t.name);
+    expect(new Set(names).size).toBe(names.length);
+    for (const tool of planTools(
+      "which processes stop if Maya is out sick, and the fraud scenario",
+    )) {
+      expect(names).toContain(tool);
+    }
   });
 });

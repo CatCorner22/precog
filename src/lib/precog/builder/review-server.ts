@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { grokChat } from "../llm/grok-client.server";
+import { callModel, type LlmAccess } from "../llm/guard.server";
 import { llmMiddleware } from "../llm/middleware";
 import { parseReviewInput } from "../public-inputs";
 import { gradeFromScore, reviewLocally, type MapReview, type ReviewInput } from "./review";
@@ -16,7 +16,7 @@ function cleanPoints(v: unknown, max = 5): string[] {
     .slice(0, max);
 }
 
-async function reviewWithGrok(input: ReviewInput, apiKey: string): Promise<MapReview | null> {
+async function reviewWithGrok(input: ReviewInput, access: LlmAccess): Promise<MapReview | null> {
   const procLines = input.processes
     .map(
       (p) =>
@@ -48,7 +48,7 @@ Return ONLY JSON shaped exactly:
  "focusProcessIds":["process ids from the list above that the owner should open first"]}
 Rules: 2-4 points per section, each under 200 characters, name specific processes in quotes. Recommended moves must be doable by a small team this month.`;
 
-  const response = await grokChat(apiKey, {
+  const response = await callModel(access, {
     messages: [{ role: "user", content: prompt }],
     maxTokens: 1400,
     temperature: 0.5,
@@ -109,11 +109,10 @@ export const reviewMap = createServerFn({ method: "POST" })
   .validator((input: ReviewInput): ReviewInput => parseReviewInput(input))
   .handler(async ({ data, context }): Promise<MapReview> => {
     const local = reviewLocally(data);
-    const apiKey = process.env.XAI_API_KEY;
-    if (context.llm.grok !== "allowed" || !apiKey || !data.processes.length)
+    if (context.llm.grok !== "allowed" || !data.processes.length)
       return { ...local, grokStatus: context.llm.grok };
     try {
-      const ai = await reviewWithGrok(data, apiKey);
+      const ai = await reviewWithGrok(data, context.llm);
       return ai
         ? { ...ai, grokStatus: context.llm.grok }
         : { ...local, grokStatus: context.llm.grok };

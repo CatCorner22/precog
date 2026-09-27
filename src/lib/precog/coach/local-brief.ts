@@ -82,7 +82,6 @@ export function localBrief(
       e,
     );
     return {
-      ok: true,
       source: "local-agent",
       question,
       steps: [],

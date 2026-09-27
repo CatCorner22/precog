@@ -9,4 +9,4 @@ import { answerPioneer, readPioneerRequest, type PioneerCoachInput } from "./pio
 export const runPioneerCoach = createServerFn({ method: "POST" })
   .middleware([heavyLlmMiddleware])
   .validator((input: PioneerCoachInput) => readPioneerRequest(input))
-  .handler(({ data, context }) => answerPioneer(data, context.llm.grok));
+  .handler(({ data, context }) => answerPioneer(data, context.llm));

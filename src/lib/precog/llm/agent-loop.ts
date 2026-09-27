@@ -6,9 +6,9 @@
  * takes that finished rules brief and asks Grok to rewrite its text from the
  * same tool results; every other part of the answer stays the rules brief's.
  */
-import { executeTool, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
+import { executeTools, planTools, TOOL_CATALOG, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
-import { grokChat } from "./grok-client.server";
+import { callModel, type LlmAccess } from "./guard.server";
 import type { AgentRunResult, ReasoningStep, ToolResult } from "./types";
 import { checkGrounding, groundingNote } from "./grounding";
 import { ownerJson, ownerText } from "./owner-text";
@@ -41,9 +41,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
     detail: `${planned.length} tools: ${planned.join(", ")}`,
   });
 
-  const toolResults = planned.map((tool) =>
-    executeTool(tool, tool === "retrieve_guidance" ? { query: question } : {}, toolCtx),
-  );
+  const toolResults = executeTools(planned, toolCtx);
 
   steps.push({
     phase: "retrieve",
@@ -117,7 +115,6 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   });
 
   return {
-    ok: true,
     source: "local-agent",
     question,
     steps,
@@ -139,9 +136,12 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
  */
 export async function runGrokAgentLoop<T extends LocalAgentRun>(
   local: T,
+  access: LlmAccess,
 ): Promise<T & { modelStatus: ModelStatus }> {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey || local.toolResults.length === 0) return { ...local, modelStatus: "not-asked" };
+  if (access.grok !== "allowed" || !process.env.XAI_API_KEY?.trim()) {
+    return { ...local, modelStatus: "not-asked" };
+  }
+  if (local.toolResults.length === 0) return { ...local, modelStatus: "not-asked" };
 
   const started = Date.now();
   const failed = () => ({
@@ -150,7 +150,9 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
     latencyMs: local.latencyMs + Date.now() - started,
   });
   try {
-    const response = await grokChat(apiKey, {
+    // callModel takes one unit of the owner's daily budget, then calls Grok;
+    // null means the budget is spent or the model gave nothing back.
+    const response = await callModel(access, {
       messages: buildGrokAgentMessages(local),
       maxTokens: 2200,
       temperature: 0.3,

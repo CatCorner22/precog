@@ -2,46 +2,47 @@
  * Known gaps and blind spots the meta-analysis lists for every business.
  * Wording follows the industry inventory; the items themselves do not change.
  */
+import type { DecisionEntry } from "../practice-profile";
+import { count } from "../text";
 import type { EpistemicItem } from "./meta-analysis";
 import type { InventoryWords } from "./meta-analysis-words";
 
-function capitalize(text: string): string {
-  return `${text[0].toUpperCase()}${text.slice(1)}`;
-}
-
 export function knownUnknowns(
   words: InventoryWords,
-  decisionCount: number,
+  decisions: readonly DecisionEntry[],
 ): Omit<EpistemicItem, "classification">[] {
+  const reviewed = decisions.filter((d) => d.reviews?.length).length;
   return [
     {
       id: "ku-actual-cash-counts",
       title: "Actual cash drawer variance history",
-      description: `No imported daily cash-count vs ${words.system} variance series. Lapping and skim detection stay prior-driven.`,
+      description: `No daily cash count is compared with the ${words.system}, so lapping and skimming are judged from assumptions, not records.`,
       severity: "critical",
       affects: ["precog", "watched conditions", "cash process"],
       confidenceDrag: 0.12,
       probe: {
         kind: "system_export",
-        action: "Export 90 days of drawer close reports + deposit logs; upload CSV",
+        action:
+          "Compare 90 days of drawer close reports with the deposit slips yourself; this app cannot import them yet",
         effort: "hours",
-        expectedLift: "+12–18 pts epistemic confidence on cash scenarios",
+        expectedLift: "Shows whether the cash scenarios' assumptions match what happened",
       },
       link: { tab: "map", id: "proc-cash" },
     },
     {
       id: "ku-bank-rec-cadence",
-      title: "Bank recon completion dates & findings",
+      title: "Bank reconciliation dates and findings",
       description:
-        "Independent bank rec is a boolean, not a dated workpaper trail with exception rates.",
+        "Independent bank reconciliation is recorded as yes or no, not as dated work with the exceptions found.",
       severity: "high",
       affects: ["sod", "monitoring", "coso"],
       confidenceDrag: 0.09,
       probe: {
         kind: "data_capture",
-        action: "Log last 6 recon dates, who performed, open items count",
+        action:
+          "Note the last 6 reconciliation dates, who did each, and how many items were left open",
         effort: "minutes",
-        expectedLift: "Converts recon control from flag → measured control",
+        expectedLift: "Turns the reconciliation from a yes/no answer into a measured control",
       },
       link: { tab: "sod" },
     },
@@ -57,7 +58,7 @@ export function knownUnknowns(
         kind: "external_stat",
         action: "Request 5-year loss runs from crime/property carrier",
         effort: "days",
-        expectedLift: "Calibrates severity priors for employee dishonesty",
+        expectedLift: "Grounds the assumed size of an employee theft loss in your own history",
       },
       link: { tab: "precog" },
     },
@@ -80,7 +81,8 @@ export function knownUnknowns(
     {
       id: "ku-vendor-master-changes",
       title: "Vendor master change log",
-      description: "Fictitious vendor path is modeled; actual create/edit events are not ingested.",
+      description:
+        "The invented-vendor path is modeled; the real vendor additions and edits are not imported.",
       severity: "high",
       affects: ["ap", "dual-release", "precog"],
       confidenceDrag: 0.07,
@@ -95,7 +97,8 @@ export function knownUnknowns(
     {
       id: "ku-background-check-dates",
       title: "Bonding & background-check currency",
-      description: "Bonded-cash-handler flag exists without expiration dates per person.",
+      description:
+        "Bonded cash handlers are recorded as yes or no, with no expiry date per person.",
       severity: "medium",
       affects: ["insurance discount", "people risk"],
       confidenceDrag: 0.04,
@@ -124,10 +127,12 @@ export function knownUnknowns(
     {
       id: "ku-decision-followthrough",
       title: "Remediation completion evidence",
-      description: `${decisionCount} journal entries; few carry evidence artifacts that control actually changed.`,
-      severity: decisionCount < 2 ? "medium" : "low",
+      description: decisions.length
+        ? `${count(decisions.length, "Journal entry", "Journal entries")}, ${reviewed} with a review recorded.`
+        : "No Journal entry yet, so no fix has a recorded review.",
+      severity: decisions.length < 2 ? "medium" : "low",
       affects: ["monitoring", "coso"],
-      confidenceDrag: decisionCount < 2 ? 0.05 : 0.02,
+      confidenceDrag: decisions.length < 2 ? 0.05 : 0.02,
       probe: {
         kind: "interview",
         action: "After each remediate decision, attach proof (policy, bank setting, screenshot)",
@@ -143,8 +148,8 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
   return [
     {
       id: "uu-collusion-rings",
-      title: "Multi-party collusion outside pairwise SoD",
-      description: `SoD detects one-person conflicts. Two-person collusion (${words.pair}) can pass dual release by design. Platform does not model collusion graphs or lifestyle red flags.`,
+      title: "Collusion between two or more people",
+      description: `The duty-conflict check finds one person holding two duties. Two people working together (${words.pair}) can pass dual release by design, and the app does not model collusion or lifestyle red flags.`,
       severity: "critical",
       affects: ["sod", "dual-release", "precog"],
       confidenceDrag: 0.14,
@@ -152,19 +157,20 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
         kind: "scenario_design",
         action: "Add collusion scenario: dual signers who are related / share finances",
         effort: "days",
-        expectedLift: "Expands ontology beyond pairwise SoD",
+        expectedLift: "Takes the model beyond one person holding two duties",
       },
     },
     {
       id: "uu-cyber-ransomware-ops",
       title: "Cyber / ransomware operational cascade",
-      description: `Model is fraud/ops/continuity oriented. ${words.hostageData}, and restoration RTO/RPO are outside residual drivers today.`,
+      description: `The model covers fraud, operations and continuity. ${words.hostageData}, and how long a restore would take or how much data it would lose, are outside the residual index today.`,
       severity: "critical",
       affects: ["continuity", "insurance", "layers"],
       confidenceDrag: 0.11,
       probe: {
         kind: "external_stat",
-        action: "Import cyber insurance terms + last backup restore test date",
+        action:
+          "Read your cyber policy's terms and note the date of the last test restore from backup (outside this app)",
         effort: "hours",
         expectedLift: "Opens a new residual domain the coach can score",
       },
@@ -203,7 +209,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
     {
       id: "uu-supply-chain-lab-integrity",
       title: `${words.partners} integrity failure`,
-      description: `External partners can inject fraud (${words.partnerFraud}) without internal SoD firing.`,
+      description: `Outside partners can commit fraud (${words.partnerFraud}) without any duty conflict inside the business.`,
       severity: "high",
       affects: ["ap", "claims", "process map"],
       confidenceDrag: 0.07,
@@ -218,13 +224,13 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       id: "uu-ai-tooling-risk",
       title: "This coach's own model risk",
       description:
-        "Pioneer guidance can create false confidence (automation bias). Meta-analysis exists to flag that residual scores are educational priors, not truth.",
+        "The coach's advice can create false confidence. This list exists to say that residual scores rest on this app's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,
       probe: {
         kind: "interview",
-        action: "Require human sign-off on any residual <40 before treating as 'safe'",
+        action: "Have a person sign off any residual below 40 before treating it as 'safe'",
         effort: "minutes",
         expectedLift: "Guards against AI overconfidence",
       },
@@ -261,4 +267,8 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       },
     },
   ];
+}
+
+function capitalize(text: string): string {
+  return `${text[0].toUpperCase()}${text.slice(1)}`;
 }

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { grokChat } from "../llm/grok-client.server";
+import { callModel, type LlmAccess } from "../llm/guard.server";
 import { llmMiddleware } from "../llm/middleware";
 import { OWN_TEAM_MAX } from "../onboarding/own-team";
 import { parseSuggestionInput } from "../public-inputs";
@@ -69,7 +69,7 @@ function sanitizeIdea(i: Record<string, unknown>): SuggestedIdea | null {
 
 async function suggestWithGrok(
   input: SuggestionInput,
-  apiKey: string,
+  access: LlmAccess,
 ): Promise<SuggestionResult | null> {
   const controlsList = input.availableControls.map((c) => `${c.id}: ${c.name}`).join("\n");
   const prompt = `You are an internal-controls advisor for a small ${input.industryLabel} business (2 to ${OWN_TEAM_MAX} people).
@@ -91,7 +91,7 @@ Return ONLY a JSON object, no prose, shaped exactly:
  "rationale":""}
 Rules: 3-4 risks, 2-3 ideas, 0-3 controlIds. Plain English an owner understands. Do not repeat already-listed items. Never accuse people; describe control gaps. Notes under 160 characters.`;
 
-  const response = await grokChat(apiKey, {
+  const response = await callModel(access, {
     messages: [{ role: "user", content: prompt }],
     maxTokens: 1200,
     temperature: 0.4,
@@ -139,11 +139,10 @@ export const suggestForProcess = createServerFn({ method: "POST" })
   .validator((input: Partial<SuggestionInput>): SuggestionInput => parseSuggestionInput(input))
   .handler(async ({ data, context }): Promise<SuggestionResult> => {
     const local = suggestLocally(data);
-    const apiKey = process.env.XAI_API_KEY;
-    if (context.llm.grok !== "allowed" || !apiKey || !data.processName.trim())
+    if (context.llm.grok !== "allowed" || !data.processName.trim())
       return { ...local, grokStatus: context.llm.grok };
     try {
-      const ai = await suggestWithGrok(data, apiKey);
+      const ai = await suggestWithGrok(data, context.llm);
       if (!ai) return { ...local, grokStatus: context.llm.grok };
       // Pad thin AI output with local suggestions so the panel is never sparse.
       const seen = new Set(ai.risks.map((r) => r.title.toLowerCase()));
