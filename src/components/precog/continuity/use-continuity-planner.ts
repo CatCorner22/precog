@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import {
   usePracticeActions,
   usePracticeState,
@@ -27,11 +27,8 @@ import {
 } from "@/lib/precog/import/register-csv";
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
-import {
-  absenceImpact,
-  type AbsenceAction,
-  type ContinuityStep,
-} from "@/lib/precog/continuity/absence-impact";
+import { absenceImpact, type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
+import type { ContinuityStep } from "@/lib/precog/decisions/follow-through";
 import {
   checkInPlan,
   CONFIRMATION_MAX_AGE_DAYS,
@@ -41,7 +38,6 @@ import {
   coverageDrops,
   coverageReport,
   criticalSinglePoints,
-  makeKnowledgeId,
   setRelationLevel,
   type CoverageReport,
   type CrossTrainingMove,
@@ -90,7 +86,7 @@ import type {
   Person,
 } from "@/lib/precog/types";
 import { industryMeta } from "@/lib/precog/industry";
-import { count, firstName, verb } from "@/lib/precog/text";
+import { count, firstName, uid, verb } from "@/lib/precog/text";
 import { downloadCsv } from "@/lib/download";
 import {
   checkInViewFor,
@@ -354,7 +350,7 @@ function useRegisterEditor(
     const name = draftName.trim();
     if (!name) return;
     const item: KnowledgeItem = {
-      id: makeKnowledgeId(),
+      id: uid("k"),
       name,
       kind: draftKind,
       criticality: draftCriticality,

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "../templates";
+import { describe, expect, it } from "vitest";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { normalizePlannedAbsences, type PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -12,9 +13,9 @@ import {
   leadLabel,
   outPhrase,
   plannedAbsenceReport,
-  procedurePointer,
   unplannedAbsenceToday,
 } from "./planned-absence";
+import { procedurePointer } from "./documentation";
 
 const people: Person[] = [
   { id: "a", name: "Ana Ortiz", role: "Owner", active: true },
@@ -23,20 +24,8 @@ const people: Person[] = [
   { id: "d", name: "Dee Old", role: "Former staff", active: false },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): IndustryTemplate {
-  return { ...getIndustryTemplate("general"), people, knowledge, relations, processes: [] };
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 function absence(id: string, personId: string, from: string, to: string): PlannedAbsence {
@@ -45,7 +34,7 @@ function absence(id: string, personId: string, from: string, to: string): Planne
 
 // Payroll: only Ben can run it, Cy is learning. Billing: Ben and Cy both can.
 const register = tpl(
-  [item("payroll"), item("billing")],
+  [knowledgeItem("payroll"), knowledgeItem("billing")],
   [
     { personId: "b", knowledgeId: "payroll", level: "expert" },
     { personId: "c", knowledgeId: "payroll", level: "basic" },
@@ -126,13 +115,13 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-08",
       to: "2025-11-10",
       people: [people[1], people[2]],
-      extraStops: [item("billing")],
+      extraStops: [knowledgeItem("billing")],
     });
     expect(cy?.peak).toEqual({
       from: "2025-11-08",
       to: "2025-11-10",
       people: [people[2], people[1]],
-      extraStops: [item("billing"), item("payroll")],
+      extraStops: [knowledgeItem("billing"), knowledgeItem("payroll")],
     });
   });
 
@@ -175,7 +164,7 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-01",
       to: "2025-11-03",
       people: [people[0], people[1]],
-      extraStops: [item("payroll")],
+      extraStops: [knowledgeItem("payroll")],
     });
     expect(ana.impact.remaining.map((p) => p.id)).toEqual(["c"]);
   });
@@ -197,7 +186,7 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-06",
       to: "2025-11-07",
       people: [people[0], people[1]],
-      extraStops: [item("payroll")],
+      extraStops: [knowledgeItem("payroll")],
     });
     expect(ana.impact.stops.map((s) => s.item.id)).toEqual(["payroll"]);
   });
@@ -316,7 +305,7 @@ describe("describeWindow", () => {
 
   it("says an unplanned absence is unexpected and points the stand-in at the procedure", () => {
     const documented = tpl(
-      [item("payroll", { documented: true, procedureLocation: "Drive/SOPs/payroll" })],
+      [knowledgeItem("payroll", { documented: true, procedureLocation: "Drive/SOPs/payroll" })],
       [
         { personId: "b", knowledgeId: "payroll", level: "expert" },
         { personId: "c", knowledgeId: "payroll", level: "basic" },
@@ -385,18 +374,15 @@ describe("date helpers", () => {
   });
 
   it("tells the stand-in where the procedure lives", () => {
-    const stop = (extra: Partial<KnowledgeItem>) => ({
-      item: item("payroll", extra),
-      standIn: null,
-      note: "",
-    });
-    expect(procedurePointer(stop({}))).toBe("nothing written down");
-    expect(procedurePointer(stop({ documented: true }))).toBe(
+    expect(procedurePointer(knowledgeItem("payroll"))).toBe("nothing written down");
+    expect(procedurePointer(knowledgeItem("payroll", { documented: true }))).toBe(
       "written down, location not recorded",
     );
-    expect(procedurePointer(stop({ documented: true, procedureLocation: " Drive/SOPs " }))).toBe(
-      "procedure at Drive/SOPs",
-    );
+    expect(
+      procedurePointer(
+        knowledgeItem("payroll", { documented: true, procedureLocation: " Drive/SOPs " }),
+      ),
+    ).toBe("procedure at Drive/SOPs");
   });
 
   it("sets the hand-off deadline to the day before leave starts", () => {
@@ -505,7 +491,7 @@ describe("leave booked over a starter register nobody has marked", () => {
 
   it("does not call a day quiet while register items wait on nobody", () => {
     const gaps = tpl(
-      [item("payroll"), item("deposit")],
+      [knowledgeItem("payroll"), knowledgeItem("deposit")],
       [{ personId: "b", knowledgeId: "payroll", level: "expert" }],
     );
     const [w] = plannedAbsenceReport(

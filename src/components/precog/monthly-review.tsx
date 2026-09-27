@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import {
   latestReview,
   monthlyReviewTasks,
@@ -10,7 +10,8 @@ import {
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
-import { localDateKey } from "@/lib/precog/dates";
+import { clientErrorStatus } from "@/lib/request-errors";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
 
 const RESULT_LABEL: Record<ReviewResult, string> = {
   done: "Done",
@@ -36,14 +37,10 @@ export function MonthlyReview() {
     period: string,
   ) {
     const note = notes[key] ?? "";
-    const next = recordReview(records, {
-      key,
-      period,
-      result,
-      ownerName,
-      notes: note,
-    });
-    setMonthlyReviews(next);
+    setMonthlyReviews((current) =>
+      recordReview(current, { key, period, result, ownerName, notes: note }),
+    );
+    setNotes((current) => ({ ...current, [key]: "" }));
     if (!user || !profile.businessId) return;
     setBusy(key);
     try {
@@ -58,9 +55,13 @@ export function MonthlyReview() {
           notes: note,
         },
       });
-    } catch {
+    } catch (error) {
       toast.error(
-        "Saved on this business. The account log did not update; try again while signed in.",
+        "Saved on this business. The account log did not update — check your connection and press the result again.",
+        // A refusal (not the owner, a bad value) carries the server's reason.
+        error instanceof Error && clientErrorStatus(error) !== null
+          ? { description: error.message }
+          : undefined,
       );
     } finally {
       setBusy(null);
@@ -82,7 +83,7 @@ export function MonthlyReview() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium">{task.title}</h3>
                 <p className="text-xs text-muted">
-                  {task.period} · due {task.dueOn} · {task.suggestedOwner}
+                  {task.period} · due {formatDay(task.dueOn)} · {task.suggestedOwner}
                 </p>
               </div>
               <p className="mt-1 text-sm text-muted">{task.why}</p>
@@ -90,7 +91,7 @@ export function MonthlyReview() {
                 <p className="mt-2 text-xs">
                   Latest: {RESULT_LABEL[latest.result]}
                   {latest.ownerName ? ` by ${latest.ownerName}` : ""} on{" "}
-                  {latest.recordedAt.slice(0, 10)}
+                  {formatDay(latest.recordedAt)}
                   {latest.notes ? ` — ${latest.notes}` : ""}
                 </p>
               )}

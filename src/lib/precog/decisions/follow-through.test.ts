@@ -117,7 +117,6 @@ describe("captureDecisionSnapshot", () => {
 
 describe("decisionsDue", () => {
   it("splits overdue and due-soon decisions and ignores closed or later entries", () => {
-    const now = new Date(2025, 0, 15);
     const result = decisionsDue(
       [
         decision({ id: "overdue", reviewBy: "2025-01-14" }),
@@ -126,11 +125,22 @@ describe("decisionsDue", () => {
         decision({ id: "later", reviewBy: "2025-01-23" }),
         decision({ id: "closed", reviewBy: "2025-01-10", status: "closed" }),
       ],
-      now,
+      "2025-01-15",
     );
 
     expect(result.overdue.map((d) => d.id)).toEqual(["overdue"]);
     expect(result.dueSoon.map((d) => d.id)).toEqual(["today", "soon"]);
+  });
+
+  it("counts the due-soon window in calendar days from the day it is given, across a year end", () => {
+    const result = decisionsDue(
+      [
+        decision({ id: "soon", reviewBy: "2026-01-05" }),
+        decision({ id: "later", reviewBy: "2026-01-06" }),
+      ],
+      "2025-12-29",
+    );
+    expect(result.dueSoon.map((d) => d.id)).toEqual(["soon"]);
   });
 
   it("formats local calendar dates", () => {

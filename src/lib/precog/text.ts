@@ -20,11 +20,17 @@ export function uid(prefix: string): string {
  * than `max` is named in full, never "and 1 more".
  */
 export function joinWithAnd(parts: readonly string[], max?: number): string {
-  if (max !== undefined && parts.length > max + 1) {
-    return `${parts.slice(0, max).join(", ")} and ${parts.length - max} more`;
-  }
-  if (parts.length <= 1) return parts[0] ?? "";
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return joinList(parts, "and", max);
+}
+
+/** "a", "a or b", "a, b or c", and with `max` "Ana, Ben or 3 more": joinWithAnd for alternatives. */
+export function joinWithOr(parts: readonly string[], max?: number): string {
+  return joinList(parts, "or", max);
+}
+
+/** The phrase inside double quotes, as advice names a register entry or process: `"Payroll"`. */
+export function quoted(name: string): string {
+  return `"${name}"`;
 }
 
 /**
@@ -92,6 +98,14 @@ export function stableStringify(value: unknown): string {
         )
       : entry,
   );
+}
+
+function joinList(parts: readonly string[], word: "and" | "or", max?: number): string {
+  if (max !== undefined && parts.length > max + 1) {
+    return `${parts.slice(0, max).join(", ")} ${word} ${parts.length - max} more`;
+  }
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} ${word} ${parts[parts.length - 1]}`;
 }
 
 const HONORIFIC = /^(dr|mr|mrs|ms|mx|prof|rev)\.?$/i;

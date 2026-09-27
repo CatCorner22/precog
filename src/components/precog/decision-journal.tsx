@@ -18,7 +18,7 @@ import {
   type RegisterCloseOut,
 } from "@/lib/precog/decisions/follow-through";
 import { setRelationLevel, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { casesForSodRules, observedLossRange, lossPhrase } from "@/lib/precog/evidence";
 import { cn, formatUsd } from "@/lib/utils";
@@ -28,7 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
-import { inputClass } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "@/components/precog/continuity/styles";
 import { deleteDecisionPrompt, reviewDelta } from "@/components/precog/decision-journal-text";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
@@ -94,7 +94,10 @@ export function DecisionJournal({
   }, [kind, subject, portfolio.top]);
 
   const today = useToday();
-  const due = useMemo(() => decisionsDue(profile.decisions, today), [profile.decisions, today]);
+  const due = useMemo(
+    () => decisionsDue(profile.decisions, localDateKey(today)),
+    [profile.decisions, today],
+  );
   const dueDecisions = useMemo(() => [...due.overdue, ...due.dueSoon], [due.overdue, due.dueSoon]);
   const overdueIds = useMemo(() => new Set(due.overdue.map((d) => d.id)), [due.overdue]);
   const slips = useMemo(

@@ -16,7 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import { formatDay, formatDayShort, localDateKey } from "@/lib/precog/dates";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { count, verb } from "@/lib/precog/text";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

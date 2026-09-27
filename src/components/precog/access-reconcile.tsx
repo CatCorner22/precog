@@ -15,7 +15,7 @@ import {
   type AccessUserRow,
   type QueueStatus,
 } from "@/lib/precog/firm/reconcile";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { localDateKey } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
 import { grantDuty, rowDifferences, withUserStatus } from "./access-reconcile-rows";

@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "../templates";
+import { describe, expect, it } from "vitest";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import type { DecisionEntry } from "../practice-profile";
-import type { IndustryTemplate } from "../templates";
-import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
+import type { IndustryTemplate } from "../templates/types";
+import type { KnowledgeRelation, Person } from "../types";
 import {
   canMarkLeft,
   describeLeaver,
@@ -20,23 +21,14 @@ const people: Person[] = [
   { id: "dee", name: "Dee Old", role: "Former staff", active: false, lastDay: "2026-01-01" },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(relations: KnowledgeRelation[], team = people): IndustryTemplate {
-  return {
-    ...getIndustryTemplate("general"),
+  return continuityTemplate({
     people: team,
-    knowledge: [item("pms"), item("billing"), item("vendors", { documented: true })],
+    knowledge: [
+      knowledgeItem("pms"),
+      knowledgeItem("billing"),
+      knowledgeItem("vendors", { documented: true }),
+    ],
     relations,
     processes: [
       {
@@ -46,7 +38,7 @@ function tpl(relations: KnowledgeRelation[], team = people): IndustryTemplate {
         ownerPersonIds: ["maya"],
       },
     ],
-  };
+  });
 }
 
 // PMS: only Maya, Chris learning. Billing: Maya and Sam both can. Vendors: only Maya, nobody else touched it.

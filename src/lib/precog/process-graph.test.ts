@@ -1,32 +1,26 @@
 import { getIndustryTemplate } from "./templates";
 import { describe, expect, it } from "vitest";
+import { processNode } from "@/test/fixtures";
 import { buildProcessMapGraph } from "./process-graph";
 import { computeMapHealth, integrityHint } from "./process-health";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { validateProcessMap } from "./process-validation";
-import type { Person, ProcessNode } from "./types";
+import type { Person } from "./types";
 
 const people: Person[] = [
   { id: "a", name: "Ana", role: "Owner", active: true },
   { id: "d", name: "Dee", role: "Former staff", active: false, lastDay: "2025-01-31" },
 ];
 
-function proc(id: string, owners: string[]): ProcessNode {
-  return {
-    id,
-    name: id,
-    layer: "process",
-    description: "",
-    dependencies: [],
-    controlIds: [],
-    ownerPersonIds: owners,
-  };
-}
-
 describe("validateProcessMap owners", () => {
   it("distinguishes no owner, unknown owner, and owners who have all left", () => {
     const issues = validateProcessMap(
-      [proc("none", []), proc("ghost", ["zz"]), proc("left", ["d"]), proc("mixed", ["d", "a"])],
+      [
+        processNode("none", { ownerPersonIds: [] }),
+        processNode("ghost", { ownerPersonIds: ["zz"] }),
+        processNode("left", { ownerPersonIds: ["d"] }),
+        processNode("mixed", { ownerPersonIds: ["d", "a"] }),
+      ],
       people,
       new Set(),
     );
@@ -42,7 +36,11 @@ describe("validateProcessMap owners", () => {
 describe("map health Integrity hint", () => {
   it("names the unowned processes that lowered Integrity instead of saying there are no issues", () => {
     const issues = validateProcessMap(
-      [proc("one", ["a"]), proc("two", []), proc("three", [])],
+      [
+        processNode("one", { ownerPersonIds: ["a"] }),
+        processNode("two", { ownerPersonIds: [] }),
+        processNode("three", { ownerPersonIds: [] }),
+      ],
       people,
       new Set(),
     );
@@ -53,7 +51,11 @@ describe("map health Integrity hint", () => {
 
   it("lists every kind of issue that cost points", () => {
     const issues = validateProcessMap(
-      [{ ...proc("one", ["zz"]), controlIds: ["missing"] }, proc("two", ["d"]), proc("three", [])],
+      [
+        processNode("one", { ownerPersonIds: ["zz"], controlIds: ["missing"] }),
+        processNode("two", { ownerPersonIds: ["d"] }),
+        processNode("three", { ownerPersonIds: [] }),
+      ],
       people,
       new Set(),
     );

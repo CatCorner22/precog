@@ -22,7 +22,8 @@ import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
+import { localDateKey } from "@/lib/precog/dates";
 import { isNavTarget, parseHomeSearch, TAB_WORDS, type TabId } from "@/lib/precog/navigation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -125,7 +126,7 @@ function Home() {
     [tpl, profile.staff, profile.dualRelease],
   );
   const overdueDecisions = useMemo(
-    () => decisionsDue(profile.decisions, today).overdue.length,
+    () => decisionsDue(profile.decisions, localDateKey(today)).overdue.length,
     [profile.decisions, today],
   );
   const slippedDecisions = useMemo(

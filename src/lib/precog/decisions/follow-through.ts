@@ -1,12 +1,6 @@
-import type { ContinuityStep } from "../continuity/absence-impact";
 import type { CoverageStatus } from "../continuity/coverage";
 import type { DocumentationState } from "../continuity/documentation";
-import {
-  coverageReport,
-  STATUS_LABEL,
-  STATUS_URGENCY,
-  STRONG_LEVELS,
-} from "../continuity/coverage";
+import { coverageReport, STATUS_LABEL, STATUS_URGENCY } from "../continuity/coverage";
 import {
   documentationState,
   DOCUMENTATION_LABEL,
@@ -25,7 +19,14 @@ import { SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person, StaffComposition } from "../types";
-import { localDateKey, dateAfter } from "../dates";
+import { dateAfter, shiftDay } from "../dates";
+
+/**
+ * What a continuity step asks the owner to do. One register item can carry
+ * several open steps at once (hand it off today, write it down, cross-train a
+ * backup), so the Journal tracks them per item *and* step.
+ */
+export type ContinuityStep = "cover" | "handoff" | "document" | "locate";
 
 /**
  * Whether a linked decision belongs to the template currently loaded. Industry
@@ -267,16 +268,8 @@ export function registerCloseOut(d: DecisionEntry, tpl: IndustryTemplate): Regis
   if (step === "handoff") return null;
   if (step === "cover") {
     if (coverage.status === "covered") return null;
-    const strong = new Set(
-      tpl.relations
-        .filter((r) => r.knowledgeId === knowledgeId && STRONG_LEVELS.has(r.level))
-        .map((r) => r.personId),
-    );
-    const ranked = coverage.suggestedBackups.map((b) => b.person);
-    const others = tpl.people.filter(
-      (p) => p.active && !strong.has(p.id) && !ranked.some((r) => r.id === p.id),
-    );
-    const candidates = [...ranked, ...others];
+    // suggestedBackups ranks every active person who cannot run it alone yet.
+    const candidates = coverage.suggestedBackups.map((b) => b.person);
     const trainee = candidates.find((p) => p.id === d.linkedPersonId) ?? null;
     return { step, item: coverage.item, status: coverage.status, trainee, candidates };
   }
@@ -299,13 +292,17 @@ export function slipLabels(s: ContinuitySlip): { from: string; to: string } {
   };
 }
 
+/**
+ * Open decisions whose review day has passed, and those due within
+ * `withinDays` of `today` (a "YYYY-MM-DD" day: the browser passes its local
+ * day, the server the day it is working for).
+ */
 export function decisionsDue(
   decisions: readonly DecisionEntry[],
-  now: Date,
+  today: string,
   withinDays = 7,
 ): { overdue: DecisionEntry[]; dueSoon: DecisionEntry[] } {
-  const today = localDateKey(now);
-  const soonThrough = dateAfter(now, withinDays);
+  const soonThrough = shiftDay(today, withinDays);
   const overdue: DecisionEntry[] = [];
   const dueSoon: DecisionEntry[] = [];
   for (const decision of decisions) {

@@ -5,7 +5,8 @@
  * register loses data. The hook in use-continuity-planner.ts calls these; the
  * tests call them directly.
  */
-import type { AbsenceAction, ContinuityStep } from "@/lib/precog/continuity/absence-impact";
+import type { AbsenceAction } from "@/lib/precog/continuity/absence-impact";
+import type { ContinuityStep } from "@/lib/precog/decisions/follow-through";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DebriefItem, LeaveDebrief } from "@/lib/precog/continuity/leave-debrief";
 import type { CheckInPlan } from "@/lib/precog/continuity/staleness";

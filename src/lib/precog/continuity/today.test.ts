@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "../templates";
+import { describe, expect, it } from "vitest";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
@@ -11,20 +12,8 @@ const people: Person[] = [
   { id: "sam", name: "Sam Roy", role: "Hygienist", active: true },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(relations: KnowledgeRelation[], knowledge: KnowledgeItem[]): IndustryTemplate {
-  return { ...getIndustryTemplate("general"), people, knowledge, relations, processes: [] };
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 // pms: Maya alone, Chris learning, written at Drive. payroll: Maya alone, nothing written.
@@ -38,9 +27,9 @@ const register = tpl(
     { personId: "sam", knowledgeId: "billing", level: "proficient" },
   ],
   [
-    item("pms", { documented: true, procedureLocation: "Drive/PMS" }),
-    item("payroll"),
-    item("billing", { documented: true }),
+    knowledgeItem("pms", { documented: true, procedureLocation: "Drive/PMS" }),
+    knowledgeItem("payroll"),
+    knowledgeItem("billing", { documented: true }),
   ],
 );
 
@@ -125,6 +114,28 @@ describe("todayBrief", () => {
     );
     expect(brief.out.map((o) => o.person.id)).toEqual(["maya", "sam"]);
     expect(brief.headline).toMatch(/^Maya and Sam are out \(one unexpectedly\) today — /);
+  });
+
+  it("counts a stopped entry once when two people who both hold it are out", () => {
+    // billing: Maya and Sam; pms and payroll: Maya alone. Both out, so three entries stop.
+    const brief = todayBrief(
+      register,
+      [absence(), absence({ id: "abs-2", personId: "sam" })],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(brief.stopped).toBe(3);
+    expect(brief.cold).toBe(2);
+    expect(brief.unwritten).toBe(1);
+    expect(brief.unlogged).toBe(3);
+    const byPerson = Object.fromEntries(
+      brief.out.map((o) => [o.person.id, o.stops.map((s) => s.item.id).sort()]),
+    );
+    expect(byPerson).toEqual({ maya: ["billing", "payroll", "pms"], sam: ["billing"] });
+    expect(brief.headline).toBe(
+      "Maya and Sam are out unexpectedly today — 3 register entries stop, 2 that nobody left has done before, 1 with nothing written down.",
+    );
   });
 
   it("counts how many are out unexpectedly when more than one is", () => {
@@ -315,7 +326,7 @@ describe("today's brief when register items wait on nobody", () => {
   it("does not say nothing stops while must-do items have nobody who can run them", () => {
     const gaps = tpl(
       [{ personId: "sam", knowledgeId: "payroll", level: "expert" }],
-      [item("payroll"), item("deposit")],
+      [knowledgeItem("payroll"), knowledgeItem("deposit")],
     );
     const brief = todayBrief(gaps, [absence()], [], "general", TODAY);
     expect(brief.headline).toBe(

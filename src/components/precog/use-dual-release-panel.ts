@@ -12,7 +12,7 @@ import {
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { personLabel } from "@/lib/precog/person-label";
 import { dateAfter, localDateKey } from "@/lib/precog/dates";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import {
   EMPTY_EXCEPTION_FORM,

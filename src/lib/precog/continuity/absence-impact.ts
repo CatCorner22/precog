@@ -1,8 +1,10 @@
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
-import { joinWithAnd, firstName } from "../text";
+import type { ContinuityStep } from "../decisions/follow-through";
+import { joinWithAnd, joinWithOr, firstName, quoted } from "../text";
 import { registerAssessed } from "./register-state";
 import { coverageReport, CRITICALITY_WEIGHT, dependenceFor, suggestBackups } from "./coverage";
+import { documentationState, procedurePointer } from "./documentation";
 
 /**
  * What stops when someone is away, who picks it up, and the one action that
@@ -40,16 +42,13 @@ export interface AbsenceImpact {
   orphanedProcesses: string[];
   /** 0–100 share of must-do work that stops (same weighted index as PersonLoad.dependence). */
   dependence: number;
-  /** What to do now, then what to do before the next absence. */
+  /**
+   * What to do: hand-offs first, then what to write down and who to
+   * cross-train. The text carries no timing; the card that shows it says
+   * whether it is for today or before the leave starts.
+   */
   actions: AbsenceAction[];
 }
-
-/**
- * What a continuity step asks the owner to do. One register item can carry
- * several open steps at once (hand it off today, write it down, cross-train a
- * backup), so the Journal tracks them per item *and* step.
- */
-export type ContinuityStep = "cover" | "handoff" | "document" | "locate";
 
 export interface AbsenceAction {
   text: string;
@@ -83,13 +82,6 @@ export function ownerlessProcesses(tpl: IndustryTemplate): OwnerlessProcess[] {
   return out;
 }
 
-/** `"A"`, `"A" or "B"`, `"A", "B" or 3 more`: the first two of a list, then a count. */
-export function listOr(names: readonly string[]): string {
-  if (names.length <= 1) return names[0] ?? "";
-  if (names.length === 2) return `${names[0]} or ${names[1]}`;
-  return `${names[0]}, ${names[1]} or ${names.length - 2} more`;
-}
-
 /**
  * What happens if one person is unavailable tomorrow — sick, on leave, or
  * gone. Reads the coverage report and names a stand-in per stopped item;
@@ -98,30 +90,21 @@ export function listOr(names: readonly string[]): string {
  */
 export function absenceImpact(
   tpl: IndustryTemplate,
-  personIds: string | readonly string[],
+  personIds: readonly string[],
 ): AbsenceImpact | null {
-  const requestedIds = typeof personIds === "string" ? [personIds] : personIds;
-  const requested = new Set(requestedIds);
+  const requested = new Set(personIds);
   const absentPeople = tpl.people.filter((p) => requested.has(p.id));
   if (absentPeople.length === 0) return null;
   const absent = new Set(absentPeople.map((p) => p.id));
   const report = coverageReport(tpl);
   const remaining = tpl.people.filter((p) => p.active && !absent.has(p.id));
   const single = absentPeople.length === 1;
-  const soleCountByPerson = new Map<string, number>();
-  for (const i of report.items) {
-    if (i.primaries.length === 1) {
-      const id = i.primaries[0].id;
-      soleCountByPerson.set(id, (soleCountByPerson.get(id) ?? 0) + 1);
-    }
-  }
+  const soleCountByPerson = new Map(report.people.map((l) => [l.person.id, l.soleItems.length]));
   const firstNames = absentPeople.map((p) => firstName(p.name));
   const names = joinWithAnd(firstNames);
 
   const where = (item: KnowledgeItem) =>
-    item.documented && item.procedureLocation?.trim()
-      ? ` (procedure: ${item.procedureLocation.trim()})`
-      : "";
+    documentationState(item) === "located" ? ` (${procedurePointer(item)})` : "";
 
   const stops: AbsenceStop[] = report.items
     .filter((i) => i.primaries.length >= 1 && i.primaries.every((p) => absent.has(p.id)))
@@ -205,20 +188,20 @@ export function absenceImpact(
     const named = critical.filter((s) => s.standIn);
     if (named.length)
       actions.push({
-        text: `Today: hand ${named
-          .slice(0, 3)
-          .map((s) => `"${s.item.name}" to ${s.standIn?.name}`)
-          .join(", ")}${named.length > 3 ? ` and ${named.length - 3} more` : ""}.`,
+        text: `Hand ${joinWithAnd(
+          named.map((s) => `${quoted(s.item.name)} to ${s.standIn?.name}`),
+          3,
+        )}.`,
         step: "handoff",
         knowledgeIds: ids(named),
       });
     const cold = critical.filter((s) => !s.standIn);
     if (cold.length)
       actions.push({
-        text: `No one can cover ${cold
-          .slice(0, 2)
-          .map((s) => `"${s.item.name}"`)
-          .join(" or ")} — line up an outside provider or accept that it stops.`,
+        text: `No one can cover ${joinWithOr(
+          cold.map((s) => quoted(s.item.name)),
+          2,
+        )} — line up an outside provider or accept that it stops.`,
         step: "cover",
         knowledgeIds: ids(cold),
       });
@@ -226,40 +209,35 @@ export function absenceImpact(
   const undocumented = stops.filter((s) => !s.item.documented);
   if (undocumented.length)
     actions.push({
-      text: `Before the next absence: have ${names} write down ${undocumented
-        .slice(0, 3)
-        .map((s) => `"${s.item.name}"`)
-        .join(", ")}${undocumented.length > 3 ? ` and ${undocumented.length - 3} more` : ""}.`,
+      text: `Have ${names} write down ${joinWithAnd(
+        undocumented.map((s) => quoted(s.item.name)),
+        3,
+      )}.`,
       step: "document",
       knowledgeIds: ids(undocumented),
     });
   const unlocated = stops.filter((s) => s.item.documented && !s.item.procedureLocation?.trim());
   if (unlocated.length)
     actions.push({
-      text: `Record where the written procedure for ${unlocated
-        .slice(0, 3)
-        .map((s) => `"${s.item.name}"`)
-        .join(", ")} lives so a stand-in can find it without ${names}.`,
+      text: `Record where the written procedure for ${joinWithAnd(
+        unlocated.map((s) => quoted(s.item.name)),
+        3,
+      )} lives so a stand-in can find it without ${names}.`,
       step: "locate",
       knowledgeIds: ids(unlocated),
     });
   const trainable = stops.filter((s) => s.standIn).slice(0, 3);
   if (trainable.length)
     actions.push({
-      text: `Cross-train so ${names} ${single ? "is" : "are"} not the only one${single ? "" : "s"}: ${trainable
-        .map((s) => `${s.standIn?.name} on "${s.item.name}"`)
-        .join(", ")}.`,
+      text: `Cross-train so ${names} ${single ? "is" : "are"} not the only one${single ? "" : "s"}: ${joinWithAnd(
+        trainable.map((s) => `${s.standIn?.name} on ${quoted(s.item.name)}`),
+      )}.`,
       step: "cover",
       knowledgeIds: ids(trainable),
     });
   if (orphanedProcesses.length)
     actions.push({
-      text: `Name a second owner on ${orphanedProcesses
-        .slice(0, 3)
-        .map((n) => `"${n}"`)
-        .join(
-          ", ",
-        )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+      text: `Name a second owner on ${joinWithAnd(orphanedProcesses.map(quoted), 3)}.`,
       step: "cover",
       knowledgeIds: [],
     });
@@ -272,8 +250,9 @@ export function absenceImpact(
   const waiting = alreadyStopped.filter((item) => item.criticality !== "nice-to-have");
   if (waiting.length)
     actions.push({
-      text: `Already stopped, whoever is in: nobody can run ${listOr(
-        waiting.map((item) => `"${item.name}"`),
+      text: `Already stopped, whoever is in: nobody can run ${joinWithOr(
+        waiting.map((item) => quoted(item.name)),
+        2,
       )} alone. Mark who can, or line up an outside provider.`,
       step: "cover",
       knowledgeIds: waiting.map((item) => item.id),
@@ -283,12 +262,10 @@ export function absenceImpact(
   if (!actions.length)
     actions.push({
       text: alreadyStopped.length
-        ? `Nothing more stops if ${names} ${single ? "is" : "are"} out; ${alreadyStopped
-            .slice(0, 2)
-            .map((item) => `"${item.name}"`)
-            .join(
-              " and ",
-            )}${alreadyStopped.length > 2 ? ` and ${alreadyStopped.length - 2} more` : ""} already ${alreadyStopped.length === 1 ? "waits" : "wait"} because nobody can run ${alreadyStopped.length === 1 ? "it" : "them"} alone.`
+        ? `Nothing more stops if ${names} ${single ? "is" : "are"} out; ${joinWithAnd(
+            alreadyStopped.map((item) => quoted(item.name)),
+            2,
+          )} already ${alreadyStopped.length === 1 ? "waits" : "wait"} because nobody can run ${alreadyStopped.length === 1 ? "it" : "them"} alone.`
         : `Nothing stops if ${names} ${single ? "is" : "are"} out. Keep it that way as duties change.`,
       step: "cover",
       knowledgeIds: [],
@@ -317,7 +294,7 @@ export function absenceImpact(
 export function contingencyCards(tpl: IndustryTemplate): AbsenceImpact[] {
   return tpl.people
     .filter((p) => p.active)
-    .map((p) => absenceImpact(tpl, p.id))
+    .map((p) => absenceImpact(tpl, [p.id]))
     .filter((c): c is AbsenceImpact => Boolean(c))
     .filter((c) => c.stops.length > 0 || c.orphanedProcesses.length > 0)
     .sort(

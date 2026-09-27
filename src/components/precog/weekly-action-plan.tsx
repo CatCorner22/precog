@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
-import { useToday } from "@/lib/precog/decisions/use-today";
+import { useToday } from "@/lib/use-today";
 import { localDateKey } from "@/lib/precog/dates";
 import { lossPhrase } from "@/lib/precog/evidence";
 
@@ -19,8 +19,19 @@ export function WeeklyActionPlan({
 }) {
   const { profile, template } = usePractice();
   const today = useToday();
-  const trackFreshness = trackRegisterFreshness(profile, template);
-  const mapReady = mapAssessed(profile);
+  const { industry, customPeople, customKnowledge, customRelations, customProcesses } = profile;
+  const trackFreshness = useMemo(
+    () =>
+      trackRegisterFreshness(
+        { industry, customPeople, customKnowledge, customRelations },
+        template,
+      ),
+    [industry, customPeople, customKnowledge, customRelations, template],
+  );
+  const mapReady = useMemo(
+    () => mapAssessed({ industry, customPeople, customProcesses }),
+    [industry, customPeople, customProcesses],
+  );
   const actions = useMemo(() => {
     const { snapshots } = buildProcessMapGraph(template, profile.staff);
     return buildWeeklyActions({

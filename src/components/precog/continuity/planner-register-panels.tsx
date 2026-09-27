@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   LEVEL_LABEL,
+  isMarked,
   LEVEL_ORDER,
   STATUS_LABEL,
   type CoverageReport,
@@ -19,14 +20,14 @@ import {
   type DocumentationReport,
 } from "@/lib/precog/continuity/documentation";
 import {
+  coverageBadge,
   CRITICALITY_LABEL,
-  inputClass,
-  isMarked,
   NOT_ASSESSED_PLAN,
   STATUS_VARIANT,
   UNHELD_VIEW,
 } from "@/lib/precog/continuity/planner-copy";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
+import { inputClass } from "./styles";
 import type { Criticality, KnowledgeLevel } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 import { count, joinWithAnd, verb } from "@/lib/precog/text";
@@ -417,7 +418,7 @@ export function SelectedKnowledgeCard({
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>{selected.item.name}</CardTitle>
-          <Badge variant={STATUS_VARIANT[selected.status]}>{STATUS_LABEL[selected.status]}</Badge>
+          <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
         </div>
         <CardDescription>
           {selected.item.description || CRITICALITY_LABEL[selected.item.criticality]}

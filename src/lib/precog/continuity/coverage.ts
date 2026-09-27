@@ -16,7 +16,6 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
-import { uid } from "../text";
 
 export const LEVEL_ORDER: KnowledgeLevel[] = ["aware", "basic", "proficient", "expert"];
 export const STRONG_LEVELS = new Set<KnowledgeLevel>(["expert", "proficient"]);
@@ -160,6 +159,15 @@ export function setRelationLevel(
   return level ? [...rest, { personId, knowledgeId, level }] : rest;
 }
 
+/**
+ * Whether anyone is marked on the item at any level. Until then every backup
+ * candidate ties on generic reasons and the pick would come down to the
+ * alphabet, so the app names nobody to train.
+ */
+export function isMarked(row: Pick<ItemCoverage, "primaries" | "learners" | "aware">): boolean {
+  return row.primaries.length + row.learners.length + row.aware.length > 0;
+}
+
 export function coverageStatus(primaries: number, learners: number): CoverageStatus {
   if (primaries === 0) return "uncovered";
   if (primaries >= 2) return "covered";
@@ -217,7 +225,26 @@ export function suggestBackups(
     .sort((a, b) => b.score - a.score || a.person.name.localeCompare(b.person.name));
 }
 
+const coverageCache = new WeakMap<IndustryTemplate, CoverageReport>();
+
+/**
+ * Who can run each register entry, who carries what alone, and the
+ * cross-training plan. Every continuity report (absence impact, leave
+ * windows, leavers, documentation, staleness, the weekly plan) starts from
+ * this one, so it is worked out once per template object: a register change
+ * resolves a new template rather than editing one in place. Treat the
+ * report as read-only.
+ */
 export function coverageReport(tpl: IndustryTemplate): CoverageReport {
+  let report = coverageCache.get(tpl);
+  if (!report) {
+    report = buildCoverageReport(tpl);
+    coverageCache.set(tpl, report);
+  }
+  return report;
+}
+
+function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
   const { knowledge, people, relations } = tpl;
   const byId = new Map(people.map((p) => [p.id, p]));
 
@@ -291,10 +318,7 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
   const plan: CrossTrainingMove[] = items
     .filter((i) => i.status !== "covered")
     .map((i) => {
-      // With nobody marked on an item at any level, every candidate ties on
-      // generic reasons and the pick would come down to the alphabet, so the
-      // plan names nobody until the owner marks someone on it.
-      const marked = i.primaries.length + i.learners.length + i.aware.length > 0;
+      const marked = isMarked(i);
       const trainee = marked ? (i.suggestedBackups[0]?.person ?? null) : null;
       const trainer = i.primaries[0] ?? null;
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
@@ -393,8 +417,4 @@ export function criticalSinglePoints(tpl: IndustryTemplate): CriticalSinglePoint
  */
 export function soleOwnerCriticalCount(tpl: IndustryTemplate): number {
   return registerAssessed(tpl) ? criticalSinglePoints(tpl).count : 0;
-}
-
-export function makeKnowledgeId(): string {
-  return uid("k");
 }

@@ -43,10 +43,8 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
   const add = (item: Omit<ReminderItem, "announceKey" | "stillOpen">) =>
     items.push(withAnnouncement(item, today));
   const tpl = resolveTemplate(profile);
-  // Local noon: decisionsDue reads the day back in the process's own zone.
-  const now = new Date(`${today}T12:00:00`);
 
-  const { overdue, dueSoon } = decisionsDue(profile.decisions, now, 7);
+  const { overdue, dueSoon } = decisionsDue(profile.decisions, today, 7);
   for (const decision of [...overdue, ...dueSoon]) {
     const reviewBy = decision.reviewBy ?? today;
     add({

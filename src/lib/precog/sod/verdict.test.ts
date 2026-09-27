@@ -1,29 +1,14 @@
-import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "../templates";
-import type { IndustryTemplate } from "../templates/types";
+import { describe, expect, it } from "vitest";
+import { teamTemplate } from "@/test/fixtures";
 import { buildAssignments, detectSodConflicts } from "./detect";
 import { concentrationHeadline, separatedPairs } from "./verdict";
 
 const general = getIndustryTemplate("general");
 
-function team(people: { name: string; role: string; duties: string[] }[]): IndustryTemplate {
-  return {
-    ...general,
-    people: people.map((p, i) => ({
-      id: `t${i + 1}`,
-      name: p.name,
-      role: p.role,
-      active: true,
-      entitlements: p.duties,
-    })),
-    relations: [],
-    roleTemplates: {},
-  };
-}
-
 describe("concentrationHeadline", () => {
   it("names the bookkeeper who holds most gaps and the one move that closes the most", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "Ana", role: "Owner", duties: ["approve_payroll"] },
       {
         name: "Denise Holmgren",
@@ -46,7 +31,7 @@ describe("concentrationHeadline", () => {
   });
 
   it("names nobody when the gaps are spread across the team", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "A", role: "Front Desk", duties: ["collect_cash", "post_payments"] },
       { name: "B", role: "AP Clerk", duties: ["enter_invoices", "release_payment"] },
       { name: "C", role: "Payroll", duties: ["enter_payroll", "approve_payroll"] },
@@ -57,7 +42,7 @@ describe("concentrationHeadline", () => {
 
 describe("separatedPairs", () => {
   it("lists the rules whose two duties sit with different people", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "A", role: "AP Clerk", duties: ["enter_invoices"] },
       { name: "B", role: "Owner", duties: ["release_payment", "approve_payroll"] },
       { name: "C", role: "Payroll", duties: ["enter_payroll"] },
@@ -74,7 +59,7 @@ describe("separatedPairs", () => {
 
 describe("separatedPairs reads pairs the way the detector does", () => {
   it("does not call check signing and reconciliation kept apart when one person holds both under a covering finding", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "Ana", role: "Owner", duties: ["approve_payroll"] },
       {
         name: "Cy",
@@ -89,7 +74,7 @@ describe("separatedPairs reads pairs the way the detector does", () => {
   });
 
   it("lists payment release and reconciliation as kept apart when payments go out by ACH", () => {
-    const tpl = team([
+    const tpl = teamTemplate(general, [
       { name: "Ana", role: "Owner", duties: ["bank_reconcile"] },
       { name: "Bo", role: "AP Clerk", duties: ["initiate_ach"] },
     ]);

@@ -1,7 +1,7 @@
 /**
  * Precog LLM stack types — tool-grounded multi-step reasoning.
  */
-import type { ContinuityStep } from "../continuity/absence-impact";
+import type { ContinuityStep } from "../decisions/follow-through";
 
 export type ToolName =
   | "get_practice_snapshot"

@@ -29,10 +29,6 @@ export interface StalenessReport {
   confirmedIndex: number;
 }
 
-function ageInDays(confirmedAt: string, today: string): number | null {
-  return daysBetween(confirmedAt, today);
-}
-
 export function staleItems(
   tpl: IndustryTemplate,
   today: string,
@@ -48,7 +44,7 @@ export function staleItems(
       row.item.confirmedAt && isCalendarDate(row.item.confirmedAt, today)
         ? row.item.confirmedAt
         : null;
-    const ageDays = confirmedAt ? ageInDays(confirmedAt, today) : null;
+    const ageDays = confirmedAt ? daysBetween(confirmedAt, today) : null;
     const fresh = ageDays !== null && ageDays <= maxAgeDays;
     const weight = CRITICALITY_WEIGHT[row.item.criticality];
     totalWeight += weight;

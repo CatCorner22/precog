@@ -4,7 +4,9 @@ import {
   count,
   firstName,
   joinWithAnd,
+  joinWithOr,
   nameKey,
+  quoted,
   slug,
   stableStringify,
   stripInvisibleControls,
@@ -48,6 +50,18 @@ describe("joinWithAnd", () => {
   it("counts the rest past max, but never says 'and 1 more'", () => {
     expect(joinWithAnd(["Ana", "Ben", "Cal"], 2)).toBe("Ana, Ben and Cal");
     expect(joinWithAnd(["Ana", "Ben", "Cal", "Dee", "Eve"], 2)).toBe("Ana, Ben and 3 more");
+  });
+});
+
+describe("joinWithOr and quoted", () => {
+  it("lists alternatives the way joinWithAnd lists items", () => {
+    expect(joinWithOr(["Ana", "Ben"])).toBe("Ana or Ben");
+    expect(joinWithOr(["Ana", "Ben", "Cal"], 2)).toBe("Ana, Ben or Cal");
+    expect(joinWithOr(["Ana", "Ben", "Cal", "Dee"], 2)).toBe("Ana, Ben or 2 more");
+  });
+
+  it("wraps a name in double quotes", () => {
+    expect(quoted("Payroll")).toBe('"Payroll"');
   });
 });
 

@@ -22,11 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type CoverageReport } from "@/lib/precog/continuity/coverage";
 import { handoverDeadline } from "@/lib/precog/continuity/leavers";
-import {
-  CRITICALITY_LABEL,
-  inputClass,
-  NOT_ASSESSED_ABSENCE,
-} from "@/lib/precog/continuity/planner-copy";
+import { CRITICALITY_LABEL, NOT_ASSESSED_ABSENCE } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
 import { handoffDeadline } from "@/lib/precog/continuity/planned-absence";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { joinWithAnd, firstName } from "@/lib/precog/text";
@@ -370,7 +367,7 @@ export function LeavingTeamCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <LeaverAccessList />
+        <LeaverAccessList explainOnSample />
         {leaving.staying.length > 0 && (
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">

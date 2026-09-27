@@ -56,7 +56,7 @@ describe("buildWeeklyActions planned leave", () => {
     expect(action?.title).toContain("Apr 13–20");
     expect(action?.title).toContain(`hand off ${item.name} to`);
     expect(action?.effort).toBe("low");
-    expect(action?.why).toContain("Hand off by 2025-04-12");
+    expect(action?.why).toContain("Hand off by Apr 12.");
     expect(action?.why).toContain("Left in the business");
     expect(action?.tab).toBe("knowledge");
     expect(action?.priority).toBe(85);
@@ -172,14 +172,15 @@ describe("buildWeeklyActions planned leave", () => {
     expect(actions.some((a) => a.id.startsWith("leave-abs-c"))).toBe(false);
   });
 
-  it("reports a logged hand-off as in progress instead of fresh advice", () => {
+  it("reports a logged hand-off as a Journal reminder instead of fresh advice", () => {
+    // Overdue, so the reminder outranks the fresh advice that fills the plan's five slots.
     const logged: DecisionEntry = {
       id: "d-handoff",
-      createdAt: "2025-04-01T09:00:00.000Z",
+      createdAt: "2025-03-20T09:00:00.000Z",
       subject: item.name,
       kind: "remediate",
       note: "Hand off before leave",
-      reviewBy: "2025-04-12",
+      reviewBy: "2025-03-31",
       linkedTab: "knowledge",
       linkedId: item.id,
       linkedIndustry: "dental",

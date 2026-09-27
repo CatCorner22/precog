@@ -6,32 +6,14 @@ import {
   STATUS_URGENCY,
   type CoverageStatus,
 } from "./coverage";
-import type { ContinuityStep } from "./absence-impact";
+import type { ContinuityStep } from "../decisions/follow-through";
 import { firstName } from "../text";
 
-/** Whether a written procedure exists for each item, and where the gaps are. */
 /**
  * How far an item's know-how is written down: nothing, a procedure that exists
  * but nobody has said where it is, or a procedure a stand-in can actually find.
  */
 export type DocumentationState = "none" | "unlocated" | "located";
-
-export const DOCUMENTATION_LABEL: Record<DocumentationState, string> = {
-  none: "Nothing written down",
-  unlocated: "Written, location not recorded",
-  located: "Written and findable",
-};
-
-export function documentationState(item: KnowledgeItem): DocumentationState {
-  if (!item.documented) return "none";
-  return item.procedureLocation?.trim() ? "located" : "unlocated";
-}
-
-const DOCUMENTATION_URGENCY: Record<DocumentationState, number> = {
-  none: 2,
-  unlocated: 1,
-  located: 0,
-};
 
 export interface DocumentationGap {
   item: KnowledgeItem;
@@ -51,6 +33,19 @@ export interface DocumentationReport {
   /** 0–100 share of criticality weight that is written and findable. */
   documentedIndex: number;
 }
+
+export const DOCUMENTATION_LABEL: Record<DocumentationState, string> = {
+  none: "Nothing written down",
+  unlocated: "Written, location not recorded",
+  located: "Written and findable",
+};
+
+/** How far each state has got, from nothing written (0) to written and findable (2). */
+export const DOCUMENTATION_RANK: Record<DocumentationState, number> = {
+  none: 0,
+  unlocated: 1,
+  located: 2,
+};
 
 /**
  * Documentation debt — where the business's know-how lives only in someone's
@@ -75,7 +70,8 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
       continue;
     }
     const author = i.primaries[0] ?? i.learners[0] ?? null;
-    const priority = weight * (STATUS_URGENCY[i.status] + 1) * DOCUMENTATION_URGENCY[state];
+    const urgency = DOCUMENTATION_RANK.located - DOCUMENTATION_RANK[state];
+    const priority = weight * (STATUS_URGENCY[i.status] + 1) * urgency;
     let action: string;
     if (state === "none") {
       if (!author) {
@@ -111,8 +107,17 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
   };
 }
 
-export const DOCUMENTATION_RANK: Record<DocumentationState, number> = {
-  none: 0,
-  unlocated: 1,
-  located: 2,
-};
+export function documentationState(item: KnowledgeItem): DocumentationState {
+  if (!item.documented) return "none";
+  return item.procedureLocation?.trim() ? "located" : "unlocated";
+}
+
+/**
+ * Where a stand-in finds the written procedure for an entry — the one thing
+ * worth telling them on the morning someone calls in sick.
+ */
+export function procedurePointer(item: KnowledgeItem): string {
+  if (!item.documented) return "nothing written down";
+  const where = item.procedureLocation?.trim();
+  return where ? `procedure at ${where}` : "written down, location not recorded";
+}

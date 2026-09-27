@@ -17,7 +17,7 @@ import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
-import { type ContinuityStep } from "./continuity/absence-impact";
+import type { ContinuityStep } from "./decisions/follow-through";
 import {
   applyDecisionReview,
   captureDecisionSnapshot,

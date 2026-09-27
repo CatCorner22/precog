@@ -6,9 +6,11 @@ import { continuityCommitments, handoffCommitment } from "../decisions/follow-th
 import { leaveDebriefs } from "./leave-debrief";
 import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
-import { plannedAbsenceReport, procedurePointer, type AbsenceWindow } from "./planned-absence";
+import { plannedAbsenceReport, type AbsenceWindow } from "./planned-absence";
+import { procedurePointer } from "./documentation";
 import { joinWithAnd, firstName, count, verb } from "../text";
 import { formatDayRange } from "../dates";
+import { relationLevel, STRONG_LEVELS } from "./coverage";
 
 /** Leave starting within this many days counts as "starting soon" on the dashboard. */
 export const SOON_DAYS = 7;
@@ -30,6 +32,10 @@ interface TodayOut {
   window: AbsenceWindow;
   person: Person;
   unplanned: boolean;
+  /**
+   * What stops today among the entries this person can run alone. An entry
+   * two people out today both hold is listed under each of them.
+   */
   stops: TodayStop[];
 }
 
@@ -44,11 +50,13 @@ interface TodayUpcoming {
 export interface TodayBrief {
   /** Everyone out right now, most critical impact first. */
   out: TodayOut[];
-  /** Stopped items across everyone out that nobody left has ever done. */
+  /** Register entries that stop today across everyone out, each counted once. */
+  stopped: number;
+  /** Of those, entries that nobody left has ever done. */
   cold: number;
-  /** Stopped items across everyone out with nothing written down. */
+  /** Of those, entries with nothing written down. */
   unwritten: number;
-  /** Stopped items across everyone out whose hand-off is not in the Journal. */
+  /** Of those, entries with no hand-off in the Journal for any of the people out. */
   unlogged: number;
   /** Leave starting within SOON_DAYS, soonest first. */
   startingSoon: TodayUpcoming[];
@@ -85,20 +93,24 @@ export function todayBrief(
       window: w,
       person: w.person,
       unplanned: Boolean(w.absence.unplanned),
-      stops: (w.todayImpact ?? w.impact).stops.map((s) => ({
-        item: s.item,
-        standIn: s.standIn,
-        cold: !s.standIn || !touched.has(`${s.standIn.id}\u0000${s.item.id}`),
-        procedure: procedurePointer(s),
-        handoffLogged: Boolean(handoffCommitment(committed, s.item.id, w.absence.id)),
-      })),
+      // Every current window's impact counts everyone out today, so each
+      // person keeps only the stopped entries they themselves hold.
+      stops: (w.todayImpact ?? w.impact).stops
+        .filter((s) => holdsAlone(tpl, w.person.id, s.item.id))
+        .map((s) => ({
+          item: s.item,
+          standIn: s.standIn,
+          cold: !s.standIn || !touched.has(`${s.standIn.id}\u0000${s.item.id}`),
+          procedure: procedurePointer(s.item),
+          handoffLogged: Boolean(handoffCommitment(committed, s.item.id, w.absence.id)),
+        })),
     }))
     .sort(
       (a, b) =>
         (b.window.todayImpact ?? b.window.impact).dependence -
         (a.window.todayImpact ?? a.window.impact).dependence,
     );
-  const stops = out.flatMap((o) => o.stops);
+  const stops = distinctStops(out);
   const startingSoon: TodayUpcoming[] = leave.windows
     .filter((w) => w.status === "upcoming" && w.daysUntil <= SOON_DAYS)
     .map((w) => ({
@@ -112,6 +124,7 @@ export function todayBrief(
   const departing = leavers(tpl, decisions, today);
   const brief: TodayBrief = {
     out,
+    stopped: stops.length,
     cold: stops.filter((s) => s.cold).length,
     unwritten: stops.filter((s) => !s.item.documented).length,
     unlogged: stops.filter((s) => !s.handoffLogged).length,
@@ -139,7 +152,7 @@ function headline(b: TodayBrief): string | null {
           : unexpected > 1
             ? `out (${unexpected} unexpectedly)`
             : "out";
-    const stopCount = b.out.flatMap((o) => o.stops).length;
+    const stopCount = b.stopped;
     const first = b.out[0].window;
     const waiting = (first.todayImpact ?? first.impact).alreadyStopped.filter(
       (k) => k.criticality !== "nice-to-have",
@@ -181,4 +194,25 @@ function headline(b: TodayBrief): string | null {
     return `${count(b.debriefs, "absence")} just ended — debrief the stand-ins.`;
   }
   return null;
+}
+
+/** Whether this person can run the entry alone. */
+function holdsAlone(tpl: IndustryTemplate, personId: string, itemId: string): boolean {
+  return STRONG_LEVELS.has(relationLevel(tpl.relations, personId, itemId) ?? "aware");
+}
+
+/**
+ * Each stopped entry once, however many of the people out hold it. Its
+ * hand-off counts as logged when any of their absences logged one.
+ */
+function distinctStops(out: readonly TodayOut[]): TodayStop[] {
+  const byItem = new Map<string, TodayStop>();
+  for (const stop of out.flatMap((o) => o.stops)) {
+    const seen = byItem.get(stop.item.id);
+    byItem.set(
+      stop.item.id,
+      seen ? { ...seen, handoffLogged: seen.handoffLogged || stop.handoffLogged } : stop,
+    );
+  }
+  return [...byItem.values()];
 }
