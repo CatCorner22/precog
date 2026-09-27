@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { diffSnapshots, driftIsEmpty, employeesFromQuery, vendorsFromQuery } from "./model";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { decryptSecret, encryptSecret } from "./client.server";
+import {
+  diffSnapshots,
+  driftIsEmpty,
+  employeesFromQuery,
+  VENDOR_FIELD_LABEL,
+  vendorsFromQuery,
+} from "./model";
 import { authorizeUrl, signState, verifyState } from "./oauth";
 
 const vendorBody = {
@@ -64,7 +71,6 @@ describe("QuickBooks readings", () => {
           email: null,
           address: "old address",
           accountNumber: "A-100",
-          updatedAt: null,
         },
         {
           id: "9",
@@ -73,12 +79,11 @@ describe("QuickBooks readings", () => {
           email: null,
           address: null,
           accountNumber: null,
-          updatedAt: null,
         },
       ],
       employees: [
-        { id: "e1", name: "Ada Owner", active: true, hiredOn: null, releasedOn: null, email: null },
-        { id: "e3", name: "Cy Gone", active: true, hiredOn: null, releasedOn: null, email: null },
+        { id: "e1", name: "Ada Owner", active: true, releasedOn: null },
+        { id: "e3", name: "Cy Gone", active: true, releasedOn: null },
       ],
     };
     const current = {
@@ -129,6 +134,14 @@ describe("connect state", () => {
     expect(await verifyState(null, "secret")).toBeNull();
   });
 
+  it("accepts exactly two segments and no state issued in the future", async () => {
+    const state = { userId: "u1", businessId: "biz_1", issuedAt: 1_000_000 };
+    const token = await signState(state, "secret");
+    expect(await verifyState(`${token}.garbage`, "secret", 1_000_000)).toBeNull();
+    expect(await verifyState(`${token}.x.y`, "secret", 1_000_000)).toBeNull();
+    expect(await verifyState(token, "secret", 1_000_000 - 61_000)).toBeNull();
+  });
+
   it("builds the authorize URL Intuit expects", () => {
     const url = new URL(
       authorizeUrl({ clientId: "cid", redirectUri: "https://app/cb", state: "s" }),
@@ -136,5 +149,63 @@ describe("connect state", () => {
     expect(url.origin + url.pathname).toBe("https://appcenter.intuit.com/connect/oauth2");
     expect(url.searchParams.get("scope")).toBe("com.intuit.quickbooks.accounting");
     expect(url.searchParams.get("redirect_uri")).toBe("https://app/cb");
+  });
+});
+
+describe("diffSnapshots name matching", () => {
+  it("treats 'Jose Perez' in the books as the mapped 'José Pérez'", () => {
+    const drift = diffSnapshots(
+      null,
+      {
+        takenAt: "2026-09-26T00:00:00Z",
+        vendors: [],
+        employees: [
+          {
+            id: "1",
+            name: "Jose Perez",
+            active: true,
+            releasedOn: null,
+          },
+        ],
+      },
+      [{ name: "José Pérez" }],
+    );
+    expect(drift.employeesNotOnMap).toEqual([]);
+  });
+});
+
+describe("token sealing", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("round-trips, refuses another key and a changed tag", () => {
+    vi.stubEnv("INTEGRATION_KEY", "key-a");
+    const sealed = encryptSecret("refresh-token");
+    expect(sealed.split(".")).toHaveLength(4);
+    expect(decryptSecret(sealed)).toBe("refresh-token");
+    const [kid, iv, tag, body] = sealed.split(".");
+    const flipped = `${tag[0] === "A" ? "B" : "A"}${tag.slice(1)}`;
+    expect(() => decryptSecret([kid, iv, flipped, body].join("."))).toThrow();
+    vi.stubEnv("INTEGRATION_KEY", "key-b");
+    expect(() => decryptSecret(sealed)).toThrow();
+  });
+
+  it("still opens tokens sealed under the previous key during a rotation", () => {
+    vi.stubEnv("INTEGRATION_KEY", "key-a");
+    const sealed = encryptSecret("refresh-token");
+    const legacy = sealed.split(".").slice(1).join(".");
+    vi.stubEnv("INTEGRATION_KEY", "key-b");
+    vi.stubEnv("INTEGRATION_KEY_PREVIOUS", "key-a");
+    expect(decryptSecret(sealed)).toBe("refresh-token");
+    expect(decryptSecret(legacy)).toBe("refresh-token");
+    expect(encryptSecret("x").split(".")[0]).not.toBe(sealed.split(".")[0]);
+  });
+});
+
+describe("vendor field labels", () => {
+  it("names every changed field in words", () => {
+    expect(VENDOR_FIELD_LABEL.accountNumber).toBe("account number");
+    expect(Object.values(VENDOR_FIELD_LABEL).every((label) => !/[A-Z]/.test(label))).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
-import { HEAT_BANDS, type MapGraphNode } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { type MapGraphNode } from "@/lib/precog/process-graph";
 import type { MapLayerId, MapVisionMode } from "@/lib/precog/map-vision";
 
 /** Colours and lookups the process map's renderers share; no React here. */

@@ -1,8 +1,10 @@
-import { jobCatalogEntry } from "./job-catalog";
+import { JOB_CATALOG, jobCatalogEntry } from "./job-catalog";
+import { INDUSTRIES } from "../industry";
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parseRoster } from "../import/roster";
 import {
   CORE_DUTIES,
@@ -10,30 +12,32 @@ import {
   addableDuties,
   buildOwnTeam,
   coreDutiesForTitle,
+  firstRowForIndustry,
   firstUnnamedWithDuties,
-  mergeTeamRows,
+  isLeaderTitle,
   onLeavePersonIds,
   ownerRow,
   suggestedDuties,
-  placeholderNames,
-  rowFromImportedPerson,
   ownBusinessProfile,
   OWN_BUSINESS_FALLBACK_NAME,
-  rowsForJobTitle,
+  rowNeedsReview,
   rowsKeptForAdding,
-  addPastedRows,
-  addRowsByTitle,
-  confirmTitleDuties,
-  pasteSummary,
-  pastedRows,
-  peopleWithTitleDuties,
   rowOwnsBusiness,
   rowSeat,
   sharedTitles,
-  titleDutiesSentence,
   untickDutyForTitle,
   type OwnTeamRow,
 } from "./own-team";
+import {
+  addPastedRows,
+  addRowsByTitle,
+  mergeTeamRows,
+  pasteSummary,
+  pastedRows,
+  placeholderNames,
+  rowFromImportedPerson,
+  rowsForJobTitle,
+} from "./add-people";
 import type { EntitlementId } from "../sod/conflict-rules";
 
 describe("buildOwnTeam", () => {
@@ -337,7 +341,7 @@ describe("own team from a pasted roster, round three", () => {
   });
 
   it("fills the grid from the same roster pasted twice without doubling anyone", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const first = parseRoster(
       "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Cashier",
       tpl,
@@ -360,7 +364,6 @@ describe("own team from a pasted roster, round three", () => {
       ["Dee Park", "Server"],
     ]);
     expect(merged.added.map((r) => r.name)).toEqual(["Dee Park"]);
-    expect(merged.updated.map((r) => r.name)).toEqual(["Cal Diaz"]);
     // Ben's title is unchanged, so the duties ticked by hand stay.
     expect(merged.rows[2].duties).toEqual(["post_payments"]);
   });
@@ -381,7 +384,7 @@ describe("own team from a pasted roster, round three", () => {
   });
 
   it("keeps a Workday employee id and a notice-period last day from the paste on the saved person", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const result = parseRoster(
       "Employee ID\tWorker\tBusiness Title\tTermination Date\n1001\tAna Ruiz\tOffice Manager\t12/31/2026",
       tpl,
@@ -403,7 +406,7 @@ describe("own team from a pasted roster, round three", () => {
 });
 
 describe("setup grid: pasting, adding and reading titles", () => {
-  const tpl = getBaseTemplate("general");
+  const tpl = getIndustryTemplate("general");
   const paste = (text: string, today = new Date("2026-09-22T00:00:00Z")) =>
     pastedRows(parseRoster(text, tpl, { today }), "general");
 
@@ -436,9 +439,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "none",
       onLeaveNames: [],
     });
-    expect(note).toMatch(
-      /^Added 1 person; 3 people already in the table were updated, not added again\./,
-    );
+    expect(note).toMatch(/^Added 1 person and updated 3 people already in the table\./);
   });
 
   it("an owner who typed 'Dale Hutchins' and pastes a QuickBooks list with 'Hutchins, Dale' appears once", () => {
@@ -530,7 +531,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: ["Ana Morales"],
     });
-    expect(note).toContain("1 person marked inactive was left out: Bo Chen.");
+    expect(note).toContain("Left out 1 person the roster marks inactive: Bo Chen.");
     expect(note).toContain("Ana Morales is on leave");
   });
 
@@ -577,57 +578,104 @@ describe("setup grid: pasting, adding and reading titles", () => {
   });
 });
 
-describe("findings that rest on duties guessed from job titles", () => {
-  it("marks people whose ticks are still the usual ones for their title, and nobody the owner changed", () => {
-    const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "dental")[0];
-    const cashier = rowsForJobTitle(jobCatalogEntry("cashier")!, 1, [], "dental")[0];
-    const people = buildOwnTeam(
-      [
-        { ...ownerRow(), name: "Olga Owner" },
-        { ...bookkeeper, name: "Ben Ochoa" },
-        // The owner unticked one of the cashier's duties.
-        { ...cashier, name: "Cal Diaz", duties: cashier.duties.slice(1) },
-        // Typed by hand, with no title to guess from.
-        { name: "Dee Park", role: "Chief Vibes Officer", duties: ["collect_cash"] },
-        // A title the catalog cannot read ticks nothing, so nothing is guessed.
-        {
-          name: "Eve Ng",
-          role: "Chief Vibes Officer",
-          duties: [],
-          suggestedFor: "Chief Vibes Officer",
-        },
-      ],
-      "dental",
+describe("a nonprofit paste whose leader is titled CEO", () => {
+  it("replaces the blank Executive Director row with the pasted leader", () => {
+    const tpl = getIndustryTemplate("nonprofit");
+    const result = parseRoster("Maria Lopez, President & CEO\nJon Ruiz, Bookkeeper", tpl);
+    const { rows: incoming } = pastedRows(result, "nonprofit");
+    const grid = firstRowForIndustry([ownerRow()], "nonprofit");
+    const { kept, ownerRow: outcome } = rowsKeptForAdding(
+      grid,
+      incoming.some((r) => rowOwnsBusiness(r)),
+      incoming.some((r) => isLeaderTitle(r.role)),
     );
-    expect(people.map((p) => [p.name, p.dutiesFromTitle ?? false])).toEqual([
-      ["Olga Owner", true],
-      ["Ben Ochoa", true],
-      ["Cal Diaz", false],
-      ["Dee Park", false],
-      ["Eve Ng", false],
+    expect(outcome).toBe("leader-replaced");
+    expect(kept).toEqual([]);
+  });
+});
+
+describe("adding people by job title and typing the title agree", () => {
+  it("ticks the duties typing the title ticks, for every job in every line of business", () => {
+    for (const industry of INDUSTRIES.map((i) => i.id)) {
+      for (const entry of JOB_CATALOG) {
+        const [row] = rowsForJobTitle(entry, 1, [], industry);
+        const owns = rowOwnsBusiness(row, industry);
+        expect(row.duties, `${entry.id} in ${industry}`).toEqual(
+          suggestedDuties(entry.title, owns, industry),
+        );
+        if (row.duties.length > 0) {
+          expect(buildOwnTeam([row], industry)[0].dutiesFromTitle, entry.id).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("gives a dental customer service representative the front desk's duties either way", () => {
+    const entry = jobCatalogEntry("customer-service")!;
+    const [row] = rowsForJobTitle(entry, 1, [], "dental");
+    expect(row.duties).toEqual(suggestedDuties("Customer Service Representative", false, "dental"));
+    expect(row.duties).toContain("collect_cash");
+  });
+});
+
+describe("one reading of who owns the business", () => {
+  it("marks a row the owner whenever its title ticks the owner's duties", () => {
+    for (const role of ["Dealer Principal", "Dealer", "Chief Executive", "Owner / Principal"]) {
+      expect(rowOwnsBusiness({ role }, "general"), role).toBe(true);
+      expect(
+        buildOwnTeam([{ name: "Ana", role, duties: ["sign_checks"] }], "general")[0].owner,
+      ).toBe(true);
+    }
+    for (const alias of jobCatalogEntry("owner")!.aliases) {
+      expect(rowOwnsBusiness({ role: alias }, "general"), alias).toBe(true);
+    }
+    expect(rowOwnsBusiness({ role: "Owner's Assistant" }, "general")).toBe(false);
+    expect(rowOwnsBusiness({ role: "Dealer Principal", owner: false }, "general")).toBe(false);
+  });
+
+  it("reads nobody as the owner of a nonprofit, whatever the title or mark", () => {
+    expect(rowOwnsBusiness({ role: "Owner" }, "nonprofit")).toBe(false);
+    expect(rowOwnsBusiness({ role: "Founder", owner: true }, "nonprofit")).toBe(false);
+    const [row] = rowsForJobTitle(jobCatalogEntry("owner")!, 1, [], "nonprofit");
+    expect(buildOwnTeam([row], "nonprofit")[0].owner).toBe(false);
+  });
+});
+
+describe("two pasted people who share a name", () => {
+  it("gives each the seat their own title was read as", () => {
+    const result = parseRoster(
+      "Employee ID,Name,Title\n1,Ana Ruiz,Bookkeeper\n2,Ana Ruiz,Cashier",
+      getIndustryTemplate("general"),
+    );
+    const { rows } = pastedRows(result, "general");
+    expect(rows.map((r) => [r.role, r.readAs?.title])).toEqual([
+      ["Bookkeeper", "Bookkeeper"],
+      ["Cashier", jobCatalogEntry("cashier")!.title],
     ]);
-    expect(peopleWithTitleDuties(people).map((p) => p.name)).toEqual(["Olga Owner", "Ben Ochoa"]);
-    expect(titleDutiesSentence(people)).toBe(
-      "Duties for 2 of your 5 people are the usual ones for their job titles, not ones you confirmed.",
-    );
   });
+});
 
-  it("a row whose title was changed after its duties were ticked is not marked", () => {
-    const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0];
-    const [person] = buildOwnTeam(
-      [{ ...bookkeeper, name: "Ben Ochoa", role: "Controller" }],
-      "general",
-    );
-    expect(person.dutiesFromTitle).toBeUndefined();
+describe("rows to review before finishing", () => {
+  const matched = { title: "Bookkeeper", partial: false };
+  it("leaves a named row whose title the catalog knows out of the review", () => {
+    expect(
+      rowNeedsReview({ name: "Ana", role: "Bookkeeper", duties: ["bank_reconcile"] }, matched),
+    ).toBe(false);
   });
-
-  it("clears every mark once the owner says the duties are right", () => {
-    const people = buildOwnTeam([{ ...ownerRow(), name: "Olga Owner" }], "general");
-    expect(titleDutiesSentence(people)).toBe(
-      "Duties for your one person are the usual ones for their job title, not ones you confirmed.",
+  it("shows unknown and partly matched titles", () => {
+    const row = { name: "Ana", role: "Custom job", duties: [] };
+    expect(rowNeedsReview(row, undefined)).toBe(true);
+    expect(rowNeedsReview(row, { ...matched, partial: true })).toBe(true);
+    expect(rowNeedsReview(row, { title: undefined, partial: false })).toBe(true);
+  });
+  it("shows an unnamed row with a title or duties, and a named person with no title", () => {
+    expect(rowNeedsReview({ name: " ", role: "Bookkeeper", duties: [] }, matched)).toBe(true);
+    expect(rowNeedsReview({ name: "", role: "", duties: ["bank_reconcile"] }, undefined)).toBe(
+      true,
     );
-    const confirmed = confirmTitleDuties(people);
-    expect(confirmed[0]).not.toHaveProperty("dutiesFromTitle");
-    expect(titleDutiesSentence(confirmed)).toBe("");
+    expect(rowNeedsReview({ name: "Ana", role: "", duties: [] }, undefined)).toBe(true);
+  });
+  it("does not count unused blank rows", () => {
+    expect(rowNeedsReview({ name: " ", role: " ", duties: [] }, undefined)).toBe(false);
   });
 });

@@ -4,26 +4,31 @@ import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { DEFAULT_FRAUD_STATS } from "../templates/shared-controls";
 import {
   BENCHMARK_BY_ID,
+  DETECTION_LABEL,
+  lossPhrase,
+  SECTOR_LABEL,
+  sectorPhrase,
   CASE_LIBRARY,
   CONTROL_CATALOG,
-  caseById,
+  caseDurationPhrase,
   caseForRule,
-  casesCitingSodRules,
-  casesForSector,
   casesForControl,
   casesForSodRules,
   citingCaseStats,
   detectionBreakdown,
   durationPhrase,
+  effortPhrase,
   isOwnSector,
-  observedDurationMonths,
   observedLossRange,
+  RULE_SCHEMES,
   recommendedStepsForRules,
-  schemesForSodRules,
   tenureExamples,
-  sectorForIndustry,
   sectorsForIndustry,
 } from "./index";
+import type { CaseStudy } from "./types";
+
+const caseById = (id: string) => CASE_LIBRARY.find((c) => c.id === id);
+const casesCitingSodRules = (ruleIds: readonly string[]) => citingCaseStats(ruleIds).cases;
 
 describe("case library integrity", () => {
   const ruleIds = new Set(CONFLICT_RULES.map((r) => r.id));
@@ -40,6 +45,8 @@ describe("case library integrity", () => {
         expect(CONTROL_CATALOG[w.control], `${c.id}: ${w.control}`).toBeDefined();
       }
       if (c.lossUsd === 0) expect(c.caveat, `${c.id} has no loss and no caveat`).toBeTruthy();
+      // A zero is no amount at all, so it cannot be a minimum.
+      if (c.lossIsFloor) expect(c.lossUsd, `${c.id} floor of $0`).toBeGreaterThan(0);
     }
   });
 
@@ -65,13 +72,16 @@ describe("case library integrity", () => {
 
   it("gives every industry a sector with real cases", () => {
     for (const { id } of INDUSTRIES) {
-      expect(casesForSector(sectorForIndustry(id)).length, id).toBeGreaterThan(0);
+      const sectors = sectorsForIndustry(id);
+      expect(
+        CASE_LIBRARY.some((c) => sectors.includes(c.sector)),
+        id,
+      ).toBe(true);
     }
   });
 
   it("counts medical cases as the dental template's own line of business", () => {
-    expect(sectorsForIndustry("dental")).toEqual(["dental", "medical"]);
-    expect(sectorForIndustry("dental")).toBe("dental");
+    expect(sectorsForIndustry("dental")).toEqual(["dental", "medical", "veterinary"]);
     const medical = CASE_LIBRARY.find((c) => c.sector === "medical");
     const retail = CASE_LIBRARY.find((c) => c.sector === "retail");
     expect(medical && isOwnSector(medical, "dental")).toBe(true);
@@ -80,6 +90,63 @@ describe("case library integrity", () => {
     for (const { id } of INDUSTRIES) {
       expect(sectorsForIndustry(id).length, id).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("record invariants", () => {
+  it("never states a tenure shorter than the scheme the person ran", () => {
+    for (const c of CASE_LIBRARY) {
+      if (c.tenureYearsStated === undefined || c.durationMonths === undefined) continue;
+      expect(c.tenureYearsStated, c.id).toBeGreaterThanOrEqual(Math.floor(c.durationMonths / 12));
+    }
+  });
+
+  it("marks a duration as a floor only where there is a duration", () => {
+    for (const c of CASE_LIBRARY) {
+      if (c.durationIsFloor) expect(c.durationMonths, c.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps each title's length of scheme in step with the duration shown beside it", () => {
+    const boston = caseById("case-boston-dental")!;
+    expect(boston.title).toContain("six years");
+    expect(durationPhrase(boston.durationMonths!)).toBe("6 years");
+  });
+
+  it("keeps an inbound billing fraud out of the conflicts it cannot show", () => {
+    for (const rule of ["rule-sign-rec", "rule-je-rec", "rule-payroll-rec"]) {
+      expect(
+        casesForSodRules([rule]).map((c) => c.id),
+        rule,
+      ).not.toContain("case-stamford-dental-billing");
+    }
+  });
+
+  it("files spending by an executive as expenses, not as kickbacks", () => {
+    const ids = casesForSodRules(["rule-vendor-approve-pay"]).map((c) => c.id);
+    expect(ids).not.toContain("case-nonprofit-human-first");
+    expect(ids).not.toContain("case-modest-needs-fake-board");
+  });
+
+  it("counts a control only against the employer whose loss the record carries", () => {
+    expect(casesForControl("background-check-money-handlers").map((c) => c.id)).not.toContain(
+      "case-dennys-franchise-vendors",
+    );
+  });
+
+  it("prints 'at least' before a duration the record calls a floor", () => {
+    expect(caseDurationPhrase({ durationMonths: 60, durationIsFloor: true })).toBe(
+      "at least 5 years",
+    );
+    expect(caseDurationPhrase({ durationMonths: 8 })).toBe("8 months");
+    expect(caseDurationPhrase({})).toBeNull();
+  });
+
+  it("counts the veterinary case as the dental, medical and veterinary template's own", () => {
+    const lowell = caseById("case-lowell-animal-hospital-refunds")!;
+    expect(lowell.sector).toBe("veterinary");
+    expect(isOwnSector(lowell, "dental")).toBe(true);
+    expect(sectorPhrase("veterinary")).toBe("at a veterinary practice");
   });
 });
 
@@ -99,6 +166,19 @@ describe("observedLossRange", () => {
     const mk = (n: number) => ({ ...CASE_LIBRARY[0], id: `c${n}`, lossUsd: n });
     expect(observedLossRange([mk(30), mk(10), mk(20)])!.median).toBe(20);
     expect(observedLossRange([mk(40), mk(10), mk(20), mk(30)])!.median).toBe(25);
+  });
+
+  it("flags the range when any counted amount is a floor", () => {
+    const mk = (n: number, lossIsFloor: boolean) => ({
+      ...CASE_LIBRARY[0],
+      id: `f${n}`,
+      lossUsd: n,
+      lossIsFloor,
+    });
+    expect(observedLossRange([mk(10, false), mk(20, false)])!.anyFloor).toBe(false);
+    expect(observedLossRange([mk(10, false), mk(20, true)])!.anyFloor).toBe(true);
+    // A zero placeholder is not counted, so it cannot make the range a floor.
+    expect(observedLossRange([mk(10, false), mk(0, true)])!.anyFloor).toBe(false);
   });
 });
 
@@ -189,6 +269,72 @@ describe("recommendedStepsForRules", () => {
 });
 
 describe("case ranking", () => {
+  const mk = (id: string, over: Partial<CaseStudy>): CaseStudy => ({
+    ...CASE_LIBRARY[0],
+    id,
+    sector: "any",
+    schemes: [],
+    sodRuleIds: [],
+    lossUsd: 1000,
+    lossIsFloor: false,
+    ...over,
+  });
+
+  it("orders by citation, then stated loss, then scheme overlap, then rule overlap, then amount", () => {
+    // rule-collect-post enables skimming and cash-larceny.
+    const library = [
+      mk("related-large", { schemes: ["skimming", "cash-larceny"], lossUsd: 9_000_000 }),
+      mk("cites-no-loss", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 0,
+      }),
+      mk("cites-one-scheme-large", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming"],
+        lossUsd: 500_000,
+      }),
+      mk("cites-two-schemes-small", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 20_000,
+      }),
+      mk("cites-two-schemes-large", {
+        sodRuleIds: ["rule-collect-post"],
+        schemes: ["skimming", "cash-larceny"],
+        lossUsd: 90_000,
+      }),
+      mk("unrelated", { schemes: ["payroll"] }),
+    ];
+    expect(casesForSodRules(["rule-collect-post"], library).map((c) => c.id)).toEqual([
+      "cites-two-schemes-large",
+      "cites-two-schemes-small",
+      "cites-one-scheme-large",
+      "cites-no-loss",
+      "related-large",
+    ]);
+  });
+
+  it("never leads a rule with a record that states no loss while one with a figure cites it", () => {
+    for (const rule of CONFLICT_RULES) {
+      const citing = casesCitingSodRules([rule.id]);
+      if (!citing.some((c) => c.lossUsd > 0)) continue;
+      expect(citing[0].lossUsd, rule.id).toBeGreaterThan(0);
+      for (const { id: industry } of INDUSTRIES) {
+        expect(
+          caseForRule(rule.id, industry)?.study.lossUsd,
+          `${rule.id} ${industry}`,
+        ).toBeGreaterThan(0);
+      }
+    }
+    // The counter-clerk record, whose source states no loss, used to lead these.
+    for (const industry of ["restaurant", "construction", "general", "nonprofit"]) {
+      expect(caseForRule("rule-collect-post", industry)?.study.id).not.toBe(
+        "case-void-no-sale-counter",
+      );
+    }
+  });
+
   it("leads every rule with a case that cites it, and never calls a cross-sector case the owner's line", () => {
     for (const rule of CONFLICT_RULES) {
       if (casesCitingSodRules([rule.id]).length === 0) continue;
@@ -247,13 +393,14 @@ describe("casesCitingSodRules", () => {
 
 describe("citingCaseStats", () => {
   it("counts and takes the median over citing cases only, never over related schemes", () => {
-    const rules = ["rule-writeoff", "family-custody-recording"];
+    const rules = ["rule-collect-post", "family-custody-recording"];
     const stats = citingCaseStats(rules);
     const citing = casesCitingSodRules(rules);
     expect(stats.count).toBe(citing.length);
     expect(stats.cases.map((c) => c.id)).toEqual(citing.map((c) => c.id));
+    expect(stats.count).toBeGreaterThan(0);
     expect(stats.loss).toEqual(observedLossRange(citing));
-    expect(stats.duration).toEqual(observedDurationMonths(citing));
+    expect(stats.duration?.n ?? 0).toBe(citing.filter((c) => (c.durationMonths ?? 0) > 0).length);
     expect(stats.detection).toEqual(detectionBreakdown(citing));
     // The broader match carries scheme-only cases that must not enter the count.
     expect(casesForSodRules(rules).length).toBeGreaterThan(stats.count);
@@ -301,9 +448,66 @@ describe("durationPhrase", () => {
     expect(durationPhrase(132)).toBe("11 years");
     expect(durationPhrase(200)).toBe("16.7 years");
   });
+
+  it("rounds months before choosing between months and years", () => {
+    expect(durationPhrase(11.6)).toBe("1 year");
+    expect(durationPhrase(11.4)).toBe("11 months");
+    expect(durationPhrase(0.4)).toBe("under a month");
+  });
 });
 
+/**
+ * Words that show a record's insider held a duty. A rule belongs on a record
+ * only when its text shows both of the rule's duties (types.ts, sodRuleIds).
+ * The reconciliation words accept a record that says nobody outside the role
+ * read the bank statement or the cleared checks: the comparison sat with the
+ * insider's role or with no one. "In charge of all accounting" covers the
+ * reconciliation too.
+ */
+const DUTY_WORDS: Record<string, RegExp> = {
+  issue_refunds: /refund/i,
+  post_adjustments: /adjust|void|credit|write-?off|discount|no-sale|edited the accounting entries/i,
+  enter_invoices: /invoice|accounts payable|payables|bills/i,
+  release_payment: /\bpa(id|y|yment|yments|ying)\b|checks?\b|transfer|wire|disburs|bill-pay/i,
+  approve_invoices: /approv/i,
+  order_supplies: /order|purchas/i,
+  receive_goods: /receiv|deliver|signed for/i,
+  initiate_ach: /electronic|\bach\b|online|transfer|wire/i,
+  manage_backups: /backup/i,
+  manage_user_access: /access|login|password|administrator|permission/i,
+  post_payments: /record|post|books|ledger|enter|accounting/i,
+  sign_checks: /sign|forg|cut checks|checks to (her|him)self/i,
+  bank_reconcile:
+    /reconcil|bank statement|cleared[- ]checks?|compared what left the bank|looked at the bank account|view of the bank accounts|in charge of all accounting/i,
+  post_journal_entries: /journal|entr(y|ies)|books|ledger|recorded|coded/i,
+  edit_payroll_master: /payroll/i,
+  enter_payroll: /payroll|timesheet|pay run|hours/i,
+  collect_cash: /cash|payment|collect|receipt|deposit|checks?\b/i,
+  approve_writeoffs: /void|write-?off|no-sale/i,
+  prepare_deposit: /deposit|accounts receivable/i,
+  create_vendor: /vendor|supplier|payee|shell|company named/i,
+  approve_vendor: /approv|vendor/i,
+  approve_payroll: /approv|payroll/i,
+  hold_company_card: /card/i,
+  review_card_statement: /statement|card|books|reconcil/i,
+};
+
 describe("rule attachments", () => {
+  it("cite a rule only where the record shows both of its duties", () => {
+    const rules = new Map(CONFLICT_RULES.map((r) => [r.id, r]));
+    for (const c of CASE_LIBRARY) {
+      const text = [c.title, c.howItWorked, c.controlGap, c.caveat ?? ""].join(" ");
+      for (const id of c.sodRuleIds) {
+        const rule = rules.get(id)!;
+        for (const duty of [rule.a, rule.b]) {
+          const words = DUTY_WORDS[duty];
+          expect(words, `no duty words for ${duty}`).toBeDefined();
+          expect(words.test(text), `${c.id} cites ${id} but never shows ${duty}`).toBe(true);
+        }
+      }
+    }
+  });
+
   it("keeps off the attachments whose records do not show the rule's pair of duties", () => {
     const removed: [string, string][] = [
       ["case-houston-dental-shell", "rule-vendor-create-pay"],
@@ -349,7 +553,7 @@ describe("rule attachments", () => {
 
   it("puts check signing and reconciliation on the records that state both", () => {
     for (const id of [
-      "case-anderson-flooring-accountant-transfers-gambling",
+      "case-anderson-indiana-accountant-transfers-gambling",
       "case-lenoir-secret-bank-account",
     ]) {
       expect(caseById(id)?.sodRuleIds, id).toContain("rule-sign-rec");
@@ -371,7 +575,7 @@ describe("rule attachments", () => {
       "case-st-albans-dental-billing",
       "case-void-no-sale-counter",
     ]);
-    expect(schemesForSodRules(["rule-collect-adjust"])).toContain("skimming");
+    expect(RULE_SCHEMES["rule-collect-adjust"]).toContain("skimming");
     // No record shows a collector approving write-offs or issuing refunds.
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-writeoff")).toBe(false);
     expect(CONFLICT_RULES.some((r) => r.id === "rule-collect-refund")).toBe(false);
@@ -393,7 +597,7 @@ describe("rule attachments", () => {
       "case-bellingham-assistant-manager",
       "case-hutchinson-controller",
     ]);
-    expect(schemesForSodRules(["rule-card-review"])).toEqual(["expense-reimbursement"]);
+    expect(RULE_SCHEMES["rule-card-review"]).toEqual(["expense-reimbursement"]);
     // A dentist reads the Bellevue practice card case as their own line of business.
     const pick = caseForRule("rule-card-review", "dental")!;
     expect(pick.citesRule).toBe(true);
@@ -437,10 +641,46 @@ describe("benchmarks and the shared statistics record", () => {
     expect(DEFAULT_FRAUD_STATS.sourceUrl).toBe(bm("bm-median-loss").source.url);
   });
 
-  it("leaves page and figure empty until someone checks them against the report", () => {
+  it("cite a page or figure only in a form a reader can find in the report", () => {
     for (const b of Object.values(BENCHMARK_BY_ID)) {
-      expect(b.page, b.id).toBeUndefined();
-      expect(b.figure, b.id).toBeUndefined();
+      if (b.page !== undefined) expect(b.page, b.id).toMatch(/^\d+(-\d+)?$/);
+      if (b.figure !== undefined) expect(b.figure, b.id).toMatch(/^(Fig\.|Figure|Table) \d+/);
+    }
+  });
+});
+
+describe("control effort", () => {
+  it("states the set-up cost and, separately, how often the control recurs", () => {
+    expect(effortPhrase({ setup: "minutes", cadence: "each payroll" })).toBe(
+      "Minutes to set up, then each payroll",
+    );
+    expect(effortPhrase({ setup: "a day", cadence: "once" })).toBe("A day to set up");
+    expect(effortPhrase(CONTROL_CATALOG["payroll-register-review"])).toBe(
+      "Minutes to set up, then each payroll",
+    );
+  });
+});
+
+describe("shared evidence wording", () => {
+  it("states a floor loss as 'at least' and an exact loss as the figure", () => {
+    expect(lossPhrase({ lossUsd: 1_000_000, lossIsFloor: true })).toBe("at least $1,000,000");
+    expect(lossPhrase({ lossUsd: 48_250, lossIsFloor: false })).toBe("$48,250");
+  });
+
+  it("places every case in a natural phrase, never 'at a any business'", () => {
+    for (const study of CASE_LIBRARY) {
+      const phrase = sectorPhrase(study.sector);
+      expect(phrase).toMatch(/^at (a|an|another) /);
+      expect(phrase).not.toContain(" any ");
+      expect(phrase).not.toContain("professional-services business");
+    }
+    expect(sectorPhrase("any")).toBe("at another business");
+  });
+
+  it("labels every detection route and sector the library uses", () => {
+    for (const study of CASE_LIBRARY) {
+      expect(DETECTION_LABEL[study.detection]).toBeTruthy();
+      expect(SECTOR_LABEL[study.sector]).toBeTruthy();
     }
   });
 });

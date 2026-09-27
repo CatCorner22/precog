@@ -22,20 +22,23 @@ function valueProofKeys(businessId: string): { valueCase: string; evidence: stri
 }
 
 /** What is stored for one business, as parsed JSON (the caller normalises it); undefined when absent. */
-export interface StoredValueProof {
+interface StoredValueProof {
   valueCase: unknown;
   evidence: unknown;
 }
 
 /**
- * Reads one business's value proof. The first business to read after the
- * upgrade takes over the old browser-wide copy: it is written under that
- * business's keys, and the old keys are removed only once that write has
- * succeeded, so the figures are never lost.
+ * Reads one business's value proof. Only the Value proof tab takes over the
+ * old browser-wide copy (`claimLegacy`, the default): it is written under
+ * that business's keys, and the old keys are removed only once that write
+ * has succeeded, so the figures are never lost. Other readers (the snapshots
+ * tab) pass `claimLegacy: false`, so opening a snapshot of the sample or of a
+ * client never takes the owner's own figures.
  */
 export function readValueProof(
   businessId: string,
   storage: StorageLike | null = browserStorage(),
+  options: { claimLegacy?: boolean } = {},
 ): StoredValueProof {
   const keys = valueProofKeys(businessId);
   const own = {
@@ -43,6 +46,7 @@ export function readValueProof(
     evidence: readLocalJson(keys.evidence, storage),
   };
   if (own.valueCase !== undefined || own.evidence !== undefined) return own;
+  if (options.claimLegacy === false) return own;
 
   const legacyCase = readLocal(VALUE_CASE_STORAGE_KEY, storage);
   const legacyEvidence = readLocal(VALUE_EVIDENCE_STORAGE_KEY, storage);

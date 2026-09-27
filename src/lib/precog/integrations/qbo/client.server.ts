@@ -1,16 +1,19 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto";
+import { env } from "@/lib/env.server";
 
 /**
  * Intuit's token and query endpoints, and the at-rest encryption for the
  * tokens. Configured when QBO_CLIENT_ID, QBO_CLIENT_SECRET and
- * INTEGRATION_KEY are set. QBO_ENVIRONMENT=sandbox points at Intuit's
- * sandbox company data.
+ * INTEGRATION_KEY are set (INTEGRATION_KEY_PREVIOUS during a key rotation).
+ * QBO_ENVIRONMENT=sandbox points at Intuit's sandbox company data.
  */
-const env = (key: string): string | undefined => {
-  const value = process.env[key]?.trim();
-  return value || undefined;
-};
-
 export function qboConfigured(): boolean {
   return Boolean(env("QBO_CLIENT_ID") && env("QBO_CLIENT_SECRET") && env("INTEGRATION_KEY"));
 }
@@ -23,29 +26,77 @@ export function qboClientId(): string {
 
 /** The secret that signs connect states; derived from INTEGRATION_KEY. */
 export function stateSecret(): string {
-  return deriveKey("qbo-state").toString("hex");
-}
-
-function deriveKey(purpose: string): Buffer {
   const master = env("INTEGRATION_KEY");
   if (!master) throw new Error("INTEGRATION_KEY is not set");
+  return deriveKey(master, "qbo-state").toString("hex");
+}
+
+/**
+ * AES-256-GCM under INTEGRATION_KEY. The output is `kid.iv.tag.ciphertext`
+ * in base64url, where `kid` names the key that sealed it, so the key can be
+ * rotated: set the old value as INTEGRATION_KEY_PREVIOUS and the new one as
+ * INTEGRATION_KEY, and tokens sealed under either still open. Each refresh
+ * seals the new tokens under the current key.
+ */
+export function encryptSecret(plain: string): string {
+  const [key] = tokenKeys();
+  if (!key) throw new Error("INTEGRATION_KEY is not set");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key.key, iv);
+  const body = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return [key.id, ...[iv, cipher.getAuthTag(), body].map((b) => b.toString("base64url"))].join(".");
+}
+
+/** Opens a sealed token; also reads the older `iv.tag.ciphertext` form, which has no key id. */
+export function decryptSecret(sealed: string): string {
+  const parts = sealed.split(".");
+  const kid = parts.length === 4 ? parts[0] : null;
+  const rest = parts.length === 4 ? parts.slice(1) : parts;
+  if (rest.length !== 3) throw new Error("Unreadable sealed token");
+  const [iv, tag, body] = rest.map((part) => Buffer.from(part, "base64url"));
+  const keys = tokenKeys().filter((k) => kid === null || k.id === kid);
+  if (keys.length === 0) throw new Error("The key that sealed this token is not configured");
+  let failure: unknown;
+  for (const { key } of keys) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(body), decipher.final()]).toString("utf8");
+    } catch (err) {
+      failure = err;
+    }
+  }
+  throw failure;
+}
+
+/** The current token key first, then the previous one while a rotation is under way. */
+function tokenKeys(): { id: string; key: Buffer }[] {
+  return [env("INTEGRATION_KEY"), env("INTEGRATION_KEY_PREVIOUS")]
+    .filter((master): master is string => Boolean(master))
+    .map((master) => {
+      const key = deriveKey(master, "qbo-tokens");
+      return { id: createHash("sha256").update(key).digest("hex").slice(0, 8), key };
+    });
+}
+
+function deriveKey(master: string, purpose: string): Buffer {
   return Buffer.from(hkdfSync("sha256", master, "precog-integrations", purpose, 32));
 }
 
-/** AES-256-GCM; output is `iv.tag.ciphertext` in base64url. */
-export function encryptSecret(plain: string): string {
-  const key = deriveKey("qbo-tokens");
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const body = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), body].map((b) => b.toString("base64url")).join(".");
-}
-
-export function decryptSecret(sealed: string): string {
-  const [iv, tag, body] = sealed.split(".").map((part) => Buffer.from(part, "base64url"));
-  const decipher = createDecipheriv("aes-256-gcm", deriveKey("qbo-tokens"), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(body), decipher.final()]).toString("utf8");
+/**
+ * A keyed digest for a value that is only ever compared for equality (a
+ * vendor's account number, address or email). Same input, same digest;
+ * the value itself is not recoverable from the database.
+ */
+export function digestSecret(value: string): string {
+  // Keyed on the current INTEGRATION_KEY only: after a rotation the stored
+  // digests differ from new ones until the next reading replaces them.
+  const master = env("INTEGRATION_KEY");
+  if (!master) throw new Error("INTEGRATION_KEY is not set");
+  const mac = createHmac("sha256", deriveKey(master, "qbo-snapshot"))
+    .update(value, "utf8")
+    .digest();
+  return `hmac:${mac.subarray(0, 16).toString("base64url")}`;
 }
 
 const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";

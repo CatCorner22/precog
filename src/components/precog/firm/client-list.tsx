@@ -4,9 +4,9 @@ import { RotateCcw } from "lucide-react";
 import { restoreDeletedClient, setClientOwnerEmail } from "@/lib/precog/firm/server";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
-
-const inputCls =
-  "rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg placeholder:text-subtle";
+import { fieldCls } from "@/components/ui/field-classes";
+import { cn } from "@/lib/utils";
+import { count } from "@/lib/precog/text";
 
 /**
  * Every client the firm holds, with the stage each is at, the owner's
@@ -75,13 +75,14 @@ export function ClientList({
                     {client.id === activeId && (
                       <span className="ml-2 text-xs text-primary">open</span>
                     )}
-                    {client.shared && <span className="ml-2 text-xs text-muted">colleague's</span>}
+                    {client.shared && (
+                      <span className="ml-2 text-xs text-muted">another firm member's</span>
+                    )}
                   </p>
                   <p className="text-xs text-muted">
                     Last review: {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "none"} ·
-                    Report {client.reportSentAt ? "sent" : "not sent"} · {client.openFindings} open
-                    conflict
-                    {client.openFindings === 1 ? "" : "s"}
+                    Report {client.reportSentAt ? "sent" : "not sent"} ·{" "}
+                    {conflictsText(client.openFindings)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -94,8 +95,9 @@ export function ClientList({
                       }}
                     >
                       <input
-                        className={inputCls}
+                        className={cn(fieldCls, "py-1 text-xs")}
                         type="email"
+                        autoFocus
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         placeholder="owner@business.com"
@@ -119,6 +121,11 @@ export function ClientList({
                     <button
                       type="button"
                       className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                      aria-label={
+                        client.ownerEmail
+                          ? `Change the owner email for ${client.name} (${client.ownerEmail})`
+                          : `Add an owner email for ${client.name}`
+                      }
                       onClick={() => {
                         setEditing(client.id);
                         setDraft(client.ownerEmail ?? "");
@@ -131,6 +138,7 @@ export function ClientList({
                     <button
                       type="button"
                       className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                      aria-label={`Open ${client.name}`}
                       onClick={() => onOpen(client.id)}
                     >
                       Open
@@ -161,6 +169,7 @@ export function ClientList({
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                  aria-label={`Restore ${d.name}`}
                   onClick={() => void restore(d.id)}
                 >
                   <RotateCcw className="size-3.5" aria-hidden /> Restore
@@ -172,4 +181,11 @@ export function ClientList({
       )}
     </section>
   );
+}
+
+/** The open-conflict count, or a plain statement that nobody has counted them yet. */
+function conflictsText(openFindings: number | null): string {
+  if (openFindings === null)
+    return "duty conflicts not counted yet (open the client to count them)";
+  return count(openFindings, "open duty conflict");
 }

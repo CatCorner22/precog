@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
-import { findKnowledgeRisks } from "../engine";
-import { INDUSTRIES } from "../industry";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate, type IndustryTemplate } from "../templates";
+import { findKnowledgeRisks, runPrecogScenario } from "../engine";
+import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StaffComposition } from "../types";
+import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
+import { scenarioFlags } from "./scenario-kind";
 import { portfolioSummary, scoreAllResidualRisks, tornadoSensitivity } from "./residual-engine";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
+
+/** The template with a second expert holder on every item one person holds. */
+function crossTrained(tpl: IndustryTemplate): IndustryTemplate {
+  const active = tpl.people.filter((p) => p.active);
+  const extra = findKnowledgeRisks(tpl)
+    .filter((r) => r.soleOwner)
+    .map((r) => ({
+      personId: active.find((p) => p.id !== r.owners[0].id)!.id,
+      knowledgeId: r.knowledgeId,
+      level: "expert" as const,
+    }));
+  const replaced = (rel: { personId: string; knowledgeId: string }) =>
+    extra.some((e) => e.personId === rel.personId && e.knowledgeId === rel.knowledgeId);
+  return { ...tpl, relations: [...tpl.relations.filter((rel) => !replaced(rel)), ...extra] };
+}
 
 const weak: StaffComposition = {
   teamSize: 3,
@@ -27,7 +45,7 @@ const strong: StaffComposition = {
 describe("scoreAllResidualRisks", () => {
   it("scores every control, knowledge risk and scenario once, on a 0-100 index, sorted high to low", () => {
     for (const { id } of INDUSTRIES) {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       const scores = scoreAllResidualRisks(tpl);
       const byCat = (c: string) => scores.filter((s) => s.category === c);
       expect(byCat("control").length, id).toBe(tpl.controls.length);
@@ -120,7 +138,7 @@ describe("portfolioSummary", () => {
 describe("tornadoSensitivity", () => {
   it("shows every lever as non-worsening and sorted by how much it helps", () => {
     const t = tornadoSensitivity(dental, weak);
-    expect(t.levers.map((l) => l.id).sort()).toEqual(["bank", "dual", "seg", "spof", "team"]);
+    expect(t.levers.map((l) => l.id).sort()).toEqual(["bank", "dual", "seg", "spof"]);
     for (let i = 1; i < t.levers.length; i++) {
       expect(t.levers[i - 1].delta).toBeGreaterThanOrEqual(t.levers[i].delta);
     }
@@ -132,13 +150,31 @@ describe("tornadoSensitivity", () => {
   });
 
   it("has nothing left to offer when every lever is already pulled", () => {
-    const t = tornadoSensitivity(dental, { ...strong, segregationScore: 75 });
+    const t = tornadoSensitivity(crossTrained(dental), { ...strong, segregationScore: 75 });
     expect(t.levers).toEqual([]);
   });
 
+  it("prices cross-training as a real second holder on every item one person knows", () => {
+    const staff = dental.staffComposition;
+    const t = tornadoSensitivity(dental, staff);
+    const spof = t.levers.find((l) => l.id === "spof")!;
+    const real = portfolioSummary(crossTrained(dental), {
+      ...staff,
+      soleOwnerKnowledgeCount: 0,
+    }).averageResidual;
+    expect(spof.improvedAvg).toBe(real);
+    // Zeroing the uplift alone leaves the register rows where they were.
+    const upliftOnly = portfolioSummary(dental, { ...staff, soleOwnerKnowledgeCount: 0 });
+    expect(spof.delta).toBeGreaterThan(t.baseAverage - upliftOnly.averageResidual);
+  });
+
+  it("never tells the owner to hire", () => {
+    const t = tornadoSensitivity(dental, weak);
+    expect(t.levers.some((l) => /grow team|hire/i.test(l.label))).toBe(false);
+  });
+
   it("never offers a lever that would lower a score the team already beats", () => {
-    // A fully separated team scores 100: "raise to 75" must not pull it down,
-    // and a team of 12 is not asked to "grow to 10".
+    // A fully separated team scores 100: "raise to 75" must not pull it down.
     const t = tornadoSensitivity(dental, {
       ...weak,
       segregationScore: 100,
@@ -146,7 +182,6 @@ describe("tornadoSensitivity", () => {
     });
     const ids = t.levers.map((l) => l.id);
     expect(ids).not.toContain("seg");
-    expect(ids).not.toContain("team");
     for (const l of t.levers) {
       expect(l.delta, l.id).toBeGreaterThan(0);
       expect(l.improvedAvg).toBe(t.baseAverage - l.delta);
@@ -183,7 +218,35 @@ describe("own business scope", () => {
     expect(summary.knowledgeAssessed).toBe(false);
   });
 
-  it("scores starter scenarios only once the owner confirms one", () => {
+  it("leaves knowledge redundancy out of control scores until the register is assessed", () => {
+    const effectiveness = (tpl: IndustryTemplate) =>
+      portfolioSummary(tpl, own.staffComposition).all.find((r) => r.id === "ctrl-c-sod-cash")!
+        .controlEffectiveness;
+    const holders = (ids: string[]) =>
+      own.knowledge.flatMap((k) =>
+        ids.map((personId) => ({ personId, knowledgeId: k.id, level: "expert" as const })),
+      );
+    const unassessed = effectiveness(own);
+    const allSole = effectiveness(
+      resolveTemplate({
+        industry: "dental",
+        customPeople: people,
+        customRelations: holders(["own-1"]),
+      }),
+    );
+    const allShared = effectiveness(
+      resolveTemplate({
+        industry: "dental",
+        customPeople: people,
+        customRelations: holders(["own-1", "own-2"]),
+      }),
+    );
+    // An unanswered register is neither the worst answer nor the best one.
+    expect(unassessed).toBeGreaterThan(allSole);
+    expect(unassessed).toBeLessThan(allShared);
+  });
+
+  it("scores sample scenarios only once the owner confirms one", () => {
     const none = portfolioSummary(own, own.staffComposition);
     expect(none.all.filter((s) => s.category === "scenario")).toEqual([]);
     expect(none.starterScenariosLeftOut).toEqual(own.scenarios.map((s) => s.id));
@@ -215,11 +278,14 @@ describe("scenario row formula", () => {
       expect(
         Math.abs(row.creditedEffectiveness! - row.controlEffectiveness * 0.5),
       ).toBeLessThanOrEqual(1);
-      const uplift = row.residual / Math.max(1, row.residualRaw);
-      const recomputed = (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100;
-      // Within rounding of the displayed integers, I × (1 − credited E) gives the raw residual.
-      expect(Math.abs(recomputed - row.residualRaw), row.id).toBeLessThanOrEqual(1.5);
-      expect(uplift).toBeGreaterThanOrEqual(1);
+      // The staffing uplift drivers sum to the factor the row is multiplied by.
+      const uplift =
+        1 +
+        row.drivers.filter((d) => d.id.startsWith("staff-")).reduce((sum, d) => sum + d.weight, 0);
+      const recomputed =
+        (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100 * uplift;
+      // Within rounding of the displayed integers, I × (1 − credited E) × uplift gives the residual.
+      expect(Math.abs(recomputed - row.residual), row.id).toBeLessThanOrEqual(2);
     }
   });
 
@@ -231,19 +297,41 @@ describe("scenario row formula", () => {
   });
 });
 
-describe("starter controls on an owner's own business", () => {
-  const base = getBaseTemplate("retail");
+describe("scenario rows and the owner's risk variables", () => {
+  it("price the loss and days the Scenario tab shows for the same settings", () => {
+    const riskVariables = {
+      ...DEFAULT_RISK_VARIABLES,
+      hasSecurityCameras: true,
+      dailyCashExposure: 1000,
+    };
+    const staff = dental.staffComposition;
+    const row = scoreAllResidualRisks(dental, staff, undefined, { riskVariables }).find(
+      (r) => r.id === "scen-sc-cash-sod-failure",
+    )!;
+    const tab = runPrecogScenario(dental, "sc-cash-sod-failure", { staff, riskVariables })!;
+    expect(row.expectedLoss).toBe(tab.financialImpact.expected);
+    expect(row.p50Days).toBe(tab.timelineDays.p50);
+    const defaults = scoreAllResidualRisks(dental, staff).find(
+      (r) => r.id === "scen-sc-cash-sod-failure",
+    )!;
+    expect(row.expectedLoss).not.toBe(defaults.expectedLoss);
+  });
+});
+
+describe("sample controls on an owner's own business", () => {
+  const base = getIndustryTemplate("retail");
   const people = base.people.slice(0, 2);
 
   it("leaves out controls nobody has confirmed run here, and says which", () => {
     const tpl = resolveTemplate({ industry: "retail", customPeople: people });
     const summary = portfolioSummary(tpl, tpl.staffComposition);
     const scored = new Set(summary.all.map((r) => r.id));
-    for (const id of ["c-ap", "c-ar", "c-sod-ar"]) expect(scored.has(`ctrl-${id}`)).toBe(false);
-    expect(summary.starterControlsLeftOut.sort()).toEqual(["c-ap", "c-ar", "c-sod-ar"]);
+    const starters = ["c-ap", "c-inventory", "c-sod-ar"];
+    for (const id of starters) expect(scored.has(`ctrl-${id}`)).toBe(false);
+    expect(summary.starterControlsLeftOut.sort()).toEqual(starters);
   });
 
-  it("scores a starter control once the owner confirms it", () => {
+  it("scores a sample control once the owner confirms it", () => {
     const tpl = resolveTemplate({
       industry: "retail",
       customPeople: people,
@@ -258,5 +346,56 @@ describe("starter controls on an owner's own business", () => {
     const summary = portfolioSummary(base, base.staffComposition);
     expect(summary.starterControlsLeftOut).toEqual([]);
     expect(summary.all.filter((r) => r.category === "control")).toHaveLength(base.controls.length);
+  });
+});
+
+describe("what a control guards", () => {
+  const rows = (id: IndustryId) =>
+    new Map(scoreAllResidualRisks(getIndustryTemplate(id)).map((r) => [r.id, r]));
+  const fraudWeight = (row: { drivers: { id: string; weight: number }[] }) =>
+    row.drivers.find((d) => d.id.endsWith("-inher-fraud"))?.weight;
+
+  it("reads the high fraud opportunity from the scenario a control guards, not from letters in its id", () => {
+    const nonprofit = rows("nonprofit");
+    expect(fraudWeight(nonprofit.get("ctrl-c-cards")!)).toBe(0.85);
+    expect(fraudWeight(nonprofit.get("ctrl-c-gift-log")!)).toBe(0.85);
+    // "board" contains "ar"; board review guards no fraud scenario.
+    expect(fraudWeight(nonprofit.get("ctrl-c-board-review")!)).toBe(0.45);
+    const firm = rows("professional_services");
+    expect(fraudWeight(firm.get("ctrl-c-trust-rec")!)).toBe(0.85);
+    expect(fraudWeight(firm.get("ctrl-c-trust-disb")!)).toBe(0.85);
+  });
+
+  it("gives every control a fraud scenario names as its guard the high fraud class", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      const byId = rows(id);
+      for (const s of tpl.scenarios) {
+        if (!s.controlId || !scenarioFlags(s.id).fraudRelated) continue;
+        const row = byId.get(`ctrl-${s.controlId}`);
+        if (row) expect(fraudWeight(row), `${id}/${s.controlId}`).toBe(0.85);
+      }
+    }
+  });
+
+  it("links each control row to the scenario that names it", () => {
+    const nonprofit = rows("nonprofit");
+    expect(nonprofit.get("ctrl-c-cards")!.linkedScenarioId).toBe("sc-card-abuse");
+    expect(rows("dental").get("ctrl-c-controlled")!.linkedScenarioId).toBe("sc-drug-diversion");
+  });
+});
+
+describe("dual payment control in scenario rows", () => {
+  it("credits fraud scenarios and leaves a departure where it was", () => {
+    const off = { ...dental.staffComposition, dualControlPayments: false };
+    const on = { ...off, dualControlPayments: true };
+    const row = (staff: StaffComposition, id: string) =>
+      scoreAllResidualRisks(dental, staff).find((r) => r.id === id)!;
+    expect(row(on, "scen-sc-vendor-fraud").controlEffectiveness).toBeGreaterThan(
+      row(off, "scen-sc-vendor-fraud").controlEffectiveness,
+    );
+    expect(row(on, "scen-sc-front-desk-leaves").controlEffectiveness).toBe(
+      row(off, "scen-sc-front-desk-leaves").controlEffectiveness,
+    );
   });
 });

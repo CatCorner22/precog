@@ -12,6 +12,10 @@ import type { IndustryTemplate } from "../templates";
 import { getIndustryCopy } from "../templates/industry-copy";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "../sod/owner-role";
+import { localDateKey, dateAfter } from "../dates";
+import { isOwnBusiness } from "../scoring/scope";
+import { uid } from "../text";
+import { clamp } from "../number";
 
 export type ReleaseChannel = "ach" | "check" | "writeoff" | "vendor_new" | "deposit" | "payroll";
 
@@ -53,7 +57,7 @@ export interface ThresholdException {
   sample?: boolean;
 }
 
-export interface DualReleaseRule {
+interface DualReleaseRule {
   channel: ReleaseChannel;
   label: string;
   enabled: boolean;
@@ -72,7 +76,7 @@ export interface DualReleasePolicy {
   ownerCanSecondAny: boolean;
   hardBlockWithoutSecond: boolean;
   rules: DualReleaseRule[];
-  /** Ordered by specificity; first matching active exception wins */
+  /** Any order: the evaluator ranks matching exceptions by specificity and applies the most specific. */
   exceptions: ThresholdException[];
   updatedAt?: string;
 }
@@ -97,7 +101,9 @@ export type ReleaseStatus =
   | "blocked_same_person"
   | "blocked_role"
   | "blocked_missing_second"
-  | "blocked_policy_off";
+  | "blocked_policy_off"
+  /** The policy is on but this channel's rule is off or missing. */
+  | "blocked_channel_off";
 
 export interface EligibleApprover {
   id: string;
@@ -122,15 +128,9 @@ export interface ReleaseEvaluation {
   channel: ReleaseChannel;
   amountUsd: number;
   /**
-   * The dollar threshold in force for this evaluation, always finite.
-   *
-   * A waived rule used to pass Number.POSITIVE_INFINITY through here, and a
-   * forced rule -1. Consumers then had to reverse-engineer the exception state
-   * from a sentinel, and the panel got it wrong: it rendered a waiver — the
-   * weakest possible state, no second signer at any amount — as "$0", which
-   * everywhere else in the product means "always dual", the strictest state.
-   * The two flags below carry that state explicitly so no display ever has to
-   * infer it from a number.
+   * The dollar threshold in force for this evaluation, always finite: a
+   * waived rule reports its base threshold and a forced rule reports 0. Read
+   * `dualWaived` and `dualForced` for the exception state, never this number.
    */
   thresholdUsd: number;
   baseThresholdUsd: number;
@@ -285,11 +285,19 @@ export function seatedByDuty(person: Person): boolean {
   return (person.entitlements?.length ?? 0) > 0;
 }
 
+/**
+ * How a sample team's titles fill the default rules' dental role names. Only
+ * the people who run the office's money take a seat: the owner or the head of
+ * the organization, the office, general, operations, store or finance manager,
+ * and whoever keeps the books. A project, grants, bar or program manager does
+ * not release payments.
+ */
 const DENTAL_ROLE_SLOTS: Record<string, (role: string) => boolean> = {
-  "Owner / Dentist": isOwnerRole,
-  "Office Manager": (role) => /manager|general manager/i.test(role),
+  "Owner / Dentist": (role) => isOwnerRole(role) || /\bexecutive director\b/i.test(role),
+  "Office Manager": (role) =>
+    /\b(office|general|operations|store|finance)\b[^,]*\bmanager\b/i.test(role),
   "Front Desk Lead": (role) => /front desk|cashier|lead cashier|host|shift lead/i.test(role),
-  "Billing Specialist": (role) => /billing|bookkeeper|accounting|controller|specialist/i.test(role),
+  "Billing Specialist": (role) => /billing|bookkeeper|accounting|accountant|controller/i.test(role),
 };
 
 function rolesForSlot(people: Person[], matches: (role: string) => boolean): string[] {
@@ -341,13 +349,21 @@ function localizeDualReleaseRules(
   }));
 }
 
-/** Demo seed exceptions (owner-approved recurring vendor payee + optional strict mode). */
-function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
+/**
+ * The sample business's seed exceptions (an owner-approved recurring payee,
+ * an optional strict mode and a vacation cover), dated from `now` and naming
+ * the sample's own owner and office manager. An owner's own business starts
+ * with none: the sample's payee and people are not theirs.
+ */
+function defaultExceptions(tpl: IndustryTemplate, now: Date): ThresholdException[] {
+  if (isOwnBusiness(tpl)) return [];
   const copy = getIndustryCopy(tpl.id);
-  const today = new Date();
-  const in90 = new Date(today.getTime() + 90 * 86400000);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return [
+  const today = now;
+  const active = tpl.people.filter((p) => p.active);
+  const marked = ownersMarked(active);
+  const ownerId = active.find((p) => ownsBusiness(p, marked))?.id;
+  const officeManagerId = active.find((p) => DENTAL_ROLE_SLOTS["Office Manager"](p.role))?.id;
+  const exceptions: ThresholdException[] = [
     {
       id: "ex-vendor-recurring",
       sample: true,
@@ -355,11 +371,11 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       channels: ["ach"],
       action: "raise_threshold",
       thresholdUsd: 3500,
-      payeeContains: copy.dualReleaseSeed.exceptionPayeeContains,
+      payeeContains: copy.dualReleaseSeed.defaultPayee,
       enabled: true,
       reason: "Recurring vendor with monthly invoice; owner reviewed 12 months clean history.",
-      approvedByPersonId: "p1",
-      createdAt: iso(today),
+      ...(ownerId ? { approvedByPersonId: ownerId } : {}),
+      createdAt: localDateKey(today),
       residualNote: `Single release up to $3,500 for ${copy.dualReleaseSeed.defaultPayee} only — sample monthly statements.`,
     },
     {
@@ -371,30 +387,35 @@ function defaultExceptions(tpl: IndustryTemplate): ThresholdException[] {
       amountMaxUsd: 499,
       enabled: false,
       reason: "Optional strict mode: dual even under the threshold for small first payments.",
-      createdAt: iso(today),
+      createdAt: localDateKey(today),
     },
-    {
+  ];
+  if (officeManagerId) {
+    exceptions.push({
       id: "ex-temp-om-writeoff",
       sample: true,
       label: "Temp OM write-off raise (vacation cover)",
       channels: ["writeoff"],
       action: "raise_threshold",
       thresholdUsd: 400,
-      personId: "p2",
-      effectiveFrom: iso(today),
-      effectiveTo: iso(in90),
+      personId: officeManagerId,
+      effectiveFrom: localDateKey(today),
+      effectiveTo: dateAfter(today, 90),
       enabled: false,
       reason: "Owner out of office — temporary higher single-approval for OM.",
-      approvedByPersonId: "p1",
-      createdAt: iso(today),
+      ...(ownerId ? { approvedByPersonId: ownerId } : {}),
+      createdAt: localDateKey(today),
       residualNote: "Time-bound; auto-expires. Review all write-offs on return.",
-    },
-  ];
+    });
+  }
+  return exceptions;
 }
 
+/** The policy a template starts with. `now` dates the sample's seed exceptions. */
 export function defaultDualReleasePolicy(
   tpl: IndustryTemplate,
   staff?: StaffComposition,
+  now: Date = new Date(),
 ): DualReleasePolicy {
   const enabled = staff?.dualControlPayments ?? false;
   return {
@@ -405,12 +426,12 @@ export function defaultDualReleasePolicy(
       tpl,
       DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
     ),
-    exceptions: defaultExceptions(tpl),
+    exceptions: defaultExceptions(tpl, now),
   };
 }
 
 export function makeExceptionId(): string {
-  return `ex_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  return uid("ex");
 }
 
 const RELEASE_CHANNELS = new Set<ReleaseChannel>([
@@ -431,10 +452,8 @@ const MAX_USD = 1_000_000_000;
 
 const str = (value: unknown, max: number): string | undefined =>
   typeof value === "string" ? value.trim().slice(0, max) : undefined;
-const usd = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value)
-    ? Math.max(0, Math.min(MAX_USD, value))
-    : undefined;
+const boundedUsd = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? clamp(value, 0, MAX_USD) : undefined;
 const isoDay = (value: unknown): string | undefined =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 const roleList = (value: unknown, fallback: string[]): string[] =>
@@ -470,11 +489,11 @@ function normalizeThresholdException(value: unknown): ThresholdException | null 
     reason: str(v.reason, 400) ?? "",
     createdAt: str(v.createdAt, 40) ?? new Date().toISOString(),
   };
-  const thresholdUsd = usd(v.thresholdUsd);
+  const thresholdUsd = boundedUsd(v.thresholdUsd);
   if (thresholdUsd !== undefined) out.thresholdUsd = thresholdUsd;
-  const amountMinUsd = usd(v.amountMinUsd);
+  const amountMinUsd = boundedUsd(v.amountMinUsd);
   if (amountMinUsd !== undefined) out.amountMinUsd = amountMinUsd;
-  const amountMaxUsd = usd(v.amountMaxUsd);
+  const amountMaxUsd = boundedUsd(v.amountMaxUsd);
   if (amountMaxUsd !== undefined) out.amountMaxUsd = amountMaxUsd;
   for (const key of [
     "payeeContains",
@@ -503,7 +522,7 @@ function mergeRule(base: DualReleaseRule, override: unknown): DualReleaseRule {
     label: str(o.label, 120) || base.label,
     description: str(o.description, 400) ?? base.description,
     enabled: typeof o.enabled === "boolean" ? o.enabled : base.enabled,
-    thresholdUsd: usd(o.thresholdUsd) ?? base.thresholdUsd,
+    thresholdUsd: boundedUsd(o.thresholdUsd) ?? base.thresholdUsd,
     requireDistinctPeople:
       typeof o.requireDistinctPeople === "boolean"
         ? o.requireDistinctPeople
@@ -521,8 +540,9 @@ export function mergeDualReleasePolicy(
   tpl: IndustryTemplate,
   partial?: Partial<DualReleasePolicy> | null,
   staff?: StaffComposition,
+  now: Date = new Date(),
 ): DualReleasePolicy {
-  const base = defaultDualReleasePolicy(tpl, staff);
+  const base = defaultDualReleasePolicy(tpl, staff, now);
   if (!partial || typeof partial !== "object") return base;
   const rulesByChannel = new Map<string, unknown>();
   if (Array.isArray(partial.rules)) {

@@ -1,9 +1,10 @@
 import type { EntitlementId } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
-import { detectAssignments, type DetectedConflict, type RoleAssignment } from "./detect";
+import { withEntitlement, type RoleAssignment } from "./assignments";
+import { detectAssignments, type DetectedConflict } from "./detect";
 import type { StaffComposition } from "../types";
 
-export interface AssignmentChangeImpact {
+interface AssignmentChangeImpact {
   action: "assign" | "remove";
   nextAssignments: RoleAssignment[];
   conflictsCreated: DetectedConflict[];
@@ -22,16 +23,7 @@ export function evaluateAssignmentChange(
   const person = assignments.find((item) => item.personId === personId);
   if (!person) return undefined;
   const active = person.entitlements.includes(entitlement);
-  const nextAssignments = assignments.map((item) =>
-    item.personId !== personId
-      ? item
-      : {
-          ...item,
-          entitlements: active
-            ? item.entitlements.filter((id) => id !== entitlement)
-            : [...item.entitlements, entitlement],
-        },
-  );
+  const nextAssignments = withEntitlement(assignments, personId, entitlement, !active);
   const before = detectAssignments({ assignments }, staff);
   const after = detectAssignments({ assignments: nextAssignments }, staff);
   const beforeIds = new Set(before.conflicts.map((item) => item.id));

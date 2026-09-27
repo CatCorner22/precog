@@ -6,15 +6,466 @@
  * or add an approval, it can name the cases that control would have stopped,
  * with the amount and the time it ran undetected. That is a different kind of
  * argument from a risk rating.
+ *
+ * Reading order: case selection, then figures over a set of cases, then the
+ * wording every screen shares, then the industry-to-sector join, then the
+ * private helpers and the scheme maps they read.
  */
-import { CASE_LIBRARY } from "./cases";
+import { formatUsd } from "@/lib/utils";
 import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
-import type { CaseStudy, IndustrySector, SchemeKind } from "./types";
+import { CASE_LIBRARY } from "./cases";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
+import type { CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
 
 export * from "./types";
 export * from "./controls";
 export { CASE_LIBRARY, BENCHMARK_BY_ID, METHOD_CAVEATS };
+
+// ---------------------------------------------------------------------------
+// Selection
+// ---------------------------------------------------------------------------
+
+/**
+ * Cases matching any of several rules, most relevant first.
+ *
+ * A case matches when it cites one of the rules, or when it shows a scheme one
+ * of the rules enables. Ordering runs on five keys, in this priority:
+ *
+ *   1. Citation: a case that cites one of the rules shows that very pair of
+ *      duties, so it always sits above a case that only shares a scheme.
+ *   2. Stated loss: a record whose source states no loss never leads while a
+ *      record with a figure is available, so the first case an owner reads
+ *      carries an amount.
+ *   3. Scheme overlap: does this case show the kind of fraud these conflicts
+ *      actually enable. An owner asked about vendor payments learns little
+ *      from an unrelated case that happens to touch the same rule.
+ *   4. Rule overlap: how many of the asked-about rules the case demonstrates.
+ *   5. Loss amount: among equally apt cases, the costlier one leads.
+ *
+ * Ranking by loss alone would surface the same few large cases against every
+ * finding; ranking by rule count alone rewards cases for being narrow rather
+ * than for being on point. Use `citingCaseStats` wherever a count or a median
+ * has to describe cases that show the pair itself. `library` lets a test rank
+ * a small synthetic set.
+ */
+export function casesForSodRules(
+  ruleIds: readonly string[],
+  library: readonly CaseStudy[] = CASE_LIBRARY,
+): CaseStudy[] {
+  const wantedRules = new Set(ruleIds);
+  const wantedSchemes = new Set(schemesForSodRules(ruleIds));
+
+  // A named rule selects cases that cite it. A family-derived id cites nothing,
+  // so those select on scheme overlap instead — the case still demonstrates
+  // that combination of duties, which is what the finding is about.
+  const candidates = library.filter(
+    (c) =>
+      c.sodRuleIds.some((id) => wantedRules.has(id)) ||
+      (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
+  );
+
+  return (
+    candidates
+      .map((c) => ({
+        study: c,
+        schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
+        ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
+      }))
+      // A case that cites the rule leads; among those, scheme overlap orders.
+      // A case that merely shares a scheme never sits above one that shows the
+      // very pair of duties the finding names.
+      .sort(
+        (a, b) =>
+          Number(b.ruleHits > 0) - Number(a.ruleHits > 0) ||
+          Number(b.study.lossUsd > 0) - Number(a.study.lossUsd > 0) ||
+          b.schemeHits - a.schemeHits ||
+          b.ruleHits - a.ruleHits ||
+          byLossDescending(a.study, b.study),
+      )
+      .map((r) => r.study)
+  );
+}
+
+/**
+ * Count, loss range, duration, and detection routes over the cases that cite
+ * these rules, and over nothing else.
+ *
+ * This is the figure set for sentences such as "N prosecuted cases match" and
+ * "median loss": both claim the cases show the gaps, so both must be computed
+ * over citing cases only. `cases` is in the order `casesForSodRules` gives.
+ */
+export function citingCaseStats(ruleIds: readonly string[]): {
+  cases: CaseStudy[];
+  count: number;
+  loss: ReturnType<typeof observedLossRange>;
+  duration: ReturnType<typeof observedDurationMonths>;
+  detection: ReturnType<typeof detectionBreakdown>;
+} {
+  const cases = casesCitingSodRules(ruleIds);
+  return {
+    cases,
+    count: cases.length,
+    loss: observedLossRange(cases),
+    duration: observedDurationMonths(cases),
+    detection: detectionBreakdown(cases),
+  };
+}
+
+/**
+ * The one case to show beside a single finding, and what it may be called.
+ *
+ * Preference runs: a case that cites the rule and comes from the owner's own
+ * line of business; then any case that cites the rule; then, only when no
+ * case cites it, the most relevant case that shares a scheme. `citesRule`
+ * tells the caller which of those it got, so a heading never calls a related
+ * scheme "this arrangement".
+ */
+export function caseForRule(
+  ruleId: string,
+  industryId?: string,
+): { study: CaseStudy; citesRule: boolean; ownSector: boolean } | null {
+  const citing = casesCitingSodRules([ruleId]);
+  const own = industryId ? citing.find((c) => isOwnSector(c, industryId)) : undefined;
+  if (own) return { study: own, citesRule: true, ownSector: true };
+  if (citing[0]) return { study: citing[0], citesRule: true, ownSector: false };
+  const related = casesForSodRules([ruleId])[0];
+  if (!related) return null;
+  return {
+    study: related,
+    citesRule: false,
+    ownSector: industryId ? isOwnSector(related, industryId) : false,
+  };
+}
+
+/**
+ * Cases that a given control would plausibly have caught, largest loss first.
+ * Backs the dashboard's weekly priorities, so an action such as "start the
+ * owner bank review" carries the prosecutions it rests on.
+ */
+export function casesForControl(controlId: ControlId): CaseStudy[] {
+  return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
+    byLossDescending,
+  );
+}
+
+/**
+ * Controls that recur across the cases matching these rules, ordered by how
+ * many of those cases each one would have stopped.
+ *
+ * Aggregation runs on the canonical control id, not on the prose. Each case
+ * phrases a control in its own terms — "the owner opens the bank statement
+ * before the controller sees it" and "the bank statement goes to a partner,
+ * not the administrator" are the same control — so counting the strings gave
+ * every control a count of one and made the ordering meaningless.
+ *
+ * This is the app's answer to "what do I actually do on Monday", and it is
+ * derived from the case library rather than from a framework checklist, so
+ * every item on it has already failed somewhere for real.
+ */
+export function recommendedStepsForRules(ruleIds: readonly string[]): {
+  control: ControlDefinition;
+  supportingCaseIds: string[];
+  /** How this control was phrased in the most relevant supporting case. */
+  asApplied: string;
+}[] {
+  const relevant = casesForSodRules(ruleIds);
+  const tally = new Map<ControlId, { caseIds: string[]; asApplied: string }>();
+
+  for (const c of relevant) {
+    for (const step of c.wouldHaveCaughtIt) {
+      const existing = tally.get(step.control);
+      if (existing) {
+        // One case can phrase the same control twice; count the case once.
+        if (!existing.caseIds.includes(c.id)) existing.caseIds.push(c.id);
+      } else {
+        // `relevant` is already ordered most-relevant first, so the first
+        // phrasing seen is the one from the most apt case.
+        tally.set(step.control, { caseIds: [c.id], asApplied: step.asApplied });
+      }
+    }
+  }
+
+  return [...tally.entries()]
+    .map(([control, v]) => ({
+      control: CONTROL_CATALOG[control],
+      supportingCaseIds: v.caseIds,
+      asApplied: v.asApplied,
+    }))
+    .sort(
+      (a, b) =>
+        b.supportingCaseIds.length - a.supportingCaseIds.length ||
+        a.control.label.localeCompare(b.control.label),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Figures over a set of cases
+// ---------------------------------------------------------------------------
+
+/**
+ * Observed loss range across cases carrying a recorded amount.
+ *
+ * Cases with `lossUsd === 0` are placeholders where the source did not state a
+ * reliable total; they are excluded so they cannot drag a range to zero.
+ * `anyFloor` is true when at least one counted amount is a floor, so a caller
+ * can say "at least" before the median.
+ */
+export function observedLossRange(cases: readonly CaseStudy[]): {
+  low: number;
+  median: number;
+  high: number;
+  n: number;
+  anyFloor: boolean;
+} | null {
+  const counted = cases.filter((c) => c.lossUsd > 0);
+  const amounts = counted.map((c) => c.lossUsd).sort((a, b) => a - b);
+  if (amounts.length === 0) return null;
+  return {
+    low: amounts[0],
+    median: median(amounts),
+    high: amounts[amounts.length - 1],
+    n: amounts.length,
+    anyFloor: counted.some((c) => c.lossIsFloor),
+  };
+}
+
+/**
+ * The cases whose source states how long the person had served, longest first.
+ *
+ * Tenure is recorded only where the release or filing gives a hire year or a
+ * length of service, so `n` is small and the result is a set of named
+ * examples, not a rate. Callers show the longest and the shortest to make one
+ * point: the library holds both the 27-year employee and the new hire, so
+ * length of service predicts nothing either way.
+ */
+export function tenureExamples(cases: readonly CaseStudy[]): {
+  n: number;
+  longest: CaseStudy | null;
+  shortest: CaseStudy | null;
+} {
+  const stated = cases
+    .filter((c) => typeof c.tenureYearsStated === "number")
+    .sort((a, b) => (b.tenureYearsStated ?? 0) - (a.tenureYearsStated ?? 0));
+  return {
+    n: stated.length,
+    longest: stated[0] ?? null,
+    shortest: stated.length > 1 ? stated[stated.length - 1] : null,
+  };
+}
+
+/**
+ * How the cases came to light, counted by route. `unknown` is reported
+ * separately so a missing fact is never mistaken for a finding.
+ */
+export function detectionBreakdown(cases: readonly CaseStudy[]): {
+  n: number;
+  known: number;
+  unknown: number;
+  byRoute: { route: DetectionRoute; count: number }[];
+} {
+  const counts = new Map<DetectionRoute, number>();
+  for (const c of cases) counts.set(c.detection, (counts.get(c.detection) ?? 0) + 1);
+  const unknown = counts.get("unknown") ?? 0;
+  const byRoute = [...counts.entries()]
+    .filter(([route]) => route !== "unknown")
+    .map(([route, count]) => ({ route, count }))
+    .sort((a, b) => b.count - a.count);
+  return { n: cases.length, known: cases.length - unknown, unknown, byRoute };
+}
+
+// ---------------------------------------------------------------------------
+// Shared wording
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a scheme ran, in words: "1 month", "8 months", "1 year",
+ * "16.7 years".
+ *
+ * Years are rounded to a tenth, never to a whole number, so a record that says
+ * "nearly 17 years" (200 months) reads 16.7 and not 17. Months are rounded
+ * before the year boundary is tested, so 11.6 months reads "1 year", never
+ * "12 months". Every place that shows a duration uses this, so a card and a
+ * summary never disagree about the same case.
+ */
+export function durationPhrase(months: number): string {
+  const whole = Math.round(months);
+  if (whole < 1) return "under a month";
+  if (whole < 12) return `${whole} month${whole === 1 ? "" : "s"}`;
+  const years = Math.round((months / 12) * 10) / 10;
+  return `${years} year${years === 1 ? "" : "s"}`;
+}
+
+/**
+ * How long one case ran, in words, or null when the source states no
+ * duration: "8 months", or "at least 5 years" when the record says its
+ * duration is a floor.
+ */
+export function caseDurationPhrase(
+  study: Pick<CaseStudy, "durationMonths" | "durationIsFloor">,
+): string | null {
+  if (typeof study.durationMonths !== "number") return null;
+  return `${study.durationIsFloor ? "at least " : ""}${durationPhrase(study.durationMonths)}`;
+}
+
+/** A case's loss as the customer reads it: "at least $1,000,000" when the source states a minimum, else "$1,000,000". */
+export function lossPhrase(study: Pick<CaseStudy, "lossUsd" | "lossIsFloor">): string {
+  return `${study.lossIsFloor ? "at least " : ""}${formatUsd(study.lossUsd)}`;
+}
+
+/** Where a case happened, for a sentence: "at a dental practice", "at another business". */
+export function sectorPhrase(sector: IndustrySector): string {
+  return SECTOR_PHRASE[sector];
+}
+
+/** The badge label for a case's sector. */
+export const SECTOR_LABEL: Record<IndustrySector, string> = {
+  dental: "Dental practice",
+  medical: "Medical practice",
+  veterinary: "Veterinary practice",
+  restaurant: "Restaurant",
+  construction: "Construction",
+  automotive: "Auto dealership",
+  "professional-services": "Professional services",
+  retail: "Retail",
+  nonprofit: "Nonprofit",
+  trades: "Trades / home services",
+  any: "Any business",
+};
+
+/** How a scheme came to light, in the words every screen and the report use. */
+export const DETECTION_LABEL: Record<DetectionRoute, string> = {
+  tip: "Someone spoke up",
+  "owner-review": "The owner looked",
+  "external-audit": "Outside audit",
+  "bank-or-insurer": "Bank or insurer flagged it",
+  "law-enforcement": "Law enforcement",
+  "by-accident": "By accident",
+  cover: "Someone else covered the desk",
+  reconciliation: "A reconciliation caught it",
+  unknown: "Not stated in the source",
+};
+
+// ---------------------------------------------------------------------------
+// Industry template to case sector
+// ---------------------------------------------------------------------------
+
+/**
+ * Every case-library sector an industry template counts as its own.
+ *
+ * The template system and the case library were built against different
+ * vocabularies — a template describes a product vertical, a case describes the
+ * trade the victim was in — so the join is explicit rather than assumed.
+ *
+ * The "Dental / medical / veterinary office" template serves all three, and
+ * a medical or veterinary case reads as "in your line of business" to a
+ * dentist exactly as a dental one does: same front desk, same payments at
+ * the counter, same refund and write-off authority. The construction template
+ * likewise counts both construction and trades cases. Other templates map to
+ * one sector, and "general" maps to the cross-sector cases: a business that
+ * has not named its trade should be shown the schemes that work anywhere.
+ */
+export function sectorsForIndustry(industryId: string): IndustrySector[] {
+  switch (industryId) {
+    case "dental":
+      return ["dental", "medical", "veterinary"];
+    case "retail":
+      return ["retail"];
+    case "restaurant":
+      return ["restaurant"];
+    case "professional_services":
+      return ["professional-services"];
+    // A general contractor's cases and a specialty trade's (HVAC, flooring)
+    // read as the same line of business: same field crews, job materials,
+    // and subcontractor and supplier payments.
+    case "construction":
+      return ["construction", "trades"];
+    // A dealership's office, service counter and parts room are one line of
+    // business with an independent repair shop's: same repair orders, same
+    // parts desk, same DMS.
+    case "automotive":
+      return ["automotive"];
+    case "nonprofit":
+      return ["nonprofit"];
+    default:
+      return ["any"];
+  }
+}
+
+/** Whether a case is from the owner's own line of business. */
+export function isOwnSector(study: CaseStudy, industryId: string): boolean {
+  // A cross-sector case is real anywhere, but it is not "in your line of business".
+  return study.sector !== "any" && sectorsForIndustry(industryId).includes(study.sector);
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Only the cases that cite one of these rules, in the same order as
+ * `casesForSodRules`.
+ *
+ * A count, a median, or a heading that says "this arrangement" has to rest on
+ * cases whose own record shows the pair of duties. Cases that merely share a
+ * scheme are useful reading, but they are related schemes, not this gap. A
+ * family-derived id ("family-custody-recording") is cited by no case, so it
+ * returns nothing here.
+ */
+function casesCitingSodRules(ruleIds: readonly string[]): CaseStudy[] {
+  const wanted = new Set(ruleIds);
+  return casesForSodRules(ruleIds).filter((c) => c.sodRuleIds.some((id) => wanted.has(id)));
+}
+
+/**
+ * Median months a scheme ran before it stopped, across cases that record a
+ * duration. This is the number that argues for detective controls: it is the
+ * window an owner is choosing to leave open.
+ */
+function observedDurationMonths(
+  cases: readonly CaseStudy[],
+): { median: number; longest: number; n: number } | null {
+  const months = cases
+    .map((c) => c.durationMonths)
+    .filter((n): n is number => typeof n === "number" && n > 0)
+    .sort((a, b) => a - b);
+  if (months.length === 0) return null;
+  return { median: median(months), longest: months[months.length - 1], n: months.length };
+}
+
+/** The middle value of a sorted list, or the mean of the middle pair. */
+function median(sorted: readonly number[]): number {
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function byLossDescending(a: CaseStudy, b: CaseStudy): number {
+  return b.lossUsd - a.lossUsd;
+}
+
+/** The schemes a set of open conflicts exposes the business to. */
+function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
+  const out = new Set<SchemeKind>();
+  for (const id of ruleIds) {
+    for (const s of RULE_SCHEMES[id] ?? schemesForFamilyRuleId(id)) out.add(s);
+  }
+  return [...out];
+}
+
+/**
+ * Schemes for a family-derived rule id such as "family-custody-recording".
+ * Returns an empty list for anything that is not one.
+ */
+function schemesForFamilyRuleId(ruleId: string): SchemeKind[] {
+  if (!ruleId.startsWith("family-")) return [];
+  const [a, b] = ruleId.slice("family-".length).split("-");
+  if (!a || !b) return [];
+  const key = [a, b].sort().join("-");
+  return FAMILY_SCHEMES[key] ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Scheme maps (exported for the provenance test)
+// ---------------------------------------------------------------------------
 
 /**
  * The fraud schemes each segregation-of-duties conflict actually enables.
@@ -103,7 +554,8 @@ export const RULE_SCHEMES: Record<string, SchemeKind[]> = {
  * schemes it actually opens up.
  *
  * Keys are unordered pairs joined with a hyphen, alphabetically, matching the
- * `family-<a>-<b>` rule ids the detector produces.
+ * `family-<a>-<b>` rule ids the detector produces. Only pairings the detector
+ * can emit are listed (see FAMILY_CONFLICT_MATRIX in sod/conflict-rules.ts).
  */
 export const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
   // Approving a transaction and holding the asset: nothing stands between the
@@ -121,397 +573,18 @@ export const FAMILY_SCHEMES: Record<string, SchemeKind[]> = {
   "custody-master_data": ["billing-shell-vendor", "check-tampering", "inventory-theft"],
   // Writing the record and checking the record.
   "reconciliation-recording": ["financial-statement", "receivables-diversion"],
-  // Writing the record and controlling the payee list.
-  "master_data-recording": ["billing-shell-vendor"],
-  // Two people needed to change the payee list; one is enough here.
-  "master_data-master_data": ["billing-shell-vendor"],
-  "custody-custody": ["skimming", "cash-larceny"],
 };
 
-/**
- * Schemes for a family-derived rule id such as "family-custody-recording".
- * Returns an empty list for anything that is not one.
- */
-function schemesForFamilyRuleId(ruleId: string): SchemeKind[] {
-  if (!ruleId.startsWith("family-")) return [];
-  const [a, b] = ruleId.slice("family-".length).split("-");
-  if (!a || !b) return [];
-  const key = [a, b].sort().join("-");
-  return FAMILY_SCHEMES[key] ?? [];
-}
-
-/** The schemes a set of open conflicts exposes the business to. */
-export function schemesForSodRules(ruleIds: readonly string[]): SchemeKind[] {
-  const out = new Set<SchemeKind>();
-  for (const id of ruleIds) {
-    for (const s of RULE_SCHEMES[id] ?? schemesForFamilyRuleId(id)) out.add(s);
-  }
-  return [...out];
-}
-
-/**
- * Cases matching any of several rules, most relevant first.
- *
- * A case matches when it cites one of the rules, or when it shows a scheme one
- * of the rules enables. Ordering runs on four keys, in this priority:
- *
- *   1. Citation: a case that cites one of the rules shows that very pair of
- *      duties, so it always sits above a case that only shares a scheme.
- *   2. Scheme overlap: does this case show the kind of fraud these conflicts
- *      actually enable. An owner asked about vendor payments learns little
- *      from an unrelated case that happens to touch the same rule.
- *   3. Rule overlap: how many of the asked-about rules the case demonstrates.
- *   4. Loss amount: among equally apt cases, the costlier one leads.
- *
- * Ranking by loss alone would surface the same few large cases against every
- * finding; ranking by rule count alone rewards cases for being narrow rather
- * than for being on point. Use `casesCitingSodRules` wherever a count or a
- * median has to describe cases that show the pair itself.
- */
-export function casesForSodRules(ruleIds: readonly string[]): CaseStudy[] {
-  const wantedRules = new Set(ruleIds);
-  const wantedSchemes = new Set(schemesForSodRules(ruleIds));
-
-  // A named rule selects cases that cite it. A family-derived id cites nothing,
-  // so those select on scheme overlap instead — the case still demonstrates
-  // that combination of duties, which is what the finding is about.
-  const candidates = CASE_LIBRARY.filter(
-    (c) =>
-      c.sodRuleIds.some((id) => wantedRules.has(id)) ||
-      (wantedSchemes.size > 0 && c.schemes.some((s) => wantedSchemes.has(s))),
-  );
-
-  return (
-    candidates
-      .map((c) => ({
-        study: c,
-        schemeHits: c.schemes.filter((s) => wantedSchemes.has(s)).length,
-        ruleHits: c.sodRuleIds.filter((id) => wantedRules.has(id)).length,
-      }))
-      // A case that cites the rule leads; among those, scheme overlap orders.
-      // A case that merely shares a scheme never sits above one that shows the
-      // very pair of duties the finding names.
-      .sort(
-        (a, b) =>
-          Number(b.ruleHits > 0) - Number(a.ruleHits > 0) ||
-          b.schemeHits - a.schemeHits ||
-          b.ruleHits - a.ruleHits ||
-          byLossDescending(a.study, b.study),
-      )
-      .map((r) => r.study)
-  );
-}
-
-/**
- * Only the cases that cite one of these rules, in the same order as
- * `casesForSodRules`.
- *
- * A count, a median, or a heading that says "this arrangement" has to rest on
- * cases whose own record shows the pair of duties. Cases that merely share a
- * scheme are useful reading, but they are related schemes, not this gap. A
- * family-derived id ("family-custody-recording") is cited by no case, so it
- * returns nothing here.
- */
-export function casesCitingSodRules(ruleIds: readonly string[]): CaseStudy[] {
-  const wanted = new Set(ruleIds);
-  return casesForSodRules(ruleIds).filter((c) => c.sodRuleIds.some((id) => wanted.has(id)));
-}
-
-/**
- * Count, loss range, duration, and detection routes over the cases that cite
- * these rules, and over nothing else.
- *
- * This is the figure set for sentences such as "N prosecuted cases match" and
- * "median loss": both claim the cases show the gaps, so both must be computed
- * over citing cases only.
- */
-export function citingCaseStats(ruleIds: readonly string[]): {
-  cases: CaseStudy[];
-  count: number;
-  loss: ReturnType<typeof observedLossRange>;
-  duration: ReturnType<typeof observedDurationMonths>;
-  detection: ReturnType<typeof detectionBreakdown>;
-} {
-  const cases = casesCitingSodRules(ruleIds);
-  return {
-    cases,
-    count: cases.length,
-    loss: observedLossRange(cases),
-    duration: observedDurationMonths(cases),
-    detection: detectionBreakdown(cases),
-  };
-}
-
-/**
- * The one case to show beside a single finding, and what it may be called.
- *
- * Preference runs: a case that cites the rule and comes from the owner's own
- * line of business; then any case that cites the rule; then, only when no
- * case cites it, the most relevant case that shares a scheme. `citesRule`
- * tells the caller which of those it got, so a heading never calls a related
- * scheme "this arrangement".
- */
-export function caseForRule(
-  ruleId: string,
-  industryId?: string,
-): { study: CaseStudy; citesRule: boolean; ownSector: boolean } | null {
-  const citing = casesCitingSodRules([ruleId]);
-  const own = industryId ? citing.find((c) => isOwnSector(c, industryId)) : undefined;
-  if (own) return { study: own, citesRule: true, ownSector: true };
-  if (citing[0]) return { study: citing[0], citesRule: true, ownSector: false };
-  const related = casesForSodRules([ruleId])[0];
-  if (!related) return null;
-  return {
-    study: related,
-    citesRule: false,
-    ownSector: industryId ? isOwnSector(related, industryId) : false,
-  };
-}
-
-/**
- * How long a scheme ran, in words: "1 month", "8 months", "1 year",
- * "16.7 years".
- *
- * Years are rounded to a tenth, never to a whole number, so a record that says
- * "nearly 17 years" (200 months) reads 16.7 and not 17. Every place that shows
- * a duration uses this, so a card and a summary never disagree about the same
- * case.
- */
-export function durationPhrase(months: number): string {
-  if (months < 1) return "under a month";
-  if (months < 12) {
-    const whole = Math.round(months);
-    return `${whole} month${whole === 1 ? "" : "s"}`;
-  }
-  const years = Math.round((months / 12) * 10) / 10;
-  return `${years} year${years === 1 ? "" : "s"}`;
-}
-
-/**
- * Maps an industry template to the case-library sector.
- *
- * The template system and the case library were built against different
- * vocabularies — a template describes a product vertical, a case describes the
- * trade the victim was in — so the join is explicit rather than assumed.
- * "general" resolving to the cross-sector cases is the honest answer: a
- * business that has not named its trade should be shown the schemes that work
- * anywhere.
- */
-export function sectorForIndustry(industryId: string): IndustrySector {
-  return sectorsForIndustry(industryId)[0];
-}
-
-/**
- * Every case-library sector an industry template counts as its own.
- *
- * The "Dental / Medical Office" template serves both dental and medical
- * practices, and a medical office case reads as "in your line of business"
- * to a dentist exactly as a dental one does: same front desk, same insurer
- * remittances, same write-off authority. The construction template likewise
- * counts both construction and trades cases. Other templates map to one sector.
- */
-export function sectorsForIndustry(industryId: string): IndustrySector[] {
-  switch (industryId) {
-    case "dental":
-      return ["dental", "medical"];
-    case "retail":
-      return ["retail"];
-    case "restaurant":
-      return ["restaurant"];
-    case "professional_services":
-      return ["professional-services"];
-    // A general contractor's cases and a specialty trade's (HVAC, flooring)
-    // read as the same line of business: same field crews, job materials,
-    // and subcontractor and supplier payments.
-    case "construction":
-      return ["construction", "trades"];
-    // A dealership's office, service counter and parts room are one line of
-    // business with an independent repair shop's: same repair orders, same
-    // parts desk, same DMS.
-    case "automotive":
-      return ["automotive"];
-    case "nonprofit":
-      return ["nonprofit"];
-    default:
-      return ["any"];
-  }
-}
-
-/** Whether a case is from the owner's own line of business. */
-export function isOwnSector(study: CaseStudy, industryId: string): boolean {
-  // A cross-sector case is real anywhere, but it is not "in your line of business".
-  return study.sector !== "any" && sectorsForIndustry(industryId).includes(study.sector);
-}
-
-/**
- * Cases relevant to a sector, with cross-sector cases included.
- *
- * Cross-sector inclusion is deliberate: the mechanism of a fake-vendor scheme
- * does not change between a dental practice and a restaurant, and an owner
- * learns more from the mechanism than from the industry label.
- */
-export function casesForSector(sector: IndustrySector): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.sector === sector || c.sector === "any").sort(
-    byLossDescending,
-  );
-}
-
-/**
- * Cases that a given control would plausibly have caught, largest loss first.
- * Backs the dashboard's weekly priorities, so an action such as "start the
- * owner bank review" carries the prosecutions it rests on.
- */
-export function casesForControl(controlId: ControlId): CaseStudy[] {
-  return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
-    byLossDescending,
-  );
-}
-
-export function caseById(id: string): CaseStudy | undefined {
-  return CASE_LIBRARY.find((c) => c.id === id);
-}
-
-function byLossDescending(a: CaseStudy, b: CaseStudy): number {
-  return b.lossUsd - a.lossUsd;
-}
-
-/**
- * Observed loss range across cases carrying a recorded amount.
- *
- * Cases with `lossUsd === 0` are placeholders where the source did not state a
- * reliable total; they are excluded so they cannot drag a range to zero.
- */
-export function observedLossRange(cases: readonly CaseStudy[]): {
-  low: number;
-  median: number;
-  high: number;
-  n: number;
-} | null {
-  const amounts = cases
-    .map((c) => c.lossUsd)
-    .filter((n) => n > 0)
-    .sort((a, b) => a - b);
-  if (amounts.length === 0) return null;
-  const mid = Math.floor(amounts.length / 2);
-  return {
-    low: amounts[0],
-    median: amounts.length % 2 === 0 ? (amounts[mid - 1] + amounts[mid]) / 2 : amounts[mid],
-    high: amounts[amounts.length - 1],
-    n: amounts.length,
-  };
-}
-
-/**
- * Median months a scheme ran before it stopped, across cases that record a
- * duration. This is the number that argues for detective controls: it is the
- * window an owner is choosing to leave open.
- */
-/**
- * The cases whose source states how long the person had served, longest first.
- *
- * Tenure is recorded only where the release or filing gives a hire year or a
- * length of service, so `n` is small and the result is a set of named
- * examples, not a rate. Callers show the longest and the shortest to make one
- * point: the library holds both the 27-year employee and the new hire, so
- * length of service predicts nothing either way.
- */
-export function tenureExamples(cases: readonly CaseStudy[]): {
-  n: number;
-  longest: CaseStudy | null;
-  shortest: CaseStudy | null;
-} {
-  const stated = cases
-    .filter((c) => typeof c.tenureYearsStated === "number")
-    .sort((a, b) => (b.tenureYearsStated ?? 0) - (a.tenureYearsStated ?? 0));
-  return {
-    n: stated.length,
-    longest: stated[0] ?? null,
-    shortest: stated.length > 1 ? stated[stated.length - 1] : null,
-  };
-}
-
-export function observedDurationMonths(
-  cases: readonly CaseStudy[],
-): { median: number; longest: number; n: number } | null {
-  const months = cases
-    .map((c) => c.durationMonths)
-    .filter((n): n is number => typeof n === "number" && n > 0)
-    .sort((a, b) => a - b);
-  if (months.length === 0) return null;
-  const mid = Math.floor(months.length / 2);
-  return {
-    median: months.length % 2 === 0 ? (months[mid - 1] + months[mid]) / 2 : months[mid],
-    longest: months[months.length - 1],
-    n: months.length,
-  };
-}
-
-/**
- * How the cases came to light, counted by route. `unknown` is reported
- * separately so a missing fact is never mistaken for a finding.
- */
-export function detectionBreakdown(cases: readonly CaseStudy[]): {
-  n: number;
-  known: number;
-  unknown: number;
-  byRoute: { route: CaseStudy["detection"]; count: number }[];
-} {
-  const counts = new Map<CaseStudy["detection"], number>();
-  for (const c of cases) counts.set(c.detection, (counts.get(c.detection) ?? 0) + 1);
-  const unknown = counts.get("unknown") ?? 0;
-  const byRoute = [...counts.entries()]
-    .filter(([route]) => route !== "unknown")
-    .map(([route, count]) => ({ route, count }))
-    .sort((a, b) => b.count - a.count);
-  return { n: cases.length, known: cases.length - unknown, unknown, byRoute };
-}
-
-/**
- * Controls that recur across the cases matching these rules, ordered by how
- * many of those cases each one would have stopped.
- *
- * Aggregation runs on the canonical control id, not on the prose. Each case
- * phrases a control in its own terms — "the owner opens the bank statement
- * before the controller sees it" and "the bank statement goes to a partner,
- * not the administrator" are the same control — so counting the strings gave
- * every control a count of one and made the ordering meaningless.
- *
- * This is the app's answer to "what do I actually do on Monday", and it is
- * derived from the case library rather than from a framework checklist, so
- * every item on it has already failed somewhere for real.
- */
-export function recommendedStepsForRules(ruleIds: readonly string[]): {
-  control: ControlDefinition;
-  supportingCaseIds: string[];
-  /** How this control was phrased in the most relevant supporting case. */
-  asApplied: string;
-}[] {
-  const relevant = casesForSodRules(ruleIds);
-  const tally = new Map<ControlId, { caseIds: string[]; asApplied: string }>();
-
-  for (const c of relevant) {
-    for (const step of c.wouldHaveCaughtIt) {
-      const existing = tally.get(step.control);
-      if (existing) {
-        // One case can phrase the same control twice; count the case once.
-        if (!existing.caseIds.includes(c.id)) existing.caseIds.push(c.id);
-      } else {
-        // `relevant` is already ordered most-relevant first, so the first
-        // phrasing seen is the one from the most apt case.
-        tally.set(step.control, { caseIds: [c.id], asApplied: step.asApplied });
-      }
-    }
-  }
-
-  return [...tally.entries()]
-    .map(([control, v]) => ({
-      control: CONTROL_CATALOG[control],
-      supportingCaseIds: v.caseIds,
-      asApplied: v.asApplied,
-    }))
-    .sort(
-      (a, b) =>
-        b.supportingCaseIds.length - a.supportingCaseIds.length ||
-        a.control.label.localeCompare(b.control.label),
-    );
-}
+const SECTOR_PHRASE: Record<IndustrySector, string> = {
+  dental: "at a dental practice",
+  medical: "at a medical practice",
+  veterinary: "at a veterinary practice",
+  restaurant: "at a restaurant",
+  construction: "at a construction business",
+  automotive: "at an auto dealership or repair shop",
+  "professional-services": "at a professional-services firm",
+  retail: "at a retail business",
+  nonprofit: "at a nonprofit",
+  trades: "at a trades or home-services business",
+  any: "at another business",
+};

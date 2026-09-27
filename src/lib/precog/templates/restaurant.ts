@@ -1,13 +1,19 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
+import type { IndustrySample } from "./types";
 import {
   baseFinancialControls,
   baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
 } from "./shared-controls";
 
 /**
+ * A full-service restaurant with a bar and about six people: the owner, who
+ * is also the chef, a general manager who handles vendors, deposits, voids
+ * and payroll, a head server who closes out shifts and runs the tip pool, a
+ * line cook lead, a bar manager and a bookkeeper. It uses the shared cash,
+ * write-off and vendor controls and scenarios (a restaurant has no
+ * receivables), and adds sales tax and the tip pool.
+ *
  * Sales tax and tips. Sales tax a restaurant collects is the state's money
  * from the moment it is collected, and in many states the person responsible
  * for paying it over is personally liable when it is not. Tips belong to the
@@ -18,108 +24,53 @@ import {
  * schemes below, tax collected but not paid and a tip pool shifted or held
  * back, follow from those rules; no rate is given for either.
  */
-const taxAndTipControls: ControlItem[] = [
-  {
-    id: "c-salestax",
-    name: "Sales tax return review",
-    description:
-      "Each return's taxable sales tie to the POS sales report, and someone other than the preparer sees the state's confirmation that the payment arrived.",
-    duties: ["review", "reconciliation"],
-    segregated: false,
-    compensatingControls: ["Owner reads the state tax account online each quarter"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-tip-pool",
-    name: "Tip pool distribution review",
-    description:
-      "Pool shares follow a written policy; someone outside the pool checks each distribution against POS tips and hours, and no manager or supervisor draws from it.",
-    duties: ["review", "authorization"],
-    segregated: false,
-    compensatingControls: ["Staff can see their own tip totals in the POS"],
-    residualRiskAccepted: false,
-  },
-];
-
-/*
- * Timeline and loss figures reuse the shared scenarios' illustrative model
- * inputs (the cash scenario for sales tax, the write-off scenario for the tip
- * pool); they are assumptions, not measurements.
- */
-const taxAndTipScenarios: ScenarioTemplate[] = [
-  {
-    id: "sc-salestax-unremitted",
-    title: "Sales tax collected but not paid to the state",
-    description:
-      "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
-    controlId: "c-salestax",
-    knowledgeId: "k7",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-tax-1",
-        label: "Tie every return to the POS report and file the state's payment confirmation",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-tax-2",
-        label: "Owner checks the state tax account each quarter",
-        effort: "low",
-        riskReduction: 0.45,
-        costAnnual: 0,
-      },
-    ],
-  },
-  {
-    id: "sc-tip-pool-manipulation",
-    title: "Tip pool shares shifted or paid to a manager",
-    description:
-      "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
-    controlId: "c-tip-pool",
-    knowledgeId: "k1",
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
-    cascadeLayers: ["control", "knowledge", "process", "continuity"],
-    mitigations: [
-      {
-        id: "m-tip-1",
-        label: "Written pool policy, and each distribution checked by someone outside the pool",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-tip-2",
-        label: "Staff see their own POS tip totals each pay period",
-        effort: "low",
-        riskReduction: 0.35,
-        costAnnual: 0,
-      },
-    ],
-  },
-];
-
-export const restaurantTemplate: IndustryTemplate = {
+export const restaurantTemplate: IndustrySample = {
   id: "restaurant",
-  businessName: "Ember & Oak Kitchen",
   people: [
     {
       id: "p1",
-      name: "Elena Vargas",
+      name: "Marco Bellini",
       role: "Owner / Executive Chef",
       active: true,
       tenureYears: 11,
     },
-    { id: "p2", name: "Maya Chen", role: "General Manager", active: true, tenureYears: 6 },
-    { id: "p3", name: "Jordan Blake", role: "Head Server", active: true, tenureYears: 5 },
-    { id: "p4", name: "Sam Ortiz", role: "Line Cook Lead", active: true, tenureYears: 4 },
-    { id: "p5", name: "Riley Kim", role: "Bar Manager", active: true, tenureYears: 3 },
-    { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 2 },
+    { id: "p2", name: "Keisha Moore", role: "General Manager", active: true, tenureYears: 6 },
+    { id: "p3", name: "Diego Ramirez", role: "Head Server", active: true, tenureYears: 5 },
+    { id: "p4", name: "Tom Becker", role: "Line Cook Lead", active: true, tenureYears: 4 },
+    { id: "p5", name: "Nina Petrova", role: "Bar Manager", active: true, tenureYears: 3 },
+    { id: "p6", name: "Owen Clarke", role: "Bookkeeper", active: true, tenureYears: 2 },
   ],
+  roleTemplates: {
+    "Owner / Executive Chef": [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "General Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_writeoffs",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Head Server": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
+    "Line Cook Lead": ["view_reports_only"],
+    "Bar Manager": ["collect_cash", "post_adjustments", "view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "bank_reconcile",
+      "post_adjustments",
+      "review_card_statement",
+      "view_reports_only",
+    ],
+  },
   knowledge: [
     {
       id: "k1",
@@ -132,7 +83,7 @@ export const restaurantTemplate: IndustryTemplate = {
     {
       id: "k2",
       name: "Daily sales deposit",
-      description: "POS Z-report, cash vs card, safe drops.",
+      description: "End-of-day POS report (the Z-report), cash vs card, safe drops.",
       criticality: "critical",
       category: "process",
       linkedProcessIds: ["proc-cash"],
@@ -164,7 +115,8 @@ export const restaurantTemplate: IndustryTemplate = {
     {
       id: "k6",
       name: "Payroll tip credit rules",
-      description: "Tip credit, reported tips, state compliance.",
+      description:
+        "The tip credit (tips counted toward the minimum wage), reported tips, state rules.",
       criticality: "important",
       category: "compliance",
       linkedProcessIds: ["proc-payroll", "proc-tips"],
@@ -181,7 +133,7 @@ export const restaurantTemplate: IndustryTemplate = {
   ],
   relations: [
     { personId: "p3", knowledgeId: "k1", level: "expert" },
-    { personId: "p2", knowledgeId: "k1", level: "proficient" },
+    { personId: "p2", knowledgeId: "k1", level: "basic" },
     { personId: "p3", knowledgeId: "k2", level: "expert" },
     { personId: "p2", knowledgeId: "k2", level: "proficient" },
     { personId: "p2", knowledgeId: "k3", level: "expert" },
@@ -229,7 +181,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "POS forces a reason code; GM reviews the comp report nightly.",
+          note: "The POS forces a reason code; the general manager reads the comp report nightly.",
           status: "planned",
         },
         {
@@ -293,7 +245,7 @@ export const restaurantTemplate: IndustryTemplate = {
         },
         {
           id: "i-bar-2",
-          title: "Cross-train GM on bar inventory counts",
+          title: "Cross-train the general manager on bar inventory counts",
           category: "training",
           effort: "low",
           impact: "medium",
@@ -336,7 +288,7 @@ export const restaurantTemplate: IndustryTemplate = {
           kind: "safety",
           severity: 4,
           likelihood: 3,
-          note: "Walk-in temps and FIFO labels are checked by memory, not a log; health inspection exposure.",
+          note: "Staff check walk-in temperatures and first-in, first-out date labels from memory, not a log; health inspection exposure.",
           linkedKnowledgeId: "k4",
         },
       ],
@@ -347,7 +299,7 @@ export const restaurantTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Count and weigh against the invoice before signing; note shorts for AP credit.",
+          note: "Count and weigh against the invoice before signing; note shorts so the bookkeeper claims the credit.",
           status: "planned",
         },
         {
@@ -365,7 +317,7 @@ export const restaurantTemplate: IndustryTemplate = {
           id: "w-inv-1",
           kind: "mura",
           label: "Over-prep on slow nights, short on busy ones",
-          note: "Prep lists do not use the reservation forecast, so spoilage and 86'd items both happen.",
+          note: "Prep lists do not use the reservation forecast, so food spoils on slow nights and dishes run out on busy ones.",
         },
       ],
     },
@@ -378,7 +330,7 @@ export const restaurantTemplate: IndustryTemplate = {
       controlIds: ["c-cash", "c-sod-cash"],
       stage: 2,
       ownerPersonIds: ["p3", "p2"],
-      inputs: ["Server cash-outs", "POS Z-report", "Card tips"],
+      inputs: ["Server cash-outs", "End-of-day POS report", "Card tips"],
       outputs: ["Bank deposit", "Tip pool distribution"],
       risks: [
         {
@@ -400,6 +352,7 @@ export const restaurantTemplate: IndustryTemplate = {
           likelihood: 3,
           note: "Often only the head server knows the split rules; disputes and wage claims spike when they are out.",
           linkedKnowledgeId: "k1",
+          linkedScenarioId: "sc-key-person-leaves",
         },
       ],
       ideas: [
@@ -414,11 +367,11 @@ export const restaurantTemplate: IndustryTemplate = {
         },
         {
           id: "i-cash-2",
-          title: "Owner matches deposits to Z-reports weekly",
+          title: "Owner matches deposits to the end-of-day POS reports weekly",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "The owner checks the bank statement against nightly closeouts; catches skimming fast.",
+          note: "The owner reads the bank statement against the nightly closeouts, which catches skimming fast.",
           status: "exploring",
         },
       ],
@@ -433,7 +386,7 @@ export const restaurantTemplate: IndustryTemplate = {
     },
     {
       id: "proc-ap",
-      name: "Food & beverage AP",
+      name: "Food & beverage bills",
       layer: "process",
       description: "Vendor invoices, liquor distributor, linen.",
       dependencies: [],
@@ -445,11 +398,11 @@ export const restaurantTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ap-1",
-          title: "GM creates vendors and pays",
+          title: "General manager sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious food vendor path.",
+          note: "A fake food vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -509,7 +462,7 @@ export const restaurantTemplate: IndustryTemplate = {
           kind: "fraud",
           severity: 4,
           likelihood: 4,
-          note: "GM can void tickets without owner review.",
+          note: "The general manager can void tickets without owner review.",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -647,7 +600,8 @@ export const restaurantTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-tax-1",
-          title: "Owner sees each return and the state's payment confirmation",
+          title:
+            "Owner reads each return, the POS report it was prepared from and the state's payment confirmation",
           category: "control",
           effort: "low",
           impact: "high",
@@ -691,12 +645,12 @@ export const restaurantTemplate: IndustryTemplate = {
           kind: "compliance",
           severity: 4,
           likelihood: 3,
-          note: "Tipped staff below minimum wage after tip credit means back-pay and penalties.",
+          note: "Tipped staff paid below the minimum wage after the tip credit means back pay and penalties.",
           linkedKnowledgeId: "k6",
         },
         {
           id: "r-pay-2",
-          title: "GM edits punches and runs payroll alone",
+          title: "General manager edits punches and runs payroll alone",
           kind: "fraud",
           severity: 4,
           likelihood: 2,
@@ -706,11 +660,11 @@ export const restaurantTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-pay-1",
-          title: "Owner reviews payroll summary before submit",
+          title: "Owner reads the payroll summary before it is sent",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "The owner checks hours, tips, and any punch edits each period.",
+          note: "The owner reads the hours, tips and any punch edits each period.",
           status: "planned",
         },
         {
@@ -728,14 +682,37 @@ export const restaurantTemplate: IndustryTemplate = {
           id: "w-pay-1",
           kind: "muda_rework",
           label: "Fixing missed punches after the fact",
-          note: "Servers forget to clock out; GM reconstructs hours from the POS every period.",
+          note: "Servers forget to clock out; the general manager rebuilds hours from the POS every period.",
         },
       ],
     },
   ],
-  controls: [...baseFinancialControls(), ...taxAndTipControls],
-  staffComposition: { ...DEFAULT_STAFF, teamSize: 6, segregationScore: 35 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  // A restaurant keeps no receivables, so the receivables controls stay out;
+  // sales tax and the tip pool are its own.
+  controls: [
+    ...baseFinancialControls().filter((c) => c.id !== "c-ar" && c.id !== "c-sod-ar"),
+    {
+      id: "c-salestax",
+      name: "Sales tax return review",
+      description:
+        "Each return's taxable sales tie to the POS sales report, and the owner, not the preparer, reads the state's confirmation that the payment arrived.",
+      duties: ["review", "reconciliation"],
+      segregated: false,
+      compensatingControls: ["Owner reads the state tax account online each quarter"],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-tip-pool",
+      name: "Tip pool distribution review",
+      description:
+        "Pool shares follow a written policy; someone outside the pool checks each distribution against POS tips and hours, and no manager or supervisor draws from it.",
+      duties: ["review", "authorization"],
+      segregated: false,
+      compensatingControls: ["Staff can see their own tip totals in the POS"],
+      residualRiskAccepted: false,
+    },
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Head server leaves with sole tip-pool knowledge",
@@ -744,37 +721,60 @@ export const restaurantTemplate: IndustryTemplate = {
       knowledgeId: "k1",
       billingLabel: "Void/comp authority without owner review",
     }),
-    ...taxAndTipScenarios,
+    {
+      id: "sc-salestax-unremitted",
+      title: "Sales tax collected but not paid to the state",
+      description:
+        "The person who prepares the sales tax return also pays it and reconciles the bank. The return reports less than the POS collected, or the payment is never made, and the gap surfaces when the state sends a notice with penalties and interest.",
+      controlId: "c-salestax",
+      sodRuleIds: ["rule-release-rec"],
+      knowledgeId: "k7",
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-tax-1",
+          label:
+            "Owner reads each return, the POS report it was prepared from and the state's payment confirmation",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-tax-2",
+          label: "Owner reads the state tax account online each quarter",
+          effort: "low",
+          riskReduction: 0.45,
+          costAnnual: 0,
+        },
+      ],
+    },
+    {
+      id: "sc-tip-pool-manipulation",
+      title: "Tip pool shares shifted or paid to a manager",
+      description:
+        "The person who calculates the pool also pays it out. Shares move to a favored employee or a manager, or card tips are held back, and staff learn of it only when someone compares their pay with the POS.",
+      controlId: "c-tip-pool",
+      sodRuleIds: ["rule-payroll"],
+      knowledgeId: "k1",
+      ...SCENARIO_FIGURES.writeoff,
+      cascadeLayers: ["control", "knowledge", "process", "continuity"],
+      mitigations: [
+        {
+          id: "m-tip-1",
+          label: "Written pool policy, and each distribution checked by someone outside the pool",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-tip-2",
+          label: "Staff see their own POS tip totals each pay period",
+          effort: "low",
+          riskReduction: 0.35,
+          costAnnual: 0,
+        },
+      ],
+    },
   ],
-  roleTemplates: {
-    "Owner / Executive Chef": [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "General Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_writeoffs",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Head Server": ["collect_cash", "post_payments", "prepare_deposit", "post_adjustments"],
-    "Line Cook Lead": ["view_reports_only"],
-    "Bar Manager": ["collect_cash", "post_adjustments", "view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "bank_reconcile",
-      "post_adjustments",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

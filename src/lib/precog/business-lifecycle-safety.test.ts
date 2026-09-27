@@ -95,7 +95,7 @@ describe("transactional business safety", () => {
       ok: false,
       existing: { revision: 3 },
     });
-    expect(await saveBusinessRevision(db.sql, input("one", 3))).toMatchObject({
+    expect(await saveBusinessRevision(db.sql, input("one", 3, "After restore"))).toMatchObject({
       ok: true,
       revision: 4,
     });

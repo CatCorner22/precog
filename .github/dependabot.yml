@@ -1,0 +1,11 @@
+# Keeps the commit-pinned GitHub Actions in .github/ current (one pull request
+# a week at most, grouped).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

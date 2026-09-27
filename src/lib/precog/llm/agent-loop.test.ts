@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { runLocalAgentLoop } from "./agent-loop";
 import { runSpecialistAgents } from "./multi-agent";
@@ -7,7 +7,7 @@ import { resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("local brief register freshness advice", () => {
   const [held, orphan] = dental.knowledge;
@@ -128,7 +128,7 @@ describe("local brief leavers", () => {
       ...extra,
     });
 
-  it("makes the hand-over the decision, due by the last day, and warns about it", () => {
+  it("makes the hand-off the decision, due by the last day, and warns about it", () => {
     const { brief } = runLocalAgentLoop("continuity", {
       profile: profileWith("2025-04-20"),
       today: "2025-04-01",
@@ -178,7 +178,7 @@ describe("local brief before the register is assessed", () => {
   ] as const;
 
   it.each(industries)(
-    "answers for a new %s business whose starter register has nobody marked",
+    "answers for a new %s business whose sample register has nobody marked",
     (industry) => {
       const people = buildOwnTeam([
         { name: "Pat Owner", role: "Owner", duties: ["sign_checks", "bank_reconcile"] },
@@ -197,7 +197,7 @@ describe("local brief before the register is assessed", () => {
 
       expect(actions).toContain(
         knowledge === 0
-          ? "List the duties, tasks and know-how the business runs on"
+          ? "List the duties and know-how the business runs on"
           : `Mark who can do each of the ${knowledge} things the business runs on`,
       );
       expect(actions.some((a) => /cross-train/i.test(a))).toBe(false);

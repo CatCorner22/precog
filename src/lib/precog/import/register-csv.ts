@@ -1,3 +1,9 @@
+/**
+ * Continuity register as a spreadsheet: one row per duty/task/know-how item,
+ * one column per active team member holding that person's level
+ * (expert / can do / learning / aware, or blank). This is the same grid the
+ * planner shows, so owners can fill it in Excel and import it back.
+ */
 import type { IndustryTemplate } from "../templates/types";
 import type {
   Criticality,
@@ -7,29 +13,24 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
-import { isCalendarDate } from "../dates";
-import { localDateKey } from "../decisions/follow-through";
-import { csvCell, parseRows } from "./csv";
-import { slug } from "../text";
+import { isCalendarDate, localDateKey } from "../dates";
+import {
+  csvCell,
+  DOCUMENTED_WORDS,
+  normalizeHeader,
+  parseRows,
+  readYesNo,
+  rowCapMessage,
+  sniffDelimiter,
+  type ImportIssue,
+} from "./csv";
+import { nameKey, slug, stripInvisibleControls, verb } from "../text";
+import { defaultCategory } from "../continuity/knowledge-category";
 
-/**
- * Continuity register as a spreadsheet: one row per duty/task/know-how item,
- * one column per active team member holding that person's level
- * (expert / can do / learning / aware, or blank). This is the same grid the
- * planner shows, so owners can fill it in Excel and import it back.
- */
-
-export interface RegisterImportIssue {
-  row: number;
-  message: string;
-}
-
-export interface RegisterImportResult {
+interface RegisterImportResult {
   knowledge: KnowledgeItem[];
   relations: KnowledgeRelation[];
-  issues: RegisterImportIssue[];
-  /** Column headings that matched nobody on the active team; their levels were skipped. */
-  unknownPeople: string[];
+  issues: ImportIssue[];
 }
 
 const REGISTER_CSV_COLUMNS = [
@@ -113,8 +114,8 @@ const LEVEL_ALIASES: Record<string, KnowledgeLevel> = {
   "1": "aware",
 };
 
-const NONE_TOKENS = new Set(["", "-", "none", "no", "n", "0"]);
-const TRUE_TOKENS = new Set(["true", "yes", "y", "1", "x", "documented", "written"]);
+/** Level cells that mean the person does not hold the item. */
+const NO_LEVEL = new Set(["", "-", "–", "—", "none", "no", "n", "0", "n/a", "na"]);
 
 const LEVEL_CELL: Record<KnowledgeLevel, string> = {
   expert: "expert",
@@ -123,26 +124,19 @@ const LEVEL_CELL: Record<KnowledgeLevel, string> = {
   aware: "aware",
 };
 
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-/** A CSV cell guarded against formula injection (see `csvCell`). */
-const escapeCsv = csvCell;
-
 export function parseRegisterCsv(
   text: string,
   tpl: IndustryTemplate,
   opts: { maxRows?: number; today?: string } = {},
 ): RegisterImportResult {
   const today = opts.today ?? localDateKey(new Date());
-  const rows = parseRows(text);
-  const issues: RegisterImportIssue[] = [];
+  const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
+  const issues: ImportIssue[] = [];
   const header = rows[0] ?? [];
   const columns = new Map<(typeof REGISTER_CSV_COLUMNS)[number], number>();
   for (const key of REGISTER_CSV_COLUMNS) {
     const index = header.findIndex((cell) =>
-      HEADER_ALIASES[key].some((alias) => normalize(alias) === normalize(cell)),
+      HEADER_ALIASES[key].some((alias) => normalizeHeader(alias) === normalizeHeader(cell)),
     );
     if (index >= 0) columns.set(key, index);
   }
@@ -152,7 +146,6 @@ export function parseRegisterCsv(
       knowledge: [],
       relations: [],
       issues: [{ row: 0, message: "Missing an item column (duty, task or know-how name)" }],
-      unknownPeople: [],
     };
   }
 
@@ -164,10 +157,13 @@ export function parseRegisterCsv(
     if (fixedColumns.has(index)) return;
     const heading = cell.trim();
     if (!heading) return;
-    const person = activePeople.find((p) => normalize(p.name) === normalize(heading));
+    const person = activePeople.find((p) => nameKey(p.name) === nameKey(heading));
     if (person) {
       if (personColumns.some((c) => c.person.id === person.id)) {
-        issues.push({ row: 0, message: `Duplicate column for ${person.name}` });
+        issues.push({
+          row: 0,
+          message: `Two columns name ${person.name}; the importer read the first`,
+        });
       } else {
         personColumns.push({ index, person });
       }
@@ -178,7 +174,7 @@ export function parseRegisterCsv(
   if (unknownPeople.length) {
     issues.push({
       row: 0,
-      message: `Not on the active team, skipped: ${unknownPeople.join(", ")}`,
+      message: `${verb(unknownPeople.length, "This column names someone", "These columns name people")} not on the active team, so the importer skipped ${verb(unknownPeople.length, "it", "them")}: ${unknownPeople.join(", ")}`,
     });
   }
 
@@ -187,10 +183,10 @@ export function parseRegisterCsv(
   const dataRows = rows.slice(1);
   const rowsToImport = dataRows.slice(0, maxRows);
   if (dataRows.length > maxRows) {
-    issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
+    issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
 
-  const existingByName = new Map(tpl.knowledge.map((k) => [normalize(k.name), k]));
+  const existingByName = new Map(tpl.knowledge.map((k) => [nameKey(k.name), k]));
   const usedIds = new Set<string>();
   const seenNames = new Set<string>();
   const knowledge: KnowledgeItem[] = [];
@@ -207,25 +203,28 @@ export function parseRegisterCsv(
       issues.push({ row: rowNumber, message: "Item name is required" });
       return;
     }
-    const nameKey = normalize(name);
-    if (seenNames.has(nameKey)) {
-      issues.push({ row: rowNumber, message: `Duplicate item "${name}" skipped` });
+    const itemKey = nameKey(name);
+    if (seenNames.has(itemKey)) {
+      issues.push({
+        row: rowNumber,
+        message: `"${name}" appears twice; the importer skipped the second row`,
+      });
       return;
     }
-    seenNames.add(nameKey);
+    seenNames.add(itemKey);
 
-    const existing = existingByName.get(nameKey);
+    const existing = existingByName.get(itemKey);
     const kindValue = cell(cells, "kind");
     let kind: KnowledgeKind = existing?.kind ?? "duty";
     if (kindValue) {
-      const parsed = KIND_ALIASES[normalize(kindValue)];
+      const parsed = KIND_ALIASES[nameKey(kindValue)];
       if (parsed) kind = parsed;
       else issues.push({ row: rowNumber, message: `Unknown kind "${kindValue}"; using ${kind}` });
     }
     const criticalityValue = cell(cells, "criticality");
     let criticality: Criticality = existing?.criticality ?? "important";
     if (criticalityValue) {
-      const parsed = CRITICALITY_ALIASES[normalize(criticalityValue)];
+      const parsed = CRITICALITY_ALIASES[nameKey(criticalityValue)];
       if (parsed) criticality = parsed;
       else
         issues.push({
@@ -234,17 +233,32 @@ export function parseRegisterCsv(
         });
     }
     const documentedValue = cell(cells, "documented");
-    const documented = documentedValue
-      ? TRUE_TOKENS.has(documentedValue.toLowerCase())
-      : Boolean(existing?.documented);
+    let documented = Boolean(existing?.documented);
+    if (documentedValue) {
+      const read = readYesNo(documentedValue, DOCUMENTED_WORDS);
+      if (read === undefined) {
+        issues.push({
+          row: rowNumber,
+          message: `Documented "${documentedValue}" should be yes or no; kept ${documented ? "yes" : "no"}`,
+        });
+      } else documented = read;
+    }
     const procedureLocation = columns.has("procedure location")
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
+    // A blank or unreadable date keeps the confirmation on record; only an
+    // unreadable one is reported.
     const confirmedValue = cell(cells, "last confirmed");
-    const confirmedAt =
-      isCalendarDate(confirmedValue, today) || !columns.has("last confirmed")
-        ? confirmedValue || existing?.confirmedAt
-        : existing?.confirmedAt;
+    let confirmedAt = existing?.confirmedAt;
+    if (isCalendarDate(confirmedValue, today)) confirmedAt = confirmedValue;
+    else if (confirmedValue) {
+      issues.push({
+        row: rowNumber,
+        message: isCalendarDate(confirmedValue)
+          ? `Last confirmed ${confirmedValue} is after today; the date on record was kept`
+          : `Last confirmed "${confirmedValue}" is not a date; write it as YYYY-MM-DD`,
+      });
+    }
     const description = columns.has("description")
       ? cell(cells, "description").slice(0, 500)
       : (existing?.description ?? "");
@@ -260,7 +274,7 @@ export function parseRegisterCsv(
       name: name.slice(0, 80),
       kind,
       criticality,
-      category: existing?.category ?? (kind === "knowledge" ? "tribal" : "process"),
+      category: existing?.category ?? defaultCategory(kind),
       description,
       linkedProcessIds: existing?.linkedProcessIds ?? [],
       documented,
@@ -270,8 +284,8 @@ export function parseRegisterCsv(
 
     for (const { index: col, person } of personColumns) {
       const raw = (cells[col] ?? "").trim();
-      if (NONE_TOKENS.has(raw.toLowerCase())) continue;
-      const level = LEVEL_ALIASES[normalize(raw)];
+      if (NO_LEVEL.has(raw.toLowerCase())) continue;
+      const level = LEVEL_ALIASES[nameKey(raw)];
       if (!level) {
         issues.push({
           row: rowNumber,
@@ -283,7 +297,7 @@ export function parseRegisterCsv(
     }
   });
 
-  return { knowledge, relations, issues, unknownPeople };
+  return { knowledge, relations, issues };
 }
 
 export function registerToCsv(tpl: IndustryTemplate): string {
@@ -303,7 +317,7 @@ export function registerToCsv(tpl: IndustryTemplate): string {
       return level ? LEVEL_CELL[level] : "";
     }),
   ]);
-  return `${[header, ...rows].map((cells) => cells.map(escapeCsv).join(",")).join("\r\n")}\r\n`;
+  return `${[header, ...rows].map((cells) => cells.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }
 
 /** Empty grid with the active team as columns and one example row. */
@@ -320,5 +334,5 @@ export function registerTemplateCsv(tpl: IndustryTemplate): string {
     "Who can do it: expert, can do, learning, aware, or leave blank",
     ...people.map((_, i) => (i === 0 ? "expert" : i === 1 ? "learning" : "")),
   ];
-  return `${[header, example].map((cells) => cells.map(escapeCsv).join(",")).join("\r\n")}\r\n`;
+  return `${[header, example].map((cells) => cells.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }

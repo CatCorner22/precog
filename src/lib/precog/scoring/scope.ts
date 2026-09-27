@@ -1,6 +1,7 @@
 import { getIndustryTemplate, type IndustryTemplate } from "../templates";
 import { industryMeta, type IndustryId } from "../industry";
 import type { ScenarioTemplate } from "../types";
+import { firstName } from "../text";
 
 /**
  * What the scores may count for this business.
@@ -22,22 +23,8 @@ export function isOwnBusiness(tpl: Pick<IndustryTemplate, "id" | "people">): boo
 export const REGISTER_NOT_ASSESSED =
   "Register not assessed yet: mark who can do each item on Who knows what.";
 
-/**
- * Whether the process map describes the owner's own processes, judged from the
- * template alone (use mapAssessed in builder/map-state where a profile is at
- * hand). For the owner's own people, a map in which no process has an owner is
- * the starter map nobody has worked on, and an empty map has nothing to score.
- */
-export function templateMapAssessed(
-  tpl: Pick<IndustryTemplate, "id" | "people" | "processes">,
-): boolean {
-  if (!isOwnBusiness(tpl)) return true;
-  if (tpl.processes.length === 0) return false;
-  return tpl.processes.some((p) => (p.ownerPersonIds ?? []).length > 0);
-}
-
 /** A decision the owner logged on a scenario, as the journal stores it. */
-export interface ScenarioDecision {
+interface ScenarioDecision {
   linkedTab?: string;
   linkedId?: string;
   linkedIndustry?: IndustryId;
@@ -89,7 +76,7 @@ export function starterScenariosLeftOut(
 
 /** "Starter scenarios from the dental / medical office example" */
 export function starterScenarioLabel(industry: IndustryId): string {
-  return `Starter scenarios from the ${industryMeta(industry).label.toLowerCase()} example`;
+  return `Sample scenarios from the ${industryMeta(industry).label.toLowerCase()} sample`;
 }
 
 /** The plain sentence that says how a starter scenario becomes the owner's own. */
@@ -106,7 +93,7 @@ export function starterScenarioNote(
 ): string | null {
   const left = starterScenariosLeftOut(tpl, confirmed);
   if (left.length === 0) return null;
-  return `${starterScenarioLabel(tpl.id)} (${left.length}) are left out: their losses and timelines are the example's assumptions, not facts about your business. ${MAKE_SCENARIO_YOURS}`;
+  return `${starterScenarioLabel(tpl.id)} (${left.length}) are left out: their losses and timelines are the sample's assumptions, not facts about your business. ${MAKE_SCENARIO_YOURS}`;
 }
 
 const NARRATIVE_CACHE = new WeakMap<IndustryTemplate, IndustryTemplate>();
@@ -155,10 +142,7 @@ function sampleNameRoles(
   const titleRole = /^(.+?) leaves\b/i.exec(s.title)?.[1]?.trim();
   const out: { name: string; role: string }[] = [];
   for (const person of sample.people) {
-    const first = person.name
-      .replace(/^(dr|mr|mrs|ms)\.?\s+/i, "")
-      .split(/\s+/)[0]
-      ?.replace(/[^A-Za-z'-]/g, "");
+    const first = firstName(person.name).replace(/[^A-Za-z'-]/g, "");
     if (!first || first.length < 2) continue;
     if (!new RegExp(`\\b${first}\\b`).test(text)) continue;
     // The title names the role of the person the scenario is about; a name

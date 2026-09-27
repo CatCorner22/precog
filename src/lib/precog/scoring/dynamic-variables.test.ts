@@ -14,6 +14,7 @@ import {
   policyDefaultsInForce,
   policyEntered,
   retainLoss,
+  VARIABLE_CATALOG,
   withoutPolicy,
   type RiskVariableState,
 } from "./dynamic-variables";
@@ -182,7 +183,9 @@ describe("insurance arithmetic", () => {
     ).toEqual(baseline);
   });
   it("does not imply that a zero credit came from a quote", () => {
-    const alarm = computeAppliedDiscounts(DEFAULT_RISK_VARIABLES).find((d) => d.id === "alarm")!;
+    const alarm = computeAppliedDiscounts({ ...DEFAULT_RISK_VARIABLES, hasAlarmAccess: true }).find(
+      (d) => d.id === "alarm",
+    )!;
     expect(alarm.reason).toContain("no credit entered");
   });
 });
@@ -223,5 +226,63 @@ describe("insurance provenance persistence and validation", () => {
       normalizeInsuranceRecord({ status: "invalid", confirmedFields: ["deductible"] })
         ?.confirmedFields,
     ).toEqual([]);
+  });
+});
+
+describe("likelihood and the timeline", () => {
+  const base = { expected: 50000, low: 10000, high: 100000 };
+
+  it("does not lengthen the days until found when a control makes a scheme less likely", () => {
+    const off = evaluateDynamicRisk(DEFAULT_RISK_VARIABLES, base);
+    const on = evaluateDynamicRisk({ ...DEFAULT_RISK_VARIABLES, hasDualControl: true }, base);
+    expect(on.likelihoodSeverity.likelihoodMultiplier).toBeLessThan(
+      off.likelihoodSeverity.likelihoodMultiplier,
+    );
+    expect(on.timelineMultiplier).toBe(off.timelineMultiplier);
+    expect(on.timelineMultiplier).toBe(on.likelihoodSeverity.detectionLagMultiplier);
+  });
+});
+
+describe("the alarm", () => {
+  it("is not assumed: a fresh business gets no alarm credit", () => {
+    expect(DEFAULT_RISK_VARIABLES.hasAlarmAccess).toBe(false);
+    const drivers = computeLikelihoodSeverity(DEFAULT_RISK_VARIABLES).drivers;
+    expect(drivers.some((d) => d.id === "alarm-l")).toBe(false);
+    const catalog = VARIABLE_CATALOG.find((v) => v.id === "hasAlarmAccess")!;
+    expect(catalog.defaultValue).toBe(false);
+  });
+
+  it("states the credit it applies", () => {
+    const withAlarm = { ...DEFAULT_RISK_VARIABLES, hasAlarmAccess: true };
+    const effect = (cashRelated: boolean) =>
+      evaluateDynamicRisk(
+        withAlarm,
+        { expected: 1, low: 1, high: 1 },
+        {
+          fraudRelated: true,
+          cashRelated,
+        },
+      ).likelihoodSeverity.drivers.find((d) => d.id === "alarm-l")!.effect;
+    expect(effect(true)).toContain("−6%");
+    expect(effect(false)).toContain("−3%");
+  });
+});
+
+describe("the variable catalog", () => {
+  it("shows the defaults the engine uses", () => {
+    for (const v of VARIABLE_CATALOG) {
+      expect(v.defaultValue, v.id).toBe(
+        DEFAULT_RISK_VARIABLES[v.id as keyof typeof DEFAULT_RISK_VARIABLES],
+      );
+    }
+  });
+});
+
+describe("notes with a premium but no modeled recovery", () => {
+  it("do not describe a deductible and limit that are not in the calculation", () => {
+    const v = { ...DEFAULT_RISK_VARIABLES, deductible: 0, policyLimit: 0, coinsurancePct: 0 };
+    const t = applyInsuranceTransfer(80000, 40000, 120000, v, 1);
+    expect(t.notes.join(" ")).toContain("no recovery modeled");
+    expect(t.notes.join(" ")).not.toMatch(/deductible/i);
   });
 });

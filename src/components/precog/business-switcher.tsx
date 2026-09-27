@@ -6,7 +6,9 @@ import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
-import { inputCls } from "@/components/precog/builder/form-shared";
+import { inputCls } from "@/components/ui/field-classes";
+import type { BusinessSummary } from "@/lib/precog/practice-profile";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -33,7 +35,17 @@ export function BusinessSwitcher() {
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState<IndustryId>("general");
   const ref = useRef<HTMLDivElement>(null);
-  const activeId = profile.businessId ?? "biz_default";
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
+  const own = businesses.filter((b) => !b.shared);
+  const firmClients = businesses.filter((b) => b.shared);
+
+  // Opening moves focus into the panel (the name field has its own autofocus).
+  useEffect(() => {
+    if (!open || needsName) return;
+    panel.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [open, needsName]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,7 +53,9 @@ export function BusinessSwitcher() {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
     }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -75,9 +89,70 @@ export function BusinessSwitcher() {
   }
   const onSample = !profile.customPeople;
 
+  function openBusiness(b: BusinessSummary) {
+    setOpen(false);
+    void switchBusiness(b.id).then(
+      (result) =>
+        result.ok
+          ? toast(`Switched to ${b.name}`)
+          : toast.error(`Could not open ${b.name}`, { description: result.reason }),
+      (error: unknown) =>
+        toast.error(`Could not open ${b.name}`, { description: describeError(error) }),
+    );
+  }
+
+  function removeBusiness(b: BusinessSummary) {
+    if (!window.confirm(`Remove "${b.name}" from your portfolio? This can't be undone.`)) return;
+    void deleteBusiness(b.id).then(
+      () => toast(`Removed ${b.name}`),
+      (error: unknown) =>
+        toast.error(`Could not remove ${b.name}`, { description: describeError(error) }),
+    );
+  }
+
+  function row(b: BusinessSummary) {
+    const active = b.id === activeId;
+    return (
+      <li key={b.id} className="group/row flex items-center gap-1">
+        <button
+          type="button"
+          aria-current={active ? "true" : undefined}
+          disabled={switchingBusiness}
+          onClick={() => (active ? setOpen(false) : openBusiness(b))}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs",
+            active ? "bg-primary/10 text-fg" : "text-muted hover:bg-elevated hover:text-fg",
+          )}
+        >
+          <Building2 className="size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{b.name}</span>
+            <span className="block truncate text-xs text-subtle">
+              {industryMeta(b.industry).label}
+              {b.healthScore !== null ? ` · health ${b.healthScore}` : ""}
+            </span>
+          </span>
+          {active && <Check className="size-3.5 shrink-0 text-primary" />}
+        </button>
+        {!active && (
+          <button
+            type="button"
+            disabled={switchingBusiness}
+            onClick={() => removeBusiness(b)}
+            className="rounded p-1.5 text-subtle opacity-0 group-hover/row:opacity-100 hover:text-danger focus:opacity-100 disabled:opacity-40 pointer-coarse:opacity-100"
+            aria-label={`Remove ${b.name}`}
+          >
+            <Trash2 className="size-3" />
+          </button>
+        )}
+      </li>
+    );
+  }
+
   return (
     <div ref={ref} className="relative min-w-0">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="group flex min-w-0 items-center gap-1 rounded-md text-left hover:bg-elevated/60"
@@ -113,6 +188,7 @@ export function BusinessSwitcher() {
 
       {open && (
         <div
+          ref={panel}
           id="business-switcher-panel"
           role="group"
           aria-label="Your businesses"
@@ -140,59 +216,15 @@ export function BusinessSwitcher() {
           <p className="px-2 pb-1 text-xs font-medium tracking-wide text-subtle uppercase">
             Your businesses
           </p>
-          <ul className="max-h-64 space-y-0.5 overflow-y-auto">
-            {businesses.map((b) => {
-              const active = b.id === activeId;
-              return (
-                <li key={b.id} className="group/row flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-current={active ? "true" : undefined}
-                    disabled={switchingBusiness}
-                    onClick={() => {
-                      if (!active)
-                        void switchBusiness(b.id).then(() => toast(`Switched to ${b.name}`));
-                      setOpen(false);
-                    }}
-                    className={cn(
-                      "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs",
-                      active
-                        ? "bg-primary/10 text-fg"
-                        : "text-muted hover:bg-elevated hover:text-fg",
-                    )}
-                  >
-                    <Building2 className="size-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{b.name}</span>
-                      <span className="block truncate text-xs text-subtle">
-                        {industryMeta(b.industry).label}
-                        {b.healthScore !== null ? ` · health ${b.healthScore}` : ""}
-                      </span>
-                    </span>
-                    {active && <Check className="size-3.5 shrink-0 text-primary" />}
-                  </button>
-                  {!active && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (
-                          !window.confirm(
-                            `Remove "${b.name}" from your portfolio? This can't be undone.`,
-                          )
-                        )
-                          return;
-                        void deleteBusiness(b.id).then(() => toast(`Removed ${b.name}`));
-                      }}
-                      className="rounded p-1.5 text-subtle opacity-0 hover:text-danger group-hover/row:opacity-100 focus:opacity-100"
-                      aria-label={`Remove ${b.name}`}
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <ul className="max-h-64 space-y-0.5 overflow-y-auto">{own.map(row)}</ul>
+          {firmClients.length > 0 && (
+            <>
+              <p className="mt-2 px-2 pb-1 text-xs font-medium tracking-wide text-subtle uppercase">
+                Firm clients
+              </p>
+              <ul className="max-h-64 space-y-0.5 overflow-y-auto">{firmClients.map(row)}</ul>
+            </>
+          )}
 
           <div className="mt-2 border-t border-border pt-2">
             {adding ? (
@@ -261,4 +293,8 @@ export function BusinessSwitcher() {
       )}
     </div>
   );
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "Try again in a moment.";
 }

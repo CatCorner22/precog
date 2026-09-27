@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
 import { pioneerProfileFrom } from "./pioneer-profile";
 
-const dental = getBaseTemplate("dental");
-const retail = getBaseTemplate("retail");
+const dental = getIndustryTemplate("dental");
+const retail = getIndustryTemplate("retail");
 
 describe("pioneerProfileFrom", () => {
   it("keeps the industry it is given", () => {
@@ -28,10 +29,10 @@ describe("pioneerProfileFrom", () => {
     expect(p.staff.dualControlPayments).toBe(true);
     expect(p.riskVariables.hasDualControl).toBe(true);
     expect(p.riskVariables.hasIndependentBankRec).toBe(false);
-    expect(p.staff.teamSize).toBe(getBaseTemplate("restaurant").staffComposition.teamSize);
+    expect(p.staff.teamSize).toBe(getIndustryTemplate("restaurant").staffComposition.teamSize);
   });
 
-  it("keeps the journal links that confirm a starter control and a scenario", () => {
+  it("keeps the journal links that confirm a sample control and a scenario", () => {
     const people = retail.people.slice(0, 2);
     const entry = (id: string, linkedTab: string, linkedId: string) => ({
       id,
@@ -50,7 +51,7 @@ describe("pioneerProfileFrom", () => {
     });
     const tpl = resolveTemplate(p);
     expect(tpl.controls.find((c) => c.id === "c-ap")?.starter).toBeUndefined();
-    expect(tpl.controls.find((c) => c.id === "c-ar")?.starter).toBe(true);
+    expect(tpl.controls.find((c) => c.id === "c-inventory")?.starter).toBe(true);
     expect(p.decisions.map((d) => d.linkedTab)).toEqual(["control", "precog"]);
   });
 
@@ -145,16 +146,16 @@ describe("Pioneer tools on a Retail profile", () => {
 
   it("every tool runs without error", () => {
     for (const { name } of TOOL_CATALOG) {
-      const r = executeTool(name, {}, ctx);
+      const r = executeTool(name, ctx);
       expect(r.ok, `${name}: ${r.summary}`).toBe(true);
     }
   });
 
   it("reports the retail industry and retail staff", () => {
-    const snap = executeTool("get_practice_snapshot", {}, ctx);
+    const snap = executeTool("get_practice_snapshot", ctx);
     expect((snap.data as { industry: string }).industry).toBe("retail");
 
-    const spofs = executeTool("get_knowledge_spofs", {}, ctx).data as {
+    const spofs = executeTool("get_knowledge_spofs", ctx).data as {
       name: string;
       owners: { id: string; name: string }[];
     }[];
@@ -165,7 +166,10 @@ describe("Pioneer tools on a Retail profile", () => {
   });
 
   it("only retrieves retail or general guidance", () => {
-    const r = executeTool("retrieve_guidance", { query: "cash deposit front desk payments" }, ctx);
+    const r = executeTool("retrieve_guidance", {
+      ...ctx,
+      question: "cash deposit front desk payments",
+    });
     const hits = (r.data as { hits: { id: string }[] }).hits;
     expect(hits.length).toBeGreaterThan(0);
     for (const h of hits) {
@@ -178,7 +182,7 @@ describe("Pioneer tools on a Retail profile", () => {
     const custom = retail.people.slice(0, 2);
     const p = pioneerProfileFrom({ industry: "retail", customPeople: custom });
     expect(resolveTemplate(p).people).toEqual(custom);
-    const graph = executeTool("get_knowledge_graph", {}, { profile: p });
+    const graph = executeTool("get_knowledge_graph", { profile: p });
     expect(graph.ok).toBe(true);
     expect(JSON.stringify(graph.data)).not.toContain(retail.people[5].name);
   });

@@ -51,8 +51,14 @@ function parsesAsSerializedDocument(text: string): boolean {
   }
 }
 
-/** The body, or null once it passes `limit` bytes (reading stops there). */
-async function readBody(request: Request, limit: number): Promise<Uint8Array<ArrayBuffer> | null> {
+/**
+ * The body in bytes, or null once it passes `limit` bytes (reading stops
+ * there). Read from a clone, so the original request stays unread.
+ */
+export async function readBody(
+  request: Request,
+  limit: number,
+): Promise<Uint8Array<ArrayBuffer> | null> {
   const stream = request.clone().body;
   if (!stream) return new Uint8Array(0);
   const reader = stream.getReader();

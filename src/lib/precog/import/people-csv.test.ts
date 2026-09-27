@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import {
   effectiveDuties,
-  looksLikeRosterHeader,
   mergeImportedPeople,
   parsePeopleCsv,
   peopleToCsv,
@@ -11,7 +11,7 @@ import {
 import { parseRoster } from "./roster";
 import type { Person } from "../types";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const BOM = String.fromCharCode(0xfeff);
 
 describe("parsePeopleCsv", () => {
@@ -33,8 +33,7 @@ describe("parsePeopleCsv", () => {
         entitlements: ["collect_cash", "enter_payroll"],
       },
     ]);
-    expect(result.unknownEntitlements).toEqual(["mystery"]);
-    expect(result.issues).toEqual([{ row: 1, message: "Unknown entitlement(s): mystery" }]);
+    expect(result.issues).toEqual([{ row: 1, message: "Unknown duty: mystery" }]);
   });
 
   it("canonicalizes roles, deduplicates ids, and flags one name with two titles", () => {
@@ -64,7 +63,7 @@ describe("parsePeopleCsv", () => {
     );
     expect(result.people.map((person) => person.id)).toEqual(["p-alex-smith"]);
     expect(result.issues).toEqual([
-      { row: 2, message: '"Alex Smith" appears twice; second copy skipped' },
+      { row: 2, message: '"Alex Smith" appears twice; the importer skipped the second row' },
     ]);
     expect(result.duplicates).toBe(1);
   });
@@ -73,7 +72,6 @@ describe("parsePeopleCsv", () => {
     expect(parsePeopleCsv("role,active\nManager,true", dental)).toEqual({
       people: [],
       issues: [{ row: 0, message: "Missing a name column (header: role, active)" }],
-      unknownEntitlements: [],
       titles: [],
       removed: [],
       skipped: 0,
@@ -81,6 +79,15 @@ describe("parsePeopleCsv", () => {
       dropped: 0,
       onLeave: [],
     });
+  });
+
+  it("reads a plain list saved as a file the way a paste reads it", () => {
+    const result = parsePeopleCsv("Ana Ruiz, Owner\nBen Cole, Bookkeeper", dental);
+    expect(result.people.map((p) => [p.name, p.role])).toEqual([
+      ["Ana Ruiz", "Owner"],
+      ["Ben Cole", "Bookkeeper"],
+    ]);
+    expect(result.issues.map((issue) => issue.message).join(" ")).not.toMatch(/Missing a name/);
   });
 
   it("finds the header under a report title in a saved CSV file", () => {
@@ -131,13 +138,20 @@ describe("parsePeopleCsv", () => {
     expect(removedPeopleImpact(dental, [])).toEqual({ assignments: 0, processOwnerships: 0 });
   });
 
+  it("refuses a file far larger than a team list before reading it", () => {
+    const huge = `name,role\n${"Ana Ruiz,Owner\n".repeat(400_000)}`;
+    const result = parsePeopleCsv(huge, dental);
+    expect(result.people).toEqual([]);
+    expect(result.issues[0].message).toMatch(/far more than a team list/);
+  });
+
   it("truncates rows over maxRows and counts the dropped rows", () => {
     const result = parsePeopleCsv("name\nOne\nTwo\nThree", dental, { maxRows: 2 });
 
     expect(result.people.map((person) => person.name)).toEqual(["One", "Two"]);
     expect(result.issues).toContainEqual({
       row: 3,
-      message: "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
+      message: "This import reads the first 2 rows; it did not read 1 more row",
     });
     expect(result.dropped).toBe(1);
   });
@@ -206,7 +220,7 @@ describe("parsePeopleCsv", () => {
     expect(bad.people[0].lastDay).toBe("2026-10-14");
     expect(bad.issues).toContainEqual({
       row: 1,
-      message: "Last day not understood: next month",
+      message: 'The importer cannot read the last day "next month"',
     });
     expect(parsePeopleCsv("name,last_day\nMaya Chen,2026-12-01", tpl).people[0].lastDay).toBe(
       "2026-12-01",
@@ -236,54 +250,9 @@ describe("parsePeopleCsv", () => {
   });
 });
 
-describe("looksLikeRosterHeader", () => {
-  it("accepts a name column, first and last name columns, or three cells of column words", () => {
-    expect(looksLikeRosterHeader(["Employee Name", "Job Title"])).toBe(true);
-    expect(looksLikeRosterHeader([" Employee Name ", " Job Title "])).toBe(true);
-    expect(looksLikeRosterHeader(["Employee #", "First Name", "Last Name"])).toBe(true);
-    expect(looksLikeRosterHeader(["Given name", "Family name"])).toBe(true);
-    expect(looksLikeRosterHeader(["LName", "FName"])).toBe(true);
-    expect(looksLikeRosterHeader(["Nom", "Prénom", "Poste"])).toBe(true);
-    expect(looksLikeRosterHeader(["Payroll Name", "Position Description", "Home Department"])).toBe(
-      true,
-    );
-    expect(looksLikeRosterHeader(["Roles", "Departments", "Locations"])).toBe(true);
-    expect(
-      looksLikeRosterHeader(["Payroll Nme", "Position ID", "Position Description", "Hire Date"]),
-    ).toBe(true);
-    expect(
-      looksLikeRosterHeader([
-        "EmployeeNum",
-        "LName",
-        "FName",
-        "MiddleI",
-        "IsHidden",
-        "ClockStatus",
-        "PhoneExt",
-        "PayrollID",
-      ]),
-    ).toBe(true);
-    expect(looksLikeRosterHeader(["Name", "Title", "Department"])).toBe(true);
-  });
-
-  it("rejects a person's row, a report title, and a row with too few column words", () => {
-    for (const title of ["Team Member", "Staff", "Employee", "Worker", "Person"]) {
-      expect(looksLikeRosterHeader(["Ana Ruiz", ` ${title}`])).toBe(false);
-      expect(looksLikeRosterHeader(["Jose", title])).toBe(false);
-      expect(looksLikeRosterHeader(["maria lopez", title])).toBe(false);
-    }
-    // A numbering first cell does not make a name column a person's row.
-    expect(looksLikeRosterHeader(["#", "Employee"])).toBe(true);
-    expect(looksLikeRosterHeader(["Ana Ruiz"])).toBe(false);
-    expect(looksLikeRosterHeader(["Worker Report - as of 09/01/2026"])).toBe(false);
-    expect(looksLikeRosterHeader(["role", "active"])).toBe(false);
-    expect(looksLikeRosterHeader(["David Lee", "Cashier", "Store"])).toBe(false);
-  });
-});
-
 describe("team export opened in a spreadsheet", () => {
   it("writes a name that starts a formula as text and reads it back unchanged", () => {
-    const tpl = getBaseTemplate("general");
+    const tpl = getIndustryTemplate("general");
     const people = [
       {
         id: "x1",
@@ -302,7 +271,7 @@ describe("team export opened in a spreadsheet", () => {
 });
 
 describe("the team editor's own export and imports", () => {
-  const general = getBaseTemplate("general");
+  const general = getIndustryTemplate("general");
 
   it("re-imports the team's own export with every person's duties unchanged, role-derived ones included", () => {
     // "Owner" and "Operations Manager" take their duties from the role; the
@@ -328,6 +297,9 @@ describe("the team editor's own export and imports", () => {
         effectiveDuties(person, general.roleTemplates).sort(),
       );
     }
+    // Nothing reads as updated, and role-derived duties still follow the role.
+    expect(mergeImportedPeople(team, back.people).updated).toEqual([]);
+    expect(back.people.find((p) => p.id === "p1")?.entitlements).toBeUndefined();
     // A pasted roster naming someone with the same title keeps their duties too.
     const pasted = parseRoster("Yan Role, Owner", tpl);
     expect(effectiveDuties(pasted.people[0], general.roleTemplates).sort()).toEqual(
@@ -474,6 +446,16 @@ describe("the owner's mark and guessed duties through a team CSV", () => {
     expect(ana.owner).toBe(true);
     expect(ben.owner).toBe(false);
     expect(ben.dutiesFromTitle).toBe(true);
+  });
+
+  it("reads 'x' in the owns-business column of an edited export as yes", () => {
+    const csv = peopleToCsv(team).replace(
+      "Dr. Ana Ruiz,,Dentist,,,true,,sign_checks;approve_vendor,yes",
+      "Dr. Ana Ruiz,,Dentist,,,true,,sign_checks;approve_vendor,x",
+    );
+    expect(csv).toContain(",x,");
+    const back = parsePeopleCsv(csv, { ...dental, people: [] }).people;
+    expect(back.find((p) => p.name === "Dr. Ana Ruiz")?.owner).toBe(true);
   });
 
   it("keeps the owner's mark when an HR roster without it is pasted over the team", () => {

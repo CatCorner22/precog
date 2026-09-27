@@ -1,10 +1,15 @@
 /**
- * Upcoming control work: evidence reviews, decision re-reviews, and hygiene nudges,
- * normalized to dated items so the digest and calendar share one source.
+ * The control calendar's items: evidence reviews, decision re-reviews and a
+ * snapshot nudge, as dated items. Evidence days come from evidenceStatus and
+ * decisions from decisionsDue, so the calendar agrees with the evidence list
+ * and the dashboard. The email digest has its own collector
+ * (reminders/due-items.ts).
  */
-import { FREQUENCY_DAYS, FREQUENCY_LABEL, evidenceStatus } from "./evidence";
+import { decisionsDue } from "../decisions/follow-through";
 import type { PracticeProfile } from "../practice-profile";
-import type { EvidenceItem, Person, ProcessNode } from "../types";
+import type { Person, ProcessNode } from "../types";
+import { DAY_MS, daysBetween, localDateKey } from "../dates";
+import { FREQUENCY_LABEL, evidenceDueDate, evidenceStatus } from "./evidence";
 
 type DueKind = "evidence" | "decision" | "snapshot";
 
@@ -25,27 +30,6 @@ export interface DueItem {
   reviewer?: string;
 }
 
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function nextDueDate(item: EvidenceItem): Date | null {
-  if (!item.lastDoneAt) return null;
-  return new Date(
-    new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * 86_400_000,
-  );
-}
-
-function classify(daysLeft: number | null): DueItem["status"] {
-  if (daysLeft === null) return "unscheduled";
-  if (daysLeft < 0) return "overdue";
-  if (daysLeft === 0) return "today";
-  if (daysLeft <= 7) return "this_week";
-  return "later";
-}
-
 export function collectDueItems(
   processes: ProcessNode[],
   people: Person[],
@@ -53,14 +37,10 @@ export function collectDueItems(
   now = new Date(),
 ): DueItem[] {
   const items: DueItem[] = [];
-  const today = startOfDay(now);
-  const dayDiff = (d: Date) => Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000);
 
   for (const p of processes) {
     for (const e of p.evidence ?? []) {
-      const due = nextDueDate(e);
-      const daysLeft = due ? dayDiff(due) : null;
-      const { status } = evidenceStatus(e, now.getTime());
+      const { daysLeft } = evidenceStatus(e, now.getTime());
       const reviewer = e.reviewerPersonId
         ? people.find((x) => x.id === e.reviewerPersonId)?.name
         : undefined;
@@ -69,9 +49,9 @@ export function collectDueItems(
         kind: "evidence",
         title: e.label,
         detail: `${p.name} · ${FREQUENCY_LABEL[e.frequency]}${reviewer ? ` · ${reviewer}` : ""}`,
-        dueAt: due,
+        dueAt: evidenceDueDate(e),
         daysLeft,
-        status: status === "never" ? "unscheduled" : classify(daysLeft),
+        status: classify(daysLeft),
         processId: p.id,
         evidenceId: e.id,
         frequencyLabel: FREQUENCY_LABEL[e.frequency],
@@ -80,16 +60,20 @@ export function collectDueItems(
     }
   }
 
-  for (const d of profile.decisions) {
-    if (!d.reviewBy) continue;
-    const due = new Date(d.reviewBy);
-    const daysLeft = dayDiff(due);
-    if (daysLeft > 60) continue;
+  // Open decisions only, the same set the dashboard counts: a closed
+  // decision keeps its reviewBy but has nothing left to re-review.
+  const today = localDateKey(now);
+  const { overdue, dueSoon } = decisionsDue(profile.decisions, today, DECISION_HORIZON_DAYS);
+  for (const d of [...overdue, ...dueSoon]) {
+    const daysLeft = d.reviewBy ? daysBetween(today, d.reviewBy) : null;
+    if (daysLeft === null) continue;
+    // Local midnight of the review day, so the calendar files it under that day.
+    const due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysLeft);
     items.push({
       id: `dec-${d.id}`,
       kind: "decision",
       title: `Re-review: ${d.subject}`,
-      detail: `Journal decision (${d.kind.replace("_", " ")})`,
+      detail: `Decisions log entry (${d.kind.replace("_", " ")})`,
       dueAt: due,
       daysLeft,
       status: classify(daysLeft),
@@ -101,7 +85,7 @@ export function collectDueItems(
   const hasCustomMap = Boolean(profile.customProcesses || profile.customPeople);
   if (hasCustomMap) {
     const ageDays = lastVersion
-      ? Math.floor((now.getTime() - new Date(lastVersion.createdAt).getTime()) / 86_400_000)
+      ? Math.floor((now.getTime() - new Date(lastVersion.createdAt).getTime()) / DAY_MS)
       : null;
     if (ageDays === null || ageDays >= 30) {
       items.push({
@@ -130,7 +114,7 @@ export function collectDueItems(
   );
 }
 
-export interface DueSummary {
+interface DueSummary {
   overdue: number;
   today: number;
   thisWeek: number;
@@ -153,7 +137,7 @@ export function groupByDay(items: DueItem[]): Map<string, DueItem[]> {
   const m = new Map<string, DueItem[]>();
   for (const i of items) {
     if (!i.dueAt) continue;
-    const k = dayKey(i.dueAt);
+    const k = localDateKey(i.dueAt);
     const list = m.get(k) ?? [];
     list.push(i);
     m.set(k, list);
@@ -161,7 +145,13 @@ export function groupByDay(items: DueItem[]): Map<string, DueItem[]> {
   return m;
 }
 
-export function dayKey(d: Date): string {
-  const x = startOfDay(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+function classify(daysLeft: number | null): DueItem["status"] {
+  if (daysLeft === null) return "unscheduled";
+  if (daysLeft < 0) return "overdue";
+  if (daysLeft === 0) return "today";
+  if (daysLeft <= 7) return "this_week";
+  return "later";
 }
+
+/** Decisions due for re-review within this many days show on the calendar. */
+const DECISION_HORIZON_DAYS = 60;

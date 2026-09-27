@@ -1,4 +1,5 @@
 import { getRequest } from "@tanstack/react-start/server";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * Fetch-Metadata sibling isolation — **server-only** (`.server.ts` suffix).
@@ -22,10 +23,9 @@ import { getRequest } from "@tanstack/react-start/server";
  * closes the sibling-tenant attack surface. Enforced at the `authMiddleware`
  * chokepoint (see `middleware.ts`).
  */
-class CrossSiteRequestError extends Error {
-  readonly status = 403;
+class CrossSiteRequestError extends RequestError {
   constructor() {
-    super("Forbidden: cross-site request blocked");
+    super(403, "Forbidden: cross-site request blocked");
     this.name = "CrossSiteRequestError";
   }
 }

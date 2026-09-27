@@ -28,6 +28,7 @@ export interface SensitivityReport {
   averageHigh: number;
   topOrderStable: boolean;
   items: ItemSensitivity[];
+  /** Every weight trial, in trial order (group, key, then up before down). */
   perturbations: WeightPerturbation[];
   mostSensitive: WeightPerturbation[];
 }
@@ -154,6 +155,8 @@ export function weightSensitivity(
     topOrderStable,
     items,
     perturbations,
-    mostSensitive: perturbations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 6),
+    mostSensitive: [...perturbations]
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 6),
   };
 }

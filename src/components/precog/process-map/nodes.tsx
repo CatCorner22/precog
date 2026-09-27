@@ -5,12 +5,7 @@ import { type ReactNode } from "react";
 import { Handle, Position, useStore, type Node, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { type MapGraphNode } from "@/lib/precog/process-graph";
-import {
-  predatorGlow,
-  predatorThermalColor,
-  terminatorThreatColor,
-  type MapVisionMode,
-} from "@/lib/precog/map-vision";
+import { predatorGlow, type MapVisionMode } from "@/lib/precog/map-vision";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -21,11 +16,9 @@ import {
   User,
   Workflow,
 } from "lucide-react";
-import {
-  asMapNode,
-  heatColorStandard,
-  UNSCORED_ACCENT,
-} from "@/components/precog/process-map/style";
+import { UNSCORED_ACCENT } from "@/components/precog/process-map/style";
+import { nodeAccent, targetLocked } from "@/components/precog/process-map/node-look";
+import { clamp } from "@/lib/precog/number";
 
 export type ProcessFlowNode = Node<
   MapGraphNode & {
@@ -38,12 +31,6 @@ export type ProcessFlowNode = Node<
   } & Record<string, unknown>
 >;
 
-function nodeAccent(vision: MapVisionMode, heat: number, priority: number): string {
-  if (vision === "predator") return predatorThermalColor(Math.max(heat, priority));
-  if (vision === "terminator") return terminatorThreatColor(priority);
-  return heatColorStandard(heat);
-}
-
 /** Below this zoom the canvas is an overview: cards drop detail and scale their title up so names stay legible. */
 const COMPACT_ZOOM = 0.6;
 
@@ -53,18 +40,17 @@ function useCanvasZoom(): number {
 
 /** Title size that reads at any zoom: grows as the viewport zooms out, capped so cards do not explode. */
 function compactTitlePx(zoom: number): number {
-  return Math.min(30, Math.max(14, Math.round(14 / Math.max(zoom, 0.25))));
+  return clamp(Math.round(14 / Math.max(zoom, 0.25)), 14, 30);
 }
 
-function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
-  const d = asMapNode(data);
+function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
   const vision = d.vision ?? "standard";
   const heat = d.severity ?? 0;
   const priority = d.priority ?? heat;
   const accent = d.unscored ? UNSCORED_ACCENT : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
   const hot = !d.unscored && vision === "predator" && priority >= 72;
-  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
+  const locked = targetLocked(vision, d);
   const zoom = useCanvasZoom();
   const compact = zoom < COMPACT_ZOOM;
 
@@ -82,12 +68,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
       )}
       style={{
         borderColor: accent,
-        boxShadow:
-          vision === "predator" && !d.unscored
-            ? predatorGlow(priority)
-            : vision === "terminator" && locked
-              ? undefined
-              : undefined,
+        boxShadow: vision === "predator" && !d.unscored ? predatorGlow(priority) : undefined,
         pointerEvents: interactive ? "auto" : "none",
       }}
     >
@@ -102,7 +83,7 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
         >
           <Workflow className="size-3" />
           {d.unscored
-            ? "starter · not assessed"
+            ? "sample · not assessed"
             : vision === "predator"
               ? `THERMAL ${priority}`
               : vision === "terminator"
@@ -157,12 +138,11 @@ function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
 }
 
 function SatelliteNode({
-  data,
+  data: d,
   selected,
   icon,
   accentDefault,
 }: NodeProps<ProcessFlowNode> & { icon: ReactNode; accentDefault: string }) {
-  const d = asMapNode(data);
   const vision = d.vision ?? "standard";
   const heat = d.severity ?? 40;
   const priority = d.priority ?? heat;
@@ -172,7 +152,7 @@ function SatelliteNode({
       ? accentDefault
       : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
-  const locked = !d.unscored && vision === "terminator" && (d.immediate || priority >= 78);
+  const locked = targetLocked(vision, d);
   const compact = useCanvasZoom() < COMPACT_ZOOM;
 
   return (

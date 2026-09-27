@@ -1,3 +1,7 @@
+import { isCalendarDate, dateAfter, localDateKey } from "./dates";
+import { formatUsd } from "../utils";
+import { clamp } from "./number";
+
 export type ValueEvidenceKind = "time" | "recovery" | "control" | "exception";
 
 export type ValueEvidence = {
@@ -10,30 +14,44 @@ export type ValueEvidence = {
   verified: boolean;
 };
 
-const VALUE_EVIDENCE_VERSION = 1;
-const MAX_VALUE_EVIDENCE_IMPORT_BYTES = 128_000;
+/** The evidence the Value screen counts and the register's readiness score. */
+export interface EvidenceSummary {
+  total: number;
+  verified: number;
+  /** Dollars recovered, from verified recovery items. */
+  recoveries: number;
+  /** Hours returned, from verified time items. */
+  hours: number;
+  unsourced: number;
+  /** Items with no date or a date older than the twelve-month window. */
+  stale: number;
+  future: number;
+  /** Share of items that are verified observations, 0 to 100. */
+  score: number;
+}
+
 export const VALUE_EVIDENCE_STORAGE_KEY = "precog-value-evidence-v1";
 
-const KINDS = new Set<ValueEvidenceKind>(["time", "recovery", "control", "exception"]);
+/**
+ * Most evidence items a register holds. An import with more is refused with a
+ * message rather than cut short; the register UI should stop adding at this
+ * count.
+ */
+export const MAX_VALUE_EVIDENCE_ITEMS = 500;
 
-function text(value: unknown, maximum: number) {
-  return typeof value === "string" ? value.trim().slice(0, maximum) : "";
-}
-
-function validDate(value: unknown) {
-  const candidate = String(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return "";
-  const parsed = new Date(`${candidate}T00:00:00.000Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === candidate
-    ? candidate
-    : "";
-}
+/** Plain names for each kind of evidence, for the memo and the register. */
+export const VALUE_EVIDENCE_KIND_LABEL: Record<ValueEvidenceKind, string> = {
+  time: "Hours returned per year",
+  recovery: "Money recovered",
+  control: "Control change",
+  exception: "Exception",
+};
 
 export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
   if (!Array.isArray(value)) return [];
   const ids = new Set<string>();
   const result: ValueEvidence[] = [];
-  for (const candidate of value.slice(0, 100)) {
+  for (const candidate of value.slice(0, MAX_VALUE_EVIDENCE_ITEMS)) {
     if (!candidate || typeof candidate !== "object") continue;
     const item = candidate as Record<string, unknown>;
     const id = text(item.id, 80);
@@ -48,7 +66,7 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
       kind,
       description,
       source,
-      amount: Number.isFinite(numeric) ? Math.max(0, Math.min(1_000_000_000, numeric)) : 0,
+      amount: Number.isFinite(numeric) ? clamp(numeric, 0, 1_000_000_000) : 0,
       observedAt: validDate(item.observedAt),
       verified: item.verified === true && Boolean(source),
     });
@@ -56,72 +74,34 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
   return result;
 }
 
-/** The observation window: evidence counts as observed for twelve months. */
-const OBSERVATION_WINDOW_DAYS = 365;
-
-function observationWindow(asOf: Date) {
-  const cutoff = new Date(asOf);
-  cutoff.setUTCDate(cutoff.getUTCDate() - OBSERVATION_WINDOW_DAYS);
-  return {
-    cutoffDate: cutoff.toISOString().slice(0, 10),
-    asOfDate: asOf.toISOString().slice(0, 10),
-  };
-}
-
 /**
- * One rule for what counts as a verified observation, shared by the totals
- * the Value screen applies and the quality score the register shows: the
- * item is marked verified, names a source, and carries a valid observation
- * date inside the window (not missing, not in the future, not older than
- * twelve months). A record imported with the verified flag but no usable
- * date keeps the flag, so the owner can fix the date, but it counts nowhere
- * until they do.
+ * One summary for the totals the Value screen applies and the readiness score
+ * the register shows, both counted with isVerifiedObservation.
  */
-export function isVerifiedObservation(item: ValueEvidence, asOf: Date = new Date()): boolean {
+export function summarizeValueEvidence(
+  items: ValueEvidence[],
+  asOf: Date = new Date(),
+): EvidenceSummary {
   const { cutoffDate, asOfDate } = observationWindow(asOf);
-  return (
-    item.verified &&
-    Boolean(item.source) &&
-    Boolean(item.observedAt) &&
-    item.observedAt >= cutoffDate &&
-    item.observedAt <= asOfDate
-  );
-}
-
-export function summarizeValueEvidence(items: ValueEvidence[], asOf: Date = new Date()) {
   const verified = items.filter((item) => isVerifiedObservation(item, asOf));
+  const sum = (kind: ValueEvidenceKind) =>
+    verified.filter((item) => item.kind === kind).reduce((total, item) => total + item.amount, 0);
   return {
     total: items.length,
     verified: verified.length,
-    recoveries: verified
-      .filter((item) => item.kind === "recovery")
-      .reduce((sum, item) => sum + item.amount, 0),
-    hours: verified
-      .filter((item) => item.kind === "time")
-      .reduce((sum, item) => sum + item.amount, 0),
-    completion: items.length ? Math.round((verified.length / items.length) * 100) : 0,
+    recoveries: sum("recovery"),
+    hours: sum("time"),
+    unsourced: items.filter((item) => !item.source).length,
+    stale: items.filter((item) => !item.observedAt || item.observedAt < cutoffDate).length,
+    future: items.filter((item) => item.observedAt > asOfDate).length,
+    score: items.length ? Math.round((verified.length / items.length) * 100) : 0,
   };
 }
 
 export function formatEvidenceAmount(item: Pick<ValueEvidence, "kind" | "amount">) {
-  if (item.kind === "recovery") return `$${item.amount.toLocaleString("en-US")}`;
+  if (item.kind === "recovery") return formatUsd(item.amount);
   if (item.kind === "time") return `${item.amount.toLocaleString("en-US")} hrs`;
   return `${item.amount.toLocaleString("en-US")} ${item.amount === 1 ? "item" : "items"}`;
-}
-
-export function assessEvidenceQuality(items: ValueEvidence[], asOf: Date = new Date()) {
-  const { cutoffDate, asOfDate } = observationWindow(asOf);
-  const unsourced = items.filter((item) => !item.source).length;
-  const stale = items.filter((item) => !item.observedAt || item.observedAt < cutoffDate).length;
-  const future = items.filter((item) => item.observedAt > asOfDate).length;
-  const verified = items.filter((item) => isVerifiedObservation(item, asOf)).length;
-  return {
-    unsourced,
-    stale,
-    future,
-    verified,
-    score: items.length ? Math.round((verified / items.length) * 100) : 0,
-  };
 }
 
 export function serializeValueEvidence(items: ValueEvidence[], exportedAt: Date = new Date()) {
@@ -150,5 +130,53 @@ export function parseValueEvidence(input: string) {
   const envelope = parsed as Record<string, unknown>;
   if (envelope.version !== VALUE_EVIDENCE_VERSION) throw new Error("Unsupported evidence version");
   if (!Array.isArray(envelope.evidence)) throw new Error("Evidence file has no evidence register");
+  if (envelope.evidence.length > MAX_VALUE_EVIDENCE_ITEMS) {
+    throw new Error(
+      `Evidence file has ${envelope.evidence.length.toLocaleString("en-US")} records; the register holds at most ${MAX_VALUE_EVIDENCE_ITEMS}. Nothing was imported.`,
+    );
+  }
   return normalizeValueEvidence(envelope.evidence);
 }
+
+/**
+ * One rule for what counts as a verified observation, shared by the totals
+ * the Value screen applies and the quality score the register shows: the
+ * item is marked verified, names a source, and carries a valid observation
+ * date inside the window (not missing, not in the future, not older than
+ * twelve months). A record imported with the verified flag but no usable
+ * date keeps the flag, so the owner can fix the date, but it counts nowhere
+ * until they do.
+ */
+function isVerifiedObservation(item: ValueEvidence, asOf: Date = new Date()): boolean {
+  const { cutoffDate, asOfDate } = observationWindow(asOf);
+  return (
+    item.verified &&
+    Boolean(item.source) &&
+    Boolean(item.observedAt) &&
+    item.observedAt >= cutoffDate &&
+    item.observedAt <= asOfDate
+  );
+}
+
+function observationWindow(asOf: Date) {
+  return {
+    cutoffDate: dateAfter(asOf, -OBSERVATION_WINDOW_DAYS),
+    asOfDate: localDateKey(asOf),
+  };
+}
+
+function text(value: unknown, maximum: number) {
+  return typeof value === "string" ? value.trim().slice(0, maximum) : "";
+}
+
+function validDate(value: unknown) {
+  const candidate = String(value);
+  return isCalendarDate(candidate) ? candidate : "";
+}
+
+const VALUE_EVIDENCE_VERSION = 1;
+const MAX_VALUE_EVIDENCE_IMPORT_BYTES = 128_000;
+const KINDS = new Set<ValueEvidenceKind>(["time", "recovery", "control", "exception"]);
+
+/** The observation window: evidence counts as observed for twelve months. */
+const OBSERVATION_WINDOW_DAYS = 365;

@@ -1,16 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { defaultProfile } from "./practice-profile";
+import {
+  defaultProfile,
+  MAX_DECISION_NOTE,
+  MAX_DECISION_SUBJECT,
+  MAX_DECISIONS,
+  normalizeProfile,
+} from "./practice-profile";
 import { industryMeta } from "./industry";
 import {
   isMapCustomized,
-  MAX_DECISIONS,
+  makeMapVersion,
   withDecision,
+  withDecisionReview,
+  withDualRelease,
+  withRosterLeavers,
   withIndustry,
+  withLeaversConfirmed,
   withMapHealth,
+  withMapSnapshot,
   withPeople,
   withPracticeName,
+  withProcesses,
+  withReportSent,
+  withRestoredVersion,
+  withRiskVariables,
+  withSavedBlocks,
   withStaff,
 } from "./profile-actions";
+import { captureMapSnapshot } from "./builder/map-history";
 import type { Person } from "./types";
 
 const NOW = new Date("2026-09-25T10:00:00Z");
@@ -79,5 +96,225 @@ describe("profile actions", () => {
       independentBankRec: !own.staff.independentBankRec,
     });
     expect(ownFlipped.staff.bankRecSource).toBe("manual");
+  });
+});
+
+describe("withRosterLeavers", () => {
+  it("does not treat someone on the team as a leaver when the roster drops the accents", () => {
+    const p = defaultProfile("dental");
+    const people = [
+      { id: "p1", name: "José Pérez", role: "Office manager" },
+    ] as unknown as Person[];
+    const next = withRosterLeavers(p, people, [{ name: "Jose Perez" }], "2026-09-26");
+    expect(next.leaverAccessChecks ?? []).toHaveLength(0);
+  });
+});
+
+describe("undo, redo and restoring a saved version", () => {
+  const teamA: Person[] = [
+    {
+      id: "a",
+      name: "Ana",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll"],
+    },
+    { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
+    { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
+  ];
+  const teamB: Person[] = [
+    teamA[0],
+    {
+      ...teamA[1],
+      entitlements: [
+        "post_payments",
+        "bank_reconcile",
+        "create_vendor",
+        "release_payment",
+        "sign_checks",
+      ],
+    },
+  ];
+  const figures = (p: ReturnType<typeof defaultProfile>) => ({
+    teamSize: p.staff.teamSize,
+    segregationScore: p.staff.segregationScore,
+    independentBankRec: p.staff.independentBankRec,
+  });
+
+  it("re-derives the staff figures from the team that comes back", () => {
+    const withA = withPeople(defaultProfile("general"), teamA, "2026-09-25");
+    const withB = withPeople(withA, teamB, "2026-09-25");
+    expect(figures(withB)).not.toEqual(figures(withA));
+
+    const undone = withMapSnapshot(withB, captureMapSnapshot(withA), "2026-09-25");
+    expect(undone.customPeople?.map((p) => p.name)).toEqual(["Ana", "Ben", "Cy"]);
+    expect(figures(undone)).toEqual(figures(withA));
+
+    const restored = withRestoredVersion(withB, makeMapVersion(withA, "A", 50), "2026-09-25");
+    expect(figures(restored)).toEqual(figures(withA));
+  });
+
+  it("applies the nonprofit owner rule to a restored team", () => {
+    const nonprofit = withPeople(defaultProfile("nonprofit"), teamA, "2026-09-25");
+    const version = { ...makeMapVersion(nonprofit, "v", 50), people: teamA };
+    const restored = withRestoredVersion(nonprofit, version, "2026-09-25");
+    expect(restored.customPeople?.some((p) => p.owner)).toBe(false);
+  });
+});
+
+describe("small edits", () => {
+  it("writes leaverAccessChecks only when a departure added one", () => {
+    const p = defaultProfile("general");
+    delete p.leaverAccessChecks;
+    const team: Person[] = [
+      { id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] },
+    ];
+    expect("leaverAccessChecks" in withPeople(p, team, "2026-09-25")).toBe(false);
+  });
+
+  it("keeps the first report-sent stamp", () => {
+    const sent = withReportSent(defaultProfile("general"), NOW);
+    expect(sent.engagement?.reportSentAt).toBe(NOW.toISOString());
+    expect(withReportSent(sent, new Date("2026-10-01T00:00:00Z"))).toBe(sent);
+  });
+
+  it("does not treat someone on the team as a leaver when the roster spaces the name differently", () => {
+    const people = [{ id: "p1", name: "Jordan  Lee", role: "Cook" }] as unknown as Person[];
+    const next = withRosterLeavers(
+      defaultProfile("general"),
+      people,
+      [{ name: "Jordan Lee" }],
+      "2026-09-26",
+    );
+    expect(next.leaverAccessChecks ?? []).toHaveLength(0);
+  });
+});
+
+describe("the control flags stay in step", () => {
+  const team: Person[] = [
+    // Ana's duties are listed: with none, she would read her role's, and an
+    // owner who releases payments and reconciles counts as independent (G04b).
+    {
+      id: "a",
+      name: "Ana",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll"],
+    },
+    { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
+    { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
+  ];
+  const copies = (p: ReturnType<typeof defaultProfile>) => ({
+    staffBankRec: p.staff.independentBankRec,
+    riskBankRec: p.riskVariables.hasIndependentBankRec,
+    staffDual: p.staff.dualControlPayments,
+    riskDual: p.riskVariables.hasDualControl,
+  });
+
+  it("carries a re-derived bank reconciliation flag into the risk variables", () => {
+    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
+    expect(own.staff.independentBankRec).toBe(true);
+    expect(own.riskVariables.hasIndependentBankRec).toBe(true);
+    // Cy leaves: nobody independent reconciles the bank any more.
+    const left = withProcesses(
+      withPeople(own, [team[0], team[1], { ...team[2], active: false }], "2026-09-26"),
+      null,
+    );
+    const c = copies(left);
+    expect(c.staffBankRec).toBe(false);
+    expect(c.riskBankRec).toBe(false);
+  });
+
+  it("writes all copies from the staff figures, the risk variables or the dual-release policy", () => {
+    const p = defaultProfile("general");
+    const viaStaff = withStaff(p, {
+      ...p.staff,
+      dualControlPayments: !p.staff.dualControlPayments,
+    });
+    expect(copies(viaStaff).riskDual).toBe(viaStaff.staff.dualControlPayments);
+    expect(viaStaff.dualRelease.enabled).toBe(viaStaff.staff.dualControlPayments);
+
+    const viaRisk = withRiskVariables(p, {
+      ...p.riskVariables,
+      hasIndependentBankRec: !p.riskVariables.hasIndependentBankRec,
+    });
+    expect(copies(viaRisk).staffBankRec).toBe(viaRisk.riskVariables.hasIndependentBankRec);
+
+    const viaPolicy = withDualRelease(p, { ...p.dualRelease, enabled: false }, NOW);
+    expect(copies(viaPolicy).staffDual).toBe(false);
+    expect(copies(viaPolicy).riskDual).toBe(false);
+  });
+
+  it("moving another slider leaves the dual-release master switch alone", () => {
+    const p = defaultProfile("general");
+    const out = { ...p, dualRelease: { ...p.dualRelease, enabled: !p.staff.dualControlPayments } };
+    const moved = withStaff(out, { ...out.staff, teamSize: out.staff.teamSize + 1 });
+    expect(moved.dualRelease.enabled).toBe(out.dualRelease.enabled);
+  });
+});
+
+describe("the journal caps", () => {
+  it("are the same for a new entry and a stored one", () => {
+    const p = withDecision(
+      defaultProfile("general"),
+      { subject: "s".repeat(500), kind: "monitor", note: "n".repeat(5_000) },
+      "d1",
+      NOW,
+    );
+    const stored = normalizeProfile({
+      ...p,
+      decisions: [{ ...p.decisions[0], subject: "s".repeat(500), note: "n".repeat(5_000) }],
+    });
+    expect(p.decisions[0].subject).toHaveLength(MAX_DECISION_SUBJECT);
+    expect(p.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
+    expect(stored.decisions[0].subject).toHaveLength(MAX_DECISION_SUBJECT);
+    expect(stored.decisions[0].note).toHaveLength(MAX_DECISION_NOTE);
+  });
+});
+
+describe("journal and list edits", () => {
+  it("closes a reviewed decision with a snapshot, and keeps a still-open one open", () => {
+    const p = withDecision(
+      defaultProfile("general"),
+      { subject: "Bank rec", kind: "remediate", note: "" },
+      "d1",
+      NOW,
+    );
+    const done = withDecisionReview(p, "d1", "done", " fixed ", 90, NOW);
+    expect(done.decisions[0].status).toBe("closed");
+    expect(done.decisions[0].reviews?.[0]).toMatchObject({ outcome: "done", note: "fixed" });
+    expect(done.decisions[0].reviews?.[0].snapshot.at).toBeTruthy();
+    const open = withDecisionReview(p, "d1", "still_open", undefined, 30, NOW);
+    expect(open.decisions[0].status).toBe("open");
+    expect(withDecisionReview(p, "missing", "done", undefined, 90, NOW)).toBe(p);
+  });
+
+  it("adds one journal entry per confirmed leaver and ignores unknown ids", () => {
+    const team: Person[] = [
+      { id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] },
+      { id: "b", name: "Bea", role: "Clerk", active: true, entitlements: [] },
+    ];
+    const withTeam = withPeople(defaultProfile("general"), team, "2026-09-25");
+    const left = withPeople(withTeam, [team[0], { ...team[1], active: false }], "2026-09-26");
+    const id = left.leaverAccessChecks?.[0].id ?? "";
+    const confirmed = withLeaversConfirmed(left, [id, "nobody"], "2026-09-27");
+    expect(confirmed.decisions).toHaveLength(left.decisions.length + 1);
+    expect(confirmed.leaverAccessChecks?.[0].confirmedOn).toBe("2026-09-27");
+    expect(withLeaversConfirmed(confirmed, [id], "2026-09-28")).toBe(confirmed);
+    expect(withLeaversConfirmed(left, ["nobody"], "2026-09-27")).toBe(left);
+  });
+
+  it("keeps the newest 24 saved blocks", () => {
+    const blocks = Array.from({ length: 30 }, (_, i) => ({
+      id: `b${i}`,
+      name: `Block ${i}`,
+      description: "",
+      category: "payments",
+      template: { name: "x", layer: "process", description: "", dependencies: [], controlIds: [] },
+      createdAt: NOW.toISOString(),
+    })) as unknown as Parameters<typeof withSavedBlocks>[1];
+    expect(withSavedBlocks(defaultProfile("general"), blocks).savedProcessBlocks).toHaveLength(24);
   });
 });

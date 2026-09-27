@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import {
   normalizePlannedAbsences,
   type DecisionEntry,
   type PlannedAbsence,
 } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
-import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
+import type { KnowledgeRelation, Person } from "../types";
 import {
   DEBRIEF_WINDOW_DAYS,
   describeDebrief,
@@ -22,27 +21,11 @@ const people: Person[] = [
   { id: "dee", name: "Dee Old", role: "Former staff", active: false },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
-function tpl(relations: KnowledgeRelation[], knowledge = [item("pms"), item("billing")]) {
-  const base: IndustryTemplate = {
-    ...getBaseTemplate("general"),
-    people,
-    knowledge,
-    relations,
-    processes: [],
-  };
-  return base;
+function tpl(
+  relations: KnowledgeRelation[],
+  knowledge = [knowledgeItem("pms"), knowledgeItem("billing")],
+) {
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 // PMS admin: only Maya, Chris is learning. Billing: Maya and Sam both can.
@@ -196,14 +179,17 @@ describe("leaveDebriefs", () => {
         { personId: "chris", knowledgeId: "pms", level: "basic" },
         { personId: "maya", knowledgeId: "billing", level: "expert" },
       ],
-      [item("pms"), item("billing", { criticality: "important" })],
+      [knowledgeItem("pms"), knowledgeItem("billing", { criticality: "important" })],
     );
     const [debrief] = leaveDebriefs(lonely, [leave()], [], "general", today);
     expect(debrief.items.map((e) => e.item.id)).toEqual(["pms", "billing"]);
     // Nobody has touched billing, so the register's best candidate stands in on paper.
     expect(debrief.items[1].standIn?.id).toBeDefined();
     expect(debrief.items[1].standInLevel).toBeUndefined();
-    const nobody = tpl([{ personId: "maya", knowledgeId: "pms", level: "expert" }], [item("pms")]);
+    const nobody = tpl(
+      [{ personId: "maya", knowledgeId: "pms", level: "expert" }],
+      [knowledgeItem("pms")],
+    );
     const solo = { ...nobody, people: people.filter((p) => p.id === "maya" || p.id === "dee") };
     const [alone] = leaveDebriefs(solo, [leave()], [], "general", today);
     expect(alone.items[0].standIn).toBeNull();

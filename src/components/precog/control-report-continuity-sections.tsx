@@ -1,17 +1,14 @@
-import { firstName, LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
-import { DOCUMENTATION_LABEL, documentationState } from "@/lib/precog/continuity/documentation";
+import { LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import {
-  formatDateRange,
-  handoffDeadline,
-  leadLabel,
+  DOCUMENTATION_LABEL,
+  documentationState,
   procedurePointer,
-} from "@/lib/precog/continuity/planned-absence";
+} from "@/lib/precog/continuity/documentation";
+import { handoffDeadline, leadLabel } from "@/lib/precog/continuity/planned-absence";
 import { standInAlreadyStrong } from "@/lib/precog/continuity/leave-debrief";
 import { handoverDeadline, leaverLead } from "@/lib/precog/continuity/leavers";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
-import type { IndustryMeta } from "@/lib/precog/industry";
-import type { IndustryTemplate } from "@/lib/precog/templates";
-import type { DecisionEntry, PracticeProfile } from "@/lib/precog/practice-profile";
+import type { IndustryId } from "@/lib/precog/industry";
 import type { ControlReportModel } from "@/lib/precog/report/build-control-report";
 import {
   continuityStepKey,
@@ -21,8 +18,10 @@ import {
   slipLabels,
   type ContinuityCommitment,
 } from "@/lib/precog/decisions/follow-through";
-import { fmtDate } from "@/components/precog/control-report-helpers";
 import { CommitmentTag, Section } from "@/components/precog/control-report-parts";
+import { formatDay, formatDayRange } from "@/lib/precog/dates";
+import { joinWithAnd, verb, firstName, count } from "@/lib/precog/text";
+import { WEIGHTED_SHARE_NOTE } from "@/components/precog/start-here-copy";
 
 type ContinuityModel = Pick<
   ControlReportModel,
@@ -36,34 +35,29 @@ type ContinuityModel = Pick<
   | "leaving"
   | "slips"
   | "committed"
+  | "followThrough"
+  | "registerReady"
 >;
 
 export function ControlReportContinuitySections({
-  registerReady,
-  tpl,
-  industry,
+  model,
   trackFreshness,
   today,
-  profile,
-  continuityDecisions,
-  openContinuity,
-  doneContinuity,
-  droppedContinuity,
-  model,
+  industryId,
+  industryLabel,
+  knowledgeCount,
 }: {
-  registerReady: boolean;
-  tpl: IndustryTemplate;
-  industry: IndustryMeta;
+  model: ContinuityModel;
   trackFreshness: boolean;
   today: string;
-  profile: PracticeProfile;
-  continuityDecisions: DecisionEntry[];
-  openContinuity: DecisionEntry[];
-  doneContinuity: number;
-  droppedContinuity: number;
-  model: ContinuityModel;
+  industryId: IndustryId;
+  industryLabel: string;
+  /** Items on the register, for the not-assessed note. */
+  knowledgeCount: number;
 }) {
   const {
+    registerReady,
+    followThrough,
     continuity,
     staleness,
     checkIns,
@@ -82,19 +76,20 @@ export function ControlReportContinuitySections({
         {!registerReady ? (
           <p className="text-sm text-neutral-700">
             Not assessed yet.{" "}
-            {tpl.knowledge.length === 0
-              ? "The register is empty: the business has not yet listed the duties, tasks and know-how it runs on."
-              : `The register holds ${tpl.knowledge.length} starter items from the ${industry.label.toLowerCase()} example with nobody marked on any of them, so no continuity figure is reported.`}
+            {knowledgeCount === 0
+              ? "The register is empty: the business has not yet listed the duties and know-how it runs on."
+              : `The register holds ${knowledgeCount} sample items from the ${industryLabel.toLowerCase()} sample with nobody marked on any of them, so no continuity figure is reported.`}
           </p>
         ) : (
           <>
             <p className="text-sm text-neutral-700">
-              <strong>{continuity.coverageIndex}%</strong> of work (weighted by criticality) has two
-              or more people who can run it alone. {continuity.counts.uncovered} item
+              <strong>{continuity.coverageIndex}%</strong> of work has two or more people who can
+              run it alone. {continuity.counts.uncovered} item
               {continuity.counts.uncovered === 1 ? "" : "s"} nobody can run,{" "}
               {continuity.counts.single} with exactly one person, {continuity.counts.thin} with one
               person plus a learner.
             </p>
+            <p className="mt-1 text-xs text-neutral-500">{WEIGHTED_SHARE_NOTE}</p>
             {continuity.singlePoints.length === 0 ? (
               <p className="mt-2 text-sm text-neutral-600">
                 No critical or important item is uncovered or relies on one person without a
@@ -135,9 +130,9 @@ export function ControlReportContinuitySections({
               </ol>
             )}
             <p className="mt-3 text-sm text-neutral-700">
-              <strong>{docs.documentedIndex}%</strong> of work (weighted by criticality) is written
-              down and findable. {docs.counts.none} item(s) with nothing written,{" "}
-              {docs.counts.unlocated} written but location not recorded.
+              <strong>{docs.documentedIndex}%</strong> of work is written down and findable.{" "}
+              {count(docs.counts.none, "item")} with nothing written, {docs.counts.unlocated}{" "}
+              written but location not recorded.
             </p>
             {docs.gaps.length > 0 && (
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
@@ -156,10 +151,10 @@ export function ControlReportContinuitySections({
             )}
             {trackFreshness && (
               <p className="mt-3 text-sm text-neutral-700">
-                <strong>{staleness.confirmedIndex}%</strong> of work (weighted by criticality) was
-                confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
+                <strong>{staleness.confirmedIndex}%</strong> of work was confirmed in the last{" "}
+                {CONFIRMATION_MAX_AGE_DAYS} days.
                 {staleness.stale.length > 0 && (
-                  <> {staleness.stale.length} item(s) to re-confirm.</>
+                  <> {count(staleness.stale.length, "item")} to re-confirm.</>
                 )}
               </p>
             )}
@@ -214,14 +209,12 @@ export function ControlReportContinuitySections({
 
       {cards.length > 0 && <ControlReportCardsSection cards={cards} />}
 
-      {continuityDecisions.length > 0 && (
+      {followThrough.total > 0 && (
         <ControlReportFollowThroughSection
           continuity={continuity}
-          profile={profile}
+          industryId={industryId}
           today={today}
-          openContinuity={openContinuity}
-          doneContinuity={doneContinuity}
-          droppedContinuity={droppedContinuity}
+          followThrough={followThrough}
           slips={slips}
         />
       )}
@@ -248,7 +241,7 @@ function ControlReportLeaveSection({
     >
       <p className="text-xs text-neutral-500">
         Absences on the register, soonest first — leave booked ahead and anyone recorded out on the
-        day (sick, emergency). Hand-offs already logged in the Journal are marked; everything else
+        day (sick, emergency). Hand-offs the business has already logged are marked; everything else
         needs a named stand-in before the leave starts, or today for anyone already out.
       </p>
       <ul className="mt-2 space-y-3">
@@ -264,15 +257,15 @@ function ControlReportLeaveSection({
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium">
-                  {w.person.name} — {formatDateRange(w.absence.from, w.absence.to)}
+                  {w.person.name} — {formatDayRange(w.absence.from, w.absence.to)}
                   <span className="ml-2 text-xs font-normal text-neutral-600">
                     {w.absence.unplanned
                       ? w.status === "current"
-                        ? `out unexpectedly${w.absence.to === today ? ", today" : `, through ${w.absence.to}`}`
+                        ? `out unexpectedly${w.absence.to === today ? ", today" : `, through ${formatDay(w.absence.to)}`}`
                         : `unplanned · ${leadLabel(w.daysUntil)}`
                       : w.status === "current"
-                        ? `out now, back after ${w.absence.to}`
-                        : `${leadLabel(w.daysUntil)} · ${w.lengthDays} day${w.lengthDays === 1 ? "" : "s"}`}
+                        ? `out now, back after ${formatDay(w.absence.to)}`
+                        : `${leadLabel(w.daysUntil)} · ${count(w.lengthDays, "day")}`}
                   </span>
                 </span>
                 <span className="text-xs text-neutral-600">
@@ -283,7 +276,7 @@ function ControlReportLeaveSection({
                 <p className="mt-1 text-xs text-amber-800">
                   Overlapping leave: {others.join(", ")} also out for part of this window.{" "}
                   {w.peak.extraStops.length > 0
-                    ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${peakOthers.join(" and ")} ${peakOthers.length === 1 ? "is" : "are"} also away.`
+                    ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${joinWithAnd(peakOthers)} ${verb(peakOthers.length, "is", "are")} also away.`
                     : "Nothing extra stops on the shared days."}
                 </p>
               )}
@@ -307,16 +300,18 @@ function ControlReportLeaveSection({
                             {s.standIn?.name ?? "Nobody — outside provider or it waits"}
                           </td>
                           {w.status === "current" && (
-                            <td className="py-1 pr-2 text-neutral-600">{procedurePointer(s)}</td>
+                            <td className="py-1 pr-2 text-neutral-600">
+                              {procedurePointer(s.item)}
+                            </td>
                           )}
                           <td className="py-1 text-neutral-600">
                             {c
                               ? c.overdue
-                                ? `Logged; review overdue${c.reviewBy ? ` (${c.reviewBy})` : ""}`
-                                : `Logged${c.reviewBy ? `; review ${c.reviewBy}` : ""}`
+                                ? `Logged; review overdue${c.reviewBy ? ` (${formatDay(c.reviewBy)})` : ""}`
+                                : `Logged${c.reviewBy ? `; review ${formatDay(c.reviewBy)}` : ""}`
                               : w.status === "current"
                                 ? "Not logged — decide today"
-                                : `Not logged — by ${handoffDeadline(w, today)}`}
+                                : `Not logged — by ${formatDay(handoffDeadline(w, today))}`}
                           </td>
                         </tr>
                       );
@@ -334,7 +329,7 @@ function ControlReportLeaveSection({
                 </p>
               )}
               <p className="mt-2 text-xs text-neutral-600">
-                Left in the business:{" "}
+                Still in the business:{" "}
                 {w.impact.remaining.length > 0
                   ? w.impact.remaining.map((p) => p.name).join(", ")
                   : "nobody"}
@@ -345,7 +340,8 @@ function ControlReportLeaveSection({
       </ul>
       {leave.windows.length > 8 && (
         <p className="mt-2 text-xs text-neutral-500">
-          {leave.windows.length - 8} more absences further out; see the Who knows what tab.
+          {count(leave.windows.length - 8, "more absence is", "more absences are")} further out on
+          the business&apos;s register.
         </p>
       )}
     </Section>
@@ -358,8 +354,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
       <p className="text-xs text-neutral-500">
         Leave, or a day out sick, is the one time a stand-in runs the work for real. For each entry
         covered, decide whether the register can now say they can do it alone (confirmed today,
-        hand-off closed) or whether it becomes a tracked cross-training step. Answer on the Who
-        knows what tab so it stops appearing here.
+        hand-off closed) or whether it becomes a tracked cross-training step.
       </p>
       <ul className="mt-2 space-y-3">
         {debriefs.slice(0, 6).map((d) => (
@@ -369,14 +364,12 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-medium">
-                {d.person.name} — back from {formatDateRange(d.absence.from, d.absence.to)}
+                {d.person.name} — back from {formatDayRange(d.absence.from, d.absence.to)}
               </span>
               <span className="text-xs text-neutral-600">
                 {d.lengthDays} day{d.lengthDays === 1 ? "" : "s"}{" "}
                 {d.absence.unplanned ? "out unexpectedly" : "away"}
-                {d.daysSince > 0
-                  ? `, ended ${d.daysSince} day${d.daysSince === 1 ? "" : "s"} ago`
-                  : ", ended today"}
+                {d.daysSince > 0 ? `, ended ${count(d.daysSince, "day")} ago` : ", ended today"}
               </span>
             </div>
             <table className="mt-2 w-full text-xs">
@@ -416,7 +409,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
       </ul>
       {debriefs.length > 6 && (
         <p className="mt-2 text-xs text-neutral-500">
-          {debriefs.length - 6} more to debrief; see the Who knows what tab.
+          {count(debriefs.length - 6, "more absence awaits", "more absences await")} a debrief.
         </p>
       )}
     </Section>
@@ -431,13 +424,13 @@ function ControlReportLeavingSection({
   today: string;
 }) {
   return (
-    <Section title="Leaving the team — hand-over before the last day">
+    <Section title="Leaving the team — hand-off before the last day">
       <p className="text-xs text-neutral-500">
-        People working their notice still count as cover until their last day. Every register entry
-        only they can run alone must be handed to a named successor, written down and placed where
-        the successor can find it before that date; processes they alone own need a new owner. Once
-        the date has passed, mark them as left on the Who knows what tab so the coverage figures
-        stop counting them (the record stays in the history).
+        People working their notice still count as stand-ins until their last day. Before that date,
+        hand every register entry only they can run to a named successor, write it down, and file it
+        where the successor can find it; give processes they alone own a new owner. Once the date
+        has passed, record them as left so the coverage figures stop counting them (the record stays
+        in the history).
       </p>
       <ul className="mt-2 space-y-3">
         {leaving.slice(0, 6).map((l) => (
@@ -447,14 +440,14 @@ function ControlReportLeavingSection({
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-medium">
-                {l.person.name} — {leaverLead(l.daysLeft)} (last day {l.lastDay})
+                {l.person.name} — {leaverLead(l.daysLeft)} (last day {formatDay(l.lastDay)})
               </span>
               <span className="text-xs text-neutral-600">
                 {l.status === "gone"
-                  ? "Still counted as cover — mark as left"
+                  ? "Still counted as a stand-in — mark as left"
                   : l.handover.length === 0
                     ? "Nothing on the register depends on them alone"
-                    : `${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} to hand over by ${handoverDeadline(l, today)}${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Journal` : ""}`}
+                    : `${count(l.handover.length, "entry", "entries")} to hand off by ${formatDay(handoverDeadline(l, today))}${l.unlogged > 0 ? `, ${l.unlogged} not yet logged` : ""}`}
               </span>
             </div>
             {l.handover.length > 0 && (
@@ -464,7 +457,7 @@ function ControlReportLeavingSection({
                     <th className="py-0.5 font-normal">Only they can run</th>
                     <th className="py-0.5 font-normal">Successor to train</th>
                     <th className="py-0.5 font-normal">Written procedure</th>
-                    <th className="py-0.5 font-normal">Journal</th>
+                    <th className="py-0.5 font-normal">Logged</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -477,7 +470,7 @@ function ControlReportLeavingSection({
                       <td className="py-1 pr-2">
                         {h.successor
                           ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_LABEL[h.successorLevel].toLowerCase()})` : " (starting cold)"}`
-                          : "Nobody left to take it"}
+                          : "Nobody remaining to take it"}
                       </td>
                       <td className="py-1 pr-2">
                         {!h.item.documented
@@ -488,7 +481,7 @@ function ControlReportLeavingSection({
                       </td>
                       <td className="py-1 text-neutral-600">
                         {h.training
-                          ? `Training logged${h.training.reviewBy ? `, review ${h.training.reviewBy}` : ""}`
+                          ? `Training logged${h.training.reviewBy ? `, review ${formatDay(h.training.reviewBy)}` : ""}`
                           : "Not logged"}
                         {h.documenting ? "; write-up logged" : ""}
                       </td>
@@ -504,15 +497,15 @@ function ControlReportLeavingSection({
             )}
             <p className="mt-1 text-xs text-neutral-600">
               {l.remaining.length > 0
-                ? `Left in the business after ${l.lastDay}: ${l.remaining.map((p) => p.name).join(", ")}.`
-                : "Nobody else is left in the business."}
+                ? `Still in the business after ${formatDay(l.lastDay)}: ${l.remaining.map((p) => p.name).join(", ")}.`
+                : "Nobody else remains in the business."}
             </p>
           </li>
         ))}
       </ul>
       {leaving.length > 6 && (
         <p className="mt-2 text-xs text-neutral-500">
-          {leaving.length - 6} more leaving; see the Who knows what tab.
+          {count(leaving.length - 6, "more person is", "more people are")} leaving.
         </p>
       )}
     </Section>
@@ -579,7 +572,8 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
       </ul>
       {cards.length > 8 && (
         <p className="mt-2 text-xs text-neutral-500">
-          {cards.length - 8} more people have smaller exposures; see the Who knows what tab.
+          {count(cards.length - 8, "more person has a", "more people have")} smaller{" "}
+          {verb(cards.length - 8, "exposure", "exposures")}.
         </p>
       )}
     </Section>
@@ -588,21 +582,18 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
 
 function ControlReportFollowThroughSection({
   continuity,
-  profile,
+  industryId,
   today,
-  openContinuity,
-  doneContinuity,
-  droppedContinuity,
+  followThrough,
   slips,
 }: {
   continuity: ControlReportModel["continuity"];
-  profile: PracticeProfile;
+  industryId: IndustryId;
   today: string;
-  openContinuity: DecisionEntry[];
-  doneContinuity: number;
-  droppedContinuity: number;
+  followThrough: ControlReportModel["followThrough"];
   slips: ControlReportModel["slips"];
 }) {
+  const { open: openContinuity, done: doneContinuity, dropped: droppedContinuity } = followThrough;
   return (
     <Section title="Continuity follow-through">
       <p className="text-xs text-neutral-500">
@@ -636,7 +627,7 @@ function ControlReportFollowThroughSection({
         <ul className="mt-2 space-y-1.5 text-sm">
           {openContinuity.map((d) => {
             const item = continuity.items.find(
-              (i) => i.item.id === linkedKnowledgeId(d, profile.industry),
+              (i) => i.item.id === linkedKnowledgeId(d, industryId),
             );
             const step = linkedContinuityStep(d);
             const state = !item
@@ -652,7 +643,7 @@ function ControlReportFollowThroughSection({
                   <span className="text-neutral-500">
                     {" "}
                     · {state}
-                    {d.reviewBy ? ` · review ${fmtDate(d.reviewBy)}` : ""}
+                    {d.reviewBy ? ` · review ${formatDay(d.reviewBy)}` : ""}
                     {d.reviews?.length ? ` · reviewed ${d.reviews.length}×` : ""}
                   </span>
                   {overdue && <span className="ml-1 font-medium text-red-700">overdue</span>}
@@ -668,8 +659,8 @@ function ControlReportFollowThroughSection({
           {doneContinuity > 0
             ? droppedContinuity > 0
               ? "Nothing open and nothing slipped — every step closed as done still holds; the rest were dropped as no longer relevant."
-              : "Nothing open and nothing slipped — every logged step has been completed and still holds."
-            : "Nothing open — every logged step was closed as no longer relevant, so none has been completed."}
+              : "Nothing open and nothing slipped — you completed every logged step and each still holds."
+            : "Nothing open — you closed every logged step as no longer relevant, so none was completed."}
         </p>
       )}
     </Section>

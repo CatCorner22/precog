@@ -1,20 +1,20 @@
 import { useState } from "react";
+import { AlertTriangle, Lightbulb, Loader2, Sparkles } from "lucide-react";
 
-import { usePracticeState } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
-import type { ProcessNode } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-import { cn } from "@/lib/utils";
-import { AlertTriangle, Lightbulb } from "lucide-react";
-
-import { industryMeta } from "@/lib/precog/industry";
-import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
+import { labelCls } from "@/components/ui/field-classes";
+import { ruleBasedReason } from "@/components/precog/builder/grok-status";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
-import { Loader2, Sparkles } from "lucide-react";
+import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
+import { industryMeta } from "@/lib/precog/industry";
+import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
+import { ideaSummary, riskSummary } from "@/lib/precog/process-vocab";
+import { uid } from "@/lib/precog/text";
+import type { ProcessNode } from "@/lib/precog/types";
+import { cn } from "@/lib/utils";
 
-import { uid, labelCls } from "@/components/precog/builder/form-shared";
+/** Starter risks, ideas and controls for one process, from Grok or the built-in rules. */
 export function SuggestPanel({
   process,
   onChange,
@@ -74,8 +74,8 @@ export function SuggestPanel({
       </div>
       {!result && !loading && (
         <p className="text-xs text-muted">
-          Get starter risks, improvement ideas, and matching controls for this process based on its
-          name and description.
+          Get suggested risks, improvement ideas, and matching controls for this process based on
+          its name and description.
         </p>
       )}
       {error && <p className="text-xs text-danger">{error}</p>}
@@ -83,24 +83,32 @@ export function SuggestPanel({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-subtle">
             <Badge variant={result.source === "grok" ? "accent" : "default"}>
-              {result.source === "grok" ? `Grok · ${result.model ?? ""}` : "Rule-based"}
+              {result.source === "grok"
+                ? ["Grok", result.model].filter(Boolean).join(" · ")
+                : "Rule-based"}
             </Badge>
             <span>{result.rationale}</span>
           </div>
+          {ruleBasedReason(result.source, result.grokStatus) && (
+            <p className="text-xs text-subtle">
+              {ruleBasedReason(result.source, result.grokStatus)}
+            </p>
+          )}
           {result.risks.length > 0 && (
             <ul className="space-y-1">
-              {result.risks.map((r) => {
+              {result.risks.map((r, index) => {
                 const added = existingRisk.has(r.title.toLowerCase());
                 return (
                   <li
-                    key={r.title}
+                    // Grok can repeat a title; the list is fixed once received.
+                    key={`${index}-${r.title}`}
                     className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
                   >
                     <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-fg">{r.title}</p>
                       <p className="text-subtle">
-                        {r.kind} · S{r.severity}×L{r.likelihood}
+                        {riskSummary(r)}
                         {r.note ? ` · ${r.note}` : ""}
                       </p>
                     </div>
@@ -121,18 +129,18 @@ export function SuggestPanel({
           )}
           {result.ideas.length > 0 && (
             <ul className="space-y-1">
-              {result.ideas.map((i) => {
+              {result.ideas.map((i, index) => {
                 const added = existingIdea.has(i.title.toLowerCase());
                 return (
                   <li
-                    key={i.title}
+                    key={`${index}-${i.title}`}
                     className="flex items-start gap-2 rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
                   >
                     <Lightbulb className="mt-0.5 size-3 shrink-0 text-warn" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-fg">{i.title}</p>
                       <p className="text-subtle">
-                        {i.category} · {i.effort} effort · {i.impact} impact
+                        {ideaSummary(i)}
                         {i.note ? ` · ${i.note}` : ""}
                       </p>
                     </div>
@@ -163,6 +171,7 @@ export function SuggestPanel({
                     key={cid}
                     type="button"
                     disabled={on}
+                    aria-pressed={on}
                     onClick={() => onChange({ controlIds: [...process.controlIds, cid] })}
                     className={cn(
                       "rounded-md border px-2 py-0.5",

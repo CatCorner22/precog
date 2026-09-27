@@ -1,11 +1,6 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
  * An independent dealership with a service department, or a repair shop, of
@@ -110,6 +105,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     description:
       "The person who takes cash at the service counter can also edit the repair order and the payment record in the DMS, so a cash payment is kept and the ticket is closed with a void, a discount or a card payment that never happened.",
     controlId: "c-ro-cash",
+    sodRuleIds: ["rule-collect-post", "rule-collect-adjust"],
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
     cascadeLayers: ["control", "process", "surface", "continuity"],
@@ -136,6 +132,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     description:
       "The person who releases payments also posts manual journal entries in the DMS, so a wire to their own account is booked to a vehicle, an expense or a schedule and the month still closes.",
     controlId: "c-je-review",
+    sodRuleIds: ["rule-release-je", "rule-je-rec"],
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
     cascadeLayers: ["control", "source", "process", "continuity"],
@@ -162,6 +159,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     description:
       "The parts desk orders, signs for and logs the stock. Parts the shop never needed are ordered and paid for, then sold online or over the counter for cash, and the paperwork agrees with itself because one person wrote all of it.",
     controlId: "c-parts-count",
+    sodRuleIds: ["rule-order-receive"],
     knowledgeId: "k2",
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
@@ -189,6 +187,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     description:
       "The person who posts the deal also handles the title work and the incentive claims, so fees collected from the customer are not sent to the state, or a manufacturer rebate is paid to an account the dealership does not own, and the deal jacket reads as complete.",
     controlId: "c-deal-audit",
+    sodRuleIds: ["rule-cash-void"],
     knowledgeId: "k3",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
@@ -212,9 +211,8 @@ const automotiveScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const automotiveTemplate: IndustryTemplate = {
+export const automotiveTemplate: IndustrySample = {
   id: "automotive",
-  businessName: "Millbrook Auto & Service",
   people: [
     {
       id: "p1",
@@ -866,14 +864,7 @@ export const automotiveTemplate: IndustryTemplate = {
     },
   ],
   controls: [...baseFinancialControls(), ...automotiveControls],
-  staffComposition: {
-    ...DEFAULT_STAFF,
-    teamSize: 9,
-    soleOwnerKnowledgeCount: 3,
-    avgTenureYears: 8.7,
-    segregationScore: 34,
-  },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Service manager leaves with sole warranty-claim knowledge",

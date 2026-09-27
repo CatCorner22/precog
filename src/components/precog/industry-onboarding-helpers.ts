@@ -1,9 +1,12 @@
 import type { IndustryId } from "@/lib/precog/industry";
 import {
+  CORE_DUTIES,
+  extraDuties,
+  ownerRow,
   rowSeat,
+  sharedTitles,
   type OwnTeamRow,
   type SeatReading,
-  ownerRow,
 } from "@/lib/precog/onboarding/own-team";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
@@ -16,6 +19,7 @@ import {
   ShoppingBag,
   Stethoscope,
 } from "lucide-react";
+import { titleKey, uid } from "@/lib/precog/text";
 
 export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   dental: Stethoscope,
@@ -28,9 +32,8 @@ export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   general: Building2,
 };
 
-let nextRowNumber = 0;
 /** A key for a grid row that stays with it when rows above it are removed. */
-const newRowId = () => `row-${Date.now().toString(36)}-${(nextRowNumber += 1)}`;
+const newRowId = () => uid("row");
 /** Gives every row a stable key; returns the same array when all have one. */
 export function withRowIds(rows: OwnTeamRow[]): OwnTeamRow[] {
   const seen = new Set<string>();
@@ -61,9 +64,6 @@ export const freshRows = (): OwnTeamRow[] => [
   EMPTY_ROW(""),
 ];
 
-export const sameDuties = (a: readonly EntitlementId[], b: readonly EntitlementId[]) =>
-  a.length === b.length && a.every((d) => b.includes(d));
-
 export const nameInputId = (index: number) => `onboarding-person-${index + 1}-name`;
 
 /** Everything in `root` a keyboard can reach, in order, skipping what is hidden. */
@@ -84,13 +84,43 @@ export function focusSoon(find: () => HTMLElement | null | undefined) {
 /** Who a row names, for labels: the name, or its place in the table. */
 export const whoIs = (row: OwnTeamRow, index: number) => row.name.trim() || `Person ${index + 1}`;
 
-/** How typed titles read, remembered per line of business so typing stays quick. */
-const SEAT_CACHE = new Map<string, SeatReading | undefined>();
-export function typedSeat(role: string, industry: string): SeatReading | undefined {
-  const key = `${industry}|${role.trim()}`;
+/**
+ * The catalog seat behind a row's ticks (see `rowSeat`), remembered per line
+ * of business and reading so typing stays quick.
+ */
+export function typedSeat(
+  row: Pick<OwnTeamRow, "role" | "readAs">,
+  industry: string,
+): SeatReading | undefined {
+  const readAs = row.readAs?.role.trim() === row.role.trim() ? row.readAs : undefined;
+  const key = JSON.stringify([industry, row.role.trim(), readAs?.title, readAs?.partial]);
   if (!SEAT_CACHE.has(key)) {
     if (SEAT_CACHE.size > 500) SEAT_CACHE.clear();
-    SEAT_CACHE.set(key, rowSeat({ role }, industry));
+    SEAT_CACHE.set(key, rowSeat(row, industry));
   }
   return SEAT_CACHE.get(key);
+}
+
+const SEAT_CACHE = new Map<string, SeatReading | undefined>();
+
+/**
+ * Job titles two or more rows share where at least one of them holds a
+ * duty: the titles "untick one duty for all of them" is worth offering for.
+ */
+export function sharedTitlesWithDuties(
+  rows: readonly OwnTeamRow[],
+): { role: string; count: number }[] {
+  const withDuties = new Set(rows.filter((r) => r.duties.length > 0).map((r) => titleKey(r.role)));
+  return sharedTitles(rows).filter((t) => withDuties.has(titleKey(t.role)));
+}
+
+/** The duties anyone with this job title holds, grid columns first. */
+export function dutiesHeldByTitle(rows: readonly OwnTeamRow[], role: string): EntitlementId[] {
+  const key = titleKey(role);
+  const held = new Set<EntitlementId>();
+  for (const row of rows) {
+    if (titleKey(row.role) !== key) continue;
+    for (const duty of row.duties) held.add(duty);
+  }
+  return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
 }

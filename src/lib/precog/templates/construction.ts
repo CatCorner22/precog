@@ -1,11 +1,6 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
  * A general contractor or specialty trade of 5 to 40 people: office staff, a
@@ -23,7 +18,7 @@ const constructionControls: ControlItem[] = [
     id: "c-change-orders",
     name: "Change-order approval",
     description:
-      "Every change order is priced against the contract and approved in writing, before the work or the payment, by someone other than the project manager who negotiated it.",
+      "Someone other than the project manager who negotiated it prices each change order against the contract and approves it in writing before the work or the payment.",
     duties: ["authorization", "review"],
     segregated: false,
     compensatingControls: ["Owner reads the change-order log against each job budget monthly"],
@@ -43,7 +38,7 @@ const constructionControls: ControlItem[] = [
     id: "c-lien-waivers",
     name: "Lien waivers with every payment",
     description:
-      "No subcontractor or supplier payment is released without a conditional waiver for this payment and an unconditional waiver for the last one.",
+      "The office releases a subcontractor or supplier payment only with a conditional waiver for this payment and an unconditional waiver for the last one.",
     duties: ["review"],
     segregated: true,
     compensatingControls: [],
@@ -53,7 +48,7 @@ const constructionControls: ControlItem[] = [
     id: "c-field-time",
     name: "Field time approval",
     description:
-      "Crew hours are paid only when the superintendent has approved them against the daily reports and the crew roster for that job.",
+      "Payroll pays crew hours only after the superintendent approves them against the daily reports and the crew roster for that job.",
     duties: ["authorization", "review"],
     segregated: false,
     compensatingControls: ["Owner compares the people paid with the people on the job sites"],
@@ -63,10 +58,10 @@ const constructionControls: ControlItem[] = [
     id: "c-materials",
     name: "Materials receiving and job cost review",
     description:
-      "Deliveries are signed for at the job by someone other than the person who ordered them, and the project manager compares material cost by job with the estimate.",
+      "Someone other than the person who ordered materials signs for the delivery at the job, and the project manager compares material cost by job with the estimate.",
     duties: ["custody", "review"],
     segregated: false,
-    compensatingControls: ["Monthly job cost report read by the owner"],
+    compensatingControls: ["The owner reads the monthly job cost report"],
     residualRiskAccepted: false,
   },
 ];
@@ -84,6 +79,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "Someone who sets up vendors and releases payments adds a subcontractor with a real-sounding name and a bank account they control, then codes its invoices to a busy job where the extra cost reads as an overrun.",
     controlId: "c-sub-verify",
+    sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay"],
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
     cascadeLayers: ["control", "source", "process", "continuity"],
@@ -110,6 +106,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "The person who negotiates change orders with a subcontractor also approves the subcontractor's pay applications. The subcontractor bills more than the extra work is worth and returns part of it to that person.",
     controlId: "c-change-orders",
+    sodRuleIds: ["rule-invoice-approve"],
     knowledgeId: "k2",
     baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
     baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
@@ -137,6 +134,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     description:
       "The person who orders materials also signs for them. Lumber, wire, fixtures or equipment are charged to an open job and delivered to a side job or resold, and the cost reads as job cost.",
     controlId: "c-materials",
+    sodRuleIds: ["rule-order-receive"],
     baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
     baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
     cascadeLayers: ["control", "process", "surface", "continuity"],
@@ -161,8 +159,9 @@ const constructionScenarios: ScenarioTemplate[] = [
     id: "sc-field-time-padding",
     title: "Padded field hours and crew members who never worked",
     description:
-      "Timesheets from the field go to payroll without a check against the daily reports. Extra hours, or a former crew member left on payroll with a changed bank account, are paid with the rest of the run.",
+      "Timesheets from the field go to payroll without a check against the daily reports. Extra hours, or a crew member who has left but stays on payroll with a changed bank account, are paid with the rest of the run.",
     controlId: "c-field-time",
+    sodRuleIds: ["rule-payroll-master-run", "rule-payroll"],
     knowledgeId: "k5",
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
     baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
@@ -186,9 +185,8 @@ const constructionScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const constructionTemplate: IndustryTemplate = {
+export const constructionTemplate: IndustrySample = {
   id: "construction",
-  businessName: "Summit Ridge Builders",
   people: [
     { id: "p1", name: "Marcus Hale", role: "Owner / President", active: true, tenureYears: 18 },
     { id: "p2", name: "Dana Whitfield", role: "Office Manager", active: true, tenureYears: 11 },
@@ -532,11 +530,11 @@ export const constructionTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ar-1",
-          title: "Client balances written off without owner approval",
+          title: "A kept client payment hidden as a disputed write-off",
           kind: "fraud",
           severity: 4,
           likelihood: 2,
-          note: "A payment kept by an insider can be hidden by writing off the balance as disputed.",
+          note: "Only the owner approves write-offs here, so a kept payment would have to reach him described as a disputed balance; the owner asks for the dispute behind each one.",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -765,21 +763,14 @@ export const constructionTemplate: IndustryTemplate = {
     },
   ],
   controls: [...baseFinancialControls(), ...constructionControls],
-  staffComposition: {
-    ...DEFAULT_STAFF,
-    teamSize: 8,
-    soleOwnerKnowledgeCount: 3,
-    avgTenureYears: 7.9,
-    segregationScore: 36,
-  },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Project accountant leaves with sole pay-application knowledge",
       keyPersonDesc:
         "The project accountant (sole expert on pay applications and retainage) resigns in the middle of several jobs. Billing slips a month and retainage goes unbilled.",
       knowledgeId: "k3",
-      billingLabel: "Client balances written off without owner approval",
+      billingLabel: "A kept client payment hidden as a disputed write-off",
     }),
     ...constructionScenarios,
   ],

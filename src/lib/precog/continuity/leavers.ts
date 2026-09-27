@@ -1,13 +1,13 @@
 import type { DecisionEntry } from "../practice-profile";
 import { continuityCommitments, continuityStepKey } from "../decisions/follow-through";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
-import { daysBetween, isCalendarDate } from "../dates";
-import { firstName, relationLevel, STRONG_LEVELS } from "./coverage";
-import { formatDateRange } from "./planned-absence";
+import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
+import { relationLevel, STRONG_LEVELS } from "./coverage";
+import { firstName, joinWithAnd, quoted } from "../text";
 
-/** A hand-over with this many days or fewer left is urgent. */
+/** A hand-off with this many days or fewer left is urgent. */
 export const HANDOVER_URGENT_DAYS = 7;
 
 export interface HandoverItem {
@@ -26,7 +26,7 @@ export interface HandoverItem {
 
 export interface Leaver {
   person: Person;
-  /** False while nobody is marked on the register: the hand-over cannot be worked out yet. */
+  /** False while nobody is marked on the register: the hand-off cannot be worked out yet. */
   assessed: boolean;
   lastDay: string;
   /** Days until the last day: 0 on the day itself, negative once it has passed. */
@@ -42,12 +42,12 @@ export interface Leaver {
   remaining: Person[];
   /** 0–100 share of must-do work that leaves with them today (same weighted index as PersonLoad.dependence). */
   dependence: number;
-  /** Hand-over items with no cross-training step in the Journal yet. */
+  /** Hand-off items with no cross-training step in the Journal yet. */
   unlogged: number;
   actions: AbsenceAction[];
 }
 
-/** The date to have hand-over steps done by: the last day, or today once it has passed. */
+/** The date to have hand-off steps done by: the last day, or today once it has passed. */
 export function handoverDeadline(leaver: Pick<Leaver, "lastDay">, today: string): string {
   return leaver.lastDay < today ? today : leaver.lastDay;
 }
@@ -59,7 +59,7 @@ export function handoverDeadline(leaver: Pick<Leaver, "lastDay">, today: string)
  *
  * Coverage is judged as of each person's last day, with everyone whose last
  * day falls on or before it already gone: two people who share payroll and
- * both resign each get payroll on their hand-over list, pointed at someone
+ * both resign each get payroll on their hand-off list, pointed at someone
  * who is staying, rather than each counting the other as cover.
  */
 export function leavers(
@@ -82,7 +82,7 @@ export function leavers(
       tpl,
       goneByThen.map((o) => o.id),
     );
-    const own = absenceImpact(tpl, person.id);
+    const own = absenceImpact(tpl, [person.id]);
     if (!impact || !own) continue;
     const holdsAlone = (itemId: string) =>
       STRONG_LEVELS.has(relationLevel(tpl.relations, person.id, itemId) ?? "aware");
@@ -145,19 +145,19 @@ function handoverActions(
       knowledgeIds: [],
     });
   const ids = (list: HandoverItem[]) => list.map((h) => h.item.id);
-  const quoted = (list: HandoverItem[], max: number) =>
-    `${list
-      .slice(0, max)
-      .map((h) => `"${h.item.name}"`)
-      .join(", ")}${list.length > max ? ` and ${list.length - max} more` : ""}`;
+  const names = (list: HandoverItem[], max: number) =>
+    joinWithAnd(
+      list.map((h) => quoted(h.item.name)),
+      max,
+    );
 
   const trainable = handover.filter((h) => h.successor);
   if (trainable.length)
     actions.push({
-      text: `Train the successor before ${first} goes: ${trainable
-        .slice(0, 3)
-        .map((h) => `${h.successor?.name} on "${h.item.name}"`)
-        .join(", ")}${trainable.length > 3 ? ` and ${trainable.length - 3} more` : ""}.`,
+      text: `Train the successor before ${first} goes: ${joinWithAnd(
+        trainable.map((h) => `${h.successor?.name} on ${quoted(h.item.name)}`),
+        3,
+      )}.`,
       step: "cover",
       knowledgeIds: ids(trainable),
     });
@@ -166,33 +166,28 @@ function handoverActions(
     actions.push({
       text:
         remaining.length === 0
-          ? `Nobody else is on the team to take ${quoted(nobody, 2)} — hire or line up an outside provider before ${first} goes.`
-          : `Nobody left has touched ${quoted(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
+          ? `Nobody else is on the team to take ${names(nobody, 2)} — hire or line up an outside provider before ${first} goes.`
+          : `Nobody remaining has touched ${names(nobody, 2)} — decide who takes it on, or line up an outside provider, before ${first} goes.`,
       step: "cover",
       knowledgeIds: ids(nobody),
     });
   const undocumented = handover.filter((h) => !h.item.documented);
   if (undocumented.length)
     actions.push({
-      text: `Have ${first} write down ${quoted(undocumented, 3)} while ${first} is still here.`,
+      text: `Have ${first} write down ${names(undocumented, 3)} while ${first} is still here.`,
       step: "document",
       knowledgeIds: ids(undocumented),
     });
   const unlocated = handover.filter((h) => h.item.documented && !h.item.procedureLocation?.trim());
   if (unlocated.length)
     actions.push({
-      text: `Record where the written procedure for ${quoted(unlocated, 3)} lives — after ${first} goes, nobody can ask.`,
+      text: `Record where the written procedure for ${names(unlocated, 3)} lives — after ${first} goes, nobody can ask.`,
       step: "locate",
       knowledgeIds: ids(unlocated),
     });
   if (orphanedProcesses.length)
     actions.push({
-      text: `Name a new owner on ${orphanedProcesses
-        .slice(0, 3)
-        .map((n) => `"${n}"`)
-        .join(
-          ", ",
-        )}${orphanedProcesses.length > 3 ? ` and ${orphanedProcesses.length - 3} more` : ""}.`,
+      text: `Name a new owner on ${joinWithAnd(orphanedProcesses.map(quoted), 3)}.`,
       step: "cover",
       knowledgeIds: [],
     });
@@ -216,7 +211,7 @@ export function leaverLead(daysLeft: number): string {
 /** "Maya leaves in 12 days (last day 14 Oct): 3 entries only she can run — train Chris on PMS admin, …" */
 export function describeLeaver(l: Leaver): string {
   const first = firstName(l.person.name);
-  const when = `${first} ${leaverLead(l.daysLeft)} (last day ${formatDateRange(l.lastDay, l.lastDay)})`;
+  const when = `${first} ${leaverLead(l.daysLeft)} (last day ${formatDayRange(l.lastDay, l.lastDay)})`;
   if (l.status === "gone") {
     const n = l.handover.length;
     return `${when} and is still counted as on the team — mark ${first} as left${
@@ -251,7 +246,7 @@ export function describeLeaver(l: Leaver): string {
     n === 0 ? "" : `${n} register ${n === 1 ? "entry" : "entries"} only ${first} can run alone`;
   return `${when}: ${[stops, ...parts].filter(Boolean).join(" — ")}${
     l.unlogged > 0 && n > 0
-      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} logged in the Journal`
+      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} logged in the Decisions log`
       : ""
   }.`;
 }

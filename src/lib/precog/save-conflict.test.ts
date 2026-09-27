@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { AccountLineage, LocalProfileStore, storedRevision } from "./save-conflict";
+import {
+  AccountLineage,
+  LocalProfileStore,
+  pickSwitchCopy,
+  saveOnLineage,
+  signInMeetsNewerWork,
+  storedRevision,
+} from "./save-conflict";
 import { ACTIVE_PROFILE_KEY, defaultProfile, type PracticeProfile } from "./practice-profile";
 import type { StorageLike } from "./local-data";
 import type { KnowledgeItem } from "./types";
@@ -160,18 +167,19 @@ function account(first: PracticeProfile) {
   };
 }
 
-/** One signed-in tab's account save, as the provider makes it: once more on top of a version it builds on. */
-function saveToAccount(
+/** One signed-in tab's account save, through the provider's `saveOnLineage`. */
+async function saveToAccount(
   acct: ReturnType<typeof account>,
   tab: { lineage: AccountLineage; revision: number | null },
   profile: PracticeProfile,
-): "saved" | "conflict" {
+): Promise<"saved" | "conflict"> {
   const id = profile.businessId ?? "biz_default";
-  let result = acct.save(profile, tab.revision);
-  if (!result.ok && tab.lineage.buildsOn(id, result.profile.updatedAt)) {
-    tab.revision = result.revision;
-    result = acct.save(profile, tab.revision);
-  }
+  const result = await saveOnLineage({
+    businessId: id,
+    baseRevision: tab.revision,
+    lineage: tab.lineage,
+    save: async (base) => acct.save(profile, base),
+  });
   if (!result.ok) return "conflict";
   tab.revision = result.revision;
   tab.lineage.add(id, profile.updatedAt);
@@ -198,7 +206,7 @@ describe("two signed-in tabs of one browser on the same business", () => {
     return { b, acct, A: open(), B: open() };
   }
 
-  it("a tab that took the other tab's save can save its own edit without a false 'changed on another device' warning", () => {
+  it("a tab that took the other tab's save can save its own edit without a false 'changed on another device' warning", async () => {
     const { b, acct, A, B } = signedInTabs();
     // Tab A adds an item; it lands in this browser, then in the account.
     const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
@@ -209,7 +217,7 @@ describe("two signed-in tabs of one browser on the same business", () => {
     if (change.kind !== "adopt") return;
     B.local.accept(change.rev, change.profile.updatedAt);
     B.cloud.lineage.add("biz_two_tab", change.profile.updatedAt);
-    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+    expect(await saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
 
     // B edits on top of A's item. B's account revision is behind, yet the
     // account holds exactly the version B took: no warning, both items kept.
@@ -217,17 +225,17 @@ describe("two signed-in tabs of one browser on the same business", () => {
       customKnowledge: [...(change.profile.customKnowledge ?? []), item("Item from tab B")],
     });
     expect(B.local.write(bNext).kind).toBe("saved");
-    expect(saveToAccount(acct, B.cloud, bNext)).toBe("saved");
+    expect(await saveToAccount(acct, B.cloud, bNext)).toBe("saved");
     expect(names(acct.held())).toEqual(["Item from tab A", "Item from tab B"]);
   });
 
-  it("a tab that never heard of the other tab's account save still gets the warning, and overwrites nothing", () => {
+  it("a tab that never heard of the other tab's account save still gets the warning, and overwrites nothing", async () => {
     const { acct, A, B } = signedInTabs();
     const aSaved = edit(A.profile, { customKnowledge: [item("Item from tab A")] });
-    expect(saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
+    expect(await saveToAccount(acct, A.cloud, aSaved)).toBe("saved");
     // B was asleep: it never took A's version and edits its old copy.
     const staleB = edit(B.profile, { customKnowledge: [item("Item from stale tab B")] });
-    expect(saveToAccount(acct, B.cloud, staleB)).toBe("conflict");
+    expect(await saveToAccount(acct, B.cloud, staleB)).toBe("conflict");
     expect(names(acct.held())).toEqual(["Item from tab A"]);
   });
 
@@ -288,5 +296,93 @@ describe("a copy saved by an older version of the app", () => {
     expect(A.write(edit(profile, { practiceName: "Renamed" })).kind).toBe("saved");
     expect(storedRevision(b.stored()).rev).toBe("r1");
     expect(A.load().profile.practiceName).toBe("Renamed");
+  });
+});
+
+describe("switching to another business", () => {
+  const kept = edit(ownBusiness(), { businessId: "biz_kept", practiceName: "Two Tab Co (copy)" });
+
+  it("opens a copy kept only on this device when the account never held it", () => {
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: false },
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy).toMatchObject({ ok: true, localOnly: true, accountRevision: null });
+    if (copy.ok) expect(copy.profile.practiceName).toBe("Two Tab Co (copy)");
+  });
+
+  it("refuses a business the account held and no longer does, and says the copy here was kept", () => {
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: false },
+      seenRevision: 4,
+      heldByAccount: true,
+    });
+    expect(copy.ok).toBe(false);
+    if (!copy.ok) expect(copy.reason).toMatch(/copy on this device was kept/);
+  });
+
+  it("normalises the stored copy as every other load does", () => {
+    const stale = { ...kept, staff: { ...kept.staff, teamSize: 0 } };
+    const copy = pickSwitchCopy({
+      stored: stale,
+      open: null,
+      account: null,
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy.ok && copy.profile.staff.teamSize).toBeGreaterThanOrEqual(1);
+  });
+
+  it("opens the account's copy when another device saved since, and this device's when it is current", () => {
+    const account = edit(kept, { practiceName: "Renamed elsewhere" });
+    const newer = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: true, profile: account, revision: 5 },
+      seenRevision: 4,
+      heldByAccount: true,
+    });
+    expect(newer).toMatchObject({ ok: true, accountRevision: 5 });
+    if (newer.ok) expect(newer.profile.practiceName).toBe("Renamed elsewhere");
+    const current = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: { found: true, profile: account, revision: 5 },
+      seenRevision: 5,
+      heldByAccount: true,
+    });
+    expect(current).toMatchObject({ ok: true, accountRevision: null });
+    if (current.ok) expect(current.profile.practiceName).toBe("Two Tab Co (copy)");
+  });
+
+  it("takes another tab's newer open copy over the portfolio entry", () => {
+    const open = edit(kept, { practiceName: "Open in another tab" });
+    const copy = pickSwitchCopy({
+      stored: kept,
+      open,
+      account: null,
+      seenRevision: undefined,
+      heldByAccount: false,
+    });
+    expect(copy.ok && copy.profile.practiceName).toBe("Open in another tab");
+  });
+});
+
+describe("signing in on a device with work on the same business", () => {
+  it("asks the owner, also over a legacy account copy with no revision", () => {
+    const account = edit(ownBusiness(), {});
+    const local = edit(account, { customKnowledge: [item("Offline item")] });
+    expect(signInMeetsNewerWork(local, account, undefined)).toBe(true);
+    // The account already took this very copy from this device: nothing to ask.
+    expect(signInMeetsNewerWork(local, account, local.updatedAt)).toBe(false);
+    // Another business: kept apart, not a conflict.
+    expect(signInMeetsNewerWork(local, { ...account, businessId: "biz_other" }, undefined)).toBe(
+      false,
+    );
   });
 });

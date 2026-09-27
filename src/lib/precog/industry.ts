@@ -9,12 +9,14 @@ export type IndustryId =
   | "nonprofit"
   | "general";
 
-export interface IndustryMeta {
+interface IndustryMeta {
   id: IndustryId;
   label: string;
   tagline: string;
   demoName: string;
   teamLabel: string;
+  /** The plural of teamLabel, written out: "practices", "companies", "businesses". */
+  teamLabelPlural: string;
   /** Plural noun for the people the business serves ("patients", "guests"). */
   customerLabel: string;
 }
@@ -26,6 +28,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Patient revenue, billing, cash, and controlled-drug controls",
     demoName: "Ridgeview Family Dental",
     teamLabel: "practice",
+    teamLabelPlural: "practices",
     customerLabel: "patients",
   },
   {
@@ -34,6 +37,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Inventory, POS, and vendor payment controls",
     demoName: "Harbor Lane Boutique",
     teamLabel: "store",
+    teamLabelPlural: "stores",
     customerLabel: "customers",
   },
   {
@@ -42,6 +46,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Client billing, trust accounts, and project delivery",
     demoName: "Northgate Advisory Group",
     teamLabel: "firm",
+    teamLabelPlural: "firms",
     customerLabel: "clients",
   },
   {
@@ -50,6 +55,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Cash tips, vendor AP, and shift reconciliation",
     demoName: "Ember & Oak Kitchen",
     teamLabel: "restaurant",
+    teamLabelPlural: "restaurants",
     customerLabel: "guests",
   },
   {
@@ -58,6 +64,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Job costing, progress billing, and subcontractor payments",
     demoName: "Summit Ridge Builders",
     teamLabel: "company",
+    teamLabelPlural: "companies",
     customerLabel: "clients",
   },
   {
@@ -66,6 +73,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Repair-order cash, parts inventory, deal and title fees",
     demoName: "Millbrook Auto & Service",
     teamLabel: "shop",
+    teamLabelPlural: "shops",
     customerLabel: "customers",
   },
   {
@@ -74,6 +82,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Donations, restricted grants, and board oversight",
     demoName: "Riverbend Community Alliance",
     teamLabel: "organization",
+    teamLabelPlural: "organizations",
     customerLabel: "donors and clients",
   },
   {
@@ -82,6 +91,7 @@ export const INDUSTRIES: IndustryMeta[] = [
     tagline: "Core financial and operational controls",
     demoName: "Main Street Business Co.",
     teamLabel: "business",
+    teamLabelPlural: "businesses",
     customerLabel: "customers",
   },
 ];
@@ -95,8 +105,29 @@ export function industryHasOwner(id: string | undefined): boolean {
   return id !== "nonprofit";
 }
 
+/**
+ * The industry whose sample stands in when a stored industry is not one the
+ * app knows. Every lookup by industry (metadata, sample, copy) falls back to
+ * it, so an unknown value never mixes one industry's team with another's words.
+ */
+export const DEFAULT_INDUSTRY: IndustryId = "dental";
+
 export function industryMeta(id: IndustryId): IndustryMeta {
-  return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES[0];
+  return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES.find((i) => i.id === DEFAULT_INDUSTRY)!;
+}
+
+/**
+ * The industry's word for a business ("practice", "store", "company"). Generic
+ * copy says "business"; only a sentence about one industry's business uses
+ * this noun, and only through this helper.
+ */
+export function industryNoun(id: IndustryId): string {
+  return industryMeta(id).teamLabel;
+}
+
+/** The plural of the industry's word for a business: "practices", "companies", "businesses". */
+export function pluralTeamLabel(id: IndustryId): string {
+  return industryMeta(id).teamLabelPlural;
 }
 
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));

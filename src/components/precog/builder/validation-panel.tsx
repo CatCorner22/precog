@@ -1,36 +1,32 @@
-import { DeltaBadge } from "@/components/precog/builder/health-pill";
-
-import { Button } from "@/components/ui/button";
-
-import { cn } from "@/lib/utils";
-
 import { Wand2 } from "lucide-react";
 
-import { type HealthDelta } from "@/lib/precog/builder/what-if";
+import { Button } from "@/components/ui/button";
+import { DeltaBadge } from "@/components/precog/builder/health-pill";
+import { isQuickFixable } from "@/lib/precog/builder/quick-fix-plan";
+import type { HealthDelta } from "@/lib/precog/builder/what-if";
+import type { MapValidationIssue } from "@/lib/precog/process-validation";
+import { count } from "@/lib/precog/text";
+import { cn } from "@/lib/utils";
 
-import { type MapValidationIssue } from "@/lib/precog/process-graph";
-
-function isQuickFixable(i: MapValidationIssue) {
-  return Boolean(
-    i.processId &&
-    (i.id.startsWith("owner-") || i.id.startsWith("fraud-nocontrol-") || i.id.startsWith("dep-")),
-  );
-}
-
+/**
+ * The builder's Validate panel: every map issue, worst first, each with a
+ * Fix button when it has one. `previews` holds each fix's health change,
+ * scored once by the builder.
+ */
 export function ValidationPanel({
   issues,
+  previews,
   onSelectProcess,
   onCleanLayout,
   onQuickFix,
   onFixAll,
-  previewFix,
 }: {
   issues: MapValidationIssue[];
+  previews: ReadonlyMap<string, HealthDelta | null>;
   onSelectProcess: (id: string) => void;
   onCleanLayout: () => void;
-  onQuickFix: (issueId: string, processId: string) => boolean;
+  onQuickFix: (issue: MapValidationIssue) => void;
   onFixAll: () => void;
-  previewFix: (issueId: string, processId: string) => HealthDelta | null;
 }) {
   const errors = issues.filter((i) => i.severity === "error");
   const warns = issues.filter((i) => i.severity === "warn");
@@ -49,7 +45,8 @@ export function ValidationPanel({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted">
-          {errors.length} error(s), {warns.length} warning(s), {infos.length} info
+          {count(errors.length, "error")}, {count(warns.length, "warning")},{" "}
+          {count(infos.length, "note")}
         </p>
         {fixable > 1 && (
           <Button size="sm" variant="secondary" onClick={onFixAll}>
@@ -81,12 +78,12 @@ export function ValidationPanel({
             {isQuickFixable(i) && (
               <button
                 type="button"
-                onClick={() => onQuickFix(i.id, i.processId!)}
+                onClick={() => onQuickFix(i)}
                 title="Apply suggested fix"
                 className="inline-flex shrink-0 items-center gap-1 border-l border-current/20 px-2 text-primary hover:bg-primary/10"
               >
                 <Wand2 className="size-3" /> Fix
-                <DeltaBadge delta={previewFix(i.id, i.processId!)} />
+                <DeltaBadge delta={previews.get(i.id) ?? null} />
               </button>
             )}
           </li>

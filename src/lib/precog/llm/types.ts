@@ -1,6 +1,7 @@
 /**
  * Precog LLM stack types — tool-grounded multi-step reasoning.
  */
+import type { ContinuityStep } from "../decisions/follow-through";
 
 export type ToolName =
   | "get_practice_snapshot"
@@ -28,12 +29,13 @@ export type GrokAccess = "allowed" | "unauthenticated" | "rate_limited" | "no_ap
 
 export interface ToolResult {
   tool: ToolName;
-  args?: Record<string, unknown>;
   ok: boolean;
   summary: string;
   data: unknown;
-  links?: { tab: string; id?: string; label: string }[];
 }
+
+/** What a tool returns before the runner stamps its name on it. */
+export type ToolOutput = Omit<ToolResult, "tool">;
 
 type ReasoningPhase =
   "plan" | "retrieve" | "analyze" | "reason" | "critique" | "specialize" | "synthesize" | "meta";
@@ -54,12 +56,10 @@ export interface EvidenceRef {
     | "coso"
     | "sod"
     | "insurance"
-    | "lever"
     | "cascade"
     | "rag"
     | "ml"
-    | "reasoning"
-    | "epistemic";
+    | "reasoning";
   label: string;
   metric?: string;
   link: { tab: string; id?: string };
@@ -72,6 +72,16 @@ export interface PioneerDecision {
   effort: "low" | "medium" | "high";
   horizonDays: number;
   cascadeEffects?: string[];
+  /** What a Journal entry logged from this decision links to, so the next brief follows it up. */
+  link?: DecisionLink;
+}
+
+/** The Journal link fields a coach decision carries (DecisionInput's linked* fields). */
+export interface DecisionLink {
+  tab: string;
+  id?: string;
+  step?: ContinuityStep;
+  personId?: string;
 }
 
 export interface StructuredBrief {
@@ -84,13 +94,11 @@ export interface StructuredBrief {
   variableCascades: string[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
   advancedReasoning?: string[];
-  epistemicNote?: string;
   markdown: string;
   evidence: EvidenceRef[];
 }
 
 export interface AgentRunResult {
-  ok: true;
   source: "grok-agent" | "local-agent";
   model?: string;
   question: string;

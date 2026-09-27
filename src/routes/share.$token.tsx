@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { loadMapShare, type SharedMapPayload } from "@/lib/precog/builder/share-server";
-import { FREQUENCY_LABEL } from "@/lib/precog/builder/evidence";
-import { HEAT_BANDS } from "@/lib/precog/process-graph";
-import type { EvidenceFrequency } from "@/lib/precog/types";
+import { loadMapShare, type SharedMapPayload } from "@/lib/precog/share/share-server";
+import { evidenceLine, ownerTag, shareErrorView } from "@/lib/precog/builder/share-view";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { Eye, Lock, ShieldCheck } from "lucide-react";
+import { formatDay } from "@/lib/precog/dates";
+import { Section } from "@/components/precog/control-report-parts";
 
 export const Route = createFileRoute("/share/$token")({
   component: SharePage,
@@ -71,11 +72,8 @@ function SharePage() {
   }
 
   if (state.kind === "error") {
-    if (
-      state.reason === "passcode" ||
-      state.reason === "passcode_wrong" ||
-      state.reason === "rate_limited"
-    ) {
+    const view = shareErrorView(state.reason);
+    if (view.kind === "passcode") {
       return (
         <div className="flex min-h-dvh items-center justify-center bg-white p-8">
           <form
@@ -89,16 +87,20 @@ function SharePage() {
             <h1 className="mt-3 text-center text-lg font-semibold text-neutral-900">
               Passcode required
             </h1>
-            <p className="mt-1 text-center text-sm text-neutral-600">
-              {state.reason === "passcode_wrong"
-                ? "Incorrect passcode"
-                : state.reason === "rate_limited"
-                  ? "Too many attempts — wait a minute"
-                  : "Enter the passcode provided by the owner."}
+            <p className="mt-1 text-center text-sm text-neutral-600" role="status">
+              {view.message}
             </p>
+            <label
+              htmlFor="share-passcode"
+              className="mt-4 block text-xs font-medium text-neutral-700"
+            >
+              Passcode
+            </label>
             <input
+              id="share-passcode"
               type="password"
-              className="mt-4 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+              autoComplete="off"
+              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
               value={passcode}
               onChange={(event) => setPasscode(event.target.value)}
               autoFocus
@@ -113,20 +115,21 @@ function SharePage() {
         </div>
       );
     }
-    const msg =
-      state.reason === "revoked"
-        ? "This link was revoked by the owner."
-        : state.reason === "expired"
-          ? "This link has expired."
-          : state.reason === "network"
-            ? "Couldn't reach the server. Try again."
-            : "This link isn't valid.";
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white p-8">
         <div className="max-w-sm text-center">
           <Lock className="mx-auto size-8 text-neutral-400" />
           <h1 className="mt-3 text-lg font-semibold text-neutral-900">Shared map unavailable</h1>
-          <p className="mt-1 text-sm text-neutral-600">{msg}</p>
+          <p className="mt-1 text-sm text-neutral-600">{view.message}</p>
+          {view.retry && (
+            <button
+              type="button"
+              onClick={() => void loadShare()}
+              className="mt-4 block w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            >
+              Try again
+            </button>
+          )}
           <Link to="/" className="mt-4 inline-block text-sm text-neutral-700 underline">
             Go to Precog Pioneer
           </Link>
@@ -137,22 +140,17 @@ function SharePage() {
 
   const { payload, expiresAt, redacted } = state;
   const stages = [...new Set(payload.processes.map((p) => p.stage))].sort((a, b) => a - b);
-  const generated = new Date(payload.generatedAt);
+  // The payload comes from the owner's browser; a malformed stamp is left out, not printed.
+  const generated = Number.isNaN(Date.parse(payload.generatedAt)) ? null : payload.generatedAt;
 
   return (
     <div className="report min-h-dvh bg-white text-neutral-900">
       <div className="border-b border-neutral-200 bg-neutral-50">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-6 py-3 text-xs text-neutral-600">
           <span className="inline-flex items-center gap-1.5">
-            <Eye className="size-3.5" /> Read-only share · generated{" "}
-            {generated.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-            {expiresAt
-              ? ` · expires ${new Date(expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-              : ""}
+            <Eye className="size-3.5" /> Read-only share
+            {generated ? ` · generated ${formatDay(generated)}` : ""}
+            {expiresAt ? ` · expires ${formatDay(expiresAt)}` : ""}
           </span>
           <button
             type="button"
@@ -189,7 +187,7 @@ function SharePage() {
         <section className="mt-6 grid gap-4 sm:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center justify-center rounded-lg border border-neutral-300 px-6 py-4">
             <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-              Map health
+              Map health score
             </p>
             <p className="text-5xl font-bold tabular">{payload.health.score}</p>
             <p className="text-sm font-medium text-neutral-700">{payload.health.bandLabel}</p>
@@ -217,14 +215,14 @@ function SharePage() {
         </section>
 
         <Section title="Value stream">
-          <ValueStreamSvg processes={payload.processes} stages={stages} />
+          <ValueStreamSvg processes={payload.processes} stages={stages} redacted={redacted} />
         </Section>
 
         {payload.actions.length > 0 && (
           <Section title="Priorities this month">
             <ol className="space-y-1.5 text-sm">
               {payload.actions.map((a, i) => (
-                <li key={a.title} className="flex gap-3">
+                <li key={`${i}-${a.title}`} className="flex gap-3">
                   <span className="w-5 shrink-0 font-semibold tabular text-neutral-500">
                     {i + 1}.
                   </span>
@@ -275,8 +273,8 @@ function SharePage() {
                     <td className="py-1.5 pr-2 text-neutral-700">
                       {p.controls.length ? (
                         <ul className="space-y-0.5">
-                          {p.controls.map((c) => (
-                            <li key={c.name} className="flex items-center gap-1">
+                          {p.controls.map((c, i) => (
+                            <li key={`${i}-${c.name}`} className="flex items-center gap-1">
                               <ShieldCheck
                                 className={`size-3 ${c.segregated ? "text-emerald-700" : "text-amber-600"}`}
                               />
@@ -293,12 +291,16 @@ function SharePage() {
                     </td>
                     <td className="py-1.5 pr-2 text-neutral-700">
                       {p.evidence.length ? (
-                        <span className={overdue ? "text-amber-700" : ""}>
-                          {p.evidence.length - overdue}/{p.evidence.length} current
-                          {p.evidence[0]
-                            ? ` · ${FREQUENCY_LABEL[p.evidence[0].frequency as EvidenceFrequency] ?? p.evidence[0].frequency}`
-                            : ""}
-                        </span>
+                        <>
+                          <p className={overdue ? "text-amber-700" : ""}>
+                            {p.evidence.length - overdue}/{p.evidence.length} current
+                          </p>
+                          <ul className="text-xs text-neutral-600">
+                            {p.evidence.map((e, i) => (
+                              <li key={`${i}-${e.label}`}>{evidenceLine(e)}</li>
+                            ))}
+                          </ul>
+                        </>
                       ) : (
                         <span className="text-neutral-400">—</span>
                       )}
@@ -326,8 +328,8 @@ function SharePage() {
         {payload.issues.length > 0 && (
           <Section title="Open map issues">
             <ul className="list-disc space-y-0.5 pl-5 text-sm text-neutral-700">
-              {payload.issues.map((i) => (
-                <li key={i}>{i}</li>
+              {payload.issues.map((issue, i) => (
+                <li key={`${i}-${issue}`}>{issue}</li>
               ))}
             </ul>
           </Section>
@@ -335,8 +337,8 @@ function SharePage() {
 
         <Section title="Team">
           <ul className="grid gap-1 text-sm sm:grid-cols-3">
-            {payload.people.map((p) => (
-              <li key={`${p.name}-${p.role}`} className="border-b border-neutral-200 py-1">
+            {payload.people.map((p, i) => (
+              <li key={`${i}-${p.name}-${p.role}`} className="border-b border-neutral-200 py-1">
                 <span className="font-medium">{p.name}</span>
                 <span className="text-neutral-500"> · {p.role}</span>
               </li>
@@ -357,9 +359,11 @@ function SharePage() {
 function ValueStreamSvg({
   processes,
   stages,
+  redacted,
 }: {
   processes: SharedMapPayload["processes"];
   stages: number[];
+  redacted: boolean;
 }) {
   const colW = 190;
   const rowH = 64;
@@ -445,7 +449,7 @@ function ValueStreamSvg({
                 {p.name.length > 22 ? `${p.name.slice(0, 21)}…` : p.name}
               </text>
               <text x="10" y="33" fontSize="9.5" fill="#6b7280">
-                {p.owners[0] ? p.owners[0].split(" ")[0] : "unowned"} · heat {p.heat}
+                {ownerTag(p.owners[0], redacted)} · heat {p.heat}
                 {p.controls.length ? ` · ${p.controls.length} ctrl` : ""}
               </text>
             </g>
@@ -453,16 +457,5 @@ function ValueStreamSvg({
         })}
       </svg>
     </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-6 break-inside-avoid">
-      <h2 className="mb-2 border-b border-neutral-300 pb-1 text-sm font-semibold tracking-wide text-neutral-800 uppercase">
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }

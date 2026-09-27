@@ -114,3 +114,25 @@ describe("manual staff markers through the server", () => {
     expect(profile.staff.bankRecSource).toBe("manual");
   });
 });
+
+describe("mergeProfile runs the client's normaliser", () => {
+  it("clamps staff, maps an unknown industry to the default and drops a malformed entry", () => {
+    const base = defaultProfile("restaurant");
+    const served = mergeProfile(
+      {
+        name: "Corner Bistro",
+        industry: "bogus",
+        profile: {
+          ...base,
+          staff: { ...base.staff, teamSize: 99_999 },
+          customPeople: [null] as unknown as PracticeProfile["customPeople"],
+        },
+      },
+      TODAY,
+    );
+    expect(served.industry).toBe("dental");
+    expect(served.practiceName).toBe("Corner Bistro");
+    expect(served.staff.teamSize).toBe(500);
+    expect(served.customPeople).toEqual([]);
+  });
+});

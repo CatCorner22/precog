@@ -1,8 +1,9 @@
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isCalendarDate } from "../dates";
 import type { Person } from "../types";
-import { stripInvisibleControls } from "./csv";
 import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
+import { stripInvisibleControls } from "../text";
+import { clamp } from "../number";
 
 const KNOWN_DUTIES = new Set<string>(ENTITLEMENTS.map((e) => e.id));
 
@@ -14,10 +15,10 @@ function text(value: unknown, max: number): string | undefined {
 
 /**
  * The people in a JSON backup, every field the backup carries kept and
- * checked: id and name are required; role, active, tenure (0 to 60 years),
- * last day (a calendar date), duties (known duty ids), department and
- * employee id are kept when they are well formed and dropped when not.
- * Repeated ids keep their first person.
+ * checked: id and name are required; role, active, the owner mark, tenure
+ * (0 to 60 years), last day (a calendar date), duties (known duty ids),
+ * department, employee id and the duties-from-title mark are kept when they
+ * are well formed and dropped when not. Repeated ids keep their first person.
  */
 export function peopleFromBackup(raw: unknown): Person[] {
   if (!Array.isArray(raw)) return [];
@@ -32,7 +33,7 @@ export function peopleFromBackup(raw: unknown): Person[] {
     seen.add(id);
     const tenure =
       typeof p.tenureYears === "number" && Number.isFinite(p.tenureYears)
-        ? Math.min(60, Math.max(0, p.tenureYears))
+        ? clamp(p.tenureYears, 0, 60)
         : undefined;
     const lastDay =
       typeof p.lastDay === "string" && isCalendarDate(p.lastDay) ? p.lastDay : undefined;
@@ -46,6 +47,7 @@ export function peopleFromBackup(raw: unknown): Person[] {
       name,
       role: text(p.role, MAX_ROLE_LENGTH) ?? "Team member",
       active: typeof p.active === "boolean" ? p.active : true,
+      ...(typeof p.owner === "boolean" ? { owner: p.owner } : {}),
       ...(tenure !== undefined ? { tenureYears: tenure } : {}),
       ...(lastDay ? { lastDay } : {}),
       ...(duties?.length ? { entitlements: duties } : {}),

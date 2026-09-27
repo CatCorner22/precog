@@ -1,7 +1,8 @@
+import { getIndustryTemplate } from "../templates";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import { LEAVING_SOON_DAYS, SOON_DAYS, todayBrief } from "./today";
 
@@ -11,20 +12,8 @@ const people: Person[] = [
   { id: "sam", name: "Sam Roy", role: "Hygienist", active: true },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(relations: KnowledgeRelation[], knowledge: KnowledgeItem[]): IndustryTemplate {
-  return { ...getBaseTemplate("general"), people, knowledge, relations, processes: [] };
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 // pms: Maya alone, Chris learning, written at Drive. payroll: Maya alone, nothing written.
@@ -38,9 +27,9 @@ const register = tpl(
     { personId: "sam", knowledgeId: "billing", level: "proficient" },
   ],
   [
-    item("pms", { documented: true, procedureLocation: "Drive/PMS" }),
-    item("payroll"),
-    item("billing", { documented: true }),
+    knowledgeItem("pms", { documented: true, procedureLocation: "Drive/PMS" }),
+    knowledgeItem("payroll"),
+    knowledgeItem("billing", { documented: true }),
   ],
 );
 
@@ -127,6 +116,28 @@ describe("todayBrief", () => {
     expect(brief.headline).toMatch(/^Maya and Sam are out \(one unexpectedly\) today — /);
   });
 
+  it("counts a stopped entry once when two people who both hold it are out", () => {
+    // billing: Maya and Sam; pms and payroll: Maya alone. Both out, so three entries stop.
+    const brief = todayBrief(
+      register,
+      [absence(), absence({ id: "abs-2", personId: "sam" })],
+      [],
+      "general",
+      TODAY,
+    );
+    expect(brief.stopped).toBe(3);
+    expect(brief.cold).toBe(2);
+    expect(brief.unwritten).toBe(1);
+    expect(brief.unlogged).toBe(3);
+    const byPerson = Object.fromEntries(
+      brief.out.map((o) => [o.person.id, o.stops.map((s) => s.item.id).sort()]),
+    );
+    expect(byPerson).toEqual({ maya: ["billing", "payroll", "pms"], sam: ["billing"] });
+    expect(brief.headline).toBe(
+      "Maya and Sam are out unexpectedly today — 3 register entries stop, 2 that nobody left has done before, 1 with nothing written down.",
+    );
+  });
+
   it("counts how many are out unexpectedly when more than one is", () => {
     const brief = todayBrief(
       register,
@@ -193,7 +204,7 @@ describe("todayBrief", () => {
     expect(brief.out).toEqual([]);
     expect(brief.startingSoon).toHaveLength(1);
     expect(brief.startingSoon[0]).toMatchObject({ daysUntil: 2, unlogged: 1 });
-    expect(brief.headline).toBe("Maya is out 7–14 Nov, in 2 days — 1 hand-off not yet logged.");
+    expect(brief.headline).toBe("Maya is out Nov 7–14, in 2 days — 1 hand-off not yet logged.");
   });
 
   it("treats the SOON_DAYS boundary as inclusive", () => {
@@ -210,7 +221,7 @@ describe("todayBrief", () => {
     expect(brief.headline).toBe("1 absence just ended — debrief the stand-ins.");
   });
 
-  it("counts down to a leaver's last day with the hand-over and what is not yet in the Journal", () => {
+  it("counts down to a leaver's last day with the hand-off and what is not yet in the Journal", () => {
     const leaving = {
       ...register,
       people: people.map((p) => (p.id === "maya" ? { ...p, lastDay: "2025-11-17" } : p)),
@@ -221,7 +232,7 @@ describe("todayBrief", () => {
     expect(brief.leaving[0].handover.map((h) => h.item.id).sort()).toEqual(["payroll", "pms"]);
     expect(brief.gone).toEqual([]);
     expect(brief.headline).toBe(
-      "Maya leaves in 12 days — 2 entries to hand over, 2 not yet in the Journal.",
+      "Maya leaves in 12 days — 2 entries to hand off, 2 not yet in the Decisions log.",
     );
   });
 
@@ -249,7 +260,7 @@ describe("todayBrief", () => {
     });
     const brief = todayBrief(near, [soon], [], "general", TODAY);
     expect(brief.leaving).toHaveLength(1);
-    expect(brief.headline).toMatch(/^Sam is out 7–8 Nov, in 2 days/);
+    expect(brief.headline).toMatch(/^Sam is out Nov 7–8, in 2 days/);
   });
 
   it("puts someone whose last day has passed but is still active ahead of everything but today's absences", () => {
@@ -261,7 +272,7 @@ describe("todayBrief", () => {
     expect(brief.gone).toHaveLength(1);
     expect(brief.gone[0]).toMatchObject({ daysLeft: -2, status: "gone" });
     expect(brief.headline).toBe(
-      "Maya left 2 days ago but still counts as cover — mark Maya as left (2 entries only Maya could run alone).",
+      "Maya left 2 days ago but still counts as a stand-in — mark Maya as left (2 entries only Maya could run alone).",
     );
 
     const withSick = todayBrief(
@@ -295,10 +306,10 @@ describe("todayBrief", () => {
   });
 });
 
-describe("today's brief over a starter register nobody has marked", () => {
+describe("today's brief over a sample register nobody has marked", () => {
   it("says it cannot tell what stops when someone calls in sick", () => {
     const starter: IndustryTemplate = {
-      ...getBaseTemplate("general"),
+      ...getIndustryTemplate("general"),
       people,
       relations: [],
       processes: [],
@@ -315,7 +326,7 @@ describe("today's brief when register items wait on nobody", () => {
   it("does not say nothing stops while must-do items have nobody who can run them", () => {
     const gaps = tpl(
       [{ personId: "sam", knowledgeId: "payroll", level: "expert" }],
-      [item("payroll"), item("deposit")],
+      [knowledgeItem("payroll"), knowledgeItem("deposit")],
     );
     const brief = todayBrief(gaps, [absence()], [], "general", TODAY);
     expect(brief.headline).toBe(

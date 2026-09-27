@@ -5,22 +5,12 @@ import { Button } from "@/components/ui/button";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getHistoryVersion, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
-
-function when(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+import { localDateKey, formatDayTime } from "@/lib/precog/dates";
 
 /**
- * Every saved version of the open business, newest first, with who saved
- * it. Restoring loads that version as the working copy; the version it
- * replaces is itself kept, so nothing is lost either way.
+ * Every saved snapshot of the open business, newest first, with who saved
+ * it. Restoring loads that snapshot as the working copy; the one it replaces
+ * is itself kept, so nothing is lost either way.
  */
 export function ClientHistory({ signedIn }: { signedIn: boolean }) {
   const { profile, replaceProfile, syncStatus } = usePractice();
@@ -50,7 +40,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
     if (!businessId) return;
     if (
       !window.confirm(
-        `Load the version saved ${when(entry.savedAt)} as the working copy? The current version stays in the history.`,
+        `Load the snapshot saved ${formatDayTime(entry.savedAt)} as the working copy? The current state stays in the history.`,
       )
     ) {
       return;
@@ -61,9 +51,9 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
         data: { businessId, revision: entry.revision, today: localDateKey(new Date()) },
       });
       replaceProfile({ ...res.profile, businessId });
-      toast.success(`Loaded the version from ${when(entry.savedAt)}.`);
+      toast.success(`Loaded the snapshot from ${formatDayTime(entry.savedAt)}.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That version could not be loaded.");
+      toast.error(err instanceof Error ? err.message : "That snapshot could not be loaded.");
     } finally {
       setBusy(false);
     }
@@ -88,7 +78,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
           <p className="mt-3 text-sm text-muted">Loading…</p>
         ) : entries.length === 0 ? (
           <p className="mt-3 text-sm text-muted">
-            No earlier versions yet. The history starts with the next save after this one.
+            No earlier snapshots yet. The history starts with the next save after this one.
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-border">
@@ -99,7 +89,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
               >
                 <div>
                   <p className="font-medium">
-                    Revision {e.revision} · {when(e.savedAt)}
+                    Snapshot {e.revision} · {formatDayTime(e.savedAt)}
                   </p>
                   <p className="text-xs text-muted">
                     Saved by {e.savedByName ?? "an account"} · {e.peopleCount} people ·{" "}
@@ -111,8 +101,9 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
                   variant="secondary"
                   onClick={() => void restore(e)}
                   disabled={busy}
+                  aria-label={`Load snapshot ${e.revision} from ${formatDayTime(e.savedAt)}`}
                 >
-                  Load this version
+                  Load this snapshot
                 </Button>
               </li>
             ))}

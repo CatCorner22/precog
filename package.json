@@ -3,23 +3,34 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "overrides": {
     "nf3": "0.3.17"
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
-    "build": "vite build && node scripts/migrate-on-production.mjs",
+    "build": "vite build && node scripts/migrate.mjs --only-on-production",
     "db:migrate": "node scripts/migrate.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:postgres": "npm run test:postgres:migrations && npm run test:postgres:quota && npm run test:postgres:lifecycle",
+    "test:postgres:migrations": "node scripts/test-migrations-postgres.mjs",
+    "test:postgres:quota": "node --experimental-strip-types scripts/test-quota-postgres.mjs",
+    "test:postgres:lifecycle": "vitest run src/lib/precog/business-lifecycle-safety.test.ts",
     "e2e": "node scripts/e2e-builder.mjs",
+    "e2e:enhancements": "node scripts/e2e-enhancements.mjs",
     "e2e:tabs": "node scripts/e2e-tabs.mjs",
+    "e2e:warmup": "node scripts/e2e-warmup.mjs",
+    "e2e:safety": "node scripts/e2e-account-safety.mjs",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check:bundle": "node scripts/check-bundle-size.mjs"
+    "check:bundle": "node scripts/check-bundle-size.mjs",
+    "check:headers": "node scripts/check-build-headers.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",

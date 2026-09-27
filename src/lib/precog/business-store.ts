@@ -2,6 +2,8 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
+import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * Revision-checked write of one business row.
@@ -16,7 +18,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
  *
  * Kept free of `createServerFn` so it can run against PGLite in a unit test.
  */
-export interface BusinessSaveInput {
+interface BusinessSaveInput {
   /** The row's owner (the account the business was created under). */
   userId: string;
   businessId: string;
@@ -42,24 +44,30 @@ interface BusinessRowSnapshot<TProfile = unknown> {
   updated_at: string;
 }
 
-export type BusinessSaveResult<TProfile = unknown> =
+type BusinessSaveResult<TProfile = unknown> =
   | { ok: true; revision: number; updatedAt: string }
   | { ok: false; conflict: true; existing: BusinessRowSnapshot<TProfile> };
 
-/** Businesses one account may keep in the cloud. Saves to existing ones always go through. */
-export const MAX_BUSINESSES_PER_USER = 50;
 /** Versions kept per business before the oldest are dropped. */
 const MAX_HISTORY_PER_BUSINESS = 200;
 /** Days a deleted business stays restorable before the purge job removes it. */
 const DELETED_RETENTION_DAYS = 30;
 
-export class BusinessLimitError extends Error {
-  readonly status = 409;
+/** A new business past the account's limit. Saves to existing ones always go through. */
+export class BusinessLimitError extends RequestError {
   constructor(limit: number) {
-    super(
-      `Your account already holds ${limit} businesses, the most it can keep. Delete one you no longer need, then save again.`,
-    );
+    super(409, businessLimitMessage(limit));
     this.name = "BusinessLimitError";
+  }
+}
+
+/** A missing/deleted row is not permission to insert an old copy. */
+export class BusinessUnavailableError extends RequestError {
+  constructor() {
+    super(
+      409,
+      "This business was deleted or is no longer available to you. Export any work not yet saved before closing this page.",
+    );
   }
 }
 
@@ -103,16 +111,6 @@ export async function resolveBusinessOwner(
   return markers[0]?.user_id ?? null;
 }
 
-/** A missing/deleted row is not permission to insert an old copy. */
-export class BusinessUnavailableError extends RequestError {
-  constructor() {
-    super(
-      409,
-      "This business was deleted or is no longer available. Reload your business list, or export unsynced work before closing this page.",
-    );
-  }
-}
-
 /** Serializes creation, update, restore and delete for this owner's portfolio. */
 async function lockBusinessOwner(sql: Sql, userId: string): Promise<void> {
   const owner = await sql`select id from "user" where id = ${userId} for update`;
@@ -137,7 +135,7 @@ async function authorizeBusinessWriter(
 export async function saveBusinessRevision<TProfile = unknown>(
   sql: Sql,
   input: BusinessSaveInput,
-  limit = MAX_BUSINESSES_PER_USER,
+  limit = MAX_BUSINESSES_PER_ACCOUNT,
 ): Promise<BusinessSaveResult<TProfile>> {
   if (
     input.baseRevision !== null &&
@@ -157,7 +155,10 @@ export async function saveBusinessRevision<TProfile = unknown>(
       updated_at: string;
       deleted_at: string | null;
       firm_user_id: string | null;
-    }>`select revision, profile, name, industry, updated_at, deleted_at, firm_user_id
+      unchanged: boolean;
+    }>`select revision, profile, name, industry, updated_at, deleted_at, firm_user_id,
+         (profile = ${input.profileJson}::jsonb and name = ${input.name}
+           and industry = ${input.industry}) as unchanged
        from businesses where user_id = ${input.userId} and id = ${input.businessId} for update`;
     const current = rows[0];
     const deleted = await tx`select 1 from business_deletion_markers
@@ -178,6 +179,16 @@ export async function saveBusinessRevision<TProfile = unknown>(
             industry: current.industry,
             updated_at: toIsoTimestamp(current.updated_at),
           },
+        };
+      }
+      // The same business saved again (a switch, a flush): nothing to write,
+      // and no identical version pushes a real one out of the history.
+      if (current.unchanged) {
+        if (input.activate) await setActiveBusiness(tx, activePointer(input, savedBy));
+        return {
+          ok: true,
+          revision: Number(current.revision),
+          updatedAt: toIsoTimestamp(current.updated_at),
         };
       }
       // Only a successful replacement archives the old row, in the same transaction.
@@ -212,10 +223,14 @@ export async function saveBusinessRevision<TProfile = unknown>(
     const row = written[0];
     if (!row) throw new BusinessUnavailableError();
     if (current) await pruneHistory(tx, input.userId, input.businessId);
-    if (input.activate)
-      await setActiveBusiness(tx, { ...input, userId: savedBy, ownerUserId: input.userId });
+    if (input.activate) await setActiveBusiness(tx, activePointer(input, savedBy));
     return { ok: true, revision: Number(row.revision), updatedAt: toIsoTimestamp(row.updated_at) };
   });
+}
+
+/** The saver's pointer to the business just saved. */
+function activePointer(input: BusinessSaveInput, savedBy: string): ActivePointer {
+  return { userId: savedBy, businessId: input.businessId, ownerUserId: input.userId };
 }
 
 async function pruneHistory(sql: Sql, userId: string, businessId: string): Promise<void> {
@@ -305,7 +320,7 @@ export async function loadBusinessHistoryVersion<TProfile = unknown>(
     : null;
 }
 
-export interface BusinessSummaryRow {
+interface BusinessSummaryRow {
   id: string;
   name: string;
   industry: string;
@@ -371,28 +386,29 @@ export async function listBusinessSummaries(
  * written by older builds still hold a full copy, which `loadActiveBusiness`
  * reads only for an account that has no `businesses` row at all.
  */
-export async function setActiveBusiness(
-  sql: Sql,
-  input: Omit<BusinessSaveInput, "baseRevision" | "profileJson"> & { ownerUserId?: string },
-): Promise<void> {
+interface ActivePointer {
+  /** The account whose pointer this is. */
+  userId: string;
+  businessId: string;
+  /** The row's owner; the pointer's own account when omitted. */
+  ownerUserId?: string;
+}
+
+export async function setActiveBusiness(sql: Sql, input: ActivePointer): Promise<void> {
   await sql`
-    insert into business_profiles (user_id, name, industry, profile, updated_at)
+    insert into business_profiles (user_id, profile, updated_at)
     values (
       ${input.userId},
-      ${input.name},
-      ${input.industry},
       jsonb_build_object('businessId', ${input.businessId}::text, 'ownerUserId', ${input.ownerUserId ?? input.userId}::text, 'pointerVersion', 2),
       now()
     )
     on conflict (user_id) do update set
-      name = excluded.name,
-      industry = excluded.industry,
       profile = excluded.profile,
       updated_at = now()
   `;
 }
 
-export interface ActiveBusiness<TProfile = unknown> {
+interface ActiveBusiness<TProfile = unknown> {
   businessId: string;
   name: string;
   industry: string;
@@ -420,7 +436,7 @@ export async function loadActiveBusiness<
   const active = pointer[0];
   if (!active) return null;
   const businessId =
-    typeof active.profile.businessId === "string" ? active.profile.businessId : "biz_default";
+    typeof active.profile.businessId === "string" ? active.profile.businessId : DEFAULT_BUSINESS_ID;
 
   const pointerOwner = active.profile.ownerUserId;
   const permitted =
@@ -521,7 +537,7 @@ export async function restoreBusinessRow(
   ownerUserId: string,
   businessId: string,
   actorUserId = ownerUserId,
-  limit = MAX_BUSINESSES_PER_USER,
+  limit = MAX_BUSINESSES_PER_ACCOUNT,
 ): Promise<boolean> {
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
@@ -542,6 +558,8 @@ export async function restoreBusinessRow(
 
 export interface DeletedBusinessRow {
   id: string;
+  /** The account the business belongs to: the caller's own, or a colleague's in the firm. */
+  ownerUserId: string;
   name: string;
   industry: string;
   deletedAt: string;
@@ -556,12 +574,13 @@ export async function listDeletedBusinesses(
 ): Promise<DeletedBusinessRow[]> {
   const rows = await sql<{
     id: string;
+    user_id: string;
     name: string;
     industry: string;
     deleted_at: string;
     purge_on: string | null;
   }>`
-    select id, name, industry, deleted_at,
+    select id, user_id, name, industry, deleted_at,
       deleted_at + make_interval(days => ${DELETED_RETENTION_DAYS}::int) as purge_on
     from businesses
     where deleted_at is not null
@@ -571,6 +590,7 @@ export async function listDeletedBusinesses(
   `;
   return rows.map((r) => ({
     id: r.id,
+    ownerUserId: r.user_id,
     name: r.name,
     industry: r.industry,
     deletedAt: toIsoTimestamp(r.deleted_at),

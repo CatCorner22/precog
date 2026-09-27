@@ -1,4 +1,5 @@
 import type { EvidenceFrequency, EvidenceItem, ProcessNode } from "../types";
+import { DAY_MS, localDaysBetween } from "../dates";
 
 export const FREQUENCY_DAYS: Record<EvidenceFrequency, number> = {
   daily: 1,
@@ -18,18 +19,31 @@ export const FREQUENCY_LABEL: Record<EvidenceFrequency, string> = {
 
 export type EvidenceStatus = "never" | "current" | "due_soon" | "overdue";
 
+/**
+ * Where an evidence item stands and how many calendar days are left until
+ * its next review (negative once overdue; null when never done). "Due soon"
+ * is the last fifth of the window, at least a day, so a daily item is
+ * current once done and due soon on its due day. Days are counted between
+ * local calendar days, the same way the control calendar counts them.
+ */
 export function evidenceStatus(
   item: EvidenceItem,
   now = Date.now(),
 ): { status: EvidenceStatus; daysLeft: number | null } {
-  if (!item.lastDoneAt) return { status: "never", daysLeft: null };
+  const due = evidenceDueDate(item);
+  if (!due) return { status: "never", daysLeft: null };
   const period = FREQUENCY_DAYS[item.frequency];
-  const elapsedDays = (now - new Date(item.lastDoneAt).getTime()) / 86_400_000;
-  const daysLeft = Math.round(period - elapsedDays);
+  const daysLeft = localDaysBetween(new Date(now), due);
   if (daysLeft < 0) return { status: "overdue", daysLeft };
-  // "Due soon" in the last fifth of the window (min 1 day for daily).
-  if (daysLeft <= Math.max(1, Math.round(period * 0.2))) return { status: "due_soon", daysLeft };
+  const soon = period <= 1 ? 0 : Math.max(1, Math.round(period * 0.2));
+  if (daysLeft <= soon) return { status: "due_soon", daysLeft };
   return { status: "current", daysLeft };
+}
+
+/** When the item's next review falls due: one period after it was last done; null when never done. */
+export function evidenceDueDate(item: EvidenceItem): Date | null {
+  if (!item.lastDoneAt) return null;
+  return new Date(new Date(item.lastDoneAt).getTime() + FREQUENCY_DAYS[item.frequency] * DAY_MS);
 }
 
 export interface EvidenceSummary {
@@ -78,17 +92,18 @@ export function suggestEvidence(process: ProcessNode): Omit<EvidenceItem, "id">[
   const out: Omit<EvidenceItem, "id">[] = [];
   const text = `${process.name} ${process.description}`.toLowerCase();
   const fraud = (process.risks ?? []).some((r) => r.kind === "fraud");
-  if (/cash|deposit|payment|receipt/.test(text))
+  // Whole words only: "count" inside "account" or "ap" inside "map" is not a match.
+  if (/\b(cash|deposits?|payments?|receipts?)\b/.test(text))
     out.push({ label: "Owner reviews deposit vs. posted receipts", frequency: "weekly" });
-  if (/bank|reconcil/.test(text) || fraud)
+  if (/\b(bank(ing|s)?|reconcil\w*)\b/.test(text) || fraud)
     out.push({ label: "Independent bank reconciliation signed off", frequency: "monthly" });
-  if (/vendor|payable|invoice|ap\b/.test(text))
+  if (/\b(vendors?|payables?|invoices?|ap)\b/.test(text))
     out.push({ label: "New-vendor and payment-batch approval log reviewed", frequency: "monthly" });
-  if (/payroll/.test(text))
+  if (/\bpayroll\b/.test(text))
     out.push({ label: "Payroll register approved before transmission", frequency: "monthly" });
-  if (/write.?off|adjust|claim|billing|a\/r|receivable/.test(text))
+  if (/\b(write.?offs?|adjust\w*|claims?|billing|a\/r|receivables?)(?![a-z])/.test(text))
     out.push({ label: "Adjustment / write-off report reviewed by owner", frequency: "monthly" });
-  if (/inventory|stock|count/.test(text))
+  if (/\b(inventory|stock|counts?)\b/.test(text))
     out.push({ label: "Cycle count variance investigated", frequency: "monthly" });
   if (process.controlIds.length && !out.length)
     out.push({ label: "Control operating-effectiveness walkthrough", frequency: "quarterly" });

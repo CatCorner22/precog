@@ -1,4 +1,4 @@
-import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
+import { ENTITLEMENTS, isOperatingDuty } from "@/lib/precog/sod/conflict-rules";
 import { JOB_CATALOG, JOB_FAMILY_LABEL, type JobFamily } from "@/lib/precog/onboarding/job-catalog";
 
 const LABEL = new Map(ENTITLEMENTS.map((e) => [e.id, e.label] as const));
@@ -37,7 +37,7 @@ export function JobCatalogSheet() {
                     <p className="text-subtle">
                       Starts with:{" "}
                       {j.entitlements
-                        .filter((d) => d !== "view_reports_only")
+                        .filter(isOperatingDuty)
                         .map((d) => LABEL.get(d) ?? d)
                         .join("; ") || "no money duty"}
                     </p>

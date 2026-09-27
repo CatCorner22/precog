@@ -1,3 +1,4 @@
+import { clamp } from "../number";
 /**
  * The continuity grid draws one control per person per item. Past these
  * sizes that paint stalls the page, so the grid shows one page of rows and
@@ -16,9 +17,7 @@ export function pageCount(total: number, size: number): number {
 }
 
 export function clampPage(page: number, total: number, size: number): number {
-  const pages = pageCount(total, size);
-  if (!Number.isFinite(page) || page < 0) return 0;
-  return Math.min(pages - 1, Math.floor(page));
+  return Number.isFinite(page) ? clamp(Math.floor(page), 0, pageCount(total, size) - 1) : 0;
 }
 
 export function pageSlice<T>(items: readonly T[], page: number, size: number): T[] {

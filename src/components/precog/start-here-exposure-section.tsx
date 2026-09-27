@@ -1,24 +1,28 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { BADGE_VARIANT, LONG_SERVICE_YEARS, lower } from "./start-here-copy";
-import { caseForRule } from "@/lib/precog/evidence";
-import { closingSteps, gapBadge } from "@/lib/precog/coach/first-steps";
-import { midSentence } from "@/lib/precog/sod/verdict";
+import { BADGE_VARIANT } from "./start-here-copy";
+import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
+import { gapBadge } from "@/lib/precog/coach/first-steps";
+import { closingSteps } from "@/lib/precog/controls/dual-release-wording";
 import { personLabel } from "@/lib/precog/person-label";
-import { locationText } from "@/lib/precog/person-location";
 import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
-import type { StartHereModel } from "./use-start-here";
+import type { StartHereModel, TenureNoteModel } from "@/lib/precog/start-here/model";
+import type { NavFn } from "@/lib/precog/navigation";
+import { count, joinWithAnd, midSentence, verb } from "@/lib/precog/text";
+import { industryNoun } from "@/lib/precog/industry";
+import { useTabName } from "@/lib/precog/presentation";
 
 export function StartHereExposureSection({
   model,
   onOpenDetail,
 }: {
-  model: StartHereModel;
-  onOpenDetail?: (tab: string) => void;
+  model: StartHereModel["exposure"];
+  onOpenDetail: NavFn;
 }) {
+  const tabName = useTabName();
   const {
     industryId,
     openConflicts,
@@ -36,9 +40,7 @@ export function StartHereExposureSection({
     placesOf,
     atPlaces,
     gapPlaces,
-    tenureByName,
-    tenureCases,
-    tenureNoteRuleId,
+    tenureNote,
     dualRelease,
   } = model;
 
@@ -50,7 +52,7 @@ export function StartHereExposureSection({
         subtitle={
           gaps.length === 0
             ? "Nothing open right now."
-            : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.` +
+            : `${count(gaps.length, "gap")} across ${count(openConflicts.length, "duty conflict")}, worst first.` +
               (narrowedCount > 0
                 ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
                 : "") +
@@ -63,25 +65,22 @@ export function StartHereExposureSection({
       {titleDuties && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           {titleDuties}{" "}
-          {onOpenDetail ? (
-            <button
-              type="button"
-              onClick={() => onOpenDetail("sod")}
-              className="font-medium text-primary underline underline-offset-2 hover:text-fg"
-            >
-              Check them in Who controls what.
-            </button>
-          ) : (
-            "Check them in Who controls what."
-          )}
+          <button
+            type="button"
+            onClick={() => onOpenDetail("sod")}
+            className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+          >
+            Check them in {tabName("sod")}.
+          </button>
         </p>
       )}
 
       {unheld.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
-          Nobody active is marked for: {unheld.join(", ")}. Somebody does each of these in every
-          business that handles money, so mark who on Who controls what; until then the findings
-          here cannot see that seat.
+          Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
+          {verb(unheld.length, "this", "each of these")} in every {industryNoun(industryId)} that
+          handles money, so mark who on {tabName("sod")}; until then this check cannot cover{" "}
+          {verb(unheld.length, "that duty", "those duties")}.
         </p>
       )}
 
@@ -90,7 +89,7 @@ export function StartHereExposureSection({
           <span className="font-medium">
             {personLabel(headline.personName, headline.role)}
             {placesOf.has(headline.personId)
-              ? `, at ${locationText(placesOf.get(headline.personId) ?? [])},`
+              ? `, at ${joinWithAnd(placesOf.get(headline.personId) ?? [])},`
               : ""}{" "}
             holds {headline.gaps} of the {headline.totalGaps} open gaps.
           </span>{" "}
@@ -132,49 +131,18 @@ export function StartHereExposureSection({
                         : `${people.length} people: ${people.map((name, i) => atPlaces(name, ids[i])).join(", ")}`}
                     </span>
                     {people.length > 1 && gapPlaces(ids).length > 0 && (
-                      <Badge variant="default">At {locationText(gapPlaces(ids))}</Badge>
+                      <Badge variant="default">At {joinWithAnd(gapPlaces(ids))}</Badge>
                     )}
                   </div>
                   <CardTitle as="h3" className="leading-snug">
                     {people.length === 1 ? `${people[0]} can` : "These people each can"} both{" "}
-                    {lower(conflict.labelA)} and {lower(conflict.labelB)}
+                    {midSentence(conflict.labelA)} and {midSentence(conflict.labelB)}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <p className="leading-relaxed text-muted">{conflict.why}</p>
 
-                  {(() => {
-                    const longServing = people
-                      .map((name) => ({ name, years: tenureByName.get(name) ?? 0 }))
-                      .filter((p) => p.years >= LONG_SERVICE_YEARS);
-                    const { longest, shortest, n } = tenureCases;
-                    if (
-                      conflict.ruleId !== tenureNoteRuleId ||
-                      longServing.length === 0 ||
-                      !longest
-                    )
-                      return null;
-                    return (
-                      <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
-                        {longServing.length === 1
-                          ? `${longServing[0].name} has ${longServing[0].years} years here.`
-                          : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
-                        Length of service is not a control. Of the {n} cases in the library whose
-                        source states how long the person had served, the longest,{" "}
-                        {longest.tenureYearsStated} years, cost the business{" "}
-                        {longest.lossIsFloor ? "at least " : ""}
-                        {formatUsd(longest.lossUsd)}
-                        {shortest
-                          ? `; the shortest began ${
-                              shortest.tenureYearsStated === 0
-                                ? "within months of hire"
-                                : `after ${shortest.tenureYearsStated} years`
-                            } and cost ${shortest.lossIsFloor ? "at least " : ""}${formatUsd(shortest.lossUsd)}`
-                          : ""}
-                        . The people in those cases were trusted for the same reason yours are.
-                      </p>
-                    );
-                  })()}
+                  {conflict.ruleId === tenureNote?.ruleId && <TenureNote note={tenureNote} />}
 
                   {partialCoverage.has(conflict.ruleId) && (
                     <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
@@ -227,8 +195,8 @@ export function StartHereExposureSection({
                 Narrowed by your dual-release policy, not closed
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
-                Two people are required above the threshold. Beneath it, and wherever an exception
-                raises or waives the threshold, one person can still act alone.
+                Your policy requires two people above the threshold. Beneath it, and wherever an
+                exception raises or waives the threshold, one person can still act alone.
               </p>
               <ul className="mt-3 space-y-2">
                 {narrowed.map(({ conflict, people, ids }) => (
@@ -248,7 +216,7 @@ export function StartHereExposureSection({
             </div>
           )}
 
-          {gaps.length > topThree.length && onOpenDetail && (
+          {gaps.length > topThree.length && (
             <button
               type="button"
               onClick={() => onOpenDetail("sod")}
@@ -296,5 +264,34 @@ export function StartHereExposureSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Why long service is no reassurance, beside the first top gap a long-serving
+ * person holds: the longest- and shortest-serving people in the library's
+ * cases whose source states tenure.
+ */
+function TenureNote({ note }: { note: TenureNoteModel }) {
+  const { longServing } = note;
+  const { longest, shortest, n } = note.cases;
+  if (!longest) return null;
+  return (
+    <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
+      {longServing.length === 1
+        ? `${longServing[0].name} has ${longServing[0].years} years here.`
+        : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
+      Length of service is not a control. The library holds {n} cases whose source states how long
+      the person had served. The longest-serving, {longest.tenureYearsStated} years in, cost the
+      business {lossPhrase(longest)}.
+      {shortest
+        ? ` The shortest-serving began ${
+            shortest.tenureYearsStated === 0
+              ? "within months of hire"
+              : `after ${shortest.tenureYearsStated} years`
+          } and cost ${lossPhrase(shortest)}.`
+        : ""}{" "}
+      The people in those cases were trusted for the same reason yours are.
+    </p>
   );
 }

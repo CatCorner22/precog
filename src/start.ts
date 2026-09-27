@@ -40,7 +40,7 @@ const clientErrorStatusMiddleware = createMiddleware({ type: "function" }).serve
       const { applyClientErrorStatus } = await import("@/lib/server-fn-status.server");
       if (!applyClientErrorStatus(error)) {
         const { reportServerError } = await import("@/lib/observability/report.server");
-        reportServerError(error, "server-fn");
+        await reportServerError(error, "server-fn");
       }
       throw error;
     }

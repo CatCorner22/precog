@@ -1,6 +1,26 @@
 import type { Sql } from "./db";
 
-export type QueryRunner = <T>(text: string, params: unknown[]) => Promise<T[]>;
+type QueryRunner = <T>(text: string, params: unknown[]) => Promise<T[]>;
+
+/**
+ * Result-type parity: Postgres sends every value as text plus a type OID, and
+ * the JS value is the driver's parsing choice. pg returns int8 as a string and
+ * date as a local-midnight Date; PGlite 0.5 returns int8 as a number and date
+ * as a UTC Date. Both backends are pinned here so preview and production
+ * return identical shapes whatever the driver defaults:
+ *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
+ *                                   `::text` if you ever need huge integers)
+ *   date                         -> 'YYYY-MM-DD' string
+ *   interval                     -> Postgres interval text
+ * numeric already comes back as a string on both (arbitrary precision).
+ * Every database the app and its tests open uses this table; it lives here,
+ * not in db.ts, because importing db.ts starts the app's database bootstrap.
+ */
+export const DB_TYPE_PARSERS: Record<number, (value: string) => unknown> = {
+  20: Number, // int8
+  1082: (value) => value, // date
+  1186: (value) => value, // interval
+};
 
 /** Shared parameterization for pooled, reserved-connection and embedded SQL. */
 export function toSql(run: QueryRunner): Sql {
@@ -26,11 +46,14 @@ export async function transactionScope<T>(
 ): Promise<T> {
   let active = true;
   let failed = false;
+  // The first failure inside the unit, kept as the cause of the abort.
+  let firstFailure: unknown;
   const tx = toSql(async <R>(text: string, params: unknown[]) => {
     if (!active) throw new Error("Transaction is already closed");
     try {
       return await run<R>(text, params);
     } catch (error) {
+      if (!failed) firstFailure = error;
       failed = true;
       throw error;
     }
@@ -40,13 +63,18 @@ export async function transactionScope<T>(
     try {
       return await nested(tx);
     } catch (error) {
+      if (!failed) firstFailure = error;
       failed = true;
       throw error;
     }
   };
   try {
     const result = await work(tx);
-    if (failed) throw new Error("Transaction aborted after a nested operation failed");
+    if (failed) {
+      throw new Error("Transaction aborted after a nested operation failed", {
+        cause: firstFailure,
+      });
+    }
     return result;
   } finally {
     active = false;

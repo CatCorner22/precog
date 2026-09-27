@@ -1,12 +1,13 @@
 import { CORE_POLICY_FIELDS } from "./scoring/insurance-record";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { findKnowledgeRisks, rankDangerousScenarios, runPrecogScenario } from "./engine";
 import { INDUSTRIES } from "./industry";
 import { DEFAULT_RISK_VARIABLES } from "./scoring/dynamic-variables";
 import type { Person, StaffComposition } from "./types";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 /** An owner's own team: two people, no register marks. */
 const ownPeople: Person[] = [
@@ -56,7 +57,7 @@ describe("findKnowledgeRisks", () => {
     expect(new Set(risks.map((r) => r.riskScore)).size).toBe(1);
   });
 
-  it("reports nothing for a starter register nobody has marked", () => {
+  it("reports nothing for a sample register nobody has marked", () => {
     // The industry's starter list with no relations is not a fact about the business.
     expect(findKnowledgeRisks({ ...dental, relations: [] })).toEqual([]);
     const own = resolveTemplate({
@@ -92,7 +93,7 @@ describe("runPrecogScenario", () => {
 
   it("produces an ordered timeline and impact range for every scenario in every industry", () => {
     for (const { id } of INDUSTRIES) {
-      const tpl = getBaseTemplate(id);
+      const tpl = getIndustryTemplate(id);
       for (const scenario of tpl.scenarios) {
         const r = runPrecogScenario(tpl, scenario.id);
         expect(r, `${id}/${scenario.id}`).not.toBeNull();
@@ -108,7 +109,7 @@ describe("runPrecogScenario", () => {
   });
 
   it("names the people the business serves, not patients, outside dental", () => {
-    const retail = getBaseTemplate("retail");
+    const retail = getIndustryTemplate("retail");
     const withSurface = retail.scenarios.find((s) => s.cascadeLayers.includes("surface"))!;
     const r = runPrecogScenario(retail, withSurface.id)!;
     const surface = r.cascade.find((c) => c.layer === "surface")!;
@@ -147,6 +148,74 @@ describe("runPrecogScenario", () => {
     const w = runPrecogScenario(dental, fraud.id, { staff: weak })!;
     const s = runPrecogScenario(dental, fraud.id, { staff: strong })!;
     expect(w.financialImpact.expected).toBeGreaterThan(s.financialImpact.expected);
+  });
+});
+
+describe("what the scenario page says", () => {
+  it("describes the cascade and accepting the risk in plain words", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      for (const scenario of tpl.scenarios) {
+        const r = runPrecogScenario(tpl, scenario.id)!;
+        const text = [...r.cascade.map((c) => c.effect), r.residualIfNothing].join(" ");
+        expect(text, `${id}/${scenario.id}`).not.toMatch(
+          /fails open|default state|single-threaded|fragility|Continuity layer|Re-run Precog/,
+        );
+      }
+    }
+  });
+});
+
+describe("staffing uplift sentences", () => {
+  const base: StaffComposition = {
+    teamSize: 12,
+    soleOwnerKnowledgeCount: 0,
+    avgTenureYears: 8,
+    segregationScore: 90,
+    dualControlPayments: true,
+    independentBankRec: true,
+  };
+  const run = (staff: StaffComposition) => runPrecogScenario(dental, "sc-vendor-fraud", { staff })!;
+  const uplifts = (staff: StaffComposition) =>
+    run(staff).staffModifiers.filter((m) => m.startsWith("Assumed uplift"));
+
+  it("names an uplift exactly when it changes the figures", () => {
+    const changes: Partial<StaffComposition>[] = [
+      { teamSize: 4 },
+      { soleOwnerKnowledgeCount: 1 },
+      { soleOwnerKnowledgeCount: 2 },
+      { segregationScore: 30 },
+      { dualControlPayments: false },
+      { independentBankRec: false },
+      { avgTenureYears: 1 },
+    ];
+    const baseLoss = run(base).financialImpact.expected;
+    expect(uplifts(base)).toEqual([]);
+    for (const change of changes) {
+      const staff = { ...base, ...change };
+      const moved = run(staff).financialImpact.expected !== baseLoss;
+      const named = uplifts(staff).length > 0;
+      expect(named, JSON.stringify(change)).toBe(moved);
+    }
+  });
+});
+
+describe("fraud scenarios outside the shared ids", () => {
+  it("prices skimmed donations as fraud and shows the fraud reference figures", () => {
+    const nonprofit = getIndustryTemplate("nonprofit");
+    const staff = { ...nonprofit.staffComposition, dualControlPayments: true };
+    const skim = runPrecogScenario(nonprofit, "sc-skimmed-donations", { staff })!;
+    const cash = runPrecogScenario(nonprofit, "sc-cash-sod-failure", { staff })!;
+    expect(skim.crimeModifiers[0]).toMatch(/^For reference only/);
+    expect(skim.crimeModifiers.join(" ")).not.toContain("Not a fraud scenario");
+    expect(skim.dynamic!.likelihoodMultiplier).toBe(cash.dynamic!.likelihoodMultiplier);
+  });
+
+  it("keeps a departure out of the fraud figures", () => {
+    const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    expect(r.crimeModifiers[0]).toBe(
+      "Not a fraud scenario, so the fraud figures are not applied to it.",
+    );
   });
 });
 
@@ -206,7 +275,7 @@ describe("insurance on an own business", () => {
 });
 
 describe("scenarios in scope", () => {
-  it("ranks none of the starter scenarios for an own business until one is confirmed", () => {
+  it("ranks none of the sample scenarios for an own business until one is confirmed", () => {
     expect(rankDangerousScenarios(ownDental)).toEqual([]);
     const ranked = rankDangerousScenarios(ownDental, {
       confirmedScenarioIds: new Set(["sc-cash-sod-failure"]),

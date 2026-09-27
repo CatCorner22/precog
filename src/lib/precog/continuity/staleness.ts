@@ -1,4 +1,4 @@
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { daysBetween, isCalendarDate } from "../dates";
 import {
@@ -23,14 +23,10 @@ interface StaleItem {
   action: string;
 }
 
-export interface StalenessReport {
+interface StalenessReport {
   stale: StaleItem[];
   /** Criticality-weighted percentage of items confirmed within the freshness window. */
   confirmedIndex: number;
-}
-
-function ageInDays(confirmedAt: string, today: string): number | null {
-  return daysBetween(confirmedAt, today);
 }
 
 export function staleItems(
@@ -48,7 +44,7 @@ export function staleItems(
       row.item.confirmedAt && isCalendarDate(row.item.confirmedAt, today)
         ? row.item.confirmedAt
         : null;
-    const ageDays = confirmedAt ? ageInDays(confirmedAt, today) : null;
+    const ageDays = confirmedAt ? daysBetween(confirmedAt, today) : null;
     const fresh = ageDays !== null && ageDays <= maxAgeDays;
     const weight = CRITICALITY_WEIGHT[row.item.criticality];
     totalWeight += weight;

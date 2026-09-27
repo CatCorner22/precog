@@ -1,4 +1,5 @@
 import { isCalendarDate } from "../dates";
+import type { RiskVariableState } from "./dynamic-variables";
 
 export const POLICY_FIELDS = [
   "basePremiumAnnual",
@@ -60,5 +61,33 @@ export function normalizeInsuranceRecord(value: unknown): InsuranceRecord | unde
     ...(typeof input.reviewedOn === "string" && isCalendarDate(input.reviewedOn)
       ? { reviewedOn: input.reviewedOn }
       : {}),
+  };
+}
+
+/**
+ * The next variable state after an edit, with the insurance record kept true.
+ *
+ * A policy figure that changed is no longer one the owner confirmed, and any
+ * scenario recovery modelled on the old figures is cleared. The record itself
+ * (status, source, review date) is carried over from the current state, so
+ * replacing every figure, as "Reset figures to app defaults" does, never
+ * deletes what the owner entered about their policy. Every writer of policy
+ * figures goes through here.
+ */
+export function withPolicyEdit(
+  current: RiskVariableState,
+  next: RiskVariableState,
+): RiskVariableState {
+  const insurance = normalizeInsuranceRecord(current.insurance);
+  if (!insurance) return next;
+  const changed = POLICY_FIELDS.filter((field) => current[field] !== next[field]);
+  if (changed.length === 0) return { ...next, insurance };
+  return {
+    ...next,
+    insurance: {
+      ...insurance,
+      confirmedFields: insurance.confirmedFields.filter((field) => !changed.includes(field)),
+      modeledScenarioIds: [],
+    },
   };
 }

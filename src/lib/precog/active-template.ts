@@ -3,9 +3,10 @@ import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { detectSodConflicts, type DetectedConflict } from "./sod/detect";
+import { midSentence } from "./text";
 
 /** A journal entry's link to what it is about (see DecisionEntry in practice-profile). */
-export interface DecisionLink {
+interface DecisionLink {
   linkedTab?: string;
   linkedId?: string;
   linkedIndustry?: IndustryId;
@@ -173,11 +174,6 @@ function ownControls(
   });
 }
 
-/** Lower-cases a rule title's first word unless it is an acronym ("ACH initiation"). */
-function lowerFirst(title: string): string {
-  return /^[A-Z][a-z]/.test(title) ? title[0].toLowerCase() + title.slice(1) : title;
-}
-
 /** What a rule-linked control covers on this team, named from the pairs actually open. */
 function describeOwnControl(open: readonly DetectedConflict[], ownerHolds: boolean): string {
   if (open.length === 0) {
@@ -187,13 +183,8 @@ function describeOwnControl(open: readonly DetectedConflict[], ownerHolds: boole
   }
   const shown = open
     .slice(0, 3)
-    .map((c) => `${c.personName} (${lowerFirst(c.title)})`)
+    .map((c) => `${c.personName} (${midSentence(c.title)})`)
     .join("; ");
   const more = open.length - 3;
   return `Open on your team: ${shown}${more > 0 ? `; and ${more} more` : ""}.`;
-}
-
-/** The unmodified industry template (before any user overrides). */
-export function getBaseTemplate(industry: IndustryId): IndustryTemplate {
-  return getIndustryTemplate(industry);
 }

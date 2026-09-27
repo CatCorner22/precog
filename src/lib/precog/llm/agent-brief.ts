@@ -1,6 +1,55 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
-import { formatUsd as usd } from "@/lib/utils";
+import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
+import { formatUsd, formatUsdDelta } from "@/lib/utils";
+import { joinWithAnd, verb, count } from "../text";
+import { clamp } from "../number";
+import { lossPhrase } from "../evidence";
+import { tabLabel } from "../navigation";
+import { RISK_SCALE } from "../scoring/bands";
+
+/**
+ * The brief's sections, in reading order: the answer first (what to do this
+ * week, the moves, the warnings), then the figures behind it. The rules brief
+ * writes them and the model is asked for the same list.
+ */
+export const BRIEF_SECTION = {
+  situation: "Situation",
+  thisWeek: "This week",
+  moves: "Recommended moves",
+  warnings: "Warnings",
+  risks: "Biggest open risks",
+  cases: "What this has cost other businesses",
+  conditions: "Watched conditions",
+  cascades: "What else moves",
+  order: "Order of fixes (this app's model)",
+  lenses: "Four review lenses",
+  tradeoffs: "Tradeoffs",
+  sources: "Where the figures come from",
+} as const;
+
+export const BRIEF_SECTIONS: readonly string[] = Object.values(BRIEF_SECTION);
+
+/**
+ * When a warning fires. Every threshold is this app's own choice, not a
+ * benchmark, and the text that quotes one says so.
+ */
+export const WARNING_RULES = {
+  /** The risk index's "act now" band (scoring/bands). */
+  averageResidual: RISK_SCALE.actNow,
+  /** One critical-path risk is on the register already; two or more is a pattern. */
+  criticalPathCount: 2,
+  /** A scenario loss this app treats as large for a small business... */
+  scenarioRetainedUsd: 15_000,
+  /** ...assumed to surface within a quarter. */
+  scenarioDaysUntilFound: 90,
+  /** At this team size or below, separating every duty is rarely realistic. */
+  smallTeamSize: 6,
+} as const;
+
+/** The warning when nothing crosses a threshold; the critic lens says the same. */
+export const NO_ALERT_WARNING =
+  "Nothing is at a red alert; check again after a team or insurance change.";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -52,7 +101,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           metric:
             spof.itemCount === 0
               ? "not assessed yet · the register is empty"
-              : `not assessed yet · nobody marked on ${spof.itemCount} starter item(s)`,
+              : `not assessed yet · nobody marked on ${spof.itemCount} sample item(s)`,
           link: { tab: "knowledge" },
         });
       }
@@ -61,25 +110,21 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "spof",
           label: row.name,
-          metric: `SPOF · ${row.riskScore ?? "?"} · ${row.owners[0]?.name ?? "unowned"}`,
+          metric: row.owners[0]
+            ? `only ${row.owners[0].name} can run it · risk index ${row.riskScore ?? "?"}/100`
+            : `nobody can run it · risk index ${row.riskScore ?? "?"}/100`,
           link: row.knowledgeId ? { tab: "knowledge", id: row.knowledgeId } : { tab: "knowledge" },
         });
       }
     }
 
     if (t.tool === "run_precog_scenario") {
-      const d = t.data as {
-        scenarioId: string;
-        title: string;
-        retained: { expected: number };
-        timelineDays: { p50: number };
-        dynamic: { expectedAnnualCostOfRisk: number } | null;
-      };
+      const d = t.data as ScenarioRunData;
       evidence.push({
         id: `ev-${++i}`,
         kind: "scenario",
         label: d.title,
-        metric: `assumed retained ${usd(d.retained.expected)} · about ${d.timelineDays.p50}d · CoR ${usd(d.dynamic?.expectedAnnualCostOfRisk ?? 0)}`,
+        metric: describeScenarioFigures(d),
         link: { tab: "precog", id: d.scenarioId },
       });
     }
@@ -89,8 +134,8 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "coso",
-        label: `COSO ${d.overall}`,
-        metric: d.status,
+        label: "Coverage check",
+        metric: `${d.overall}/100 · ${d.status}`,
         link: { tab: "coso" },
       });
     }
@@ -120,7 +165,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           kind: "sod",
           label: "Prosecuted cases matching the open gaps",
           metric: d.lossRange
-            ? `${d.matchingCases} cases; median stated loss ${usd(d.lossRange.median)}`
+            ? `${d.matchingCases} cases; median stated loss ${formatUsd(d.lossRange.median)}`
             : `${d.matchingCases} cases`,
           link: { tab: "start" },
         });
@@ -139,7 +184,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "insurance",
         label: "Cost of risk",
-        metric: `premium ${usd(d.transfer.premiumAnnualNet)} (−${d.transfer.discountPctApplied}%) · CoR ${usd(d.transfer.expectedAnnualCostOfRisk)}`,
+        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (${d.transfer.discountPctApplied}% discount) · yearly cost of risk ${formatUsd(d.transfer.expectedAnnualCostOfRisk)}`,
         link: { tab: "precog" },
       });
     }
@@ -157,7 +202,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "cascade",
           label: row.label,
-          metric: `ΔCoR ${usd(row.deltaCor)} · Δresidual ${row.deltaResidual.toFixed(1)}`,
+          metric: `yearly cost of risk ${formatUsdDelta(row.deltaCor)} · risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}`,
           link: { tab: "precog" },
         });
       }
@@ -172,7 +217,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "rag",
           label: h.title,
-          metric: `${h.domain} · score ${h.score}`,
+          metric: "control guidance",
           link: { tab: "intel" },
         });
       }
@@ -183,7 +228,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "ml",
-        label: "Leading indicators",
+        label: "Watched conditions",
         metric: `${d.breached} breached · ${d.watch} at watch`,
         link: { tab: "intel" },
       });
@@ -243,18 +288,20 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     | undefined;
 
   if (!cas?.topByCostOfRisk?.length) {
-    return ["Variables are coupled — re-run cascade simulation after profile changes."];
+    return [
+      "The premium, the deductible and the controls move together; run the what-else-moves check again after you change one.",
+    ];
   }
 
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${usd(cas.baseline.premiumAnnualNet)}, retained ${usd(cas.baseline.retainedExpected)}, CoR ${usd(cas.baseline.expectedAnnualCostOfRisk)}, residual ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatUsd(cas.baseline.retainedExpected)}, yearly cost of risk ${formatUsd(cas.baseline.expectedAnnualCostOfRisk)}, risk index ${cas.baseline.residualAverage}.`,
     );
   }
   for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: CoR ${usd(row.deltaCor)}, retained ${usd(row.deltaRetained)}, premium ${usd(row.deltaPremium)}, residual ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, p50 ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}d. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: yearly cost of risk ${formatUsdDelta(row.deltaCor)}, assumed retained ${formatUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -267,22 +314,28 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as
     { breached?: number; watch?: number } | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
-    { retained: { expected: number }; timelineDays: { p50: number }; title: string } | undefined;
+    ScenarioRunData | undefined;
 
-  if ((residual?.averageResidual ?? 0) >= 60) {
-    warnings.push(`Avg residual ${residual!.averageResidual} is Act-now territory.`);
+  if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
+    warnings.push(
+      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on this app's own index).`,
+    );
   }
-  if ((residual?.criticalPath ?? 0) >= 2) {
-    warnings.push(`Multiple critical-path residuals (${residual!.criticalPath}).`);
+  if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
+    warnings.push(`${residual!.criticalPath} risks are in the "fix first" band.`);
   }
   if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(
-      `${leading.breached} leading indicator(s) breached — the conditions that precede a loss are present.`,
+      `${count(leading.breached!, "watched condition")} breached: the conditions that come before a loss are present.`,
     );
   }
-  if (scenario && scenario.retained.expected > 15000 && scenario.timelineDays.p50 < 90) {
+  if (
+    scenario &&
+    scenario.retained.expected > WARNING_RULES.scenarioRetainedUsd &&
+    scenario.timelineDays.p50 < WARNING_RULES.scenarioDaysUntilFound
+  ) {
     warnings.push(
-      `"${scenario.title}" assumes ${usd(scenario.retained.expected)} retained about ${scenario.timelineDays.p50} days out (a scenario assumption, not a forecast).`,
+      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; this app warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
@@ -304,7 +357,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
     warnings.push(`Debrief due: ${d.summary}`);
   }
   if (!warnings.length) {
-    warnings.push("No single red alert — still re-score after staff or insurance change.");
+    warnings.push(NO_ALERT_WARNING);
   }
   return warnings;
 }
@@ -433,7 +486,7 @@ export function localSynthesize(
         knowledgeId: string;
         name: string;
         criticality: string;
-        successor: { name: string } | null;
+        successor: { id: string; name: string } | null;
         documented: boolean;
         procedureLocation: string | null;
         trainingLogged: { reviewBy: string | null } | null;
@@ -457,7 +510,7 @@ export function localSynthesize(
       .slice(0, 2)
       .map((d) => d.label)
       .join("; ");
-    return `**${t.name}** — residual **${t.residual}/100** (${t.band}). Drivers: ${drivers || "n/a"}.`;
+    return `**${t.name}**: risk index **${t.residual}/100** (${t.band}).${drivers ? ` Drivers: ${drivers}.` : ""}`;
   });
 
   // Real losses behind the open gaps. Facts stated in cited sources, so the
@@ -470,14 +523,12 @@ export function localSynthesize(
   if (caseEv && caseEv.matchingCases > 0) {
     const largest = caseEv.largest;
     highestRisks.push(
-      `**What this has cost other businesses** — ${caseEv.matchingCases} prosecuted ${caseEv.matchingCases === 1 ? "case matches" : "cases match"} the open duty conflicts` +
+      `**${BRIEF_SECTION.cases}**: ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} the open duty conflicts` +
         (caseEv.lossRange
-          ? `; median stated loss ${usd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
+          ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
-        (largest
-          ? `. Largest: "${largest.title}" (${largest.lossIsFloor ? "at least " : ""}${usd(largest.lossUsd)}).`
-          : ".") +
-        " Other organizations, not this one; see Start here for the sources.",
+        (largest ? `. Largest: "${largest.title}" (${lossPhrase(largest)}).` : ".") +
+        " Other businesses, not this one; see Start here for the sources.",
     );
   }
 
@@ -485,20 +536,20 @@ export function localSynthesize(
     (() => {
       const n = snap?.staff.teamSize;
       if (typeof n !== "number")
-        return "Team size unknown — enter your team to see how far duties can be separated.";
-      return n <= 6
-        ? `Team size ${n} — with this few people, separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
-        : `Team size ${n} — enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
+        return "Team size unknown: enter your team to see how far duties can be separated.";
+      return n <= WARNING_RULES.smallTeamSize
+        ? `Team of ${n}: at ${WARNING_RULES.smallTeamSize} people or fewer (this app's cut-off), separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
+        : `Team of ${n}: enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
     })(),
     leading
-      ? `Leading indicators: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
-      : "Check the leading indicators for conditions that precede a loss.",
+      ? `Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
+      : "Check the watched conditions on Patterns for what comes before a loss.",
     bestCascade
-      ? `Best cascade: **${bestCascade.label}** (ΔCoR ${usd(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
-      : "Simulate variable cascades.",
+      ? `Biggest knock-on effect: **${bestCascade.label}** (yearly cost of risk ${formatUsdDelta(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
+      : "Run the what-else-moves check on What could happen.",
     rag?.hits?.[0]
-      ? `RAG: _${rag.hits[0].title}_ — ${rag.hits[0].text.slice(0, 140)}…`
-      : "Retrieve control guidance for acceptance language.",
+      ? `Guidance: _${rag.hits[0].title}_: ${rag.hits[0].text.slice(0, 140)}…`
+      : "Read the control guidance on Patterns before you accept a risk.",
   ];
 
   // Planning cadences, not measurements: how soon the coach suggests reviewing
@@ -509,7 +560,7 @@ export function localSynthesize(
     const first = plan[0];
     const others = plan.length - 1;
     return {
-      action: `Check in with ${first.person.name}: ${first.items.length} register ${first.items.length === 1 ? "entry" : "entries"} to re-confirm${others > 0 ? ` (${others} more ${others === 1 ? "person" : "people"} after that)` : ""}`,
+      action: `Check in with ${first.person.name}: ${count(first.items.length, "register entry", "register entries")} to re-confirm${others > 0 ? ` (${others} more ${verb(others, "person", "people")} after that)` : ""}`,
       rationale: `The register says ${first.person.name} can do ${first.items
         .slice(0, 3)
         .map((entry) => entry.name)
@@ -523,11 +574,10 @@ export function localSynthesize(
     };
   };
 
-  const reconfirmDecision = (stale: { name: string }[], unheld: boolean) => ({
+  const reconfirmDecision = (stale: { name: string }[]) => ({
     action: `Re-confirm the register entry for ${stale[0].name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`,
-    rationale: unheld
-      ? "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them."
-      : "The register says who can run this, but nobody has confirmed it in 90+ days; people leave, learn and forget, so the coverage figures above may be false comfort.",
+    rationale:
+      "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them.",
     evidenceIds: [] as string[],
     effort: "low" as const,
     horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
@@ -548,10 +598,10 @@ export function localSynthesize(
             w.status === "current"
               ? `In progress: ${c.name} is covered while ${w.person.name} ${out}${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`
               : `In progress: hand-off of ${c.name} before ${w.person.name} is out${c.handoffCommitted?.reviewBy ? ` — review ${c.handoffCommitted.reviewBy}` : ""}`,
-          rationale: `You already logged the hand-off in the Journal${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
+          rationale: `You already logged the hand-off in the Decisions log${committed.length > 1 ? ` (${committed.length} entries)` : ""}. ${w.person.name} is away ${w.from} to ${w.to}; close the entries as done once the stand-in has actually taken it over.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
-          horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.journal, w.daysUntil)),
+          horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.journal),
           cascadeEffects: [cascade],
         },
       ];
@@ -563,7 +613,7 @@ export function localSynthesize(
         ? w.unplanned
           ? `${out} today (${w.from}${w.to !== w.from ? ` to ${w.to}` : ""})`
           : "is out now"
-        : `is out ${w.from} to ${w.to}, in ${w.daysUntil} day${w.daysUntil === 1 ? "" : "s"}`;
+        : `is out ${w.from} to ${w.to}, in ${count(w.daysUntil, "day")}`;
     const procedure = !first.documented
       ? "nothing is written down"
       : first.procedureLocation
@@ -574,12 +624,12 @@ export function localSynthesize(
         ? ` Tell ${first.standIn.name} today that ${first.name} is theirs for now; ${procedure}.`
         : "";
     const also = w.overlaps.length
-      ? ` ${w.overlaps.map((o) => o.person.name).join(" and ")} ${w.overlaps.length === 1 ? "is" : "are"} also away for part of it.`
+      ? ` ${joinWithAnd(w.overlaps.map((o) => o.person.name))} ${verb(w.overlaps.length, "is", "are")} also away for part of it.`
       : "";
     const othersAway = w.worstStretch.away.filter((p) => p.id !== w.person.id);
     const during =
       w.worstStretch.extraStops.length > 0 && othersAway.length > 0
-        ? ` ${w.worstStretch.from} to ${w.worstStretch.to}, while ${othersAway.map((p) => p.name).join(" and ")} ${othersAway.length === 1 ? "is" : "are"} also away`
+        ? ` ${w.worstStretch.from} to ${w.worstStretch.to}, while ${joinWithAnd(othersAway.map((p) => p.name))} ${verb(othersAway.length, "is", "are")} also away`
         : " for the whole absence";
     return [
       {
@@ -588,10 +638,10 @@ export function localSynthesize(
             ? `${first.standIn.name} covers ${first.name} today while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
             : `Hand off ${first.name} to ${first.standIn.name} before ${w.person.name} is out${w.status === "upcoming" ? ` (by ${w.handoffBy})` : ""}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`
           : `Decide who covers ${first.name} while ${w.person.name} ${out}${open.length > 1 ? ` — and ${open.length - 1} more` : ""}`,
-        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody who can run ${noOne.length === 1 ? "it" : "them"} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Left in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${w.person.name} ${when}. ${open.length === 1 ? `${first.name} stops` : `${open.length} register entries stop`}${during}${noOne.length ? `; ${noOne.map((s) => s.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody who can run ${verb(noOne.length, "it", "them")} alone` : ""}.${also}${coverNow}${w.remaining.length ? ` Still in the business: ${w.remaining.map((p) => p.name).join(", ")}.` : " Nobody else remains in the business."}`,
         evidenceIds: [] as string[],
         effort: first.standIn ? ("low" as const) : ("medium" as const),
-        horizonDays: Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, w.daysUntil)),
+        horizonDays: clamp(w.daysUntil, 1, REVIEW_HORIZON_DAYS.crossTrain),
         cascadeEffects: [cascade],
       },
     ];
@@ -604,7 +654,7 @@ export function localSynthesize(
       return [
         {
           action: `Mark ${name} as left on the register`,
-          rationale: `${l.summary} Until then the coverage figures count ${name} as a backup${l.handover.length > 0 ? ` for ${l.handover.length} ${l.handover.length === 1 ? "entry" : "entries"} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
+          rationale: `${l.summary} Until then the coverage figures count ${name} as a stand-in${l.handover.length > 0 ? ` for ${count(l.handover.length, "entry", "entries")} nobody else can run alone` : ""}; marking them left keeps the record in the history and shows the real gap.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: 1,
@@ -613,7 +663,7 @@ export function localSynthesize(
       ];
     }
     if (l.handover.length === 0 && l.orphanedProcesses.length === 0) return [];
-    const horizon = Math.max(1, Math.min(REVIEW_HORIZON_DAYS.crossTrain, l.daysLeft));
+    const horizon = clamp(l.daysLeft, 1, REVIEW_HORIZON_DAYS.crossTrain);
     if (l.handover.length === 0) {
       return [
         {
@@ -632,8 +682,8 @@ export function localSynthesize(
       const c = committed[0];
       return [
         {
-          action: `In progress: ${name}'s hand-over of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
-          rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Journal; close each as done once the successor can run it, before ${l.lastDay}.`,
+          action: `In progress: ${name}'s hand-off of ${c.name}${committed.length > 1 ? ` and ${committed.length - 1} more` : ""}${c.trainingLogged?.reviewBy ? ` — review ${c.trainingLogged.reviewBy}` : ""}`,
+          rationale: `${l.summary} Every entry only ${name} can run alone already has a training step in the Decisions log; close each as done once the successor can run it, before ${l.lastDay}.`,
           evidenceIds: [] as string[],
           effort: "low" as const,
           horizonDays: horizon,
@@ -650,11 +700,17 @@ export function localSynthesize(
         action: first.successor
           ? `Train ${first.successor.name} on ${first.name} before ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`
           : `Decide who takes ${first.name} when ${name} leaves (by ${l.handoverBy})${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${noOne.length === 1 ? "has" : "have"} nobody to take ${noOne.length === 1 ? "it" : "them"} — hire, outsource or retire ${noOne.length === 1 ? "it" : "them"}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has gone, nobody can.` : ""}${l.remaining.length ? ` Left in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else is left in the business."}`,
+        rationale: `${l.summary}${noOne.length ? ` ${noOne.map((h) => h.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")} — hire, outsource or retire ${verb(noOne.length, "it", "them")}.` : ""}${unwritten.length ? ` Have ${name} write down ${unwritten.map((h) => h.name).join(", ")} before the last day; once ${name} has left, nobody can.` : ""}${l.remaining.length ? ` Still in the business: ${l.remaining.map((p) => p.name).join(", ")}.` : " Nobody else remains in the business."}`,
         evidenceIds: [] as string[],
         effort: first.successor ? ("medium" as const) : ("high" as const),
         horizonDays: horizon,
         cascadeEffects: ["continuity after departure ↑", "continuity residual index ↓"],
+        link: {
+          tab: "knowledge",
+          id: first.knowledgeId,
+          step: "cover" as const,
+          personId: first.successor?.id,
+        },
       },
     ];
   };
@@ -663,7 +719,7 @@ export function localSynthesize(
     if (!d) return [];
     const lead = d.items.find((e) => e.canPromote) ?? d.items[0];
     const more = d.items.length - 1;
-    const days = `${d.lengthDays} day${d.lengthDays === 1 ? "" : "s"}`;
+    const days = `${count(d.lengthDays, "day")}`;
     return [
       {
         action: lead.standIn
@@ -671,7 +727,7 @@ export function localSynthesize(
             ? `${d.person.name} is back: can ${lead.standIn.name} run ${lead.name} alone now?${more > 0 ? ` — and ${more} more` : ""}`
             : `${d.person.name} is back: close the ${lead.name} hand-off${more > 0 ? ` — and ${more} more` : ""}`
           : `${d.person.name} is back: who covered ${lead.name}?${more > 0 ? ` — and ${more} more` : ""}`,
-        rationale: `${lead.question} ${d.unplanned ? "Unexpected cover" : "Leave"} is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
+        rationale: `${lead.question} ${d.unplanned ? "An unexpected absence" : "Leave"} is the one time a stand-in runs the work for real, so record what it proved: on the register, one click moves them to "can do" (confirmed today) and closes the hand-off; "Not yet" turns those ${days} into a tracked cross-training step instead.`,
         evidenceIds: [] as string[],
         effort: "low" as const,
         horizonDays: REVIEW_HORIZON_DAYS.journal,
@@ -682,12 +738,12 @@ export function localSynthesize(
   const registerStartDecision = (itemCount: number): PioneerDecision => ({
     action:
       itemCount === 0
-        ? "List the duties, tasks and know-how the business runs on"
+        ? "List the duties and know-how the business runs on"
         : `Mark who can do each of the ${itemCount} things the business runs on`,
     rationale:
       itemCount === 0
         ? "The register on Who knows what is empty, so nothing yet shows who alone can run what. Until it lists the work, no continuity figure describes this business."
-        : "Nobody is marked on the starter register yet, so it cannot show who alone can run what. Mark each item on Who knows what; until then, no continuity figure describes this business.",
+        : "Nobody is marked on the sample register yet, so it cannot show who alone can run what. Mark each item on Who knows what; until then, no continuity figure describes this business.",
     evidenceIds: evidence
       .filter((e) => e.kind === "spof")
       .map((e) => e.id)
@@ -697,7 +753,7 @@ export function localSynthesize(
     cascadeEffects: ["register accuracy ↑"],
   });
   const beamAction = adv?.recommendedSequence?.join(" → ");
-  // Entries a leaver must hand over are advised as their hand-over, not as
+  // Entries a leaver must hand off are advised as their hand-off, not as
   // ordinary cross-training on top.
   const handingOver = new Set(
     (leave?.leavers ?? [])
@@ -711,11 +767,14 @@ export function localSynthesize(
   const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
-      action: beamAction || bestCascade?.label || "Enable dual control + independent bank rec",
+      action:
+        beamAction ||
+        bestCascade?.label ||
+        "Turn on a second signer for payments and an independent bank reconciliation",
       rationale: beamAction
         ? "The order this app's lever model prefers, using its own weights; read it as an ordering, not a measurement."
         : bestCascade
-          ? `Cascade + ML agree this moves CoR and residual. ${bestCascade.secondOrderNotes[0] ?? ""}`
+          ? `The what-else-moves check puts this first: it lowers the yearly cost of risk and the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")
@@ -732,12 +791,12 @@ export function localSynthesize(
       ? [
           {
             action: commitment.overdue
-              ? `Review overdue: can ${commitment.trainee?.name ?? "the backup"} run ${committedSpof.name} alone yet?`
-              : `In progress: ${commitment.trainee?.name ?? "a backup"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
-            rationale: `You already logged "${commitment.subject}" in the Journal, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
+              ? `Review overdue: can ${commitment.trainee?.name ?? "the stand-in"} run ${committedSpof.name} alone yet?`
+              : `In progress: ${commitment.trainee?.name ?? "a stand-in"} on ${committedSpof.name}${commitment.reviewBy ? ` — review ${commitment.reviewBy}` : ""}`,
+            rationale: `You already logged "${commitment.subject}" in the Decisions log, but the register still says only ${committedSpof.owners[0]?.name ?? "one person"} can run it. ${
               commitment.overdue
                 ? "Close it as done there — which updates the register — or push the review date if training is still under way."
-                : "Nothing new to start; when the training is finished, close it as done in the Journal so the register catches up."
+                : "Nothing new to start; when the training is finished, close it as done in the Decisions log so the register catches up."
             }`,
             evidenceIds: evidence
               .filter((e) => e.kind === "spof")
@@ -758,11 +817,11 @@ export function localSynthesize(
               action: uncommittedSpof
                 ? uncommittedSpof.suggestedTrainee
                   ? `Cross-train ${uncommittedSpof.suggestedTrainee.name} on ${uncommittedSpof.name}${uncommittedSpof.owners[0] ? ` with ${uncommittedSpof.owners[0].name}` : ""}`
-                  : `Cross-train backup for ${uncommittedSpof.name}`
-                : "Cross-train top knowledge SPOF",
+                  : `Cross-train a stand-in for ${uncommittedSpof.name}`
+                : "Train a second person on the work only one person can run",
               rationale:
                 uncommittedSpof?.nextStep ??
-                "Sole-owner knowledge is the continuity gap the leading indicators watch for.",
+                "Work only one person can run is the continuity gap the watched conditions look for.",
               evidenceIds: evidence
                 .filter((e) => e.kind === "spof")
                 .map((e) => e.id)
@@ -770,25 +829,24 @@ export function localSynthesize(
               effort: uncommittedSpof?.documented ? ("low" as const) : ("medium" as const),
               horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
               cascadeEffects: ["continuity residual index ↓"],
+              link: uncommittedSpof?.knowledgeId
+                ? {
+                    tab: "knowledge",
+                    id: uncommittedSpof.knowledgeId,
+                    step: "cover" as const,
+                    personId: uncommittedSpof.suggestedTrainee?.id,
+                  }
+                : { tab: "knowledge" },
             },
           ]),
-    ...(checkIns
-      ? [
-          ...(checkIns.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
-          ...(checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld, true)] : []),
-        ]
-      : spofs?.some((s) => s.stale)
-        ? [
-            reconfirmDecision(
-              spofs.filter((s) => s.stale),
-              false,
-            ),
-          ]
-        : []),
+    // Register freshness comes from the check-in tool alone; it always runs.
+    ...(checkIns?.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
+    ...(checkIns && checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld)] : []),
     {
-      action: "Log residual accept/remediate decisions with review dates",
+      action:
+        "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date",
       rationale:
-        "COSO monitoring requires a trail; an open gap stays flagged until a decision is recorded.",
+        "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
       evidenceIds: evidence
         .filter((e) => e.kind === "sod" || e.kind === "rag")
         .map((e) => e.id)
@@ -799,55 +857,52 @@ export function localSynthesize(
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${bestCascade.label}**, then re-check the leading indicators and the residual register.`
-    : "This week: dual control + independent bank rec, then re-run Pioneer and re-check the leading indicators.";
+    ? `This week: **${bestCascade.label}**, then re-check the watched conditions and What is still exposed.`
+    : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
 
-  const situation = `**${snap?.practice ?? "Practice"}** — COSO **${coso?.overall ?? "?"}/100**, residual **${residual?.averageResidual ?? "?"}/100**, leading indicators **${leading?.breached ?? "?"} breached**. Dual control ${snap?.staff.dualControlPayments ? "on" : "off"}, bank rec ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
+  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso?.overall ?? "?"}/100**, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
 
   const specialistMd = specialistNotes
     .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)
     .join("\n\n");
 
   const markdown = [
-    "## Situation",
+    `## ${BRIEF_SECTION.situation}`,
     situation,
     "",
-    "## Highest residual risks",
+    `## ${BRIEF_SECTION.thisWeek}`,
+    frontierNextMove,
+    "",
+    `## ${BRIEF_SECTION.moves}`,
+    ...decisions.map(renderDecision),
+    "",
+    `## ${BRIEF_SECTION.warnings}`,
+    ...warnings.map((w) => `- ${w}`),
+    "",
+    `## ${BRIEF_SECTION.risks}`,
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
-    "## Leading indicators",
+    `## ${BRIEF_SECTION.conditions}`,
     leading
       ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in this app, not benchmarks)`
       : "- Not checked in this run",
     "",
-    "## Variable cascades (what else moves)",
+    `## ${BRIEF_SECTION.cascades}`,
     ...variableCascades.map((c) => `- ${c}`),
     "",
-    "## Lever ordering (this app's model)",
+    `## ${BRIEF_SECTION.order}`,
     ...advancedReasoning.map((x) => `- ${x}`),
     "",
-    "## Specialist board",
+    `## ${BRIEF_SECTION.lenses}`,
     specialistMd,
     "",
-    "## Tradeoffs",
+    `## ${BRIEF_SECTION.tradeoffs}`,
     ...tradeoffs.map((t) => `- ${t}`),
     "",
-    "## Recommended moves",
-    ...decisions.map((d, i) => {
-      const c = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
-      return `${i + 1}. **${d.action}** (${d.effort} · ${d.horizonDays}d) — ${d.rationale}${c}`;
-    }),
-    "",
-    "## Chicken Little warnings",
-    ...warnings.map((w) => `- ${w}`),
-    "",
-    "## Frontier next move",
-    frontierNextMove,
-    "",
-    "## Evidence anchors",
+    `## ${BRIEF_SECTION.sources}`,
     ...evidence
       .slice(0, 12)
-      .map((e) => `- [${e.id}] **${e.label}** — ${e.metric ?? e.kind} → ${e.link.tab}`),
+      .map((e) => `- **${e.label}**: ${e.metric ?? e.kind} (see ${tabLabel(e.link.tab)})`),
   ].join("\n");
 
   return {
@@ -863,4 +918,10 @@ export function localSynthesize(
     markdown,
     evidence,
   };
+}
+
+/** "1. **Move one duty** (medium effort · within 14 days): why. *Also moves:* …" */
+export function renderDecision(d: PioneerDecision, i: number): string {
+  const also = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
+  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}${also}`;
 }

@@ -1,4 +1,3 @@
-import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
@@ -10,13 +9,13 @@ import {
   listDeletedBusinesses,
   loadActiveBusiness,
   loadBusinessHistoryVersion,
-  MAX_BUSINESSES_PER_USER,
   purgeDeletedBusinesses,
   resolveBusinessOwner,
   restoreBusinessRow,
   saveBusinessRevision,
   setActiveBusiness,
 } from "./business-store";
+import { MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -25,16 +24,7 @@ import {
  */
 
 let db: TestDb;
-let pg: PGlite;
 let sql: Sql;
-
-async function seedUser(id: string): Promise<void> {
-  await pg.query(
-    `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     values ($1, $1, $2, true, now(), now())`,
-    [id, `${id}@example.test`],
-  );
-}
 
 function input(userId: string, businessId: string, baseRevision: number | null, name = "Business") {
   return {
@@ -56,23 +46,20 @@ async function revisionOf(userId: string, businessId: string): Promise<number | 
 
 beforeAll(async () => {
   db = await openTestDb();
-  pg = db.pg;
   sql = db.sql;
 }, 60_000);
 
 afterAll(() => db.close());
 
 beforeEach(async () => {
-  await pg.exec(
-    `delete from firm_members; delete from firms; delete from businesses; delete from business_profiles; delete from "user";`,
-  );
-  await seedUser("user-a");
-  await seedUser("user-b");
+  await db.clear("firm_members", "firms", "businesses", "business_profiles", '"user"');
+  await db.seedUser("user-a");
+  await db.seedUser("user-b");
 });
 
 describe("businesses schema", () => {
   it("is keyed by (user_id, id), not id alone", async () => {
-    const rows = await pg.query<{ column_name: string }>(
+    const rows = await db.pg.query<{ column_name: string }>(
       `select kcu.column_name
        from information_schema.table_constraints tc
        join information_schema.key_column_usage kcu
@@ -285,6 +272,17 @@ describe("history", () => {
     expect(v1?.profile.practiceName).toBe("v1");
   });
 
+  it("writes nothing for a save that changes nothing, so browsing never pushes real versions out", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
+    const again = await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v1"));
+    expect(again).toMatchObject({ ok: true, revision: 1 });
+    expect(await revisionOf("user-a", "biz_1")).toBe(1);
+    expect(await listBusinessHistory(sql, "user-a", "biz_1")).toEqual([]);
+    // A real change after it still builds on revision 1.
+    expect((await saveBusinessRevision(sql, input("user-a", "biz_1", 1, "v2"))).ok).toBe(true);
+    expect(await revisionOf("user-a", "biz_1")).toBe(2);
+  });
+
   it("records nothing for a save the revision check refuses", async () => {
     await saveBusinessRevision(sql, input("user-a", "biz_1", null, "v1"));
     const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", 7, "stale"));
@@ -295,14 +293,14 @@ describe("history", () => {
 
 describe("firm access", () => {
   beforeEach(async () => {
-    await pg.exec(`delete from firm_members; delete from firms;`);
+    await db.clear("firm_members", "firms");
     await sql`insert into firms (user_id, name) values ('user-a', 'A & Co')`;
     await sql`insert into firm_members (firm_user_id, member_user_id, role) values ('user-a', 'user-a', 'owner')`;
     await sql`insert into firm_members (firm_user_id, member_user_id, role) values ('user-a', 'user-b', 'reviewer')`;
   });
 
   it("a member reaches a colleague's business through the firm, an outsider does not", async () => {
-    await seedUser("user-c");
+    await db.seedUser("user-c");
     await saveBusinessRevision(sql, {
       ...input("user-a", "biz_1", null, "Client"),
       firmUserId: "user-a",
@@ -435,12 +433,12 @@ describe("business limit", () => {
     expect((await saveBusinessRevision(sql, input("user-a", "biz_3", null), 3)).ok).toBe(true);
   });
 
-  it("defaults to MAX_BUSINESSES_PER_USER", async () => {
-    for (let i = 0; i < MAX_BUSINESSES_PER_USER; i += 1) {
+  it("defaults to MAX_BUSINESSES_PER_ACCOUNT", async () => {
+    for (let i = 0; i < MAX_BUSINESSES_PER_ACCOUNT; i += 1) {
       await saveBusinessRevision(sql, input("user-a", `biz_${i}`, null));
     }
     await expect(saveBusinessRevision(sql, input("user-a", "one_too_many", null))).rejects.toThrow(
-      `${MAX_BUSINESSES_PER_USER} businesses`,
+      `${MAX_BUSINESSES_PER_ACCOUNT} businesses`,
     );
   });
 });
@@ -449,7 +447,7 @@ describe("listBusinessSummaries", () => {
   it("lists every business the account holds, beyond the old limit of 50", async () => {
     // Rows written before the limit existed must stay reachable.
     for (let i = 0; i < 60; i += 1) {
-      await pg.query(
+      await db.pg.query(
         `insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
          values ($1, 'user-a', $1, 'dental', '{}'::jsonb, 1, now() - make_interval(mins => $2))`,
         [`biz_${i}`, i],

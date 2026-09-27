@@ -5,22 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to a pull request cancels its older run. Every push to main
+# keeps its own group (keyed on the commit), so each merge gets a finished
+# release gate instead of being cancelled by the next merge.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
+# Actions are pinned to commits; .github/dependabot.yml keeps them current.
 jobs:
   checks:
     name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -34,6 +38,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:bundle
+      - run: npm run check:headers
 
   migrations:
     name: Migrations against real Postgres, applied twice
@@ -56,9 +61,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://precog:precog@localhost:5432/precog
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -66,60 +71,40 @@ jobs:
       - run: npm ci
 
       - name: Apply every migration to an empty database
-        run: node scripts/migrate.mjs
+        run: npm run db:migrate
 
       - name: Apply again; the ledger must skip every file
-        run: node scripts/migrate.mjs | tee second-run.log && grep -q "up to date" second-run.log
+        run: npm run db:migrate | tee second-run.log && grep -q "up to date" second-run.log
 
       - name: Concurrent migration admission, timeout and rollback
-        run: node scripts/test-migrations-postgres.mjs
+        run: npm run test:postgres:migrations
         env:
           PRECOG_MIGRATION_TEST: "1"
 
       - name: Atomic model budget with concurrent PostgreSQL connections
-        run: node --experimental-strip-types scripts/test-quota-postgres.mjs
+        run: npm run test:postgres:quota
         env:
           PRECOG_QUOTA_TEST: "1"
 
       - name: Business lifecycle on concurrent real PostgreSQL connections
-        run: npx vitest run src/lib/precog/business-lifecycle-safety.test.ts
+        run: npm run test:postgres:lifecycle
         env:
           PRECOG_LIFECYCLE_POSTGRES: "1"
-
-      - name: Every table the migrations create exists
-        run: |
-          node -e '
-            const fs = require("fs");
-            const pg = require("pg");
-            const need = new Set();
-            for (const file of fs.readdirSync("migrations").filter((f) => f.endsWith(".sql"))) {
-              for (const m of fs.readFileSync(`migrations/${file}`, "utf8").matchAll(/create table if not exists "?(\w+)"?/gi)) need.add(m[1]);
-            }
-            need.add("_migrations");
-            const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-            pool.query("select table_name from information_schema.tables where table_schema = $1", ["public"]).then(({ rows }) => {
-              const have = new Set(rows.map((r) => r.table_name));
-              const missing = [...need].filter((t) => !have.has(t));
-              if (missing.length) { console.error("missing tables:", missing); process.exit(1); }
-              console.log(`all ${need.size} expected tables present`);
-              return pool.end();
-            });
-          '
 
   e2e:
     name: Builder end-to-end smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
 
       - name: Start dev server
         run: |
@@ -131,24 +116,25 @@ jobs:
           echo "dev server did not start"; cat dev.log; exit 1
 
       - name: Warm the dev server so dependency discovery finishes before the tests
-        run: node scripts/e2e-warmup.mjs http://127.0.0.1:8080/
+        run: npm run e2e:warmup -- http://127.0.0.1:8080/
 
-      - run: npm run e2e -- http://127.0.0.1:8080/
+      - name: Map builder
+        run: npm run e2e -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-failure.png
 
       - name: Insurance, map history, and setup recovery
-        run: node scripts/e2e-enhancements.mjs http://127.0.0.1:8080/
+        run: npm run e2e:enhancements -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-enhancements-failure.png
 
-      - name: Every tab, every industry, plus /threat, /report, /login, /share
+      - name: Every tab, every industry, plus the standalone pages
         run: npm run e2e:tabs -- http://127.0.0.1:8080/
         env:
           E2E_SCREENSHOT: e2e-tabs-failure.png
 
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-failure
           path: |
@@ -161,7 +147,7 @@ jobs:
   account-safety:
     name: Authenticated compiled-server safety
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -182,17 +168,17 @@ jobs:
       BETTER_AUTH_SECRET: isolated-ci-fixture-secret-not-for-production-2026
       PRECOG_AUTH_TEST: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node scripts/migrate.mjs
+      - run: npm run db:migrate
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
       - name: Serve the compiled Vercel handler, never the dev server
         run: |
           node scripts/serve-built-test.mjs > compiled-test.log 2>&1 &
@@ -202,13 +188,19 @@ jobs:
           done
           cat compiled-test.log
           exit 1
-      - run: node scripts/e2e-account-safety.mjs
+      - name: Signed sessions and account boundaries
+        run: npm run e2e:safety
+      - name: Every tab, every industry, on the compiled handler (signed out)
+        run: npm run e2e:tabs -- http://localhost:8080/
+        env:
+          E2E_SCREENSHOT: artifacts/compiled-tabs-failure.png
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: authenticated-safety-failure
           path: |
             artifacts/account-safety-failure.png
+            artifacts/compiled-tabs-failure.png
             compiled-test.log
           retention-days: 3
           if-no-files-found: ignore

@@ -1,12 +1,22 @@
 import { useEffect } from "react";
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+  useMatches,
+} from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { installGlobalErrorReporting } from "@/lib/observability/report-browser";
 import { PracticeProvider } from "@/lib/precog/practice-context";
+import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
 import { PresentationProvider } from "@/lib/precog/presentation";
+import { needsPractice } from "@/lib/precog/route-scope";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
+import { buttonClass } from "@/components/ui/button-variants";
 
 const APP_NAME = "Precog Pioneer — Small Business Risk";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
@@ -23,7 +33,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Internal controls and residual risk management for small businesses — SoD detection, knowledge SPOFs, scenario modeling, and an AI advisor grounded in your data.",
+          "Precog Pioneer shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with the prosecuted case behind each finding.",
       },
       ...(ogImage
         ? [
@@ -57,16 +67,10 @@ function NotFound() {
         Check the link for a typo, or go back to your business. Nothing you saved has changed.
       </p>
       <nav className="flex flex-wrap justify-center gap-2" aria-label="Where to go">
-        <Link
-          to="/"
-          className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
-        >
+        <Link to="/" className={buttonClass()}>
           Go to Start here
         </Link>
-        <Link
-          to="/report"
-          className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium text-fg hover:bg-elevated"
-        >
+        <Link to="/report" className={buttonClass({ variant: "outline" })}>
           Open the report
         </Link>
       </nav>
@@ -76,6 +80,9 @@ function NotFound() {
 
 function RootDocument() {
   useEffect(() => installGlobalErrorReporting(), []);
+  const practicePage = useMatches({
+    select: (matches) => needsPractice(matches.map((m) => m.routeId)),
+  });
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -85,9 +92,20 @@ function RootDocument() {
         <CreatedWithGrokBanner />
         <AuthProvider>
           <PresentationProvider>
-            <PracticeProvider>
-              <Outlet />
-            </PracticeProvider>
+            {!practicePage && <Outlet />}
+            {/* Always mounted, so a save still pending when the owner opens a
+                public page completes; hidden there, so its account check never
+                stands in for that page. */}
+            <div hidden={!practicePage}>
+              <PracticeProvider>
+                {practicePage && (
+                  <>
+                    <WorkspaceRecovery />
+                    <Outlet />
+                  </>
+                )}
+              </PracticeProvider>
+            </div>
           </PresentationProvider>
         </AuthProvider>
         <Toaster richColors position="bottom-right" />

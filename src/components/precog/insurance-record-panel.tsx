@@ -5,7 +5,8 @@ import {
   type PolicyField,
 } from "@/lib/precog/scoring/insurance-record";
 import { VARIABLE_CATALOG, type RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
-import { localDateKey } from "@/lib/precog/decisions/follow-through";
+import { localDateKey } from "@/lib/precog/dates";
+import { policyFieldValue, withFieldToggled } from "./insurance-record-fields";
 
 /** No file upload or external model call: records the owner's stated basis. */
 export function InsuranceRecordPanel({
@@ -29,17 +30,7 @@ export function InsuranceRecordPanel({
   const label = (key: PolicyField) =>
     VARIABLE_CATALOG.find((item) => item.id === key)?.label ?? key;
   const toggle = (key: PolicyField) =>
-    onChange({
-      ...value,
-      insurance: {
-        ...record,
-        confirmedFields: confirmed(key)
-          ? record.confirmedFields.filter((field) => field !== key)
-          : [...record.confirmedFields, key],
-        modeledScenarioIds: [],
-        reviewedOn: localDateKey(new Date()),
-      },
-    });
+    onChange({ ...value, insurance: withFieldToggled(record, key, localDateKey(new Date())) });
   const checkbox = (key: PolicyField) => (
     <label key={key} className="flex items-center gap-2 text-xs text-muted">
       <input
@@ -48,7 +39,7 @@ export function InsuranceRecordPanel({
         checked={confirmed(key)}
         onChange={() => toggle(key)}
       />
-      Confirm {label(key).toLowerCase()}: {value[key].toLocaleString("en-US")}
+      Confirm {label(key).toLowerCase()}: {policyFieldValue(key, value[key])}
     </label>
   );
   return (
@@ -81,7 +72,7 @@ export function InsuranceRecordPanel({
       </label>
       <p className="text-xs text-muted">
         Changing a sample number does not establish a policy. Unknown is not the same as uninsured.
-        Existing saved numbers are preserved for review.
+        Changing the status keeps the numbers you saved, so you can review them.
       </p>
       {record.status === "reported" && (
         <>
@@ -144,6 +135,11 @@ export function InsuranceRecordPanel({
           {!complete && (
             <p className="text-xs text-warn">
               Confirm all four main figures to enable a scenario recovery assumption.
+            </p>
+          )}
+          {complete && record.modeledScenarioIds.length > 0 && (
+            <p className="text-xs text-subtle">
+              Unconfirming one of the four main figures clears the scenarios you modeled as covered.
             </p>
           )}
           {record.reviewedOn && (

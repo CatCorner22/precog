@@ -9,8 +9,15 @@ import {
   revokeFirmInvite,
   setFirmMemberRole,
 } from "@/lib/precog/firm/server";
-import type { FirmContext, FirmInvite, FirmMember, FirmRole } from "@/lib/precog/firm/store";
-import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
+import type {
+  FirmContext,
+  FirmInvite,
+  FirmMember,
+  FirmRole,
+  InviteRole,
+} from "@/lib/precog/firm/store";
+import { formatDay } from "@/lib/precog/dates";
+import { fieldCls } from "@/components/ui/field-classes";
 
 const ROLE_LABEL: Record<FirmRole, string> = {
   owner: "Owner",
@@ -19,9 +26,9 @@ const ROLE_LABEL: Record<FirmRole, string> = {
 };
 
 /**
- * Who is in the firm and in which role. The owner invites by email (the link
- * is copied here and sent by the owner), changes roles and removes members;
- * a member can leave.
+ * Who is in the firm and in which role. The owner invites by email (the app
+ * sends the link when email is connected; otherwise the owner copies it and
+ * sends it), changes roles and removes members; a member can leave.
  */
 export function FirmMembers({
   firm,
@@ -36,7 +43,7 @@ export function FirmMembers({
 }) {
   const owner = firm.role === "owner";
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Exclude<FirmRole, "owner">>("preparer");
+  const [role, setRole] = useState<InviteRole>("preparer");
   const [busy, setBusy] = useState(false);
 
   function inviteLink(token: string): string {
@@ -46,7 +53,7 @@ export function FirmMembers({
   async function copyLink(token: string) {
     try {
       await navigator.clipboard.writeText(inviteLink(token));
-      toast.success("Invitation link copied. Send it to your colleague.");
+      toast.success("Invitation link copied. Send it to the firm member you are inviting.");
     } catch {
       window.prompt("Copy this invitation link:", inviteLink(token));
     }
@@ -55,10 +62,13 @@ export function FirmMembers({
   async function invite() {
     setBusy(true);
     try {
-      const { invite: created } = await inviteFirmMember({ data: { email: email.trim(), role } });
-      onChange({ invites: [created, ...invites] });
+      const { invite: created, emailed } = await inviteFirmMember({
+        data: { email: email.trim(), role },
+      });
+      onChange({ invites: [created, ...invites.filter((i) => i.email !== created.email)] });
       setEmail("");
-      await copyLink(created.token);
+      if (emailed) toast.success(`We emailed the invitation to ${created.email}.`);
+      else await copyLink(created.token);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "The invitation was not created.");
     } finally {
@@ -75,7 +85,7 @@ export function FirmMembers({
     }
   }
 
-  async function changeRole(userId: string, next: Exclude<FirmRole, "owner">) {
+  async function changeRole(userId: string, next: InviteRole) {
     try {
       const res = await setFirmMemberRole({ data: { userId, role: next } });
       onChange({ members: res.members });
@@ -85,7 +95,11 @@ export function FirmMembers({
   }
 
   async function remove(userId: string, name: string) {
-    if (!window.confirm(`Remove ${name} from ${firm.name}? Their own businesses stay theirs.`))
+    if (
+      !window.confirm(
+        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, and the businesses they own leave the firm with them.`,
+      )
+    )
       return;
     try {
       const res = await removeFirmMember({ data: { userId } });
@@ -96,7 +110,12 @@ export function FirmMembers({
   }
 
   async function leave() {
-    if (!window.confirm(`Leave ${firm.name}? You keep your own businesses.`)) return;
+    if (
+      !window.confirm(
+        `Leave ${firm.name}? You lose access to the firm's clients, and the businesses you own leave the firm with you.`,
+      )
+    )
+      return;
     try {
       await leaveFirm();
       onChange({ left: true });
@@ -120,16 +139,16 @@ export function FirmMembers({
           >
             <div className="min-w-0">
               <p className="font-medium">{m.name || m.email}</p>
-              <p className="text-xs text-muted">{m.email}</p>
+              <p className="text-xs text-muted">
+                {m.email} · joined {formatDay(m.joinedAt)}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {owner && m.role !== "owner" ? (
                 <select
-                  className={inputCls}
+                  className={fieldCls}
                   value={m.role}
-                  onChange={(e) =>
-                    void changeRole(m.userId, e.target.value as Exclude<FirmRole, "owner">)
-                  }
+                  onChange={(e) => void changeRole(m.userId, e.target.value as InviteRole)}
                   aria-label={`Role for ${m.name || m.email}`}
                 >
                   <option value="preparer">Preparer</option>
@@ -144,6 +163,7 @@ export function FirmMembers({
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                  aria-label={`Remove ${m.name || m.email}`}
                   onClick={() => void remove(m.userId, m.name || m.email)}
                 >
                   <UserMinus className="size-3.5" aria-hidden /> Remove
@@ -164,9 +184,9 @@ export function FirmMembers({
             }}
           >
             <label className="min-w-[14rem] flex-1 text-xs text-muted">
-              Colleague's email
+              Firm member's email
               <input
-                className={`${inputCls} mt-1 w-full`}
+                className={`${fieldCls} mt-1 w-full`}
                 type="email"
                 required
                 value={email}
@@ -177,9 +197,9 @@ export function FirmMembers({
             <label className="text-xs text-muted">
               Role
               <select
-                className={`${inputCls} mt-1 block`}
+                className={`${fieldCls} mt-1 block`}
                 value={role}
-                onChange={(e) => setRole(e.target.value as Exclude<FirmRole, "owner">)}
+                onChange={(e) => setRole(e.target.value as InviteRole)}
               >
                 <option value="preparer">Preparer</option>
                 <option value="reviewer">Reviewer</option>
@@ -190,7 +210,8 @@ export function FirmMembers({
             </Button>
           </form>
           <p className="mt-1 text-xs text-subtle">
-            The link is copied for you to send; it works for two weeks and once.
+            We email the link when email is connected; otherwise we copy it and you send it. It
+            works once, for two weeks.
           </p>
           {invites.length > 0 && (
             <ul className="mt-3 divide-y divide-border">
@@ -209,6 +230,7 @@ export function FirmMembers({
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                      aria-label={`Copy the invitation link for ${i.email}`}
                       onClick={() => void copyLink(i.token)}
                     >
                       <Copy className="size-3.5" aria-hidden /> Copy link
@@ -216,6 +238,7 @@ export function FirmMembers({
                     <button
                       type="button"
                       className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                      aria-label={`Revoke the invitation for ${i.email}`}
                       onClick={() => void revoke(i.token)}
                     >
                       Revoke

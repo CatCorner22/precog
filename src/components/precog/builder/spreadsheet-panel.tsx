@@ -1,21 +1,20 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useTemplate } from "@/lib/precog/use-template";
-import {
-  parseProcessCsv,
-  processesToCsv,
-  processTemplateCsv,
-  type ProcessImportResult,
-} from "@/lib/precog/import/process-csv";
-import type { ProcessNode } from "@/lib/precog/types";
-import { slug } from "@/components/precog/builder/form-shared";
-import { processChanges } from "@/lib/precog/builder/diff";
-import { downloadText } from "@/lib/download";
 
-const download = (name: string, text: string) => downloadText(name, text, "text/csv;charset=utf-8");
+import { Button } from "@/components/ui/button";
+import {
+  csvImportChangeCount,
+  openCsvImport,
+  withReplace,
+  type CsvImport,
+} from "@/lib/precog/builder/csv-import";
+import { processChanges } from "@/lib/precog/builder/diff";
+import { downloadCsv } from "@/lib/download";
+import { processesToCsv, processTemplateCsv } from "@/lib/precog/import/process-csv";
+import { count, slug } from "@/lib/precog/text";
+import type { ProcessNode } from "@/lib/precog/types";
+import { useTemplate } from "@/lib/precog/practice-context";
 
 /**
  * Spreadsheet round-trip for the map: export the current processes as CSV,
@@ -33,21 +32,12 @@ export function SpreadsheetPanel({
 }) {
   const tpl = useTemplate();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [fileText, setFileText] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
-  const [replace, setReplace] = useState(false);
-  const [preview, setPreview] = useState<ProcessImportResult | null>(null);
-
-  function runPreview(text: string, mode: "merge" | "replace") {
-    setPreview(parseProcessCsv(text, tpl, { mode }));
-  }
+  // The import waiting for Apply or Cancel; closing it drops its choices too.
+  const [pending, setPending] = useState<CsvImport | null>(null);
 
   async function pick(file: File) {
     try {
-      const text = await file.text();
-      setFileText(text);
-      setFileName(file.name);
-      runPreview(text, replace ? "replace" : "merge");
+      setPending(openCsvImport(file.name, await file.text(), tpl));
     } catch {
       toast.error("Could not read that file", {
         description: "Choose a CSV exported from a spreadsheet and try again.",
@@ -55,10 +45,13 @@ export function SpreadsheetPanel({
     }
   }
 
+  const preview = pending?.preview ?? null;
+  const replace = pending?.replace ?? false;
+  const blocking = preview?.issues.find((i) => i.row === 0);
+  const changeCount = pending ? csvImportChangeCount(pending) : 0;
+
   function apply() {
-    if (!preview) return;
-    const blocking = preview.issues.some((i) => i.row === 0);
-    if (blocking) return;
+    if (!preview || blocking) return;
     onApply(preview.processes);
     const first = preview.added[0] ?? preview.updated[0]?.after;
     if (first) onSelectProcess(first.id);
@@ -68,18 +61,12 @@ export function SpreadsheetPanel({
       }`,
       {
         description: preview.issues.length
-          ? `${preview.issues.length} row(s) had values that were skipped. Ctrl+Z undoes the import.`
+          ? `${count(preview.issues.length, "row")} had values that were skipped. Ctrl+Z undoes the import.`
           : "Ctrl+Z undoes the import.",
       },
     );
-    setPreview(null);
-    setFileText(null);
+    setPending(null);
   }
-
-  const blocking = preview?.issues.find((i) => i.row === 0);
-  const changeCount = preview
-    ? preview.added.length + preview.updated.length + (replace ? preview.removed.length : 0)
-    : 0;
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
@@ -96,7 +83,7 @@ export function SpreadsheetPanel({
           size="sm"
           variant="secondary"
           onClick={() =>
-            download(
+            downloadCsv(
               `${slug(businessName) || "process-map"}-processes.csv`,
               processesToCsv(tpl.processes, tpl.people, tpl.controls),
             )
@@ -107,7 +94,7 @@ export function SpreadsheetPanel({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => download("precog-process-template.csv", processTemplateCsv())}
+          onClick={() => downloadCsv("precog-process-template.csv", processTemplateCsv(tpl))}
         >
           Blank template
         </Button>
@@ -127,11 +114,11 @@ export function SpreadsheetPanel({
         />
       </div>
 
-      {preview && (
+      {pending && preview && (
         <div className="space-y-2 rounded-md border border-border bg-elevated p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium text-fg">
-              Preview of {fileName || "import"}
+              Preview of {pending.fileName || "import"}
               <span className="text-muted">
                 {" "}
                 · {preview.added.length} new · {preview.updated.length} updated ·{" "}
@@ -142,12 +129,9 @@ export function SpreadsheetPanel({
               <input
                 type="checkbox"
                 checked={replace}
-                onChange={(e) => {
-                  setReplace(e.target.checked);
-                  if (fileText) runPreview(fileText, e.target.checked ? "replace" : "merge");
-                }}
+                onChange={(e) => setPending(withReplace(pending, e.target.checked, tpl))}
               />
-              Remove the {preview.removed.length} process(es) not in the file
+              Remove the {count(preview.removed.length, "process", "processes")} not in the file
             </label>
           </div>
 
@@ -194,23 +178,11 @@ export function SpreadsheetPanel({
           )}
 
           <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setPreview(null);
-                setFileText(null);
-              }}
-            >
+            <Button size="sm" variant="ghost" onClick={() => setPending(null)}>
               Cancel
             </Button>
-            <Button
-              size="sm"
-              disabled={Boolean(blocking) || changeCount === 0}
-              onClick={apply}
-              className={cn(changeCount === 0 && "opacity-60")}
-            >
-              Apply {changeCount ? `${changeCount} change(s)` : ""}
+            <Button size="sm" disabled={Boolean(blocking) || changeCount === 0} onClick={apply}>
+              Apply {changeCount ? count(changeCount, "change") : ""}
             </Button>
           </div>
         </div>

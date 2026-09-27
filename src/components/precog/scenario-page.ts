@@ -1,0 +1,142 @@
+/**
+ * Pure rules behind the What could happen page: which scenario is showing,
+ * what "This could happen here" records, which prosecuted cases sit beside a
+ * scenario, and how a change against the baseline reads.
+ */
+import type { DecisionInput } from "@/lib/precog/profile-actions";
+import type { ScenarioTemplate, StaffComposition } from "@/lib/precog/types";
+import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
+import { scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
+import { dateAfter } from "@/lib/precog/dates";
+import { count } from "@/lib/precog/text";
+import { assumedAnnualFrequency } from "@/lib/precog/scoring/dynamic-variables";
+import { formatPct, formatUsd, formatUsdDelta } from "@/lib/utils";
+
+export interface ScenarioCases {
+  /** Up to three cases to show: cases that cite a linked rule first, the owner's sector first within each group. */
+  shown: CaseStudy[];
+  /** Every case that cites a linked rule or shares its scheme. */
+  total: number;
+  /** Only the cases that cite a linked rule; counts and medians rest on these. */
+  citing: ReturnType<typeof citingCaseStats>;
+  ownSectorIds: ReadonlySet<string>;
+}
+
+/** The scenario on screen: the owner's pick when the template has it, else the first. */
+export function pickScenario(
+  scenarios: readonly ScenarioTemplate[],
+  picked: string | null | undefined,
+): ScenarioTemplate {
+  return scenarios.find((s) => s.id === picked) ?? scenarios[0];
+}
+
+/** The decision "This could happen here" logs; confirmedScenarioIds reads it back. */
+export function scenarioConfirmation(scenario: ScenarioTemplate, now: Date): DecisionInput {
+  return {
+    subject: `Scenario: ${scenario.title}`,
+    kind: "monitor",
+    note: "Confirmed this sample scenario could happen here. Its losses and timelines are still the sample's assumptions; review them against your own figures.",
+    reviewBy: dateAfter(now, 90),
+    linkedTab: "precog",
+    linkedId: scenario.id,
+  };
+}
+
+/**
+ * The prosecuted cases behind a scenario, or null when it has none (a key
+ * person leaving gets no case list rather than a loosely related one). The
+ * list is the templates' own (`scenarioCases` there: cases the scenario
+ * names, then cases showing a duty pair it plays out, whether the rule links
+ * to the scenario or the scenario names the rule). Counts and medians use
+ * only the cases that cite one of those rules; named cases show first, then
+ * citing cases, the owner's line of business first within each group.
+ */
+export function scenarioCases(
+  scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds" | "caseIds">,
+  industryId: string,
+): ScenarioCases | null {
+  const related = casesBehindScenario(scenario);
+  if (related.length === 0) return null;
+  const ruleIds = scenarioRuleIds(scenario);
+  const citing = citingCaseStats(ruleIds);
+  const citingIds = new Set(citing.cases.map((c) => c.id));
+  const namedIds = new Set(scenario.caseIds ?? []);
+  const ownSectorIds = new Set(related.filter((c) => isOwnSector(c, industryId)).map((c) => c.id));
+  const rank = (c: CaseStudy) =>
+    (namedIds.has(c.id) ? 4 : 0) + (citingIds.has(c.id) ? 2 : 0) + (ownSectorIds.has(c.id) ? 1 : 0);
+  const ordered = [...related].sort((a, b) => rank(b) - rank(a));
+  return { shown: ordered.slice(0, 3), total: related.length, citing, ownSectorIds };
+}
+
+/** The duty-conflict rules a scenario plays out: those it names and those linked to it. */
+export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">): string[] {
+  const ids = new Set(scenario.sodRuleIds ?? []);
+  for (const rule of CONFLICT_RULES) if (rule.linkedScenarioId === scenario.id) ids.add(rule.id);
+  return [...ids];
+}
+
+/**
+ * Colour for a change against the baseline: lower is better, and a change
+ * that rounds to nothing is neutral, never red.
+ */
+export function deltaTone(delta: number): "ok" | "danger" | "muted" {
+  const whole = Math.round(delta);
+  return whole < 0 ? "ok" : whole > 0 ? "danger" : "muted";
+}
+
+/** "-$1,200", "+$300", or "no change". */
+export function formatMoneyChange(delta: number): string {
+  return Math.round(delta) === 0 ? "no change" : formatUsdDelta(delta);
+}
+
+/** "-56 days", "+1 day", or "no change". */
+export function formatDaysChange(delta: number): string {
+  if (delta === 0) return "no change";
+  return `${delta > 0 ? "+" : "-"}${count(Math.abs(delta), "day")}`;
+}
+
+/** The staffing figures the scenario page lets the owner try without saving. */
+const WHAT_IF_FIELDS = [
+  "teamSize",
+  "soleOwnerKnowledgeCount",
+  "segregationScore",
+  "dualControlPayments",
+  "independentBankRec",
+] as const satisfies readonly (keyof StaffComposition)[];
+
+/** True when the what-if differs from the saved staffing in any field the page edits. */
+export function whatIfDiffers(saved: StaffComposition, whatIf: StaffComposition): boolean {
+  return WHAT_IF_FIELDS.some((field) => saved[field] !== whatIf[field]);
+}
+
+/** The saved staffing with the what-if's edited fields laid over it; nothing else changes. */
+export function applyWhatIf(saved: StaffComposition, whatIf: StaffComposition): StaffComposition {
+  const next = { ...saved };
+  for (const field of WHAT_IF_FIELDS) Object.assign(next, { [field]: whatIf[field] });
+  return next;
+}
+
+/** How the annual cost-of-risk figure is built, with the assumed yearly chance named. */
+export function costOfRiskHint(likelihoodMultiplier: number, noPolicy: boolean): string {
+  const pct = formatPct(assumedAnnualFrequency(likelihoodMultiplier), 1);
+  return noPolicy
+    ? `retained loss × assumed ${pct} chance a year`
+    : `premium + retained loss × assumed ${pct} chance a year`;
+}
+
+/**
+ * A mitigation's riskReduction is a coefficient the scenario author set, not a
+ * measured effect, so it is shown as a size rather than a percentage.
+ */
+export function reductionPhrase(r: number): string {
+  const size = r >= 0.6 ? "large" : r >= 0.4 ? "moderate" : "modest";
+  return `${size} assumed reduction`;
+}
+
+/** A mitigation's yearly cost as the scenario author assumed it; zero means staff time, not cash. */
+export function mitigationCostPhrase(costAnnual: number): string {
+  return costAnnual > 0
+    ? `Assumed yearly cost ${formatUsd(costAnnual)}`
+    : "No cash cost assumed (staff time)";
+}

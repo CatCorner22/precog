@@ -1,0 +1,37 @@
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-fg hover:bg-primary/90",
+        secondary:
+          "bg-elevated text-fg border border-border hover:bg-elevated/80 hover:border-border-strong",
+        ghost: "text-muted hover:text-fg hover:bg-elevated",
+        danger: "bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25",
+        outline: "border border-border bg-transparent text-fg hover:bg-elevated",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+      },
+    },
+    defaultVariants: { variant: "default", size: "default" },
+  },
+);
+
+export type ButtonVariantProps = VariantProps<typeof buttonVariants>;
+
+/**
+ * The Button classes for something that is not a <button>, such as a router
+ * Link styled as one, so links and buttons change style together.
+ */
+export function buttonClass({
+  variant,
+  size,
+  className,
+}: ButtonVariantProps & { className?: string } = {}): string {
+  return cn(buttonVariants({ variant, size }), className);
+}

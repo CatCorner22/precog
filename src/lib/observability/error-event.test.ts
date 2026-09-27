@@ -39,6 +39,37 @@ describe("error event scrubbing", () => {
     expect(toErrorEvent(undefined, { where: "client" }).message).toBe("Unknown error");
   });
 
+  it("keeps hostnames, versions and dotted file names in a stack", () => {
+    for (const text of [
+      "at load (https://precog.example.com/assets/index-Dd3E9.js:12:345)",
+      "node_modules/react-dom.development.js:100:2",
+      "Version 1.2.3 mismatch at www.example.com",
+      "at chunk-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345.js:1:2",
+    ])
+      expect(scrubText(text, 500)).toBe(text);
+  });
+
+  it("still removes a real JWT and a share token", () => {
+    const jwt =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+    expect(scrubText(`token ${jwt} expired`, 500)).toBe("token [token] expired");
+    // Share tokens are 36 hex characters (share/share-server.ts, randomHex(18)).
+    expect(scrubText("share 0f1e2d3c4b5a69788796a5b4c3d2e1f0a1b2 gone", 500)).toBe(
+      "share [token] gone",
+    );
+  });
+
+  it("keeps the message a non-Error rejection carries", () => {
+    const plain = toErrorEvent({ message: "Invalid origin", status: 403 }, { where: "client" });
+    expect(plain.message).toBe("Invalid origin");
+    const response = toErrorEvent(new Response("x", { status: 500 }), { where: "client" });
+    expect(response.message).toBe("HTTP 500");
+    expect(response.name).toBe("Response");
+    // Quoted strings in the JSON are scrubbed like any other typed text.
+    expect(toErrorEvent({ code: 7 }, { where: "client" }).message).toBe('{"[text]":7}');
+    expect(toErrorEvent(null, { where: "client" }).message).toBe("Unknown error");
+  });
+
   it("accepts only well-formed client payloads at the intake", () => {
     const good = toErrorEvent(new Error("x"), { where: "client", at: "/" });
     expect(isErrorEventPayload(good)).toBe(true);

@@ -16,7 +16,7 @@
  * (`/api/auth/oauth2/callback/<providerId>`); `idp` is the hint the broker reads
  * to pick the upstream (Better Auth's id for X is still `twitter`).
  */
-export type GrokProvider = {
+type GrokProvider = {
   /** This app's local provider id; also the callback path segment. */
   providerId: string;
   /** Upstream hint the broker forwards to (Better Auth social id). */
@@ -29,3 +29,13 @@ export const GROK_PROVIDERS: readonly GrokProvider[] = [
   { providerId: "grok-google", idp: "google", label: "Google" },
   { providerId: "grok-x", idp: "twitter", label: "X" },
 ];
+
+/**
+ * What the live-preview sign-in pop-up (`popup.server.ts`) posts to the
+ * opener (`client.ts`): the new session token, or the reason sign-in failed.
+ */
+export type PopupMessage = {
+  source: "grok-auth-popup";
+  token: string | null;
+  error?: string;
+};

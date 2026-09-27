@@ -1,17 +1,17 @@
+export type FirmPlan = "assessment" | "monthly";
+
 /**
- * Pilot offer shown to advisors. These are prices to test with design
- * partners, not a checkout. The app records which stage the firm is in;
- * invoicing happens outside the product.
+ * The offer as the firm page describes it. With Stripe connected, the page
+ * prints the amounts of the Stripe prices the checkout buttons charge
+ * (STRIPE_PRICE_ASSESSMENT, STRIPE_PRICE_MONTHLY), so keep those prices and
+ * these figures the same. Without Stripe these figures are what the firm is
+ * invoiced outside the product.
  */
 export const PILOT_OFFER = {
   assessmentFeeUsd: 1000,
-  assessmentLabel: "Fixed assessment",
+  assessmentLabel: "Assessment",
   assessmentDetail: "One client mapped, conflicts named, and a report the CPA can send.",
   monthlyFeeUsd: 299,
-  monthlyClients: 10,
   monthlyLabel: "Firm plan",
-  monthlyDetail:
-    "Up to ten active clients, a monthly review trail, and the firm name on each report.",
+  monthlyDetail: "Ongoing monthly reviews for your clients, with reminders by email.",
 } as const;
-
-export type FirmPlan = "assessment" | "monthly";

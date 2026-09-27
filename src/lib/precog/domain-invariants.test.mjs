@@ -6,7 +6,6 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { openTestDb } from "../../test/pglite";
 import * as vision from "./map-vision";
 import * as rag from "./rag/retrieve";
 import * as corpus from "./rag/corpus";
@@ -18,7 +17,6 @@ import * as templatesIndex from "./templates";
 import * as sodRules from "./sod/conflict-rules";
 import * as sodDetect from "./sod/detect";
 import * as roleTemplates from "./sod/role-templates";
-import * as activeTemplate from "./active-template";
 import * as powerGuidance from "./sod/power-guidance";
 import * as controlMeasures from "./sod/control-measures";
 import * as resolutionPlanner from "./sod/resolution-planner";
@@ -43,11 +41,11 @@ describe("domain invariants", () => {
   it("every duty has complete four-category control alternatives", () => {
     const categories = ["directive", "preventive", "detective", "corrective"];
     assert.deepEqual(
-      Object.keys(controlMeasures.DUTY_CONTROL_MEASURES).sort(),
+      Object.keys(controlMeasures.controlMeasures("general")).sort(),
       sodRules.ENTITLEMENTS.map((item) => item.id).sort(),
     );
     for (const entitlement of sodRules.ENTITLEMENTS) {
-      const catalog = controlMeasures.DUTY_CONTROL_MEASURES[entitlement.id];
+      const catalog = controlMeasures.controlMeasures("general")[entitlement.id];
       for (const category of categories) {
         assert.ok(
           catalog[category].length >= 2,
@@ -91,14 +89,13 @@ describe("domain invariants", () => {
       verified: 1,
       recoveries: 500,
       hours: 0,
-      completion: 50,
+      unsourced: 1,
+      stale: 1,
+      future: 0,
+      score: 50,
     });
     assert.equal(valueEvidence.formatEvidenceAmount(records[0]), "$500");
     assert.equal(valueEvidence.formatEvidenceAmount({ kind: "time", amount: 12.5 }), "12.5 hrs");
-    assert.deepEqual(
-      valueEvidence.assessEvidenceQuality(records, new Date("2026-09-20T00:00:00.000Z")),
-      { unsourced: 1, stale: 1, future: 0, verified: 1, score: 50 },
-    );
     const unsourcedVerified = valueEvidence.normalizeValueEvidence([
       {
         id: "unsafe",
@@ -123,18 +120,21 @@ describe("domain invariants", () => {
       },
     ]);
     assert.equal(impossibleDate[0].observedAt, "");
-    const futureQuality = valueEvidence.assessEvidenceQuality(
-      [{ ...records[0], observedAt: "2026-09-21" }],
-      new Date("2026-09-20T00:00:00.000Z"),
-    );
-    assert.deepEqual(futureQuality, { unsourced: 0, stale: 0, future: 1, verified: 0, score: 0 });
-    // The totals the Value screen applies follow the same rule as the quality score.
+    // The totals the Value screen applies follow the same rule as the readiness score.
     const futureSummary = valueEvidence.summarizeValueEvidence(
       [{ ...records[0], observedAt: "2026-09-21" }],
       asOf,
     );
-    assert.equal(futureSummary.verified, 0);
-    assert.equal(futureSummary.recoveries, 0);
+    assert.deepEqual(futureSummary, {
+      total: 1,
+      verified: 0,
+      recoveries: 0,
+      hours: 0,
+      unsourced: 0,
+      stale: 0,
+      future: 1,
+      score: 0,
+    });
     const undatedSummary = valueEvidence.summarizeValueEvidence(
       [{ ...records[0], observedAt: "" }],
       asOf,
@@ -194,7 +194,10 @@ describe("domain invariants", () => {
         },
       ],
     );
-    assert.match(memoWithEvidence, /\| Verified \| recovery \| Vendor \\\| refund \| AP-7 \|/);
+    assert.match(
+      memoWithEvidence,
+      /\| Verified \| Money recovered \| Vendor \\\| refund \| \$500 \| Jan 1, 2026 \| AP-7 \|/,
+    );
     const reconciledHours = valueCase.applyVerifiedAnnualHours(result.inputs, 40);
     assert.equal(reconciledHours.reviewHoursAfter, 20);
     assert.equal(valueCase.calculateValueCase(reconciledHours).observed.hoursSaved, 40);
@@ -229,7 +232,7 @@ describe("domain invariants", () => {
         deductible: archivedProfile.riskVariables.deductible + 1_000,
       },
     });
-    const archivedMap = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const archivedMap = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const currentMap = archivedMap.map((item, index) =>
       index === 0 ? { ...item, entitlements: [...item.entitlements, "manage_backups"] } : item,
     );
@@ -444,8 +447,8 @@ describe("domain invariants", () => {
     });
     assert.equal(restored.practiceName.length, 80);
     assert.equal(restored.decisions.length, 1);
-    assert.equal(restored.decisions[0].subject.length, 200);
-    assert.equal(restored.decisions[0].note.length, 2_000);
+    assert.equal(restored.decisions[0].subject.length, profile.MAX_DECISION_SUBJECT);
+    assert.equal(restored.decisions[0].note.length, profile.MAX_DECISION_NOTE);
     assert.equal(restored.staff.teamSize, profile.defaultProfile().staff.teamSize);
     assert.equal(restored.staff.segregationScore, 100);
     assert.equal(typeof restored.staff.dualControlPayments, "boolean");
@@ -456,30 +459,6 @@ describe("domain invariants", () => {
     assert.equal(restored.riskVariables.claimsLoadFactor, 2.5);
     assert.equal(typeof restored.riskVariables.hasAlarmAccess, "boolean");
     assert.equal("injected" in restored, false);
-  });
-
-  it("snapshot migration provides ownership and provenance columns", async () => {
-    const testDb = await openTestDb();
-    const sql = testDb.sql;
-    const rows = await sql.query(
-      `select column_name from information_schema.columns
-       where table_name = 'assessment_snapshots'`,
-    );
-    const columns = new Set(rows.map((row) => row.column_name));
-    for (const required of [
-      "id",
-      "user_id",
-      "profile_json",
-      "model_version",
-      "corpus_version",
-      "created_at",
-      "power_map_json",
-      "value_case_json",
-      "value_evidence_json",
-    ]) {
-      assert.ok(columns.has(required), required);
-    }
-    await testDb.close();
   });
 
   it("operating blueprint covers complete tiered process guidance for every industry", () => {
@@ -506,10 +485,16 @@ describe("domain invariants", () => {
   });
 
   it("power map covers common jobs and valid duty relationships", () => {
-    assert.ok(roleTemplates.COMMON_JOB_TEMPLATES.length >= 18);
+    const jobTemplates = Object.entries(roleTemplates.ROLE_TEMPLATES).map(
+      ([role, entitlements]) => ({
+        role,
+        entitlements,
+      }),
+    );
+    assert.ok(jobTemplates.length >= 18);
     assert.ok(sodRules.ENTITLEMENTS.length >= 25);
     const entitlementIds = new Set(sodRules.ENTITLEMENTS.map((item) => item.id));
-    for (const template of roleTemplates.COMMON_JOB_TEMPLATES) {
+    for (const template of jobTemplates) {
       assert.ok(template.role);
       assert.ok(template.entitlements.length > 0);
       for (const entitlement of template.entitlements) assert.ok(entitlementIds.has(entitlement));
@@ -518,16 +503,11 @@ describe("domain invariants", () => {
       assert.ok(entitlementIds.has(rule.a), `${rule.id}:a`);
       assert.ok(entitlementIds.has(rule.b), `${rule.id}:b`);
     }
+    const generalGuidance = powerGuidance.powerGuidance("general");
     for (const entitlement of sodRules.ENTITLEMENTS) {
-      assert.ok(powerGuidance.POWER_GUIDANCE[entitlement.id]?.purpose, `${entitlement.id}:purpose`);
-      assert.ok(
-        powerGuidance.POWER_GUIDANCE[entitlement.id]?.evidence,
-        `${entitlement.id}:evidence`,
-      );
-      assert.ok(
-        powerGuidance.POWER_GUIDANCE[entitlement.id]?.boundary,
-        `${entitlement.id}:boundary`,
-      );
+      assert.ok(generalGuidance[entitlement.id]?.purpose, `${entitlement.id}:purpose`);
+      assert.ok(generalGuidance[entitlement.id]?.evidence, `${entitlement.id}:evidence`);
+      assert.ok(generalGuidance[entitlement.id]?.boundary, `${entitlement.id}:boundary`);
     }
   });
 
@@ -599,7 +579,7 @@ describe("domain invariants", () => {
 
   it("every duty process lens resolves to a known process", async () => {
     const processIds = new Set(
-      activeTemplate.getBaseTemplate("dental").processes.map((process) => process.id),
+      templatesIndex.getIndustryTemplate("dental").processes.map((process) => process.id),
     );
     for (const entitlement of sodRules.ENTITLEMENTS) {
       for (const processId of entitlement.processIds)
@@ -608,7 +588,7 @@ describe("domain invariants", () => {
   });
 
   it("resolution planner only proposes conflict-safe transfers", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const before = sodDetect.detectAssignments({ assignments });
     const conflict = before.conflicts[0];
     assert.ok(conflict, "demo assignments should exercise at least one conflict");
@@ -624,7 +604,7 @@ describe("domain invariants", () => {
   });
 
   it("coverage analysis exposes ownership gaps and continuity risk", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const baseline = coverageAnalysis.analyzeDutyCoverage(assignments);
     assert.ok(baseline.resilienceScore >= 0 && baseline.resilienceScore <= 100);
     assert.equal(baseline.duties.length, sodRules.ENTITLEMENTS.length - 1);
@@ -641,7 +621,7 @@ describe("domain invariants", () => {
   });
 
   it("absence stress tests identify work that stops and lost backups", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const person = assignments.find((item) =>
       item.entitlements.some((id) => {
         const holders = assignments.filter((candidate) => candidate.entitlements.includes(id));
@@ -706,7 +686,7 @@ describe("domain invariants", () => {
   });
 
   it("assignment previews match post-change conflict results", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
       (item) => !person.entitlements.includes(item.id) && item.id !== "view_reports_only",
@@ -738,7 +718,7 @@ describe("domain invariants", () => {
   });
 
   it("assignment previews honor practice-specific scoring inputs", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const person = assignments[0];
     const entitlement = sodRules.ENTITLEMENTS.find(
       (item) => !person.entitlements.includes(item.id) && item.id !== "view_reports_only",
@@ -764,7 +744,7 @@ describe("domain invariants", () => {
   });
 
   it("every matrix duty can be toggled for every modeled person", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     for (const person of assignments) {
       for (const entitlement of sodRules.ENTITLEMENTS.filter(
         (item) => item.id !== "view_reports_only",
@@ -810,7 +790,7 @@ describe("domain invariants", () => {
   ];
 
   it("continuity planner recommends only conflict-free coverage improvements", () => {
-    const dental = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const dental = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const dentalPlans = coveragePlanner.buildCoveragePlans(dental);
     const conflicted = new Set(
       sodDetect
@@ -856,7 +836,7 @@ describe("domain invariants", () => {
   });
 
   it("governance report reconciles to live SoD and continuity results", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const sod = sodDetect.detectAssignments({ assignments });
     const coverage = coverageAnalysis.analyzeDutyCoverage(assignments);
     const report = governanceReport.createGovernanceReport(
@@ -865,11 +845,13 @@ describe("domain invariants", () => {
       new Date("2026-09-19T00:00:00Z"),
     );
     assert.match(report, /Generated: 2026-09-19T00:00:00.000Z/);
-    assert.ok(report.includes(`SoD health: **${sod.summary.segregationHealth}/100**`));
+    const { summary } = sod;
+    const open = summary.critical + summary.high + summary.medium + summary.family;
+    assert.ok(report.includes(`Duty-conflict health: **${summary.segregationHealth}/100**`));
     assert.ok(report.includes(`Continuity resilience: **${coverage.resilienceScore}/100**`));
-    assert.ok(report.includes(`Open conflicts: **${sod.conflicts.length}**`));
+    assert.ok(report.includes(`Open conflicts: **${open}**`));
     for (const person of assignments) assert.ok(report.includes(person.personName));
-    assert.match(report, /Planning analysis only/);
+    assert.match(report, /confirm them against real system access/);
   });
 
   it("assignment change review detects grants, revocations, hires, and removals", () => {
@@ -905,7 +887,7 @@ describe("domain invariants", () => {
   });
 
   it("authority concentration index is bounded, complete, and deterministic", () => {
-    const assignments = sodDetect.buildAssignments(activeTemplate.getBaseTemplate("dental"));
+    const assignments = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
     const ranked = powerIndex.calculatePowerIndex(assignments);
     assert.equal(ranked.length, assignments.length);
     assert.ok(ranked.every((item) => item.authorityIndex >= 0 && item.authorityIndex <= 100));

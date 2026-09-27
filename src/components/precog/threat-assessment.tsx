@@ -1,52 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { ArrowLeft, ListOrdered, ListChecks, Target } from "lucide-react";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { usePractice } from "@/lib/precog/practice-context";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
-import {
-  PRIORITY_BAND_LABEL,
-  predatorThermalColor,
-  terminatorThreatColor,
-} from "@/lib/precog/map-vision";
-import { formatUsd, cn } from "@/lib/utils";
+import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
+import { industryNoun } from "@/lib/precog/industry";
+import { cn, formatUsd } from "@/lib/utils";
 import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Crosshair, Radio, Target, Zap } from "lucide-react";
-
-function clockString() {
-  return new Date().toISOString().replace("T", " ").slice(0, 19) + "Z";
-}
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { IndexBasis } from "@/components/precog/index-basis";
+import { FigureTile } from "./figure-tile";
+import {
+  BAND_VARIANT,
+  DOMAIN_LABEL,
+  LEADING_BAND_LABEL,
+  isUrgent,
+  overallBand,
+} from "./threat-bands";
 
 /**
- * The header clock, alone in its own component so the one-second tick
- * re-renders this span and not the whole assessment. Starts empty so the
- * server and the first client render agree; a live timestamp cannot hydrate.
+ * The priority list: every exposure the app ranks, most urgent first, with
+ * why each one ranks where it does and what to do first. One band scale
+ * (priorityBand) labels the overall index and every item.
  */
-function LiveClock() {
-  const [now, setNow] = useState("");
-  useEffect(() => {
-    setNow(clockString());
-    const t = setInterval(() => setNow(clockString()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return <span className="tabular text-[#4ade80]">{now || "--:--:--"}</span>;
-}
-
-function bandClass(band: string) {
-  if (band === "white_hot" || band === "critical")
-    return "text-red-300 border-red-500/50 bg-red-950/40";
-  if (band === "elevated") return "text-amber-200 border-amber-500/40 bg-amber-950/30";
-  if (band === "watch") return "text-emerald-200 border-emerald-500/30 bg-emerald-950/20";
-  return "text-muted border-border bg-elevated";
-}
-
 export function ThreatAssessmentPanel() {
   const { profile, template } = usePractice();
   // The sample's figures are labelled as the sample's, under its own name
   // until a business is set up.
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
+  const teamLabel = industryNoun(profile.industry);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(
@@ -70,298 +56,208 @@ export function ThreatAssessmentPanel() {
     ],
   );
 
-  useEffect(() => {
-    if (!selectedId && report.targetDeck[0]) setSelectedId(report.targetDeck[0].id);
-  }, [report.targetDeck, selectedId]);
-
   const selected =
     report.targetDeck.find((t) => t.id === selectedId) ?? report.targetDeck[0] ?? null;
-
-  const force =
-    report.overallThreatIndex >= 75 ? "RED" : report.overallThreatIndex >= 50 ? "AMBER" : "GREEN";
+  const urgent = report.targetDeck.filter((t) => isUrgent(t.band)).length;
+  const overall = overallBand(report.overallThreatIndex);
+  const scenarioNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(template));
 
   return (
-    <div className="threat-ops min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-[#050806] text-[#c8e6c8]">
-      <header className="border-b border-[#1f3d28] bg-[#0a120e]/95">
+    <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg text-fg">
+      <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 rounded border border-[#2a5a35] bg-[#0c1510] px-2.5 py-1 text-xs tracking-widest text-[#7dff9a] hover:border-[#4ade80]/50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-elevated px-2.5 py-1 text-xs text-muted hover:border-border-strong hover:text-fg"
             >
               <ArrowLeft className="size-3" />
-              RTB
+              Back to Dashboard
             </Link>
-            <div className="flex items-center gap-2">
-              <Crosshair className="size-4 text-[#4ade80]" />
-              <div>
-                <p className="text-xs tracking-[0.2em] text-[#5a9a68]">OP · PRECOG-PIONEER</p>
-                <h1 className="font-mono text-sm font-semibold tracking-widest">
-                  THREAT ASSESSMENT
-                </h1>
-              </div>
+            <div>
+              <h1 className="text-base font-semibold">Priority list</h1>
+              <p className="text-xs text-muted">
+                {report.ao} · what to fix first in your {teamLabel}
+              </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 font-mono text-xs tracking-wider">
-            <span className="text-[#5a9a68]">
-              AO · <span className="text-[#c8e6c8]">{report.ao}</span>
-            </span>
-            <LiveClock />
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-semibold",
-                force === "RED" && "border-red-500/60 bg-red-950/50 text-red-300",
-                force === "AMBER" && "border-amber-500/60 bg-amber-950/40 text-amber-200",
-                force === "GREEN" && "border-[#4ade80]/50 bg-[#0c1f12] text-[#7dff9a]",
-              )}
-            >
-              <span className="size-1.5 animate-pulse rounded-full bg-current" />
-              FORCE {force}
-            </span>
-          </div>
+          <Badge variant={BAND_VARIANT[overall]}>
+            Priority index {report.overallThreatIndex} · {PRIORITY_BAND_LABEL[overall]}
+          </Badge>
         </div>
         {sample && (
           <p
-            className="mx-auto max-w-7xl px-4 pb-2 font-mono text-xs font-semibold tracking-[0.12em] text-amber-300 sm:px-6"
+            className="mx-auto max-w-7xl px-4 pb-2 text-xs font-medium text-warn sm:px-6"
             role="note"
           >
-            SAMPLE BUSINESS · FICTIONAL PEOPLE AND FIGURES · NOT YOUR BUSINESS ·{" "}
-            <Link to="/" className="underline underline-offset-2 hover:text-amber-200">
-              SET UP YOUR OWN
+            Sample business: sample people and figures, not your business.{" "}
+            <Link to="/" className="underline underline-offset-2">
+              Set up your own
             </Link>
           </p>
         )}
-        <div className="mx-auto flex max-w-7xl flex-wrap gap-x-4 gap-y-1 px-4 pb-2 font-mono text-xs tracking-[0.15em] text-[#5a9a68] sm:px-6">
-          <span>CLASS · PRACTICE INTERNAL · EDUCATIONAL</span>
-          <span>·</span>
-          <span>ALL INDICES ARE THIS APP&rsquo;S WEIGHTING, NOT MEASUREMENTS</span>
-          <span>·</span>
-          <span>NO PHI</span>
-          <span>·</span>
-          <span>
-            INDEX {report.overallThreatIndex} · {report.classificationLabel} ·{" "}
-            {report.targetDeck.length} TARGETS
-          </span>
-        </div>
+        <IndexBasis className="mx-auto max-w-7xl px-4 pb-2 sm:px-6" />
       </header>
 
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6">
         <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Sitrep
-            label="THREAT INDEX"
+          <FigureTile
+            size="lg"
+            label="Priority index"
             value={String(report.overallThreatIndex)}
-            hint={report.classificationLabel}
+            hint={`${PRIORITY_BAND_LABEL[overall]}: the average of the five highest items`}
           />
-          <Sitrep
-            label="LEADING PRESSURE"
+          <FigureTile
+            size="lg"
+            label="Early-warning pressure"
             value={String(report.leadingPressure)}
-            hint={report.leadingBand}
+            hint={LEADING_BAND_LABEL[report.leadingBand] ?? report.leadingBand}
           />
-          <Sitrep
-            label="WHITE HOT / CRIT"
-            value={String(
-              report.targetDeck.filter((t) => t.band === "white_hot" || t.band === "critical")
-                .length,
-            )}
-            hint="Immediate priority"
+          <FigureTile
+            size="lg"
+            label="Fix first or fix soon"
+            value={String(urgent)}
+            hint="Look at these first"
           />
-          <Sitrep
-            label="TARGETS TRACKED"
+          <FigureTile
+            size="lg"
+            label="Items ranked"
             value={String(report.targetDeck.length)}
-            hint="Control gaps · residual · SPOFs"
+            hint="Control gaps, residual risks and know-how one person holds"
           />
         </section>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <section className="threat-panel min-w-0">
-            <div className="mb-3 flex items-center gap-2 border-b border-[#1f3d28] pb-2">
-              <Target className="size-4 text-[#4ade80]" />
-              <h2 className="font-mono text-sm tracking-[0.18em]">PRIORITY QUEUE</h2>
-            </div>
-            <ul className="max-h-[520px] space-y-1.5 overflow-y-auto">
-              {report.targetDeck.map((t, i) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(t.id)}
-                    className={cn(
-                      "flex w-full items-start gap-3 rounded border px-3 py-2.5 text-left transition-colors",
-                      selected?.id === t.id
-                        ? "border-[#4ade80]/50 bg-[#0c1f12]"
-                        : "border-[#1a3320] bg-[#080c09] hover:border-[#2a5a35]",
-                    )}
-                  >
-                    <span className="w-5 shrink-0 font-mono text-xs text-[#5a9a68]">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className="mt-1 size-2.5 shrink-0 rounded-full"
-                      style={{
-                        background:
-                          t.band === "white_hot" || t.band === "critical"
-                            ? terminatorThreatColor(t.priority)
-                            : predatorThermalColor(t.priority),
-                      }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={cn(
-                            "rounded border px-1.5 py-0.5 font-mono text-xs",
-                            bandClass(t.band),
-                          )}
-                        >
-                          {PRIORITY_BAND_LABEL[t.band]}
+          <Card className="min-w-0">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ListOrdered className="size-4 text-primary" />
+                Most urgent first
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className="space-y-1.5" aria-label="Priority list">
+                {report.targetDeck.map((t, i) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      aria-pressed={selected?.id === t.id}
+                      onClick={() => setSelectedId(t.id)}
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        selected?.id === t.id
+                          ? "border-primary/50 bg-primary/10"
+                          : "border-border bg-elevated hover:border-border-strong",
+                      )}
+                    >
+                      <span className="w-5 shrink-0 text-xs text-subtle tabular">{i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Badge variant={BAND_VARIANT[t.band]}>
+                            {PRIORITY_BAND_LABEL[t.band]}
+                          </Badge>
+                          <span className="text-xs text-subtle">{DOMAIN_LABEL[t.domain]}</span>
                         </span>
-                        <span className="font-mono text-xs text-[#5a9a68]">
-                          {t.domain.toUpperCase()}
-                        </span>
+                        <span className="mt-0.5 block text-sm font-medium">{t.label}</span>
                       </span>
-                      <span className="mt-0.5 block truncate text-sm font-medium text-[#e8f5e8]">
-                        {t.label}
+                      <span className="text-right">
+                        <span className="block text-lg font-semibold tabular">{t.priority}</span>
+                        <span className="block text-xs text-subtle">priority</span>
                       </span>
-                      <span className="mt-0.5 block font-mono text-xs text-[#5a9a68]">
-                        P{t.priority} · {t.impactHint}
-                      </span>
-                    </span>
-                    <span className="font-mono text-lg tabular text-[#4ade80]">{t.priority}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
 
           <div className="min-w-0 space-y-4">
             {selected && (
-              <section className="threat-panel">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant={
-                      selected.band === "white_hot" || selected.band === "critical"
-                        ? "danger"
-                        : "warn"
-                    }
-                  >
-                    {PRIORITY_BAND_LABEL[selected.band]}
-                  </Badge>
-                  <span className="font-mono text-xs tracking-widest text-[#7dff9a]">
-                    {selected.domain.toUpperCase()}
-                  </span>
-                </div>
-                <h3 className="text-base font-semibold text-[#e8f5e8]">{selected.label}</h3>
-                <p className="mt-1 font-mono text-xs text-[#5a9a68]">{selected.impactHint}</p>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center font-mono">
-                  <Mini label="PRIORITY" value={String(selected.priority)} />
-                  <Mini label="HEAT" value={String(selected.heat)} />
-                  <Mini label="DOMAIN" value={selected.domain.toUpperCase()} />
-                </div>
-                <div className="mt-3">
-                  <p className="font-mono text-xs tracking-widest text-[#5a9a68]">INTEL</p>
-                  <ul className="mt-1 space-y-1 font-mono text-xs text-[#a8d4a8]">
-                    {selected.reasons.map((r) => (
-                      <li key={r}>▸ {r}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="mt-3 rounded border border-[#2a5a35] bg-[#0c1f12] px-3 py-2">
-                  <p className="font-mono text-xs tracking-widest text-[#4ade80]">
-                    RULES OF ENGAGEMENT
-                  </p>
-                  <ul className="mt-1 space-y-1 font-mono text-xs text-[#c8e6c8]">
-                    {selected.roe.map((r) => (
-                      <li key={r}>· {r}</li>
-                    ))}
-                  </ul>
-                </div>
-                {selected.expectedLoss != null && (
-                  <p className="mt-2 font-mono text-xs text-[#5a9a68]">
-                    {selected.domain === "scenario" ? "Assumed retained loss" : "Assumed loss"}{" "}
-                    {formatUsd(selected.expectedLoss)}
-                    {selected.p50Days != null
-                      ? ` · about ${selected.p50Days} assumed days until found`
-                      : ""}
-                    {selected.domain === "scenario"
-                      ? (() => {
-                          const note = insuranceFigureNote(
-                            profile.riskVariables,
-                            isOwnBusiness(template),
-                          );
-                          return note ? ` · ${note}` : "";
-                        })()
-                      : ""}
-                  </p>
-                )}
-              </section>
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={BAND_VARIANT[selected.band]}>
+                      {PRIORITY_BAND_LABEL[selected.band]}
+                    </Badge>
+                    <span className="text-xs text-subtle">
+                      {DOMAIN_LABEL[selected.domain]} · priority {selected.priority}
+                    </span>
+                  </div>
+                  <CardTitle className="text-base">{selected.label}</CardTitle>
+                  <CardDescription>{selected.impactHint}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs font-medium tracking-wide text-subtle uppercase">
+                      Why it ranks here
+                    </p>
+                    <ul className="mt-1 space-y-1 text-muted">
+                      {selected.reasons.map((r) => (
+                        <li key={r}>· {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border border-border bg-elevated px-3 py-2">
+                    <p className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-subtle uppercase">
+                      <Target className="size-3.5" />
+                      What to do first
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {selected.roe.map((r) => (
+                        <li key={r}>· {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  {selected.expectedLoss != null && (
+                    <p className="text-xs text-subtle">
+                      {selected.domain === "scenario" ? "Assumed retained loss" : "Assumed loss"}{" "}
+                      {formatUsd(selected.expectedLoss)}
+                      {selected.p50Days != null
+                        ? ` · about ${selected.p50Days} assumed days until found`
+                        : ""}
+                      {selected.domain === "scenario" && scenarioNote ? ` · ${scenarioNote}` : ""}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
-            <section className="threat-panel">
-              <div className="mb-2 flex items-center gap-2">
-                <Zap className="size-4 text-amber-300" />
-                <h2 className="font-mono text-sm tracking-[0.18em]">STANDING ROE</h2>
-              </div>
-              <ul className="space-y-1.5 font-mono text-xs text-[#a8d4a8]">
-                {report.roeSummary.map((r, i) => (
-                  <li key={r}>
-                    <span className="text-[#4ade80]">{String(i + 1).padStart(2, "0")}</span> {r}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ListChecks className="size-4 text-primary" />
+                  How to work the list
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted">
+                  {report.roeSummary.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
 
-            <section className="threat-panel">
-              <div className="mb-2 flex items-center gap-2">
-                <Radio className="size-4 text-[#4ade80]" />
-                <h2 className="font-mono text-sm tracking-[0.18em]">MISSION BRIEF</h2>
-              </div>
-              <ul className="space-y-1.5 font-mono text-xs text-[#a8d4a8]">
-                {report.missionBrief.map((line) => (
-                  <li key={line}>▸ {line}</li>
-                ))}
-              </ul>
-            </section>
-
-            <div className="flex items-start gap-3 rounded border border-red-900/40 bg-black/60 p-3">
-              <div className="t1000-buddy relative flex size-12 shrink-0 items-center justify-center">
-                <div className="absolute inset-1.5 rounded-[40%] bg-gradient-to-b from-white/40 to-transparent" />
-                <div className="relative z-[1] flex gap-1.5">
-                  <span className="size-1.5 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-                  <span className="size-1.5 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-                </div>
-              </div>
-              <div className="min-w-0 font-mono text-xs text-red-300/90">
-                <p className="tracking-widest text-red-200">FRIENDLY UNIT · T-1000 RISK</p>
-                <p className="mt-1 normal-case tracking-normal text-red-300/80">
-                  Mission: residual reduction to a reasonable level — not zero, not panic. White-hot
-                  targets first. I'll be back after dual release is locked.
-                </p>
-              </div>
-            </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1.5 text-sm text-muted">
+                  {report.missionBrief.map((line) => (
+                    <li key={line}>· {line}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
-        <p className="pb-6 text-center font-mono text-xs tracking-widest text-[#5a9a68]">
-          EDUCATIONAL DECISION SUPPORT · NOT A FORENSIC OPINION · NOT LEGAL ADVICE
+        <p className="pb-6 text-center text-xs text-subtle">
+          Educational decision support. Not a forensic opinion and not legal advice; it never labels
+          a person as a threat.
         </p>
       </main>
-    </div>
-  );
-}
-
-function Sitrep({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="threat-panel">
-      <p className="font-mono text-xs tracking-[0.15em] text-[#5a9a68]">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-semibold tabular text-[#4ade80]">{value}</p>
-      <p className="mt-0.5 truncate font-mono text-xs text-[#5a9a68]">{hint}</p>
-    </div>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border border-[#1f3d28] bg-[#080c09] px-2 py-2">
-      <p className="text-xs tracking-widest text-[#5a9a68]">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-[#c8e6c8]">{value}</p>
     </div>
   );
 }

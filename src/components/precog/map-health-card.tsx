@@ -1,15 +1,8 @@
-import { HEALTH_SCALE } from "@/lib/precog/scoring/bands";
-import { IndexBasis } from "@/components/precog/index-basis";
-import { useEffect, useMemo } from "react";
+import { healthTone } from "@/lib/precog/scoring/bands";
+import { useEffect } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
 import { mapNotAssessedNote, mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
-import {
-  buildProcessMapGraph,
-  computeMapHealth,
-  validateProcessMap,
-  type MapHealthBand,
-} from "@/lib/precog/process-graph";
+import type { ScoredMap } from "@/lib/precog/builder/scored-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,65 +16,32 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { formatDayShort } from "@/lib/precog/dates";
+import { count } from "@/lib/precog/text";
 
-function Sparkline({ points, color }: { points: number[]; color: string }) {
-  if (points.length < 2) return null;
-  const w = 160;
-  const h = 36;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const span = Math.max(1, max - min);
-  const path = points
-    .map((p, i) => {
-      const x = (i / (points.length - 1)) * w;
-      const y = h - ((p - min) / span) * (h - 4) - 2;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-40" aria-hidden>
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function bandTone(band: MapHealthBand): "ok" | "primary" | "warn" | "danger" {
-  if (band === "healthy") return "ok";
-  if (band === "fair") return "warn";
-  return "danger";
-}
-
-function scoreColor(score: number) {
-  if (score >= HEALTH_SCALE.strong) return "var(--color-ok)";
-  if (score >= HEALTH_SCALE.adequate) return "var(--color-primary)";
-  if (score >= HEALTH_SCALE.weak) return "var(--color-warn)";
-  return "var(--color-danger)";
-}
-
+/**
+ * The dashboard's map health card. `map` is scored as the map page scores it
+ * (untouched starter processes left out), computed once by the dashboard.
+ */
 export function MapHealthCard({
+  map,
   onOpenMap,
   onBuildMap,
+  onFixIssues,
 }: {
+  map: ScoredMap;
   onOpenMap: (processId?: string) => void;
   onBuildMap: () => void;
+  /** Opens the builder with its Validate panel, which lists every issue. */
+  onFixIssues: () => void;
 }) {
   const { profile, mapCustomized, recordMapHealth } = usePractice();
-  const tpl = useTemplate();
   // The starter map with nobody assigned, or an empty map, has no health to
   // report; the card says what to do instead and records no history point.
   const notAssessed = mapNotAssessedNote(profile);
   const source = mapSource(profile);
 
-  const health = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
-    const issues = validateProcessMap(
-      tpl.processes,
-      tpl.people,
-      new Set(tpl.controls.map((c) => c.id)),
-      profile.mapLayout ?? {},
-    );
-    return computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  }, [tpl, profile.staff, profile.mapLayout, mapCustomized]);
+  const { health, unscoredCount } = map;
 
   useEffect(() => {
     if (!notAssessed) recordMapHealth(health.score);
@@ -93,16 +53,9 @@ export function MapHealthCard({
   const delta = previous === null ? null : health.score - previous;
   const firstAt = history[0]?.at;
 
-  const tone = bandTone(health.band);
-  const topIssues = useMemo(() => {
-    const issues = validateProcessMap(
-      tpl.processes,
-      tpl.people,
-      new Set(tpl.controls.map((c) => c.id)),
-      profile.mapLayout ?? {},
-    );
-    return issues.filter((i) => i.severity !== "info").slice(0, 3);
-  }, [tpl.processes, tpl.people, tpl.controls, profile.mapLayout]);
+  const color = `var(--color-${healthTone(health.score)})`;
+  const topIssues = map.issues.filter((i) => i.severity !== "info").slice(0, 3);
+  const issueCount = health.issueCount.errors + health.issueCount.warns;
 
   const circumference = 2 * Math.PI * 54;
   const dash = (health.score / 100) * circumference;
@@ -119,7 +72,8 @@ export function MapHealthCard({
                 Map health score
               </CardTitle>
               <CardDescription>
-                How complete and calm your value stream is — owners, controls, integrity, heat.
+                How complete and calm your value stream is: integrity, ownership, controls, written
+                procedures and heat.
               </CardDescription>
             </div>
             <Badge variant="default">Not assessed yet</Badge>
@@ -139,7 +93,7 @@ export function MapHealthCard({
           </div>
           <p className="mt-3 text-xs text-subtle">
             {starter
-              ? `${starter.count} starter processes · starter map from the ${starter.example}`
+              ? `${starter.count} sample processes · sample process map from the ${starter.example}`
               : "0 processes · your own map"}
           </p>
         </CardContent>
@@ -157,10 +111,11 @@ export function MapHealthCard({
               Map health score
             </CardTitle>
             <CardDescription>
-              How complete and calm your value stream is — owners, controls, integrity, heat.
+              How complete and calm your value stream is: integrity, ownership, controls, written
+              procedures and heat.
             </CardDescription>
           </div>
-          <Badge variant={tone}>{health.bandLabel}</Badge>
+          <Badge variant={healthTone(health.score)}>{health.bandLabel}</Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -180,7 +135,7 @@ export function MapHealthCard({
                 cy="60"
                 r="54"
                 fill="none"
-                stroke={scoreColor(health.score)}
+                stroke={color}
                 strokeWidth="10"
                 strokeLinecap="round"
                 strokeDasharray={`${dash} ${circumference}`}
@@ -196,10 +151,9 @@ export function MapHealthCard({
           <div className="min-w-0 flex-1 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-muted">{health.summary}</p>
-              <IndexBasis className="mt-1" />
               {trendPoints.length >= 2 && (
                 <div className="flex items-center gap-2">
-                  <Sparkline points={trendPoints} color={scoreColor(health.score)} />
+                  <Sparkline points={trendPoints} color={color} />
                   {delta !== null && delta !== 0 && (
                     <span
                       className={cn(
@@ -231,7 +185,7 @@ export function MapHealthCard({
                       className="h-full rounded-full transition-all"
                       style={{
                         width: `${d.score}%`,
-                        background: scoreColor(d.score),
+                        background: `var(--color-${healthTone(d.score)})`,
                       }}
                     />
                   </div>
@@ -274,10 +228,10 @@ export function MapHealthCard({
             <Hammer className="size-3.5" />
             {mapCustomized ? "Edit map" : "Build your map"}
           </Button>
-          {health.issueCount.errors + health.issueCount.warns > 0 && (
-            <Button size="sm" variant="outline" onClick={onBuildMap}>
+          {issueCount > 0 && (
+            <Button size="sm" variant="outline" onClick={onFixIssues}>
               <ShieldCheck className="size-3.5" />
-              Fix {health.issueCount.errors + health.issueCount.warns} issue(s)
+              Fix {count(issueCount, "issue")}
             </Button>
           )}
         </div>
@@ -285,12 +239,32 @@ export function MapHealthCard({
         <p className="mt-3 text-xs text-subtle">
           {health.processCount} processes · avg heat {health.avgHeat}
           {health.hotProcesses > 0 ? ` · ${health.hotProcesses} hot` : ""}
+          {unscoredCount > 0 ? ` · ${unscoredCount} starter, not scored` : ""}
           {mapCustomized ? " · custom map" : " · industry template"}
-          {firstAt && trendPoints.length >= 2
-            ? ` · tracked since ${new Date(firstAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-            : ""}
+          {firstAt && trendPoints.length >= 2 ? ` · tracked since ${formatDayShort(firstAt)}` : ""}
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) return null;
+  const w = 160;
+  const h = 36;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = Math.max(1, max - min);
+  const path = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((p - min) / span) * (h - 4) - 2;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-40" aria-hidden>
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }

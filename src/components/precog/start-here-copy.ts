@@ -1,5 +1,7 @@
 import type { GapBadge } from "@/lib/precog/coach/first-steps";
 import type { SchemeKind } from "@/lib/precog/evidence";
+import { CRITICALITY_WEIGHT } from "@/lib/precog/continuity/coverage";
+import { count, verb } from "@/lib/precog/text";
 
 export const BADGE_VARIANT: Record<GapBadge, "danger" | "warn" | "default" | "primary" | "ok"> = {
   "Fix first": "danger",
@@ -37,27 +39,12 @@ export const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "financial-statement": "Doctored books and statements",
   corruption: "Kickbacks and conflicts of interest",
   "refund-fraud": "Refunds and voids with no sale behind them",
-  "inventory-theft": "Stock, equipment, and drugs taken",
+  "inventory-theft": "Stock, equipment, or supplies taken",
   "data-theft": "Customer and pricing data taken",
   "data-destruction": "Company data deleted or wiped by an insider",
 };
 
-/** Plain wording for each detection route, matching the case card. */
-/** Years of service at which the departure model calls a person long-serving. */
-export const LONG_SERVICE_YEARS = 5;
-
-export const DETECTION_PHRASE: Record<string, string> = {
-  tip: "Someone spoke up",
-  "owner-review": "The owner looked",
-  "external-audit": "An outside audit",
-  "bank-or-insurer": "A bank or insurer flagged it",
-  "law-enforcement": "Law enforcement",
-  "by-accident": "By accident, when the money ran out",
-  cover: "Someone else covered the desk and saw the records",
-  reconciliation: "A reconciliation caught it",
-};
-
-/** The same routes as a clause in a sentence: "it was the owner looking". */
+/** Detection routes as a clause in a sentence: "it was the owner looking". */
 export const ROUTE_CLAUSE: Record<string, string> = {
   "owner-review": "the owner looking",
   "bank-or-insurer": "a bank or insurer noticing",
@@ -71,11 +58,34 @@ export function joinClauses(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}`;
 }
 
-export function effortPhrase(effort: string): string {
-  return effort === "ongoing" ? "Ongoing" : `Takes ${effort}`;
+/** How the register percentages are weighted, said once wherever one is shown. */
+export const WEIGHTED_SHARE_NOTE = `Shares are weighted: a critical item counts ${times(CRITICALITY_WEIGHT.critical)} as much as a nice-to-have, an important one ${times(CRITICALITY_WEIGHT.important)}. Must-do work means the critical and important items.`;
+
+/**
+ * The line under someone out today when nothing on the register stops, or
+ * null when something does. While nobody is marked on the register the app
+ * cannot tell, so it says so instead of reassuring.
+ */
+export function outStopsNote(stops: number, waiting: number, assessed: boolean): string | null {
+  if (stops > 0) return null;
+  if (!assessed) return "Not assessed yet: mark who can do each item on Who knows what.";
+  if (waiting > 0) {
+    return `Nothing more stops, but ${count(waiting, "entry", "entries")} nobody can run alone already ${verb(waiting, "waits", "wait")}.`;
+  }
+  return "Everything they run, someone else can run alone.";
 }
 
-/** Lower-cases an entitlement label for mid-sentence use, keeping acronyms. */
-export function lower(label: string): string {
-  return label.replace(/^([A-Z])(?=[a-z])/, (m) => m.toLowerCase());
+/** Whether the case median sits above or below the study's median; null when either is missing or they are equal. */
+export function caseMedianComparison(
+  caseMedian: number | undefined,
+  studyMedian: number | undefined,
+): "higher" | "lower" | null {
+  if (caseMedian === undefined || studyMedian === undefined || caseMedian === studyMedian) {
+    return null;
+  }
+  return caseMedian > studyMedian ? "higher" : "lower";
+}
+
+function times(n: number): string {
+  return n === 1 ? "the same" : n === 2 ? "twice" : `${n} times`;
 }

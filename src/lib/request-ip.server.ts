@@ -4,16 +4,9 @@ import { clientIpFrom, trustedClientIpHeaders } from "./client-ip";
 /**
  * The calling client's address. Forwarding headers count only where the
  * deployment sets them (see client-ip.ts); otherwise this is the socket
- * address, which a client cannot choose.
+ * address, which a client cannot choose. Must be called inside a request:
+ * outside one, `getRequest()` throws.
  */
 export function requestIp(): string {
-  const request = getRequest();
-  if (!request) return "unknown";
-  let socketAddress: string | undefined;
-  try {
-    socketAddress = getRequestIP();
-  } catch {
-    socketAddress = undefined;
-  }
-  return clientIpFrom(request.headers, trustedClientIpHeaders(), socketAddress);
+  return clientIpFrom(getRequest().headers, trustedClientIpHeaders(), getRequestIP());
 }

@@ -1,7 +1,9 @@
 import { memo, useState } from "react";
-import { FAMILY_META } from "./power-map-graph";
+import { FAMILY_META } from "@/lib/precog/sod/duty-families";
+import { WEIGHT_TITLE } from "./power-map-words";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
-import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
+import type { IndustryId } from "@/lib/precog/industry";
+import { controlMeasures } from "@/lib/precog/sod/control-measures";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,8 +15,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  */
 export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
   duties,
+  industry,
 }: {
-  duties: typeof ENTITLEMENTS;
+  duties: readonly (typeof ENTITLEMENTS)[number][];
+  /** The line of business, so the catalog uses its own words. */
+  industry: IndustryId;
 }) {
   const [open, setOpen] = useState(false);
   const categories = ["directive", "preventive", "detective", "corrective"] as const;
@@ -22,11 +27,11 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div>
-          <CardTitle className="text-base">Internal control action catalog</CardTitle>
+          <CardTitle className="text-base">Controls for each duty</CardTitle>
           <CardDescription>
-            A menu of directive, preventive, detective, and corrective measures for every visible
-            duty. Pick proportionate primary controls and documented alternatives; no single action
-            replaces accountable review.
+            Controls for every duty shown: ones that set the rule, prevent, detect, and correct.
+            Choose the controls your team can run and write down which you chose. No control
+            replaces the owner reading the records.
           </CardDescription>
         </div>
         <Button
@@ -43,8 +48,8 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
           <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
             <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
               <caption className="sr-only">
-                Internal control measures for each duty, organized by directive, preventive,
-                detective, and corrective category.
+                Controls for each duty, organized by directive, preventive, detective, and
+                corrective category.
               </caption>
               <thead className="sticky top-0 z-20 bg-surface">
                 <tr>
@@ -52,7 +57,7 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
                     scope="col"
                     className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
                   >
-                    Power / duty
+                    Duty
                   </th>
                   {categories.map((category) => (
                     <th
@@ -67,7 +72,7 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
               </thead>
               <tbody>
                 {duties.map((duty) => {
-                  const controls = DUTY_CONTROL_MEASURES[duty.id];
+                  const controls = controlMeasures(industry)[duty.id];
                   return (
                     <tr key={duty.id} className="align-top">
                       <th
@@ -76,7 +81,8 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
                       >
                         <span className="block font-medium text-fg">{duty.label}</span>
                         <span className="mt-1 block text-xs font-normal text-subtle">
-                          {FAMILY_META[duty.family].label} · risk {duty.riskWeight}/5
+                          {FAMILY_META[duty.family].label} ·{" "}
+                          <span title={WEIGHT_TITLE}>weight {duty.riskWeight} of 5</span>
                         </span>
                       </th>
                       {categories.map((category) => (

@@ -49,3 +49,31 @@ it("compares insurance content, not object identity, and detects removal of prov
   expect(comparison.riskVariableChanges).toHaveLength(1);
   expect(comparison.riskVariableChanges[0].key).toBe("insurance");
 });
+
+describe("snapshot comparison memo", () => {
+  it("prints money deltas as -$3,640 and +$3,640, never $-3,640 or +$3,640.4", () => {
+    const memo = createSnapshotComparisonReport(
+      "Q3",
+      "2026-06-30",
+      {
+        teamSizeDelta: 0,
+        riskChanges: 0,
+        grants: 0,
+        revocations: 0,
+        hires: 0,
+        removals: 0,
+        netObservedValueDelta: -3640,
+        verifiedEvidenceDelta: 0,
+        evidenceReadinessDelta: 0,
+        verifiedRecoveryDelta: 3640.4,
+        assignmentChanges: [],
+        riskVariableChanges: [],
+      } as unknown as Parameters<typeof createSnapshotComparisonReport>[2],
+      new Date("2026-09-26T12:00:00Z"),
+    );
+    expect(memo).toContain("- Net observed value: -$3,640");
+    expect(memo).toContain("- Verified recoveries: +$3,640");
+    expect(memo).not.toContain("$-");
+    expect(memo).not.toContain("3,640.4");
+  });
+});

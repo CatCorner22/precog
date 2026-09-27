@@ -1,25 +1,15 @@
+import { getIndustryTemplate } from "./templates";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "./process-graph";
+import { processNode } from "@/test/fixtures";
+import { buildProcessMapGraph } from "./process-graph";
+import { computeMapHealth } from "./process-health";
+import { validateProcessMap } from "./process-validation";
 import {
   normalizeSystems,
   parseCadence,
   processDocumentationState,
   processRecordReport,
 } from "./process-record";
-import type { ProcessNode } from "./types";
-
-function proc(id: string, extra: Partial<ProcessNode> = {}): ProcessNode {
-  return {
-    id,
-    name: id,
-    layer: "process",
-    description: "",
-    dependencies: [],
-    controlIds: [],
-    ...extra,
-  };
-}
 
 describe("parseCadence", () => {
   it("accepts spreadsheet spellings", () => {
@@ -49,16 +39,16 @@ describe("normalizeSystems", () => {
 
 describe("processDocumentationState", () => {
   it("mirrors the knowledge-item vocabulary", () => {
-    expect(processDocumentationState(proc("a"))).toBe("none");
+    expect(processDocumentationState(processNode("a"))).toBe("none");
     expect(
-      processDocumentationState(proc("a", { documented: false, procedureLocation: "x" })),
+      processDocumentationState(processNode("a", { documented: false, procedureLocation: "x" })),
     ).toBe("none");
-    expect(processDocumentationState(proc("a", { documented: true }))).toBe("unlocated");
-    expect(processDocumentationState(proc("a", { documented: true, procedureLocation: " " }))).toBe(
-      "unlocated",
-    );
+    expect(processDocumentationState(processNode("a", { documented: true }))).toBe("unlocated");
     expect(
-      processDocumentationState(proc("a", { documented: true, procedureLocation: "Drive" })),
+      processDocumentationState(processNode("a", { documented: true, procedureLocation: " " })),
+    ).toBe("unlocated");
+    expect(
+      processDocumentationState(processNode("a", { documented: true, procedureLocation: "Drive" })),
     ).toBe("located");
   });
 });
@@ -72,11 +62,11 @@ describe("processRecordReport", () => {
 
   it("ranks nothing-written before unlocated, then by how soon the process stops", () => {
     const r = processRecordReport([
-      proc("annual-none", { cadence: "annual" }),
-      proc("weekly-unlocated", { cadence: "weekly", documented: true }),
-      proc("daily-none", { cadence: "daily", ownerPersonIds: ["p1"] }),
-      proc("located", { documented: true, procedureLocation: "Binder", cadence: "daily" }),
-      proc("no-cadence-none"),
+      processNode("annual-none", { cadence: "annual" }),
+      processNode("weekly-unlocated", { cadence: "weekly", documented: true }),
+      processNode("daily-none", { cadence: "daily", ownerPersonIds: ["p1"] }),
+      processNode("located", { documented: true, procedureLocation: "Binder", cadence: "daily" }),
+      processNode("no-cadence-none"),
     ]);
     expect(r.counts).toEqual({ none: 3, unlocated: 1, located: 1 });
     expect(r.documentedIndex).toBe(20);
@@ -93,8 +83,15 @@ describe("processRecordReport", () => {
     expect(r.gaps[3].nextStep).toMatch(/Record where the written procedure/);
   });
 
+  it("marks the stop date of a process with no cadence as assumed", () => {
+    const r = processRecordReport([processNode("x"), processNode("y", { cadence: "daily" })]);
+    const byId = new Map(r.gaps.map((g) => [g.process.id, g]));
+    expect(byId.get("x")!.cadenceAssumed).toBe(true);
+    expect(byId.get("y")!.cadenceAssumed).toBe(false);
+  });
+
   it("names the systems in the next step so the writer knows where to look", () => {
-    const r = processRecordReport([proc("x", { systems: ["Dentrix", "Bank portal"] })]);
+    const r = processRecordReport([processNode("x", { systems: ["Dentrix", "Bank portal"] })]);
     expect(r.gaps[0].nextStep).toContain("in Dentrix, Bank portal");
   });
 });
@@ -103,7 +100,11 @@ describe("validateProcessMap record checks", () => {
   const people = [{ id: "p1", name: "A", role: "Owner", active: true }];
 
   it("emits one info issue per process listing what the record is missing", () => {
-    const issues = validateProcessMap([proc("a", { ownerPersonIds: ["p1"] })], people, new Set());
+    const issues = validateProcessMap(
+      [processNode("a", { ownerPersonIds: ["p1"] })],
+      people,
+      new Set(),
+    );
     const record = issues.filter((i) => i.id.startsWith("record-"));
     expect(record).toHaveLength(1);
     expect(record[0].severity).toBe("info");
@@ -114,7 +115,7 @@ describe("validateProcessMap record checks", () => {
   it("says nothing when cadence and a findable procedure are recorded", () => {
     const issues = validateProcessMap(
       [
-        proc("a", {
+        processNode("a", {
           ownerPersonIds: ["p1"],
           cadence: "daily",
           documented: true,
@@ -129,7 +130,7 @@ describe("validateProcessMap record checks", () => {
 
   it("asks for the location when the procedure exists but is unlocated", () => {
     const issues = validateProcessMap(
-      [proc("a", { ownerPersonIds: ["p1"], cadence: "daily", documented: true })],
+      [processNode("a", { ownerPersonIds: ["p1"], cadence: "daily", documented: true })],
       people,
       new Set(),
     );
@@ -139,13 +140,17 @@ describe("validateProcessMap record checks", () => {
   });
 
   it("does not let record gaps count against integrity", () => {
-    const issues = validateProcessMap([proc("a", { ownerPersonIds: ["p1"] })], people, new Set());
+    const issues = validateProcessMap(
+      [processNode("a", { ownerPersonIds: ["p1"] })],
+      people,
+      new Set(),
+    );
     expect(issues.filter((i) => i.severity === "warn" || i.severity === "error")).toEqual([]);
   });
 });
 
 describe("computeMapHealth documentation dimension", () => {
-  const tpl = getBaseTemplate("dental");
+  const tpl = getIndustryTemplate("dental");
 
   it("weights sum to one and the dimension is present", () => {
     const graph = buildProcessMapGraph(tpl, undefined);
@@ -159,7 +164,7 @@ describe("computeMapHealth documentation dimension", () => {
     expect(doc.hint).toMatch(/nothing written down/);
   });
 
-  it("gives half credit for written-but-unlocated and full credit for located", () => {
+  it("credits a findable procedure only, the same rule as the process record", () => {
     const withDocs = {
       ...tpl,
       processes: tpl.processes.map((p, i) => ({
@@ -174,7 +179,8 @@ describe("computeMapHealth documentation dimension", () => {
     )!;
     const n = tpl.processes.length;
     const located = Math.ceil(n / 2);
-    expect(doc.score).toBe(Math.round(((located + (n - located) * 0.5) / n) * 100));
+    expect(doc.score).toBe(Math.round((located / n) * 100));
+    expect(doc.score).toBe(processRecordReport(withDocs.processes).documentedIndex);
     const all = buildProcessMapGraph(
       {
         ...tpl,

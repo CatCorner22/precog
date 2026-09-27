@@ -1,15 +1,17 @@
 /**
- * Multi-agent specialist passes for Pioneer.
- * Operator (Lean/ops), Shield (controls/legal-lite), Precog (scenarios),
- * Critic (Chicken Little) — each produces structured notes from tools.
+ * The brief's four review lenses: operations, controls, scenarios and a
+ * critic. Each is a fixed template over the tool results, not a model call.
  */
 import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
-import { formatUsd as usd } from "@/lib/utils";
+import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
+import { NO_ALERT_WARNING, WARNING_RULES } from "./agent-brief";
+import { formatUsdDelta } from "@/lib/utils";
+import { count } from "../text";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
-export interface SpecialistNote {
+interface SpecialistNote {
   agent: SpecialistId;
   title: string;
   bullets: string[];
@@ -23,13 +25,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
   const sod = tools.find((t) => t.tool === "get_sod_conflicts")?.data as
     { name: string; residualRiskAccepted: boolean }[] | undefined;
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
-    | {
-        title: string;
-        retained: { expected: number };
-        timelineDays: { p50: number };
-        dynamic: { expectedAnnualCostOfRisk: number } | null;
-      }
-    | undefined;
+    ScenarioRunData | undefined;
   const cascade = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
     | {
         topByCostOfRisk?: {
@@ -45,75 +41,74 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     { hits: { title: string; domain: string; text: string }[] } | undefined;
   const spofState = readSpofData(tools.find((t) => t.tool === "get_knowledge_spofs")?.data);
 
-  // Operator — Lean / bottlenecks
+  // Operator: who carries the work
   notes.push({
     agent: "operator",
-    title: "The Operator (Lean / unit economics)",
+    title: "Operations: who carries the work",
     bullets: [
       residual
-        ? `Portfolio residual ${residual.averageResidual}; top bottleneck: ${residual.top[0]?.name ?? "n/a"} (${residual.top[0]?.residual ?? "?"}).`
-        : "No residual portfolio in tools.",
+        ? `Average risk index ${residual.averageResidual}/100 (this app's own index); most exposed: ${residual.top[0]?.name ?? "nothing listed"} (${residual.top[0]?.residual ?? "?"}/100).`
+        : "No risk index in this run.",
       spofState && !spofState.assessed
-        ? "Knowledge: not assessed yet. Nobody is marked on the register, so no single-point-of-failure count applies."
+        ? "Who knows what: not assessed yet. Nobody is marked, so nothing shows who alone can run what."
         : spofState && spofState.rows.length
-          ? `Knowledge muda/mura: ${spofState.rows.length} SPOF(s) — cross-train is capacity, not paperwork.`
-          : "No critical SPOFs flagged.",
+          ? `${count(spofState.rows.length, "item")} only one person can run; training a second person adds capacity, not paperwork.`
+          : "No critical item rests on one person.",
       leading
-        ? `Leading indicators: ${leading.breached} breached, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
-        : "Check the leading indicators for conditions that precede a loss.",
+        ? `Watched conditions: ${leading.breached} breached, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`.trim()
+        : "Check the watched conditions on Patterns.",
     ],
   });
 
-  // Shield — controls / residual acceptance
+  // Shield: who can do what alone
   notes.push({
     agent: "shield",
-    title: "The Shield (controls & residual acceptance)",
+    title: "Controls: who can do what alone",
     bullets: [
       sod
-        ? `${sod.length} SoD gap(s); ${sod.filter((s) => !s.residualRiskAccepted).length} without acceptance — write decisions down.`
-        : "Pull SoD conflicts for control design.",
+        ? `${count(sod.length, "duty conflict")}; ${sod.filter((s) => !s.residualRiskAccepted).length} not yet accepted or fixed. Write each decision down in the Decisions log.`
+        : "No duty-conflict check in this run.",
       rag?.hits?.[0]
-        ? `Guidance: ${rag.hits[0].title} — ${rag.hits[0].text.slice(0, 160)}…`
-        : "Retrieve COSO/SoD guidance for language of acceptance.",
-      "Never invent fraud accusations; score design effectiveness only.",
+        ? `Guidance: ${rag.hits[0].title}: ${rag.hits[0].text.slice(0, 160)}…`
+        : "No guidance matched this question.",
     ],
   });
 
-  // Precog — scenarios & transfer
+  // Precog: what could happen
   notes.push({
     agent: "precog",
-    title: "Precog (timeline & transfer)",
+    title: "Scenarios: what could happen",
     bullets: [
       scenario
-        ? `${scenario.title}: retained ${usd(scenario.retained.expected)}, p50 ${scenario.timelineDays.p50}d, CoR ${usd(scenario.dynamic?.expectedAnnualCostOfRisk ?? 0)}.`
-        : "Run top Precog scenario.",
+        ? `${scenario.title}: ${describeScenarioFigures(scenario)}.`
+        : "No scenario applies to this business yet.",
       cascade?.topByCostOfRisk?.[0]
-        ? `Best cascade: ${cascade.topByCostOfRisk[0].label} (ΔCoR ${usd(cascade.topByCostOfRisk[0].deltaCor)}). ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`
-        : "Simulate variable cascades before changing deductible.",
-      "Premium, deductible, and controls are coupled — re-measure CoR after each lever.",
+        ? `Biggest knock-on effect: ${cascade.topByCostOfRisk[0].label} (yearly cost of risk ${formatUsdDelta(cascade.topByCostOfRisk[0].deltaCor)}). ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`.trim()
+        : "Run the what-else-moves check before changing the deductible.",
+      "The premium, the deductible and the controls move together; check the yearly cost of risk again after each change.",
     ],
   });
 
-  // Critic
+  // Critic: what could go wrong
   const criticBullets: string[] = [];
-  if ((residual?.averageResidual ?? 0) >= 55) {
-    criticBullets.push("Residual already elevated — delay is a choice with a price.");
+  if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
+    criticBullets.push(
+      `The average risk index is in the "fix soon" band; waiting is a choice with a price.`,
+    );
   }
   if (leading && leading.breached > 0) {
     criticBullets.push(
-      `${leading.breached} leading indicator(s) breached — a loss may not have landed yet, but the conditions for one are present.`,
+      `${count(leading.breached, "watched condition")} breached: a loss may not have happened yet, but the conditions for one are present.`,
     );
   }
-  if (!criticBullets.length) {
-    criticBullets.push("No red-alert composite — still re-score after staff or insurance change.");
-  }
+  if (!criticBullets.length) criticBullets.push(NO_ALERT_WARNING);
   criticBullets.push(
-    "Second-order: fixing one control can unlock premium credits and change residual appetite — update the journal.",
+    "Fixing one control can lower the premium and change how much risk you accept; record the change in the Decisions log.",
   );
 
   notes.push({
     agent: "critic",
-    title: "Chicken Little (critic)",
+    title: "Critic: what could go wrong",
     bullets: criticBullets,
   });
 

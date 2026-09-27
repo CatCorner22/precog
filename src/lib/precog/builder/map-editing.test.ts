@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import type { ProcessNode } from "../types";
-import { applyMapSnapshot, captureMapSnapshot } from "./map-history";
+import { withMapSnapshot } from "../profile-actions";
+import { captureMapSnapshot } from "./map-history";
 import {
   connectProcessDependency,
   edgesWithinNodes,
   removeProcessDependencies,
 } from "./map-editing";
+
+const TODAY = "2026-09-26";
 
 const process = (id: string, dependencies: string[] = []): ProcessNode => ({
   id,
@@ -78,11 +81,11 @@ describe("map history", () => {
       mapLayout: { a: { x: 55, y: 99 } },
       customProcesses: [process("a"), process("b")],
     };
-    const restored = applyMapSnapshot(after, snapshot);
+    const restored = withMapSnapshot(after, snapshot, TODAY);
     expect(restored.mapLayout).toEqual(before.mapLayout);
     expect(restored.customProcesses).toEqual(before.customProcesses);
     expect(restored.practiceName).toBe("A later name");
-    expect(applyMapSnapshot(restored, captureMapSnapshot(after)).mapLayout).toEqual(
+    expect(withMapSnapshot(restored, captureMapSnapshot(after), TODAY).mapLayout).toEqual(
       after.mapLayout,
     );
   });
@@ -91,6 +94,6 @@ describe("map history", () => {
     const before = defaultProfile();
     before.mapLayout = undefined;
     const after = { ...before, mapLayout: { a: { x: 3, y: 4 } } };
-    expect(applyMapSnapshot(after, captureMapSnapshot(before)).mapLayout).toEqual({});
+    expect(withMapSnapshot(after, captureMapSnapshot(before), TODAY).mapLayout).toEqual({});
   });
 });

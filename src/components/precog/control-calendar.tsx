@@ -1,13 +1,6 @@
 import { useMemo, useState } from "react";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
-import {
-  collectDueItems,
-  dayKey,
-  groupByDay,
-  summarizeDue,
-  type DueItem,
-} from "@/lib/precog/builder/due";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { collectDueItems, groupByDay, summarizeDue, type DueItem } from "@/lib/precog/builder/due";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,32 +15,11 @@ import {
   ClipboardList,
   Clock,
 } from "lucide-react";
+import { formatDay, formatDayShort, localDateKey } from "@/lib/precog/dates";
+import { useToday } from "@/lib/use-today";
+import { count, verb } from "@/lib/precog/text";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function startOfWeek(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  const day = (x.getDay() + 6) % 7; // Monday = 0
-  x.setDate(x.getDate() - day);
-  return x;
-}
-
-function statusTone(s: DueItem["status"]) {
-  if (s === "overdue") return "danger" as const;
-  if (s === "today" || s === "this_week") return "warn" as const;
-  if (s === "unscheduled") return "default" as const;
-  return "primary" as const;
-}
-
-function dueLabel(i: DueItem) {
-  if (i.status === "unscheduled") return i.kind === "evidence" ? "never recorded" : "";
-  if (i.daysLeft === null) return "";
-  if (i.daysLeft < 0) return `overdue ${Math.abs(i.daysLeft)}d`;
-  if (i.daysLeft === 0) return "today";
-  if (i.daysLeft === 1) return "tomorrow";
-  return `in ${i.daysLeft}d`;
-}
 
 /**
  * Dashboard card: what control work is due this week, with a 6-week calendar toggle.
@@ -70,11 +42,14 @@ export function ControlCalendarCard({
 
   // Due items read only the decisions, map versions and custom map fields.
   const { decisions, mapVersions, customProcesses, customPeople } = profile;
+  // Keyed on the day too, so statuses roll over at midnight like the sibling cards.
+  const today = useToday();
+  const todayKey = localDateKey(today);
   const { items, summary } = useMemo(() => {
-    const due = collectDueItems(tpl.processes, tpl.people, profile);
+    const due = collectDueItems(tpl.processes, tpl.people, profile, today);
     return { items: due, summary: summarizeDue(due) };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the fields collectDueItems reads
-  }, [tpl.processes, tpl.people, decisions, mapVersions, customProcesses, customPeople]);
+  }, [tpl.processes, tpl.people, decisions, mapVersions, customProcesses, customPeople, today]);
   const byDay = useMemo(() => groupByDay(items), [items]);
 
   const actionable = items.filter((i) => i.status !== "later");
@@ -96,8 +71,15 @@ export function ControlCalendarCard({
     );
   }
 
+  /** Open an item where it is worked on: the Decisions log, the map builder, or its process. */
+  function openDue(i: DueItem) {
+    if (i.kind === "decision") onOpenJournal();
+    else if (i.kind === "snapshot") onOpenBuilder();
+    else if (i.processId) onOpenProcess(i.processId);
+  }
+
   const weeks = useMemo(() => {
-    const start = startOfWeek(new Date());
+    const start = startOfWeek(today);
     start.setDate(start.getDate() + weekOffset * 7);
     return Array.from({ length: 6 }, (_, w) =>
       Array.from({ length: 7 }, (_, d) => {
@@ -106,8 +88,7 @@ export function ControlCalendarCard({
         return day;
       }),
     );
-  }, [weekOffset]);
-  const todayKey = dayKey(new Date());
+  }, [today, weekOffset]);
 
   return (
     <Card>
@@ -125,6 +106,7 @@ export function ControlCalendarCard({
           <div className="inline-flex overflow-hidden rounded-md border border-border text-xs">
             <button
               type="button"
+              aria-pressed={view === "list"}
               onClick={() => setView("list")}
               className={cn(
                 "px-2.5 py-1",
@@ -135,6 +117,7 @@ export function ControlCalendarCard({
             </button>
             <button
               type="button"
+              aria-pressed={view === "calendar"}
               onClick={() => setView("calendar")}
               className={cn(
                 "border-l border-border px-2.5 py-1",
@@ -182,11 +165,7 @@ export function ControlCalendarCard({
                 <DueRow
                   key={i.id}
                   item={i}
-                  onOpen={() => {
-                    if (i.kind === "decision") onOpenJournal();
-                    else if (i.kind === "snapshot") onOpenBuilder();
-                    else if (i.processId) onOpenProcess(i.processId);
-                  }}
+                  onOpen={() => openDue(i)}
                   onDone={i.kind === "evidence" ? () => markDone(i) : undefined}
                 />
               ))}
@@ -209,8 +188,7 @@ export function ControlCalendarCard({
                 <ChevronLeft className="size-4" />
               </button>
               <span>
-                {weeks[0][0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} –{" "}
-                {weeks[5][6].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {formatDayShort(weeks[0][0])} – {formatDayShort(weeks[5][6])}
                 {weekOffset !== 0 && (
                   <button
                     type="button"
@@ -239,10 +217,10 @@ export function ControlCalendarCard({
             </div>
             <div className="grid grid-cols-7 gap-1">
               {weeks.flat().map((day) => {
-                const k = dayKey(day);
+                const k = localDateKey(day);
                 const dayItems = byDay.get(k) ?? [];
                 const isToday = k === todayKey;
-                const past = day.getTime() < new Date(todayKey).getTime() && !isToday;
+                const past = k < todayKey;
                 const worst = dayItems.some((i) => i.status === "overdue")
                   ? "danger"
                   : dayItems.some((i) => i.status === "today" || i.status === "this_week")
@@ -254,6 +232,7 @@ export function ControlCalendarCard({
                   <button
                     key={k}
                     type="button"
+                    aria-pressed={selectedDay === k}
                     onClick={() => setSelectedDay(selectedDay === k ? null : k)}
                     className={cn(
                       "flex h-12 flex-col items-center justify-between rounded-md border p-1 text-xs transition-colors",
@@ -263,7 +242,7 @@ export function ControlCalendarCard({
                       isToday && "ring-1 ring-primary/50",
                       past && !dayItems.length && "opacity-50",
                     )}
-                    aria-label={`${day.toDateString()}${dayItems.length ? `, ${dayItems.length} item(s)` : ""}`}
+                    aria-label={`${formatDay(day)}${dayItems.length ? `, ${count(dayItems.length, "item")}` : ""}`}
                   >
                     <span
                       className={cn(
@@ -298,10 +277,7 @@ export function ControlCalendarCard({
                     <DueRow
                       key={i.id}
                       item={i}
-                      onOpen={() => {
-                        if (i.kind === "decision") onOpenJournal();
-                        else if (i.processId) onOpenProcess(i.processId);
-                      }}
+                      onOpen={() => openDue(i)}
                       onDone={i.kind === "evidence" ? () => markDone(i) : undefined}
                     />
                   ))
@@ -310,7 +286,8 @@ export function ControlCalendarCard({
             )}
             {summary.unscheduled > 0 && (
               <p className="text-xs text-subtle">
-                {summary.unscheduled} item(s) have never been recorded and so have no date — open
+                {count(summary.unscheduled, "item")} {verb(summary.unscheduled, "has", "have")}{" "}
+                never been recorded and so {verb(summary.unscheduled, "has", "have")} no date — open
                 them from &ldquo;This week&rdquo; and mark the first review done to start the
                 cadence.
               </p>
@@ -363,4 +340,28 @@ function DueRow({
       )}
     </li>
   );
+}
+
+function startOfWeek(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = (x.getDay() + 6) % 7; // Monday = 0
+  x.setDate(x.getDate() - day);
+  return x;
+}
+
+function statusTone(s: DueItem["status"]) {
+  if (s === "overdue") return "danger" as const;
+  if (s === "today" || s === "this_week") return "warn" as const;
+  if (s === "unscheduled") return "default" as const;
+  return "primary" as const;
+}
+
+function dueLabel(i: DueItem) {
+  if (i.status === "unscheduled") return i.kind === "evidence" ? "never recorded" : "";
+  if (i.daysLeft === null) return "";
+  if (i.daysLeft < 0) return `overdue ${Math.abs(i.daysLeft)}d`;
+  if (i.daysLeft === 0) return "today";
+  if (i.daysLeft === 1) return "tomorrow";
+  return `in ${i.daysLeft}d`;
 }

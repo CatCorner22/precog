@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatUsd } from "@/lib/utils";
 import { Lock, UserCheck } from "lucide-react";
 import type { ReleaseChannel } from "@/lib/precog/controls/dual-release";
-import { DUAL_RELEASE_CHANNELS } from "@/components/precog/dual-release-constants";
 import { DualReleaseEvalResult } from "@/components/precog/dual-release-parts";
 import type { DualReleasePanelModel } from "@/components/precog/use-dual-release-panel";
 
@@ -37,8 +36,8 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
         </CardTitle>
         <CardDescription>
           {payeeHint
-            ? `Includes payee matching for exceptions (try “${payeeHint}”)`
-            : "Includes payee matching for any exception you add below"}
+            ? `Try a payment before it happens. Type “${payeeHint}” as the payee to see an exception apply.`
+            : "Try a payment before it happens. Exceptions you add above apply here too."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -49,9 +48,9 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
             onChange={(e) => setChannel(e.target.value as ReleaseChannel)}
             className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
           >
-            {DUAL_RELEASE_CHANNELS.map((ch) => (
-              <option key={ch} value={ch}>
-                {policy.rules.find((r) => r.channel === ch)?.label ?? ch}
+            {policy.rules.map((rule) => (
+              <option key={rule.channel} value={rule.channel}>
+                {rule.label}
               </option>
             ))}
           </select>
@@ -97,7 +96,7 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
               onChange={(e) => setSecondId(e.target.value)}
               className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
             >
-              <option value="">— none —</option>
+              <option value="">Nobody</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {p.role}
@@ -108,12 +107,13 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
         </div>
         {activeRule && (
           <p className="text-xs text-subtle">
-            Base dual above {formatUsd(activeRule.thresholdUsd)}. Seconds: {secondsLine}.
+            Two people are needed above {formatUsd(activeRule.thresholdUsd)}. Who may sign second:{" "}
+            {secondsLine}.
           </p>
         )}
         <Button size="sm" onClick={runEval}>
           <UserCheck className="size-3.5" />
-          Evaluate release
+          Check this payment
         </Button>
 
         {lastEval && <DualReleaseEvalResult eval={lastEval} />}

@@ -1,15 +1,16 @@
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import type { TabId } from "@/lib/precog/navigation";
+import { useTabName } from "@/lib/precog/presentation";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
-import { useTemplate } from "@/lib/precog/use-template";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
-import { dateAfter } from "@/lib/precog/decisions/follow-through";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { dateAfter } from "@/lib/precog/dates";
 
 const ORDER: MatrixLayerId[] = [
   "surface",
@@ -19,6 +20,13 @@ const ORDER: MatrixLayerId[] = [
   "source",
   "continuity",
 ];
+
+/** The tab that shows each layer in full, for the link under its list. */
+const FULL_VIEW: Partial<Record<MatrixLayerId, TabId>> = {
+  control: "sod",
+  knowledge: "knowledge",
+  process: "map",
+};
 
 export function LayersPanel({
   active,
@@ -59,12 +67,7 @@ export function LayersPanel({
                 : "border-border bg-surface hover:border-border-strong hover:bg-elevated",
             )}
           >
-            <div className="flex items-start justify-between gap-2">
-              <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
-              <span className="text-xs tracking-wider text-subtle uppercase">
-                {meta.matrixName}
-              </span>
-            </div>
+            <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
             <h2 className="mt-3 font-semibold">{meta.name}</h2>
             <p className="mt-1 text-sm text-muted">{meta.blurb}</p>
             <p className="mt-3 text-xs text-subtle">{counts}</p>
@@ -75,13 +78,6 @@ export function LayersPanel({
   );
 }
 
-/** The tab that shows each layer in full, for the link under its list. */
-const FULL_VIEW: Partial<Record<MatrixLayerId, { tab: string; label: string }>> = {
-  control: { tab: "sod", label: "Open Who controls what" },
-  knowledge: { tab: "knowledge", label: "Open Who knows what" },
-  process: { tab: "map", label: "Open How work flows" },
-};
-
 export function LayerDetail({
   layer,
   onOpenTab,
@@ -90,9 +86,12 @@ export function LayerDetail({
   /** Opens the tab that shows this layer in full. */
   onOpenTab?: (tab: string) => void;
 }) {
+  const tabName = useTabName();
   const full = FULL_VIEW[layer];
   const action =
-    full && onOpenTab ? { label: full.label, onClick: () => onOpenTab(full.tab) } : undefined;
+    full && onOpenTab
+      ? { label: `Open ${tabName(full)}`, onClick: () => onOpenTab(full) }
+      : undefined;
   const { profile, addDecision } = usePractice();
   const { processes, controls, knowledge } = useTemplate();
   const layerCopy = getIndustryCopy(profile.industry).layerCopy;
@@ -136,7 +135,7 @@ export function LayerDetail({
               {c.starter && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <p className="text-xs text-subtle">
-                    From the industry example. Nobody has confirmed this control runs in your
+                    From the industry sample. Nobody has confirmed this control runs in your
                     business, so the app does not score it yet.
                   </p>
                   <Button
@@ -160,10 +159,9 @@ export function LayerDetail({
               )}
               {c.compensatingControls.length > 0 && (
                 <p className="mt-1 text-xs text-subtle">
-                  {ownBusiness ? "Already in place" : "Compensating"}:{" "}
-                  {c.compensatingControls.join("; ")}
+                  Already in place: {c.compensatingControls.join("; ")}
                   {ownBusiness &&
-                    " (from your decisions log; remove an entry there to take it off)"}
+                    ` (from your ${tabName("journal")}; remove an entry there to take it off)`}
                 </p>
               )}
               {ownBusiness && !c.starter && !c.segregated && (
@@ -189,7 +187,7 @@ export function LayerDetail({
 
   if (layer === "knowledge") {
     return (
-      <LayerShell title={meta.name} subtitle="Who can do each task, and who alone." action={action}>
+      <LayerShell title={meta.name} subtitle="Who can do each duty, and who alone." action={action}>
         <ul className="space-y-2">
           {knowledge.map((k) => (
             <li
@@ -210,7 +208,7 @@ export function LayerDetail({
   return (
     <LayerShell title={meta.name} subtitle={meta.blurb} action={action}>
       <ul className="space-y-2">
-        {(layerCopy[layer] ?? []).map((line) => (
+        {layerCopy[layer].map((line) => (
           <li
             key={line}
             className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-muted"
@@ -260,6 +258,7 @@ function LayerShell({
  * still held by one person.
  */
 function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
+  const tabName = useTabName();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   if (!open) {
@@ -294,8 +293,8 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
         />
       </label>
       <p className="text-xs text-subtle">
-        It goes in your decisions log with a review date in 90 days. It lowers these findings&apos;
-        scores a little but does not close them: one person still holds both duties.
+        It goes in your {tabName("journal")} with a review date in 90 days. It lowers these
+        gaps&apos; scores a little but does not close them: one person still holds both duties.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={!trimmed}>

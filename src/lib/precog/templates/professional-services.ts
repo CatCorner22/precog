@@ -1,101 +1,81 @@
-import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
+import type { IndustrySample } from "./types";
 import {
   baseFinancialControls,
   baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
 } from "./shared-controls";
 
 /**
- * Client trust accounts. A law firm holds client money in a trust account (in
- * most states an IOLTA account for small or short-term balances), and the bar
- * rules follow ABA Model Rule 1.15: client money is kept separate, recorded by
- * client, and reconciled. The ABA Model Rules for Client Trust Account Records
- * call for a monthly reconciliation of the bank statement, the trust journal
- * and the client ledgers, the "three-way" reconciliation. Taking one client's
- * money and covering it with another's is the misappropriation pattern that
- * state bars discipline most severely; no rate is given for it here.
+ * A consulting firm of about six people: a managing partner, an office
+ * manager who holds the client funds and handles vendors and payroll, a
+ * senior consultant, a billing coordinator, an admin assistant and a
+ * bookkeeper who deposits, pays and reconciles. It uses the shared controls
+ * and scenarios, and adds client trust funds.
+ *
+ * Client trust funds. A firm that holds client money before it is earned
+ * (retainers, advance fees, money held for a client's costs) keeps it apart
+ * from its own, recorded by client, and reconciles it monthly: the bank
+ * statement, the trust journal and the client ledgers agree, the "three-way"
+ * reconciliation. For law firms the bar rules require exactly this (ABA Model
+ * Rule 1.15; in most states small or short-term balances sit in an IOLTA
+ * account). This sample is a consulting firm, so its controls name a partner
+ * rather than a lawyer. Taking one client's money and covering it with
+ * another's is the misappropriation pattern the reconciliation exists to
+ * catch; no rate is given for it here.
  */
-const trustControls: ControlItem[] = [
-  {
-    id: "c-trust-rec",
-    name: "Three-way trust reconciliation",
-    description:
-      "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a lawyer who did not prepare the reconciliation reviews and signs it.",
-    duties: ["reconciliation", "review"],
-    segregated: false,
-    compensatingControls: ["Managing partner reads the trust bank statement monthly"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-trust-disb",
-    name: "Trust disbursement approval",
-    description:
-      "No money leaves the trust account without a matter, enough funds in that client's ledger, and a lawyer's approval; only lawyers sign trust checks or release trust wires.",
-    duties: ["authorization", "custody"],
-    segregated: false,
-    compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
-    residualRiskAccepted: false,
-  },
-];
-
-/*
- * Timeline and loss figures reuse the shared cash scenario's illustrative
- * model inputs; they are assumptions, not measurements.
- */
-const trustScenarios: ScenarioTemplate[] = [
-  {
-    id: "sc-trust-misappropriation",
-    title: "Client trust money taken and covered with other clients' funds",
-    description:
-      "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
-    controlId: "c-trust-rec",
-    knowledgeId: "k7",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
-    cascadeLayers: ["control", "process", "surface", "continuity"],
-    mitigations: [
-      {
-        id: "m-trust-1",
-        label: "A lawyer who did not prepare it signs the three-way reconciliation monthly",
-        effort: "low",
-        riskReduction: 0.5,
-        costAnnual: 0,
-      },
-      {
-        id: "m-trust-2",
-        label: "Only lawyers approve and sign trust disbursements",
-        effort: "low",
-        riskReduction: 0.6,
-        costAnnual: 0,
-      },
-      {
-        id: "m-trust-3",
-        label: "Trust bank statements go to the managing partner first",
-        effort: "low",
-        riskReduction: 0.35,
-        costAnnual: 0,
-      },
+export const professionalServicesTemplate: IndustrySample = {
+  id: "professional_services",
+  people: [
+    { id: "p1", name: "Catherine Wu", role: "Managing Partner", active: true, tenureYears: 14 },
+    { id: "p2", name: "Linda Foster", role: "Office Manager", active: true, tenureYears: 8 },
+    { id: "p3", name: "Raj Mehta", role: "Senior Consultant", active: true, tenureYears: 6 },
+    { id: "p4", name: "Paul Novak", role: "Billing Coordinator", active: true, tenureYears: 4 },
+    { id: "p5", name: "Emily Tran", role: "Admin Assistant", active: true, tenureYears: 2 },
+    { id: "p6", name: "Greg Holloway", role: "Bookkeeper", active: true, tenureYears: 3 },
+  ],
+  roleTemplates: {
+    "Managing Partner": [
+      "approve_writeoffs",
+      "approve_vendor",
+      "approve_payroll",
+      "approve_expenses",
+      "bank_reconcile",
+      "view_reports_only",
+    ],
+    "Office Manager": [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "approve_vendor",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    "Senior Consultant": ["view_reports_only"],
+    "Billing Coordinator": [
+      "post_adjustments",
+      "post_payments",
+      "approve_writeoffs",
+      "view_reports_only",
+    ],
+    "Admin Assistant": ["view_reports_only"],
+    Bookkeeper: [
+      "post_payments",
+      "prepare_deposit",
+      "bank_reconcile",
+      "post_adjustments",
+      "create_vendor",
+      "release_payment",
+      "review_card_statement",
+      "view_reports_only",
     ],
   },
-];
-
-export const professionalServicesTemplate: IndustryTemplate = {
-  id: "professional_services",
-  businessName: "Northgate Advisory Group",
-  people: [
-    { id: "p1", name: "Dr. Elena Vargas", role: "Managing Partner", active: true, tenureYears: 14 },
-    { id: "p2", name: "Maya Chen", role: "Office Manager", active: true, tenureYears: 8 },
-    { id: "p3", name: "Jordan Blake", role: "Senior Consultant", active: true, tenureYears: 6 },
-    { id: "p4", name: "Sam Ortiz", role: "Billing Coordinator", active: true, tenureYears: 4 },
-    { id: "p5", name: "Riley Kim", role: "Admin Assistant", active: true, tenureYears: 2 },
-    { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
-  ],
   knowledge: [
     {
       id: "k1",
-      name: "Client billing & WIP rules",
+      name: "Client billing & unbilled-work rules",
       description: "Time entry, billing rates, write-down policies.",
       criticality: "critical",
       category: "process",
@@ -136,7 +116,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
     {
       id: "k6",
       name: "Payroll & bonus exceptions",
-      description: "Partner draws, bonus calculations, OT edge cases.",
+      description: "Partner draws, bonus calculations, overtime edge cases.",
       criticality: "important",
       category: "process",
       linkedProcessIds: ["proc-payroll"],
@@ -169,11 +149,11 @@ export const professionalServicesTemplate: IndustryTemplate = {
       id: "proc-engagement",
       name: "Client engagement & delivery",
       layer: "process",
-      description: "SOW, staffing, deliverable sign-off.",
+      description: "Statement of work, staffing, deliverable sign-off.",
       dependencies: [],
       controlIds: [],
       stage: 0,
-      ownerPersonIds: ["p1", "p3"],
+      ownerPersonIds: ["p1", "p3", "p2"],
       inputs: ["Signed engagement letter", "Staffing plan", "Client kickoff notes"],
       outputs: ["Approved deliverables", "Client sign-off"],
       risks: [
@@ -228,13 +208,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
       id: "proc-billing",
       name: "Time, billing & invoicing",
       layer: "process",
-      description: "WIP, invoice generation, client billing.",
+      description: "Unbilled work, invoice generation, client billing.",
       dependencies: ["proc-engagement"],
       controlIds: ["c-sod-billing"],
       stage: 1,
       ownerPersonIds: ["p4"],
       inputs: ["Approved timesheets", "Rate card", "Engagement terms"],
-      outputs: ["Client invoices", "WIP report"],
+      outputs: ["Client invoices", "Unbilled work report"],
       risks: [
         {
           id: "r-bill-1",
@@ -242,7 +222,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "continuity",
           severity: 5,
           likelihood: 3,
-          note: "Often only the billing coordinator knows the WIP and billing rules.",
+          note: "Often only the billing coordinator knows the unbilled-work and billing rules.",
           linkedKnowledgeId: "k1",
           linkedScenarioId: "sc-key-person-leaves",
         },
@@ -252,13 +232,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "revenue",
           severity: 3,
           likelihood: 4,
-          note: "Hours trimmed off WIP at invoice time with no partner review; realization quietly drops.",
+          note: "Hours trimmed off unbilled work at invoice time with no partner review; the share of work billed quietly drops.",
         },
       ],
       ideas: [
         {
           id: "i-bill-1",
-          title: "Monthly WIP aging and realization report to partners",
+          title: "Monthly report to partners of unbilled work by age and the share written down",
           category: "control",
           effort: "low",
           impact: "high",
@@ -288,7 +268,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       id: "proc-trust",
       name: "Client trust / retainer funds",
       layer: "process",
-      description: "Segregated client funds (a law firm's IOLTA account), deposits, disbursements.",
+      description: "Client retainers held before they are earned, deposits, disbursements.",
       dependencies: [],
       controlIds: ["c-cash", "c-trust-disb"],
       stage: 1,
@@ -298,11 +278,11 @@ export const professionalServicesTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-trust-1",
-          title: "Trust handling tribal knowledge",
+          title: "Trust handling known by one person",
           kind: "compliance",
           severity: 5,
           likelihood: 2,
-          note: "Office manager sole expert on trust rules.",
+          note: "The office manager is the sole expert on the trust rules.",
           linkedKnowledgeId: "k2",
         },
         {
@@ -327,7 +307,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
         },
         {
           id: "i-trust-2",
-          title: "Written trust handling SOP with backup owner",
+          title: "Written trust handling SOP with a stand-in owner",
           category: "training",
           effort: "medium",
           impact: "high",
@@ -353,7 +333,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       dependencies: ["proc-trust"],
       controlIds: ["c-trust-rec"],
       stage: 2,
-      ownerPersonIds: ["p6", "p1"],
+      ownerPersonIds: ["p6", "p1", "p2"],
       inputs: ["Trust bank statement", "Trust account journal", "Client ledger balances"],
       outputs: ["Signed three-way reconciliation", "Client ledger report"],
       risks: [
@@ -374,13 +354,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "compliance",
           severity: 5,
           likelihood: 2,
-          note: "Paying one client's costs with another client's money breaks the trust rules even if it is repaid; in many states the bank reports a trust overdraft to the bar.",
+          note: "Paying one client's costs with another client's money misuses client money even if it is repaid; the client whose money paid never agreed to it.",
         },
       ],
       ideas: [
         {
           id: "i-trec-1",
-          title: "A lawyer who did not prepare it signs the reconciliation",
+          title: "A partner who did not prepare it signs the reconciliation",
           category: "control",
           effort: "low",
           impact: "high",
@@ -402,13 +382,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
           id: "w-trec-1",
           kind: "muda_rework",
           label: "Reconciliation rebuilt at year end",
-          note: "Months are reconciled together when the annual certification is due, so differences are old and hard to trace.",
+          note: "Months are reconciled together at year end, so differences are old and hard to trace.",
         },
       ],
     },
     {
       id: "proc-cash",
-      name: "Operating cash & bank rec",
+      name: "Operating cash & bank reconciliation",
       layer: "process",
       description: "Operating account, deposits, reconciliation.",
       dependencies: [],
@@ -424,13 +404,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "fraud",
           severity: 5,
           likelihood: 4,
-          note: "Classic small-firm embezzlement path.",
+          note: "The classic path to embezzlement in a small firm.",
           linkedControlId: "c-sod-cash",
           linkedScenarioId: "sc-cash-sod-failure",
         },
         {
           id: "r-cash-2",
-          title: "Bank rec finished weeks after month end",
+          title: "Bank reconciliation finished weeks after month end",
           kind: "control",
           severity: 3,
           likelihood: 3,
@@ -440,11 +420,11 @@ export const professionalServicesTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-cash-1",
-          title: "Managing partner reviews bank statement and rec monthly",
+          title: "Managing partner reads the bank statement and reconciliation monthly",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Statements go to the partner unopened; she initials the rec within 10 days of month end.",
+          note: "Statements go to the partner unopened; she initials the reconciliation within 10 days of month end.",
           status: "planned",
         },
         {
@@ -461,14 +441,14 @@ export const professionalServicesTemplate: IndustryTemplate = {
         {
           id: "w-cash-1",
           kind: "muda_waiting",
-          label: "Cash position unknown until rec is done",
+          label: "Cash position unknown until the reconciliation is done",
           note: "Partners cannot plan draws or hiring until the bookkeeper closes the month.",
         },
       ],
     },
     {
       id: "proc-ap",
-      name: "Vendor & expense AP",
+      name: "Vendor bills & expenses",
       layer: "process",
       description: "Vendor bills, expense reports, reimbursements.",
       dependencies: [],
@@ -480,11 +460,11 @@ export const professionalServicesTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ap-1",
-          title: "Vendor setup + payment concentrated",
+          title: "One person sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious vendor risk.",
+          note: "A fake vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -622,7 +602,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-pay-1",
-          title: "Partner reviews payroll register before submission",
+          title: "Partner reads the payroll register before it is sent",
           category: "control",
           effort: "low",
           impact: "high",
@@ -649,55 +629,73 @@ export const professionalServicesTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: [...baseFinancialControls(), ...trustControls],
-  staffComposition: { ...DEFAULT_STAFF, soleOwnerKnowledgeCount: 3, segregationScore: 38 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  controls: [
+    ...baseFinancialControls(),
+    {
+      id: "c-trust-rec",
+      name: "Three-way trust reconciliation",
+      description:
+        "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a partner who did not prepare the reconciliation reviews and signs it.",
+      duties: ["reconciliation", "review"],
+      segregated: false,
+      compensatingControls: [
+        "The managing partner opens the trust bank statement first each month",
+      ],
+      residualRiskAccepted: false,
+    },
+    {
+      id: "c-trust-disb",
+      name: "Trust disbursement approval",
+      description:
+        "No money leaves the trust account without a matter, enough funds in that client's ledger, and a partner's approval; only partners sign trust checks or release trust wires.",
+      duties: ["authorization", "custody"],
+      segregated: false,
+      compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
+      residualRiskAccepted: false,
+    },
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
-      keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
+      keyPersonTitle: "Billing coordinator leaves with sole billing knowledge",
       keyPersonDesc:
-        "The billing coordinator (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
+        "The billing coordinator (sole expert on client billing and unbilled-work rules) resigns. Invoices stall and write-offs pile up.",
       knowledgeId: "k1",
       billingLabel: "Client write-offs without partner approval",
     }),
-    ...trustScenarios,
+    {
+      id: "sc-trust-misappropriation",
+      title: "Client trust money taken and covered with other clients' funds",
+      description:
+        "The person who handles trust deposits and disbursements also reconciles the trust account. Money taken from one client's funds is replaced with the next client's deposit, and only a three-way reconciliation reviewed by someone else shows the shortfall.",
+      controlId: "c-trust-rec",
+      sodRuleIds: ["rule-release-rec", "rule-cash-rec"],
+      knowledgeId: "k7",
+      ...SCENARIO_FIGURES.cash,
+      cascadeLayers: ["control", "process", "surface", "continuity"],
+      mitigations: [
+        {
+          id: "m-trust-1",
+          label: "A partner who did not prepare it signs the three-way reconciliation monthly",
+          effort: "low",
+          riskReduction: 0.5,
+          costAnnual: 0,
+        },
+        {
+          id: "m-trust-2",
+          label: "Only partners approve and sign trust disbursements",
+          effort: "low",
+          riskReduction: 0.6,
+          costAnnual: 0,
+        },
+        {
+          id: "m-trust-3",
+          label: "The managing partner opens the trust bank statement first each month",
+          effort: "low",
+          riskReduction: 0.35,
+          costAnnual: 0,
+        },
+      ],
+    },
   ],
-  roleTemplates: {
-    "Managing Partner": [
-      "approve_writeoffs",
-      "approve_vendor",
-      "approve_payroll",
-      "approve_expenses",
-      "bank_reconcile",
-      "view_reports_only",
-    ],
-    "Office Manager": [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "approve_vendor",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Senior Consultant": ["view_reports_only"],
-    "Billing Coordinator": [
-      "post_adjustments",
-      "post_payments",
-      "approve_writeoffs",
-      "view_reports_only",
-    ],
-    "Admin Assistant": ["view_reports_only"],
-    Bookkeeper: [
-      "post_payments",
-      "prepare_deposit",
-      "bank_reconcile",
-      "post_adjustments",
-      "create_vendor",
-      "release_payment",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-  },
 };

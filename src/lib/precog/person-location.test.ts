@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "./active-template";
+import { resolveTemplate } from "./active-template";
+import { getIndustryTemplate } from "./templates";
 import { parsePeopleCsv } from "./import/people-csv";
 import { defaultProfile } from "./practice-profile";
-import {
-  businessLocations,
-  locationsById,
-  locationText,
-  personLocations,
-  worksAt,
-} from "./person-location";
+import { businessLocations, locationsById, personLocations, worksAt } from "./person-location";
 import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import type { Person } from "./types";
+import { joinWithAnd } from "./text";
 
 const TWO_STORES = [
   "Name,Job Title,Location",
@@ -25,7 +21,7 @@ const TWO_STORES = [
 ].join("\n");
 
 function twoStoreShop() {
-  const { people } = parsePeopleCsv(TWO_STORES, getBaseTemplate("retail"));
+  const { people } = parsePeopleCsv(TWO_STORES, getIndustryTemplate("retail"));
   const profile = defaultProfile("retail");
   const tpl = resolveTemplate({ ...profile, customPeople: people });
   return { people, tpl, profile };
@@ -37,7 +33,7 @@ describe("a keyholder listed at two stores of a retail business", () => {
     const jordan = people.filter((p) => p.name === "Jordan Lee");
     expect(jordan).toHaveLength(1);
     expect(personLocations(jordan[0])).toEqual(["Oakridge Mall", "Riverside"]);
-    expect(locationText(personLocations(jordan[0]))).toBe("Oakridge Mall and Riverside");
+    expect(joinWithAnd(personLocations(jordan[0]))).toBe("Oakridge Mall and Riverside");
     expect(businessLocations(people)).toEqual(["Oakridge Mall", "Riverside"]);
   });
 

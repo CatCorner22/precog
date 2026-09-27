@@ -1,7 +1,9 @@
 import type { Sql } from "@/lib/db";
+import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
 import type { ReviewItemKey, ReviewResult } from "./reviews";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -10,10 +12,8 @@ import type { ReviewItemKey, ReviewResult } from "./reviews";
  * firm on their row (`businesses.firm_user_id`).
  */
 export type FirmRole = "owner" | "preparer" | "reviewer";
-const FIRM_ROLES: readonly FirmRole[] = ["owner", "preparer", "reviewer"];
-export const INVITE_ROLES: readonly Exclude<FirmRole, "owner">[] = ["preparer", "reviewer"];
-const INVITE_TTL_DAYS = 14;
-const MAX_MEMBERS_PER_FIRM = 25;
+export type InviteRole = Exclude<FirmRole, "owner">;
+export const INVITE_ROLES: readonly InviteRole[] = ["preparer", "reviewer"];
 
 export interface FirmContext {
   /** The owner's user id, which is the firm's id. */
@@ -21,7 +21,6 @@ export interface FirmContext {
   name: string;
   plan: FirmPlan;
   role: FirmRole;
-  updatedAt: string;
 }
 
 export interface FirmMember {
@@ -32,32 +31,32 @@ export interface FirmMember {
   joinedAt: string;
 }
 
+/** An open invitation: not yet accepted, not yet expired. */
 export interface FirmInvite {
   token: string;
   email: string;
-  role: Exclude<FirmRole, "owner">;
+  role: InviteRole;
   createdAt: string;
   expiresAt: string;
-  acceptedAt: string | null;
 }
 
 export interface ClientEngagementRow {
   id: string;
   name: string;
-  industry: string;
-  updatedAt: string;
   ownerUserId: string;
   shared: boolean;
+  /** The engagement stamps as last posted; the firm page posts again when its own differ. */
   startedAt: string | null;
   mapCompletedAt: string | null;
   reportSentAt: string | null;
-  openFindings: number;
+  /** Null until someone opens the client on the firm page and its conflicts are counted. */
+  openFindings: number | null;
   acceptedFindings: number;
   lastReviewAt: string | null;
   ownerEmail: string | null;
 }
 
-export interface ReviewEventInput {
+interface ReviewEventInput {
   businessId: string;
   period: string;
   itemKey: ReviewItemKey;
@@ -67,24 +66,18 @@ export interface ReviewEventInput {
   notes: string;
 }
 
-function asPlan(value: string): FirmPlan {
-  return value === "monthly" ? "monthly" : "assessment";
+export interface NotificationSettings {
+  weeklyDigest: boolean;
+  ownerReminders: boolean;
 }
 
-function asRole(value: string): FirmRole {
-  return FIRM_ROLES.includes(value as FirmRole) ? (value as FirmRole) : "preparer";
-}
+const INVITE_TTL_DAYS = 14;
+const MAX_MEMBERS_PER_FIRM = 25;
 
 /** The firm `userId` works in: their own when they own one, else the one they joined. */
 export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext | null> {
-  const rows = await sql<{
-    firm_user_id: string;
-    name: string;
-    plan: string;
-    role: string;
-    updated_at: string;
-  }>`
-    select m.firm_user_id, f.name, f.plan, m.role, f.updated_at
+  const rows = await sql<{ firm_user_id: string; name: string; plan: string; role: string }>`
+    select m.firm_user_id, f.name, f.plan, m.role
     from firm_members m
     join firms f on f.user_id = m.firm_user_id
     where m.member_user_id = ${userId}
@@ -98,24 +91,26 @@ export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext
     name: row.name,
     plan: asPlan(row.plan),
     role: asRole(row.role),
-    updatedAt: toIsoTimestamp(row.updated_at),
   };
 }
 
-export class FirmMembershipError extends Error {
-  readonly status = 409;
+export class FirmMembershipError extends RequestError {
   constructor(message: string) {
-    super(message);
+    super(409, message);
     this.name = "FirmMembershipError";
   }
 }
 
-/** Creates or renames the caller's own firm. A member of another firm cannot start one. */
+/**
+ * Creates or renames the caller's own firm. A null plan keeps the stored one
+ * (a new firm starts on the assessment). A member of another firm cannot
+ * start one.
+ */
 export async function saveFirm(
   sql: Sql,
   userId: string,
   name: string,
-  plan: FirmPlan,
+  plan: FirmPlan | null,
 ): Promise<FirmContext> {
   const current = await loadFirmFor(sql, userId);
   if (current && current.firmUserId !== userId) {
@@ -123,19 +118,20 @@ export async function saveFirm(
       `You are a member of ${current.name}. Leave it before starting a firm of your own.`,
     );
   }
-  const rows = await sql<{ name: string; plan: string; updated_at: string }>`
+  const rows = await sql<{ name: string; plan: string }>`
     insert into firms (user_id, name, plan, updated_at)
-    values (${userId}, ${name}, ${plan}, now())
+    values (${userId}, ${name}, coalesce(${plan}::text, 'assessment'), now())
     on conflict (user_id) do update set
       name = excluded.name,
-      plan = excluded.plan,
+      plan = coalesce(${plan}::text, firms.plan),
       updated_at = now()
-    returning name, plan, updated_at
+    returning name, plan
   `;
+  // The owner's membership row always says owner, whatever wrote it last.
   await sql`
     insert into firm_members (firm_user_id, member_user_id, role)
     values (${userId}, ${userId}, 'owner')
-    on conflict do nothing
+    on conflict (firm_user_id, member_user_id) do update set role = 'owner'
   `;
   // The owner's own businesses become the firm's clients.
   await sql`
@@ -143,13 +139,7 @@ export async function saveFirm(
     where user_id = ${userId} and firm_user_id is null
   `;
   const row = rows[0];
-  return {
-    firmUserId: userId,
-    name: row.name,
-    plan: asPlan(row.plan),
-    role: "owner",
-    updatedAt: toIsoTimestamp(row.updated_at),
-  };
+  return { firmUserId: userId, name: row.name, plan: asPlan(row.plan), role: "owner" };
 }
 
 /** Sets the plan alone, as the billing webhook does. */
@@ -184,7 +174,7 @@ export async function setMemberRole(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-  role: Exclude<FirmRole, "owner">,
+  role: InviteRole,
 ): Promise<void> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("The owner's role cannot change.");
   await sql`
@@ -193,44 +183,61 @@ export async function setMemberRole(
   `;
 }
 
+/**
+ * Removes a member. The businesses they own leave the firm with them, so the
+ * firm keeps no access to a departed colleague's clients.
+ */
 export async function removeMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
 ): Promise<void> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("The owner cannot be removed.");
-  await sql`
-    delete from firm_members
-    where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
-  `;
+  await detachMember(sql, firmUserId, memberUserId);
 }
 
+/**
+ * An open invitation to `email`. Asking again for the same address and role
+ * returns the open invitation; a different role replaces it. Open
+ * invitations count toward the member limit.
+ */
 export async function createInvite(
   sql: Sql,
-  input: { firmUserId: string; email: string; role: Exclude<FirmRole, "owner">; token: string },
+  input: { firmUserId: string; email: string; role: InviteRole; token: string },
 ): Promise<FirmInvite> {
-  const members = await sql<{ n: number | string }>`
-    select count(*) as n from firm_members where firm_user_id = ${input.firmUserId}
-  `;
-  if (Number(members[0]?.n ?? 0) >= MAX_MEMBERS_PER_FIRM) {
-    throw new FirmMembershipError(`A firm holds at most ${MAX_MEMBERS_PER_FIRM} members.`);
-  }
-  const rows = await sql<{ created_at: string; expires_at: string }>`
-    insert into firm_invites (token, firm_user_id, email, role, expires_at)
-    values (
-      ${input.token}, ${input.firmUserId}, ${input.email.toLowerCase()}, ${input.role},
-      now() + make_interval(days => ${INVITE_TTL_DAYS}::int)
-    )
-    returning created_at, expires_at
-  `;
-  return {
-    token: input.token,
-    email: input.email.toLowerCase(),
-    role: input.role,
-    createdAt: toIsoTimestamp(rows[0].created_at),
-    expiresAt: toIsoTimestamp(rows[0].expires_at),
-    acceptedAt: null,
-  };
+  const email = input.email.toLowerCase();
+  return inTransaction(sql, async (tx) => {
+    const open = (await listInvites(tx, input.firmUserId)).find((i) => i.email === email);
+    if (open?.role === input.role) return open;
+    if (open) await revokeInvite(tx, input.firmUserId, open.token);
+    const seats = await tx<{ n: number | string }>`
+      select
+        (select count(*) from firm_members where firm_user_id = ${input.firmUserId})
+        + (select count(*) from firm_invites
+           where firm_user_id = ${input.firmUserId} and accepted_at is null and expires_at > now())
+        as n
+    `;
+    if (Number(seats[0]?.n ?? 0) >= MAX_MEMBERS_PER_FIRM) {
+      throw new FirmMembershipError(
+        `A firm holds at most ${MAX_MEMBERS_PER_FIRM} members, counting open invitations. Revoke an invitation or remove a member first.`,
+      );
+    }
+    const rows = await tx<{ created_at: string; expires_at: string }>`
+      insert into firm_invites (token, firm_user_id, email, role, expires_at)
+      values (
+        ${input.token}, ${input.firmUserId}, ${email}, ${input.role},
+        now() + make_interval(days => ${INVITE_TTL_DAYS}::int)
+      )
+      returning created_at, expires_at
+    `;
+    return {
+      token: input.token,
+      email,
+      role: input.role,
+      createdAt: toIsoTimestamp(rows[0].created_at),
+      expiresAt: toIsoTimestamp(rows[0].expires_at),
+    };
+  });
 }
 
 /** Open invitations of one firm (not yet accepted, not yet expired). */
@@ -250,10 +257,9 @@ export async function listInvites(sql: Sql, firmUserId: string): Promise<FirmInv
   return rows.map((r) => ({
     token: r.token,
     email: r.email,
-    role: r.role === "reviewer" ? "reviewer" : "preparer",
+    role: asInviteRole(r.role),
     createdAt: toIsoTimestamp(r.created_at),
     expiresAt: toIsoTimestamp(r.expires_at),
-    acceptedAt: null,
   }));
 }
 
@@ -265,58 +271,91 @@ export async function revokeInvite(sql: Sql, firmUserId: string, token: string):
 export async function peekInvite(
   sql: Sql,
   token: string,
-): Promise<{ firmName: string; role: Exclude<FirmRole, "owner">; email: string } | null> {
+): Promise<{ firmName: string; role: InviteRole; email: string } | null> {
   const rows = await sql<{ name: string; role: string; email: string }>`
     select f.name, i.role, i.email
     from firm_invites i join firms f on f.user_id = i.firm_user_id
     where i.token = ${token} and i.accepted_at is null and i.expires_at > now()
   `;
   const row = rows[0];
-  return row
-    ? {
-        firmName: row.name,
-        role: row.role === "reviewer" ? "reviewer" : "preparer",
-        email: row.email,
-      }
-    : null;
+  return row ? { firmName: row.name, role: asInviteRole(row.role), email: row.email } : null;
 }
 
 /**
  * The signed-in visitor joins the firm the token names. A person already in
- * another firm (their own included) is refused: one account, one firm.
+ * another firm is refused (one account, one firm), and so is the firm's own
+ * owner, whose role an invitation must never replace. A new member must fit
+ * under the member limit.
  */
 export async function acceptInvite(sql: Sql, token: string, userId: string): Promise<FirmContext> {
-  const invites = await sql<{ firm_user_id: string; role: string }>`
-    select firm_user_id, role from firm_invites
-    where token = ${token} and accepted_at is null and expires_at > now()
-  `;
-  const invite = invites[0];
-  if (!invite) throw new FirmMembershipError("This invitation has expired or was already used.");
-  const current = await loadFirmFor(sql, userId);
-  if (current && current.firmUserId !== invite.firm_user_id) {
-    throw new FirmMembershipError(
-      `You already belong to ${current.name}. Leave it before joining another firm.`,
-    );
-  }
-  await sql`
-    insert into firm_members (firm_user_id, member_user_id, role)
-    values (${invite.firm_user_id}, ${userId}, ${invite.role})
-    on conflict (firm_user_id, member_user_id) do update set role = excluded.role
-  `;
-  await sql`
-    update firm_invites set accepted_by = ${userId}, accepted_at = now() where token = ${token}
-  `;
-  const joined = await loadFirmFor(sql, userId);
-  if (!joined) throw new Error("Unable to join the firm");
-  return joined;
+  return inTransaction(sql, async (tx) => {
+    const invites = await tx<{ firm_user_id: string; role: string }>`
+      select firm_user_id, role from firm_invites
+      where token = ${token} and accepted_at is null and expires_at > now()
+      for update
+    `;
+    const invite = invites[0];
+    if (!invite) {
+      throw new FirmMembershipError("This invitation has expired or someone already used it.");
+    }
+    if (invite.firm_user_id === userId) {
+      throw new FirmMembershipError(
+        "You own this firm, so this invitation is not for you. Send the link to the firm member it names.",
+      );
+    }
+    const current = await loadFirmFor(tx, userId);
+    if (current && current.firmUserId !== invite.firm_user_id) {
+      throw new FirmMembershipError(
+        `You already belong to ${current.name}. Leave it before joining another firm.`,
+      );
+    }
+    if (!current) {
+      const members = await tx<{ n: number | string }>`
+        select count(*) as n from firm_members where firm_user_id = ${invite.firm_user_id}
+      `;
+      if (Number(members[0]?.n ?? 0) >= MAX_MEMBERS_PER_FIRM) {
+        throw new FirmMembershipError(
+          `This firm already has ${MAX_MEMBERS_PER_FIRM} members, the most it can hold. Ask the owner to make room.`,
+        );
+      }
+    }
+    await tx`
+      insert into firm_members (firm_user_id, member_user_id, role)
+      values (${invite.firm_user_id}, ${userId}, ${asInviteRole(invite.role)})
+      on conflict (firm_user_id, member_user_id) do update set role = excluded.role
+        where firm_members.role <> 'owner'
+    `;
+    await tx`
+      update firm_invites set accepted_by = ${userId}, accepted_at = now() where token = ${token}
+    `;
+    const joined = await loadFirmFor(tx, userId);
+    if (!joined) throw new Error("Unable to join the firm");
+    return joined;
+  });
 }
 
-/** A member leaves; the owner cannot. */
+/** A member leaves, taking the businesses they own with them; the owner cannot leave. */
 export async function leaveFirm(sql: Sql, firmUserId: string, userId: string): Promise<void> {
   if (firmUserId === userId) throw new FirmMembershipError("The owner cannot leave the firm.");
-  await sql`
-    delete from firm_members where firm_user_id = ${firmUserId} and member_user_id = ${userId}
-  `;
+  await detachMember(sql, firmUserId, userId);
+}
+
+/** Ends a membership and takes the member's own businesses (live and deleted) out of the firm. */
+async function detachMember(sql: Sql, firmUserId: string, memberUserId: string): Promise<void> {
+  await inTransaction(sql, async (tx) => {
+    await tx`
+      delete from firm_members
+      where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
+    `;
+    await tx`
+      update businesses set firm_user_id = null
+      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
+    `;
+    await tx`
+      update business_deletion_markers set firm_user_id = null
+      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
+    `;
+  });
 }
 
 export async function upsertEngagementMark(
@@ -377,8 +416,6 @@ export async function listClientEngagements(
     id: string;
     user_id: string;
     name: string;
-    industry: string;
-    updated_at: string;
     started_at: string | null;
     map_completed_at: string | null;
     report_sent_at: string | null;
@@ -388,8 +425,7 @@ export async function listClientEngagements(
     owner_email: string | null;
   }>`
     select
-      b.id, b.user_id, b.name, b.industry, b.updated_at,
-      e.started_at, e.map_completed_at, e.report_sent_at,
+      b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
       e.open_findings, e.accepted_findings, e.owner_email,
       (
         select max(r.recorded_at) from review_events r
@@ -405,14 +441,12 @@ export async function listClientEngagements(
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
-    industry: r.industry,
-    updatedAt: toIsoTimestamp(r.updated_at),
     ownerUserId: r.user_id,
     shared: r.user_id !== userId,
     startedAt: toIsoTimestampOrNull(r.started_at),
     mapCompletedAt: toIsoTimestampOrNull(r.map_completed_at),
     reportSentAt: toIsoTimestampOrNull(r.report_sent_at),
-    openFindings: Number(r.open_findings ?? 0),
+    openFindings: r.open_findings === null ? null : Number(r.open_findings),
     acceptedFindings: Number(r.accepted_findings ?? 0),
     lastReviewAt: toIsoTimestampOrNull(r.last_review_at),
     ownerEmail: r.owner_email,
@@ -443,52 +477,6 @@ export async function insertReviewEvent(
   `;
 }
 
-export interface ReviewEventRow {
-  id: number;
-  period: string;
-  itemKey: string;
-  ownerName: string;
-  result: string;
-  notes: string;
-  recordedAt: string;
-  recordedByName: string | null;
-}
-
-export async function listReviewEvents(
-  sql: Sql,
-  ownerUserId: string,
-  businessId: string,
-): Promise<ReviewEventRow[]> {
-  const rows = await sql<{
-    id: number | string;
-    period: string;
-    item_key: string;
-    owner_name: string;
-    result: string;
-    notes: string;
-    recorded_at: string;
-    recorded_by_name: string | null;
-  }>`
-    select r.id, r.period, r.item_key, r.owner_name, r.result, r.notes, r.recorded_at,
-      u.name as recorded_by_name
-    from review_events r
-    left join "user" u on u.id = r.recorded_by
-    where r.user_id = ${ownerUserId} and r.business_id = ${businessId}
-    order by r.recorded_at desc
-    limit 240
-  `;
-  return rows.map((r) => ({
-    id: Number(r.id),
-    period: r.period,
-    itemKey: r.item_key,
-    ownerName: r.owner_name,
-    result: r.result,
-    notes: r.notes,
-    recordedAt: toIsoTimestamp(r.recorded_at),
-    recordedByName: r.recorded_by_name,
-  }));
-}
-
 /** Drop the audit rows for businesses that no longer exist (run after a purge). */
 export async function deleteOrphanedClientAudit(sql: Sql): Promise<void> {
   await sql`
@@ -499,11 +487,6 @@ export async function deleteOrphanedClientAudit(sql: Sql): Promise<void> {
     delete from engagement_marks e
     where not exists (select 1 from businesses b where b.user_id = e.user_id and b.id = e.business_id)
   `;
-}
-
-export interface NotificationSettings {
-  weeklyDigest: boolean;
-  ownerReminders: boolean;
 }
 
 export async function loadNotificationSettings(
@@ -532,4 +515,16 @@ export async function saveNotificationSettings(
       owner_reminders = excluded.owner_reminders,
       updated_at = now()
   `;
+}
+
+function asPlan(value: string): FirmPlan {
+  return value === "monthly" ? "monthly" : "assessment";
+}
+
+function asRole(value: string): FirmRole {
+  return value === "owner" ? "owner" : asInviteRole(value);
+}
+
+function asInviteRole(value: string): InviteRole {
+  return value === "reviewer" ? "reviewer" : "preparer";
 }

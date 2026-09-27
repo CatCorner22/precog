@@ -6,11 +6,13 @@ import {
   DualReleasePolicyOptionsCard,
 } from "@/components/precog/dual-release-channels-section";
 import { DualReleaseExceptionsCard } from "@/components/precog/dual-release-exceptions-card";
-import { DualReleaseMiniStat } from "@/components/precog/dual-release-parts";
+import { StatTile } from "@/components/ui/stat-tile";
 import { DualReleaseSimulatorCard } from "@/components/precog/dual-release-simulator-card";
 import { useDualReleasePanel } from "@/components/precog/use-dual-release-panel";
+import { useTabName } from "@/lib/precog/presentation";
 
 export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
+  const tabName = useTabName();
   const model = useDualReleasePanel();
   const { policy, exSummary, toggleMaster, logAsRemediation } = model;
 
@@ -19,14 +21,12 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Dual release</Badge>
-          <Badge variant={policy.enabled ? "ok" : "danger"}>
-            {policy.enabled ? "Policy ON" : "Policy OFF"}
-          </Badge>
+          <Badge variant={policy.enabled ? "ok" : "danger"}>{policy.enabled ? "On" : "Off"}</Badge>
           <Badge variant="default">
             {exSummary.total} active exception{exSummary.total === 1 ? "" : "s"}
           </Badge>
           {exSummary.expiringSoon > 0 && (
-            <Badge variant="warn">{exSummary.expiringSoon} expiring ≤30d</Badge>
+            <Badge variant="warn">{exSummary.expiringSoon} ending within 30 days</Badge>
           )}
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
@@ -34,9 +34,9 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
           Dual-release controls
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Base thresholds plus <strong className="text-fg">exceptions</strong> for trusted payees,
-          temporary raises, force-dual bands, or rare waives. Exceptions are time-bound,
-          reason-coded, and feed the decision journal.
+          Set the amount above which two people must release a payment, per channel.{" "}
+          <strong className="text-fg">Exceptions</strong> for trusted payees, temporary raises, or
+          rare waivers are dated, carry a reason, and go to the {tabName("journal")}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
@@ -47,22 +47,22 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
             {policy.enabled ? "Disable dual release" : "Enable dual release"}
           </Button>
           <Button size="sm" variant="secondary" onClick={logAsRemediation}>
-            Log in decision journal
+            Add to the {tabName("journal")}
           </Button>
           {onOpenSod && (
             <Button size="sm" variant="outline" onClick={onOpenSod}>
-              View SoD impact
+              See the duty conflicts this narrows
             </Button>
           )}
         </div>
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <DualReleaseMiniStat label="Raises" value={String(exSummary.raises)} tone="primary" />
-        <DualReleaseMiniStat label="Force dual" value={String(exSummary.forceDual)} tone="warn" />
-        <DualReleaseMiniStat label="Waives" value={String(exSummary.waives)} tone="danger" />
-        <DualReleaseMiniStat
-          label="Expiring soon"
+        <StatTile label="Higher limits" value={String(exSummary.raises)} tone="primary" />
+        <StatTile label="Always two signers" value={String(exSummary.forceDual)} tone="warn" />
+        <StatTile label="Waivers" value={String(exSummary.waives)} tone="danger" />
+        <StatTile
+          label="Ending within 30 days"
           value={String(exSummary.expiringSoon)}
           tone={exSummary.expiringSoon ? "warn" : "ok"}
         />

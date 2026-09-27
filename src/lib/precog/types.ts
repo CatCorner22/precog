@@ -56,7 +56,7 @@ export interface Person {
   /**
    * Last working day (owner's calendar) once they have given notice. They stay
    * active — and count for coverage — until marked as left; the planner runs a
-   * hand-over against this date.
+   * hand-off against this date.
    */
   lastDay?: string;
   /** Explicit duty entitlements when role is custom or needs override. */
@@ -175,17 +175,10 @@ export interface StaffComposition {
 }
 
 /**
- * Published fraud statistics, and the one modelling assumption the app makes.
- *
- * These figures used to be invented — an "industryEmbezzlementRate" of 18%,
- * varied per industry (16%, 18%, 22%) to look precise. No published source
- * gives an annual probability of occupational fraud for a small business in a
- * given industry, so those numbers asserted something nobody knows. They are
- * replaced here by what the research does establish, and the one number that
- * remains a judgement call is named as such rather than dressed as a measurement.
- *
- * Because no source supports per-industry variation, this record is shared
- * across every industry template rather than differing between them.
+ * Published fraud statistics, and the one modelling assumption the app makes
+ * (named as an assumption, not a measurement). No published source gives an
+ * annual probability of occupational fraud for a small business in a given
+ * industry, so one record is shared by every industry template.
  */
 export interface CrimeFraudStats {
   /**
@@ -226,6 +219,14 @@ export interface ScenarioTemplate {
   baseFinancialImpact: { expected: number; low: number; high: number };
   cascadeLayers: MatrixLayerId[];
   mitigations: MitigationOption[];
+  /**
+   * Conflict rules whose duty pair this scenario plays out, for scenarios no
+   * rule links to (see ConflictRule.linkedScenarioId). The scenario page shows
+   * the prosecuted cases behind these rules.
+   */
+  sodRuleIds?: string[];
+  /** Library cases that show this scenario outright, listed first on its page. */
+  caseIds?: string[];
 }
 
 interface MitigationOption {

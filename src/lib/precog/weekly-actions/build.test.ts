@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import { documentationDebt } from "@/lib/precog/continuity/documentation";
 import { buildWeeklyActions } from "./build";
+import { firstName } from "../text";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 
 describe("buildWeeklyActions documentation advice", () => {
   it("adds critical documentation gaps to the action plan", () => {
@@ -118,7 +120,69 @@ describe("buildWeeklyActions documentation advice", () => {
     expect(actions).toContainEqual(
       expect.objectContaining({
         id: "confirm-register",
-        title: "Re-confirm 1 register item(s) nobody holds",
+        title: "Re-confirm 1 register entry nobody holds",
+      }),
+    );
+  });
+});
+
+describe("buildWeeklyActions de-duplication", () => {
+  it("keeps two actions whose titles share a 40-character prefix", () => {
+    const base = { ...dental.knowledge[0], criticality: "critical" as const, documented: false };
+    const knowledge = [
+      { ...base, id: "kb-submit", name: "Insurance claims and follow-up: submit" },
+      { ...base, id: "kb-appeal", name: "Insurance claims and follow-up: appeal" },
+    ];
+    const [first, second] = dental.people;
+    const tpl = resolveTemplate({
+      industry: "dental",
+      customKnowledge: knowledge,
+      customRelations: knowledge.flatMap((k) => [
+        { personId: first.id, knowledgeId: k.id, level: "expert" as const },
+        { personId: second.id, knowledgeId: k.id, level: "proficient" as const },
+      ]),
+    });
+    const actions = buildWeeklyActions({
+      tpl,
+      staff: { ...tpl.staffComposition, independentBankRec: true, dualControlPayments: true },
+      dualRelease: defaultDualReleasePolicy(tpl),
+      mapAssessed: true,
+    });
+    const docs = actions.filter((action) => action.id.startsWith("docs-")).map((a) => a.id);
+    expect(docs.sort()).toEqual(["docs-kb-appeal", "docs-kb-submit"]);
+  });
+});
+
+describe("buildWeeklyActions cross-training", () => {
+  it("asks to finish training a learner on a critical entry one person runs alone", () => {
+    const payroll = {
+      ...dental.knowledge[0],
+      id: "k-payroll",
+      name: "Payroll",
+      criticality: "critical" as const,
+      documented: true,
+      procedureLocation: "Drive/SOPs",
+    };
+    const [expert, learner] = dental.people;
+    const tpl = resolveTemplate({
+      industry: "dental",
+      customKnowledge: [payroll],
+      customRelations: [
+        { personId: expert.id, knowledgeId: payroll.id, level: "expert" },
+        { personId: learner.id, knowledgeId: payroll.id, level: "basic" },
+      ],
+    });
+    const actions = buildWeeklyActions({
+      tpl,
+      staff: { ...tpl.staffComposition, independentBankRec: true, dualControlPayments: true },
+      dualRelease: defaultDualReleasePolicy(tpl),
+      mapAssessed: true,
+    });
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        id: "spof-k-payroll",
+        title: `Finish training ${firstName(learner.name)} on Payroll`,
+        priority: 76,
       }),
     );
   });

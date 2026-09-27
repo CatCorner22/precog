@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
 import { acceptFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
 
 export const Route = createFileRoute("/join/$token")({
@@ -83,23 +85,59 @@ function JoinPage() {
                   : `Join as ${user.displayName ?? user.primaryEmail ?? "this account"}`}
               </Button>
             ) : (
-              <>
-                <p className="mt-4 text-sm text-muted">
-                  Sign in first, then come back to this link to join. The invitation was sent to{" "}
-                  <span className="text-fg">{invite.email}</span>; any account can use it.
-                </p>
-                <Link
-                  to="/login"
-                  className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
-                >
-                  Sign in
-                </Link>
-              </>
+              <SignInHere token={token} email={invite.email} />
             )}
           </>
         )}
         <LegalFooter className="mt-6 justify-center" />
       </div>
     </main>
+  );
+}
+
+/**
+ * Sign-in on the invitation itself, so the invitee comes back to this link
+ * instead of the home page. The email form lives on the sign-in page, which
+ * returns home, so that route says to come back.
+ */
+function SignInHere({ token, email }: { token: string; email: string }) {
+  const here = `/join/${token}`;
+  if (!authEnabled) {
+    return <p className="mt-4 text-sm text-muted">Sign-in is turned off on this deployment.</p>;
+  }
+  return (
+    <>
+      <p className="mt-4 text-sm text-muted">
+        Sign in to join. The invitation was sent to <span className="text-fg">{email}</span>; any
+        account can use it.
+      </p>
+      <div className="mt-4 space-y-2">
+        {GROK_PROVIDERS.map((p) => (
+          <Button
+            key={p.providerId}
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={() =>
+              void signIn(p.providerId, { callbackURL: here, errorCallbackURL: here }).catch(
+                (err: unknown) =>
+                  toast.error(err instanceof Error ? err.message : "Sign-in did not finish."),
+              )
+            }
+          >
+            Continue with {p.label}
+          </Button>
+        ))}
+      </div>
+      {emailAndPasswordEnabled && (
+        <p className="mt-3 text-xs text-muted">
+          Use an email and password instead?{" "}
+          <Link to="/login" className="underline-offset-4 hover:underline">
+            Sign in with email
+          </Link>
+          , then open this invitation link again.
+        </p>
+      )}
+    </>
   );
 }

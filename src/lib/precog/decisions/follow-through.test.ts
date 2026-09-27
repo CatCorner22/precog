@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "../controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { coverageReport } from "../continuity/coverage";
 import { documentationState } from "../continuity/documentation";
 import { portfolioSummary } from "../scoring/residual-engine";
@@ -20,12 +21,12 @@ import {
   linkedContinuityStep,
   linkedKnowledgeId,
   linkedToIndustry,
-  localDateKey,
   registerCloseOut,
   slipLabels,
 } from "./follow-through";
+import { localDateKey } from "../dates";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const dualRelease = defaultDualReleasePolicy(dental);
 
 function decision(overrides: Partial<DecisionEntry> = {}): DecisionEntry {
@@ -89,8 +90,11 @@ describe("captureDecisionSnapshot", () => {
   });
 
   it("counts accepted residual controls as closed SoD conflicts", () => {
+    const alreadyAccepted = new Set(
+      dental.controls.filter((c) => c.residualRiskAccepted).map((c) => c.id),
+    );
     const conflict = detectSodConflicts(dental, dental.staffComposition).conflicts.find(
-      (item) => item.linkedControlId,
+      (item) => item.linkedControlId && !alreadyAccepted.has(item.linkedControlId),
     );
     expect(conflict?.linkedControlId).toBeDefined();
     const accepted = {
@@ -113,7 +117,6 @@ describe("captureDecisionSnapshot", () => {
 
 describe("decisionsDue", () => {
   it("splits overdue and due-soon decisions and ignores closed or later entries", () => {
-    const now = new Date(2025, 0, 15);
     const result = decisionsDue(
       [
         decision({ id: "overdue", reviewBy: "2025-01-14" }),
@@ -122,11 +125,22 @@ describe("decisionsDue", () => {
         decision({ id: "later", reviewBy: "2025-01-23" }),
         decision({ id: "closed", reviewBy: "2025-01-10", status: "closed" }),
       ],
-      now,
+      "2025-01-15",
     );
 
     expect(result.overdue.map((d) => d.id)).toEqual(["overdue"]);
     expect(result.dueSoon.map((d) => d.id)).toEqual(["today", "soon"]);
+  });
+
+  it("counts the due-soon window in calendar days from the day it is given, across a year end", () => {
+    const result = decisionsDue(
+      [
+        decision({ id: "soon", reviewBy: "2026-01-05" }),
+        decision({ id: "later", reviewBy: "2026-01-06" }),
+      ],
+      "2025-12-29",
+    );
+    expect(result.dueSoon.map((d) => d.id)).toEqual(["soon"]);
   });
 
   it("formats local calendar dates", () => {
@@ -439,7 +453,7 @@ describe("continuitySlips", () => {
   });
 
   it("does not judge a dental decision against a retail item that happens to share its id", () => {
-    const retail = getBaseTemplate("retail");
+    const retail = getIndustryTemplate("retail");
     const sharesId = retail.knowledge.some((k) => k.id === covered.item.id);
     expect(sharesId).toBe(true);
     expect(continuitySlips([closedDone({ linkedIndustry: "dental" })], retail)).toEqual([]);

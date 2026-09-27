@@ -12,9 +12,10 @@ import {
   markReportSent,
   signOffReport,
 } from "@/lib/precog/firm/server";
-import { versionProvenance, when, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
+import { formatDay } from "@/lib/precog/dates";
 
 /**
  * Locking, listing and signing off report versions. A version freezes the
@@ -22,7 +23,7 @@ import { isOwnTeam } from "@/lib/precog/firm/engagement";
  * firm who did not prepare it signs it off; "sent" is stamped once.
  */
 export function ReportVersionsPanel() {
-  const { profile, syncStatus } = usePractice();
+  const { profile, syncStatus, replaceProfile } = usePractice();
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
   const [role, setRole] = useState<FirmRole | null>(null);
@@ -89,11 +90,14 @@ export function ReportVersionsPanel() {
     setBusy(true);
     try {
       await markReportSent({ data: { id } });
+      const now = new Date().toISOString();
       setVersions((cur) =>
-        (cur ?? []).map((v) =>
-          v.id === id ? { ...v, sentAt: v.sentAt ?? new Date().toISOString() } : v,
-        ),
+        (cur ?? []).map((v) => (v.id === id ? { ...v, sentAt: v.sentAt ?? now } : v)),
       );
+      // The business's own stamp is the one the firm page counts; keep it in step.
+      if (!profile.engagement?.reportSentAt) {
+        replaceProfile({ ...profile, engagement: { ...profile.engagement, reportSentAt: now } });
+      }
     } catch {
       toast.error("Could not mark the version sent.");
     } finally {
@@ -133,7 +137,7 @@ export function ReportVersionsPanel() {
                   <p className="font-medium">{versionProvenance(v)}</p>
                   <p className="text-xs text-neutral-500">
                     {v.scopeNote || "No scope note"}
-                    {v.sentAt ? ` · Sent ${when(v.sentAt)}` : ""}
+                    {v.sentAt ? ` · Sent ${formatDay(v.sentAt)}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -141,6 +145,7 @@ export function ReportVersionsPanel() {
                     to="/report"
                     search={{ version: v.id }}
                     className="inline-flex h-7 items-center rounded-md border border-neutral-300 bg-white px-2 text-xs hover:bg-neutral-100"
+                    aria-label={`Open version ${v.versionNo}`}
                   >
                     Open
                   </Link>
@@ -150,6 +155,7 @@ export function ReportVersionsPanel() {
                       variant="secondary"
                       onClick={() => void signOff(v.id)}
                       disabled={busy}
+                      aria-label={`Sign off version ${v.versionNo}`}
                     >
                       <PenLine className="size-3.5" /> Sign off
                     </Button>
@@ -160,6 +166,7 @@ export function ReportVersionsPanel() {
                       variant="secondary"
                       onClick={() => void sent(v.id)}
                       disabled={busy}
+                      aria-label={`Mark version ${v.versionNo} as sent`}
                     >
                       <Send className="size-3.5" /> Mark sent
                     </Button>

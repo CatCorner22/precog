@@ -5,11 +5,12 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import type { IndustryId } from "../industry";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact } from "./absence-impact";
 import { daysBetween, isCalendarDate } from "../dates";
-import { firstName, relationLevel, STRONG_LEVELS } from "./coverage";
+import { relationLevel, STRONG_LEVELS } from "./coverage";
+import { firstName } from "../text";
 
 /** How long after leave ends the debrief keeps asking before it is treated as history. */
 export const DEBRIEF_WINDOW_DAYS = 60;

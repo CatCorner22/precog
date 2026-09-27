@@ -4,17 +4,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   LEAVER_ACCESS_ITEMS,
-  leaverNames,
+  leaverLabel,
   openAccessChecks,
   unpromptedAccessChecks,
   type LeaverAccessItem,
 } from "@/lib/precog/continuity/access-removal";
-import type { LeaverAccessCheck } from "@/lib/precog/practice-profile";
+import { joinWithAnd } from "@/lib/precog/text";
+import { formatDay } from "@/lib/precog/dates";
 
 const WHY =
-  "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. It is a well-documented way small businesses lose money and data, and it is closed by a few minutes of checking.";
+  "Someone who has left but whose login, card or PIN still works can move money or copy customer records. Checking each one takes a few minutes.";
 
 /** The logins and pay to check for someone who has left, ticked one by one before confirming. */
 function AccessChecklist({
@@ -71,10 +73,6 @@ function AccessChecklist({
   );
 }
 
-/** "Jordan Lee (Keyholder)" */
-const label = (check: LeaverAccessCheck) =>
-  check.role ? `${check.name} (${check.role})` : check.name;
-
 /**
  * Asked once, under the header, as soon as someone is known to have left:
  * are they off payroll, and are their logins gone? Either answer ends the
@@ -82,6 +80,7 @@ const label = (check: LeaverAccessCheck) =>
  * view of Who knows what.
  */
 export function LeaverAccessPrompt() {
+  const tabName = useTabName();
   const { profile, template, confirmLeaverAccess, markLeaverPrompted } = usePractice();
   const pending = useMemo(
     () => unpromptedAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
@@ -90,7 +89,12 @@ export function LeaverAccessPrompt() {
   if (profile.onboardingComplete === false || pending.length === 0) return null;
   const ids = pending.map((check) => check.id);
   const one = pending.length === 1;
-  const names = one ? label(pending[0]) : leaverNames(pending);
+  const names = one
+    ? leaverLabel(pending[0])
+    : joinWithAnd(
+        pending.map((check) => check.name),
+        2,
+      );
   return (
     <Card
       className="rounded-none border-x-0 border-warn/30 bg-warn/10 shadow-none"
@@ -112,7 +116,7 @@ export function LeaverAccessPrompt() {
             confirmLeaverAccess(ids);
             toast.success(
               one ? `Recorded for ${pending[0].name}.` : `Recorded for ${pending.length} people.`,
-              { description: "Dated in the decisions log." },
+              { description: `Dated in the ${tabName("journal")}.` },
             );
           }}
         >
@@ -127,16 +131,28 @@ export function LeaverAccessPrompt() {
 
 /**
  * The leavers whose pay and logins the owner has not confirmed yet, each
- * with its own checklist. Renders nothing when there are none.
+ * with its own checklist. Renders nothing when there are none, except that
+ * with `explainOnSample` the sample team (whose people are nobody's staff and
+ * never raise a check) gets one line saying what happens on the owner's own
+ * business.
  */
-export function LeaverAccessList() {
+export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?: boolean }) {
+  const tabName = useTabName();
   const { profile, template, confirmLeaverAccess } = usePractice();
   const open = useMemo(
     () => openAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
     [profile.leaverAccessChecks, profile.industry, template.people],
   );
   const [expanded, setExpanded] = useState<string | null>(null);
-  if (open.length === 0) return null;
+  if (open.length === 0) {
+    return explainOnSample && !profile.customPeople ? (
+      <p className="flex items-center gap-2 text-sm text-muted">
+        <KeyRound className="size-4 shrink-0" aria-hidden />
+        On your own business, marking someone as left also asks you to confirm their pay and logins
+        are stopped.
+      </p>
+    ) : null;
+  }
   return (
     <section
       aria-labelledby="leaver-access-list-title"
@@ -154,13 +170,13 @@ export function LeaverAccessList() {
           <li key={check.id} className="rounded-md border border-border bg-surface px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm">
-                <span className="font-medium">{label(check)}</span>
+                <span className="font-medium">{leaverLabel(check)}</span>
                 <span className="text-muted">
                   {" "}
                   ·{" "}
                   {check.source === "roster"
-                    ? `left out of a roster as no longer working here, ${check.notedOn}`
-                    : `marked as left ${check.notedOn}`}
+                    ? `listed as no longer working here in the roster you pasted on ${formatDay(check.notedOn)}`
+                    : `marked as left on ${formatDay(check.notedOn)}`}
                 </span>
               </span>
               <Button
@@ -181,7 +197,7 @@ export function LeaverAccessList() {
                     confirmLeaverAccess([check.id]);
                     setExpanded(null);
                     toast.success(`Recorded for ${check.name}.`, {
-                      description: "Dated in the decisions log.",
+                      description: `Dated in the ${tabName("journal")}.`,
                     });
                   }}
                 />

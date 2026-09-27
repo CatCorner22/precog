@@ -10,11 +10,13 @@
  * business owner when it answers "what actually happened to someone like me,
  * and what did it cost them." Hypothetical risk registers do not do that.
  */
+import type { ControlId } from "./controls";
 
 /** Industry bucket a case or benchmark belongs to. */
 export type IndustrySector =
   | "dental"
   | "medical"
+  | "veterinary"
   | "restaurant"
   | "construction"
   | "professional-services"
@@ -54,7 +56,7 @@ export type SchemeKind =
  * variable: it is the difference between a four-figure loss and a
  * seven-figure one.
  */
-type DetectionRoute =
+export type DetectionRoute =
   | "tip"
   | "owner-review"
   | "external-audit"
@@ -66,8 +68,6 @@ type DetectionRoute =
   | "cover"
   | "unknown";
 
-import type { ControlId } from "./controls";
-
 interface EvidenceSource {
   /** Publisher, e.g. "U.S. Attorney's Office, District of Massachusetts". */
   publisher: string;
@@ -78,7 +78,7 @@ interface EvidenceSource {
 /**
  * A real incident, tagged with the control whose absence made it possible.
  *
- * `preventiveControlIds` and `sodRuleIds` are what turn this library from a
+ * `wouldHaveCaughtIt` and `sodRuleIds` are what turn this library from a
  * reading list into a working part of the product: when the app recommends a
  * control, it can cite the cases that control would have stopped.
  */
@@ -95,12 +95,21 @@ export interface CaseStudy {
    * business, never as a judgment about the person.
    */
   controlGap: string;
-  /** Amount taken, as stated in the source. */
+  /**
+   * Amount taken, as stated in the source, in whole dollars rounded half up
+   * (the caveat keeps the cents where the source gives them). 0 means the
+   * source states no reliable total.
+   */
   lossUsd: number;
-  /** True when `lossUsd` is a floor ("more than $X") rather than an exact sum. */
+  /** True when `lossUsd` is a floor ("more than $X") rather than an exact sum. Never true for 0. */
   lossIsFloor: boolean;
-  /** How long the scheme ran before it stopped, in months. */
+  /**
+   * How long the scheme ran before it stopped, in months, counted as the end
+   * month minus the start month (August 2013 to December 2019 is 76).
+   */
   durationMonths?: number;
+  /** True when `durationMonths` is a floor ("more than five years") rather than a dated span. */
+  durationIsFloor?: boolean;
   /**
    * Years the person had worked for the victim when the scheme ended, only
    * where the source states a hire year or a length of service. 0 means under
@@ -108,15 +117,18 @@ export interface CaseStudy {
    */
   tenureYearsStated?: number;
   detection: DetectionRoute;
-  /** Year the case resolved (sentencing or plea), for recency signalling. */
+  /**
+   * Year the case resolved: the plea or verdict, or the sentence where the
+   * record carries it. Shown for recency.
+   */
   resolvedYear?: number;
   /**
    * IDs from sod/conflict-rules.ts that this case demonstrates. A rule belongs
    * here only when `howItWorked` or `controlGap` shows the insider held both
    * duties the rule pairs. Empty when the record shows no named pair: the case
    * is then found by its schemes and shown only under the heading "A related
-   * scheme". scripts/verify-evidence.mjs warns when a record mentions neither
-   * duty of a rule it cites.
+   * scheme". evidence.test.ts checks that each record mentions both duties
+   * of every rule it cites.
    */
   sodRuleIds: string[];
   /**

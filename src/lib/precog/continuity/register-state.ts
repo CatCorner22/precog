@@ -37,7 +37,7 @@ function isStarterList(knowledge: readonly KnowledgeItem[], industry: IndustryId
  *   about the business.
  * - "own": the owner wrote their own list, or marked people on the starter list.
  */
-export type RegisterSource = "sample" | "starter" | "own";
+type RegisterSource = "sample" | "starter" | "own";
 
 export function registerSource(
   profile: Pick<

@@ -31,6 +31,28 @@ describe("validateProfileInput", () => {
     );
   });
 
+  it("refuses a list entry every reader would fail on", () => {
+    const base = defaultProfile("general");
+    const status = (input: unknown) => {
+      try {
+        validateProfileInput(input);
+      } catch (error) {
+        return [(error as { status?: number }).status, (error as Error).message];
+      }
+      return null;
+    };
+    expect(status({ ...base, customPeople: [null] })).toEqual([
+      400,
+      "Profile has a malformed entry in customPeople",
+    ]);
+    expect(status({ ...base, customPeople: [{ id: "x", name: "No title" }] })?.[0]).toBe(400);
+    expect(status({ ...base, customKnowledge: [null] })?.[1]).toMatch(/customKnowledge/);
+    expect(status({ ...base, customRelations: "all" })?.[1]).toMatch(/customRelations/);
+    expect(status({ ...base, mapVersions: [{ id: "v" }] })?.[1]).toMatch(/mapVersions/);
+    expect(status({ ...base, mapLayout: { a: { x: "left" } } })?.[1]).toMatch(/mapLayout/);
+    expect(status(base)).toBeNull();
+  });
+
   it("caps the document size", () => {
     const huge = { ...defaultProfile("dental"), notes: "x".repeat(MAX_PROFILE_BYTES) };
     expect(() => validateProfileInput(huge)).toThrow(/too large/);

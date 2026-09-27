@@ -8,10 +8,13 @@ import {
   untouchedStarterProcessIds,
 } from "./map-state";
 import { diffMaps } from "./diff";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { buildProcessMapGraph } from "../process-graph";
+import { computeMapHealth } from "../process-health";
+import { validateProcessMap } from "../process-validation";
 
 const people = buildOwnTeam([
   { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
@@ -31,7 +34,7 @@ describe("mapSource", () => {
     expect(mapSource({ industry: "dental", customProcesses: [] })).toBe("sample");
   });
 
-  it("is a starter map for a fresh own business (own people, nobody assigned)", () => {
+  it("is a sample process map for a fresh own business (own people, nobody assigned)", () => {
     const profile = ruiz();
     expect(profile.customProcesses ?? null).toBeNull();
     expect(resolveTemplate(profile).processes.every((p) => !p.ownerPersonIds?.length)).toBe(true);
@@ -47,21 +50,27 @@ describe("mapSource", () => {
     expect(mapSource({ ...profile, customProcesses: [] })).toBe("own");
     // The sample team edited in the builder keeps its ids, so the starter
     // map's owner references still resolve and the map counts as owned.
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     expect(mapSource({ industry: "dental", customPeople: dental.people.slice(0, 3) })).toBe("own");
   });
 });
 
 describe("mapAssessed", () => {
-  it("is false for a starter map and for an own map with no processes", () => {
+  it("is false for a sample process map and for an own map with no processes", () => {
     const profile = ruiz();
     expect(mapAssessed(profile)).toBe(false);
     expect(mapAssessed({ ...profile, customProcesses: [] })).toBe(false);
   });
 
+  it("is false for the sample business once every process is deleted", () => {
+    expect(mapAssessed({ industry: "restaurant", customProcesses: [] })).toBe(false);
+    expect(mapNotAssessedNote({ industry: "restaurant", customProcesses: [] })).toBe(
+      "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.",
+    );
+  });
+
   it("is true for the sample business and once the owner edits the map or assigns an owner", () => {
     expect(mapAssessed({ industry: "dental" })).toBe(true);
-    expect(mapAssessed({ industry: "restaurant", customProcesses: [] })).toBe(true);
     const profile = ruiz();
     const first = resolveTemplate(profile).processes[0];
     const assigned = resolveTemplate({
@@ -74,14 +83,14 @@ describe("mapAssessed", () => {
 });
 
 describe("mapNotAssessedNote", () => {
-  it("names the starter process count and the industry example, in one sentence", () => {
+  it("names the sample process count and the industry sample, in one sentence", () => {
     const profile = ruiz();
     expect(starterMapFacts(profile)).toEqual({
       count: 8,
-      example: "dental / medical / veterinary office example",
+      example: "dental / medical / veterinary office sample",
     });
     expect(mapNotAssessedNote(profile)).toBe(
-      "Your map holds 8 starter processes from the dental / medical / veterinary office example and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
+      "Your map holds 8 sample processes from the dental / medical / veterinary office sample and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
     );
   });
 
@@ -97,7 +106,15 @@ describe("mapNotAssessedNote", () => {
 describe("the sample business's map figures do not change", () => {
   // The controlled-drugs process added to the dental and medical sample is
   // one more process with a hot fraud risk and no written record: the score
-  // moves from 73 to 72 and calm from 43 to 39.
+  // moves from 73 to 72 and calm from 43 to 39. A process now takes its
+  // residual from the rows linked to it by id (its controls, register items
+  // and their scenarios), not from a row sharing a word with its name:
+  // scheduling (sole-held know-how) and payroll (payroll control) gain one,
+  // so calm moves from 39 to 30 and the score from 72 to 69. The sample's
+  // team figures are then derived from its own people: the payroll control
+  // reads as the gap the office manager's duties show and the billing
+  // specialist reconciles the bank as the cash scenario says, so one more
+  // process runs hot (six), calm moves to 28 and the score to 68.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -110,17 +127,17 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(72);
+    expect(health.score).toBe(68);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 39],
+      ["calm", 28],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
-    expect(health.hotProcesses).toBe(4);
+    expect(health.hotProcesses).toBe(6);
     expect(health.unownedProcesses).toBe(0);
     expect(issues.map((i) => i.id)).toEqual([
       "record-proc-schedule",
@@ -136,7 +153,7 @@ describe("the sample business's map figures do not change", () => {
 });
 
 describe("untouchedStarterProcessIds", () => {
-  it("keeps every other starter process a starter when the owner assigns one owner", () => {
+  it("keeps every other sample process a starter when the owner assigns one owner", () => {
     const profile = ruiz();
     const processes = resolveTemplate(profile).processes;
     expect(untouchedStarterProcessIds(profile).size).toBe(processes.length);
@@ -151,7 +168,7 @@ describe("untouchedStarterProcessIds", () => {
     expect(left.size).toBe(processes.length - 1);
   });
 
-  it("treats a renamed or re-described starter process as the owner's own", () => {
+  it("treats a renamed or re-described sample process as the owner's own", () => {
     const profile = ruiz();
     const processes = resolveTemplate(profile).processes;
     const edited = {
@@ -181,23 +198,28 @@ describe("starterProcesses", () => {
 
   it("keeps the starter's processes and leaves every owner off", () => {
     const starter = starterProcesses({ industry: "retail" });
-    expect(starter.map((p) => p.id)).toEqual(getBaseTemplate("retail").processes.map((p) => p.id));
+    expect(starter.map((p) => p.id)).toEqual(
+      getIndustryTemplate("retail").processes.map((p) => p.id),
+    );
     expect(starter.every((p) => p.ownerPersonIds?.length === 0)).toBe(true);
   });
 });
 
-describe("a starter map the owner only renamed", () => {
+describe("a sample process map the owner only renamed", () => {
   const people = [{ id: "own-1", name: "Ana", role: "Owner", active: true }];
-  const starter = getBaseTemplate("retail").processes.map((p) => ({ ...p, ownerPersonIds: [] }));
+  const starter = getIndustryTemplate("retail").processes.map((p) => ({
+    ...p,
+    ownerPersonIds: [],
+  }));
 
-  it("stays a starter map, not assessed, when a process is renamed with nobody assigned", () => {
+  it("stays a sample process map, not assessed, when a process is renamed with nobody assigned", () => {
     const renamed = starter.map((p, i) => (i === 0 ? { ...p, name: "Our sales desk" } : p));
     const profile = { industry: "retail" as const, customPeople: people, customProcesses: renamed };
     expect(mapSource(profile)).toBe("starter");
     expect(mapAssessed(profile)).toBe(false);
   });
 
-  it("stays a starter map when the processes are only reordered", () => {
+  it("stays a sample process map when the processes are only reordered", () => {
     const profile = {
       industry: "retail" as const,
       customPeople: people,

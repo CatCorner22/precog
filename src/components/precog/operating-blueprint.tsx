@@ -7,8 +7,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useTemplate } from "@/lib/precog/use-template";
-import { INDUSTRIES, industryMeta } from "@/lib/precog/industry";
+import { useTemplate } from "@/lib/precog/practice-context";
+import { industryMeta } from "@/lib/precog/industry";
 
 const DOMAINS: (PracticeProcessDomain | "all")[] = [
   "all",
@@ -23,7 +23,7 @@ const DOMAINS: (PracticeProcessDomain | "all")[] = [
 
 export function OperatingBlueprint() {
   const tpl = useTemplate();
-  const industryLabel = INDUSTRIES.find((i) => i.id === tpl.id)?.label ?? tpl.id;
+  const { teamLabel } = industryMeta(tpl.id);
   const blueprints = useMemo(() => blueprintsForIndustry(tpl.id), [tpl.id]);
   const [domain, setDomain] = useState<(typeof DOMAINS)[number]>("all");
   const [openId, setOpenId] = useState(blueprints[0].id);
@@ -37,13 +37,13 @@ export function OperatingBlueprint() {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Target operating model</Badge>
         <h1 className="mt-3 text-xl font-semibold">
-          Process and control blueprint for a {industryMeta(tpl.id).teamLabel}
+          Process and control blueprint for your {teamLabel}
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-muted">
-          A practical baseline for a small {industryLabel.toLowerCase()} business: minimum good
-          practice, leading practice, optimal structure, and an acceptable compensating fallback
-          when staffing prevents full separation. The first three processes belong to this line of
-          business; the rest are the money processes every business runs, in its words.
+          A practical baseline for a small {teamLabel}: minimum good practice, leading practice,
+          optimal structure, and an acceptable fallback when staffing prevents full separation.
+          Processes particular to your line of business come first; the rest are the money processes
+          every business runs, in your words.
         </p>
       </section>
       <div className="flex flex-wrap gap-2">
@@ -64,7 +64,7 @@ export function OperatingBlueprint() {
         ))}
       </div>
       <div className="grid gap-3">
-        {filtered.map((process, index) => {
+        {filtered.map((process) => {
           const open = process.id === openId;
           return (
             <Card key={process.id}>
@@ -76,7 +76,9 @@ export function OperatingBlueprint() {
                 <CardHeader className="flex-row items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="default">{String(index + 1).padStart(2, "0")}</Badge>
+                      <Badge variant="default">
+                        {String(blueprints.indexOf(process) + 1).padStart(2, "0")}
+                      </Badge>
                       <Badge variant="primary">{process.domain}</Badge>
                     </div>
                     <CardTitle className="mt-2 text-base">{process.name}</CardTitle>
@@ -97,7 +99,7 @@ export function OperatingBlueprint() {
                   <div className="grid gap-3 lg:grid-cols-4">
                     <Tier
                       icon={CheckCircle2}
-                      title="Best practice"
+                      title="Minimum good practice"
                       tone="text-primary"
                       items={process.standard}
                     />
@@ -171,6 +173,7 @@ function Tier({
     </div>
   );
 }
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border bg-elevated p-2">

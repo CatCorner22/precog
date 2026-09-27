@@ -1,7 +1,13 @@
 import { useMemo, type ReactNode } from "react";
-import { PracticeContextPublisher, type PracticeContextValue } from "./practice-context";
+import {
+  PracticeContextPublisher,
+  type PracticeActions,
+  type PracticeState,
+  type PracticeSync,
+} from "./practice-context";
 import { resolveTemplate } from "./active-template";
 import { normalizeProfile, summarizeBusiness, type PracticeProfile } from "./practice-profile";
+import { isMapCustomized } from "./profile-actions";
 
 /**
  * The same context the screens read, over a frozen profile: a locked report
@@ -9,9 +15,6 @@ import { normalizeProfile, summarizeBusiness, type PracticeProfile } from "./pra
  * renders under it shows the business as it stood without being able to
  * change it. Nothing here touches storage or the account.
  */
-const noop = () => undefined;
-const asyncNoop = async () => undefined;
-
 export function ReadOnlyPracticeProvider({
   profile,
   children,
@@ -19,60 +22,72 @@ export function ReadOnlyPracticeProvider({
   profile: PracticeProfile;
   children: ReactNode;
 }) {
-  const value = useMemo<PracticeContextValue>(() => {
+  const state = useMemo<PracticeState>(() => {
     const frozen = normalizeProfile(profile);
     return {
       profile: frozen,
       ready: true,
-      syncStatus: "local",
-      saveConflict: null,
-      resolveSaveConflict: asyncNoop,
       template: resolveTemplate(frozen),
-      setPracticeName: noop,
-      setIndustry: noop,
-      setStaff: noop,
-      setRiskVariables: noop,
-      setDualRelease: noop,
-      addDecision: noop,
-      removeDecision: noop,
-      replaceProfile: noop,
-      reviewDecision: noop,
-      resetProfile: noop,
-      completeOnboarding: noop,
-      startOwnBusiness: noop,
-      confirmLeaverAccess: noop,
-      markLeaverPrompted: noop,
-      cancelSetup: asyncNoop,
+      mapCustomized: isMapCustomized(frozen),
       setupReturnsTo: null,
-      setCustomProcesses: noop,
-      setCustomPeople: noop,
-      setCustomKnowledge: noop,
-      setCustomRelations: noop,
-      setPlannedAbsences: noop,
-      resetSegregationToDerived: noop,
-      setMapLayout: noop,
-      mapCustomized: Boolean(
-        frozen.customProcesses ||
-        frozen.customPeople ||
-        Object.keys(frozen.mapLayout ?? {}).length > 0,
-      ),
-      setSavedProcessBlocks: noop,
-      recordMapHealth: noop,
-      undoMap: noop,
-      redoMap: noop,
+      businesses: [summarizeBusiness(frozen)],
+      switchingBusiness: false,
       canUndoMap: false,
       canRedoMap: false,
-      saveMapVersion: () => {
-        throw new Error("This view is read-only");
-      },
-      deleteMapVersion: noop,
-      restoreMapVersion: noop,
-      businesses: [summarizeBusiness(frozen)],
-      switchBusiness: asyncNoop,
-      createBusiness: () => ({ ok: false, reason: "This view is read-only" }),
-      deleteBusiness: asyncNoop,
-      switchingBusiness: false,
     };
   }, [profile]);
-  return <PracticeContextPublisher value={value}>{children}</PracticeContextPublisher>;
+  return (
+    <PracticeContextPublisher state={state} actions={READ_ONLY_ACTIONS} sync={READ_ONLY_SYNC}>
+      {children}
+    </PracticeContextPublisher>
+  );
 }
+
+const noop = () => undefined;
+const asyncNoop = async () => undefined;
+
+const READ_ONLY_SYNC: PracticeSync = {
+  syncStatus: "local",
+  saveConflict: null,
+  resolveSaveConflict: asyncNoop,
+};
+
+const READ_ONLY_ACTIONS: PracticeActions = {
+  setPracticeName: noop,
+  setIndustry: noop,
+  setStaff: noop,
+  setRiskVariables: noop,
+  setDualRelease: noop,
+  addDecision: noop,
+  removeDecision: noop,
+  reviewDecision: noop,
+  replaceProfile: noop,
+  setMonthlyReviews: noop,
+  setAccessReconciliation: noop,
+  markReportSent: noop,
+  resetProfile: noop,
+  completeOnboarding: noop,
+  startOwnBusiness: noop,
+  confirmLeaverAccess: noop,
+  markLeaverPrompted: noop,
+  cancelSetup: asyncNoop,
+  setCustomProcesses: noop,
+  setCustomPeople: noop,
+  setCustomKnowledge: noop,
+  setCustomRelations: noop,
+  setPlannedAbsences: noop,
+  resetSegregationToDerived: noop,
+  setMapLayout: noop,
+  setSavedProcessBlocks: noop,
+  recordMapHealth: noop,
+  undoMap: noop,
+  redoMap: noop,
+  saveMapVersion: () => {
+    throw new Error("This view is read-only");
+  },
+  deleteMapVersion: noop,
+  restoreMapVersion: noop,
+  switchBusiness: async () => ({ ok: false, reason: "This view is read-only" }),
+  createBusiness: () => ({ ok: false, reason: "This view is read-only" }),
+  deleteBusiness: asyncNoop,
+};

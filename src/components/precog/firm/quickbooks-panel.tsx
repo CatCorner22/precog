@@ -9,7 +9,11 @@ import {
   startQuickBooksConnect,
   syncQuickBooksNow,
 } from "@/lib/precog/integrations/qbo/server";
-import { driftIsEmpty, type IntegrationDrift } from "@/lib/precog/integrations/qbo/model";
+import {
+  driftIsEmpty,
+  VENDOR_FIELD_LABEL,
+  type IntegrationDrift,
+} from "@/lib/precog/integrations/qbo/model";
 import type { ConnectionStatus } from "@/lib/precog/integrations/qbo/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 
@@ -108,7 +112,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
       <h2 className="text-lg font-semibold">QuickBooks Online</h2>
       <p className="mt-1 text-sm text-muted">
         A read-only connection. Precog reads the vendor and employee lists once a month and says
-        what changed: new or altered vendors, people paid who are not on the duty map, and people
+        what changed: new or altered vendors, people paid who are not on the Duty map, and people
         released from payroll whose logins still need confirming.
       </p>
       {status === null ? (
@@ -136,6 +140,12 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
               </span>
             )}
           </p>
+          {status.connection.needsReconnect && (
+            <p className="mt-2 text-sm text-danger">
+              QuickBooks no longer accepts this connection, so the monthly reading has stopped.
+              Disconnect, then connect QuickBooks again.
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void sync()} disabled={busy}>
               <RefreshCw className="size-3.5" /> Read the books now
@@ -156,7 +166,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     return (
       <p className="mt-3 text-sm text-muted">
         Nothing changed{drift.since ? ` since ${drift.since.slice(0, 10)}` : ""}, and the books
-        match the duty map.
+        match the Duty map.
       </p>
     );
   }
@@ -165,7 +175,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   if (drift.employeesReleased.length) {
     lines.push({
       label: "Released from payroll",
-      text: `${names(drift.employeesReleased)} — confirm their logins are gone and mark them as left on the map.`,
+      text: `${names(drift.employeesReleased)} — confirm their logins are removed and mark them as left on the map.`,
       warn: true,
     });
   }
@@ -173,20 +183,21 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     lines.push({
       label: "Vendor details changed",
       text:
-        drift.vendorsChanged.map((c) => `${c.vendor.name} (${c.fields.join(", ")})`).join("; ") +
-        " — a changed address or account is how a payee gets redirected.",
+        drift.vendorsChanged
+          .map((c) => `${c.vendor.name} (${c.fields.map((f) => VENDOR_FIELD_LABEL[f]).join(", ")})`)
+          .join("; ") + " — a changed address or account is how a payee gets redirected.",
       warn: true,
     });
   }
   if (drift.vendorsAdded.length)
     lines.push({ label: "New vendors", text: names(drift.vendorsAdded) });
   if (drift.vendorsRemoved.length)
-    lines.push({ label: "Vendors gone", text: names(drift.vendorsRemoved) });
+    lines.push({ label: "Vendors removed", text: names(drift.vendorsRemoved) });
   if (drift.employeesAdded.length)
     lines.push({ label: "New employees", text: names(drift.employeesAdded) });
   if (drift.employeesNotOnMap.length) {
     lines.push({
-      label: "Paid but not on the duty map",
+      label: "Paid but not on the Duty map",
       text: `${names(drift.employeesNotOnMap)} — add them, or confirm they hold no money duties.`,
       warn: true,
     });
@@ -198,23 +209,25 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     });
   }
   return (
-    <dl className="mt-3 space-y-2 text-sm">
+    <>
       {drift.since && (
-        <p className="text-xs text-muted">
+        <p className="mt-3 text-xs text-muted">
           Compared with the reading of {drift.since.slice(0, 10)}.
         </p>
       )}
-      {lines.map((line) => (
-        <div
-          key={line.label}
-          className={line.warn ? "rounded-md border border-warn/40 bg-warn/5 p-2" : ""}
-        >
-          <dt className={`text-xs font-medium ${line.warn ? "text-warn" : "text-muted"}`}>
-            {line.label}
-          </dt>
-          <dd className="mt-0.5">{line.text}</dd>
-        </div>
-      ))}
-    </dl>
+      <dl className="mt-2 space-y-2 text-sm">
+        {lines.map((line) => (
+          <div
+            key={line.label}
+            className={line.warn ? "rounded-md border border-warn/40 bg-warn/5 p-2" : ""}
+          >
+            <dt className={`text-xs font-medium ${line.warn ? "text-warn" : "text-muted"}`}>
+              {line.label}
+            </dt>
+            <dd className="mt-0.5">{line.text}</dd>
+          </div>
+        ))}
+      </dl>
+    </>
   );
 }

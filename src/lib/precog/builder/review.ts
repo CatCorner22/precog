@@ -2,7 +2,7 @@
  * Whole-map review: plain-English critique of the value stream.
  * Shared input shape + deterministic fallback used when Grok isn't available.
  */
-import { HEAT_BANDS } from "../process-graph";
+import { HEAT_BANDS } from "../scoring/bands";
 import { HEALTH_SCALE } from "../scoring/bands";
 import { personLabel } from "../person-label";
 import type { GrokAccess } from "../llm/types";
@@ -136,7 +136,7 @@ export function reviewLocally(input: ReviewInput): MapReview {
     );
   if (hot[0])
     moves.push(
-      `Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Journal.`,
+      `Open "${hot[0].name}" and decide: remediate, compensate, or accept the residual — then log it in the Decisions log.`,
     );
   if (input.overburdened[0])
     moves.push(
@@ -147,7 +147,9 @@ export function reviewLocally(input: ReviewInput): MapReview {
       `Your weakest dimension is ${weakest.label} (${weakest.score}) — ${weakest.hint.toLowerCase()}.`,
     );
   if (!moves.length)
-    moves.push("Snapshot this version, then revisit monthly as the team and processes change.");
+    moves.push(
+      "Save a version of this map, then revisit monthly as the team and processes change.",
+    );
 
   const nextMove = unowned.length
     ? `Assign an owner to "${unowned[0].name}" this week.`

@@ -1,53 +1,52 @@
-import { BookOpen, UserCheck } from "lucide-react";
-import { PeopleLine } from "@/components/precog/continuity/leave-cards";
+import { UserCheck } from "lucide-react";
+import { ItemButton, JournalStepStatus, PeopleLine } from "@/components/precog/continuity/parts";
+import type {
+  CheckIn,
+  JournalSteps,
+  RegisterEditor,
+} from "@/components/precog/continuity/use-continuity-planner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ContinuityStep } from "@/lib/precog/continuity/absence-impact";
 import {
   LEVEL_LABEL,
+  isMarked,
   LEVEL_ORDER,
   STATUS_LABEL,
-  type CoverageDrop,
   type CoverageReport,
-  type CrossTrainingMove,
-  type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import {
   DOCUMENTATION_LABEL,
-  type DocumentationGap,
   type DocumentationReport,
 } from "@/lib/precog/continuity/documentation";
 import {
+  coverageBadge,
   CRITICALITY_LABEL,
-  inputClass,
-  isMarked,
   NOT_ASSESSED_PLAN,
   STATUS_VARIANT,
   UNHELD_VIEW,
 } from "@/lib/precog/continuity/planner-copy";
-import { CONFIRMATION_MAX_AGE_DAYS, type CheckInPlan } from "@/lib/precog/continuity/staleness";
+import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
+import { inputClass } from "./styles";
 import type { Criticality, KnowledgeLevel } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+import { count, joinWithAnd, verb } from "@/lib/precog/text";
+import { formatDay } from "@/lib/precog/dates";
 
-type StepTrack = (
-  knowledgeId: string,
-  step: ContinuityStep,
-  absenceId?: string,
-) => string | undefined;
+/** How many steps each plan card lists before "more not shown". */
+const PLAN_SHOWN = 8;
 
+/** Who to train on what, most urgent first, each step loggable as a decision. */
 export function CrossTrainingPlanCard({
-  registerReady,
+  registerAssessed,
   report,
-  setSelectedId,
-  trackedBy,
-  logMove,
+  journal,
+  onSelect,
 }: {
-  registerReady: boolean;
+  registerAssessed: boolean;
   report: CoverageReport;
-  setSelectedId: (id: string) => void;
-  trackedBy: StepTrack;
-  logMove: (move: CrossTrainingMove) => void;
+  journal: JournalSteps;
+  onSelect: (knowledgeId: string) => void;
 }) {
   return (
     <Card>
@@ -58,7 +57,7 @@ export function CrossTrainingPlanCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!registerReady ? (
+        {!registerAssessed ? (
           <p className="text-sm text-muted">{NOT_ASSESSED_PLAN}</p>
         ) : report.plan.length === 0 ? (
           <p className="text-sm text-ok">
@@ -67,42 +66,28 @@ export function CrossTrainingPlanCard({
           </p>
         ) : (
           <ol className="space-y-2">
-            {report.plan.slice(0, 8).map((m, i) => (
+            {report.plan.slice(0, PLAN_SHOWN).map((m, i) => (
               <li
                 key={m.item.id}
-                className="flex cursor-pointer gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
-                onClick={() => setSelectedId(m.item.id)}
+                className="flex gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
               >
                 <span className="font-mono text-xs text-muted">{i + 1}.</span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{m.item.name}</span>
+                    <ItemButton item={m.item} onSelect={onSelect} />
                     <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
                   </div>
                   <p className="text-muted">{m.action}</p>
-                  {trackedBy(m.item.id, "cover") ? (
-                    <p className="text-xs text-subtle">
-                      In the Journal · review by {trackedBy(m.item.id, "cover")}
-                    </p>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        logMove(m);
-                      }}
-                    >
-                      <BookOpen className="size-3.5" /> Log as decision
-                    </Button>
-                  )}
+                  <JournalStepStatus
+                    commitment={journal.trackedBy(m.item.id, "cover")}
+                    onLog={() => journal.logMove(m)}
+                  />
                 </div>
               </li>
             ))}
-            {report.plan.length > 8 && (
+            {report.plan.length > PLAN_SHOWN && (
               <li className="text-xs text-muted">
-                {report.plan.length - 8} more below the fold — fix these first.
+                {report.plan.length - PLAN_SHOWN} more not shown. Finish these {PLAN_SHOWN} first.
               </li>
             )}
           </ol>
@@ -112,25 +97,24 @@ export function CrossTrainingPlanCard({
   );
 }
 
+/** Items with nothing written down, or no recorded place to find it, ranked by what stops. */
 export function DocumentationPlanCard({
   docs,
-  setSelectedId,
-  trackedBy,
-  logGap,
+  journal,
+  onSelect,
 }: {
   docs: DocumentationReport;
-  setSelectedId: (id: string) => void;
-  trackedBy: StepTrack;
-  logGap: (gap: DocumentationGap) => void;
+  journal: JournalSteps;
+  onSelect: (knowledgeId: string) => void;
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Write it down</CardTitle>
         <CardDescription>
-          A backup is only as good as the procedure they can follow. Items with nothing written
-          down, or a procedure nobody has said where to find, ranked by how much stops if the one
-          person who knows is out.
+          A stand-in is only as good as the procedure the stand-in can follow. Items with nothing
+          written down, or a procedure nobody has said where to find, ranked by how much stops if
+          the one person who knows is out.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -141,46 +125,32 @@ export function DocumentationPlanCard({
           </p>
         ) : (
           <ol className="space-y-2">
-            {docs.gaps.slice(0, 8).map((g, i) => (
+            {docs.gaps.slice(0, PLAN_SHOWN).map((g, i) => (
               <li
                 key={g.item.id}
-                className="flex cursor-pointer gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
-                onClick={() => setSelectedId(g.item.id)}
+                className="flex gap-3 rounded-lg border border-border p-3 text-sm hover:bg-elevated/60"
               >
                 <span className="font-mono text-xs text-muted">{i + 1}.</span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{g.item.name}</span>
+                    <ItemButton item={g.item} onSelect={onSelect} />
                     <Badge variant={g.state === "none" ? "danger" : "warn"}>
                       {DOCUMENTATION_LABEL[g.state]}
                     </Badge>
                     <Badge variant={STATUS_VARIANT[g.coverage]}>{STATUS_LABEL[g.coverage]}</Badge>
                   </div>
                   <p className="text-muted">{g.action}</p>
-                  {trackedBy(g.item.id, g.step) ? (
-                    <p className="text-xs text-subtle">
-                      In the Journal · review by {trackedBy(g.item.id, g.step)}
-                    </p>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        logGap(g);
-                      }}
-                    >
-                      <BookOpen className="size-3.5" /> Log as decision
-                    </Button>
-                  )}
+                  <JournalStepStatus
+                    commitment={journal.trackedBy(g.item.id, g.step)}
+                    onLog={() => journal.logGap(g)}
+                  />
                 </div>
               </li>
             ))}
-            {docs.gaps.length > 8 && (
+            {docs.gaps.length > PLAN_SHOWN && (
               <li className="text-xs text-muted">
-                {docs.gaps.length - 8} more — tick “A written procedure exists” and record where it
-                lives on each item as you go.
+                {docs.gaps.length - PLAN_SHOWN} more — tick “A written procedure exists” and record
+                where it lives on each item as you go.
               </li>
             )}
           </ol>
@@ -190,38 +160,31 @@ export function DocumentationPlanCard({
   );
 }
 
+/** Re-confirming the register one person at a time; shown once items go unconfirmed too long. */
 export function CheckInCard({
+  checkIn,
   trackFreshness,
-  freshnessStaleCount,
-  checkIns,
-  checkInView,
-  setCheckInChoice,
-  activeCheckIn,
-  checkInSetLevel,
-  confirmItems,
 }: {
+  checkIn: CheckIn;
   trackFreshness: boolean;
-  freshnessStaleCount: number;
-  checkIns: CheckInPlan;
-  checkInView: string;
-  setCheckInChoice: (id: string | null) => void;
-  activeCheckIn: CheckInPlan["checkIns"][number] | undefined;
-  checkInSetLevel: (
-    personId: string,
-    knowledgeId: string,
-    level: KnowledgeLevel | undefined,
-  ) => void;
-  confirmItems: (ids: string[]) => void;
 }) {
-  if (!trackFreshness || freshnessStaleCount === 0) return null;
+  const {
+    plan: checkIns,
+    view: checkInView,
+    setChoice: setCheckInChoice,
+    active: activeCheckIn,
+    setLevel: checkInSetLevel,
+    confirmItems,
+  } = checkIn;
+  if (!trackFreshness || checkIn.staleCount === 0) return null;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Confirm it&apos;s still true</CardTitle>
         <CardDescription>
-          {freshnessStaleCount} item(s) not confirmed in the last {CONFIRMATION_MAX_AGE_DAYS} days.
-          People leave, learn and forget; a register nobody re-checks is a false comfort. Sit down
-          with each person and go through what the register says they can do.
+          {count(checkIn.staleCount, "item")} not confirmed in the last {CONFIRMATION_MAX_AGE_DAYS}{" "}
+          days. People leave, learn and forget; a register nobody re-checks is a false comfort. Sit
+          down with each person and go through what the register says they can do.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -273,7 +236,7 @@ export function CheckInCard({
                       </Badge>
                       <span className="text-xs text-muted">
                         {entry.confirmedAt
-                          ? `last confirmed ${entry.confirmedAt}`
+                          ? `last confirmed ${formatDay(entry.confirmedAt)}`
                           : "never confirmed"}
                       </span>
                     </div>
@@ -374,27 +337,25 @@ export function CheckInCard({
   );
 }
 
+/** Items that lost coverage during this check-in, with the move that restores each. */
 export function CheckInDropsCard({
+  checkIn,
   trackFreshness,
-  checkInDrops,
-  trackedBy,
-  logMove,
-  setCheckInBaseline,
+  journal,
 }: {
+  checkIn: CheckIn;
   trackFreshness: boolean;
-  checkInDrops: CoverageDrop[];
-  trackedBy: StepTrack;
-  logMove: (move: CrossTrainingMove) => void;
-  setCheckInBaseline: (value: null) => void;
+  journal: JournalSteps;
 }) {
+  const checkInDrops = checkIn.drops;
   if (!trackFreshness || checkInDrops.length === 0) return null;
   return (
     <Card>
       <CardHeader>
         <CardTitle>What this check-in changed</CardTitle>
         <CardDescription>
-          {checkInDrops.length} item(s) lost coverage since you started re-confirming. The register
-          is more honest now — these are the gaps it uncovered.
+          {count(checkInDrops.length, "item")} lost coverage since you started re-confirming. The
+          register is more honest now — these are the gaps it uncovered.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -415,38 +376,26 @@ export function CheckInDropsCard({
                   </div>
                   <p className="text-muted">
                     {d.remaining.length === 0
-                      ? "Nobody left on the active team can run this alone."
-                      : `${d.remaining.map((p) => p.name).join(" and ")} ${
-                          d.remaining.length === 1 ? "is" : "are"
-                        } left to run it alone.`}
+                      ? "Nobody still on the team can run this alone."
+                      : `${joinWithAnd(d.remaining.map((p) => p.name))} ${verb(
+                          d.remaining.length,
+                          "is",
+                          "are",
+                        )} left to run it alone.`}
                     {move && ` ${move.action}`}
                   </p>
-                  {move &&
-                    (trackedBy(d.item.id, "cover") ? (
-                      <span className="text-xs text-muted">
-                        In the Journal · review by {trackedBy(d.item.id, "cover")}
-                      </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => logMove(move)}
-                      >
-                        <BookOpen className="size-3.5" /> Log as decision
-                      </Button>
-                    ))}
+                  {move && (
+                    <JournalStepStatus
+                      commitment={journal.trackedBy(d.item.id, "cover")}
+                      onLog={() => journal.logMove(move)}
+                    />
+                  )}
                 </div>
               </li>
             );
           })}
         </ol>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs"
-          onClick={() => setCheckInBaseline(null)}
-        >
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={checkIn.clearBaseline}>
           Done reviewing these
         </Button>
       </CardContent>
@@ -454,24 +403,22 @@ export function CheckInDropsCard({
   );
 }
 
+/** The item picked in the grid or a plan: criticality, where its procedure lives, who holds it. */
 export function SelectedKnowledgeCard({
-  selected,
-  updateItem,
+  register,
   trackFreshness,
-  today,
 }: {
-  selected: ItemCoverage | undefined;
-  updateItem: (id: string, patch: Partial<ItemCoverage["item"]>) => void;
+  register: Pick<RegisterEditor, "selected" | "updateItem" | "confirmItems">;
   trackFreshness: boolean;
-  today: string;
 }) {
+  const { selected, updateItem } = register;
   if (!selected) return null;
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>{selected.item.name}</CardTitle>
-          <Badge variant={STATUS_VARIANT[selected.status]}>{STATUS_LABEL[selected.status]}</Badge>
+          <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
         </div>
         <CardDescription>
           {selected.item.description || CRITICALITY_LABEL[selected.item.criticality]}
@@ -501,7 +448,7 @@ export function SelectedKnowledgeCard({
               checked={Boolean(selected.item.documented)}
               onChange={(e) => updateItem(selected.item.id, { documented: e.target.checked })}
             />
-            A written procedure exists that a backup could follow
+            A written procedure exists that a stand-in could follow
           </label>
         </div>
         {selected.item.documented && (
@@ -518,12 +465,15 @@ export function SelectedKnowledgeCard({
         )}
         {trackFreshness && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>Last confirmed {selected.item.confirmedAt ?? "never"}</span>
+            <span>
+              Last confirmed{" "}
+              {selected.item.confirmedAt ? formatDay(selected.item.confirmedAt) : "never"}
+            </span>
             <Button
               size="sm"
               variant="ghost"
               className="h-7 px-2 text-xs"
-              onClick={() => updateItem(selected.item.id, { confirmedAt: today })}
+              onClick={() => register.confirmItems([selected.item.id])}
             >
               Still accurate
             </Button>

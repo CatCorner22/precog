@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { Person, StaffComposition } from "../types";
 import { controlOptions, detectSodConflicts } from "./detect";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "./derive-staff";
 
-const retail = getBaseTemplate("retail");
+const retail = getIndustryTemplate("retail");
 
 function staff(overrides: Partial<StaffComposition> = {}): StaffComposition {
   return { ...retail.staffComposition, ...overrides };
@@ -128,6 +128,39 @@ describe("independent reconciliation read from the team", () => {
         person("b", "Partner", ["release_payment"]),
       ]),
     ).toBe(false);
+  });
+});
+
+describe("independent reconciliation on a team that relies on job titles", () => {
+  it("reads each person's duties from the template's titles, as the conflict engine does", () => {
+    const dental = getIndustryTemplate("dental");
+    expect(dental.people.every((p) => !p.entitlements?.length)).toBe(true);
+    expect(independentReconciliationFromTeam(dental.people, dental.roleTemplates)).toBe(true);
+  });
+
+  it("credits the reconciler when the owner edits one title and the rest stay template-driven", () => {
+    const people = retail.people.map((p, i) => (i === 1 ? { ...p, role: `${p.role} (PT)` } : p));
+    const derived = deriveStaffFromTeam({ ...retail, people }, staff({ bankRecSource: "derived" }));
+    expect(derived.independentBankRec).toBe(
+      independentReconciliationFromTeam(people, retail.roleTemplates),
+    );
+    expect(derived.independentBankRec).toBe(true);
+  });
+
+  it("gives no owner's exemption on a nonprofit, which has no owner", () => {
+    const person = (id: string, role: string, entitlements: string[]): Person => ({
+      id,
+      name: id,
+      role,
+      active: true,
+      entitlements,
+    });
+    const team = [
+      person("ed", "Founder & Executive Director", ["sign_checks", "bank_reconcile"]),
+      person("b", "Bookkeeper", ["post_payments"]),
+    ];
+    expect(independentReconciliationFromTeam(team)).toBe(true);
+    expect(independentReconciliationFromTeam(team, {}, "nonprofit")).toBe(false);
   });
 });
 

@@ -12,7 +12,7 @@ import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
 import { NotificationSettingsPanel } from "@/components/precog/firm/notification-settings";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
@@ -31,6 +31,8 @@ import type {
   FirmMember,
 } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
+import { formatPct } from "@/lib/utils";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export const Route = createFileRoute("/firm")({
   component: FirmPage,
@@ -54,6 +56,9 @@ const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
   declined: "The QuickBooks connection was declined.",
   invalid: "The QuickBooks connection link was not valid. Start again from this page.",
+  "signed-out": "Sign in, then connect QuickBooks again from this page.",
+  "wrong-account":
+    "Another Precog account started this QuickBooks connection, so it was not saved. Connect again from this page while signed in to your own account.",
   failed: "QuickBooks did not complete the connection. Try again.",
   "not-configured": "QuickBooks is not available on this deployment.",
 };
@@ -71,17 +76,33 @@ function FirmPage() {
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [awaitingStripe, setAwaitingStripe] = useState(false);
   const signedIn = Boolean(user) && !isPending;
 
   const own = isOwnTeam(profile);
   const metrics = useMemo(() => {
-    const openFindings = own ? detectSodConflicts(template, profile.staff).conflicts.length : 0;
+    const conflicts = own
+      ? detectSodConflicts(
+          template,
+          profile.staff,
+          sodDetectionOptions(template, profile.dualRelease),
+        ).conflicts
+      : [];
     return pilotMetrics({
       engagement: profile.engagement,
-      openFindings,
+      conflicts,
       decisions: profile.decisions,
+      industry: profile.industry,
     });
-  }, [own, template, profile.staff, profile.engagement, profile.decisions]);
+  }, [
+    own,
+    template,
+    profile.staff,
+    profile.dualRelease,
+    profile.engagement,
+    profile.decisions,
+    profile.industry,
+  ]);
 
   useEffect(() => {
     const next = advanceEngagement(profile.engagement, {
@@ -90,19 +111,12 @@ function FirmPage() {
       ownTeam: own,
     });
     if (!next || next === profile.engagement) return;
-    if (
-      next.startedAt === profile.engagement?.startedAt &&
-      next.mapCompletedAt === profile.engagement?.mapCompletedAt &&
-      next.reportSentAt === profile.engagement?.reportSentAt
-    ) {
-      return;
-    }
     replaceProfile({ ...profile, engagement: next });
   }, [own, profile, replaceProfile]);
 
   useEffect(() => {
     if (search.billing === "success")
-      toast.success("Payment received. The plan updates once the payment provider confirms it.");
+      toast.success("Checkout finished. The plan updates once Stripe confirms the payment.");
     if (search.billing === "cancelled") toast("Checkout was cancelled.");
     if (search.quickbooks && QUICKBOOKS_MESSAGE[search.quickbooks]) {
       const message = QUICKBOOKS_MESSAGE[search.quickbooks];
@@ -146,21 +160,36 @@ function FirmPage() {
     };
   }, [user, isPending]);
 
+  // Post only for a business saved to the account, and only when what the
+  // client list holds for it differs from what this page measures.
+  const savedRow = clients.find((c) => c.id === profile.businessId);
+  const engagementStale =
+    savedRow !== undefined &&
+    (savedRow.startedAt !== (profile.engagement?.startedAt ?? null) ||
+      savedRow.mapCompletedAt !== (profile.engagement?.mapCompletedAt ?? null) ||
+      savedRow.reportSentAt !== (profile.engagement?.reportSentAt ?? null) ||
+      savedRow.openFindings !== metrics.openFindings ||
+      savedRow.acceptedFindings !== metrics.acceptedFindings);
   useEffect(() => {
-    if (!user || !profile.businessId || !own) return;
-    void recordEngagement({
-      data: {
-        businessId: profile.businessId,
-        startedAt: profile.engagement?.startedAt ?? null,
-        mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
-        reportSentAt: profile.engagement?.reportSentAt ?? null,
-        openFindings: metrics.openFindings,
-        acceptedFindings: metrics.acceptedFindings,
-      },
-    }).catch(() => undefined);
+    if (!user || !loaded || !profile.businessId || !own || !engagementStale) return;
+    const posted = {
+      startedAt: profile.engagement?.startedAt ?? null,
+      mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
+      reportSentAt: profile.engagement?.reportSentAt ?? null,
+      openFindings: metrics.openFindings,
+      acceptedFindings: metrics.acceptedFindings,
+    };
+    const businessId = profile.businessId;
+    void recordEngagement({ data: { businessId, ...posted } })
+      .then(() =>
+        setClients((cur) => cur.map((c) => (c.id === businessId ? { ...c, ...posted } : c))),
+      )
+      .catch(() => undefined);
   }, [
     user,
+    loaded,
     own,
+    engagementStale,
     profile.businessId,
     profile.engagement?.startedAt,
     profile.engagement?.mapCompletedAt,
@@ -168,6 +197,57 @@ function FirmPage() {
     metrics.openFindings,
     metrics.acceptedFindings,
   ]);
+
+  // Stripe's confirmation reaches the webhook after the browser comes back,
+  // so the plan is read again for a short while until it shows the payment.
+  useEffect(() => {
+    if (search.billing !== "success" || !user || !loaded) return;
+    const before = billingSignature(billing);
+    let cancel = false;
+    let tries = 0;
+    setAwaitingStripe(true);
+    const timer = window.setInterval(() => {
+      tries += 1;
+      void getBillingStatus()
+        .then((res) => {
+          if (cancel) return;
+          if (billingSignature(res.account) !== before) {
+            setBilling(res.account);
+            setAwaitingStripe(false);
+            window.clearInterval(timer);
+            toast.success("Stripe confirmed the payment.");
+          }
+        })
+        .catch(() => undefined);
+      if (tries >= BILLING_POLL_TRIES) {
+        window.clearInterval(timer);
+        if (!cancel) setAwaitingStripe(false);
+      }
+    }, BILLING_POLL_MS);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+    };
+    // Poll once per return from checkout; `billing` is the value to compare against.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.billing, user, loaded]);
+
+  async function leftFirm() {
+    const wasShared = clients.some((c) => c.id === profile.businessId && c.shared);
+    setFirm(null);
+    setMembers([]);
+    setInvites([]);
+    toast.success("You left the firm.");
+    try {
+      const [clientRes, deletedRes] = await Promise.all([listFirmClients(), listDeletedClients()]);
+      setClients(clientRes.clients);
+      setDeleted(deletedRes.deleted);
+      const ownBusiness = clientRes.clients.find((c) => !c.shared);
+      if (wasShared && ownBusiness) await switchBusiness(ownBusiness.id);
+    } catch {
+      toast.error("The client list could not be refreshed. Reload the page.");
+    }
+  }
 
   async function saveFirm(plan: FirmPlan) {
     try {
@@ -185,7 +265,7 @@ function FirmPage() {
     }
   }
 
-  const activeId = profile.businessId ?? "biz_default";
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
 
   return (
@@ -245,6 +325,11 @@ function FirmPage() {
 
       {signedIn && firm && (
         <div className="mt-4 space-y-4">
+          {awaitingStripe && (
+            <p className="text-sm text-muted" role="status">
+              Waiting for Stripe to confirm the payment…
+            </p>
+          )}
           <FirmBilling
             plan={firm.plan}
             billing={billing}
@@ -258,10 +343,7 @@ function FirmPage() {
             invites={invites}
             onChange={(next) => {
               if (next.left) {
-                setFirm(null);
-                setMembers([]);
-                setInvites([]);
-                toast.success("You left the firm.");
+                void leftFirm();
                 return;
               }
               if (next.members) setMembers(next.members);
@@ -284,14 +366,22 @@ function FirmPage() {
           <Metric
             label="Hours to a complete map"
             value={metrics.hoursToMap === null ? "—" : String(metrics.hoursToMap)}
+            hint={
+              own && !metrics.startedAt
+                ? "No start recorded: the map was complete before timing began."
+                : "From the start of setup until two named people each hold a duty."
+            }
           />
           <Metric
             label="Findings accepted"
-            value={
-              metrics.acceptanceRate === null ? "—" : `${Math.round(metrics.acceptanceRate * 100)}%`
-            }
+            value={metrics.acceptanceRate === null ? "—" : formatPct(metrics.acceptanceRate)}
+            hint="Duty conflicts answered (risk accepted, covered by dual release, or a logged decision), out of all duty conflicts found."
           />
-          <Metric label="Open conflicts" value={String(metrics.openFindings)} />
+          <Metric
+            label="Open duty conflicts"
+            value={own ? String(metrics.openFindings) : "—"}
+            hint="Conflicts found with no answer yet."
+          />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>
       </section>
@@ -332,11 +422,20 @@ function FirmPage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="mt-1 font-medium">{value}</dd>
+      {hint && <dd className="mt-0.5 text-xs text-muted">{hint}</dd>}
     </div>
   );
 }
+
+/** What changes on the billing account when Stripe confirms a payment. */
+function billingSignature(account: BillingAccount | null): string {
+  return `${account?.assessmentPaidAt ?? ""}|${account?.subscriptionStatus ?? ""}`;
+}
+
+const BILLING_POLL_MS = 3_000;
+const BILLING_POLL_TRIES = 10;

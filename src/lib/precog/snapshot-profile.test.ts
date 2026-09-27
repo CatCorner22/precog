@@ -117,6 +117,56 @@ describe("restoring an owner's snapshot", () => {
     expect(restored?.practiceName).toBe("Ember Street Tavern");
   });
 
+  it("keeps the open business's logs: monthly reviews, leaver checks, engagement stamps and access checks", () => {
+    const owner = ownRestaurant();
+    const open: PracticeProfile = {
+      ...owner,
+      monthlyReviews: [
+        {
+          key: "bank_statement",
+          period: "2026-09",
+          result: "done",
+          ownerName: "Person 2",
+          notes: "Matched",
+          recordedAt: "2026-09-30T17:00:00.000Z",
+        },
+      ],
+      leaverAccessChecks: [
+        {
+          id: "leaver_1",
+          name: "Person 9",
+          industry: "restaurant",
+          notedOn: "2026-09-10",
+          source: "marked",
+          confirmedOn: "2026-09-12",
+        },
+      ],
+      engagement: {
+        startedAt: "2026-08-01T00:00:00.000Z",
+        reportSentAt: "2026-09-20T00:00:00.000Z",
+      },
+      accessReconciliation: {
+        importedAt: "2026-09-15T00:00:00.000Z",
+        source: "quickbooks",
+        users: [],
+        vendors: [],
+      },
+    };
+    // The snapshot was taken before any of these were recorded.
+    const restored = roundTrip(owner, open);
+    expect(restored?.monthlyReviews).toEqual(open.monthlyReviews);
+    expect(restored?.leaverAccessChecks).toEqual(open.leaverAccessChecks);
+    expect(restored?.engagement).toEqual(open.engagement);
+    expect(restored?.accessReconciliation).toEqual(open.accessReconciliation);
+  });
+
+  it("leaves the logs out of what a snapshot stores", () => {
+    const slice = snapshotSlice({ ...ownRestaurant(), monthlyReviews: [], mapVersions: [] });
+    expect("monthlyReviews" in slice).toBe(false);
+    expect("mapVersions" in slice).toBe(false);
+    expect("customPeople" in slice).toBe(true);
+  });
+
   it("keeps a sample snapshot the sample", () => {
     const sample = defaultProfile("retail");
     const restored = roundTrip(sample, ownRestaurant());

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate, resolveTemplate } from "../active-template";
+import { resolveTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
-import { compareScenarioFutures, compareScenarios } from "./scenario-compare";
+import { RETAINED_TIE_NOTE, compareScenarioFutures, compareScenarios } from "./scenario-compare";
 
 const people: Person[] = [
   { id: "own-1", name: "Ana Ruiz", role: "Owner", active: true, entitlements: [] },
@@ -10,9 +11,9 @@ const people: Person[] = [
 ];
 
 describe("compareScenarioFutures", () => {
-  it("never crowns Do nothing, and breaks a retained-loss tie on the gross loss", () => {
+  it("crowns no option by a figure every option ties on, and says why", () => {
     // The sample's default $5,000 deductible makes every retained figure the same.
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const report = compareScenarioFutures(
       dental,
       "sc-cash-sod-failure",
@@ -22,18 +23,20 @@ describe("compareScenarioFutures", () => {
     );
     const retained = report.columns.map((c) => c.result.retainedImpact.expected);
     expect(new Set(retained).size).toBe(1);
+    expect(report.winnerByRetained).toBe("");
+    expect(report.tieNote).toBe(RETAINED_TIE_NOTE);
+    const lowestGross = [...report.columns]
+      .slice(1)
+      .sort((a, b) => a.result.financialImpact.expected - b.result.financialImpact.expected)[0];
+    expect(report.winnerByGross).toBe(lowestGross.id);
     for (const winner of [
       report.winnerByRetained,
       report.winnerByAnnualCor,
       report.winnerByPriority,
+      report.winnerByGross,
     ]) {
       expect(winner).not.toBe(report.baselineId);
-      expect(winner).not.toBe("");
     }
-    const lowestGross = [...report.columns]
-      .slice(1)
-      .sort((a, b) => a.result.financialImpact.expected - b.result.financialImpact.expected)[0];
-    expect(report.winnerByRetained).toBe(lowestGross.id);
     expect(report.mode).toBe("futures");
   });
 
@@ -59,10 +62,11 @@ describe("compareScenarioFutures", () => {
       (a, b) => a.result.retainedImpact.expected - b.result.retainedImpact.expected,
     )[0];
     expect(report.winnerByRetained).toBe(best.id);
+    expect(report.tieNote).toBeNull();
   });
 
   it("has no winner when no option beats doing nothing", () => {
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const noOptions = {
       ...dental,
       scenarios: dental.scenarios.map((s) => ({ ...s, mitigations: [] })),
@@ -75,7 +79,7 @@ describe("compareScenarioFutures", () => {
 
 describe("compareScenarios", () => {
   it("ranks across scenarios, breaking retained ties on the gross loss", () => {
-    const dental = getBaseTemplate("dental");
+    const dental = getIndustryTemplate("dental");
     const ids = ["sc-front-desk-leaves", "sc-cash-sod-failure", "sc-writeoff-abuse"];
     const report = compareScenarios(
       dental,
@@ -91,5 +95,13 @@ describe("compareScenarios", () => {
         a.result.financialImpact.expected - b.result.financialImpact.expected,
     )[0];
     expect(report.winnerByRetained).toBe(lowest.id);
+  });
+
+  it("measures no deltas against whichever scenario was picked first", () => {
+    const dental = getIndustryTemplate("dental");
+    const report = compareScenarios(dental, ["sc-front-desk-leaves", "sc-vendor-fraud"]);
+    expect(report.baselineId).toBe("");
+    expect(report.deltas).toEqual([]);
+    expect(report.tieNote).toBeNull();
   });
 });

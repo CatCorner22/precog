@@ -17,10 +17,12 @@ export const Route = createFileRoute("/api/stripe/webhook")({
         const secret = stripeWebhookSecret();
         if (!secret)
           return new Response("Billing is not connected", { status: 404, headers: NO_STORE });
+        const tooLarge = () =>
+          new Response("Payload too large", { status: 413, headers: NO_STORE });
+        // The declared length first, so an oversized delivery is refused unread.
+        if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
         const payload = await request.text();
-        if (payload.length > MAX_BODY_BYTES) {
-          return new Response("Payload too large", { status: 413, headers: NO_STORE });
-        }
+        if (new TextEncoder().encode(payload).byteLength > MAX_BODY_BYTES) return tooLarge();
         const { parseStripeEvent, verifyStripeSignature } =
           await import("@/lib/precog/billing/stripe");
         if (

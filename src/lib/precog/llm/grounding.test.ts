@@ -49,3 +49,29 @@ describe("checkGrounding", () => {
     expect(note).toContain("$9,999");
   });
 });
+
+describe("checkGrounding ignores digits that are not figures", () => {
+  it("does not ground invented figures on ids, dates, years or small counts", () => {
+    const tools = [
+      tool({
+        rows: [
+          { id: "k-1", confirmedAt: "2026-09-01", riskScore: 45, owners: 2 },
+          { id: "k-2", confirmedAt: "2026-08-12", riskScore: 45, owners: 1 },
+        ],
+        count: 2,
+      }),
+    ];
+    const report = checkGrounding(
+      "Fraud costs the typical business $1 million a year; $2,026 lost; $12 gone; 2% of staff steal.",
+      tools,
+    );
+    expect(report.unsupported).toEqual(["$1 million", "$2,026", "$12", "2%"]);
+  });
+
+  it("still grounds a figure written inside a tool's string field", () => {
+    const tools = [tool({ why: "Deposits above $2,000 go out on one signature." })];
+    expect(checkGrounding("Deposits over $2,000 need a second person.", tools).unsupported).toEqual(
+      [],
+    );
+  });
+});

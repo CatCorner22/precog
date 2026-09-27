@@ -2,9 +2,10 @@
  * The side panel for a selected process, the vision-mode chips and the legends of the process map.
  */
 import { type ReactNode } from "react";
-import { useTemplate } from "@/lib/precog/use-template";
+import { useTemplate } from "@/lib/precog/practice-context";
 import "@xyflow/react/dist/style.css";
-import { HEAT_BANDS, type MapGraphNode, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { type MapGraphNode, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
   PRIORITY_BAND_LABEL,
   predatorThermalColor,
@@ -36,6 +37,7 @@ export function VisionChip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         active && !accent && "border-primary/40 bg-primary/15 text-fg",
@@ -50,28 +52,11 @@ export function VisionChip({
   );
 }
 
-export function T1000Buddy() {
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1">
-      <div className="t1000-buddy relative flex size-16 items-center justify-center">
-        {/* Friendly chrome face */}
-        <div className="absolute inset-2 rounded-[40%] bg-gradient-to-b from-white/40 to-transparent" />
-        <div className="relative z-[1] flex gap-2">
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-        </div>
-        <div className="absolute bottom-4 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-red-400/50" />
-      </div>
-      <span className="text-xs tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
-    </div>
-  );
-}
-
 export function StandardLegend() {
   return (
     <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
       <p className="font-semibold text-fg">Map legend</p>
-      <p className="mt-1 text-muted">Border heat: cool → hot (danger)</p>
+      <p className="mt-1 text-muted">Process border shows heat, cool → hot:</p>
       <div
         className="mt-1.5 h-1.5 rounded-full"
         style={{
@@ -79,6 +64,10 @@ export function StandardLegend() {
             "linear-gradient(90deg, var(--color-border-strong), var(--color-primary), var(--color-warn), var(--color-danger))",
         }}
       />
+      <p className="mt-1.5 text-muted">
+        Small cards are colored by kind: red risk or control, amber idea, blue knowledge, green
+        person, grey waste.
+      </p>
     </div>
   );
 }
@@ -142,7 +131,7 @@ export function ProcessDetail({
             }}
           />
           {unscored ? (
-            <Badge variant="default">Starter · not assessed</Badge>
+            <Badge variant="default">Sample · not assessed</Badge>
           ) : (
             <Badge variant={snapshot.heat >= HEAT_BANDS.hot ? "danger" : "primary"}>
               heat {snapshot.heat}
@@ -163,7 +152,7 @@ export function ProcessDetail({
       <CardContent className="space-y-3 text-sm">
         {unscored && (
           <p className="text-xs text-muted">
-            A starter process from the industry example, as yet untouched. Its risks and notes are
+            A sample process from the industry sample, as yet untouched. Its risks and notes are
             what such a process usually carries, not findings about your business; assign an owner
             or edit it and it is scored.
           </p>

@@ -1,6 +1,10 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { identitySnapshot, identityUnchanged } from "./identity-change";
-import { assertExpectedAccount } from "./expected-account";
+import {
+  ACCOUNT_CHANGED_MESSAGE,
+  ACCOUNT_CHANGED_NOTHING_SAVED,
+  assertExpectedAccount,
+} from "./expected-account";
 
 /**
  * Auth middleware for server functions — the standard way to get the caller's
@@ -32,10 +36,8 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // cookie, so forward it to the server. Null when deployed (cookie auth), so
     // this is a no-op there.
     const identity = identitySnapshot();
-    if (identity.locked) throw new Error("The account changed. Reload before continuing.");
     const { getBearerToken } = await import("./client");
-    if (!identityUnchanged(identity))
-      throw new Error("The account changed. Reload before continuing.");
+    if (!identityUnchanged(identity)) throw new Error(ACCOUNT_CHANGED_NOTHING_SAVED);
     const result = await next({
       sendContext: {
         bearerToken: getBearerToken() ?? undefined,
@@ -43,8 +45,8 @@ export const authMiddleware = createMiddleware({ type: "function" })
         checkAccount: true,
       },
     });
-    if (!identityUnchanged(identity))
-      throw new Error("The account changed. The old response was discarded.");
+    // The answer belongs to the account this page showed when it asked.
+    if (!identityUnchanged(identity)) throw new Error(ACCOUNT_CHANGED_MESSAGE);
     return result;
   })
   .server(async ({ next, context }) => {

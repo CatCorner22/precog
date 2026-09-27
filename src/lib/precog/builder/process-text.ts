@@ -11,7 +11,7 @@ export interface ProcessTextFields {
   location: string;
 }
 
-/** The changes the form's text fields hold over the saved process; empty when none. */
+/** The changes the form's text fields hold over the saved process, trimmed; empty when none. */
 export function textPatch(fields: ProcessTextFields, process: ProcessNode): Partial<ProcessNode> {
   const parse = (s: string) =>
     s
@@ -19,8 +19,12 @@ export function textPatch(fields: ProcessTextFields, process: ProcessNode): Part
       .map((x) => x.trim())
       .filter(Boolean);
   const patch: Partial<ProcessNode> = {};
-  if (fields.name !== process.name) patch.name = fields.name.slice(0, 60);
-  if (fields.desc !== process.description) patch.description = fields.desc.slice(0, 240);
+  // A blank name is never saved: the form's debounce would otherwise store
+  // one while the owner clears the field to retype it.
+  const name = fields.name.trim().slice(0, 60);
+  if (name && name !== process.name) patch.name = name;
+  const description = fields.desc.trim().slice(0, 240);
+  if (description !== process.description) patch.description = description;
   const pi = parse(fields.inputs);
   const po = parse(fields.outputs);
   if (pi.join("|") !== (process.inputs ?? []).join("|")) patch.inputs = pi;

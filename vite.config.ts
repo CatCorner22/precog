@@ -4,6 +4,14 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import { serverFunctionId } from "./scripts/lib/server-fn-id.mjs";
+
+// The browser's error reports carry the same release id as the server's
+// (report.server.ts: the first 12 characters of the deployed commit), so the
+// tracker can match a client crash to its deploy. Vite exposes VITE_* vars
+// from process.env as import.meta.env.
+const commit = process.env.VERCEL_GIT_COMMIT_SHA?.trim();
+if (commit && !process.env.VITE_RELEASE) process.env.VITE_RELEASE = commit.slice(0, 12);
 
 /**
  * Finish PGLite bootstrap during dev-server setup (before traffic). Vite awaits
@@ -158,7 +166,10 @@ export default defineConfig(({ command }) => ({
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
     tailwindcss(),
-    tanstackStart(),
+    // Build-time server-function ids come from our own helper (same formula as
+    // TanStack's default), so scripts/e2e-account-safety.mjs can address a
+    // server function without reading the compiled bundle.
+    tanstackStart({ serverFns: { generateFunctionId: serverFunctionId } }),
     ...(command === "build"
       ? [
           nitro({

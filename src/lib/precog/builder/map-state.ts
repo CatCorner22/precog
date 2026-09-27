@@ -2,6 +2,7 @@ import { getIndustryTemplate } from "../templates";
 import { industryMeta } from "../industry";
 import type { PracticeProfile } from "../practice-profile";
 import type { ProcessNode } from "../types";
+import { stableStringify } from "../text";
 
 /**
  * Where the process map came from.
@@ -15,7 +16,7 @@ import type { ProcessNode } from "../types";
  *   or removed processes. Renaming a starter process alone leaves it a
  *   starter map.
  */
-export type MapSource = "sample" | "starter" | "own";
+type MapSource = "sample" | "starter" | "own";
 
 export type MapProfile = Pick<PracticeProfile, "industry" | "customPeople" | "customProcesses">;
 
@@ -47,27 +48,18 @@ export function mapSource(profile: MapProfile): MapSource {
  * and every procedure as unwritten, and an empty map scores nothing at all.
  * Neither is a fact about the business, so the figures wait until the owner
  * assigns an owner to a process or builds their own map with at least one
- * process on it. The sample business is scored as it always was.
+ * process on it. The sample business is scored as it always was, unless
+ * every process on it was deleted.
  */
 export function mapAssessed(profile: MapProfile): boolean {
-  switch (mapSource(profile)) {
-    case "sample":
-      return true;
-    case "starter":
-      return false;
-    case "own":
-      return !profile.customProcesses || profile.customProcesses.length > 0;
-  }
+  if (profile.customProcesses?.length === 0) return false;
+  return mapSource(profile) !== "starter";
 }
 
 /** A process with its owners left out, keys sorted, for comparing content alone. */
 function contentKey(process: ProcessNode): string {
   const { ownerPersonIds: _owners, ...rest } = process;
-  return JSON.stringify(rest, (_key, value: unknown) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
-      : value,
-  );
+  return stableStringify(rest);
 }
 
 /**
@@ -114,7 +106,7 @@ export function starterMapFacts(profile: Pick<PracticeProfile, "industry">): {
 } {
   return {
     count: getIndustryTemplate(profile.industry).processes.length,
-    example: `${industryMeta(profile.industry).label.toLowerCase()} example`,
+    example: `${industryMeta(profile.industry).label.toLowerCase()} sample`,
   };
 }
 
@@ -126,7 +118,7 @@ export function mapNotAssessedNote(profile: MapProfile): string | null {
   if (mapAssessed(profile)) return null;
   if (mapSource(profile) === "starter") {
     const { count, example } = starterMapFacts(profile);
-    return `Your map holds ${count} starter processes from the ${example} and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.`;
+    return `Your map holds ${count} sample processes from the ${example} and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.`;
   }
   return "Your map has no processes yet. Add the processes your business runs in the map builder, and these figures fill in.";
 }

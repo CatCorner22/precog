@@ -1,28 +1,26 @@
+import { getIndustryTemplate } from "./templates";
 import { describe, expect, it } from "vitest";
-import { computeMapHealth, integrityHint, validateProcessMap } from "./process-graph";
-import type { Person, ProcessNode } from "./types";
+import { processNode } from "@/test/fixtures";
+import { buildProcessMapGraph } from "./process-graph";
+import { computeMapHealth, integrityHint } from "./process-health";
+import { portfolioSummary } from "./scoring/residual-engine";
+import { validateProcessMap } from "./process-validation";
+import type { Person } from "./types";
 
 const people: Person[] = [
   { id: "a", name: "Ana", role: "Owner", active: true },
   { id: "d", name: "Dee", role: "Former staff", active: false, lastDay: "2025-01-31" },
 ];
 
-function proc(id: string, owners: string[]): ProcessNode {
-  return {
-    id,
-    name: id,
-    layer: "process",
-    description: "",
-    dependencies: [],
-    controlIds: [],
-    ownerPersonIds: owners,
-  };
-}
-
 describe("validateProcessMap owners", () => {
   it("distinguishes no owner, unknown owner, and owners who have all left", () => {
     const issues = validateProcessMap(
-      [proc("none", []), proc("ghost", ["zz"]), proc("left", ["d"]), proc("mixed", ["d", "a"])],
+      [
+        processNode("none", { ownerPersonIds: [] }),
+        processNode("ghost", { ownerPersonIds: ["zz"] }),
+        processNode("left", { ownerPersonIds: ["d"] }),
+        processNode("mixed", { ownerPersonIds: ["d", "a"] }),
+      ],
       people,
       new Set(),
     );
@@ -38,7 +36,11 @@ describe("validateProcessMap owners", () => {
 describe("map health Integrity hint", () => {
   it("names the unowned processes that lowered Integrity instead of saying there are no issues", () => {
     const issues = validateProcessMap(
-      [proc("one", ["a"]), proc("two", []), proc("three", [])],
+      [
+        processNode("one", { ownerPersonIds: ["a"] }),
+        processNode("two", { ownerPersonIds: [] }),
+        processNode("three", { ownerPersonIds: [] }),
+      ],
       people,
       new Set(),
     );
@@ -49,7 +51,11 @@ describe("map health Integrity hint", () => {
 
   it("lists every kind of issue that cost points", () => {
     const issues = validateProcessMap(
-      [{ ...proc("one", ["zz"]), controlIds: ["missing"] }, proc("two", ["d"]), proc("three", [])],
+      [
+        processNode("one", { ownerPersonIds: ["zz"], controlIds: ["missing"] }),
+        processNode("two", { ownerPersonIds: ["d"] }),
+        processNode("three", { ownerPersonIds: [] }),
+      ],
       people,
       new Set(),
     );
@@ -63,5 +69,48 @@ describe("map health Integrity hint", () => {
     expect(
       integrityHint([{ id: "record-x", severity: "info", message: "procedure not written" }]),
     ).toBe("No broken dependencies or cycles");
+  });
+});
+
+describe("a process's residual", () => {
+  it("comes from rows linked by id, never from a row that shares a word with its name", () => {
+    const tpl = getIndustryTemplate("professional_services");
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    for (const snap of snapshots) {
+      const linkedKnowledge = tpl.knowledge.some((k) =>
+        k.linkedProcessIds.includes(snap.process.id),
+      );
+      if (snap.process.controlIds.length === 0 && !linkedKnowledge) {
+        expect(snap.residualScore, snap.process.name).toBeNull();
+      }
+    }
+  });
+
+  it("is the worst row among its own controls", () => {
+    const tpl = getIndustryTemplate("dental");
+    const rows = new Map(
+      portfolioSummary(tpl, tpl.staffComposition).all.map((r) => [r.id, r.residual]),
+    );
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    const ap = snapshots.find((s) => s.process.controlIds.includes("c-sod-ap"))!;
+    expect(ap.residualScore).toBeGreaterThanOrEqual(rows.get("ctrl-c-sod-ap")!);
+  });
+});
+
+describe("map health with no processes", () => {
+  it("reports nothing to score instead of a phantom unowned process", () => {
+    const h = computeMapHealth([], []);
+    expect(h.processCount).toBe(0);
+    expect(h.unownedProcesses).toBe(0);
+    expect(h.bandLabel).toBe("Nothing to score");
+    expect(h.dimensions.map((d) => d.hint).join(" ")).not.toMatch(/unowned|without controls/);
+  });
+
+  it("names the dimension that scored lowest in the summary", () => {
+    const tpl = getIndustryTemplate("dental");
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    const h = computeMapHealth(snapshots, []);
+    const lowest = [...h.dimensions].sort((a, b) => a.score - b.score)[0];
+    expect(h.summary).toContain(`Lowest: ${lowest.label.toLowerCase()}`);
   });
 });

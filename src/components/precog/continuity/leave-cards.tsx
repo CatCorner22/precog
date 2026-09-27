@@ -1,18 +1,23 @@
 /**
- * The leave, leaver and debrief cards of the continuity planner, and the
- * small stat and people-line pieces they share with it.
+ * The leave, leaver and debrief cards of the continuity planner: one card
+ * per absence window, per person leaving, and per leave to debrief.
  */
 import { useState } from "react";
-import { BookOpen, Trash2, UserCheck, UserMinus } from "lucide-react";
+import { Trash2, UserCheck, UserMinus } from "lucide-react";
 import { type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
-import { firstName } from "@/lib/precog/continuity/coverage";
+import type { ContinuityCommitment } from "@/lib/precog/decisions/follow-through";
 import {
-  formatDateRange,
+  AlreadyStopped,
+  ItemButton,
+  JournalStepStatus,
+  PeopleLine,
+} from "@/components/precog/continuity/parts";
+import {
   handoffDeadline,
   leadLabel,
-  procedurePointer,
   type AbsenceWindow,
 } from "@/lib/precog/continuity/planned-absence";
+import { procedurePointer } from "@/lib/precog/continuity/documentation";
 import {
   describeDebriefItem,
   standInAlreadyStrong,
@@ -27,82 +32,26 @@ import {
   type HandoverItem,
   type Leaver,
 } from "@/lib/precog/continuity/leavers";
-import type { KnowledgeItem, Person } from "@/lib/precog/types";
+import type { Person } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTabName } from "@/lib/precog/presentation";
 import {
   CRITICALITY_LABEL,
   LEVEL_SHORT,
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
+import { inputClass } from "./styles";
+import { formatDay, formatDayRange } from "@/lib/precog/dates";
+import { joinWithAnd, verb, firstName } from "@/lib/precog/text";
 
-const inputClass = "rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg";
+type StepCommitment = (a: AbsenceAction) => ContinuityCommitment | undefined;
 
-/** Register items nobody can run alone: stopped whoever is in, listed apart from what the absence stops. */
-export function AlreadyStopped({
-  items,
-  onSelect,
-}: {
-  items: KnowledgeItem[];
-  onSelect: (knowledgeId: string) => void;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-        Already stopped · nobody can run {items.length === 1 ? "it" : "these"} alone
-      </div>
-      <ul className="flex flex-wrap gap-1.5">
-        {items.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated/60"
-              onClick={() => onSelect(item.id)}
-            >
-              {item.name} · {CRITICALITY_LABEL[item.criticality]}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-export function Stat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone: "ok" | "warn" | "danger" | "default";
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
-      <div
-        className={cn(
-          "mt-1 truncate text-2xl font-semibold",
-          tone === "ok" && "text-ok",
-          tone === "warn" && "text-warn",
-          tone === "danger" && "text-danger",
-        )}
-      >
-        {value}
-      </div>
-      <div className="mt-1 text-xs text-muted">{hint}</div>
-    </div>
-  );
-}
-
+/** One absence: what stops, who steps in, and the hand-offs to log before it starts. */
 export function LeaveWindow({
   window: w,
   today,
-  assessed,
   onRemove,
   onExtend,
   onBack,
@@ -112,13 +61,11 @@ export function LeaveWindow({
 }: {
   window: AbsenceWindow;
   today: string;
-  /** False while nobody is marked on the register: the window cannot say what stops. */
-  assessed: boolean;
   onRemove: () => void;
   onExtend: () => void;
   onBack: () => void;
   onSelect: (knowledgeId: string) => void;
-  tracked: (a: AbsenceAction) => string | undefined;
+  tracked: StepCommitment;
   onLog: (a: AbsenceAction) => void;
 }) {
   const first = firstName(w.person.name);
@@ -132,7 +79,7 @@ export function LeaveWindow({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
-            {w.person.name} · {formatDateRange(w.absence.from, w.absence.to)}
+            {w.person.name} · {formatDayRange(w.absence.from, w.absence.to)}
           </span>
           <Badge variant={current ? "danger" : w.daysUntil <= 7 ? "warn" : "default"}>
             {current
@@ -183,7 +130,7 @@ export function LeaveWindow({
           </Button>
         </div>
       </div>
-      {!assessed ? (
+      {!w.impact.assessed ? (
         <p className="mt-2 text-xs text-muted">{NOT_ASSESSED_ABSENCE}</p>
       ) : (
         <>
@@ -191,14 +138,13 @@ export function LeaveWindow({
             <p className="mt-1 text-xs text-warn">
               Overlapping absence:{" "}
               {w.overlaps
-                .map((o) => `${firstName(o.person.name)} also out ${formatDateRange(o.from, o.to)}`)
+                .map((o) => `${firstName(o.person.name)} also out ${formatDayRange(o.from, o.to)}`)
                 .join("; ")}
               .{" "}
               {w.peak.extraStops.length > 0
-                ? `Stops below are for ${formatDateRange(w.peak.from, w.peak.to)}, when ${w.peak.people
-                    .filter((p) => p.id !== w.person.id)
-                    .map((p) => firstName(p.name))
-                    .join(" and ")} ${w.peak.people.length === 2 ? "is" : "are"} also away.`
+                ? `Stops below are for ${formatDayRange(w.peak.from, w.peak.to)}, when ${joinWithAnd(
+                    w.peak.people.filter((p) => p.id !== w.person.id).map((p) => firstName(p.name)),
+                  )} ${verb(w.peak.people.length - 1, "is", "are")} also away.`
                 : "Nothing extra stops on the shared days."}
             </p>
           )}
@@ -219,11 +165,10 @@ export function LeaveWindow({
               {impact.stops.map((s) => (
                 <li
                   key={s.item.id}
-                  className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
-                  onClick={() => onSelect(s.item.id)}
+                  className="rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{s.item.name}</span>
+                    <ItemButton item={s.item} onSelect={onSelect} />
                     <Badge variant={s.item.criticality === "critical" ? "danger" : "default"}>
                       {CRITICALITY_LABEL[s.item.criticality]}
                     </Badge>
@@ -234,7 +179,7 @@ export function LeaveWindow({
                       <span
                         className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}
                       >
-                        · {procedurePointer(s)}
+                        · {procedurePointer(s.item)}
                       </span>
                     )}
                   </div>
@@ -249,7 +194,10 @@ export function LeaveWindow({
             </div>
           )}
           <div className="mt-2">
-            <PeopleLine label="Left in the business" people={impact.remaining.map((p) => p.name)} />
+            <PeopleLine
+              label="Still in the business"
+              people={impact.remaining.map((p) => p.name)}
+            />
           </div>
           {impact.orphanedProcesses.length > 0 && (
             <p className="mt-1 text-xs text-muted">
@@ -259,27 +207,15 @@ export function LeaveWindow({
           {impact.actions.length > 0 && (
             <div className="mt-2">
               <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-                {current ? "Do today" : `Before ${deadline}`}
+                {current ? "Do today" : `Before ${formatDay(deadline)}`}
               </div>
               <ol className="list-decimal space-y-1 pl-5">
                 {impact.actions.map((a) => (
                   <li key={a.text}>
                     {a.text}
-                    {a.knowledgeIds.length > 0 &&
-                      (tracked(a) ? (
-                        <span className="ml-2 text-xs text-subtle">
-                          In the Journal · review by {tracked(a)}
-                        </span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="ml-1 h-6 px-1.5 text-xs"
-                          onClick={() => onLog(a)}
-                        >
-                          <BookOpen className="size-3.5" /> Log as decision
-                        </Button>
-                      ))}
+                    {a.knowledgeIds.length > 0 && (
+                      <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />
+                    )}
                   </li>
                 ))}
               </ol>
@@ -291,48 +227,10 @@ export function LeaveWindow({
   );
 }
 
-function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) => void }) {
-  const journal = h.training ?? h.documenting;
-  return (
-    <li
-      className="cursor-pointer rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60"
-      onClick={() => onSelect(h.item.id)}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{h.item.name}</span>
-        <Badge variant={h.item.criticality === "critical" ? "danger" : "default"}>
-          {CRITICALITY_LABEL[h.item.criticality]}
-        </Badge>
-        <span className="text-xs text-muted">
-          →{" "}
-          {h.successor
-            ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_SHORT[h.successorLevel]})` : " (starting cold)"}`
-            : "nobody to hand it to"}
-        </span>
-        <span className={cn("text-xs", h.item.documented ? "text-muted" : "text-warn")}>
-          ·{" "}
-          {h.item.documented
-            ? h.item.procedureLocation?.trim()
-              ? `written · ${h.item.procedureLocation.trim()}`
-              : "written, location not recorded"
-            : "nothing written down"}
-        </span>
-        {journal?.reviewBy && (
-          <span className="text-xs text-subtle">
-            In the Journal · {h.training ? "training" : "writing it down"} · review by{" "}
-            {journal.reviewBy}
-          </span>
-        )}
-      </div>
-      <p className="mt-0.5 text-xs text-muted">{h.note}</p>
-    </li>
-  );
-}
-
+/** One person leaving: the hand-off checklist, who stays, and marking them as left. */
 export function LeaverCard({
   leaver: l,
   today,
-  assessed,
   onSelect,
   onChangeDate,
   onCancel,
@@ -342,15 +240,16 @@ export function LeaverCard({
 }: {
   leaver: Leaver;
   today: string;
-  /** False while nobody is marked on the register: the hand-over cannot be worked out. */
-  assessed: boolean;
   onSelect: (knowledgeId: string) => void;
   onChangeDate: (lastDay: string) => void;
   onCancel: () => void;
   onMarkLeft: () => void;
-  tracked: (a: AbsenceAction) => string | undefined;
+  tracked: StepCommitment;
   onLog: (a: AbsenceAction) => void;
 }) {
+  const tabName = useTabName();
+  /** False while nobody is marked on the register: the hand-off cannot be worked out. */
+  const assessed = l.assessed;
   const first = firstName(l.person.name);
   const gone = l.status === "gone";
   const urgent = !gone && l.daysLeft <= HANDOVER_URGENT_DAYS;
@@ -365,7 +264,7 @@ export function LeaverCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
-            {l.person.name} · last day {l.lastDay}
+            {l.person.name} · last day {formatDay(l.lastDay)}
           </span>
           <Badge variant={gone ? "danger" : urgent ? "warn" : "default"}>
             {leaverLead(l.daysLeft)}
@@ -408,15 +307,15 @@ export function LeaverCard({
       </p>
       {gone && (
         <p className="mt-1 text-xs text-danger">
-          {first}&apos;s last day has passed but {first} still counts as cover. Mark as left to take{" "}
-          {first} out of the coverage figures; the record stays in the history.
+          {first}&apos;s last day has passed but {first} still counts as a stand-in. Mark as left to
+          take {first} out of the coverage figures; the record stays in the history.
         </p>
       )}
       {assessed && l.handover.length > 0 && (
         <>
           <div className="mt-2 text-xs font-medium uppercase tracking-wide text-muted">
-            Hand-over checklist · {l.handover.length} only {first} can run alone
-            {l.unlogged > 0 && ` · ${l.unlogged} not yet in the Journal`}
+            Hand-off checklist · {l.handover.length} only {first} can run alone
+            {l.unlogged > 0 && ` · ${l.unlogged} not yet in the ${tabName("journal")}`}
           </div>
           <ul className="mt-1 space-y-1">
             {l.handover.map((h) => (
@@ -437,34 +336,24 @@ export function LeaverCard({
       )}
       <div className="mt-2">
         <PeopleLine
-          label={gone ? "Left in the business" : `Left in the business after ${l.lastDay}`}
+          label={
+            gone ? "Still in the business" : `Still in the business after ${formatDay(l.lastDay)}`
+          }
           people={l.remaining.map((p) => p.name)}
         />
       </div>
       {assessed && l.actions.length > 0 && (
         <div className="mt-2">
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            {gone ? "Overdue — do now" : `Before ${deadline}`}
+            {gone ? "Overdue — do now" : `Before ${formatDay(deadline)}`}
           </div>
           <ol className="list-decimal space-y-1 pl-5">
             {l.actions.map((a) => (
               <li key={a.text}>
                 {a.text}
-                {a.knowledgeIds.length > 0 &&
-                  (tracked(a) ? (
-                    <span className="ml-2 text-xs text-subtle">
-                      In the Journal · review by {tracked(a)}
-                    </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-1 h-6 px-1.5 text-xs"
-                      onClick={() => onLog(a)}
-                    >
-                      <BookOpen className="size-3.5" /> Log as decision
-                    </Button>
-                  ))}
+                {a.knowledgeIds.length > 0 && (
+                  <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />
+                )}
               </li>
             ))}
           </ol>
@@ -474,6 +363,43 @@ export function LeaverCard({
   );
 }
 
+function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) => void }) {
+  const tabName = useTabName();
+  const journal = h.training ?? h.documenting;
+  return (
+    <li className="rounded-md border border-border px-2.5 py-1.5 hover:bg-elevated/60">
+      <div className="flex flex-wrap items-center gap-2">
+        <ItemButton item={h.item} onSelect={onSelect} />
+        <Badge variant={h.item.criticality === "critical" ? "danger" : "default"}>
+          {CRITICALITY_LABEL[h.item.criticality]}
+        </Badge>
+        <span className="text-xs text-muted">
+          →{" "}
+          {h.successor
+            ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_SHORT[h.successorLevel]})` : " (starting cold)"}`
+            : "nobody to hand it to"}
+        </span>
+        <span className={cn("text-xs", h.item.documented ? "text-muted" : "text-warn")}>
+          ·{" "}
+          {h.item.documented
+            ? h.item.procedureLocation?.trim()
+              ? `written · ${h.item.procedureLocation.trim()}`
+              : "written, location not recorded"
+            : "nothing written down"}
+        </span>
+        {journal?.reviewBy && (
+          <span className="text-xs text-subtle">
+            In the {tabName("journal")} · {h.training ? "training" : "writing it down"} · review by{" "}
+            {formatDay(journal.reviewBy)}
+          </span>
+        )}
+      </div>
+      <p className="mt-0.5 text-xs text-muted">{h.note}</p>
+    </li>
+  );
+}
+
+/** A leave that has ended: did the stand-in run each item alone, and what to record. */
 export function LeaveDebriefCard({
   debrief,
   people,
@@ -491,6 +417,7 @@ export function LeaveDebriefCard({
   onClose: (entry: DebriefItem) => void;
   onDismiss: () => void;
 }) {
+  const tabName = useTabName();
   const first = firstName(debrief.person.name);
   /** Who the owner says actually stepped in, when the register had nobody lined up. */
   const [pickedStandIn, setPickedStandIn] = useState<Record<string, string>>({});
@@ -501,7 +428,7 @@ export function LeaveDebriefCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">
-            {first}&apos;s back · out {formatDateRange(debrief.absence.from, debrief.absence.to)}
+            {first}&apos;s back · out {formatDayRange(debrief.absence.from, debrief.absence.to)}
           </span>
           <Badge variant="accent">Debrief</Badge>
           <span className="text-xs text-muted">
@@ -534,7 +461,9 @@ export function LeaveDebriefCard({
                     {standInFirst} today: {LEVEL_SHORT[e.standInLevel]}
                   </span>
                 )}
-                {e.handoff && <span className="text-xs text-subtle">Hand-off in the Journal</span>}
+                {e.handoff && (
+                  <span className="text-xs text-subtle">Hand-off in the {tabName("journal")}</span>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -584,17 +513,6 @@ export function LeaveDebriefCard({
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-export function PeopleLine({ label, people }: { label: string; people: string[] }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
-      <span className={people.length ? "" : "text-muted"}>
-        {people.length ? people.join(", ") : "nobody"}
-      </span>
     </div>
   );
 }

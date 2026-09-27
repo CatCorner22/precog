@@ -1,17 +1,15 @@
 /**
  * Process map graph builder — merges processes, SoD, knowledge SPOFs,
- * residuals and ideas into nodes and edges. Validation, layout and health
- * live beside it and are re-exported here, so callers import one module.
+ * residuals and ideas into nodes and edges. Validation (process-validation),
+ * layout (process-layout) and health (process-health) live beside it; import
+ * them from their own modules.
  */
 import { findKnowledgeRisks } from "./engine";
+import { HEAT_BANDS } from "./scoring/bands";
 import type { IndustryTemplate } from "./templates";
-import { portfolioSummary } from "./scoring/residual-engine";
-import type { StaffComposition } from "./types";
+import { portfolioSummary, type ResidualRiskScore } from "./scoring/residual-engine";
+import type { KnowledgeRisk, StaffComposition } from "./types";
 import type { ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
-
-export * from "./process-validation";
-export * from "./process-layout";
-export * from "./process-health";
 
 function normalizeIoToken(s: string): string {
   return s
@@ -135,24 +133,31 @@ export interface ProcessMapSnapshot {
   heat: number;
 }
 
-/**
- * Display bands for the composite `heat` score that enrichProcess computes.
- * `heat` is this app's own 0–100 blend of a process's worst risk (severity ×
- * likelihood), its open duty conflicts, sole-owner knowledge, and any linked
- * residual score. The cutoffs order attention on the map; no study sets them
- * and they carry no probability meaning. Every consumer reads them from here
- * so the map badge, the health card, the review, and the weekly plan agree.
- */
-export const HEAT_BANDS = { hot: 70, warm: 45 } as const;
-
 function riskHeat(r: ProcessRisk) {
   return r.severity * r.likelihood * 4; // 4–100
+}
+
+/**
+ * What enrichProcess reads from the whole business. buildProcessMapGraph
+ * computes it once for every process; a single call computes its own.
+ */
+interface ProcessMapContext {
+  knowledgeRisks: KnowledgeRisk[];
+  residualRows: ResidualRiskScore[];
+}
+
+function processMapContext(tpl: IndustryTemplate, staff?: StaffComposition): ProcessMapContext {
+  return {
+    knowledgeRisks: findKnowledgeRisks(tpl),
+    residualRows: portfolioSummary(tpl, staff).all,
+  };
 }
 
 export function enrichProcess(
   tpl: IndustryTemplate,
   process: ProcessNode,
   staff?: StaffComposition,
+  context: ProcessMapContext = processMapContext(tpl, staff),
 ): ProcessMapSnapshot {
   const { controls, knowledge, people, scenarios } = tpl;
   const risks = process.risks ?? [];
@@ -168,7 +173,7 @@ export function enrichProcess(
       residualRiskAccepted: c!.residualRiskAccepted,
     }));
 
-  const kRisks = findKnowledgeRisks(tpl);
+  const kRisks = context.knowledgeRisks;
   const knowledgeItems = knowledge
     .filter((k) => k.linkedProcessIds.includes(process.id))
     .map((k) => {
@@ -182,22 +187,6 @@ export function enrichProcess(
       };
     });
 
-  const portfolio = portfolioSummary(tpl, staff);
-  // Heuristic link residual items by name tokens
-  const tokens = process.name.toLowerCase().split(/\s+/);
-  const residualHit =
-    portfolio.top.find((t) =>
-      tokens.some((tok) => tok.length > 3 && t.name.toLowerCase().includes(tok)),
-    ) ??
-    portfolio.top.find((t) =>
-      process.controlIds.some(
-        (cid) =>
-          t.id.includes(cid) ||
-          (t.linkedScenarioId &&
-            scenarios.find((s) => s.id === t.linkedScenarioId)?.controlId === cid),
-      ),
-    );
-
   const linkedScenarios = scenarios
     .filter(
       (s) =>
@@ -206,7 +195,24 @@ export function enrichProcess(
     )
     .map((s) => ({ id: s.id, title: s.title }));
 
-  const owners = (process.ownerPersonIds ?? [])
+  // The residual rows this process is linked to by id: its controls, its
+  // register items and the scenarios on them. The worst of them is the
+  // process's residual; nothing linked means no residual, never a row that
+  // merely shares a word with the process name.
+  const linkedRowIds = new Set([
+    ...process.controlIds.map((id) => `ctrl-${id}`),
+    ...knowledgeItems.map((k) => `know-${k.id}`),
+    ...linkedScenarios.map((s) => `scen-${s.id}`),
+  ]);
+  const residualHit = context.residualRows
+    .filter((row) => linkedRowIds.has(row.id))
+    .reduce<ResidualRiskScore | undefined>(
+      (worst, row) => (!worst || row.residual > worst.residual ? row : worst),
+      undefined,
+    );
+
+  // An owner listed twice (a pasted CSV row) is one owner and one map node.
+  const owners = [...new Set(process.ownerPersonIds ?? [])]
     .map((id) => people.find((p) => p.id === id))
     .filter(Boolean)
     .map((p) => ({ id: p!.id, name: p!.name, role: p!.role }));
@@ -251,7 +257,8 @@ export function buildProcessMapGraph(
   const showKnowledge = opts.showKnowledge ?? true;
 
   const { processes, knowledge, relations } = tpl;
-  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff));
+  const context = processMapContext(tpl, staff);
+  const snapshots = processes.map((p) => enrichProcess(tpl, p, staff, context));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];
 
@@ -404,18 +411,16 @@ export function buildProcessMapGraph(
 
     for (const o of snap.owners) {
       const oid = `${p.id}::person::${o.id}`;
-      if (!nodes.some((n) => n.id === oid)) {
-        nodes.push({
-          id: oid,
-          kind: "person",
-          label: o.name,
-          subtitle: o.role,
-          processId: p.id,
-          severity: 20,
-          badges: ["owner"],
-          data: { ...o },
-        });
-      }
+      nodes.push({
+        id: oid,
+        kind: "person",
+        label: o.name,
+        subtitle: o.role,
+        processId: p.id,
+        severity: 20,
+        badges: ["owner"],
+        data: { ...o },
+      });
       edges.push({
         id: `e-${oid}`,
         source: oid,
@@ -427,9 +432,8 @@ export function buildProcessMapGraph(
   }
 
   // Semantic value-stream links from inputs/outputs (when not already a dependency)
-  for (const feed of inferFeedEdges(processes)) {
-    if (!edges.some((e) => e.id === feed.id)) edges.push(feed);
-  }
+  // Feed ids carry their own "feed-" prefix and inferFeedEdges dedupes them.
+  edges.push(...inferFeedEdges(processes));
 
   // Cross-link knowledge people for context (not all relations)
   for (const r of relations.filter((x) => x.level === "expert")) {

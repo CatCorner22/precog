@@ -8,10 +8,10 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { validateMigrationManifest } from "./migration-manifest.mjs";
 
 const LOCK_NAMESPACE = 1347568455; // PRCG, fixed across all releases/runners.
 const LOCK_ID = 1;
-const FILE_NAME = /^\d{4}_[^/\\]+\.sql$/;
 
 export async function runMigrations({
   migrationsDir,
@@ -23,30 +23,14 @@ export async function runMigrations({
     throw new Error("Migration lock timeout must be an integer from 1 to 300000 milliseconds");
 
   // Validate and read the complete manifest BEFORE making any database change.
-  const files = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
-  const prefixes = new Set();
-  for (const name of files) {
-    if (!FILE_NAME.test(name)) throw new Error(`Invalid migration filename: ${name}`);
-    const prefix = name.slice(0, 4);
-    if (prefixes.has(prefix)) throw new Error(`two migrations share the prefix ${prefix}`);
-    prefixes.add(prefix);
-  }
+  const files = await listMigrationFiles(migrationsDir);
   let renamed = {};
   try {
     renamed = JSON.parse(await readFile(join(migrationsDir, "renamed.json"), "utf8"));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  if (!renamed || typeof renamed !== "object" || Array.isArray(renamed))
-    throw new Error("Migration rename manifest must be an object");
-  const previousNames = new Set();
-  const renames = Object.entries(renamed).filter(([name]) => !name.startsWith("_"));
-  for (const [current, previous] of renames) {
-    if (!files.includes(current) || typeof previous !== "string" || !FILE_NAME.test(previous))
-      throw new Error(`Invalid migration rename: ${current}`);
-    if (previousNames.has(previous)) throw new Error(`Duplicate migration rename: ${previous}`);
-    previousNames.add(previous);
-  }
+  const renames = validateMigrationManifest(files, renamed);
   const sources = new Map(
     await Promise.all(
       files.map(async (name) => [name, await readFile(join(migrationsDir, name), "utf8")]),
@@ -121,4 +105,16 @@ export async function runMigrations({
       : "[migrate] up to date.",
   );
   return { applied: appliedNow, moved };
+}
+
+/**
+ * The migration files in apply order, refusing a misnamed file or a shared
+ * four-digit prefix (the file-name rules of ./migration-manifest.mjs). Every
+ * runner (deploy, preview tests, lifecycle tests) reads the directory through
+ * this, so none applies a file another rejects.
+ */
+export async function listMigrationFiles(migrationsDir) {
+  const files = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
+  validateMigrationManifest(files);
+  return files;
 }

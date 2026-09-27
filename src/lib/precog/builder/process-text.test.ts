@@ -40,4 +40,16 @@ describe("textPatch", () => {
   it("bounds a long name to 60 characters", () => {
     expect(textPatch({ ...same, name: "x".repeat(80) }, process).name).toHaveLength(60);
   });
+
+  it("ignores a blank or whitespace-only name", () => {
+    expect(textPatch({ ...same, name: "" }, process)).toEqual({});
+    expect(textPatch({ ...same, name: "   " }, process)).toEqual({});
+  });
+
+  it("trims the name and description and does not re-patch a trailing space", () => {
+    expect(textPatch({ ...same, name: "  Checkout " }, process)).toEqual({ name: "Checkout" });
+    expect(textPatch({ ...same, name: "Front desk ", desc: "Takes payments " }, process)).toEqual(
+      {},
+    );
+  });
 });

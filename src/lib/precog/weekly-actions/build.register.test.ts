@@ -21,7 +21,7 @@ function actionsFor(profile: ReturnType<typeof ownBusinessProfile>) {
 }
 
 describe("weekly plan on a register nobody has filled in", () => {
-  it("asks the owner to mark who can do the starter items instead of scoring them as gaps", () => {
+  it("asks the owner to mark who can do the sample items instead of scoring them as gaps", () => {
     const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
     const actions = actionsFor(profile);
     const ids = actions.map((a) => a.id);
@@ -37,7 +37,7 @@ describe("weekly plan on a register nobody has filled in", () => {
     const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
     const actions = actionsFor({ ...profile, customKnowledge: [] });
     expect(actions.find((a) => a.id === "register-start")?.title).toBe(
-      "List the duties, tasks and know-how the business runs on",
+      "List the duties and know-how the business runs on",
     );
   });
 

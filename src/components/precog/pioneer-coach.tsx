@@ -1,103 +1,58 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
-import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { usePractice } from "@/lib/precog/practice-context";
+import { usePresentation } from "@/lib/precog/presentation";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Brain, Compass, GitBranch, Loader2, Sparkles } from "lucide-react";
+import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { localDateKey } from "@/lib/precog/dates";
 import {
-  Brain,
-  Compass,
-  Copy,
-  GitBranch,
-  Loader2,
-  Sparkles,
-  TriangleAlert,
-  Users,
-  Wrench,
-} from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
-
-function renderInline(text: string): ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} className="font-semibold text-fg">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (part.startsWith("_") && part.endsWith("_")) {
-      return (
-        <em key={i} className="text-fg">
-          {part.slice(1, -1)}
-        </em>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
-
-type CoachResult = {
-  source: string;
-  model?: string;
-  markdown: string;
-  contextFingerprint: string;
-  latencyMs?: number;
-  toolsUsed?: string[];
-  steps?: {
-    phase: string;
-    title: string;
-    detail: string;
-    toolSummaries?: string[];
-  }[];
-  evidence?: {
-    id: string;
-    kind: string;
-    label: string;
-    metric?: string;
-    link: { tab: string; id?: string };
-  }[];
-  warnings?: string[];
-  decisions?: {
-    action: string;
-    rationale: string;
-    effort: string;
-    horizonDays: number;
-  }[];
-  specialistNotes?: { agent: string; title: string; bullets: string[] }[];
-};
-
-const PIONEER_JOURNAL_TABS = new Set([
-  "knowledge",
-  "precog",
-  CONTROL_CONFIRM_TAB,
-  CONTROL_IN_PLACE_TAB,
-]);
+  BUSINESS_CHANGED_MESSAGE,
+  CoachResultView,
+  coachErrorMessage,
+  journalEntry,
+  type CoachDecision,
+  type CoachResult,
+} from "./pioneer-coach-parts";
 
 export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile, addDecision } = usePractice();
+  const { say } = usePresentation();
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
-  const [question, setQuestion] = useState(prompts[0]);
+  const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
+  const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
   const [copied, setCopied] = useState(false);
-  // A brief answers one business; a run whose business changed underneath it is discarded.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  // A brief answers one business; a run whose business changed underneath it
+  // is discarded, and the owner is told why. The typed question stays.
   const runId = useRef(0);
+  const running = useRef(false);
   useEffect(() => {
     runId.current += 1;
-    setQuestion(getIndustryCopy(profile.industry).pioneerPrompts[0]);
     setResult(null);
-    setError(null);
+    setLogged(new Set());
+    setError(running.current ? BUSINESS_CHANGED_MESSAGE : null);
+    running.current = false;
     setLoading(false);
   }, [profile.industry, profile.businessId]);
 
   async function run() {
     const id = ++runId.current;
+    running.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -130,31 +85,17 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         setError(res.error);
         setResult(null);
       } else {
-        setResult({
-          source: res.source,
-          model: res.model,
-          markdown: res.markdown,
-          contextFingerprint: res.contextFingerprint,
-          latencyMs: res.latencyMs,
-          toolsUsed: res.toolsUsed,
-          steps: res.steps,
-          evidence: res.evidence,
-          warnings: res.warnings,
-          decisions: res.decisions,
-          specialistNotes: res.specialistNotes,
-        });
+        setResult(res);
+        setLogged(new Set());
       }
     } catch (e) {
       if (id !== runId.current) return;
-      setError(
-        e && typeof e === "object" && "status" in e && e.status === 429
-          ? "Too many requests — try again in a minute."
-          : e instanceof Error
-            ? e.message
-            : "Coach failed",
-      );
+      setError(coachErrorMessage(e));
     } finally {
-      if (id === runId.current) setLoading(false);
+      if (id === runId.current) {
+        running.current = false;
+        setLoading(false);
+      }
     }
   }
 
@@ -163,57 +104,55 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     try {
       await navigator.clipboard.writeText(result.markdown);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* ignore */
+      /* Clipboard access can be refused; the brief is still on screen. */
     }
   }
 
-  function logFirstDecision() {
-    const d = result?.decisions?.[0];
-    if (!d) return;
-    addDecision({
-      subject: d.action.slice(0, 120),
-      kind: "remediate",
-      note: d.rationale,
-      reviewBy: dateAfter(new Date(), d.horizonDays),
-    });
+  function logDecision(d: CoachDecision) {
+    if (logged.has(d.action)) return;
+    addDecision(journalEntry(d, new Date()));
+    setLogged((prev) => new Set(prev).add(d.action));
   }
-
-  const usedReasoning = result?.toolsUsed?.includes("run_advanced_reasoning");
-  const reasoningEvidence = result?.evidence?.filter((e) => e.kind === "reasoning") ?? [];
 
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Coach</Badge>
-          <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
-        </div>
+        <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
-          <Compass className="size-6 text-primary" />
-          Precog Pioneer
+          <Compass className="size-6 text-primary" aria-hidden />
+          Pioneer
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Every answer is built from this app&rsquo;s own tools: the residual register, duty
-          conflicts, scenarios, the guidance corpus, and the evidence library. Where it orders
-          levers it uses this app&rsquo;s weights and says so. It never invents a measurement.
+          Every answer is built from this app&rsquo;s own records: what is still exposed, duty
+          conflicts, scenarios, the guidance library, and the prosecuted cases. Where it orders
+          fixes it uses this app&rsquo;s weights and says so. It never invents a measurement.
         </p>
       </section>
 
       <Card>
         <CardHeader>
-          <CardTitle>Ask the frontier</CardTitle>
-          <CardDescription>
-            Advanced reasoning tool runs by default with RAG, ML, and cascades.
-          </CardDescription>
+          <CardTitle>Ask Pioneer</CardTitle>
+          <CardDescription>Answers use only this app&rsquo;s own figures.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
+          <textarea
+            aria-label="Your question"
+            placeholder="Ask about your team, a person leaving, or what to fix first"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            rows={3}
+            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-subtle">Try:</span>
             {prompts.map((p) => (
               <button
                 key={p}
                 type="button"
+                aria-pressed={question === p}
                 onClick={() => setQuestion(p)}
                 className={
                   question === p
@@ -225,256 +164,60 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
               </button>
             ))}
           </div>
-          <textarea
-            aria-label="Your question"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={3}
-            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
-          />
           <div className="flex flex-wrap gap-2">
             <Button onClick={run} disabled={loading || !question.trim()}>
               {loading ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Reasoning…
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Building the brief…
                 </>
               ) : (
                 <>
-                  <Sparkles className="size-4" />
-                  Run Pioneer agent
+                  <Sparkles className="size-4" aria-hidden />
+                  Get the brief
                 </>
               )}
             </Button>
             <Button variant="secondary" onClick={() => onNavigate?.("intel")}>
-              <Brain className="size-3.5" />
-              Reasoning panel
+              <Brain className="size-3.5" aria-hidden />
+              Open {tabLabel("intel", say)}
             </Button>
             <Button variant="secondary" onClick={() => onNavigate?.("precog")}>
-              <GitBranch className="size-3.5" />
-              Cascades
+              <GitBranch className="size-3.5" aria-hidden />
+              Open {tabLabel("precog", say)}
             </Button>
           </div>
           {error && (
-            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
               {error}
             </p>
           )}
+          <p role="status" className="sr-only">
+            {loading ? "Building the brief" : result ? "Brief ready" : ""}
+          </p>
         </CardContent>
       </Card>
 
       {result && (
-        <>
-          {(result.steps?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Wrench className="size-4" />
-                  Reasoning trace
-                </CardTitle>
-                <CardDescription>
-                  {result.toolsUsed?.length ?? 0} tools
-                  {usedReasoning ? " · advanced reasoning on" : ""} · {result.latencyMs ?? "—"}ms ·{" "}
-                  {result.source}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {result.steps!.map((s, i) => (
-                  <div
-                    key={`${s.phase}-${i}`}
-                    className={
-                      s.phase === "reason"
-                        ? "rounded-lg border border-primary/40 bg-primary/5 px-3 py-2"
-                        : "rounded-lg border border-border bg-elevated px-3 py-2"
-                    }
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={s.phase === "reason" ? "primary" : "default"}>
-                        {s.phase}
-                      </Badge>
-                      <span className="text-sm font-medium">{s.title}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted">{s.detail}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {reasoningEvidence.length > 0 && (
-            <Card className="border-primary/25">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="size-4 text-primary" />
-                  Advanced reasoning outputs
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {reasoningEvidence.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => onNavigate?.(e.link.tab, e.link.id)}
-                    className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-left text-sm"
-                  >
-                    <span className="text-xs text-subtle">{e.id}</span>
-                    <span className="block font-medium">{e.label}</span>
-                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {(result.specialistNotes?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="size-4" />
-                  Specialist board
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                {result.specialistNotes!.map((n) => (
-                  <div
-                    key={n.agent}
-                    className="rounded-xl border border-border bg-elevated px-3 py-3"
-                  >
-                    <Badge variant="primary">{n.agent}</Badge>
-                    <p className="mt-1 text-sm font-medium">{n.title}</p>
-                    <ul className="mt-2 space-y-1 text-xs text-muted">
-                      {n.bullets.map((b) => (
-                        <li key={b}>· {b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {(result.warnings?.length ?? 0) > 0 && (
-            <Card className="border-warn/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base text-warn">
-                  <TriangleAlert className="size-4" />
-                  Warnings
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-1 text-sm text-muted">
-                  {result.warnings!.map((w) => (
-                    <li key={w}>· {w}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {(result.evidence?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Evidence</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {result.evidence!.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => onNavigate?.(e.link.tab, e.link.id)}
-                    className="rounded-xl border border-border bg-elevated px-3 py-2 text-left text-sm hover:border-border-strong"
-                  >
-                    <span className="text-xs text-subtle">
-                      {e.kind} · {e.id}
-                    </span>
-                    <span className="block font-medium">{e.label}</span>
-                    {e.metric && <span className="block text-xs text-muted">{e.metric}</span>}
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {(result.decisions?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Decisions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {result.decisions!.map((d) => (
-                  <div
-                    key={d.action}
-                    className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <span className="font-medium">{d.action}</span>
-                      <Badge variant="default">{d.effort}</Badge>
-                      <span className="text-xs text-muted">{d.horizonDays}d</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted">{d.rationale}</p>
-                  </div>
-                ))}
-                <Button size="sm" variant="secondary" onClick={logFirstDecision}>
-                  Log top decision
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <CardTitle>Scout brief</CardTitle>
-                  <CardDescription className="font-mono text-xs">
-                    {result.contextFingerprint}
-                  </CardDescription>
-                </div>
-                <Button size="sm" variant="secondary" onClick={copyBrief}>
-                  <Copy className="size-3.5" />
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <article className="space-y-3 text-sm leading-relaxed">
-                {result.markdown.split("\n").map((line, i) => {
-                  if (line.startsWith("### ")) {
-                    return (
-                      <h3 key={i} className="pt-1 text-sm font-semibold text-fg">
-                        {line.replace(/^### /, "")}
-                      </h3>
-                    );
-                  }
-                  if (line.startsWith("## ")) {
-                    const title = line.replace(/^## /, "");
-                    const highlight = /advanced reasoning/i.test(title);
-                    return (
-                      <h3
-                        key={i}
-                        className={
-                          highlight
-                            ? "flex items-center gap-2 pt-2 text-base font-semibold text-primary"
-                            : "pt-2 text-base font-semibold tracking-tight text-fg"
-                        }
-                      >
-                        {highlight && <Sparkles className="size-4" />}
-                        {title}
-                      </h3>
-                    );
-                  }
-                  if (line.trim() === "") return <div key={i} className="h-1" />;
-                  return (
-                    <p key={i} className="text-muted">
-                      {renderInline(line.replace(/^[-*]\s/, "· "))}
-                    </p>
-                  );
-                })}
-              </article>
-            </CardContent>
-          </Card>
-        </>
+        <CoachResultView
+          result={result}
+          onNavigate={onNavigate}
+          onLog={logDecision}
+          logged={logged}
+          onCopy={copyBrief}
+          copied={copied}
+        />
       )}
     </div>
   );
 }
+
+const PIONEER_JOURNAL_TABS = new Set([
+  "knowledge",
+  "precog",
+  CONTROL_CONFIRM_TAB,
+  CONTROL_IN_PLACE_TAB,
+]);

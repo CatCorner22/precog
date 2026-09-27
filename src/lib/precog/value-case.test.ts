@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VALUE_CASE,
   createValueCaseMemo,
-  formatMoney,
-  hasOwnObservations,
   normalizeEnteredInputs,
+  MODELED_RANGE_NOTE,
   observedValueStatus,
 } from "./value-case";
+import type { ValueEvidence } from "./value-evidence";
+import { formatUsd } from "../utils";
 
 const at = new Date("2026-09-23T00:00:00.000Z");
 
@@ -18,7 +19,6 @@ describe("observed value", () => {
       expect(f.observed).toBe(false);
       expect(f.value).toBeNull();
     }
-    expect(hasOwnObservations(DEFAULT_VALUE_CASE)).toBe(false);
   });
 
   it("never builds a return from defaults: one edited cost unlocks nothing", () => {
@@ -79,8 +79,41 @@ describe("createValueCaseMemo", () => {
     expect(memo).toContain("- Baseline event probability (app default): 4.0%");
   });
 
+  it("says where the modeled range comes from", () => {
+    const memo = createValueCaseMemo(DEFAULT_VALUE_CASE, at);
+    expect(memo).toContain("(base ×0.5 and ×1.5, this app's assumption)");
+    expect(MODELED_RANGE_NOTE).toMatch(/half, or one and a half times/);
+  });
+
+  it("lists each evidence item's amount and date, and the verified register totals", () => {
+    const evidence: ValueEvidence[] = [
+      {
+        id: "r1",
+        kind: "recovery",
+        description: "Duplicate supplier payment recovered",
+        source: "AP credit memo 118",
+        amount: 2_400,
+        observedAt: "2026-08-01",
+        verified: true,
+      },
+    ];
+    const memo = createValueCaseMemo(
+      { ...DEFAULT_VALUE_CASE, directRecoveries: 500 },
+      at,
+      evidence,
+    );
+    expect(memo).toContain("| Status | Type | Observation | Amount | Observed | Source |");
+    expect(memo).toContain(
+      "| Verified | Money recovered | Duplicate supplier payment recovered | $2,400 | Aug 1, 2026 | AP credit memo 118 |",
+    );
+    expect(memo).toContain("- Documented recoveries: $500");
+    expect(memo).toContain(
+      "- Verified recoveries in the evidence register: $2,400 (1 verified of 1 item); this differs from the documented recoveries above",
+    );
+  });
+
   it("writes negative money with the sign first", () => {
-    expect(formatMoney(-3640)).toBe("-$3,640");
-    expect(formatMoney(5000)).toBe("$5,000");
+    expect(formatUsd(-3640)).toBe("-$3,640");
+    expect(formatUsd(5000)).toBe("$5,000");
   });
 });

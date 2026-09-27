@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
-import { parseHireDate, readHireDate, tenureFromHireDate } from "./people-csv";
+import { getIndustryTemplate } from "../templates";
 import { parseRoster } from "./roster";
 
-const general = getBaseTemplate("general");
+const general = getIndustryTemplate("general");
 const today = new Date("2026-09-22T00:00:00Z");
 const T = "\t";
 
@@ -498,11 +497,11 @@ describe("parseRoster", () => {
       })),
       {
         row: inactive.length + active.length + 1,
-        message: 'Status "Onboarding" not recognised; treated as active',
+        message: 'The importer does not know the status "Onboarding" and reads it as active',
       },
       {
         row: inactive.length + active.length + 3,
-        message: 'Status "Pre-hire" not recognised; treated as active',
+        message: 'The importer does not know the status "Pre-hire" and reads it as active',
       },
     ]);
 
@@ -602,7 +601,7 @@ describe("parseRoster", () => {
         message:
           '"Ana Ruiz" (employee ID 1001) holds two positions, Bookkeeper and Cashier; read as one person with the duties of both',
       },
-      { row: 3, message: '"Ana Ruiz" appears twice; second copy skipped' },
+      { row: 3, message: '"Ana Ruiz" appears twice; the importer skipped the second row' },
     ]);
     // An inactive second position adds nothing; an active one replaces an ended first one.
     const ended = parseRoster(
@@ -617,6 +616,33 @@ describe("parseRoster", () => {
     expect(ended.issues[0].message).toBe(
       '"Cal Diaz" (employee ID 7): the Bookkeeper position is marked inactive, so its duties are left out',
     );
+  });
+
+  it("clears an inactive first position's termination date when an active second position replaces it", () => {
+    const result = parseRoster(
+      "Employee ID,Employee Name,Job Title,Status,Termination Date\n8,Dee Park,Cashier,Terminated,2020-01-10\n8,Dee Park,Server,Active,",
+      general,
+      { today },
+    );
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]).toMatchObject({ name: "Dee Park", role: "Server", active: true });
+    expect(result.people[0].lastDay).toBeUndefined();
+    expect(result.issues.map((issue) => issue.message)).toContain(
+      '"Dee Park" (employee ID 8): the Server position is active, so the last day 2020-01-10 of the inactive Cashier position was not kept',
+    );
+  });
+
+  it("reads a two-column pipe table with no spaces around the pipes", () => {
+    for (const text of [
+      "Name|Title\nAna Ruiz|Owner\nBen Cole|Bookkeeper",
+      "|Name|Title|\n|---|---|\n|Ana Ruiz|Owner|\n|Ben Cole|Bookkeeper|",
+    ]) {
+      const result = parseRoster(text, general, { today });
+      expect(result.people.map((p) => [p.name, p.role])).toEqual([
+        ["Ana Ruiz", "Owner"],
+        ["Ben Cole", "Bookkeeper"],
+      ]);
+    }
   });
 
   it("ranks title columns by specificity, skips numeric position codes, and reads duties from the standard job profile before the business title", () => {
@@ -688,43 +714,7 @@ describe("parseRoster", () => {
     expect(result.people.map((p) => p.department)).toEqual(["Leadership", "Finance"]);
   });
 
-  it("parses the hire-date formats the common exports write", () => {
-    expect(parseHireDate("2019-03-15")).toBe("2019-03-15");
-    expect(parseHireDate("03/15/2019")).toBe("2019-03-15");
-    expect(parseHireDate("3/5/19")).toBe("2019-03-05");
-    expect(parseHireDate("15-Mar-2019")).toBe("2019-03-15");
-    expect(parseHireDate("2019-03-15T00:00:00")).toBe("2019-03-15");
-    expect(parseHireDate("March 2019")).toBeUndefined();
-    expect(tenureFromHireDate("2019-03-15", today)).toBe(7.5);
-    expect(tenureFromHireDate("2030-01-01", today)).toBe(0);
-
-    const at = { today };
-    expect(readHireDate("03/15/2019 12:00:00 AM", at)).toBe("2019-03-15");
-    expect(readHireDate("3/15/2019 0:00", at)).toBe("2019-03-15");
-    expect(readHireDate("2019-03-15T00:00:00.000Z", at)).toBe("2019-03-15");
-    expect(readHireDate("2019-03-15 00:00:00", at)).toBe("2019-03-15");
-    expect(readHireDate("Mar 15, 2019", at)).toBe("2019-03-15");
-    expect(readHireDate("March 15, 2019", at)).toBe("2019-03-15");
-    expect(readHireDate("Sep 1, 2024", at)).toBe("2024-09-01");
-    expect(readHireDate("15 March 2019", at)).toBe("2019-03-15");
-    expect(readHireDate("01-JAN-19", at)).toBe("2019-01-01");
-    expect(readHireDate("2019/03/15", at)).toBe("2019-03-15");
-    expect(readHireDate("15.03.2019", at)).toBe("2019-03-15");
-    expect(readHireDate("20190315", at)).toBe("2019-03-15");
-    expect(readHireDate("2019-02-30", at)).toBeUndefined();
-    expect(readHireDate("15/03/2019", at)).toBeUndefined();
-    expect(readHireDate("15/03/2019", { ...at, dayFirst: true })).toBe("2019-03-15");
-    expect(readHireDate("10/01/2020", { ...at, dayFirst: true })).toBe("2020-01-10");
-  });
-
-  it("pivots two-digit years so 99 is 1999 and reports a hire date in the future", () => {
-    const at = { today };
-    expect(readHireDate("01/01/99", at)).toBe("1999-01-01");
-    expect(readHireDate("01-JAN-99", at)).toBe("1999-01-01");
-    expect(readHireDate("01/01/70", at)).toBe("1970-01-01");
-    expect(readHireDate("7/4/26", at)).toBe("2026-07-04");
-    expect(readHireDate("12/31/27", at)).toBe("2027-12-31");
-
+  it("reports a hire date in the future", () => {
     const result = parseRoster(
       "Employee Name,Job Title,Hire Date\nAna Ruiz,Owner,01/01/99\nBen Ochoa,Bookkeeper,06/30/05\nGus Tan,Barista,12/31/27\nHal Ng,Cashier,01/01/70\nIda Fox,Server,2027-01-15\nJon Wu,Cook,15-Oct-2026\nKim Lee,Host,2026-09-22",
       general,
@@ -984,7 +974,7 @@ describe("parseRoster", () => {
     ]);
     expect(result.duplicates).toBe(1);
     expect(result.issues).toEqual([
-      { row: 2, message: '"Ana Ruiz" appears twice; second copy skipped' },
+      { row: 2, message: '"Ana Ruiz" appears twice; the importer skipped the second row' },
       {
         row: 3,
         message: '"Ana Ruiz" appears twice with different titles; check whether this is one person',
@@ -1003,8 +993,7 @@ describe("parseRoster", () => {
     expect(result.issues).toEqual([
       {
         row: 251,
-        message:
-          "Read the first 250 rows; 50 more rows were not read, because one import reads up to 250",
+        message: "This import reads the first 250 rows; it did not read 50 more rows",
       },
     ]);
     expect(parseRoster(rows.slice(0, 4).join("\n"), general, { today, maxRows: 2 })).toMatchObject({
@@ -1012,8 +1001,7 @@ describe("parseRoster", () => {
       issues: [
         {
           row: 3,
-          message:
-            "Read the first 2 rows; 1 more row was not read, because one import reads up to 2",
+          message: "This import reads the first 2 rows; it did not read 1 more row",
         },
       ],
     });
@@ -1027,7 +1015,7 @@ describe("parseRoster", () => {
       '"1004","Nakamura, Daniel","Veterinarian","Associate Veterinarian","WCVH Medicine","Active - Payroll Eligible","15-Mar-2019"',
       '"1009","Greer, Tomas","Inventory Coordinator","Inventory & Purchasing Coordinator","WCVH Operations","Active - Payroll Eligible","02-May-2020"',
     ].join("\n");
-    const result = parseRoster(oracle, getBaseTemplate("dental"), { today });
+    const result = parseRoster(oracle, getIndustryTemplate("dental"), { today });
     // The owner's seat wins from any title column; otherwise the Job Name,
     // Oracle's standard classification, is read before the Position Name, and
     // the role shown is the title the duties came from.
@@ -1087,7 +1075,7 @@ describe("parseRoster", () => {
         '"Lam, Eve","Cashier","Inactive - Payroll Eligible"',
         '"Tan, Gus","Cashier","Terminated - On Leave"',
       ].join("\n"),
-      getBaseTemplate("dental"),
+      getIndustryTemplate("dental"),
       { today },
     );
     expect(result.people.map((p) => [p.name, p.active])).toEqual([
@@ -1221,8 +1209,7 @@ describe("parseRoster", () => {
     expect(result.issues).toEqual([
       {
         row: 251,
-        message:
-          "Read the first 250 rows; 4750 more rows were not read, because one import reads up to 250",
+        message: "This import reads the first 250 rows; it did not read 4750 more rows",
       },
     ]);
   });
@@ -1237,7 +1224,7 @@ describe("parseRoster", () => {
         "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
         "Chloe Bennett,Keyholder,Larkspur - Riverside,Active,05/17/2023",
       ].join("\n"),
-      getBaseTemplate("retail"),
+      getIndustryTemplate("retail"),
       { today },
     );
     expect(result.people.map((p) => [p.name, p.department])).toEqual([
@@ -1250,7 +1237,7 @@ describe("parseRoster", () => {
         4,
         '"Chloe Bennett" is listed at Larkspur - Oakridge Mall and Larkspur - Riverside with the same title; kept as one person at both',
       ],
-      [5, '"Chloe Bennett" appears twice; second copy skipped'],
+      [5, '"Chloe Bennett" appears twice; the importer skipped the second row'],
     ]);
   });
 
@@ -1278,7 +1265,7 @@ describe("a pathological pasted line", () => {
     ["a possessive then 200,000 spaces", "Ana Ruiz, Owner's" + " ".repeat(200_000) + "x"],
   ])("reads %s in well under five seconds", (_label, line) => {
     const started = performance.now();
-    parseRoster(line, getBaseTemplate("general"));
+    parseRoster(line, getIndustryTemplate("general"));
     expect(performance.now() - started).toBeLessThan(5_000);
   });
 });

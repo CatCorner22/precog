@@ -1,10 +1,12 @@
-import { locateTable, stripInvisibleControls } from "../import/csv";
+import { locateTable } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
 import { daysBetween } from "../dates";
+import { readHireDate } from "../import/hire-date";
+import { nameKey, titleKey } from "../text";
 
-export type AccessSource = "quickbooks" | "xero" | "unknown";
+type AccessSource = "quickbooks" | "xero" | "unknown";
 
 export type QueueStatus = "pending" | "mapped" | "dismissed";
 
@@ -28,11 +30,11 @@ export interface AccessUserRow {
   assigned?: EntitlementId;
 }
 
-export interface AccessVendorRow {
+interface AccessVendorRow {
   id: string;
   name: string;
   detail: string;
-  /** True when a date column is within the last 90 days of `asOf`. */
+  /** True when a date column is within the last `RECENT_VENDOR_DAYS` of `asOf`. */
   recent: boolean;
   status: QueueStatus;
 }
@@ -44,9 +46,22 @@ export interface AccessReconciliation {
   vendors: AccessVendorRow[];
 }
 
+/**
+ * A vendor added this many days before the import counts as new. An
+ * assumption, not a sourced figure: one quarter, the span a monthly review
+ * covers three times. Screens that print the window should read it from here.
+ */
+export const RECENT_VENDOR_DAYS = 90;
+
 const ENTITLEMENT_SET = new Set<string>(ENTITLEMENTS.map((e) => e.id));
 
-/** Role phrases, longest first, mapped to the duties that seat usually holds. */
+/**
+ * Role names as QuickBooks Online and Xero print them in their user lists,
+ * mapped to the duties that seat usually holds. The role names are the
+ * products' own; the duty mapping is Precog's suggestion, not the product's
+ * permission table, so a mapped row is a starting point to confirm against
+ * the accounting system.
+ */
 const ROLE_MAP: { phrase: string; duties: EntitlementId[] }[] = [
   { phrase: "accounts payable", duties: ["enter_invoices", "create_vendor", "release_payment"] },
   {
@@ -71,6 +86,7 @@ const ROLE_MAP: { phrase: string; duties: EntitlementId[] }[] = [
   { phrase: "invoicing only", duties: ["submit_claims", "enter_invoices"] },
   { phrase: "bank admin", duties: ["release_payment", "initiate_ach", "sign_checks"] },
   { phrase: "approver", duties: ["approve_invoices", "approve_vendor"] },
+  { phrase: "administrator", duties: ["manage_user_access", "pms_admin_roles"] },
   { phrase: "admin", duties: ["manage_user_access", "pms_admin_roles"] },
   { phrase: "advisor", duties: ["view_reports_only", "bank_reconcile"] },
   { phrase: "accountant", duties: ["bank_reconcile", "post_journal_entries", "view_reports_only"] },
@@ -79,41 +95,16 @@ const ROLE_MAP: { phrase: string; duties: EntitlementId[] }[] = [
   { phrase: "invoice only", duties: ["submit_claims"] },
 ];
 
-const VENDOR_HEADERS = ["vendor", "supplier", "contact name", "company"];
-
-function norm(value: string): string {
-  return stripInvisibleControls(value).trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function headerIndex(headers: readonly string[], names: readonly string[]): number {
-  const lowered = headers.map(norm);
-  return lowered.findIndex((h) => names.includes(h));
-}
-
-function looksLikeUsers(headers: readonly string[]): boolean {
-  const lowered = headers.map(norm);
-  if (lowered.some((h) => VENDOR_HEADERS.includes(h))) return false;
-  return lowered.some((h) => h === "role" || h === "user role" || h === "email" || h === "user");
-}
-
-function looksLikeVendors(headers: readonly string[]): boolean {
-  const lowered = headers.map(norm);
-  return lowered.some((h) => VENDOR_HEADERS.includes(h));
-}
-
-function detectAccessSource(headers: readonly string[]): AccessSource {
-  const joined = headers.map(norm).join(" ");
-  if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
-  if (joined.includes("contact name") || joined.includes("account number")) return "xero";
-  return "unknown";
-}
-
-/** Split a role cell into phrases and map the ones this catalog knows. */
+/**
+ * Split a role cell into parts and map the whole-word phrases this catalog
+ * knows. What is left of a part, less filler words such as "user", is
+ * reported as unmatched.
+ */
 export function mapRoleToDuties(role: string): {
   mapped: EntitlementId[];
   unmatchedTokens: string[];
 } {
-  const rest = norm(role);
+  const rest = titleKey(role);
   const mapped = new Set<EntitlementId>();
   const unmatched: string[] = [];
   if (!rest) return { mapped: [], unmatchedTokens: [] };
@@ -121,43 +112,24 @@ export function mapRoleToDuties(role: string): {
   for (const part of parts) {
     let remaining = part;
     let hit = false;
-    const ordered = [...ROLE_MAP].sort((a, b) => b.phrase.length - a.phrase.length);
-    for (const entry of ordered) {
-      if (remaining.includes(entry.phrase)) {
+    for (const entry of ROLE_PATTERNS) {
+      if (entry.pattern.test(remaining)) {
         hit = true;
         for (const duty of entry.duties) mapped.add(duty);
-        remaining = remaining.replace(entry.phrase, " ").replace(/\s+/g, " ").trim();
+        remaining = remaining.replace(entry.pattern, " ").replace(/\s+/g, " ").trim();
       }
     }
-    if (!hit) unmatched.push(part);
-    else if (remaining && remaining !== part) unmatched.push(remaining);
+    if (!hit) {
+      unmatched.push(part);
+      continue;
+    }
+    const leftover = remaining
+      .split(" ")
+      .filter((word) => word && !ROLE_FILLER.has(word))
+      .join(" ");
+    if (leftover) unmatched.push(leftover);
   }
-  return { mapped: [...mapped], unmatchedTokens: unmatched.filter(Boolean) };
-}
-
-function personKey(name: string): string {
-  return norm(name).replace(/[^a-z0-9 ]/g, "");
-}
-
-function matchPerson(name: string, people: readonly Person[]): Person | undefined {
-  const key = personKey(name);
-  if (!key) return undefined;
-  return people.find((p) => personKey(p.name) === key);
-}
-
-function readDate(value: string): string {
-  const text = value.trim();
-  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const us = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (us) {
-    return `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`;
-  }
-  return "";
-}
-
-function rowId(prefix: string, index: number, name: string): string {
-  return `${prefix}_${index}_${personKey(name).slice(0, 24) || "row"}`;
+  return { mapped: [...mapped], unmatchedTokens: unmatched };
 }
 
 export function parseAccessExport(
@@ -189,7 +161,7 @@ export function parseAccessExport(
       const first = firstAt >= 0 ? (cells[firstAt] ?? "") : "";
       const last = lastAt >= 0 ? (cells[lastAt] ?? "") : "";
       const name = (nameAt >= 0 ? cells[nameAt] : `${first} ${last}`).trim();
-      if (!name || norm(name) === "total") return;
+      if (!name || titleKey(name) === "total") return;
       const role = roleAt >= 0 ? (cells[roleAt] ?? "").trim() : "";
       const mappedRole = mapRoleToDuties(role);
       const person = matchPerson(name, people);
@@ -220,14 +192,14 @@ export function parseAccessExport(
     const detailAt = headerIndex(headers, ["email", "account number", "company"]);
     located.rows.slice(1).forEach((cells, index) => {
       const name = (nameAt >= 0 ? cells[nameAt] : (cells[0] ?? "")).trim();
-      if (!name || norm(name) === "total") return;
-      const created = dateAt >= 0 ? readDate(cells[dateAt] ?? "") : "";
+      if (!name || titleKey(name) === "total") return;
+      const created = dateAt >= 0 ? readVendorDate(cells[dateAt] ?? "", asOf) : "";
       const age = created ? daysBetween(created, asOf.slice(0, 10)) : null;
       vendors.push({
         id: rowId("vendor", index + 2, name),
         name: name.slice(0, 160),
         detail: detailAt >= 0 ? (cells[detailAt] ?? "").trim().slice(0, 160) : created,
-        recent: age !== null && age >= 0 && age <= 90,
+        recent: age !== null && age >= 0 && age <= RECENT_VENDOR_DAYS,
         status: "pending",
       });
     });
@@ -315,3 +287,50 @@ export function pendingQueueCount(rec: AccessReconciliation | undefined): number
     rec.vendors.filter((v) => v.status === "pending").length
   );
 }
+
+const VENDOR_HEADERS = ["vendor", "supplier", "contact name", "company"];
+
+function headerIndex(headers: readonly string[], names: readonly string[]): number {
+  const lowered = headers.map(titleKey);
+  return lowered.findIndex((h) => names.includes(h));
+}
+
+function looksLikeUsers(headers: readonly string[]): boolean {
+  const lowered = headers.map(titleKey);
+  if (lowered.some((h) => VENDOR_HEADERS.includes(h))) return false;
+  return lowered.some((h) => h === "role" || h === "user role" || h === "email" || h === "user");
+}
+
+function looksLikeVendors(headers: readonly string[]): boolean {
+  const lowered = headers.map(titleKey);
+  return lowered.some((h) => VENDOR_HEADERS.includes(h));
+}
+
+function detectAccessSource(headers: readonly string[]): AccessSource {
+  const joined = headers.map(titleKey).join(" ");
+  if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
+  if (joined.includes("contact name") || joined.includes("account number")) return "xero";
+  return "unknown";
+}
+
+function matchPerson(name: string, people: readonly Person[]): Person | undefined {
+  const key = nameKey(name);
+  if (!key) return undefined;
+  return people.find((p) => nameKey(p.name) === key);
+}
+
+/** A vendor's created date as an ISO day, in any form the roster importer reads; "" when unreadable. */
+function readVendorDate(value: string, asOf: string): string {
+  return readHireDate(value, { today: new Date(`${asOf.slice(0, 10)}T12:00:00Z`) }) ?? "";
+}
+
+function rowId(prefix: string, index: number, name: string): string {
+  return `${prefix}_${index}_${nameKey(name).slice(0, 24) || "row"}`;
+}
+
+const ROLE_PATTERNS = [...ROLE_MAP]
+  .sort((a, b) => b.phrase.length - a.phrase.length)
+  .map((entry) => ({ ...entry, pattern: new RegExp(`\\b${entry.phrase}\\b`) }));
+
+/** Words a role cell carries that name no permission ("Standard user", "Admin role"). */
+const ROLE_FILLER = new Set(["user", "users", "role", "roles", "only", "access"]);

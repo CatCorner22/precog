@@ -1,5 +1,6 @@
-import { CoverageList, ImpactMetric } from "./power-map-parts";
-import { withPlaces } from "./power-map-graph";
+import { CoverageList } from "./power-map-parts";
+import { StatTile } from "@/components/ui/stat-tile";
+import { withPlaces } from "@/lib/precog/person-location";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
@@ -12,7 +13,7 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
         <CardTitle className="text-base">Absence stress test</CardTitle>
         <CardDescription>
           Temporarily remove one person from the model to see which duties stop and which lose
-          backup coverage. This simulation does not change assignments.
+          stand-in cover. This simulation does not change assignments.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-[280px_1fr]">
@@ -33,28 +34,29 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
         </label>
         {absenceImpact ? (
           <div className="grid gap-2 sm:grid-cols-3">
-            <ImpactMetric
-              label="Continuity after absence"
+            <StatTile
+              label="Stand-in cover after absence"
               value={`${absenceImpact.remainingResilienceScore}/100`}
-              detail={`${absenceImpact.scoreChange} points`}
-              danger={absenceImpact.scoreChange < 0}
+              hint={`${absenceImpact.scoreChange} points`}
+              tone={absenceImpact.scoreChange < 0 ? "danger" : "ok"}
             />
-            <ImpactMetric
+            <StatTile
               label="Duties stopped"
               value={String(absenceImpact.newlyUnassigned.length)}
-              detail="No remaining assignee"
-              danger={absenceImpact.newlyUnassigned.length > 0}
+              hint="No remaining assignee"
+              tone={absenceImpact.newlyUnassigned.length > 0 ? "danger" : "ok"}
             />
-            <ImpactMetric
-              label="Backups lost"
+            <StatTile
+              label="Stand-ins lost"
               value={String(absenceImpact.newlySinglePoint.length)}
-              detail="Now dependent on one person"
-              danger={absenceImpact.newlySinglePoint.length > 0}
+              hint="Now dependent on one person"
+              tone={absenceImpact.newlySinglePoint.length > 0 ? "danger" : "ok"}
             />
           </div>
         ) : (
           <div className="flex min-h-20 items-center rounded-xl border border-dashed border-border px-4 text-sm text-subtle">
-            Choose any employee, owner, or contractor to run a no-change continuity simulation.
+            Choose anyone on the team, including the owner or a contractor, to run a no-change
+            continuity simulation.
           </div>
         )}
       </CardContent>

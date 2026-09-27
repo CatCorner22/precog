@@ -40,9 +40,6 @@ export function businessLocations(people: readonly Person[]): string[] {
   return places;
 }
 
-/** "Oakridge Mall and Riverside": a person's places for a sentence or a label; "" when none is known. */
-export const locationText = joinWithAnd;
-
 /**
  * Looks up where each person works by id, for views that hold only the id and
  * name a finding carries. Empty when the business has one place or none, so a
@@ -63,4 +60,9 @@ export function worksAt(places: readonly string[] | undefined, place: string | n
   if (place === null) return !places || places.length === 0;
   const key = place.toLowerCase();
   return (places ?? []).some((held) => held.toLowerCase() === key);
+}
+
+/** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
+export function withPlaces(role: string, places: readonly string[] | undefined): string {
+  return places && places.length > 0 ? `${role} · ${joinWithAnd(places)}` : role;
 }

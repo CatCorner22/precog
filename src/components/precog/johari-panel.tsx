@@ -2,19 +2,19 @@ import { useMemo, useState } from "react";
 import {
   JOHARI_PLAYBOOK,
   johariQuadrantFromEpistemic,
-  recommendJohariMoves,
   type JohariDomain,
   type JohariQuadrant,
 } from "@/lib/precog/llm/johari-applications";
 import { runMetaAnalysis } from "@/lib/precog/llm/meta-analysis";
-import { examplesHeading, paneItems } from "@/components/precog/johari-pane";
+import { paneItems } from "@/components/precog/johari-pane";
 import { usePracticeState } from "@/lib/precog/practice-context";
+import { usePresentation } from "@/lib/precog/presentation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Lightbulb, Search } from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
+import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Search } from "lucide-react";
+import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 
 const Q_META: Record<
   JohariQuadrant,
@@ -28,6 +28,7 @@ const Q_META: Record<
 
 export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile } = usePracticeState();
+  const { say } = usePresentation();
   const [activeQ, setActiveQ] = useState<JohariQuadrant>("blind");
   const [domain, setDomain] = useState<JohariDomain>("internal_control");
   const [view, setView] = useState<"matrix" | "domains" | "loop">("matrix");
@@ -58,7 +59,6 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
   );
   const liveItems = pane.shown;
 
-  const moves = useMemo(() => recommendJohariMoves(loads), [loads]);
   const guide = JOHARI_PLAYBOOK.quadrants.find((q) => q.id === activeQ)!;
   const domainApp = JOHARI_PLAYBOOK.domains.find((d) => d.domain === domain)!;
 
@@ -85,10 +85,11 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
             <span className="text-fg">{JOHARI_PLAYBOOK.axesRemap.others}</span>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Johari view">
           <Button
             size="sm"
             variant={view === "matrix" ? "default" : "secondary"}
+            aria-pressed={view === "matrix"}
             onClick={() => setView("matrix")}
           >
             Live matrix
@@ -96,6 +97,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Button
             size="sm"
             variant={view === "domains" ? "default" : "secondary"}
+            aria-pressed={view === "domains"}
             onClick={() => setView("domains")}
           >
             Domain applications
@@ -103,6 +105,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Button
             size="sm"
             variant={view === "loop" ? "default" : "secondary"}
+            aria-pressed={view === "loop"}
             onClick={() => setView("loop")}
           >
             Coaching loop
@@ -120,6 +123,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
             <button
               key={q}
               type="button"
+              aria-pressed={activeQ === q}
               onClick={() => {
                 setActiveQ(q);
                 setShowAll(false);
@@ -159,7 +163,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-muted">
-                <span className="font-medium text-fg">In Precog: </span>
+                <span className="font-medium text-fg">In this app: </span>
                 {guide.precogMeaning}
               </p>
               <p className="text-xs">
@@ -171,11 +175,9 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                 {guide.riskIfLarge}
               </p>
               <div>
-                <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-                  {examplesHeading(profile.industry)}
-                </p>
+                <p className="text-xs font-medium tracking-wide text-subtle uppercase">Examples</p>
                 <ul className="mt-1 space-y-1 text-xs text-muted">
-                  {guide.dentalExamples.map((e) => (
+                  {guide.examples.map((e) => (
                     <li key={e}>· {e}</li>
                   ))}
                 </ul>
@@ -202,7 +204,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                           className="h-7 text-xs"
                           onClick={() => onNavigate?.(m.precogTab!)}
                         >
-                          Open {m.precogTab}
+                          Open {tabLabel(m.precogTab, say)}
                           <ArrowRight className="size-3" />
                         </Button>
                       )}
@@ -218,7 +220,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               <CardTitle className="text-base">
                 Live items in {Q_META[activeQ].label} ({pane.count})
               </CardTitle>
-              <CardDescription>Mapped from meta-analysis epistemic inventory</CardDescription>
+              <CardDescription>From the list of what this app can and cannot see</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {liveItems.length === 0 && (
@@ -234,7 +236,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                     <span className="font-medium">{item.title}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted line-clamp-2">{item.description}</p>
-                  {item.probe && <p className="mt-1 text-xs text-ok">Probe: {item.probe.action}</p>}
+                  {item.probe && <p className="mt-1 text-xs text-ok">Check: {item.probe.action}</p>}
                   {item.link && (
                     <Button
                       size="sm"
@@ -242,7 +244,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       className="mt-1 h-7 px-2 text-xs"
                       onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
                     >
-                      Open {item.link.tab}
+                      Open {tabLabel(item.link.tab, say)}
                     </Button>
                   )}
                 </div>
@@ -258,19 +260,6 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   Show all {pane.total}
                 </Button>
               )}
-              <div className="rounded-lg border border-border bg-panel p-3">
-                <p className="flex items-center gap-1 text-xs font-medium text-subtle uppercase">
-                  <Lightbulb className="size-3" />
-                  Recommended moves (load-weighted)
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-muted">
-                  {moves.map((m) => (
-                    <li key={m.id}>
-                      · [{m.from}→{m.to}] {m.action}
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -283,6 +272,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               <button
                 key={d.domain}
                 type="button"
+                aria-pressed={domain === d.domain}
                 onClick={() => setDomain(d.domain)}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs",
@@ -323,7 +313,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               </p>
               <p className="text-xs text-muted">
                 <span className="font-medium text-fg">Why it matters for small teams · </span>
-                {domainApp.valueForDental}
+                {domainApp.whyItMatters}
               </p>
             </CardContent>
           </Card>
@@ -335,7 +325,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Control coaching loop</CardTitle>
-              <CardDescription>How Precog uses Johari every cycle</CardDescription>
+              <CardDescription>How this app uses the Johari window every cycle</CardDescription>
             </CardHeader>
             <CardContent>
               <ol className="space-y-2 text-sm text-muted">

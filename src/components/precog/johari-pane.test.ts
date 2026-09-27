@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { examplesHeading, paneItems, PANE_PREVIEW } from "./johari-pane";
+import { johariPanes, paneItems } from "./johari-pane";
 
 describe("paneItems", () => {
   it("states the pane's real total when it lists only the first eight of nine", () => {
     const nine = Array.from({ length: 9 }, (_, i) => i);
     const pane = paneItems(nine, false);
-    expect(pane.shown).toHaveLength(PANE_PREVIEW);
+    expect(pane.shown).toHaveLength(8);
     expect(pane.total).toBe(9);
     expect(pane.count).toBe("showing 8 of 9");
   });
@@ -17,9 +17,17 @@ describe("paneItems", () => {
   });
 });
 
-describe("examplesHeading", () => {
-  it("does not call a restaurant's examples a dental office reference without saying they carry over", () => {
-    expect(examplesHeading("dental")).toBe("Examples from a dental or medical office");
-    expect(examplesHeading("restaurant")).toMatch(/same patterns occur in any business/);
+describe("johariPanes", () => {
+  it("fills each pane from this business's items, and leaves a pane empty when none belong", () => {
+    const panes = johariPanes([
+      { title: "Bank reconciliation", classification: "known_known" },
+      { title: "Cash drawer history", classification: "known_unknown" },
+    ]);
+    expect(panes).toEqual({
+      open: ["Bank reconciliation"],
+      blind: ["Cash drawer history"],
+      hidden: [],
+      unknown: [],
+    });
   });
 });

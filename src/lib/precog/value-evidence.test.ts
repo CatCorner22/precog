@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  assessEvidenceQuality,
-  isVerifiedObservation,
+  MAX_VALUE_EVIDENCE_ITEMS,
   normalizeValueEvidence,
+  parseValueEvidence,
+  serializeValueEvidence,
   summarizeValueEvidence,
   type ValueEvidence,
 } from "./value-evidence";
@@ -20,8 +21,11 @@ const base: ValueEvidence = {
 
 describe("verified observations", () => {
   it("counts a verified, sourced, dated item inside the window", () => {
-    expect(isVerifiedObservation(base, asOf)).toBe(true);
-    expect(summarizeValueEvidence([base], asOf)).toMatchObject({ verified: 1, recoveries: 1_200 });
+    expect(summarizeValueEvidence([base], asOf)).toMatchObject({
+      verified: 1,
+      recoveries: 1_200,
+      score: 100,
+    });
   });
 
   it("does not count an item whose date is missing, invalid, in the future, or older than a year", () => {
@@ -34,28 +38,49 @@ describe("verified observations", () => {
       { ...base, observedAt: "2026-09-21" },
       { ...base, observedAt: "2025-09-01" },
     ]) {
-      expect(isVerifiedObservation(item, asOf)).toBe(false);
-      expect(summarizeValueEvidence([item], asOf).recoveries).toBe(0);
-      expect(assessEvidenceQuality([item], asOf).verified).toBe(0);
+      expect(summarizeValueEvidence([item], asOf)).toMatchObject({
+        verified: 0,
+        recoveries: 0,
+        score: 0,
+      });
     }
   });
 
-  it("keeps the summary and the quality score on the same rule", () => {
+  it("counts totals and readiness on the same rule", () => {
     const items: ValueEvidence[] = [
       base,
       { ...base, id: "r2", observedAt: "2026-09-21" },
       { ...base, id: "t1", kind: "time", amount: 40, observedAt: "" },
       { ...base, id: "t2", kind: "time", amount: 12 },
     ];
-    const summary = summarizeValueEvidence(items, asOf);
-    const quality = assessEvidenceQuality(items, asOf);
-    expect(summary.verified).toBe(quality.verified);
-    expect(summary).toMatchObject({
+    expect(summarizeValueEvidence(items, asOf)).toEqual({
       total: 4,
       verified: 2,
       recoveries: 1_200,
       hours: 12,
-      completion: 50,
+      unsourced: 0,
+      stale: 1,
+      future: 1,
+      score: 50,
     });
+  });
+});
+
+describe("register size", () => {
+  const many = (n: number): ValueEvidence[] =>
+    Array.from({ length: n }, (_, i) => ({ ...base, id: `r${i}`, description: `Item ${i}` }));
+
+  it("keeps a register of 120 items through export and import", () => {
+    const items = normalizeValueEvidence(many(120));
+    expect(items).toHaveLength(120);
+    expect(parseValueEvidence(serializeValueEvidence(items, asOf))).toHaveLength(120);
+  });
+
+  it("refuses an import larger than the register holds instead of cutting it short", () => {
+    const envelope = JSON.stringify({
+      version: 1,
+      evidence: many(MAX_VALUE_EVIDENCE_ITEMS + 1).map((item) => ({ id: item.id })),
+    });
+    expect(() => parseValueEvidence(envelope)).toThrow(/Nothing was imported/);
   });
 });

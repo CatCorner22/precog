@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
 import { InsuranceRecordPanel } from "./insurance-record-panel";
-import { POLICY_FIELDS, normalizeInsuranceRecord } from "@/lib/precog/scoring/insurance-record";
+import { withPolicyEdit } from "@/lib/precog/scoring/insurance-record";
 import {
   APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
   VARIABLE_CATALOG,
-  assumedAnnualFrequency,
   insuranceBasis,
   insuranceFigureNote,
   policyFieldIsDefault,
@@ -17,7 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
+import { costOfRiskHint } from "./scenario-page";
 import { RefreshCw } from "lucide-react";
+import { ExactAmount } from "./exact-amount";
+import { FieldSection, FigureTile } from "./figure-tile";
 
 export function DynamicVariablesPanel({
   value,
@@ -33,20 +34,7 @@ export function DynamicVariablesPanel({
 }) {
   function setNum<K extends keyof RiskVariableState>(key: K, n: number) {
     if (!Number.isFinite(n) || value[key] === n) return;
-    const insurance = normalizeInsuranceRecord(value.insurance);
-    onChange({
-      ...value,
-      [key]: n,
-      ...(insurance && (POLICY_FIELDS as readonly string[]).includes(key)
-        ? {
-            insurance: {
-              ...insurance,
-              confirmedFields: insurance.confirmedFields.filter((field) => field !== key),
-              modeledScenarioIds: [],
-            },
-          }
-        : {}),
-    });
+    onChange(withPolicyEdit(value, { ...value, [key]: n }));
   }
   function setBool<K extends keyof RiskVariableState>(key: K, b: boolean) {
     onChange({ ...value, [key]: b });
@@ -57,9 +45,6 @@ export function DynamicVariablesPanel({
   const note = insuranceFigureNote(value, ownBusiness, result?.scenarioId);
   const hint = (text: string) => (note ? `${text} · ${note}` : text);
   const isDefault = (key: PolicyField) => policyFieldIsDefault(value, key);
-  const frequency = d
-    ? `${(assumedAnnualFrequency(d.likelihoodMultiplier) * 100).toFixed(1)}%`
-    : "";
 
   return (
     <div className="space-y-4">
@@ -67,7 +52,7 @@ export function DynamicVariablesPanel({
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <CardTitle>Dynamic risk variables</CardTitle>
+              <CardTitle>Settings and insurance</CardTitle>
               <CardDescription>
                 Change policy terms or operational controls. Insurance finances a loss; it does not
                 automatically change its likelihood (educational model, not a quote).
@@ -76,65 +61,61 @@ export function DynamicVariablesPanel({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => onChange({ ...DEFAULT_RISK_VARIABLES })}
+              onClick={() => onChange(withPolicyEdit(value, { ...DEFAULT_RISK_VARIABLES }))}
             >
               <RefreshCw className="size-3.5" />
-              Reset to app defaults
+              Reset figures to app defaults
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
           {d && (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <Mini
-                label="Likelihood ×"
+              <FigureTile
+                label="How much likelier than the base case (×)"
                 value={d.likelihoodMultiplier.toFixed(2)}
-                hint="vs base opportunity"
+                hint="1.00 is the scenario as written"
               />
-              <Mini
-                label="Gross severity ×"
+              <FigureTile
+                label="Loss size (×)"
                 value={d.grossSeverityMultiplier.toFixed(2)}
-                hint="before insurance"
+                hint="before insurance; 1.00 is the scenario as written"
               />
-              <Mini
-                label="Detection lag ×"
+              <FigureTile
+                label="How much longer until found (×)"
                 value={d.detectionLagMultiplier.toFixed(2)}
-                hint="timeline pressure"
+                hint="1.00 is the scenario as written"
               />
-              <Mini
-                label="Modeled premium / yr"
+              <FigureTile
+                label="Modeled premium a year"
                 value={formatUsd(d.premiumAnnualNet)}
                 hint={hint(
                   basis === "none"
                     ? "reported no policy"
-                    : `modeled from confirmed terms; −${d.discountPctApplied}% credits`,
+                    : `modeled from confirmed terms, after ${d.discountPctApplied}% of credits`,
                 )}
               />
-              <Mini
+              <FigureTile
                 label="Assumed loss if it happens"
                 value={formatUsd(d.grossExpected)}
-                hint="before retention"
+                hint="before insurance"
               />
-              <Mini
+              <FigureTile
                 label="Assumed retained loss"
                 value={formatUsd(d.retainedExpected)}
                 hint={hint(
                   basis === "none"
                     ? "all of it"
-                    : `transferred ${formatUsd(d.transferredExpected)}`,
+                    : `paid by insurance ${formatUsd(d.transferredExpected)}`,
                 )}
               />
-              <Mini
+              <FigureTile
                 label="Annual cost of risk"
                 value={formatUsd(d.expectedAnnualCostOfRisk)}
-                hint={hint(
-                  basis === "none"
-                    ? `retained loss × assumed ${frequency} chance a year`
-                    : `premium + retained loss × assumed ${frequency} chance a year`,
-                )}
+                hint={hint(costOfRiskHint(d.likelihoodMultiplier, basis === "none"))}
               />
-              <Mini
-                label="Event + 1yr premium"
+              <FigureTile
+                label="One loss plus a year of premium"
                 value={formatUsd(d.eventPlusPremiumExpected)}
                 hint={hint("retained loss of one event plus a year of premium")}
               />
@@ -147,8 +128,9 @@ export function DynamicVariablesPanel({
               ? `The sample uses an illustrative policy (${APP_DEFAULT_POLICY}).`
               : note}
           </p>
-          <Section title="Insurance transfer">
+          <FieldSection title="Insurance transfer">
             <CurrencyField
+              id="basePremiumAnnual"
               label="Base annual premium"
               value={value.basePremiumAnnual}
               onChange={(n) => setNum("basePremiumAnnual", n)}
@@ -158,6 +140,7 @@ export function DynamicVariablesPanel({
               appDefault={isDefault("basePremiumAnnual")}
             />
             <CurrencyField
+              id="deductible"
               label="Deductible"
               value={value.deductible}
               onChange={(n) => setNum("deductible", n)}
@@ -167,6 +150,7 @@ export function DynamicVariablesPanel({
               appDefault={isDefault("deductible")}
             />
             <CurrencyField
+              id="policyLimit"
               label="Policy limit"
               value={value.policyLimit}
               onChange={(n) => setNum("policyLimit", n)}
@@ -182,13 +166,13 @@ export function DynamicVariablesPanel({
               max={50}
             />
             <PercentField
-              label="Max stackable discount"
+              label="Most credit the carrier will stack"
               value={value.maxDiscountPct}
               onChange={(n) => setNum("maxDiscountPct", n)}
               max={40}
             />
             <NumberField
-              label="Claims load factor"
+              label="Premium mark-up for past claims (×)"
               value={value.claimsLoadFactor}
               onChange={(n) => setNum("claimsLoadFactor", n)}
               min={0.8}
@@ -196,16 +180,17 @@ export function DynamicVariablesPanel({
               step={0.05}
             />
             <CurrencyField
-              label="Extra underwriting load / yr"
+              id="underwritingLoadAnnual"
+              label="Other annual policy charges"
               value={value.underwritingLoadAnnual}
               onChange={(n) => setNum("underwritingLoadAnnual", n)}
               min={0}
               max={20000}
               step={50}
             />
-          </Section>
+          </FieldSection>
 
-          <Section title="Controls that change likelihood & unlock discounts">
+          <FieldSection title="Controls that change likelihood and earn credits">
             <BoolRow
               label="Security cameras (cash / safe / front)"
               checked={value.hasSecurityCameras}
@@ -213,19 +198,19 @@ export function DynamicVariablesPanel({
               effect="↓ likelihood · faster detection · premium credit"
             />
             <PercentField
-              label="Insurer discount if cameras"
+              label="Insurer discount for cameras"
               value={value.discountCamerasPct}
               onChange={(n) => setNum("discountCamerasPct", n)}
               max={20}
             />
             <BoolRow
-              label="Dual control on payments / deposits"
+              label="Dual release on payments and deposits"
               checked={value.hasDualControl}
               onChange={(b) => setBool("hasDualControl", b)}
               effect="↓↓ fraud likelihood · ↓ scheme size · premium credit"
             />
             <PercentField
-              label="Insurer discount if dual control"
+              label="Insurer discount for dual release"
               value={value.discountDualControlPct}
               onChange={(n) => setNum("discountDualControlPct", n)}
               max={20}
@@ -237,7 +222,7 @@ export function DynamicVariablesPanel({
               effect="↓ detection lag · ↓ cumulative severity · premium credit"
             />
             <PercentField
-              label="Insurer discount if bank rec / CPA"
+              label="Insurer discount for independent bank reconciliation"
               value={value.discountBankRecPct}
               onChange={(n) => setNum("discountBankRecPct", n)}
               max={15}
@@ -249,7 +234,7 @@ export function DynamicVariablesPanel({
               effect="↓ external theft likelihood · premium credit"
             />
             <PercentField
-              label="Insurer discount if alarm"
+              label="Insurer discount for an alarm"
               value={value.discountAlarmPct}
               onChange={(n) => setNum("discountAlarmPct", n)}
               max={10}
@@ -261,12 +246,13 @@ export function DynamicVariablesPanel({
               effect="↓ dishonesty likelihood · premium credit"
             />
             <PercentField
-              label="Insurer discount if bonded staff"
+              label="Insurer discount for bonded staff"
               value={value.discountBondedStaffPct}
               onChange={(n) => setNum("discountBondedStaffPct", n)}
               max={15}
             />
             <CurrencyField
+              id="dailyCashExposure"
               label="Typical daily cash / card deposit"
               value={value.dailyCashExposure}
               onChange={(n) => setNum("dailyCashExposure", n)}
@@ -274,7 +260,7 @@ export function DynamicVariablesPanel({
               max={50000}
               step={100}
             />
-          </Section>
+          </FieldSection>
 
           {d && (
             <>
@@ -353,26 +339,14 @@ export function DynamicVariablesPanel({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">{title}</p>
-      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
-    </div>
-  );
-}
-
-function Mini({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-elevated p-3">
-      <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular tracking-tight">{value}</p>
-      <p className="text-xs text-muted">{hint}</p>
-    </div>
-  );
-}
-
+/**
+ * A dollar figure with a slider for quick changes and a box for the exact
+ * amount. The slider covers the usual range and widens to show a larger
+ * figure; the box accepts anything up to the most the app stores
+ * (VARIABLE_CATALOG), so a real policy above the slider can still be entered.
+ */
 function CurrencyField({
+  id,
   label,
   value,
   onChange,
@@ -381,6 +355,7 @@ function CurrencyField({
   step,
   appDefault = false,
 }: {
+  id: keyof RiskVariableState;
   label: string;
   value: number;
   onChange: (n: number) => void;
@@ -389,6 +364,7 @@ function CurrencyField({
   step: number;
   appDefault?: boolean;
 }) {
+  const limit = VARIABLE_CATALOG.find((v) => v.id === id)?.max ?? max;
   return (
     <label className="block text-sm">
       <span className="flex items-center justify-between gap-2 text-muted">
@@ -403,14 +379,14 @@ function CurrencyField({
         <input
           type="range"
           min={min}
-          max={max}
+          max={Math.max(max, value)}
           step={step}
           value={value}
           aria-label={`Adjust ${label.toLowerCase()}`}
           onChange={(e) => onChange(Number(e.target.value))}
           className="min-w-0 flex-1 accent-[var(--color-primary)]"
         />
-        <ExactAmount label={label} value={value} min={min} max={max} onChange={onChange} />
+        <ExactAmount label={label} value={value} min={min} limit={limit} onChange={onChange} />
       </div>
     </label>
   );
@@ -506,63 +482,5 @@ function BoolRow({
         <span className="mt-0.5 block text-xs text-muted">{effect}</span>
       </span>
     </label>
-  );
-}
-
-/** Preserve an unfinished edit until blur/Enter; never convert an empty field to zero. */
-function ExactAmount({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  const [draft, setDraft] = useState(String(value));
-  const [error, setError] = useState("");
-  useEffect(() => {
-    setDraft(String(value));
-    setError("");
-  }, [value]);
-  function commit() {
-    const number = draft.trim() ? Number(draft) : NaN;
-    if (!Number.isFinite(number) || number < min || number > max) {
-      setError(`Enter an amount from ${min} to ${max}.`);
-      return;
-    }
-    const rounded = Math.round(number * 100) / 100;
-    setError("");
-    setDraft(String(rounded));
-    onChange(rounded);
-  }
-  return (
-    <span className="w-28 shrink-0">
-      <input
-        type="number"
-        inputMode="decimal"
-        aria-label={label}
-        aria-invalid={Boolean(error)}
-        min={min}
-        max={max}
-        step="0.01"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-        className="w-full rounded border border-border bg-bg px-2 py-1 text-right text-xs tabular"
-      />
-      {error && (
-        <span className="mt-1 block text-xs text-danger" role="alert">
-          {error}
-        </span>
-      )}
-    </span>
   );
 }

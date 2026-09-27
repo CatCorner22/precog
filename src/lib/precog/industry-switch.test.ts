@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getBaseTemplate } from "./active-template";
-import { defaultProfile } from "./practice-profile";
-import {
-  describeEnteredWork,
-  enteredWork,
-  hasEnteredWork,
-  listEnteredWork,
-} from "./industry-switch";
+import { getIndustryTemplate } from "./templates";
+import { defaultProfile, normalizeProfile, type PracticeProfile } from "./practice-profile";
+import { withPeople, withStaff } from "./profile-actions";
+import type { Person } from "./types";
+import { describeEnteredWork, enteredWork, hasEnteredWork } from "./industry-switch";
+import { joinWithAnd } from "./text";
 
-const tpl = getBaseTemplate("dental");
+const tpl = getIndustryTemplate("dental");
 
 describe("enteredWork", () => {
   afterEach(() => vi.useRealTimers());
@@ -61,7 +59,7 @@ describe("enteredWork", () => {
     const work = enteredWork(defaultProfile("dental"));
     expect(hasEnteredWork(work)).toBe(false);
     expect(describeEnteredWork(work)).toEqual([]);
-    expect(listEnteredWork([])).toBe("");
+    expect(joinWithAnd([])).toBe("");
   });
 
   it("counts the team, register, leave and map work an industry switch would discard", () => {
@@ -81,9 +79,9 @@ describe("enteredWork", () => {
     ];
     const work = enteredWork(p);
     expect(hasEnteredWork(work)).toBe(true);
-    expect(describeEnteredWork(work)).toEqual(["4 people", "12 register entries", "1 absence"]);
-    expect(listEnteredWork(describeEnteredWork(work))).toBe(
-      "4 people, 12 register entries and 1 absence",
+    expect(describeEnteredWork(work)).toEqual(["4 people", "12 who-holds-it marks", "1 absence"]);
+    expect(joinWithAnd(describeEnteredWork(work))).toBe(
+      "4 people, 12 who-holds-it marks and 1 absence",
     );
   });
 
@@ -126,6 +124,75 @@ describe("enteredWork", () => {
       "1 register item",
       "1 process",
     ]);
-    expect(listEnteredWork(["1 person", "1 process"])).toBe("1 person and 1 process");
+    expect(joinWithAnd(["1 person", "1 process"])).toBe("1 person and 1 process");
+  });
+});
+
+describe("enteredWork for an own business", () => {
+  const team: Person[] = [
+    {
+      id: "a",
+      name: "Ana",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll"],
+    },
+    { id: "b", name: "Ben", role: "Clerk", active: true, entitlements: ["post_payments"] },
+    { id: "c", name: "Cy", role: "Bookkeeper", active: true, entitlements: ["bank_reconcile"] },
+  ];
+
+  it("claims no edited settings when the owner never moved one", () => {
+    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
+    const work = enteredWork(own);
+    expect(work.settings).toBe(false);
+    expect(describeEnteredWork(work)).toEqual(["3 people"]);
+    expect(enteredWork(normalizeProfile(JSON.parse(JSON.stringify(own)))).settings).toBe(false);
+  });
+
+  it("counts a figure the owner set by hand", () => {
+    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
+    const tuned = withStaff(own, {
+      ...own.staff,
+      segregationScore: own.staff.segregationScore - 10,
+    });
+    expect(enteredWork(tuned).settings).toBe(true);
+  });
+
+  it("names the monthly closes, open leaver checks, reconciliation and dates an industry switch drops", () => {
+    const p = {
+      ...defaultProfile("dental"),
+      monthlyReviews: [
+        {
+          key: "bank_rec",
+          period: "2026-08",
+          result: "done",
+          ownerName: "Ana",
+          notes: "",
+          recordedAt: "2026-09-01",
+        },
+      ],
+      leaverAccessChecks: [
+        { id: "l1", name: "Bea", industry: "dental", notedOn: "2026-09-01", source: "marked" },
+        {
+          id: "l2",
+          name: "Cal",
+          industry: "dental",
+          notedOn: "2026-09-01",
+          source: "marked",
+          confirmedOn: "2026-09-02",
+        },
+      ],
+      accessReconciliation: { importedAt: "2026-09-01", source: "qbo", users: [], vendors: [] },
+      engagement: { startedAt: "2026-08-01T00:00:00Z", reportSentAt: "2026-09-01T00:00:00Z" },
+    } as unknown as PracticeProfile;
+    const work = enteredWork(p);
+    expect(hasEnteredWork(work)).toBe(true);
+    expect(describeEnteredWork(work)).toEqual([
+      "1 monthly close result",
+      "1 open leaver check",
+      "an access reconciliation",
+      "the dates you started and sent the report",
+    ]);
   });
 });

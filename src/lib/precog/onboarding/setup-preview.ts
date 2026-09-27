@@ -1,5 +1,5 @@
 import { resolveTemplate } from "../active-template";
-import { caseForRule, durationPhrase } from "../evidence";
+import { caseDurationPhrase, caseForRule, lossPhrase } from "../evidence";
 import type { CaseStudy } from "../evidence/types";
 import type { IndustryId } from "../industry";
 import { defaultProfile } from "../practice-profile";
@@ -15,7 +15,12 @@ import { buildOwnTeam, type OwnTeamRow } from "./own-team";
 export interface SetupPreview {
   /** People with at least one duty ticked. */
   peopleWithDuties: number;
-  /** All conflicts the typed team would produce, worst first. */
+  /**
+   * The conflicts of the same kind as the first finding: those an employee
+   * holds, or, when only the owner holds any, the owner's. The owner's own
+   * pairs are a lesser finding after setup, so they do not swell the count
+   * of employee findings.
+   */
   conflictCount: number;
   first: {
     conflict: DetectedConflict;
@@ -24,11 +29,6 @@ export interface SetupPreview {
     lossPhrase: string | null;
     durationPhrase: string | null;
   } | null;
-}
-
-function formatLoss(study: CaseStudy): string {
-  const amount = `$${Math.round(study.lossUsd).toLocaleString("en-US")}`;
-  return study.lossIsFloor ? `more than ${amount}` : amount;
 }
 
 export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId): SetupPreview {
@@ -50,16 +50,14 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
   const matched = caseForRule(conflict.ruleId, industry);
   return {
     peopleWithDuties,
-    conflictCount: report.conflicts.length,
+    conflictCount: ranked.filter((c) => c.ownerHeld === conflict.ownerHeld).length,
     first: {
       conflict,
       study: matched?.study ?? null,
       citesRule: matched?.citesRule ?? false,
-      lossPhrase: matched ? formatLoss(matched.study) : null,
-      durationPhrase:
-        matched && typeof matched.study.durationMonths === "number"
-          ? durationPhrase(matched.study.durationMonths)
-          : null,
+      // A record with no stated loss has no amount to print.
+      lossPhrase: matched && matched.study.lossUsd > 0 ? lossPhrase(matched.study) : null,
+      durationPhrase: matched ? caseDurationPhrase(matched.study) : null,
     },
   };
 }

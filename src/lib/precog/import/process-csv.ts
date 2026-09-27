@@ -11,22 +11,25 @@
  * Import is a merge by default: rows add or update, processes missing from the
  * file are kept and reported. `mode: "replace"` removes them instead.
  */
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { ControlItem, Person, ProcessNode } from "../types";
 import { normalizeSystems, parseCadence, CADENCE_LABEL } from "../process-record";
-import { csvCell, parseRows } from "./csv";
-import { slug } from "../text";
-
-interface ProcessImportIssue {
-  /** 1-based data row (0 = whole file). */
-  row: number;
-  message: string;
-}
+import {
+  csvCell,
+  DOCUMENTED_WORDS,
+  normalizeHeader,
+  parseRows,
+  readYesNo,
+  rowCapMessage,
+  sniffDelimiter,
+  type ImportIssue,
+} from "./csv";
+import { nameKey, slug, stripInvisibleControls, verb } from "../text";
 
 export interface ProcessImportResult {
   /** The full map after the import is applied. */
   processes: ProcessNode[];
-  issues: ProcessImportIssue[];
+  issues: ImportIssue[];
   added: ProcessNode[];
   updated: { before: ProcessNode; after: ProcessNode }[];
   unchanged: ProcessNode[];
@@ -75,61 +78,15 @@ const HEADER_ALIASES: Record<Column, readonly string[]> = {
   outputs: ["outputs", "output", "produces", "delivers"],
 };
 
-const LIST_SEPARATOR = /[;|]/;
 const MAX_ROWS = 200;
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-/** A CSV cell guarded against formula injection (see `csvCell`). */
-const escapeCsv = csvCell;
-
-function splitList(value: string): string[] {
-  return value
-    .split(LIST_SEPARATOR)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function parseBool(value: string): boolean | undefined {
-  const v = value.trim().toLowerCase();
-  if (!v) return undefined;
-  if (["y", "yes", "true", "1", "documented", "written"].includes(v)) return true;
-  if (["n", "no", "false", "0", "none", "not documented", "undocumented"].includes(v)) return false;
-  return undefined;
-}
-
-/**
- * A record in a form where an empty list, an empty text and a missing field
- * are the same, and key order does not count: a process made in the builder
- * has "inputs: []" where the same row read back from its CSV has none.
- */
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.keys(record)
-        .sort()
-        .map((key) => [key, canonical(record[key])] as const)
-        .filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)),
-    );
-  }
-  return value;
-}
-
-function sameRecord(a: ProcessNode, b: ProcessNode): boolean {
-  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
-}
 
 export function parseProcessCsv(
   text: string,
   tpl: Pick<IndustryTemplate, "processes" | "people" | "controls">,
   opts: { mode?: "merge" | "replace"; maxRows?: number } = {},
 ): ProcessImportResult {
-  const rows = parseRows(text);
-  const issues: ProcessImportIssue[] = [];
+  const rows = parseRows(stripInvisibleControls(text), sniffDelimiter(text));
+  const issues: ImportIssue[] = [];
   const empty = (msg: string): ProcessImportResult => ({
     processes: tpl.processes,
     issues: [{ row: 0, message: msg }],
@@ -142,7 +99,7 @@ export function parseProcessCsv(
   const columns = new Map<Column, number>();
   for (const [key, aliases] of Object.entries(HEADER_ALIASES) as [Column, readonly string[]][]) {
     const index = header.findIndex((cell) =>
-      aliases.some((alias) => normalize(alias) === normalize(cell)),
+      aliases.some((alias) => normalizeHeader(alias) === normalizeHeader(cell)),
     );
     if (index >= 0) columns.set(key, index);
   }
@@ -158,28 +115,32 @@ export function parseProcessCsv(
   const maxRows = Math.max(0, Math.floor(opts.maxRows ?? MAX_ROWS));
   const dataRows = rows.slice(1).filter((r) => r.some((c) => c.trim()));
   if (dataRows.length > maxRows) {
-    issues.push({ row: maxRows + 1, message: `Import truncated to ${maxRows} rows` });
+    issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
   const rowsToImport = dataRows.slice(0, maxRows);
 
   const existingByName = new Map<string, ProcessNode>();
   for (const p of tpl.processes) {
-    const key = normalize(p.name);
+    const key = nameKey(p.name);
     if (!existingByName.has(key)) existingByName.set(key, p);
   }
   const peopleByName = new Map<string, Person>();
   for (const person of tpl.people) {
-    const key = normalize(person.name);
+    const key = nameKey(person.name);
     if (!peopleByName.has(key)) peopleByName.set(key, person);
   }
   const controlsByKey = new Map<string, ControlItem>();
   for (const c of tpl.controls) {
-    controlsByKey.set(normalize(c.id), c);
-    if (!controlsByKey.has(normalize(c.name))) controlsByKey.set(normalize(c.name), c);
+    controlsByKey.set(nameKey(c.id), c);
+    if (!controlsByKey.has(nameKey(c.name))) controlsByKey.set(nameKey(c.name), c);
   }
 
   // First pass: names and ids, so dependencies can point at rows further down.
+  // A row updates the process its name matches and no other: a new row
+  // whose id would repeat an existing process's id gets a suffix instead.
+  const existingIds = new Set(tpl.processes.map((p) => p.id));
   const usedIds = new Set<string>();
+  const rowExisting: (ProcessNode | undefined)[] = [];
   const rowIds: (string | null)[] = rowsToImport.map((cells, index) => {
     const rowNumber = index + 1;
     const name = cell(cells, "process").slice(0, 60);
@@ -187,27 +148,33 @@ export function parseProcessCsv(
       issues.push({ row: rowNumber, message: "Process name is required" });
       return null;
     }
-    const existing = existingByName.get(normalize(name));
-    const baseId = existing && !usedIds.has(existing.id) ? existing.id : `proc-${slug(name)}`;
-    if (existing && usedIds.has(existing.id)) {
+    const match = existingByName.get(nameKey(name));
+    const existing = match && !usedIds.has(match.id) ? match : undefined;
+    if (match && !existing) {
       issues.push({
         row: rowNumber,
         message: `"${name}" appears more than once; later rows were imported as separate processes`,
       });
     }
+    rowExisting[index] = existing;
+    if (existing) {
+      usedIds.add(existing.id);
+      return existing.id;
+    }
+    const baseId = `proc-${slug(name) || "process"}`;
     let id = baseId;
     let suffix = 2;
-    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+    while (usedIds.has(id) || existingIds.has(id)) id = `${baseId}-${suffix++}`;
     usedIds.add(id);
     return id;
   });
   const idByName = new Map<string, string>();
   rowsToImport.forEach((cells, index) => {
     const id = rowIds[index];
-    if (id) idByName.set(normalize(cell(cells, "process")), id);
+    if (id) idByName.set(nameKey(cell(cells, "process")), id);
   });
   const resolveProcess = (token: string): string | undefined => {
-    const key = normalize(token);
+    const key = nameKey(token);
     return (
       idByName.get(key) ?? existingByName.get(key)?.id ?? (usedIds.has(token) ? token : undefined)
     );
@@ -223,7 +190,7 @@ export function parseProcessCsv(
     if (!id) return;
     const rowNumber = index + 1;
     const name = cell(cells, "process").slice(0, 60);
-    const existing = tpl.processes.find((p) => p.id === id);
+    const existing = rowExisting[index];
 
     let stage = existing?.stage;
     const stageValue = cell(cells, "stage");
@@ -240,7 +207,7 @@ export function parseProcessCsv(
     const owners: string[] = [];
     const unknownOwners: string[] = [];
     for (const token of splitList(cell(cells, "owners"))) {
-      const person = peopleByName.get(normalize(token));
+      const person = peopleByName.get(nameKey(token));
       if (person) {
         if (!owners.includes(person.id)) owners.push(person.id);
       } else unknownOwners.push(token);
@@ -248,7 +215,7 @@ export function parseProcessCsv(
     if (unknownOwners.length) {
       issues.push({
         row: rowNumber,
-        message: `Owner(s) not on the team, skipped: ${unknownOwners.join(", ")}. Add them under Team first or spell the name exactly.`,
+        message: `${verb(unknownOwners.length, "This owner is", "These owners are")} not on the team, so the importer skipped ${verb(unknownOwners.length, "the name", "them")}: ${unknownOwners.join(", ")}. Add them under Team first or spell each name as the team lists it.`,
       });
     }
 
@@ -265,14 +232,14 @@ export function parseProcessCsv(
     if (unknownDeps.length) {
       issues.push({
         row: rowNumber,
-        message: `Dependency not found, skipped: ${unknownDeps.join(", ")}. Use the exact process name from another row or the current map.`,
+        message: `The importer cannot find ${verb(unknownDeps.length, "this process", "these processes")}, so it skipped ${verb(unknownDeps.length, "it", "them")}: ${unknownDeps.join(", ")}. Use the exact process name from another row or the current map.`,
       });
     }
 
     const controlIds: string[] = [];
     const unknownControls: string[] = [];
     for (const token of splitList(cell(cells, "controls"))) {
-      const control = controlsByKey.get(normalize(token));
+      const control = controlsByKey.get(nameKey(token));
       if (control) {
         if (!controlIds.includes(control.id)) controlIds.push(control.id);
       } else unknownControls.push(token);
@@ -280,7 +247,7 @@ export function parseProcessCsv(
     if (unknownControls.length) {
       issues.push({
         row: rowNumber,
-        message: `Control(s) not in the library, skipped: ${unknownControls.join(", ")}`,
+        message: `${verb(unknownControls.length, "This control is", "These controls are")} not in the library, so the importer skipped ${verb(unknownControls.length, "it", "them")}: ${unknownControls.join(", ")}`,
       });
     }
 
@@ -292,7 +259,7 @@ export function parseProcessCsv(
       else
         issues.push({
           row: rowNumber,
-          message: `Cadence "${cadenceValue}" not recognised. Use one of: ${Object.keys(CADENCE_LABEL).join(", ")}`,
+          message: `The importer does not know the cadence "${cadenceValue}". Use one of: ${Object.keys(CADENCE_LABEL).join(", ")}`,
         });
     }
 
@@ -305,7 +272,9 @@ export function parseProcessCsv(
       ? cell(cells, "procedure location").slice(0, 200)
       : (existing?.procedureLocation ?? "");
     const documentedValue = cell(cells, "documented");
-    let documented = columns.has("documented") ? parseBool(documentedValue) : existing?.documented;
+    let documented = columns.has("documented")
+      ? readYesNo(documentedValue, DOCUMENTED_WORDS)
+      : existing?.documented;
     if (columns.has("documented") && documentedValue && documented === undefined) {
       issues.push({
         row: rowNumber,
@@ -401,50 +370,101 @@ export function processesToCsv(
         (p.inputs ?? []).join("; "),
         (p.outputs ?? []).join("; "),
       ]
-        .map(escapeCsv)
+        .map(csvCell)
         .join(","),
     ),
   ];
   return rows.join("\r\n") + "\r\n";
 }
 
-/** Header plus two illustrative rows for a blank sheet. */
-export function processTemplateCsv(): string {
-  return (
+/**
+ * Header plus three example rows for a blank sheet. Given the current team
+ * and control library, the examples name a real person and control, so the
+ * unchanged template imports without an issue; without them those cells stay
+ * blank.
+ */
+export function processTemplateCsv(tpl?: Pick<IndustryTemplate, "people" | "controls">): string {
+  const owner = tpl?.people.find((p) => p.active)?.name ?? "";
+  const control = tpl?.controls[0]?.name ?? "";
+  const rows = [
     [
-      PROCESS_CSV_HEADER.join(","),
-      [
-        "Daily deposit",
-        "2",
-        "Count the drawer and take cash and checks to the bank.",
-        "Jordan Lee",
-        "Collect payments",
-        "Independent deposit reconciliation",
-        "daily",
-        "Bank portal; Practice management system",
-        "yes",
-        "Shared drive > Front desk > Deposit checklist.pdf",
-        "Day-end report",
-        "Deposit slip",
-      ]
-        .map(escapeCsv)
-        .join(","),
-      [
-        "Vendor setup",
-        "3",
-        "Add a new supplier and their bank details.",
-        "",
-        "",
-        "",
-        "ad-hoc",
-        "Accounting software",
-        "no",
-        "",
-        "W-9",
-        "Approved vendor",
-      ]
-        .map(escapeCsv)
-        .join(","),
-    ].join("\r\n") + "\r\n"
+      "Collect payments",
+      "1",
+      "Take card, cash and check payments at the front desk.",
+      owner,
+      "",
+      "",
+      "daily",
+      "Practice management system",
+      "no",
+      "",
+      "",
+      "Day-end report",
+    ],
+    [
+      "Daily deposit",
+      "2",
+      "Count the drawer and take cash and checks to the bank.",
+      owner,
+      "Collect payments",
+      control,
+      "daily",
+      "Bank portal; Practice management system",
+      "yes",
+      "Shared drive > Front desk > Deposit checklist.pdf",
+      "Day-end report",
+      "Deposit slip",
+    ],
+    [
+      "Vendor setup",
+      "3",
+      "Add a new supplier and their bank details.",
+      "",
+      "",
+      "",
+      "ad-hoc",
+      "Accounting software",
+      "no",
+      "",
+      "W-9",
+      "Approved vendor",
+    ],
+  ];
+  return (
+    [PROCESS_CSV_HEADER.join(","), ...rows.map((cells) => cells.map(csvCell).join(","))].join(
+      "\r\n",
+    ) + "\r\n"
   );
+}
+
+const LIST_SEPARATOR = /[;|]/;
+
+function splitList(value: string): string[] {
+  return value
+    .split(LIST_SEPARATOR)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A record in a form where an empty list, an empty text and a missing field
+ * are the same, and key order does not count: a process made in the builder
+ * has "inputs: []" where the same row read back from its CSV has none.
+ */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, canonical(record[key])] as const)
+        .filter(([, v]) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)),
+    );
+  }
+  return value;
+}
+
+function sameRecord(a: ProcessNode, b: ProcessNode): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }

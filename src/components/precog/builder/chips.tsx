@@ -1,7 +1,16 @@
-import { cn } from "@/lib/utils";
 import { Plus, X } from "lucide-react";
-import { labelCls } from "@/components/precog/builder/form-shared";
+import { labelCls } from "@/components/ui/field-classes";
+import { cn } from "@/lib/utils";
 
+/** A chip the owner can switch on or off; `title` carries the full wording when the chip is shortened. */
+export interface ChipOption {
+  id: string;
+  label: string;
+  title?: string;
+  tone?: "danger";
+}
+
+/** A labelled row of on/off chips; each chip reports its state to assistive technology. */
 export function ChipPicker({
   label,
   options,
@@ -9,8 +18,8 @@ export function ChipPicker({
   onToggle,
 }: {
   label: string;
-  options: { id: string; label: string; tone?: "danger" }[];
-  selected: string[];
+  options: ChipOption[];
+  selected: readonly string[];
   onToggle: (id: string) => void;
 }) {
   return (
@@ -24,6 +33,8 @@ export function ChipPicker({
             <button
               key={o.id}
               type="button"
+              aria-pressed={on}
+              title={o.title}
               onClick={() => onToggle(o.id)}
               className={cn(
                 "rounded-md border px-2 py-0.5 text-xs transition-colors",

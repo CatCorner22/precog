@@ -1,25 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { dateAfter, localDateKey } from "@/lib/precog/decisions/follow-through";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
-import { useTemplate } from "@/lib/precog/use-template";
 import {
   activeExceptionSummary,
   dualReleaseCoverage,
   evaluateRelease,
   listEligibleApprovers,
   makeExceptionId,
-  type ExceptionAction,
   type ReleaseChannel,
   type ReleaseEvaluation,
-  type ThresholdException,
 } from "@/lib/precog/controls/dual-release";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { personLabel } from "@/lib/precog/person-label";
+import { dateAfter, localDateKey } from "@/lib/precog/dates";
+import { useToday } from "@/lib/use-today";
+import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import {
+  EMPTY_EXCEPTION_FORM,
+  exceptionDecision,
+  exceptionFromForm,
+  policyDecision,
+  withMasterSwitch,
+  type ExceptionForm,
+} from "./dual-release-panel-actions";
 
 export function useDualReleasePanel() {
   const tpl = useTemplate();
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
-  const { profile, setDualRelease, setStaff, addDecision } = usePractice();
+  const { profile, setDualRelease, addDecision } = usePractice();
   const policy = profile.dualRelease;
   const seed = getIndustryCopy(profile.industry).dualReleaseSeed;
   const payeeHint = policy.exceptions.find((e) => e.enabled && e.payeeContains)?.payeeContains;
@@ -28,11 +35,15 @@ export function useDualReleasePanel() {
   const [amount, setAmount] = useState(2500);
   const [initiatorId, setInitiatorId] = useState(people[1]?.id ?? people[0]?.id ?? "");
   const [secondId, setSecondId] = useState<string>(people[0]?.id ?? "");
+  // The simulator's payee starts from the first exception's payee and resets
+  // only when the line of business changes: adding an exception never
+  // overwrites what the owner typed.
   const [payee, setPayee] = useState(payeeHint ?? "");
-
-  useEffect(() => {
+  const [payeeIndustry, setPayeeIndustry] = useState(profile.industry);
+  if (payeeIndustry !== profile.industry) {
+    setPayeeIndustry(profile.industry);
     setPayee(payeeHint ?? "");
-  }, [profile.industry, payeeHint]);
+  }
 
   useEffect(() => {
     if (!people.some((p) => p.id === initiatorId)) {
@@ -45,20 +56,11 @@ export function useDualReleasePanel() {
 
   const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
   const [showExForm, setShowExForm] = useState(false);
-  const [exLabel, setExLabel] = useState("");
-  const [exAction, setExAction] = useState<ExceptionAction>("raise_threshold");
-  const [exThreshold, setExThreshold] = useState(3500);
-  const [exChannels, setExChannels] = useState<ReleaseChannel[]>(["ach"]);
-  const [exPayee, setExPayee] = useState("");
-  const [exPersonId, setExPersonId] = useState("");
-  const [exRole, setExRole] = useState("");
-  const [exFrom, setExFrom] = useState("");
-  const [exTo, setExTo] = useState("");
-  const [exReason, setExReason] = useState("");
-  const [exResidual, setExResidual] = useState("");
+  const [exForm, setExForm] = useState<ExceptionForm>(EMPTY_EXCEPTION_FORM);
 
+  const today = localDateKey(useToday());
   const coverage = useMemo(() => dualReleaseCoverage(policy), [policy]);
-  const exSummary = useMemo(() => activeExceptionSummary(policy), [policy]);
+  const exSummary = useMemo(() => activeExceptionSummary(policy, today), [policy, today]);
   const activeRule = policy.rules.find((r) => r.channel === channel);
   const secondsLine = useMemo(() => {
     const seconds = listEligibleApprovers(tpl, policy, channel).filter((p) => p.canSecond);
@@ -69,8 +71,7 @@ export function useDualReleasePanel() {
   const exceptions = policy.exceptions ?? [];
 
   function toggleMaster(enabled: boolean) {
-    setDualRelease({ ...policy, enabled });
-    setStaff({ ...profile.staff, dualControlPayments: enabled });
+    setDualRelease(withMasterSwitch(policy, enabled));
   }
 
   function toggleChannel(ch: ReleaseChannel, enabled: boolean) {
@@ -98,13 +99,9 @@ export function useDualReleasePanel() {
         secondPersonId: secondId || undefined,
         payee,
         memo: "Simulator release",
+        asOfDate: today,
       }),
     );
-  }
-
-  function upsertException(ex: ThresholdException) {
-    const list = exceptions.filter((e) => e.id !== ex.id);
-    setDualRelease({ ...policy, exceptions: [ex, ...list] });
   }
 
   function removeException(id: string) {
@@ -121,58 +118,34 @@ export function useDualReleasePanel() {
     });
   }
 
-  function addException() {
-    if (!exLabel.trim() || !exReason.trim()) return;
-    const ex: ThresholdException = {
-      id: makeExceptionId(),
-      label: exLabel.trim().slice(0, 80),
-      channels: exChannels,
-      action: exAction,
-      thresholdUsd:
-        exAction === "raise_threshold" || exAction === "lower_threshold"
-          ? Math.max(0, Math.round(exThreshold))
-          : undefined,
-      payeeContains: exPayee.trim() || undefined,
-      personId: exPersonId || undefined,
-      role: exRole || undefined,
-      effectiveFrom: exFrom || undefined,
-      effectiveTo: exTo || undefined,
-      enabled: true,
-      reason: exReason.trim().slice(0, 300),
-      residualNote: exResidual.trim().slice(0, 300) || undefined,
-      approvedByPersonId: "p1",
-      createdAt: localDateKey(new Date()),
-    };
-    upsertException(ex);
-    addDecision({
-      subject: `Threshold exception: ${ex.label}`,
-      kind: ex.action === "waive_dual" ? "accept_residual" : "remediate",
-      note: `${ex.action} · ${ex.reason}${ex.residualNote ? ` · Residual: ${ex.residualNote}` : ""}`,
-      reviewBy: ex.effectiveTo || undefined,
-      linkedTab: "sod",
-    });
-    setShowExForm(false);
-    setExLabel("");
-    setExReason("");
-    setExResidual("");
-    setExPayee("");
-  }
-
-  function logAsRemediation() {
-    addDecision({
-      subject: "Enable dual-release controls",
-      kind: "remediate",
-      note: `Dual release ${policy.enabled ? "ON" : "OFF"}; ${exSummary.total} active exception(s); channels: ${coverage
-        .filter((c) => c.covered)
-        .map((c) => c.label)
-        .join(", ")}`,
-      reviewBy: dateAfter(new Date(), 90),
-      linkedTab: "sod",
-    });
+  function updateExForm(patch: Partial<ExceptionForm>) {
+    setExForm((current) => ({ ...current, ...patch }));
   }
 
   function toggleExChannel(ch: ReleaseChannel) {
-    setExChannels((prev) => (prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]));
+    setExForm((current) => ({
+      ...current,
+      channels: current.channels.includes(ch)
+        ? current.channels.filter((c) => c !== ch)
+        : [...current.channels, ch],
+    }));
+  }
+
+  function addException() {
+    const ex = exceptionFromForm(exForm, {
+      id: makeExceptionId(),
+      createdAt: today,
+      approvedByPersonId: soleOwnerId(people),
+    });
+    if (!ex) return;
+    setDualRelease({ ...policy, exceptions: [ex, ...exceptions.filter((e) => e.id !== ex.id)] });
+    addDecision(exceptionDecision(ex));
+    setShowExForm(false);
+    setExForm(EMPTY_EXCEPTION_FORM);
+  }
+
+  function logAsRemediation() {
+    addDecision(policyDecision(policy, coverage, exSummary.total, dateAfter(new Date(), 90)));
   }
 
   function setPolicyOption(patch: Partial<typeof policy>) {
@@ -198,27 +171,8 @@ export function useDualReleasePanel() {
     lastEval,
     showExForm,
     setShowExForm,
-    exLabel,
-    setExLabel,
-    exAction,
-    setExAction,
-    exThreshold,
-    setExThreshold,
-    exChannels,
-    exPayee,
-    setExPayee,
-    exPersonId,
-    setExPersonId,
-    exRole,
-    setExRole,
-    exFrom,
-    setExFrom,
-    exTo,
-    setExTo,
-    exReason,
-    setExReason,
-    exResidual,
-    setExResidual,
+    exForm,
+    updateExForm,
     coverage,
     exSummary,
     activeRule,

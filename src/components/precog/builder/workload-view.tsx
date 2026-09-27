@@ -1,12 +1,12 @@
-import { casesForSodRules } from "@/lib/precog/evidence";
-
 import { useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { IndexBasis } from "@/components/precog/index-basis";
+import { IndexColumnCaption, RankedRow } from "@/components/precog/builder/ranked-row";
+import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/workload";
+import { casesForSodRules } from "@/lib/precog/evidence";
+import { count } from "@/lib/precog/text";
 
-import { LOAD_BANDS, type PersonWorkload } from "@/lib/precog/builder/what-if";
-import { ChevronRight } from "lucide-react";
-
+/** Workload: who carries the processes, duties and conflicts, ranked by the load index. */
 export function WorkloadView({
   rows,
   processCount,
@@ -29,111 +29,95 @@ export function WorkloadView({
         {idle ? `${idle} with no processes · ` : ""}
         {processCount} processes across {rows.length} people.
       </p>
+      <IndexColumnCaption label="Load index" basis={LOAD_BASIS} />
       <ul className="space-y-1">
         {rows.map((r) => {
           const expanded = open === r.person.id;
-          const loadColor =
-            r.load >= LOAD_BANDS.overburdened
-              ? "var(--color-danger)"
-              : r.load >= LOAD_BANDS.elevated
-                ? "var(--color-warn)"
-                : "var(--color-ok)";
           return (
-            <li key={r.person.id} className="rounded-md border border-border bg-elevated">
-              <button
-                type="button"
-                onClick={() => setOpen(expanded ? null : r.person.id)}
-                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs"
-              >
-                <ChevronRight
-                  className={cn(
-                    "size-3 shrink-0 text-subtle transition-transform",
-                    expanded && "rotate-90",
-                  )}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">
-                    <span className="font-medium text-fg">{r.person.name}</span>
-                    <span className="text-subtle"> · {r.person.role}</span>
-                  </span>
-                  <span className="block text-xs text-subtle">
-                    {r.ownedProcesses.length} proc · {r.entitlementCount} duties
-                    {r.criticalConflicts ? ` · ${r.criticalConflicts} critical SoD` : ""}
-                  </span>
-                </span>
-                <span className="flex w-20 shrink-0 items-center gap-1.5">
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
-                    <span
-                      className="block h-full rounded-full"
-                      style={{ width: `${r.load}%`, background: loadColor }}
-                    />
-                  </span>
-                  <span className="w-6 text-right tabular text-subtle">{r.load}</span>
-                </span>
-              </button>
-              {expanded && (
-                <div className="space-y-1.5 border-t border-border px-2 py-1.5 text-xs">
-                  {r.flags.length > 0 && (
-                    <ul className="flex flex-wrap gap-1">
-                      {r.flags.map((f) => (
-                        <li
-                          key={f}
-                          className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-xs text-fg"
-                        >
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {r.ownedProcesses.length > 0 ? (
-                    <ul className="space-y-0.5">
-                      {r.ownedProcesses.map((p) => (
-                        <li key={p.id} className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onSelectProcess(p.id)}
-                            className="min-w-0 flex-1 truncate text-left text-fg hover:underline"
-                          >
-                            {p.name}
-                          </button>
-                          {r.load >= LOAD_BANDS.overburdened && (
-                            <button
-                              type="button"
-                              onClick={() => onReassign(r.person.id, p.id)}
-                              className="shrink-0 text-xs text-primary hover:underline"
-                              title="Move to the next best owner"
-                            >
-                              Reassign
-                            </button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-subtle">Owns no processes.</p>
-                  )}
-                  {r.conflicts.length > 0 && (
-                    <ul className="space-y-0.5 text-subtle">
-                      {r.conflicts.slice(0, 2).map((c) => {
-                        // The count is the library's, not a rate: how many
-                        // prosecuted cases involve this same pairing of duties.
-                        const n = casesForSodRules([c.ruleId]).length;
-                        return (
-                          <li key={c.ruleId}>
-                            Can both {c.labelA.toLowerCase()} and {c.labelB.toLowerCase()}
-                            {n > 0 ? ` — ${n} prosecuted ${n === 1 ? "case" : "cases"}` : ""}
-                          </li>
-                        );
-                      })}
-                      {r.conflicts.length > 2 && <li>+{r.conflicts.length - 2} more</li>}
-                    </ul>
-                  )}
-                </div>
+            <RankedRow
+              key={r.person.id}
+              name={r.person.name}
+              role={r.person.role}
+              summary={`${count(r.ownedProcesses.length, "process", "processes")} · ${count(r.entitlementCount, "duty", "duties")}${
+                r.criticalConflicts
+                  ? ` · ${count(r.criticalConflicts, "critical duty conflict")}`
+                  : ""
+              }`}
+              value={r.load}
+              valueLabel="Load index"
+              color={loadColor(r.load)}
+              expanded={expanded}
+              onToggle={() => setOpen(expanded ? null : r.person.id)}
+            >
+              {r.flags.length > 0 && (
+                <ul className="flex flex-wrap gap-1">
+                  {r.flags.map((f) => (
+                    <li
+                      key={f}
+                      className="rounded border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-xs text-fg"
+                    >
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               )}
-            </li>
+              {r.ownedProcesses.length > 0 ? (
+                <ul className="space-y-0.5">
+                  {r.ownedProcesses.map((p) => (
+                    <li key={p.id} className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectProcess(p.id)}
+                        className="min-w-0 flex-1 truncate text-left text-fg hover:underline"
+                      >
+                        {p.name}
+                      </button>
+                      {r.load >= LOAD_BANDS.overburdened && (
+                        <button
+                          type="button"
+                          onClick={() => onReassign(r.person.id, p.id)}
+                          className="shrink-0 text-xs text-primary hover:underline"
+                          title="Move to the next best owner"
+                        >
+                          Reassign
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-subtle">Owns no processes.</p>
+              )}
+              {r.conflicts.length > 0 && (
+                <ul className="space-y-0.5 text-subtle">
+                  {r.conflicts.slice(0, 2).map((c) => {
+                    // The count is the library's, not a rate: how many
+                    // prosecuted cases involve this same pairing of duties.
+                    const n = casesForSodRules([c.ruleId]).length;
+                    return (
+                      <li key={c.ruleId}>
+                        Can both {c.labelA.toLowerCase()} and {c.labelB.toLowerCase()}
+                        {n > 0 ? ` — ${count(n, "prosecuted case")}` : ""}
+                      </li>
+                    );
+                  })}
+                  {r.conflicts.length > 2 && <li>+{r.conflicts.length - 2} more</li>}
+                </ul>
+              )}
+            </RankedRow>
           );
         })}
       </ul>
+      <IndexBasis />
     </div>
   );
 }
+
+function loadColor(load: number): string {
+  if (load >= LOAD_BANDS.overburdened) return "var(--color-danger)";
+  if (load >= LOAD_BANDS.elevated) return "var(--color-warn)";
+  return "var(--color-ok)";
+}
+
+const LOAD_BASIS =
+  "Load index, 0–100: this app's weighting of each person's share of process ownership, their number of duties, critical duty conflicts, knowledge only they hold, and hot processes they own. It orders attention; it is not a measurement.";

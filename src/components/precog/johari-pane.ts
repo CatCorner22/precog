@@ -1,7 +1,10 @@
-import type { IndustryId } from "@/lib/precog/industry";
+import {
+  johariQuadrantFromEpistemic,
+  type JohariQuadrant,
+} from "@/lib/precog/llm/johari-applications";
 
 /** Items a Johari pane lists before the owner asks for all of them. */
-export const PANE_PREVIEW = 8;
+const PANE_PREVIEW = 8;
 
 /**
  * The items a pane lists and the count its heading states. The heading
@@ -21,12 +24,14 @@ export function paneItems<T>(
 }
 
 /**
- * Heading for the playbook's worked examples, which are written for a
- * dental office: said plainly, and for other businesses with a note that the
- * same patterns occur in any business.
+ * The four Johari panes from this business's own items, by the same mapping
+ * the Johari view uses, so no pane lists a fixed sentence as a finding.
  */
-export function examplesHeading(industry: IndustryId): string {
-  return industry === "dental"
-    ? "Examples from a dental or medical office"
-    : "Examples from a dental office · the same patterns occur in any business";
+export function johariPanes(
+  items: readonly { title: string; classification: string }[],
+): Record<JohariQuadrant, string[]> {
+  const panes: Record<JohariQuadrant, string[]> = { open: [], blind: [], hidden: [], unknown: [] };
+  for (const item of items)
+    panes[johariQuadrantFromEpistemic(item.classification)].push(item.title);
+  return panes;
 }

@@ -1,21 +1,21 @@
+import { getIndustryTemplate } from "../templates";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { normalizePlannedAbsences, type PlannedAbsence } from "../practice-profile";
-import type { IndustryTemplate } from "../templates/types";
+import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeRelation, Person } from "../types";
 import {
   absencesNeedingAttention,
   describeWindow,
   endAbsence,
   extendAbsence,
-  formatDateRange,
   handoffDeadline,
   leadLabel,
   outPhrase,
   plannedAbsenceReport,
-  procedurePointer,
   unplannedAbsenceToday,
 } from "./planned-absence";
+import { procedurePointer } from "./documentation";
 
 const people: Person[] = [
   { id: "a", name: "Ana Ortiz", role: "Owner", active: true },
@@ -24,20 +24,8 @@ const people: Person[] = [
   { id: "d", name: "Dee Old", role: "Former staff", active: false },
 ];
 
-function item(id: string, extra: Partial<KnowledgeItem> = {}): KnowledgeItem {
-  return {
-    id,
-    name: id,
-    criticality: "critical",
-    category: "process",
-    description: "",
-    linkedProcessIds: [],
-    ...extra,
-  };
-}
-
 function tpl(knowledge: KnowledgeItem[], relations: KnowledgeRelation[]): IndustryTemplate {
-  return { ...getBaseTemplate("general"), people, knowledge, relations, processes: [] };
+  return continuityTemplate({ people, knowledge, relations });
 }
 
 function absence(id: string, personId: string, from: string, to: string): PlannedAbsence {
@@ -46,7 +34,7 @@ function absence(id: string, personId: string, from: string, to: string): Planne
 
 // Payroll: only Ben can run it, Cy is learning. Billing: Ben and Cy both can.
 const register = tpl(
-  [item("payroll"), item("billing")],
+  [knowledgeItem("payroll"), knowledgeItem("billing")],
   [
     { personId: "b", knowledgeId: "payroll", level: "expert" },
     { personId: "c", knowledgeId: "payroll", level: "basic" },
@@ -127,13 +115,13 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-08",
       to: "2025-11-10",
       people: [people[1], people[2]],
-      extraStops: [item("billing")],
+      extraStops: [knowledgeItem("billing")],
     });
     expect(cy?.peak).toEqual({
       from: "2025-11-08",
       to: "2025-11-10",
       people: [people[2], people[1]],
-      extraStops: [item("billing"), item("payroll")],
+      extraStops: [knowledgeItem("billing"), knowledgeItem("payroll")],
     });
   });
 
@@ -157,7 +145,7 @@ describe("plannedAbsenceReport", () => {
   });
 
   it("never treats coworkers away on different days as away together", () => {
-    // Ana is out all of 1–10 Nov; Ben leaves before Cy arrives, so billing (Ben or Cy) never stops.
+    // Ana is out all of Nov 1–10; Ben leaves before Cy arrives, so billing (Ben or Cy) never stops.
     const report = plannedAbsenceReport(
       register,
       [
@@ -176,7 +164,7 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-01",
       to: "2025-11-03",
       people: [people[0], people[1]],
-      extraStops: [item("payroll")],
+      extraStops: [knowledgeItem("payroll")],
     });
     expect(ana.impact.remaining.map((p) => p.id)).toEqual(["c"]);
   });
@@ -198,7 +186,7 @@ describe("plannedAbsenceReport", () => {
       from: "2025-11-06",
       to: "2025-11-07",
       people: [people[0], people[1]],
-      extraStops: [item("payroll")],
+      extraStops: [knowledgeItem("payroll")],
     });
     expect(ana.impact.stops.map((s) => s.item.id)).toEqual(["payroll"]);
   });
@@ -268,7 +256,7 @@ describe("describeWindow", () => {
       "general",
       today,
     ).windows;
-    expect(describeWindow(w)).toBe("Ben is out 13–20 Nov, in 12 days: payroll — hand off to Cy.");
+    expect(describeWindow(w)).toBe("Ben is out Nov 13–20, in 12 days: payroll — hand off to Cy.");
   });
 
   it("hands shared work to whoever is left when overlapping leave takes every holder out", () => {
@@ -283,7 +271,7 @@ describe("describeWindow", () => {
     );
     const ben = report.windows.find((w) => w.absence.id === "ben")!;
     expect(describeWindow(ben)).toBe(
-      "Ben is out 3–10 Nov, in 2 days (Cy also out 8–10 Nov): billing — hand off to Ana; payroll — hand off to Ana.",
+      "Ben is out Nov 3–10, in 2 days (Cy also out Nov 8–10): billing — hand off to Ana; payroll — hand off to Ana.",
     );
   });
 
@@ -311,13 +299,13 @@ describe("describeWindow", () => {
     );
     const ana = report.windows.find((w) => w.absence.id === "ana")!;
     expect(describeWindow(ana)).toBe(
-      "Ana is out 1–10 Nov, out now (Cy also out 1–2 Nov; Ben also out 6–7 Nov; worst 6–7 Nov, with Ben also out): payroll — Cy covers (nothing written down).",
+      "Ana is out Nov 1–10, out now (Cy also out Nov 1–2; Ben also out Nov 6–7; worst Nov 6–7, with Ben also out): payroll — Cy covers (nothing written down).",
     );
   });
 
   it("says an unplanned absence is unexpected and points the stand-in at the procedure", () => {
     const documented = tpl(
-      [item("payroll", { documented: true, procedureLocation: "Drive/SOPs/payroll" })],
+      [knowledgeItem("payroll", { documented: true, procedureLocation: "Drive/SOPs/payroll" })],
       [
         { personId: "b", knowledgeId: "payroll", level: "expert" },
         { personId: "c", knowledgeId: "payroll", level: "basic" },
@@ -332,7 +320,7 @@ describe("describeWindow", () => {
     expect(w.status).toBe("current");
     expect(w.lengthDays).toBe(1);
     expect(describeWindow(w)).toBe(
-      "Ben is out unexpectedly 1 Nov, out now: payroll — Cy covers (procedure at Drive/SOPs/payroll).",
+      "Ben is out unexpectedly Nov 1, out now: payroll — Cy covers (procedure at Drive/SOPs/payroll).",
     );
   });
 
@@ -343,18 +331,11 @@ describe("describeWindow", () => {
       "general",
       today,
     ).windows;
-    expect(describeWindow(w)).toBe("Ana is out 2 Nov, tomorrow: nothing stops.");
+    expect(describeWindow(w)).toBe("Ana is out Nov 2, tomorrow: nothing stops.");
   });
 });
 
 describe("date helpers", () => {
-  it("formats ranges within a month, across months and across years", () => {
-    expect(formatDateRange("2025-11-03", "2025-11-10")).toBe("3–10 Nov");
-    expect(formatDateRange("2025-10-28", "2025-11-03")).toBe("28 Oct – 3 Nov");
-    expect(formatDateRange("2025-12-30", "2026-01-02")).toBe("30 Dec 2025 – 2 Jan 2026");
-    expect(formatDateRange("2025-11-03", "2025-11-03")).toBe("3 Nov");
-  });
-
   it("labels lead time", () => {
     expect(leadLabel(0)).toBe("out now");
     expect(leadLabel(1)).toBe("tomorrow");
@@ -393,18 +374,15 @@ describe("date helpers", () => {
   });
 
   it("tells the stand-in where the procedure lives", () => {
-    const stop = (extra: Partial<KnowledgeItem>) => ({
-      item: item("payroll", extra),
-      standIn: null,
-      note: "",
-    });
-    expect(procedurePointer(stop({}))).toBe("nothing written down");
-    expect(procedurePointer(stop({ documented: true }))).toBe(
+    expect(procedurePointer(knowledgeItem("payroll"))).toBe("nothing written down");
+    expect(procedurePointer(knowledgeItem("payroll", { documented: true }))).toBe(
       "written down, location not recorded",
     );
-    expect(procedurePointer(stop({ documented: true, procedureLocation: " Drive/SOPs " }))).toBe(
-      "procedure at Drive/SOPs",
-    );
+    expect(
+      procedurePointer(
+        knowledgeItem("payroll", { documented: true, procedureLocation: " Drive/SOPs " }),
+      ),
+    ).toBe("procedure at Drive/SOPs");
   });
 
   it("sets the hand-off deadline to the day before leave starts", () => {
@@ -488,9 +466,9 @@ describe("normalizePlannedAbsences", () => {
   });
 });
 
-describe("leave booked over a starter register nobody has marked", () => {
+describe("leave booked over a sample register nobody has marked", () => {
   const starter: IndustryTemplate = {
-    ...getBaseTemplate("general"),
+    ...getIndustryTemplate("general"),
     people,
     relations: [],
     processes: [],
@@ -507,13 +485,13 @@ describe("leave booked over a starter register nobody has marked", () => {
     expect(w.impact.stops).toEqual([]);
     expect(w.impact.alreadyStopped).toEqual([]);
     expect(describeWindow(w)).toBe(
-      "Ana is out 2 Nov, tomorrow: nobody is marked on the register yet, so the app cannot tell what stops.",
+      "Ana is out Nov 2, tomorrow: nobody is marked on the register yet, so the app cannot tell what stops.",
     );
   });
 
   it("does not call a day quiet while register items wait on nobody", () => {
     const gaps = tpl(
-      [item("payroll"), item("deposit")],
+      [knowledgeItem("payroll"), knowledgeItem("deposit")],
       [{ personId: "b", knowledgeId: "payroll", level: "expert" }],
     );
     const [w] = plannedAbsenceReport(
@@ -523,7 +501,7 @@ describe("leave booked over a starter register nobody has marked", () => {
       "2025-11-01",
     ).windows;
     expect(describeWindow(w)).toBe(
-      "Ana is out 2 Nov, tomorrow: nothing more stops, but nobody can run deposit alone even with Ana in.",
+      "Ana is out Nov 2, tomorrow: nothing more stops, but nobody can run deposit alone even with Ana in.",
     );
   });
 });

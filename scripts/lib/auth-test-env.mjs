@@ -2,7 +2,9 @@
 export function authTestEnvironment() {
   if (process.env.PRECOG_AUTH_TEST !== "1")
     throw new Error("Set PRECOG_AUTH_TEST=1 for the isolated test fixture");
-  const databaseUrl = process.env.DATABASE_URL ?? "";
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl)
+    throw new Error("Set DATABASE_URL to the disposable local precog_safety_e2e database");
   const db = new URL(databaseUrl);
   if (
     !["localhost", "127.0.0.1", "postgres"].includes(db.hostname) ||

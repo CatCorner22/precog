@@ -15,5 +15,5 @@ const INDUSTRY_RAG_QUERIES: Record<IndustryId, string> = {
 };
 
 export function defaultRagQuery(industry: IndustryId): string {
-  return INDUSTRY_RAG_QUERIES[industry] ?? INDUSTRY_RAG_QUERIES.general;
+  return INDUSTRY_RAG_QUERIES[industry];
 }

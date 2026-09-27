@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "../active-template";
+import { getIndustryTemplate } from "../templates";
 import { parsePeopleCsv } from "../import/people-csv";
 import { normalizeProfile, defaultProfile, type LeaverAccessCheck } from "../practice-profile";
 import type { Person } from "../types";
@@ -36,7 +36,7 @@ describe("a roster that leaves someone out as terminated", () => {
   ].join("\n");
 
   it("opens one pay-and-logins check for the person who left", () => {
-    const { people } = parsePeopleCsv(roster, getBaseTemplate("retail"));
+    const { people } = parsePeopleCsv(roster, getIndustryTemplate("retail"));
     const left = people.filter((p) => !p.active).map((p) => ({ name: p.name, role: p.role }));
     const checks = noteDepartures([], left, "roster", "retail", TODAY);
     expect(checks).toHaveLength(1);
@@ -76,6 +76,40 @@ describe("the owner marks a keyholder as left", () => {
     expect(openAccessChecks(checks, "retail", team)).toHaveLength(0);
   });
 
+  it("opens a second check when a rehired person leaves again", () => {
+    const after = team.map((p) => (p.id === "p-jordan" ? { ...p, active: false } : p));
+    const first = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
+    const { checks } = confirmAccessRemoved(first, [first[0].id], TODAY);
+    // Back at work in the spring, then marked as left again in the autumn.
+    const again = noteDepartures(
+      checks,
+      departuresBetween(team, after),
+      "marked",
+      "retail",
+      "2027-03-01",
+    );
+    expect(again).toHaveLength(2);
+    expect(openAccessChecks(again, "retail", after)).toMatchObject([
+      { personId: "p-jordan", notedOn: "2027-03-01", source: "marked" },
+    ]);
+  });
+
+  it("dates an unconfirmed check to the second departure after a rehire", () => {
+    const after = team.map((p) => (p.id === "p-jordan" ? { ...p, active: false } : p));
+    const first = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
+    const prompted = markPrompted(first, [first[0].id]);
+    const again = noteDepartures(
+      prompted,
+      departuresBetween(team, after),
+      "marked",
+      "retail",
+      "2027-03-01",
+    );
+    expect(again).toHaveLength(1);
+    expect(again[0]).toMatchObject({ notedOn: "2027-03-01", source: "marked" });
+    expect(unpromptedAccessChecks(again, "retail", after)).toHaveLength(1);
+  });
+
   it("marking left from the register (past last day) opens the check too", () => {
     const withNotice = team.map((p) => (p.id === "p-pat" ? { ...p, lastDay: "2026-09-20" } : p));
     const after = markLeft(withNotice, "p-pat", TODAY);
@@ -89,7 +123,7 @@ describe("the owner marks a keyholder as left", () => {
   });
 
   it("the sample team's people never open a check", () => {
-    const sample = getBaseTemplate("retail").people;
+    const sample = getIndustryTemplate("retail").people;
     const after = sample.map((p, i) => (i === 1 ? { ...p, active: false } : p));
     expect(departuresBetween(sample, after, sample)).toEqual([]);
   });
@@ -135,7 +169,7 @@ describe("the owner answers the prompt", () => {
     });
     expect(entry.subject).toContain("Jordan Lee");
     expect(entry.note).toContain(
-      `On ${TODAY} you confirmed that Jordan Lee (Keyholder) is off payroll`,
+      "On Sep 24, 2026 you confirmed that Jordan Lee (Keyholder) is off payroll",
     );
     expect(entry.note).toMatch(/bank, payroll, point of sale/);
     expect(openAccessChecks(result.checks, "retail", []).map((c) => c.name)).toEqual(["Nora Diaz"]);
@@ -157,5 +191,31 @@ describe("the owner answers the prompt", () => {
     expect(
       normalizeProfile({ ...saved, leaverAccessChecks: [{ id: 1 }, "x"] }).leaverAccessChecks,
     ).toEqual([]);
+  });
+});
+
+describe("one person under two spellings", () => {
+  it("does not open a second check when a roster drops the accents", () => {
+    const existing: LeaverAccessCheck = {
+      id: "c1",
+      name: "José Pérez",
+      industry: "dental",
+      notedOn: "2026-01-01",
+      source: "roster",
+    };
+    const checks = noteDepartures(
+      [existing],
+      [{ name: "Jose  Perez" }],
+      "roster",
+      "dental",
+      "2026-09-26",
+    );
+    expect(checks).toHaveLength(1);
+  });
+
+  it("treats Díaz and Diaz as one person on a re-paste after the owner confirmed", () => {
+    const first = noteDepartures([], [{ name: "Nora Díaz" }], "roster", "retail", TODAY);
+    const { checks } = confirmAccessRemoved(first, [first[0].id], TODAY);
+    expect(noteDepartures(checks, [{ name: "Nora Diaz" }], "roster", "retail", TODAY)).toBe(checks);
   });
 });

@@ -1,29 +1,34 @@
 import { ArrowRight, Users } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { industryMeta } from "@/lib/precog/industry";
-import { formatDateRange } from "@/lib/precog/continuity/planned-absence";
-import { firstName } from "@/lib/precog/continuity/coverage";
 import { HANDOVER_URGENT_DAYS, leaverLead } from "@/lib/precog/continuity/leavers";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { StartHereModel } from "./use-start-here";
+import type { StartHereModel } from "@/lib/precog/start-here/model";
+import type { NavFn } from "@/lib/precog/navigation";
+import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
+import { formatDayRange } from "@/lib/precog/dates";
+import { useTabName } from "@/lib/precog/presentation";
+import { count, firstName } from "@/lib/precog/text";
+import type { AbsenceWindow } from "@/lib/precog/continuity/planned-absence";
+import { outStopsNote, WEIGHTED_SHARE_NOTE } from "./start-here-copy";
 
 export function StartHereContinuitySection({
   model,
   onOpenDetail,
 }: {
-  model: StartHereModel;
-  onOpenDetail?: (tab: string) => void;
+  model: StartHereModel["continuity"];
+  onOpenDetail: NavFn;
 }) {
+  const tabName = useTabName();
   const {
-    profile,
-    template,
     isSampleTeam,
-    slipped,
+    industryLabel,
+    registerSize,
+    slippedCount,
     registerReady,
     trackFreshness,
-    continuityReadiness,
+    readiness,
     staffingToday,
   } = model;
 
@@ -48,24 +53,22 @@ export function StartHereContinuitySection({
                 <p className="text-xs font-medium uppercase tracking-wide text-subtle">Today</p>
                 <p className="text-sm font-medium leading-relaxed">{staffingToday.headline}</p>
               </div>
-              {onOpenDetail && (
-                <button
-                  type="button"
-                  onClick={() => onOpenDetail("knowledge")}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                >
-                  {staffingToday.out.length > 0
-                    ? "Open the cover sheet"
-                    : staffingToday.gone.length > 0
-                      ? "Mark them as left"
-                      : staffingToday.startingSoon.length > 0
-                        ? "Log the hand-offs"
-                        : staffingToday.leaving.length > 0
-                          ? "Open the hand-over"
-                          : "Debrief the stand-ins"}
-                  <ArrowRight className="size-3.5" aria-hidden />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => onOpenDetail("knowledge")}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                {staffingToday.out.length > 0
+                  ? "Open today's stand-in sheet"
+                  : staffingToday.gone.length > 0
+                    ? "Mark them as left"
+                    : staffingToday.startingSoon.length > 0
+                      ? "Log the hand-offs"
+                      : staffingToday.leaving.length > 0
+                        ? "Open the hand-off"
+                        : "Debrief the stand-ins"}
+                <ArrowRight className="size-3.5" aria-hidden />
+              </button>
             </div>
             {staffingToday.out.length > 0 && (
               <ul className="space-y-2">
@@ -79,18 +82,18 @@ export function StartHereContinuitySection({
                       <span className="text-xs text-subtle">
                         {o.window.absence.from === o.window.absence.to
                           ? "today"
-                          : `back after ${formatDateRange(o.window.absence.from, o.window.absence.to)}`}
+                          : `back after ${formatDayRange(o.window.absence.from, o.window.absence.to)}`}
                       </span>
                     </div>
                     {o.stops.length === 0 ? (
                       <p className="mt-1 text-xs text-muted">
-                        Everything they run, someone else can run alone.
+                        {outStopsNote(0, waitingFor(o.window), staffingToday.assessed)}
                       </p>
                     ) : (
                       <ul className="mt-1 space-y-1 text-xs text-muted">
                         {o.stops.slice(0, 4).map((s) => (
                           <li key={s.item.id} className="flex flex-wrap items-center gap-x-2">
-                            <span className="text-foreground">{s.item.name}</span>
+                            <span className="text-fg">{s.item.name}</span>
                             <span>
                               {s.standIn
                                 ? `→ ${firstName(s.standIn.name)}${s.cold ? " (starting cold)" : ""}`
@@ -129,13 +132,15 @@ export function StartHereContinuitySection({
                     </Badge>
                     <span className="text-xs text-muted">
                       {l.status === "gone"
-                        ? "still counted as cover"
+                        ? "still counted as a stand-in"
                         : l.handover.length === 0
                           ? "nothing depends on them alone"
-                          : `${l.handover.length} to hand over`}
+                          : `${l.handover.length} to hand off`}
                     </span>
                     {l.status === "notice" && l.unlogged > 0 && (
-                      <span className="text-xs text-warn">· {l.unlogged} not in the Journal</span>
+                      <span className="text-xs text-warn">
+                        · {l.unlogged} not yet in the {tabName("journal")}
+                      </span>
                     )}
                   </li>
                 ))}
@@ -149,7 +154,7 @@ export function StartHereContinuitySection({
                       ? `Also: ${staffingToday.startingSoon
                           .map(
                             (u) =>
-                              `${firstName(u.person.name)} out ${formatDateRange(u.window.absence.from, u.window.absence.to)}${u.unlogged > 0 ? ` (${u.unlogged} hand-off${u.unlogged === 1 ? "" : "s"} not logged)` : ""}`,
+                              `${firstName(u.person.name)} out ${formatDayRange(u.window.absence.from, u.window.absence.to)}${u.unlogged > 0 ? ` (${u.unlogged} hand-off${u.unlogged === 1 ? "" : "s"} not logged)` : ""}`,
                           )
                           .join("; ")}.`
                       : "",
@@ -170,74 +175,82 @@ export function StartHereContinuitySection({
             <div className="rounded-lg border border-border bg-panel/60 p-4">
               <p className="text-sm font-medium">Not assessed yet</p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
-                {template.knowledge.length === 0
-                  ? "Your register is empty. List the duties, tasks and know-how the business runs on and mark who can do each, and these figures fill in."
-                  : `Your register holds ${template.knowledge.length} starter items from the ${industryMeta(profile.industry).label.toLowerCase()} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
+                {registerSize === 0
+                  ? "Your register is empty. List the duties and know-how the business runs on and mark who can do each, and these figures fill in."
+                  : `Your register holds ${registerSize} sample items from the ${industryLabel} sample, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
               </p>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-border bg-panel/60 p-4">
                 <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.coverageIndex}%
+                  {readiness.coverageIndex}%
                 </p>
                 <p className="mt-1 text-sm font-medium">Backed up</p>
                 <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
                 <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {continuityReadiness.documentationIndex}%
+                  {readiness.documentationIndex}%
                 </p>
                 <p className="mt-1 text-sm font-medium">Written and findable</p>
                 <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
                 <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {trackFreshness ? `${continuityReadiness.freshness.confirmedIndex}%` : "—"}
+                  {trackFreshness ? `${readiness.freshness.confirmedIndex}%` : "—"}
                 </p>
                 <p className="mt-1 text-sm font-medium">Confirmed recently</p>
                 <p className="mt-1 text-xs text-subtle">
                   {!trackFreshness
                     ? "starts once you enter your own register"
-                    : continuityReadiness.checkIns.checkIns[0]
-                      ? `next: check in with ${firstName(continuityReadiness.checkIns.checkIns[0].person.name)} (${continuityReadiness.checkIns.checkIns[0].items.length})`
-                      : continuityReadiness.checkIns.unheld.length > 0
-                        ? `${continuityReadiness.checkIns.unheld.length} stale item(s) nobody active holds`
+                    : readiness.checkIns.checkIns[0]
+                      ? `next: check in with ${firstName(readiness.checkIns.checkIns[0].person.name)} (${readiness.checkIns.checkIns[0].items.length})`
+                      : readiness.checkIns.unheld.length > 0
+                        ? `${count(readiness.checkIns.unheld.length, "stale item")} nobody active holds`
                         : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">{slipped.length}</p>
+                <p className="font-mono text-2xl font-semibold tracking-tight">{slippedCount}</p>
                 <p className="mt-1 text-sm font-medium">Slipped</p>
                 <p className="mt-1 text-xs text-subtle">
                   done items whose coverage or documentation regressed
                 </p>
               </div>
+              <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">
+                {INDEX_BASIS} {WEIGHTED_SHARE_NOTE}
+              </p>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {continuityReadiness.mostDepended ? (
+            {readiness.mostDepended ? (
               <p className="text-sm text-muted">
                 {isSampleTeam && "Sample register — "}
-                {continuityReadiness.mostDepended.person.name} carries{" "}
-                {continuityReadiness.mostDepended.dependence}% of must-do work alone
+                {readiness.mostDepended.person.name} carries {readiness.mostDepended.dependence}% of
+                must-do work alone
               </p>
             ) : (
               <span />
             )}
-            {onOpenDetail && (
-              <button
-                type="button"
-                onClick={() => onOpenDetail("knowledge")}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-              >
-                Open Who knows what
-                <ArrowRight className="size-3.5" aria-hidden />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onOpenDetail("knowledge")}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Open {tabName("knowledge")}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </button>
           </div>
         </CardContent>
       </Card>
     </section>
   );
+}
+
+/** Must-do entries nobody can run alone that already waited before this absence began. */
+function waitingFor(window: AbsenceWindow): number {
+  return (window.todayImpact ?? window.impact).alreadyStopped.filter(
+    (k) => k.criticality !== "nice-to-have",
+  ).length;
 }

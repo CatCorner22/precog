@@ -1,39 +1,48 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isErrorEventPayload } from "@/lib/observability/error-event";
-
-const MAX_BODY_BYTES = 16 * 1024;
-const NO_STORE = { "cache-control": "no-store" } as const;
+import { readBody } from "@/lib/server-fn-guard";
+import { SlidingWindowLimiter } from "@/lib/precog/llm/rate-limit";
 
 /**
- * Intake for browser-side errors. Accepts one scrubbed event per request,
- * refuses anything oversized or malformed, and answers 204 before the
- * tracker is contacted, so a failing tracker never slows the page down.
- * Anonymous by design: a crash on the public share page must report too.
+ * Intake for browser-side errors. Accepts one event per request, refuses
+ * anything oversized or malformed, and gives one address a few reports a
+ * minute, so one script cannot spend the whole delivery budget and crowd out
+ * real crashes. The event is scrubbed again and forwarded before the answer,
+ * because a serverless instance may be frozen once it has answered; the
+ * browser sends it with a beacon and never waits. Anonymous by design: a
+ * crash on the public share page must report too.
  */
 export const Route = createFileRoute("/api/errors")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const length = Number(request.headers.get("content-length") ?? 0);
-        if (length > MAX_BODY_BYTES) return new Response(null, { status: 413, headers: NO_STORE });
+        const declared = Number(request.headers.get("content-length") ?? 0);
+        if (declared > MAX_BODY_BYTES) return empty(413);
+        const body = await readBody(request, MAX_BODY_BYTES);
+        if (body === null) return empty(413);
         let payload: unknown;
         try {
-          const text = await request.text();
-          if (text.length > MAX_BODY_BYTES) {
-            return new Response(null, { status: 413, headers: NO_STORE });
-          }
-          payload = JSON.parse(text);
+          payload = JSON.parse(new TextDecoder().decode(body));
         } catch {
-          return new Response(null, { status: 400, headers: NO_STORE });
+          return empty(400);
         }
-        if (!isErrorEventPayload(payload)) {
-          return new Response(null, { status: 400, headers: NO_STORE });
-        }
+        if (!isErrorEventPayload(payload)) return empty(400);
+        const { requestIp } = await import("@/lib/request-ip.server");
+        if (!perAddress.take(requestIp()).allowed) return empty(429);
         const { forwardErrorEvent } = await import("@/lib/observability/report.server");
-        void forwardErrorEvent(payload);
-        return new Response(null, { status: 204, headers: NO_STORE });
+        await forwardErrorEvent(payload);
+        return empty(204);
       },
       ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "POST" } }),
     },
   },
 });
+
+function empty(status: number): Response {
+  return new Response(null, { status, headers: NO_STORE });
+}
+
+const MAX_BODY_BYTES = 16 * 1024;
+const NO_STORE = { "cache-control": "no-store" } as const;
+/** Reports one address may send a minute; a real crash loop repeats itself. */
+const perAddress = new SlidingWindowLimiter({ limit: 5, windowMs: 60_000 });

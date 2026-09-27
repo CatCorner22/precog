@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { getBaseTemplate, resolveTemplate } from "@/lib/precog/active-template";
-import { firstName } from "@/lib/precog/continuity/coverage";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import { buildWeeklyActions } from "./build";
+import { firstName } from "../text";
 
-const dental = getBaseTemplate("dental");
+const dental = getIndustryTemplate("dental");
 const [maya, chris] = dental.people;
 const item = {
   ...dental.knowledge[0],
@@ -52,11 +53,11 @@ describe("buildWeeklyActions planned leave", () => {
     const action = build([leave]).find((a) => a.id === "leave-abs-1");
     expect(action).toBeDefined();
     expect(action?.title).toContain("in 12 days");
-    expect(action?.title).toContain("13–20 Apr");
+    expect(action?.title).toContain("Apr 13–20");
     expect(action?.title).toContain(`hand off ${item.name} to`);
     expect(action?.effort).toBe("low");
-    expect(action?.why).toContain("Hand off by 2025-04-12");
-    expect(action?.why).toContain("Left in the business");
+    expect(action?.why).toContain("Hand off by Apr 12.");
+    expect(action?.why).toContain("Still in the business");
     expect(action?.tab).toBe("knowledge");
     expect(action?.priority).toBe(85);
   });
@@ -80,7 +81,7 @@ describe("buildWeeklyActions planned leave", () => {
     };
     const action = build([sick], [], "2025-04-15").find((a) => a.id === "leave-abs-1");
     expect(action?.title).toBe(
-      `${firstName(maya.name)} is out unexpectedly 15 Apr, out now: ${firstName(chris.name)} covers ${item.name}`,
+      `${firstName(maya.name)} is out unexpectedly Apr 15, out now: ${firstName(chris.name)} covers ${item.name}`,
     );
     expect(action?.priority).toBe(92);
   });
@@ -132,7 +133,7 @@ describe("buildWeeklyActions planned leave", () => {
         },
       ],
     }).find((a) => a.id === "leave-abs-1");
-    expect(action?.why).toContain("2 register entries stop 18–20 Apr, while");
+    expect(action?.why).toContain("2 register entries stop Apr 18–20, while");
     expect(action?.why).toContain(`${third.name.split(" ")[0]} is also out`);
   });
 
@@ -171,14 +172,15 @@ describe("buildWeeklyActions planned leave", () => {
     expect(actions.some((a) => a.id.startsWith("leave-abs-c"))).toBe(false);
   });
 
-  it("reports a logged hand-off as in progress instead of fresh advice", () => {
+  it("reports a logged hand-off as a Journal reminder instead of fresh advice", () => {
+    // Overdue, so the reminder outranks the fresh advice that fills the plan's five slots.
     const logged: DecisionEntry = {
       id: "d-handoff",
-      createdAt: "2025-04-01T09:00:00.000Z",
+      createdAt: "2025-03-20T09:00:00.000Z",
       subject: item.name,
       kind: "remediate",
       note: "Hand off before leave",
-      reviewBy: "2025-04-12",
+      reviewBy: "2025-03-31",
       linkedTab: "knowledge",
       linkedId: item.id,
       linkedIndustry: "dental",
@@ -188,7 +190,7 @@ describe("buildWeeklyActions planned leave", () => {
     const actions = build([leave], [logged]);
     expect(actions.some((a) => a.id === "leave-abs-1")).toBe(false);
     const reminder = actions.find((a) => a.id.startsWith("commit-"));
-    expect(reminder?.why).toContain("out 13–20 Apr, in 12 days");
+    expect(reminder?.why).toContain("out Apr 13–20, in 12 days");
   });
 
   it("does not let one leave's hand-off stand in for a later leave", () => {

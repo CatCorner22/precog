@@ -1,7 +1,7 @@
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */
-export type AppUser = {
+type AppUser = {
   id: string;
   displayName: string | null;
   primaryEmail: string | null;
@@ -26,7 +26,7 @@ const DEV_USER: AppUser = {
 };
 
 /** `useCurrentUserState()` result: the user plus the session-loading flag. */
-export type CurrentUserState = {
+type CurrentUserState = {
   /** The user — `null` BOTH while the session loads and when signed out. */
   user: AppUser | null;
   /** True while the session is still resolving — don't treat `user: null` as signed out yet. */

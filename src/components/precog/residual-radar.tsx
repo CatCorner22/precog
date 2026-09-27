@@ -1,4 +1,4 @@
-import { bandForScore, DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { bandForScore, DEFAULT_WEIGHTS, type ActionBand } from "@/lib/precog/scoring/weights";
 import {
   REGISTER_NOT_ASSESSED,
   confirmedScenarioIds,
@@ -19,14 +19,11 @@ import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatUsd, cn, formatPct } from "@/lib/utils";
+import { FigureTile } from "./figure-tile";
 
-function bandVariant(band: string): "ok" | "primary" | "warn" | "danger" {
-  if (band === "critical_path") return "danger";
-  if (band === "act_now") return "warn";
-  if (band === "mitigate") return "primary";
-  return "ok";
-}
+/** Rows shown before "Show all". */
+const REGISTER_PREVIEW = 8;
 
 export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { profile, template } = usePractice();
@@ -34,7 +31,10 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
   );
-  const scope = useMemo(() => ({ confirmedScenarioIds: confirmed }), [confirmed]);
+  const scope = useMemo(
+    () => ({ confirmedScenarioIds: confirmed, riskVariables: profile.riskVariables }),
+    [confirmed, profile.riskVariables],
+  );
   const summary = useMemo(
     () => portfolioSummary(template, profile.staff, DEFAULT_WEIGHTS, scope),
     [template, profile.staff, scope],
@@ -53,49 +53,48 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
   );
   const scenarioCredit = DEFAULT_WEIGHTS.scenario.effectivenessCredit;
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
-  const active = selected ?? summary.top[0] ?? null;
+  const [showAll, setShowAll] = useState(false);
+  const active = selected ?? summary.all[0] ?? null;
+  const rows = showAll ? summary.all : summary.all.slice(0, REGISTER_PREVIEW);
 
   const tornadoData = tornado.levers.map((l) => ({
-    name: l.label.length > 28 ? l.label.slice(0, 27) + "…" : l.label,
-    full: l.label,
+    name: l.label,
     delta: Math.round(l.delta * 10) / 10,
   }));
 
   function openLinked(item: ResidualRiskScore) {
     if (item.linkedScenarioId) {
       onNavigate({ type: "precog", scenarioId: item.linkedScenarioId });
-      return;
-    }
-    if (item.linkedKnowledgeId) {
+    } else if (item.linkedKnowledgeId) {
       onNavigate({ type: "knowledge", knowledgeId: item.linkedKnowledgeId });
-      return;
-    }
-    if (item.category === "control") {
-      onNavigate({ type: "sod" });
     }
   }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Stat
-          label="Scoring engine"
-          value={summary.scoringVersion.replace("precog-", "")}
-          hint="Transparent weights"
+        <FigureTile
+          className="bg-surface p-4"
+          label="Risks scored"
+          value={String(summary.all.length)}
+          hint="Controls, scenarios and know-how in your register"
         />
-        <Stat
-          label="Avg residual"
+        <FigureTile
+          className="bg-surface p-4"
+          label="Average residual risk score"
           value={bandForScore(summary.averageResidual).label}
-          subvalue={`${summary.averageResidual} (range ${sensitivity.averageLow}–${sensitivity.averageHigh} across ±20% weight trials)`}
+          detail={`${summary.averageResidual} (${sensitivity.averageLow}–${sensitivity.averageHigh} across weight trials of ±20%)`}
           hint="This app's index, from your profile"
         />
-        <Stat
-          label="Critical path"
+        <FigureTile
+          className="bg-surface p-4"
+          label="Fix first"
           value={String(summary.criticalPath)}
-          hint={`Index ≥ ${RISK_SCALE.critical}`}
+          hint={`Index ${RISK_SCALE.critical} or more`}
         />
-        <Stat
-          label="Act now"
+        <FigureTile
+          className="bg-surface p-4"
+          label="Fix soon"
           value={String(summary.actNow)}
           hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
         />
@@ -109,8 +108,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             <CardDescription>
               Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app
               chose, sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
-              {Math.round(scenarioCredit * 100)}%: Inherent × (1 − effectiveness × {scenarioCredit})
-              × staff modifiers.
+              {formatPct(scenarioCredit)}: Inherent × (1 − effectiveness × {scenarioCredit}) × staff
+              modifiers.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -124,60 +123,71 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             )}
             {summary.starterControlsLeftOut.length > 0 && (
               <NotCounted onClick={() => onNavigate({ type: "layers", layer: "control" })}>
-                {`Starter controls from the example (${summary.starterControlsLeftOut.length}) are left out: nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
+                {`Sample controls (${summary.starterControlsLeftOut.length}) are left out: nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
               </NotCounted>
             )}
-            {summary.top.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelected(item)}
-                className={cn(
-                  "flex w-full flex-col gap-2 rounded-xl border px-3 py-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between",
-                  active?.id === item.id
-                    ? "border-primary/50 bg-primary/10"
-                    : "border-border bg-elevated hover:border-border-strong",
-                )}
+            <p className="text-xs text-subtle">
+              {showAll
+                ? `All ${summary.all.length} risks, highest residual risk first.`
+                : `Top ${rows.length} of ${summary.all.length} risks, highest residual risk first.`}{" "}
+              Each row shows inherent risk, control effectiveness, and the range across weight
+              trials.
+            </p>
+            <div role="group" aria-label="Residual risk register" className="space-y-2">
+              {rows.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={active?.id === item.id}
+                  onClick={() => setSelected(item)}
+                  className={cn(
+                    "flex w-full flex-col gap-2 rounded-xl border px-3 py-3 text-left transition-colors sm:flex-row sm:items-center sm:justify-between",
+                    active?.id === item.id
+                      ? "border-primary/50 bg-primary/10"
+                      : "border-border bg-elevated hover:border-border-strong",
+                  )}
+                >
+                  <span className="block min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Badge variant="default">{item.category}</Badge>
+                      <Badge variant={BAND_VARIANT[item.band]}>{item.bandLabel}</Badge>
+                    </span>
+                    <span className="mt-1 block font-medium leading-snug">{item.name}</span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="block text-right">
+                      <span className="block text-xl font-semibold tabular">{item.residual}</span>
+                      <span className="block text-xs text-subtle">residual</span>
+                      <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
+                    </span>
+                    <span className="hidden w-32 sm:block">
+                      <span className="block h-1.5 overflow-hidden rounded-full bg-bg">
+                        <span
+                          className={cn("block h-full rounded-full", BAND_BAR[item.band])}
+                          style={{ width: `${item.residual}%` }}
+                        />
+                      </span>
+                      <span className="mt-1 block text-xs text-muted">
+                        Inherent {item.inherent} · Effectiveness {item.controlEffectiveness}
+                        {item.creditedEffectiveness != null
+                          ? ` (counts ${item.creditedEffectiveness})`
+                          : ""}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {summary.all.length > REGISTER_PREVIEW && (
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((v) => !v)}
               >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="default">{item.category}</Badge>
-                    <Badge variant={bandVariant(item.band)}>{item.bandLabel}</Badge>
-                  </div>
-                  <p className="mt-1 font-medium leading-snug">{item.name}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-xl font-semibold tabular">{item.residual}</p>
-                    <p className="text-xs text-subtle">residual</p>
-                    <ItemSensitivityMeta sensitivity={sensitivity} id={item.id} />
-                  </div>
-                  <div className="hidden w-24 sm:block">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-bg">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          item.residual >= 80
-                            ? "bg-danger"
-                            : item.residual >= 60
-                              ? "bg-warn"
-                              : item.residual >= 40
-                                ? "bg-primary"
-                                : "bg-ok",
-                        )}
-                        style={{ width: `${item.residual}%` }}
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-muted">
-                      I {item.inherent} · E {item.controlEffectiveness}
-                      {item.creditedEffectiveness != null
-                        ? ` (counts ${item.creditedEffectiveness})`
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            ))}
+                {showAll ? `Show the top ${REGISTER_PREVIEW}` : `Show all ${summary.all.length}`}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -185,7 +195,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Selected risk anatomy</CardTitle>
-              <CardDescription>Drivers that move this residual score</CardDescription>
+              <CardDescription>Drivers that move this residual risk</CardDescription>
             </CardHeader>
             <CardContent>
               {active ? (
@@ -193,14 +203,18 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   <p className="font-medium">{active.name}</p>
                   <p className="text-sm text-muted">{active.bandGuidance}</p>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <Mini n={active.inherent} l="Inherent" />
-                    <Mini n={active.controlEffectiveness} l="Effectiveness" />
-                    <Mini n={active.residual} l="Residual" />
+                    <FigureTile size="sm" label="Inherent" value={active.inherent} />
+                    <FigureTile
+                      size="sm"
+                      label="Effectiveness"
+                      value={active.controlEffectiveness}
+                    />
+                    <FigureTile size="sm" label="Residual risk" value={active.residual} />
                   </div>
                   {active.creditedEffectiveness != null && active.effectivenessCredit != null && (
                     <p className="text-xs text-subtle">
                       Scenario rows credit control effectiveness at{" "}
-                      {Math.round(active.effectivenessCredit * 100)}%, so effectiveness{" "}
+                      {formatPct(active.effectivenessCredit)}, so effectiveness{" "}
                       {active.controlEffectiveness} counts as {active.creditedEffectiveness}:{" "}
                       {active.inherent} × (1 − {active.creditedEffectiveness}/100) × staff
                       modifiers.
@@ -222,7 +236,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                       </li>
                     ))}
                   </ul>
-                  {(active.expectedLoss || active.linkedScenarioId || active.linkedKnowledgeId) && (
+                  {(active.linkedScenarioId || active.linkedKnowledgeId) && (
                     <Button size="sm" variant="secondary" onClick={() => openLinked(active)}>
                       Open linked evidence
                     </Button>
@@ -237,16 +251,16 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-muted">Select a residual risk.</p>
+                <p className="text-sm text-muted">Pick a risk in the register.</p>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Tornado — highest leverage</CardTitle>
+              <CardTitle className="text-base">Which lever moves it most</CardTitle>
               <CardDescription>
-                Approximate drop in average residual if each lever is pulled
+                Approximate drop in the average residual risk if each lever is pulled
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -259,62 +273,38 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                 <TornadoBars rows={tornadoData} />
               )}
               <p className="mt-2 text-xs text-subtle">
-                Base average residual {tornado.baseAverage}.
+                Average residual risk now: {tornado.baseAverage}.
                 {tornadoData.length > 0 ? " Pull the longest bar first." : ""}
               </p>
             </CardContent>
           </Card>
         </div>
       </div>
-      <ScoringBasis template={template} staff={profile.staff} sensitivity={sensitivity} />
+      <ScoringBasis sensitivity={sensitivity} />
     </div>
   );
 }
 
-function TornadoBars({ rows }: { rows: { name: string; full: string; delta: number }[] }) {
+/** One row per lever, as text, so the name and the number read in full. */
+function TornadoBars({ rows }: { rows: { name: string; delta: number }[] }) {
   const max = Math.max(...rows.map((row) => Math.abs(row.delta)), 0.1);
   return (
-    <div className="space-y-2" role="img" aria-label="Drop in average residual for each lever">
+    <ol className="space-y-2" aria-label="Drop in average residual risk for each lever">
       {rows.map((row) => (
-        <div
-          key={row.full}
-          className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-2 text-xs"
-          title={`${row.full}: ${Math.abs(row.delta)} points lower`}
-        >
-          <span className="truncate text-muted">{row.name}</span>
-          <div className="h-3 overflow-hidden rounded bg-border/40">
-            <div
-              className="h-3 rounded bg-primary"
+        <li key={row.name} className="text-xs">
+          <span className="flex justify-between gap-2">
+            <span className="text-muted">{row.name}</span>
+            <span className="shrink-0 tabular text-muted">{Math.abs(row.delta)} points lower</span>
+          </span>
+          <span className="mt-1 block h-3 overflow-hidden rounded bg-border/40" aria-hidden="true">
+            <span
+              className="block h-3 rounded bg-primary"
               style={{ width: `${(Math.abs(row.delta) / max) * 100}%` }}
             />
-          </div>
-          <span className="tabular text-muted">{Math.abs(row.delta)}</span>
-        </div>
+          </span>
+        </li>
       ))}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  subvalue,
-  hint,
-}: {
-  label: string;
-  value: string;
-  subvalue?: string;
-  hint: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs tracking-wide text-subtle uppercase">{label}</p>
-        <p className="mt-1 truncate text-lg font-semibold tabular tracking-tight">{value}</p>
-        {subvalue && <p className="mt-1 text-xs text-muted">{subvalue}</p>}
-        <p className="mt-1 text-xs text-muted">{hint}</p>
-      </CardContent>
-    </Card>
+    </ol>
   );
 }
 
@@ -331,15 +321,6 @@ function NotCounted({ children, onClick }: { children: React.ReactNode; onClick:
   );
 }
 
-function Mini({ n, l }: { n: number; l: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-elevated p-2">
-      <p className="text-lg font-semibold tabular">{n}</p>
-      <p className="text-xs text-subtle">{l}</p>
-    </div>
-  );
-}
-
 function ItemSensitivityMeta({
   sensitivity,
   id,
@@ -352,9 +333,9 @@ function ItemSensitivityMeta({
 
   return (
     <>
-      <p className="text-xs tabular text-muted">
-        range {item.low}–{item.high}
-      </p>
+      <span className="block text-xs tabular text-muted">
+        {item.low}–{item.high} across weight trials
+      </span>
       {!item.bandStable && (
         <Badge variant="warn" className="mt-1">
           band sensitive
@@ -363,3 +344,18 @@ function ItemSensitivityMeta({
     </>
   );
 }
+
+/** One colour per action band, used by the badge and the bar alike. */
+const BAND_VARIANT: Record<ActionBand, "ok" | "primary" | "warn" | "danger"> = {
+  critical_path: "danger",
+  act_now: "warn",
+  mitigate: "primary",
+  accept_monitor: "ok",
+};
+
+const BAND_BAR: Record<ActionBand, string> = {
+  critical_path: "bg-danger",
+  act_now: "bg-warn",
+  mitigate: "bg-primary",
+  accept_monitor: "bg-ok",
+};

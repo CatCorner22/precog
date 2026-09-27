@@ -1,33 +1,15 @@
 import { useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { caseForRule, durationPhrase, type CaseStudy } from "@/lib/precog/evidence";
+import {
+  caseForRule,
+  DETECTION_LABEL,
+  durationPhrase,
+  lossPhrase,
+  SECTOR_LABEL,
+  type CaseStudy,
+} from "@/lib/precog/evidence";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatUsd } from "@/lib/utils";
-
-const SECTOR_LABEL: Record<string, string> = {
-  dental: "Dental practice",
-  medical: "Medical practice",
-  restaurant: "Restaurant",
-  construction: "Construction",
-  automotive: "Auto dealership",
-  "professional-services": "Professional services",
-  retail: "Retail",
-  nonprofit: "Nonprofit",
-  trades: "Trades / home services",
-  any: "Any business",
-};
-
-const DETECTION_LABEL: Record<string, string> = {
-  tip: "Someone spoke up",
-  "owner-review": "The owner looked",
-  "external-audit": "Outside audit",
-  "bank-or-insurer": "Bank or insurer flagged it",
-  "law-enforcement": "Law enforcement",
-  "by-accident": "By accident",
-  cover: "Someone else covered the desk",
-  reconciliation: "A reconciliation caught it",
-  unknown: "Not stated in the source",
-};
+import { cn } from "@/lib/utils";
 
 /**
  * Renders one real case.
@@ -55,11 +37,10 @@ export function CaseCard({ study }: { study: CaseStudy }) {
       >
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
-            <Badge variant="default">{SECTOR_LABEL[study.sector] ?? study.sector}</Badge>
+            <Badge variant="default">{SECTOR_LABEL[study.sector]}</Badge>
             {hasLoss && (
               <span className="font-mono text-sm font-semibold text-danger">
-                {study.lossIsFloor ? "at least " : ""}
-                {formatUsd(study.lossUsd)}
+                {lossPhrase(study)}
               </span>
             )}
             {study.durationMonths ? (
@@ -92,7 +73,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
           <Section title="What we think would have caught it">
             <p className="mb-1.5 text-xs text-subtle">
               Our reading of the public record, not a finding from the case. Where the source says
-              how the theft was found, that route is shown below.
+              how the theft was found, the card names that route below.
             </p>
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step, i) => (
@@ -107,7 +88,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
           </Section>
 
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-subtle">
-            <span>How it was found: {DETECTION_LABEL[study.detection] ?? study.detection}</span>
+            <span>How it was found: {DETECTION_LABEL[study.detection]}</span>
             {typeof study.tenureYearsStated === "number" ? (
               <span>
                 Time with the employer:{" "}

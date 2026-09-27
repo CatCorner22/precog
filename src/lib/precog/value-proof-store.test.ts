@@ -3,17 +3,7 @@ import { VALUE_CASE_STORAGE_KEY } from "./value-case";
 import { VALUE_EVIDENCE_STORAGE_KEY } from "./value-evidence";
 import { readValueProof, removeValueProof, writeValueProof } from "./value-proof-store";
 import type { StorageLike } from "./local-data";
-
-function memoryStorage(seed: Record<string, string> = {}) {
-  const data = new Map(Object.entries(seed));
-  const storage: StorageLike & { data: Map<string, string> } = {
-    getItem: (k) => data.get(k) ?? null,
-    setItem: (k, v) => void data.set(k, v),
-    removeItem: (k) => void data.delete(k),
-    data,
-  };
-  return storage;
-}
+import { memoryStorage } from "@/test/memory-storage";
 
 describe("value proof for an owner with two businesses in one browser", () => {
   it("keeps each business's figures apart, and a new business starts empty", () => {
@@ -43,6 +33,18 @@ describe("value proof for an owner with two businesses in one browser", () => {
     expect(readValueProof("biz_alpha", storage).valueCase).toEqual({ directRecoveries: 500 });
     // Another business does not inherit them.
     expect(readValueProof("biz_beta", storage).valueCase).toBeUndefined();
+  });
+
+  it("leaves the old figures for the Value proof tab when another reader passes claimLegacy false", () => {
+    const storage = memoryStorage({
+      [VALUE_CASE_STORAGE_KEY]: JSON.stringify({ directRecoveries: 500 }),
+    });
+    expect(readValueProof("biz_sample", storage, { claimLegacy: false })).toEqual({
+      valueCase: undefined,
+      evidence: undefined,
+    });
+    expect(storage.data.has(VALUE_CASE_STORAGE_KEY)).toBe(true);
+    expect(readValueProof("biz_own", storage).valueCase).toEqual({ directRecoveries: 500 });
   });
 
   it("keeps the old figures where they are when the browser refuses the move", () => {

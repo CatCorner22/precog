@@ -1,9 +1,10 @@
-import { ENTITLEMENTS, type EntitlementId, entitlementById } from "./conflict-rules";
-
-const OPTIONAL_DUTIES: ReadonlySet<EntitlementId> = new Set(
-  ENTITLEMENTS.filter((item) => item.optional).map((item) => item.id),
-);
-import type { RoleAssignment } from "./detect";
+import type { RoleAssignment } from "./assignments";
+import {
+  ENTITLEMENTS,
+  OPERATING_DUTIES,
+  type EntitlementId,
+  entitlementById,
+} from "./conflict-rules";
 
 export interface DutyCoverage {
   entitlementId: EntitlementId;
@@ -13,7 +14,7 @@ export interface DutyCoverage {
   status: "unassigned" | "single_point" | "covered";
 }
 
-export interface CoverageAnalysis {
+interface CoverageAnalysis {
   duties: DutyCoverage[];
   unassigned: DutyCoverage[];
   singlePoints: DutyCoverage[];
@@ -26,7 +27,7 @@ export interface CoverageAnalysis {
   resilienceScore: number;
 }
 
-export interface AbsenceImpact {
+interface DutyAbsenceImpact {
   personId: string;
   personName: string;
   newlyUnassigned: DutyCoverage[];
@@ -48,25 +49,23 @@ export function analyzeDutyCoverage(
    */
   scoreOptional: ReadonlySet<EntitlementId> = new Set(),
 ): CoverageAnalysis {
-  const duties = ENTITLEMENTS.filter((item) => item.id !== "view_reports_only").map(
-    (entitlement) => {
-      const assignees = assignments
-        .filter((person) => person.entitlements.includes(entitlement.id))
-        .map(({ personId, personName, role }) => ({ personId, personName, role }));
-      return {
-        entitlementId: entitlement.id,
-        label: entitlement.label,
-        riskWeight: entitlement.riskWeight,
-        assignees,
-        status:
-          assignees.length === 0
-            ? ("unassigned" as const)
-            : assignees.length === 1
-              ? ("single_point" as const)
-              : ("covered" as const),
-      };
-    },
-  );
+  const duties = OPERATING_DUTIES.map((entitlement) => {
+    const assignees = assignments
+      .filter((person) => person.entitlements.includes(entitlement.id))
+      .map(({ personId, personName, role }) => ({ personId, personName, role }));
+    return {
+      entitlementId: entitlement.id,
+      label: entitlement.label,
+      riskWeight: entitlement.riskWeight,
+      assignees,
+      status:
+        assignees.length === 0
+          ? ("unassigned" as const)
+          : assignees.length === 1
+            ? ("single_point" as const)
+            : ("covered" as const),
+    };
+  });
 
   const highRiskConcentration = assignments
     .map((person) => {
@@ -113,7 +112,7 @@ export function analyzeDutyCoverage(
 export function analyzeAbsenceImpact(
   assignments: RoleAssignment[],
   personId: string,
-): AbsenceImpact | undefined {
+): DutyAbsenceImpact | undefined {
   const person = assignments.find((item) => item.personId === personId);
   if (!person) return undefined;
 
@@ -149,3 +148,7 @@ export function analyzeAbsenceImpact(
     scoreChange: after.resilienceScore - before.resilienceScore,
   };
 }
+
+const OPTIONAL_DUTIES: ReadonlySet<EntitlementId> = new Set(
+  ENTITLEMENTS.filter((item) => item.optional).map((item) => item.id),
+);

@@ -16,14 +16,8 @@
  * React route here paints the full app shell in the popup. The opener lives in
  * `client.ts` (`signIn` → `openSignInPopup`).
  */
+import type { PopupMessage } from "./providers";
 import { auth, SESSION_TOKEN_COOKIE } from "./server";
-
-/** Message shape the popup posts to the opener (must match `client.ts`). */
-type PopupMessage = {
-  source: "grok-auth-popup";
-  token: string | null;
-  error?: string;
-};
 
 /**
  * Handle `GET /auth/popup`. Invoked by the Vite `authPopupPlugin` (dev / live
@@ -31,23 +25,14 @@ type PopupMessage = {
  */
 export async function handleAuthPopupRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const done = url.searchParams.get("done") === "1";
 
-  if (done) {
-    const errored = url.searchParams.has("error");
-    const token = errored ? null : readCookie(request, SESSION_TOKEN_COOKIE);
-    const message: PopupMessage = {
+  // Phase 2. Better Auth appends `error=<code>` when the callback fails.
+  if (url.searchParams.get("done") === "1") {
+    const error = url.searchParams.get("error");
+    return completionResponse({
       source: "grok-auth-popup",
-      token,
-      ...(errored ? { error: url.searchParams.get("error") ?? "sign_in_failed" } : {}),
-    };
-    return new Response(completionHtml(message), {
-      status: 200,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        // Never cache a page that embeds a session token.
-        "cache-control": "no-store",
-      },
+      token: error ? null : readCookie(request, SESSION_TOKEN_COOKIE),
+      ...(error ? { error } : {}),
     });
   }
 
@@ -66,7 +51,7 @@ export async function handleAuthPopupRequest(request: Request): Promise<Response
       body: {
         providerId,
         callbackURL: back,
-        errorCallbackURL: `${back}&error=1`,
+        errorCallbackURL: back,
       },
       // Forward the preview host so Better Auth derives the correct baseURL /
       // redirect_uri for the dynamic `*.grok-sandbox.com` origin.
@@ -117,6 +102,7 @@ function completionResponse(message: PopupMessage): Response {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
+      // Never cache a page that embeds a session token.
       "cache-control": "no-store",
     },
   });
@@ -158,7 +144,7 @@ function completionHtml(message: PopupMessage): string {
 }
 
 /** Read a single cookie value from the request (handles `=` inside values). */
-function readCookie(request: Request, name: string): string | null {
+export function readCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
   for (const part of header.split(";")) {

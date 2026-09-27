@@ -1,3 +1,5 @@
+import type { NavFn } from "@/lib/precog/navigation";
+import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { EvidenceFooter } from "./start-here-parts";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
 import { StartHereCostSection } from "./start-here-cost-section";
@@ -16,12 +18,20 @@ import { useStartHere } from "./use-start-here";
  *   2. What has that exposure actually cost organizations like it?
  *   3. What should be done first?
  *
- * Every claim on this screen resolves to a prosecuted case or a published
- * study. Where the application cannot support a claim, it says so rather than
- * filling the space.
+ * Every dollar figure and duration resolves to a prosecuted case or a
+ * published study; the continuity percentages are the app's own indices and
+ * say so. Where the application cannot support a claim, it says so rather
+ * than filling the space.
  */
-export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => void }) {
-  const model = useStartHere();
+export function StartHere({
+  onOpenDetail,
+  sod,
+}: {
+  onOpenDetail: NavFn;
+  /** The shell's duty-conflict report for the same profile, so the detector runs once. */
+  sod?: SodDetectionReport;
+}) {
+  const model = useStartHere(sod);
 
   return (
     <div className="space-y-6">
@@ -29,19 +39,20 @@ export function StartHere({ onOpenDetail }: { onOpenDetail?: (tab: string) => vo
         <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           This page shows where a business like yours is exposed, what that same exposure has cost
-          real organizations, and what to do about it first. Every figure links to the case or study
-          it came from.
+          real businesses, and what to do about it first. Every dollar figure and duration on this
+          page links to the case or study it came from. The continuity percentages are this
+          app&rsquo;s own indices; Who knows what explains how each is counted.
         </p>
       </header>
 
-      <StartHerePreamble model={model} onOpenDetail={onOpenDetail} />
-      <StartHereContinuitySection model={model} onOpenDetail={onOpenDetail} />
-      <StartHereExposureSection model={model} onOpenDetail={onOpenDetail} />
-      <StartHereCostSection model={model} />
-      <StartHereFirstStepsSection model={model} />
+      <StartHerePreamble model={model.preamble} onOpenDetail={onOpenDetail} />
+      <StartHereContinuitySection model={model.continuity} onOpenDetail={onOpenDetail} />
+      <StartHereExposureSection model={model.exposure} onOpenDetail={onOpenDetail} />
+      <StartHereCostSection model={model.cost} />
+      <StartHereFirstStepsSection model={model.firstSteps} />
       <StartHereLimitsSection />
 
-      <EvidenceFooter cases={model.evidence} industryId={model.industryId} />
+      <EvidenceFooter model={model.footer} />
     </div>
   );
 }

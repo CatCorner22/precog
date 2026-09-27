@@ -6,13 +6,15 @@ import {
   type LeaverAccessCheck,
 } from "../practice-profile";
 import type { Person } from "../types";
+import { nameKey, uid } from "../text";
+import { formatDay } from "../dates";
 
 /**
- * Someone who has left keeps whatever access nobody took away. Former staff
- * using a login that still works is a documented path to fraud and data
- * theft, so each leaver gets one check: are they off payroll, and are their
- * logins gone? The owner confirms it once; the confirmation goes in the
- * decisions log with the day.
+ * Someone who has left keeps whatever access nobody took away: a login, card
+ * or PIN that still works lets them move money or copy records. So each
+ * leaver gets one check: are they off payroll, and are their logins gone?
+ * The owner confirms it once; the confirmation goes in the decisions log
+ * with the day.
  */
 
 /** The logins the owner confirms are removed, in the words the prompt uses. */
@@ -36,23 +38,19 @@ export interface Departure {
   role?: string;
 }
 
-const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
-
 /** Whether a check is about this person: the same team member, or the same name when either has no id. */
 function samePerson(check: LeaverAccessCheck, who: Departure): boolean {
   if (check.personId && who.personId) return check.personId === who.personId;
   return nameKey(check.name) === nameKey(who.name);
 }
 
-function makeCheckId(): string {
-  return `lac_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-}
-
 /**
  * Adds a check for each person who has left, unless one already exists for
  * them in this industry: open (still to confirm) or confirmed (asked once is
- * enough, even when the same roster is pasted again). Returns the same array
- * when nothing was added.
+ * enough, even when the same roster is pasted again). A team member marked
+ * as left again after coming back (a rehire) is a new departure with new
+ * logins: a confirmed check gets a new one beside it, and an open one is
+ * dated to this departure. Returns the same array when nothing changed.
  */
 export function noteDepartures(
   checks: readonly LeaverAccessCheck[],
@@ -62,14 +60,25 @@ export function noteDepartures(
   today: string,
 ): LeaverAccessCheck[] {
   const added: LeaverAccessCheck[] = [];
+  const redated = new Map<string, LeaverAccessCheck>();
   for (const who of departures) {
     if (!who.name.trim()) continue;
-    const known = [...checks, ...added].some(
+    // Only the owner marking a known team member as left is a fresh departure;
+    // a roster pasted again describes the same one.
+    const leftAgain = source === "marked" && Boolean(who.personId);
+    const prior = [...added, ...checks].find(
       (check) => check.industry === industry && samePerson(check, who),
     );
-    if (known) continue;
+    if (prior && !leftAgain) continue;
+    if (prior && !prior.confirmedOn) {
+      if (prior.notedOn !== today || prior.source !== source) {
+        const { prompted: _prompted, ...rest } = redated.get(prior.id) ?? prior;
+        redated.set(prior.id, { ...rest, notedOn: today, source });
+      }
+      continue;
+    }
     added.push({
-      id: makeCheckId(),
+      id: uid("lac"),
       ...(who.personId ? { personId: who.personId } : {}),
       name: who.name.trim().slice(0, 80),
       ...(who.role?.trim() ? { role: who.role.trim().slice(0, 120) } : {}),
@@ -78,9 +87,9 @@ export function noteDepartures(
       source,
     });
   }
-  if (added.length === 0) return checks as LeaverAccessCheck[];
+  if (added.length === 0 && redated.size === 0) return checks as LeaverAccessCheck[];
   // Newest first; the oldest confirmed checks drop off past the cap, never an open one.
-  const all = [...added, ...checks];
+  const all = [...added, ...checks.map((check) => redated.get(check.id) ?? check)];
   while (all.length > MAX_LEAVER_CHECKS) {
     let lastConfirmed = all.length - 1;
     while (lastConfirmed >= 0 && !all[lastConfirmed].confirmedOn) lastConfirmed--;
@@ -148,11 +157,6 @@ export function markPrompted(
   );
 }
 
-/** "Jordan Lee (Keyholder)", or the name alone. */
-function who(check: LeaverAccessCheck): string {
-  return check.role ? `${check.name} (${check.role})` : check.name;
-}
-
 /**
  * The owner confirmed, on `today`, that these people are off payroll and
  * their logins are removed. Closes their checks and returns one decisions-log
@@ -173,10 +177,10 @@ export function confirmAccessRemoved(
       createdAt: now.toISOString(),
       subject: `${check.name} has left: pay and logins stopped`.slice(0, 120),
       kind: "remediate",
-      note: `On ${today} you confirmed that ${who(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
+      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
         check.source === "roster"
-          ? `Noted as left from a roster on ${check.notedOn}.`
-          : `Marked as left on ${check.notedOn}.`
+          ? `Noted as left from a roster on ${formatDay(check.notedOn)}.`
+          : `Marked as left on ${formatDay(check.notedOn)}.`
       }`,
       linkedTab: "knowledge",
       ...(check.personId ? { linkedPersonId: check.personId } : {}),
@@ -187,10 +191,7 @@ export function confirmAccessRemoved(
   return { checks: next, decisions };
 }
 
-/** "Jordan Lee" / "Jordan Lee and Pat Kim" / "Jordan Lee, Pat Kim and 3 more". */
-export function leaverNames(checks: readonly LeaverAccessCheck[]): string {
-  const names = checks.map((check) => check.name);
-  if (names.length <= 2) return names.join(" and ");
-  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
-  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
+/** How a leaver is named to the owner: "Jordan Lee (Keyholder)", or the name alone. */
+export function leaverLabel(check: Pick<LeaverAccessCheck, "name" | "role">): string {
+  return check.role ? `${check.name} (${check.role})` : check.name;
 }

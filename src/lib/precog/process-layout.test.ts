@@ -1,12 +1,7 @@
+import { getIndustryTemplate } from "./templates";
 import { describe, expect, it } from "vitest";
-import { getBaseTemplate } from "./active-template";
-import {
-  buildProcessMapGraph,
-  layoutProcessMap,
-  MAP_LAYOUT,
-  stageLanes,
-  type MapGraphNode,
-} from "./process-graph";
+import { buildProcessMapGraph, type MapGraphNode } from "./process-graph";
+import { layoutProcessMap, MAP_LAYOUT, stageLanes } from "./process-layout";
 
 const CARD = { w: 220, h: 110 };
 const SATELLITE = { w: 180, h: 70 };
@@ -21,7 +16,7 @@ function overlaps(a: ReturnType<typeof box>, b: ReturnType<typeof box>) {
 }
 
 describe("layoutProcessMap", () => {
-  const tpl = getBaseTemplate("dental");
+  const tpl = getIndustryTemplate("dental");
   const graph = buildProcessMapGraph(tpl, undefined, {
     showRisks: true,
     showIdeas: true,
@@ -100,7 +95,7 @@ describe("layoutProcessMap", () => {
 
 describe("stageLanes", () => {
   it("returns one lane per stage in order with the top-left process origin", () => {
-    const tpl = getBaseTemplate("dental");
+    const tpl = getIndustryTemplate("dental");
     const graph = buildProcessMapGraph(tpl, undefined);
     const pos = layoutProcessMap(graph.nodes, graph.edges);
     const lanes = stageLanes(graph.nodes, pos);

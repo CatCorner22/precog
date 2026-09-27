@@ -1,4 +1,5 @@
 import type { IndustryTemplate } from "./templates";
+import { DEFAULT_FRAUD_STATS } from "./templates/shared-controls";
 import { industryMeta } from "./industry";
 import type {
   KnowledgeRisk,
@@ -13,12 +14,74 @@ import {
   evaluateDynamicRisk,
   insuranceFigureNote,
   mergeStaffIntoVariables,
-  scenarioFlags,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
+import { scenarioFlags } from "./scoring/scenario-kind";
 import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
+import { formatUsd } from "../utils";
+import { count } from "./text";
+
+/**
+ * Index values for knowledge held by too few people. This app's own scale:
+ * the numbers order attention on the same 0–100 scale as the residual index
+ * and were not derived from any data.
+ */
+const KNOWLEDGE_RISK_INDEX = { unowned: 100, soleCritical: 85, soleImportant: 65, shared: 20 };
+
+/**
+ * Multipliers applied to a scenario's assumed loss and timeline for staffing
+ * conditions, each with the sentence the owner reads when it applies. The
+ * multiplier and its sentence come from one row, so the owner reads exactly
+ * the uplifts that were applied. Every factor is an assumption this app makes
+ * about direction and rough size; none is measured.
+ */
+const ASSUMED_STAFF_UPLIFT: readonly {
+  applies: (staff: StaffComposition) => boolean;
+  factor: number;
+  sentence: (staff: StaffComposition) => string;
+}[] = [
+  {
+    applies: (s) => s.teamSize <= 6,
+    factor: 1.15,
+    sentence: (s) => `Assumed uplift: with ${s.teamSize} people, duties are harder to separate.`,
+  },
+  {
+    applies: (s) => s.soleOwnerKnowledgeCount >= 2,
+    factor: 1.2,
+    sentence: (s) =>
+      `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} held by one person.`,
+  },
+  {
+    applies: (s) => s.segregationScore < 50,
+    factor: 1.25,
+    sentence: (s) =>
+      `Assumed uplift: segregation index ${s.segregationScore}/100 is below this app's weak line.`,
+  },
+  {
+    // Dual control also flows through the risk variables; mild here.
+    applies: (s) => !s.dualControlPayments,
+    factor: 1.08,
+    sentence: () =>
+      "Assumed uplift: no dual release on payments, so one person can release money alone.",
+  },
+  {
+    applies: (s) => !s.independentBankRec,
+    factor: 1.06,
+    sentence: () =>
+      "Assumed uplift: the bank is reconciled by the person who posts, so detection takes longer.",
+  },
+  {
+    applies: (s) => s.avgTenureYears < 3,
+    factor: 1.05,
+    sentence: (s) =>
+      `Assumed uplift: average tenure of ${s.avgTenureYears} years is under three, so habits and checks are newer.`,
+  },
+];
+
+/** Share of an assumed impact reduction that this app also credits to the timeline. An assumption. */
+const ASSUMED_TIMELINE_RELIEF_SHARE = 0.4;
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -66,56 +129,6 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
     .sort((a, b) => b.riskScore - a.riskScore);
 }
 
-/**
- * Index values for knowledge held by too few people. This app's own scale:
- * the numbers order attention on the same 0–100 scale as the residual index
- * and were not derived from any data.
- */
-const KNOWLEDGE_RISK_INDEX = { unowned: 100, soleCritical: 85, soleImportant: 65, shared: 20 };
-
-/**
- * Multipliers applied to a scenario's assumed loss and timeline for staffing
- * conditions. Every value is an assumption this app makes about direction and
- * rough size; none is measured. They are listed to the owner as assumptions.
- */
-const ASSUMED_STAFF_UPLIFT = {
-  smallTeam: 1.15, // six people or fewer
-  severalSoleOwners: 1.2, // two or more sole-owner knowledge items
-  weakSegregation: 1.25, // segregation score under 50
-  noDualControl: 1.08, // dual control also flows through the variables; mild here
-  noIndependentBankRec: 1.06,
-  lowTenure: 1.05, // average tenure under three years
-} as const;
-
-/** Share of an assumed impact reduction that this app also credits to the timeline. An assumption. */
-const ASSUMED_TIMELINE_RELIEF_SHARE = 0.4;
-
-function staffRiskMultiplier(staff: StaffComposition): number {
-  let m = 1;
-  if (staff.teamSize <= 6) m *= ASSUMED_STAFF_UPLIFT.smallTeam;
-  if (staff.soleOwnerKnowledgeCount >= 2) m *= ASSUMED_STAFF_UPLIFT.severalSoleOwners;
-  if (staff.segregationScore < 50) m *= ASSUMED_STAFF_UPLIFT.weakSegregation;
-  if (!staff.dualControlPayments) m *= ASSUMED_STAFF_UPLIFT.noDualControl;
-  if (!staff.independentBankRec) m *= ASSUMED_STAFF_UPLIFT.noIndependentBankRec;
-  if (staff.avgTenureYears < 3) m *= ASSUMED_STAFF_UPLIFT.lowTenure;
-  return m;
-}
-
-/**
- * Whether a scenario is a fraud scenario, for the reference figures shown
- * beside it. The ACFE medians are medians of two sub-populations of
- * investigated frauds; the ratio between them is not a multiplier for any one
- * business's assumed loss, so nothing here scales the arithmetic.
- */
-function isFraudScenario(scenario: ScenarioTemplate): boolean {
-  return (
-    scenario.id.includes("cash") ||
-    scenario.id.includes("writeoff") ||
-    scenario.id.includes("vendor") ||
-    Boolean(scenario.controlId?.includes("sod"))
-  );
-}
-
 export function runPrecogScenario(
   tpl: IndustryTemplate,
   scenarioId: string,
@@ -125,7 +138,7 @@ export function runPrecogScenario(
     riskVariables?: RiskVariableState;
   },
 ): PrecogResult | null {
-  const { scenarios, staffComposition, crimeFraudStats } = tpl;
+  const { scenarios, staffComposition } = tpl;
   const scenario = scenarios.find((s) => s.id === scenarioId);
   if (!scenario) return null;
 
@@ -140,7 +153,8 @@ export function runPrecogScenario(
   const ownBusiness = isOwnBusiness(tpl);
   const vars = effectiveRiskVariables(entered, ownBusiness, scenarioId);
 
-  const sMult = staffRiskMultiplier(staff);
+  const uplifts = staffUplifts(staff);
+  const sMult = uplifts.multiplier;
   const flags = scenarioFlags(scenarioId);
 
   let timelineMult = sMult;
@@ -182,39 +196,22 @@ export function runPrecogScenario(
   const low = Math.round(dynamic.transfer.grossLossLow);
   const high = Math.round(dynamic.transfer.grossLossHigh);
 
-  const staffModifiers: string[] = [];
-  if (staff.teamSize <= 6)
-    staffModifiers.push(
-      `Assumed uplift: with ${staff.teamSize} people, duties are harder to separate.`,
-    );
-  if (staff.soleOwnerKnowledgeCount >= 1)
-    staffModifiers.push(
-      `Assumed uplift: ${staff.soleOwnerKnowledgeCount} critical knowledge item(s) held by one person.`,
-    );
-  if (staff.segregationScore < 50)
-    staffModifiers.push(
-      `Assumed uplift: segregation index ${staff.segregationScore}/100 is below this app's weak line.`,
-    );
-  if (!staff.dualControlPayments)
-    staffModifiers.push(
-      "Assumed uplift: no dual control on payments, so one person can release money alone.",
-    );
-  if (!staff.independentBankRec)
-    staffModifiers.push(
-      "Assumed uplift: the bank is reconciled by the person who posts, so detection takes longer.",
-    );
+  const staffModifiers: string[] = [...uplifts.sentences];
 
   for (const d of dynamic.likelihoodSeverity.drivers.slice(0, 4)) {
     staffModifiers.push(`${d.label}: ${d.effect}`);
   }
 
+  // The ACFE medians describe two sub-populations of investigated frauds; the
+  // ratio between them is not a multiplier for any one business's assumed
+  // loss, so they are shown for reference and never scale the arithmetic.
   const crimeModifiers: string[] = [];
-  if (isFraudScenario(scenario)) {
+  if (flags.fraudRelated) {
     crimeModifiers.push(
-      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of $${crimeFraudStats.medianLossSmallOrgUsd.toLocaleString()} against $${crimeFraudStats.medianLossAllUsd.toLocaleString()} across all cases studied.`,
+      `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd)} against ${formatUsd(DEFAULT_FRAUD_STATS.medianLossAllUsd)} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Median time from a scheme starting to being found: ${crimeFraudStats.medianDetectionMonths} months. Found inside six months the median loss is $${crimeFraudStats.lossIfCaughtEarlyUsd.toLocaleString()}; past five years it is more than $${crimeFraudStats.lossIfRunsLongUsd.toLocaleString()}.`,
+      `Median time from a scheme starting to being found: ${DEFAULT_FRAUD_STATS.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(DEFAULT_FRAUD_STATS.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(DEFAULT_FRAUD_STATS.lossIfRunsLongUsd)}.`,
     );
     crimeModifiers.push(
       `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,
@@ -225,21 +222,19 @@ export function runPrecogScenario(
   crimeModifiers.push(
     `Assumed multipliers from your settings: likelihood ×${dynamic.likelihoodSeverity.likelihoodMultiplier.toFixed(2)} · severity ×${dynamic.likelihoodSeverity.grossSeverityMultiplier.toFixed(2)} · detection lag ×${dynamic.likelihoodSeverity.detectionLagMultiplier.toFixed(2)}.`,
   );
-  const usd = (n: number) =>
-    n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   crimeModifiers.push(
-    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${usd(dynamic.transfer.retainedExpected)}; modeled annual premium ${usd(dynamic.transfer.premiumAnnualNet)}.`,
+    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;
   const cascade = scenario.cascadeLayers.map((layer) => {
     const effects: Record<string, string> = {
-      knowledge: "Critical know-how concentrated or lost; training lag begins.",
-      process: "Workflow throughput drops; workarounds and errors rise.",
-      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays; schedule and cash flow noise increase.`,
-      control: "Control design fails open; residual risk becomes default state.",
-      source: "System access or vendor configuration becomes single-threaded.",
-      continuity: "Exit or failure path exposes uninsured fragility.",
+      knowledge: "The know-how sits with one person; training lag begins.",
+      process: "Work slows; workarounds and errors rise.",
+      surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays, and cash flow gets less predictable.`,
+      control: "The control stops working and nobody notices, so the exposure becomes normal.",
+      source: "Only one person can change system access or vendor settings.",
+      continuity: "If that person leaves or the system fails, the loss is uninsured.",
     };
     return { layer, effect: effects[layer] ?? "Downstream impact." };
   });
@@ -266,8 +261,8 @@ export function runPrecogScenario(
     cascade,
     mitigations: scenario.mitigations,
     residualIfNothing:
-      "If you accept residual risk, Continuity layer fragility remains elevated until staff composition, insurance transfer terms, or controls change. Re-run Precog after any variable change.",
-    sources: [crimeFraudStats.source],
+      "If you accept this risk as it is, the exposure stays until your staffing, your insurance terms, or your controls change. The figures update when you change any setting.",
+    sources: [DEFAULT_FRAUD_STATS.source],
     assumptions: [
       "The base timeline and loss figures are assumptions the scenario author wrote; they were not drawn from a study or from any business.",
       "Staffing and control multipliers are this app's assumptions about direction and rough size.",
@@ -330,4 +325,13 @@ export function rankDangerousScenarios(
       return { scenario, score, result };
     })
     .sort((a, b) => b.score - a.score);
+}
+
+/** The staffing uplifts that apply to `staff`: their product and the sentence for each. */
+function staffUplifts(staff: StaffComposition): { multiplier: number; sentences: string[] } {
+  const applied = ASSUMED_STAFF_UPLIFT.filter((u) => u.applies(staff));
+  return {
+    multiplier: applied.reduce((m, u) => m * u.factor, 1),
+    sentences: applied.map((u) => u.sentence(staff)),
+  };
 }

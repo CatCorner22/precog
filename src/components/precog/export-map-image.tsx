@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { getNodesBounds, getViewportForBounds, useReactFlow } from "@xyflow/react";
+import { getViewportForBounds, useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { ImageDown, Loader2 } from "lucide-react";
+import { downloadUrl } from "@/lib/download";
 
 const EXPORT_W = 2400;
 const EXPORT_H = 1500;
@@ -15,7 +16,8 @@ export function ExportMapImageButton({
   fileName: string;
   background: string;
 }) {
-  const { getNodes } = useReactFlow();
+  // The instance's getNodesBounds reads the store's node lookup, which the module helper lacks.
+  const { getNodes, getNodesBounds } = useReactFlow();
   const [busy, setBusy] = useState(false);
 
   async function exportPng() {
@@ -46,10 +48,7 @@ export function ExportMapImageButton({
           );
         },
       });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${fileName}.png`;
-      a.click();
+      downloadUrl(`${fileName}.png`, dataUrl);
       toast.success("Map image exported", { description: `${fileName}.png` });
     } catch (e) {
       toast.error("Export failed", {

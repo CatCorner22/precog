@@ -3,7 +3,19 @@
  * runs at import time. Pure helpers live here (testable without a network);
  * the calls that need the secret key are in `stripe.server.ts`.
  */
+import { constantTimeEqual, hmacSha256, toHex } from "@/lib/web-crypto";
+
 export type CheckoutPlan = "assessment" | "monthly";
+
+/** What a plan costs, as the Stripe price behind its checkout button says. */
+export interface PlanPrice {
+  /** In the currency's main unit (dollars, not cents). */
+  amount: number;
+  /** ISO code in lower case, as Stripe writes it ("usd"). */
+  currency: string;
+  /** "month" for the Firm plan's subscription; null for a one-off payment. */
+  interval: string | null;
+}
 
 export interface StripeEvent {
   id: string;
@@ -12,17 +24,28 @@ export interface StripeEvent {
 }
 
 /** What a webhook event means for an account, independent of Stripe's shapes. */
-export type BillingChange =
+type BillingChange =
   | { kind: "assessment-paid"; userId: string; customerId: string | null }
   | {
       kind: "subscription";
       userId: string | null;
       customerId: string | null;
       subscriptionId: string;
-      status: string;
+      /** Null when the event knows only the ids (a completed checkout). */
+      status: string | null;
       currentPeriodEnd: string | null;
     }
   | { kind: "ignore" };
+
+/** "$1,000", "$299 a month", "$299.50 a month"; other currencies print in their own symbol. */
+export function formatPlanPrice(price: PlanPrice): string {
+  const amount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: price.currency.toUpperCase(),
+    minimumFractionDigits: Number.isInteger(price.amount) ? 0 : 2,
+  }).format(price.amount);
+  return price.interval ? `${amount} a ${price.interval}` : amount;
+}
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 
@@ -48,26 +71,7 @@ export async function signPayload(
   timestamp: number,
   payload: string,
 ): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${timestamp}.${payload}`),
-  );
-  return Array.from(new Uint8Array(mac), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+  return toHex(await hmacSha256(secret, `${timestamp}.${payload}`));
 }
 
 /**
@@ -120,11 +124,17 @@ function customerIdOf(object: Record<string, unknown>): string | null {
  * Reads the account and plan change out of the events this app subscribes
  * to. The user id rides in `client_reference_id` / metadata on checkout
  * (set when the session is created); subscription events carry only the
- * customer id, which the store maps back to an account.
+ * customer id, which the store maps back to an account. A checkout
+ * completion carries no subscription status or renewal date: those come from
+ * the customer.subscription.* events, whichever order they arrive in. A
+ * delayed payment method completes through async_payment_succeeded.
  */
 export function billingChangeFor(event: StripeEvent): BillingChange {
   const object = event.data.object;
-  if (event.type === "checkout.session.completed") {
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
     const userId = str(object.client_reference_id) ?? str(metadata.userId);
     if (!userId) return { kind: "ignore" };
@@ -137,7 +147,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         userId,
         customerId,
         subscriptionId,
-        status: "active",
+        status: null,
         currentPeriodEnd: null,
       };
     }

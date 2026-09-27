@@ -5,6 +5,12 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
+/** A storage whose keys can be listed, as needed to clear or scope them. */
+export interface KeyedStorage extends StorageLike {
+  readonly length: number;
+  key(index: number): string | null;
+}
+
 /**
  * This browser's local storage, or null where there is none (the server) or
  * where even touching it throws (site data blocked).
@@ -79,8 +85,8 @@ const APP_KEY_PREFIXES = ["precog.", "precog-"];
  * leaves nothing behind on the device. Safe to call when storage is unavailable.
  */
 export function clearLocalCopies(
-  storage: (StorageLike & StorageKeys) | null = browserStorage() as
-    (StorageLike & StorageKeys) | null,
+  // window.localStorage lists its keys; StorageLike just does not say so.
+  storage: KeyedStorage | null = browserStorage() as KeyedStorage | null,
 ): void {
   if (!storage) return;
   try {
@@ -93,9 +99,4 @@ export function clearLocalCopies(
   } catch {
     /* storage unavailable: nothing to clear */
   }
-}
-
-interface StorageKeys {
-  readonly length: number;
-  key(index: number): string | null;
 }

@@ -1,5 +1,7 @@
-import { CoverageList, CoveragePlanOption, ImpactMetric, Metric } from "./power-map-parts";
-import { withPlaces } from "./power-map-graph";
+import { CoverageList, CoveragePlanOption } from "./power-map-parts";
+import { StatTile } from "@/components/ui/stat-tile";
+import type { AssignmentChange } from "@/lib/precog/sod/assignment-diff";
+import { withPlaces } from "@/lib/precog/person-location";
 import { AlertTriangle, Check, RotateCcw, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";
 import { Badge } from "@/components/ui/badge";
@@ -30,32 +32,32 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric
+        <StatTile
           icon={Users}
           label="People / jobs"
-          value={assignments.length}
-          detail={`${JOB_CATALOG.length} job titles to simulate a hire`}
+          value={String(assignments.length)}
+          hint={`${JOB_CATALOG.length} job titles to simulate a hire`}
         />
-        <Metric
+        <StatTile
           icon={UserRoundCheck}
-          label="Duty backup (this app's index, 0 to 100)"
-          value={coverage.resilienceScore}
-          detail={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds (some may not apply)`}
-          danger={coverage.unassigned.length > 0}
+          label="Stand-in cover (this app's index, 0 to 100)"
+          value={String(coverage.resilienceScore)}
+          hint={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds. Assumes every duty is done in-house.`}
+          tone={coverage.unassigned.length > 0 ? "danger" : "primary"}
         />
-        <Metric
+        <StatTile
           icon={AlertTriangle}
-          label="Open conflicts"
-          value={report.conflicts.length}
-          detail={`${report.summary.peopleWithConflicts} people affected`}
-          danger={report.conflicts.length > 0}
+          label="Open duty conflicts"
+          value={String(report.conflicts.length)}
+          hint={`${report.summary.peopleWithConflicts} people affected`}
+          tone={report.conflicts.length > 0 ? "danger" : "primary"}
         />
-        <Metric
+        <StatTile
           icon={ShieldCheck}
           label="Critical open"
-          value={criticalCount}
-          detail={`SoD health ${report.summary.segregationHealth}/100`}
-          danger={criticalCount > 0}
+          value={String(criticalCount)}
+          hint={`Segregation health ${report.summary.segregationHealth}/100`}
+          tone={criticalCount > 0 ? "danger" : "primary"}
         />
       </div>
 
@@ -121,8 +123,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                           : "text-warn",
                       )}
                     >
-                      {change.kind.replaceAll("_", " ")}{" "}
-                      {change.dutyLabel ? `· ${change.dutyLabel}` : `· ${change.role}`}
+                      {CHANGE_LABEL[change.kind]} {change.dutyLabel ?? change.role}
                     </p>
                   </div>
                 ))}
@@ -143,11 +144,12 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Authority concentration</CardTitle>
+          <CardTitle className="text-base">How much each person can do alone</CardTitle>
           <CardDescription>
-            A comparative index of risk-weighted powers, duty-family breadth, exclusive
-            capabilities, and active conflicts. Use it to prioritize oversight—not as a finding by
-            itself.
+            How much one person can do alone: this app&apos;s index, 0 to 100, from how many heavily
+            weighted duties they hold, across how many kinds of work, how many only they hold, and
+            how many conflicts. Red from 75, amber from 50. Use it to decide whose work to review,
+            not as a finding.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 lg:grid-cols-2">
@@ -197,8 +199,8 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 />
               </div>
               <p className="mt-2 text-xs text-subtle">
-                {person.familyCount} duty families · {person.exclusiveDutyCount} exclusive powers ·{" "}
-                {person.conflictCount} conflicts
+                {person.familyCount} kinds of work · {person.exclusiveDutyCount} duties only they
+                hold · {person.conflictCount} conflicts
               </p>
             </button>
           ))}
@@ -209,8 +211,8 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         <CardHeader>
           <CardTitle className="text-base">Coverage & continuity</CardTitle>
           <CardDescription>
-            SoD asks whether powers are safely separated. Continuity asks whether essential work has
-            an owner and a trained backup. Address both before implementing the model.
+            Separation asks whether one person can move and hide money. Stand-in cover asks whether
+            each duty has a trained stand-in. Fix both before you change anyone&apos;s access.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-3">
@@ -220,26 +222,26 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
             items={coverage.unassigned.map((item) => ({
               id: item.entitlementId,
               label: item.label,
-              detail: `Risk ${item.riskWeight}/5 · assign a primary owner`,
+              detail: `Weight ${item.riskWeight} of 5 · assign someone, or leave it if nobody does this here`,
             }))}
             danger
           />
           <CoverageList
             title="Critical single points"
-            empty="High-risk duties have backup coverage."
+            empty="Every high-risk duty has a stand-in."
             items={coverage.singlePoints.map((item) => ({
               id: item.entitlementId,
               label: item.label,
-              detail: `${item.assignees[0]?.personName} is the only assignee · designate a trained backup`,
+              detail: `${item.assignees[0]?.personName} is the only assignee · name a trained stand-in`,
             }))}
           />
           <CoverageList
-            title="Power concentration"
-            empty="No person holds four or more high-risk powers."
+            title="Many heavy duties in one person"
+            empty="Nobody holds four or more duties of weight 4 or 5."
             items={coverage.highRiskConcentration.map((item) => ({
               id: item.personId,
               label: item.personName,
-              detail: `${item.count} high-risk powers · review scope and monitoring`,
+              detail: `${item.count} duties of weight 4 or 5 · review what they do and who checks it`,
             }))}
           />
         </CardContent>
@@ -249,10 +251,10 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         <Card>
           <CardHeader className="flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Backup suggestions</CardTitle>
+              <CardTitle className="text-base">Stand-in suggestions</CardTitle>
               <CardDescription>
-                For high-risk duties only one person holds: people who already hold a significant
-                duty in the same process and hold no conflict, where adding the duty creates no
+                For high-risk duties only one person holds: people who already hold a duty of weight
+                4 or more in the same process and hold no conflict, where adding the duty creates no
                 conflict the rules detect. Check each person can actually do the work before you
                 assign it; undo is one click.
               </CardDescription>
@@ -263,7 +265,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 onClick={() => {
                   if (
                     window.confirm(
-                      `Assign all ${coverageProgram.steps.length} suggested backups? Check each person can do the work; you can undo.`,
+                      `Assign all ${coverageProgram.steps.length} suggested stand-ins? Check each person can do the work; you can undo.`,
                     )
                   ) {
                     commit(coverageProgram.nextAssignments);
@@ -271,27 +273,29 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 }}
               >
                 <ShieldCheck className="size-3.5" />
-                Assign all suggested backups
+                Assign all suggested stand-ins
               </Button>
             )}
           </CardHeader>
           {coverageProgram.steps.length > 1 && (
             <CardContent className="grid gap-2 border-t border-border py-3 sm:grid-cols-3">
-              <ImpactMetric
-                label="Suggested backups"
+              <StatTile
+                label="Suggested stand-ins"
                 value={String(coverageProgram.steps.length)}
-                detail="Recalculated after each one"
+                hint="Recalculated after each one"
+                tone="ok"
               />
-              <ImpactMetric
-                label="Projected duty backup"
+              <StatTile
+                label="Projected stand-in cover"
                 value={`${coverageProgram.projectedScore}/100`}
-                detail={`+${coverageProgram.projectedScore - coverageProgram.startingScore} points`}
+                hint={`+${coverageProgram.projectedScore - coverageProgram.startingScore} points`}
+                tone="ok"
               />
-              <ImpactMetric
+              <StatTile
                 label="Still one holder"
                 value={String(coverageProgram.unresolvedGaps)}
-                detail="Need someone outside, or a control"
-                danger={coverageProgram.unresolvedGaps > 0}
+                hint="Need someone outside, or a control"
+                tone={coverageProgram.unresolvedGaps > 0 ? "danger" : "ok"}
               />
             </CardContent>
           )}
@@ -308,7 +312,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                   >
                     <div>
                       <Badge variant={first.reason === "unassigned" ? "danger" : "warn"}>
-                        {first.reason === "unassigned" ? "Owner needed" : "Backup needed"}
+                        {first.reason === "unassigned" ? "Owner needed" : "Stand-in needed"}
                       </Badge>
                       <p className="mt-2 text-sm font-medium">{first.dutyLabel}</p>
                       <p className="mt-1 text-xs text-subtle">
@@ -338,11 +342,11 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
       {coveragePlans.length === 0 && coverage.singlePoints.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Backup suggestions</CardTitle>
+            <CardTitle className="text-base">Stand-in suggestions</CardTitle>
             <CardDescription>
-              No backup to suggest. Everyone who works in these duties&apos; processes already holds
-              a conflict, or would gain one by taking the duty on. Separate a conflict first, or
-              write the procedure down so a stand-in or your outside accountant can follow it.
+              No stand-in to suggest. Everyone who works in these duties&apos; processes already
+              holds a conflict, or would gain one by taking the duty on. Separate a conflict first,
+              or write the procedure down so a stand-in or your outside accountant can follow it.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
@@ -357,3 +361,11 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
     </>
   );
 }
+
+/** Change review's verb for each kind of change: "Removes Reconcile the bank account". */
+const CHANGE_LABEL: Record<AssignmentChange["kind"], string> = {
+  duty_granted: "Adds",
+  duty_revoked: "Removes",
+  person_added: "New person:",
+  person_removed: "Removed:",
+};

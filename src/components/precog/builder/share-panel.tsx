@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { Copy, Link2, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
+import { inputCls, labelCls } from "@/components/ui/field-classes";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { SHARE_PASSCODE_MIN, type SharedMapPayload } from "@/lib/precog/share/share-schema";
+import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
+import type { ShareSummary } from "@/lib/precog/share/share-store";
+import { formatDayShort } from "@/lib/precog/dates";
+import { count } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 
-import { Loader2 } from "lucide-react";
-
-import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/builder/share-server";
-
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { Link } from "@tanstack/react-router";
-import { Copy, Link2 } from "lucide-react";
-
-import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
+/**
+ * Read-only share links for an advisor or lender: create one, and see,
+ * copy or revoke every live link. Revoked and expired links fold away.
+ */
 export function SharePanel({
   buildPayload,
 }: {
-  buildPayload: (
-    note?: string,
-    redactNames?: boolean,
-  ) => import("@/lib/precog/builder/share-schema").SharedMapPayload;
+  buildPayload: (note?: string, redactNames?: boolean) => SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [note, setNote] = useState("");
@@ -28,19 +28,9 @@ export function SharePanel({
   const [passcode, setPasscode] = useState("");
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
-  const [links, setLinks] = useState<
-    | {
-        token: string;
-        createdAt: string;
-        expiresAt: string | null;
-        revoked: boolean;
-        redacted: boolean;
-        hasPasscode: boolean;
-        views: number;
-        lastViewedAt: string | null;
-      }[]
-    | null
-  >(null);
+  const [links, setLinks] = useState<ShareSummary[] | null>(null);
+  const [listFailed, setListFailed] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [latest, setLatest] = useState<string | null>(null);
 
   // Keyed on the id: the user object is rebuilt on every render, and a
@@ -51,10 +41,14 @@ export function SharePanel({
     let cancelled = false;
     void listMapShares()
       .then((list) => {
-        if (!cancelled) setLinks(list);
+        if (cancelled) return;
+        setLinks(list);
+        setListFailed(false);
       })
       .catch(() => {
-        if (!cancelled) setLinks([]);
+        if (cancelled) return;
+        setLinks([]);
+        setListFailed(true);
       });
     return () => {
       cancelled = true;
@@ -83,7 +77,7 @@ export function SharePanel({
           expiresAt: res.expiresAt,
           revoked: false,
           redacted: redactNames,
-          hasPasscode: passcode.trim().length >= 8,
+          hasPasscode: res.hasPasscode,
           views: 0,
           lastViewedAt: null,
         },
@@ -110,10 +104,22 @@ export function SharePanel({
   }
 
   async function revoke(token: string) {
-    await revokeMapShare({ data: { token } });
+    try {
+      await revokeMapShare({ data: { token } });
+    } catch (e) {
+      // The link still opens; say so rather than leave the row looking revoked.
+      toast.error("Couldn't revoke the link", {
+        description: `It still opens. ${e instanceof Error ? e.message : "Try again in a moment."}`,
+      });
+      return;
+    }
     setLinks((cur) => (cur ?? []).map((l) => (l.token === token ? { ...l, revoked: true } : l)));
     toast("Link revoked");
   }
+
+  const now = new Date().toISOString();
+  const live = (links ?? []).filter((l) => isLive(l, now));
+  const inactive = (links ?? []).filter((l) => !isLive(l, now));
 
   if (isPending)
     return (
@@ -134,7 +140,7 @@ export function SharePanel({
     return (
       <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
         <p className="text-muted">
-          Share links are tied to your account so you can revoke them later.{" "}
+          Your account owns each link, so you can revoke it later.{" "}
           <Link to="/login" className="text-primary hover:underline">
             Sign in
           </Link>{" "}
@@ -153,6 +159,8 @@ export function SharePanel({
       </p>
       <textarea
         className={cn(inputCls, "min-h-[44px] resize-y")}
+        aria-label="Note to the reader (optional)"
+        maxLength={NOTE_MAX}
         placeholder="Optional note to the reader (e.g. 'Draft for our Q3 lender review — please focus on cash controls.')"
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -171,7 +179,7 @@ export function SharePanel({
           <input
             type="password"
             className={cn(inputCls, "min-w-0 flex-1")}
-            placeholder="8+ characters; share it separately"
+            placeholder={`${SHARE_PASSCODE_MIN}+ characters; share it separately`}
             value={passcode}
             onChange={(e) => setPasscode(e.target.value)}
           />
@@ -218,66 +226,102 @@ export function SharePanel({
           </a>
         </div>
       )}
-      {links && links.length > 0 && (
+      {listFailed && (
+        <p className="text-xs text-danger">
+          Couldn&apos;t load your links. Close and reopen Share to try again.
+        </p>
+      )}
+      {live.length > 0 && (
         <div>
-          <p className={labelCls}>Your links</p>
+          <p className={labelCls}>Your live links ({live.length})</p>
           <ul className="mt-1 space-y-1">
-            {links.slice(0, 6).map((l) => (
-              <li
-                key={l.token}
-                className={cn(
-                  "flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1",
-                  l.revoked && "opacity-50",
+            {live.map((l) => (
+              <ShareRow key={l.token} link={l}>
+                {l.redacted && (
+                  <span className="rounded bg-elevated px-1 text-xs text-subtle">names hidden</span>
                 )}
-              >
-                <code className="min-w-0 flex-1 truncate text-xs">…{l.token.slice(-10)}</code>
+                {l.hasPasscode && (
+                  <span className="rounded bg-elevated px-1 text-xs text-subtle">passcode</span>
+                )}
                 <span className="text-xs text-subtle">
-                  {new Date(l.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                  {l.expiresAt
-                    ? ` → ${new Date(l.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                    : ""}
+                  {l.views
+                    ? `viewed ${l.views}× · last ${formatDayShort(l.lastViewedAt ?? l.createdAt)}`
+                    : "not viewed yet"}
                 </span>
-                {l.revoked ? (
-                  <span className="text-xs text-subtle">revoked</span>
-                ) : (
-                  <>
-                    {l.redacted && (
-                      <span className="rounded bg-elevated px-1 text-xs text-subtle">
-                        names hidden
-                      </span>
-                    )}
-                    {l.hasPasscode && (
-                      <span className="rounded bg-elevated px-1 text-xs text-subtle">passcode</span>
-                    )}
-                    <span className="text-xs text-subtle">
-                      {l.views
-                        ? `viewed ${l.views}× · last ${new Date(l.lastViewedAt ?? l.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
-                        : "not viewed yet"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void copy(urlFor(l.token))}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void revoke(l.token)}
-                      className="text-xs text-danger hover:underline"
-                    >
-                      Revoke
-                    </button>
-                  </>
-                )}
-              </li>
+                <button
+                  type="button"
+                  onClick={() => void copy(urlFor(l.token))}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void revoke(l.token)}
+                  className="text-xs text-danger hover:underline"
+                >
+                  Revoke
+                </button>
+              </ShareRow>
             ))}
           </ul>
+        </div>
+      )}
+      {inactive.length > 0 && (
+        <div>
+          <button
+            type="button"
+            aria-expanded={showInactive}
+            onClick={() => setShowInactive((v) => !v)}
+            className="text-xs text-subtle underline hover:text-fg"
+          >
+            {showInactive ? "Hide" : "Show"} {count(inactive.length, "revoked or expired link")}
+          </button>
+          {showInactive && (
+            <ul className="mt-1 space-y-1">
+              {inactive.map((l) => (
+                <ShareRow key={l.token} link={l} faded>
+                  <span className="text-xs text-subtle">{l.revoked ? "revoked" : "expired"}</span>
+                </ShareRow>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+function ShareRow({
+  link,
+  faded = false,
+  children,
+}: {
+  link: ShareSummary;
+  faded?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-2 rounded-md border border-border bg-elevated px-2 py-1",
+        faded && "opacity-50",
+      )}
+    >
+      <code className="min-w-0 flex-1 truncate text-xs">…{link.token.slice(-10)}</code>
+      <span className="text-xs text-subtle">
+        {formatDayShort(link.createdAt)}
+        {link.expiresAt ? ` → ${formatDayShort(link.expiresAt)}` : ""}
+      </span>
+      {children}
+    </li>
+  );
+}
+
+/** Not revoked and not past its expiry: the link still opens. */
+function isLive(link: ShareSummary, nowIso: string): boolean {
+  return !link.revoked && (!link.expiresAt || link.expiresAt > nowIso);
+}
+
+/** The server's limit on the note (share-schema.ts). */
+const NOTE_MAX = 2_000;

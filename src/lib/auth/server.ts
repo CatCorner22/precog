@@ -31,10 +31,9 @@
 import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
-import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { PostgresDialect } from "kysely";
-import { ensureDbReady, getPglite, getPgPool } from "../db";
+import { databaseConfigured, getPglite, getPgPool } from "../db";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "./email-password";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -44,11 +43,6 @@ import {
   PREVIEW_CLIENT_ID,
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
-
-// Kick (and share) PGLite bootstrap as soon as the auth server module loads.
-// The failure is logged by src/lib/db.ts; it must not become an unhandled
-// rejection that ends the process.
-void ensureDbReady().catch(() => undefined);
 
 /**
  * Preview secret must outlive module reloads: PGLite (and its session rows) is
@@ -80,6 +74,21 @@ const authDisabled = env("VITE_AUTH_ENABLED") === "false";
 const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
 const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET;
+
+// Production must run on its own per-app client: the broker accepts the shared
+// preview client only for `*.grok-sandbox.com` callbacks, so every Google and
+// X sign-in would fail with an opaque broker error. Say so in the log.
+if (
+  process.env.VERCEL_ENV === "production" &&
+  !authDisabled &&
+  !(env("GROK_AUTH_CLIENT_ID") && env("GROK_AUTH_CLIENT_SECRET"))
+) {
+  console.error(
+    "[auth] GROK_AUTH_CLIENT_ID and GROK_AUTH_CLIENT_SECRET are not set in production, so " +
+      "Google and X sign-in fall back to the preview client and fail. Set both in the " +
+      "project's environment variables and redeploy.",
+  );
+}
 
 /** True when federated sign-in is active (real auth is enforced). */
 export const authConfigured = !authDisabled && Boolean(grokClientId && grokClientSecret);
@@ -113,9 +122,13 @@ const baseURL = explicitBaseURL ?? {
 };
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
-// Missing entries here surface as FORBIDDEN "Invalid origin".
+// Missing entries here surface as FORBIDDEN "Invalid origin". A deployed app
+// trusts only its own public URL; the loopback variants join only when that
+// URL is itself a local one.
 const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+  ? LOCAL_DEV_ORIGINS.includes(explicitBaseURL.replace(/\/+$/, ""))
+    ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+    : [explicitBaseURL]
   : [
       // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
@@ -123,8 +136,6 @@ const trustedOrigins: string[] = explicitBaseURL
       ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
       ...LOCAL_DEV_ORIGINS,
     ];
-
-const databaseUrl = env("DATABASE_URL");
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
@@ -140,7 +151,7 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // SAME DB as app data, including email/password users. Both use the Better Auth
 // schema from `migrations/0001_auth.sql`. The Postgres path shares the app's
 // one pool (`getPgPool`) instead of opening a second per instance.
-const database = databaseUrl
+const database = databaseConfigured
   ? { dialect: new PostgresDialect({ pool: () => getPgPool() }), type: "postgres" as const }
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
@@ -189,14 +200,18 @@ export const auth = betterAuth({
   // `account_not_linked` (Better Auth refuses to attach an untrusted, unverified
   // identity to an existing user). Google and X carry DISTINCT emails, so this
   // never merges them into one user — they stay separate identities.
+  //
+  // Linking keeps Better Auth's default `requireLocalEmailVerified: true`: an
+  // email/password sign-up is unverified, so a Google or X sign-in with the
+  // same address must NOT attach to it. Otherwise anyone could pre-register a
+  // victim's address with a password and keep that password on the victim's
+  // account once the victim signs in with Google (see server.test.ts). The
+  // refused sign-in lands on /login with `error=account_not_linked`.
   account: {
     encryptOAuthTokens: true,
     accountLinking: {
       enabled: true,
       trustedProviders: GROK_PROVIDERS.map((p) => p.providerId),
-      // X's synthetic email is never "verified", so don't gate linking on the
-      // local user's email-verified state.
-      requireLocalEmailVerified: false,
     },
   },
 
@@ -205,6 +220,16 @@ export const auth = betterAuth({
   // window and reduces auth flicker. See the `auth` skill for the full
   // flicker-prevention guidance (gate on `isPending`; SSR the session).
   session: { cookieCache: { enabled: true, maxAge: 300 } },
+
+  // Password guessing: at most five email sign-in or sign-up attempts per
+  // minute from one network address. Better Auth keeps the counter in memory,
+  // so each serverless instance counts on its own.
+  rateLimit: {
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 5 },
+    },
+  },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled
@@ -247,11 +272,3 @@ export const auth = betterAuth({
     tanstackStartCookies(),
   ],
 });
-
-export function readSessionToken(): string | null {
-  return getCookie(SESSION_TOKEN_COOKIE) ?? null;
-}
-
-// Re-exported for convenience; the array lives in the dependency-free
-// `providers.ts` so the client can import it too.
-export { GROK_PROVIDERS } from "./providers";

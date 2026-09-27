@@ -10,65 +10,52 @@ import {
   type Transaction,
   type Severity,
 } from "@/lib/precog/stats/forensic-suite";
+import {
+  CONFORMITY_LABEL,
+  SEVERITY_LABEL,
+  benfordRows,
+  screenFindings,
+} from "@/lib/precog/stats/forensic-display";
+import { parsePastedAmounts } from "@/lib/precog/stats/pasted-amounts";
 import { parseTransactionsCsv } from "@/lib/precog/stats/transactions-csv";
 
-function severityVariant(severity: Severity): "danger" | "warn" | "default" {
-  return severity === "review" ? "danger" : severity === "watch" ? "warn" : "default";
-}
-
-function parsePastedAmounts(value: string): { transactions: Transaction[]; issues: string[] } {
-  const trimmed = value.trim();
-  if (!trimmed) return { transactions: [], issues: [] };
-  const firstLine = trimmed.split(/\r?\n/, 1)[0].toLowerCase();
-  if (firstLine.includes("date") && firstLine.includes("amount")) {
-    return parseTransactionsCsv(trimmed);
-  }
-  const today = new Date().toISOString().slice(0, 10);
-  const transactions: Transaction[] = [];
-  const issues: string[] = [];
-  trimmed.split(/\r?\n/).forEach((line, index) => {
-    const source = line.trim();
-    if (!source) return;
-    const negative = source.startsWith("(") && source.endsWith(")");
-    const amount = Number(
-      (negative ? source.slice(1, -1) : source).replaceAll("$", "").replaceAll(",", ""),
-    );
-    if (!Number.isFinite(amount)) {
-      if (issues.length < 20) issues.push(`Line ${index + 1}: invalid amount`);
-      return;
-    }
-    transactions.push({
-      id: `pasted-${index + 1}`,
-      date: today,
-      amount: negative ? -Math.abs(amount) : amount,
-    });
-  });
-  return { transactions, issues };
-}
+/** Where the screened records came from; the demo must never pass for the owner's data. */
+type Source = "demo" | "file" | "paste";
 
 export function ForensicPanel() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [source, setSource] = useState<Source | null>(null);
+  const [undated, setUndated] = useState(false);
   const [paste, setPaste] = useState("");
   const [issues, setIssues] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const report = useMemo(() => runForensicSuite(transactions), [transactions]);
+  const findings = screenFindings(report, undated);
   const first = report.benfordFirst;
 
+  function show(next: Source, result: { transactions: Transaction[]; issues: string[] }) {
+    setTransactions(result.transactions);
+    setIssues(result.issues);
+    setSource(next);
+    setUndated(false);
+  }
+
   function loadDemo() {
-    setTransactions(demoTransactions());
-    setIssues([]);
+    show("demo", { transactions: demoTransactions(), issues: [] });
   }
 
   async function loadFile(file: File) {
-    const result = parseTransactionsCsv(await file.text());
-    setTransactions(result.transactions);
-    setIssues(result.issues);
+    try {
+      show("file", parseTransactionsCsv(await file.text()));
+    } catch {
+      setIssues([`Could not read ${file.name}. Check the file still exists and try again.`]);
+    }
   }
 
   function screenPaste() {
     const result = parsePastedAmounts(paste);
-    setTransactions(result.transactions);
-    setIssues(result.issues);
+    show("paste", result);
+    setUndated(result.undated);
   }
 
   return (
@@ -88,7 +75,7 @@ export function ForensicPanel() {
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="secondary" onClick={loadDemo}>
-              Load demo day sheet
+              Load sample data
             </Button>
             <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
               <Upload className="size-3.5" />
@@ -139,42 +126,50 @@ export function ForensicPanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Screen summary</CardTitle>
-          <CardDescription>{report.n} transaction records loaded</CardDescription>
+          <CardDescription>
+            {source === "demo"
+              ? `Sample data: 60 generated days from a dental office (${report.n} records), not your records.`
+              : `${report.n} transaction records loaded`}
+          </CardDescription>
+          {undated && report.n > 0 && (
+            <p className="text-xs text-subtle">
+              Pasted amounts carry no dates, so the repeated-transaction check did not run.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {first ? (
             <>
-              <div className="flex flex-wrap gap-3 text-sm">
-                <span>Conformity: {first.conformity}</span>
-                <span>MAD: {first.mad.toFixed(4)}</span>
-                <span>χ²: {first.chiSquare.toFixed(2)}</span>
-              </div>
+              <p className="text-sm">
+                Fit to Benford&apos;s law: {CONFORMITY_LABEL[first.conformity]} (mean absolute
+                deviation {first.mad.toFixed(3)}; cutoffs per Nigrini 2012)
+              </p>
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted">Benford first-digit comparison</p>
-                {first.digits.map((digit, index) => {
-                  const observed = first.observed[index];
-                  const expected = first.expected[index];
-                  const max = Math.max(observed, expected, 0.01);
-                  return (
-                    <div key={digit} className="grid grid-cols-[1.5rem_1fr] gap-2 text-xs">
-                      <span className="pt-1 text-subtle">{digit}</span>
-                      <div className="space-y-1">
-                        <div className="h-2 rounded bg-elevated">
-                          <div
-                            className="h-2 rounded bg-primary"
-                            style={{ width: `${(observed / max) * 100}%` }}
-                          />
-                        </div>
-                        <div className="h-2 rounded bg-elevated">
-                          <div
-                            className="h-2 rounded bg-muted/60"
-                            style={{ width: `${(expected / max) * 100}%` }}
-                          />
-                        </div>
+                <p className="text-xs font-medium text-muted">
+                  Share of amounts by first digit, observed against expected
+                </p>
+                {benfordRows(first).map((row) => (
+                  <div key={row.digit} className="grid grid-cols-[1.5rem_1fr_7rem] gap-2 text-xs">
+                    <span className="pt-1 text-subtle">{row.digit}</span>
+                    <div className="space-y-1">
+                      <div className="h-2 rounded bg-elevated">
+                        <div
+                          className="h-2 rounded bg-primary"
+                          style={{ width: `${row.observedWidth}%` }}
+                        />
+                      </div>
+                      <div className="h-2 rounded bg-elevated">
+                        <div
+                          className="h-2 rounded bg-muted/60"
+                          style={{ width: `${row.expectedWidth}%` }}
+                        />
                       </div>
                     </div>
-                  );
-                })}
+                    <span className="text-right tabular-nums text-subtle">
+                      {row.observedPct.toFixed(1)}% vs {row.expectedPct.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
                 <div className="flex gap-3 text-xs text-subtle">
                   <span>
                     <i className="mr-1 inline-block size-2 rounded-full bg-primary" />
@@ -182,20 +177,20 @@ export function ForensicPanel() {
                   </span>
                   <span>
                     <i className="mr-1 inline-block size-2 rounded-full bg-muted/60" />
-                    Expected
+                    Expected (Benford&apos;s law: log10(1 + 1/d))
                   </span>
                 </div>
               </div>
             </>
           ) : (
             <p className="text-sm text-muted">
-              Load a demo day sheet or transaction data to calculate the screen.
+              Load sample data or your own transaction data to run the screen.
             </p>
           )}
         </CardContent>
       </Card>
 
-      {report.findings.length > 0 && (
+      {findings.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Patterns to discuss</CardTitle>
@@ -204,13 +199,15 @@ export function ForensicPanel() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {report.findings.map((finding) => (
+            {findings.map((finding) => (
               <div
                 key={finding.id}
                 className="rounded-lg border border-border bg-elevated px-3 py-3"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={severityVariant(finding.severity)}>{finding.severity}</Badge>
+                  <Badge variant={SEVERITY_VARIANT[finding.severity]}>
+                    {SEVERITY_LABEL[finding.severity]}
+                  </Badge>
                   <span className="font-medium">{finding.title}</span>
                 </div>
                 <p className="mt-1 text-sm text-muted">{finding.summary}</p>
@@ -232,3 +229,9 @@ export function ForensicPanel() {
     </div>
   );
 }
+
+const SEVERITY_VARIANT: Record<Severity, "danger" | "warn" | "default"> = {
+  review: "danger",
+  watch: "warn",
+  info: "default",
+};

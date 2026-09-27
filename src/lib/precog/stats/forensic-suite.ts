@@ -5,9 +5,13 @@ import {
   benfordFirstDigit,
   benfordSecondDigit,
 } from "./benford";
+import { utcDateKey } from "../dates";
+import { formatPct } from "../../utils";
 
 export interface Transaction {
   id: string;
+  /** The spreadsheet row the transaction came from, when it came from a file. */
+  row?: number;
   date: string;
   amount: number;
   kind?: "charge" | "payment" | "deposit" | "adjustment" | "refund";
@@ -48,55 +52,6 @@ export const FORENSIC_DISCLAIMER =
 const DIGIT_TEST_KINDS = new Set<Transaction["kind"]>(["payment", "deposit", undefined]);
 const SET_PRICE_KINDS = new Set<Transaction["kind"]>(["charge"]);
 
-function absoluteAmounts(txns: Transaction[]): number[] {
-  return txns.map((txn) => Math.abs(txn.amount));
-}
-
-function benfordSeverity(test: DigitTest): Severity {
-  return test.conformity === "nonconformity"
-    ? "review"
-    : test.conformity === "marginal"
-      ? "watch"
-      : "info";
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
-}
-
-function dateValue(date: string): Date {
-  return new Date(`${date}T00:00:00Z`);
-}
-
-function addBusinessDays(date: string, days: number): string {
-  const result = dateValue(date);
-  let remaining = days;
-  while (remaining > 0) {
-    result.setUTCDate(result.getUTCDate() + 1);
-    const weekday = result.getUTCDay();
-    if (weekday !== 0 && weekday !== 6) remaining--;
-  }
-  return result.toISOString().slice(0, 10);
-}
-
-function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest): ForensicFinding {
-  const label = id === "benford_first" ? "first-digit" : "second-digit";
-  return {
-    id,
-    title: `Benford ${label} fit`,
-    severity: benfordSeverity(test),
-    summary: `${test.n} eligible amounts show ${test.conformity} conformity (MAD ${test.mad.toFixed(4)}).`,
-    detail: [
-      `Chi-square ${test.chiSquare.toFixed(2)} with ${test.df} degrees of freedom (${test.pValueBand}).`,
-      "This screen compares the distribution of leading digits with a mathematical reference pattern.",
-      "Only payments and deposits are tested. Charges are set prices, and adjustments and refunds are chosen amounts, so the reference pattern does not apply to them.",
-    ],
-    examples: [],
-  };
-}
-
 export function runForensicSuite(txns: Transaction[]): ForensicReport {
   const findings: ForensicFinding[] = [];
   const eligible = txns.filter((txn) => DIGIT_TEST_KINDS.has(txn.kind));
@@ -111,62 +66,51 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     findings.push(benfordFinding("benford_second", second));
   }
 
-  // Fee-schedule prices are round by design, so they are left out here too.
-  const priced = txns.filter((txn) => !SET_PRICE_KINDS.has(txn.kind));
+  // Fee-schedule prices are round by design, so they are left out here too, and
+  // a zero amount is no amount at all.
+  const priced = txns.filter((txn) => !SET_PRICE_KINDS.has(txn.kind) && txn.amount !== 0);
   const threshold = priced.every((txn) => Math.abs(txn.amount) < 1000) ? 10 : 100;
-  const roundCount = priced.filter((txn) => Math.abs(txn.amount) % threshold === 0).length;
-  const roundShare = priced.length === 0 ? 0 : roundCount / priced.length;
+  const round = priced.filter((txn) => Math.abs(txn.amount) % threshold === 0);
+  const roundShare = priced.length === 0 ? 0 : round.length / priced.length;
   findings.push({
     id: "round_amounts",
     title: "Round-amount concentration",
     severity:
-      roundShare > 0.15 && txns.length >= 50 ? "review" : roundShare > 0.1 ? "watch" : "info",
-    summary: `${roundCount} of ${priced.length} amounts (${(roundShare * 100).toFixed(1)}%) are exact multiples of ${threshold}.`,
+      roundShare > 0.15 && priced.length >= 50 ? "review" : roundShare > 0.1 ? "watch" : "info",
+    summary: `${round.length} of ${priced.length} amounts (${formatPct(roundShare, 1)}) are exact multiples of ${threshold}.`,
     detail: [
       "Round values can be useful prompts to review how amounts are entered and approved.",
-      "Charges are excluded: fee-schedule prices are round by design.",
+      "Charges are excluded: fee-schedule prices are round by design. Zero amounts are left out.",
     ],
-    examples: priced
-      .filter((txn) => Math.abs(txn.amount) % threshold === 0)
-      .slice(0, 8)
-      .map((txn) => txn.id),
+    examples: round.slice(0, 8).map(describeTransaction),
   });
 
-  const values = absoluteAmounts(txns);
-  const outlierExamples: string[] = [];
-  let outlierCount = 0;
-  if (values.length > 0) {
-    const center = median(values);
-    const mad = median(values.map((value) => Math.abs(value - center)));
-    if (mad > 0) {
-      values.forEach((value, index) => {
-        const modifiedZ = (0.6745 * (value - center)) / mad;
-        if (Math.abs(modifiedZ) > 3.5) {
-          outlierCount++;
-          if (outlierExamples.length < 8) outlierExamples.push(txns[index].id);
-        }
-      });
-    }
-  }
+  // A deposit is the sum of a day's payments, so each kind is compared only
+  // with its own kind, and on a log scale because amounts are skewed: a
+  // modified z-score over raw amounts flags the ordinary long tail.
+  const outliers = magnitudeOutliers(txns);
   findings.push({
     id: "mad_outliers",
     title: "Magnitude outliers",
     severity:
-      outlierCount > 0 && outlierCount / Math.max(txns.length, 1) > 0.02
+      outliers.length > 0 && outliers.length / Math.max(txns.length, 1) > 0.02
         ? "review"
-        : outlierCount > 0
+        : outliers.length > 0
           ? "watch"
           : "info",
-    summary: `${outlierCount} amount${outlierCount === 1 ? "" : "s"} exceed the modified-z threshold.`,
+    summary: `${outliers.length} amount${outliers.length === 1 ? "" : "s"} exceed the modified-z threshold for their kind.`,
     detail: [
       "The modified z-score uses the median and median absolute deviation, which are less influenced by unusually large values.",
+      "Each kind (charges, payments, deposits, adjustments, refunds) is compared only with amounts of the same kind, on a logarithmic scale.",
     ],
-    examples: outlierExamples,
+    examples: outliers.slice(0, 8).map(describeTransaction),
   });
 
+  // A charge and the payment that settles it share date, amount and person;
+  // only entries of the same kind count as a repeat.
   const duplicateGroups = new Map<string, Transaction[]>();
   for (const txn of txns) {
-    const key = `${txn.date}|${txn.amount}|${txn.personId ?? ""}`;
+    const key = `${txn.kind ?? ""}|${txn.date}|${txn.amount}|${txn.personId ?? ""}`;
     const group = duplicateGroups.get(key) ?? [];
     group.push(txn);
     duplicateGroups.set(key, group);
@@ -185,11 +129,12 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     summary: `${duplicates.length} repeated group${duplicates.length === 1 ? "" : "s"} covering ${duplicateTransactions} transaction${duplicateTransactions === 1 ? "" : "s"}.`,
     detail: [
       "Repeated amount-and-date combinations can prompt a review of source records and workflow timing.",
+      "A charge and the payment that settles it are not a repeat: only entries of the same kind are grouped.",
     ],
     examples: duplicates
       .flatMap((group) => group)
       .slice(0, 8)
-      .map((txn) => txn.id),
+      .map(describeTransaction),
   });
 
   const payments = txns.filter((txn) => txn.kind === "payment");
@@ -222,7 +167,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
       severity: review ? "review" : gaps.length > 0 ? "watch" : "info",
       summary:
         gaps.length > 0
-          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} where cumulative deposits trail cumulative payments by more than 1% within two business days (largest shortfall $${largestShortfall.toFixed(2)}).`
+          ? `${gaps.length} payment date${gaps.length === 1 ? "" : "s"} where cumulative deposits trail cumulative payments by more than 1% within two business days (largest shortfall ${CENTS.format(largestShortfall)}).`
           : "Deposits keep pace with payments within two business days.",
       detail: ["This cumulative check allows timing lags of a day or two without flagging them."],
       examples: gaps.slice(0, 8).map((gap) => gap.date),
@@ -232,29 +177,32 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
   const adjustments = txns.filter(
     (txn) => (txn.kind === "adjustment" || txn.kind === "refund") && txn.personId,
   );
-  if (adjustments.length > 0) {
+  if (adjustments.length >= 10) {
     const byPerson = new Map<string, number>();
     for (const txn of adjustments) {
       byPerson.set(txn.personId!, (byPerson.get(txn.personId!) ?? 0) + 1);
     }
     const [personId, count] = [...byPerson.entries()].sort((a, b) => b[1] - a[1])[0];
     const share = count / adjustments.length;
-    if (adjustments.length >= 10) {
-      findings.push({
-        id: "adjustment_concentration",
-        title: "Adjustment/refund concentration",
-        severity: share > 0.8 ? "review" : share > 0.6 ? "watch" : "info",
-        summary: `${(share * 100).toFixed(1)}% of adjustments/refunds are associated with one person record.`,
-        detail: [
-          `The largest share is ${count} of ${adjustments.length} records for ${personId}.`,
-          "Concentration can prompt a conversation about training, access, and review coverage.",
-        ],
-        examples: adjustments
-          .filter((txn) => txn.personId === personId)
-          .slice(0, 8)
-          .map((txn) => txn.id),
-      });
-    }
+    // In a small office one bookkeeper often posts every adjustment; that is a
+    // prompt to have someone else review them, not a pattern among posters.
+    const onePoster = byPerson.size === 1;
+    findings.push({
+      id: "adjustment_concentration",
+      title: "Adjustment/refund concentration",
+      severity: onePoster ? "watch" : share > 0.8 ? "review" : share > 0.6 ? "watch" : "info",
+      summary: onePoster
+        ? `One person posts every adjustment and refund (${adjustments.length}); make sure someone else reviews them.`
+        : `${formatPct(share, 1)} of adjustments/refunds are associated with one person record.`,
+      detail: [
+        `The largest share is ${count} of ${adjustments.length} records for ${personId}.`,
+        "Concentration can prompt a conversation about training, access, and review coverage.",
+      ],
+      examples: adjustments
+        .filter((txn) => txn.personId === personId)
+        .slice(0, 8)
+        .map(describeTransaction),
+    });
   }
 
   return {
@@ -265,3 +213,89 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     disclaimer: FORENSIC_DISCLAIMER,
   };
 }
+
+function absoluteAmounts(txns: Transaction[]): number[] {
+  return txns.map((txn) => Math.abs(txn.amount));
+}
+
+function benfordSeverity(test: DigitTest): Severity {
+  return test.conformity === "nonconformity"
+    ? "review"
+    : test.conformity === "marginal"
+      ? "watch"
+      : "info";
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
+
+function dateValue(date: string): Date {
+  return new Date(`${date}T00:00:00Z`);
+}
+
+function addBusinessDays(date: string, days: number): string {
+  const result = dateValue(date);
+  let remaining = days;
+  while (remaining > 0) {
+    result.setUTCDate(result.getUTCDate() + 1);
+    const weekday = result.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) remaining--;
+  }
+  return utcDateKey(result);
+}
+
+function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest): ForensicFinding {
+  const label = id === "benford_first" ? "first-digit" : "second-digit";
+  return {
+    id,
+    title: `Benford ${label} fit`,
+    severity: benfordSeverity(test),
+    summary: `${test.n} eligible amounts show ${test.conformity} conformity (MAD ${test.mad.toFixed(4)}).`,
+    detail: [
+      `Chi-square ${test.chiSquare.toFixed(2)} with ${test.df} degrees of freedom (${test.pValueBand}).`,
+      "This screen compares the distribution of leading digits with a mathematical reference pattern.",
+      "Only payments and deposits are tested. Charges are set prices, and adjustments and refunds are chosen amounts, so the reference pattern does not apply to them.",
+    ],
+    examples: [],
+  };
+}
+
+/**
+ * Amounts whose modified z-score on log10 of the amount exceeds 3.5 within
+ * their own kind, in input order. Zero amounts are left out.
+ */
+function magnitudeOutliers(txns: Transaction[]): Transaction[] {
+  const byKind = new Map<Transaction["kind"], Transaction[]>();
+  for (const txn of txns) {
+    if (txn.amount === 0) continue;
+    byKind.set(txn.kind, [...(byKind.get(txn.kind) ?? []), txn]);
+  }
+  const flagged = new Set<Transaction>();
+  for (const group of byKind.values()) {
+    const logs = group.map((txn) => Math.log10(Math.abs(txn.amount)));
+    const center = median(logs);
+    const mad = median(logs.map((value) => Math.abs(value - center)));
+    if (mad === 0) continue;
+    group.forEach((txn, index) => {
+      if (Math.abs((0.6745 * (logs[index] - center)) / mad) > 3.5) flagged.add(txn);
+    });
+  }
+  return txns.filter((txn) => flagged.has(txn));
+}
+
+/** "row 13 · 2025-01-04 · $1,234.56 (payment)": a record the owner can find in their file. */
+export function describeTransaction(txn: Transaction): string {
+  const where = txn.row === undefined ? "" : `row ${txn.row} · `;
+  const kind = txn.kind ? ` (${txn.kind})` : "";
+  return `${where}${txn.date} · ${CENTS.format(txn.amount)}${kind}`;
+}
+
+const CENTS = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
