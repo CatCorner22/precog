@@ -39,7 +39,7 @@ export const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "financial-statement": "Doctored books and statements",
   corruption: "Kickbacks and conflicts of interest",
   "refund-fraud": "Refunds and voids with no sale behind them",
-  "inventory-theft": "Stock, equipment, and drugs taken",
+  "inventory-theft": "Stock, equipment, or supplies taken",
   "data-theft": "Customer and pricing data taken",
   "data-destruction": "Company data deleted or wiped by an insider",
 };

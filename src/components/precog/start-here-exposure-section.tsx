@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel } from "./use-start-here";
-import { joinWithAnd, midSentence } from "@/lib/precog/text";
+import { joinWithAnd, midSentence, verb } from "@/lib/precog/text";
+import { industryMeta } from "@/lib/precog/industry";
 
 export function StartHereExposureSection({
   model,
@@ -78,9 +79,10 @@ export function StartHereExposureSection({
 
       {unheld.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
-          Nobody active is marked for: {unheld.join(", ")}. Somebody does each of these in every
-          business that handles money, so mark who on Who controls what; until then the findings
-          here cannot see that seat.
+          Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
+          {verb(unheld.length, "this", "each of these")} in every{" "}
+          {industryMeta(industryId).teamLabel} that handles money, so mark who on Who controls what;
+          until then the findings cannot cover {verb(unheld.length, "that duty", "those duties")}.
         </p>
       )}
 
@@ -142,36 +144,9 @@ export function StartHereExposureSection({
                 <CardContent className="space-y-3 text-sm">
                   <p className="leading-relaxed text-muted">{conflict.why}</p>
 
-                  {(() => {
-                    const longServing = people
-                      .map((name) => ({ name, years: tenureByName.get(name) ?? 0 }))
-                      .filter((p) => p.years >= LONG_SERVICE_YEARS);
-                    const { longest, shortest, n } = tenureCases;
-                    if (
-                      conflict.ruleId !== tenureNoteRuleId ||
-                      longServing.length === 0 ||
-                      !longest
-                    )
-                      return null;
-                    return (
-                      <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
-                        {longServing.length === 1
-                          ? `${longServing[0].name} has ${longServing[0].years} years here.`
-                          : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
-                        Length of service is not a control. Of the {n} cases in the library whose
-                        source states how long the person had served, the longest,{" "}
-                        {longest.tenureYearsStated} years, cost the business {lossPhrase(longest)}
-                        {shortest
-                          ? `; the shortest began ${
-                              shortest.tenureYearsStated === 0
-                                ? "within months of hire"
-                                : `after ${shortest.tenureYearsStated} years`
-                            } and cost ${lossPhrase(shortest)}`
-                          : ""}
-                        . The people in those cases were trusted for the same reason yours are.
-                      </p>
-                    );
-                  })()}
+                  {conflict.ruleId === tenureNoteRuleId && (
+                    <TenureNote people={people} tenureByName={tenureByName} cases={tenureCases} />
+                  )}
 
                   {partialCoverage.has(conflict.ruleId) && (
                     <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
@@ -224,8 +199,8 @@ export function StartHereExposureSection({
                 Narrowed by your dual-release policy, not closed
               </p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
-                Two people are required above the threshold. Beneath it, and wherever an exception
-                raises or waives the threshold, one person can still act alone.
+                Your policy requires two people above the threshold. Beneath it, and wherever an
+                exception raises or waives the threshold, one person can still act alone.
               </p>
               <ul className="mt-3 space-y-2">
                 {narrowed.map(({ conflict, people, ids }) => (
@@ -293,5 +268,44 @@ export function StartHereExposureSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Why long service is no reassurance, beside the first top gap a long-serving
+ * person holds: the longest- and shortest-serving people in the library's
+ * cases whose source states tenure.
+ */
+function TenureNote({
+  people,
+  tenureByName,
+  cases,
+}: {
+  people: readonly string[];
+  tenureByName: StartHereModel["tenureByName"];
+  cases: StartHereModel["tenureCases"];
+}) {
+  const longServing = people
+    .map((name) => ({ name, years: tenureByName.get(name) ?? 0 }))
+    .filter((p) => p.years >= LONG_SERVICE_YEARS);
+  const { longest, shortest, n } = cases;
+  if (longServing.length === 0 || !longest) return null;
+  return (
+    <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
+      {longServing.length === 1
+        ? `${longServing[0].name} has ${longServing[0].years} years here.`
+        : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
+      Length of service is not a control. The library holds {n} cases whose source states how long
+      the person had served. The longest-serving, {longest.tenureYearsStated} years in, cost the
+      business {lossPhrase(longest)}.
+      {shortest
+        ? ` The shortest-serving began ${
+            shortest.tenureYearsStated === 0
+              ? "within months of hire"
+              : `after ${shortest.tenureYearsStated} years`
+          } and cost ${lossPhrase(shortest)}.`
+        : ""}{" "}
+      The people in those cases were trusted for the same reason yours are.
+    </p>
   );
 }
