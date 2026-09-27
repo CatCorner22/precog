@@ -5,25 +5,6 @@ import { defaultDualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-profile";
 import { getIndustryTemplate } from "./templates";
 import type { Person, ProcessNode } from "./types";
-import { MAX_BUSINESSES_PER_USER } from "./business-store";
-
-/**
- * The process map an edit starts from: the business's own map, or the
- * template's with owners limited to people on this team. Seeding from the raw
- * template saved the sample's owner ids (p1…p6) into an owner's map, where a
- * later import holding those ids would have brought the sample's owners back.
- */
-export function processesToEdit(source: TemplateSource): ProcessNode[] {
-  return source.customProcesses ?? resolveTemplate(source).processes;
-}
-
-/**
- * Businesses one signed-in account may keep: the server refuses to save one
- * more (MAX_BUSINESSES_PER_USER in business-store), so the app stops creating
- * one locally at the same point instead of letting it fail to sync. One
- * number, read from the server's store module.
- */
-export const MAX_BUSINESSES_PER_ACCOUNT = MAX_BUSINESSES_PER_USER;
 
 /**
  * A business the owner adds. Its setup is not finished, so the setup dialog
@@ -39,9 +20,21 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
   };
 }
 
-/** The name the owner typed for a business, or "" while it still has a sample's name. */
-export function ownBusinessName(profile: Pick<PracticeProfile, "practiceName">): string {
-  return isDemoName(profile.practiceName) ? "" : profile.practiceName;
+/**
+ * Businesses one signed-in account may keep. The server refuses to create
+ * one more, and the app stops creating one locally at the same point instead
+ * of letting it fail to save to the account.
+ */
+export const MAX_BUSINESSES_PER_ACCOUNT = 50;
+
+/** What the owner is told when the account already holds `limit` businesses. */
+export function businessLimitMessage(limit = MAX_BUSINESSES_PER_ACCOUNT): string {
+  return `Your account already holds ${limit} businesses, the most it can keep. Delete one you no longer need, then try again.`;
+}
+
+/** True when a signed-in account already holds as many businesses as it may keep. */
+export function atBusinessLimit(businessCount: number): boolean {
+  return businessCount >= MAX_BUSINESSES_PER_ACCOUNT;
 }
 
 /**
@@ -83,11 +76,6 @@ export function unfinishedBusinessToKeep(previous: PracticeProfile): PracticePro
   return hasUserWork({ ...previous, practiceName: sampleName })
     ? { ...previous, onboardingComplete: true }
     : null;
-}
-
-/** True when a signed-in account already holds as many businesses as it may keep. */
-export function atBusinessLimit(businessCount: number): boolean {
-  return businessCount >= MAX_BUSINESSES_PER_ACCOUNT;
 }
 
 /**
@@ -138,6 +126,11 @@ export function adoptOwnTeam(profile: PracticeProfile, people: Person[]): Practi
   };
 }
 
+/** The name the owner typed for a business, or "" while it still has a sample's name. */
+export function ownBusinessName(profile: Pick<PracticeProfile, "practiceName">): string {
+  return isDemoName(profile.practiceName) ? "" : profile.practiceName;
+}
+
 /** True when the owner's own business still carries the neutral name setup gave it. */
 export function needsOwnName(
   profile: Pick<PracticeProfile, "practiceName" | "onboardingComplete">,
@@ -169,4 +162,14 @@ export function printedBusinessName(
   return profile.onboardingComplete === false
     ? getIndustryTemplate(profile.industry).businessName
     : profile.practiceName;
+}
+
+/**
+ * The process map an edit starts from: the business's own map, or the
+ * template's with owners limited to people on this team. Seeding from the raw
+ * template saved the sample's owner ids (p1…p6) into an owner's map, where a
+ * later import holding those ids would have brought the sample's owners back.
+ */
+export function processesToEdit(source: TemplateSource): ProcessNode[] {
+  return source.customProcesses ?? resolveTemplate(source).processes;
 }

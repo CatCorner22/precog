@@ -1,9 +1,16 @@
-import { useCallback, useMemo, useRef, type Dispatch, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+} from "react";
+import { toast } from "sonner";
 import type { IndustryId } from "./industry";
 import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-server";
 import {
   loadPortfolio,
-  normalizeProfile,
   removePortfolioEntry,
   savePortfolioEntry,
   summarizeBusiness,
@@ -13,7 +20,7 @@ import {
 import { removeValueProof } from "./value-proof-store";
 import {
   atBusinessLimit,
-  MAX_BUSINESSES_PER_ACCOUNT,
+  businessLimitMessage,
   newBusinessProfile,
   ownSetupProfile,
   sampleSetupProfile,
@@ -21,13 +28,15 @@ import {
 } from "./business-lifecycle";
 import type { Departure } from "./continuity/access-removal";
 import type { Person } from "./types";
-import type { LocalProfileStore } from "./save-conflict";
+import { pickSwitchCopy, type LocalProfileStore } from "./save-conflict";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { ProfileAction } from "./profile-reducer";
-import { useEffect } from "react";
 import type { Workspace } from "./workspace-context";
 import { withRosterLeavers } from "./profile-actions";
 import { localDateKey } from "./dates";
+
+/** Whether a switch opened the business, and when not, what to tell the owner. */
+export type SwitchResult = { ok: true } | { ok: false; reason: string };
 
 /**
  * More than one business per account: the list, switching between them,
@@ -46,7 +55,9 @@ export function usePortfolio(input: {
   cloudUser: boolean;
   cloudRevision: MutableRefObject<Map<string, number>>;
   saveConflictRef: MutableRefObject<SaveConflictState | null>;
+  flushLocal: () => boolean;
   flushActive: () => Promise<boolean>;
+  openedFromAccount: (opened: PracticeProfile, revision: number) => void;
   remoteBusinesses: BusinessSummary[];
   setRemoteBusinesses: Dispatch<(cur: BusinessSummary[]) => BusinessSummary[]>;
   portfolioVersion: number;
@@ -64,14 +75,15 @@ export function usePortfolio(input: {
     cloudUser,
     cloudRevision,
     saveConflictRef,
+    flushLocal,
     flushActive,
+    openedFromAccount,
     remoteBusinesses,
     setRemoteBusinesses,
     portfolioVersion,
     bumpPortfolio,
     setSwitching,
   } = input;
-  // The business open before "Add a business", which cancelling setup returns to.
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -79,6 +91,7 @@ export function usePortfolio(input: {
       mounted.current = false;
     };
   }, []);
+  // The business open before "Add a business", which cancelling setup returns to.
   const openBeforeSetup = useRef<string | null>(null);
 
   /** Local portfolio + cloud summaries merged by id; the active business always wins. */
@@ -90,9 +103,11 @@ export function usePortfolio(input: {
       if (p.onboardingComplete === false) continue;
       const s = summarizeBusiness(p);
       const existing = byId.get(s.id);
-      if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt)) byId.set(s.id, s);
+      if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt))
+        byId.set(s.id, { ...s, shared: existing?.shared });
     }
-    byId.set(profile.businessId ?? "biz_default", summarizeBusiness(profile));
+    const activeId = profile.businessId ?? "biz_default";
+    byId.set(activeId, { ...summarizeBusiness(profile), shared: byId.get(activeId)?.shared });
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- portfolioVersion tracks storage writes
   }, [
@@ -105,37 +120,41 @@ export function usePortfolio(input: {
   ]);
 
   const switchBusiness = useCallback(
-    async (id: string) => {
-      if (id === (profileRef.current.businessId ?? "biz_default")) return;
+    async (id: string): Promise<SwitchResult> => {
+      if (id === (profileRef.current.businessId ?? "biz_default")) return { ok: true };
       setSwitching(true);
       try {
-        if (!(await flushActive()) || !mounted.current) return;
-        let next: PracticeProfile | null = loadPortfolio(workspace.local)[id] ?? null;
-        // Another tab may have this business open: its copy of the open
-        // business is written on every edit, the portfolio only a moment
-        // later, so take whichever is newer.
-        const open = localStore.peek(id);
-        if (open && (!next || open.profile.updatedAt >= next.updatedAt)) next = open.profile;
-        if (cloudUser) {
-          const remote = await loadBusiness({
-            data: { id, today: localDateKey(new Date()) },
-          }).catch(() => null);
-          if (remote?.found && remote.profile) {
-            // The local copy is only trustworthy if it was built on the
-            // revision the server still holds; any newer revision means
-            // another device wrote since, and clocks are not a tiebreaker.
-            const seen = cloudRevision.current.get(id);
-            const localCurrent = next !== null && seen !== undefined && seen === remote.revision;
-            cloudRevision.current.set(id, remote.revision);
-            if (!localCurrent) next = normalizeProfile(remote.profile);
-          } else if (remote?.found === false) {
-            throw new Error(
-              "This business was deleted or access was removed. Your local recovery copy was kept; reload the business list.",
-            );
-          }
-        }
-        if (!next || !mounted.current) return;
-        activateProfile({ ...next, businessId: id, onboardingComplete: true });
+        if (!(await flushActive()))
+          return {
+            ok: false,
+            reason: saveConflictRef.current
+              ? CHOOSE_A_VERSION_FIRST
+              : "The open business could not be saved, so it stays open.",
+          };
+        if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
+        const remote = cloudUser
+          ? await loadBusiness({ data: { id, today: localDateKey(new Date()) } }).catch(() => null)
+          : null;
+        const copy = pickSwitchCopy({
+          stored: loadPortfolio(workspace.local)[id],
+          open: localStore.peek(id)?.profile ?? null,
+          account:
+            remote?.found && remote.profile
+              ? { found: true, profile: remote.profile, revision: remote.revision }
+              : remote?.found === false
+                ? { found: false }
+                : null,
+          seenRevision: cloudRevision.current.get(id),
+          heldByAccount: cloudRevision.current.has(id) || remoteBusinesses.some((b) => b.id === id),
+        });
+        if (!copy.ok) return copy;
+        if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
+        const opened = { ...copy.profile, businessId: id, onboardingComplete: true };
+        if (copy.accountRevision !== null) openedFromAccount(opened, copy.accountRevision);
+        // Its next save creates it in the account.
+        if (copy.localOnly) cloudRevision.current.delete(id);
+        activateProfile(opened);
+        return { ok: true };
       } finally {
         setSwitching(false);
       }
@@ -144,9 +163,12 @@ export function usePortfolio(input: {
       activateProfile,
       cloudUser,
       flushActive,
+      openedFromAccount,
       localStore,
       cloudRevision,
+      remoteBusinesses,
       profileRef,
+      saveConflictRef,
       setSwitching,
       workspace.local,
     ],
@@ -156,18 +178,13 @@ export function usePortfolio(input: {
     (industry: IndustryId, name?: string): { ok: true } | { ok: false; reason: string } => {
       // A conflict on the outgoing business must not be lost behind the new
       // one: the banner stays up and the switch waits for the user's choice.
-      if (saveConflictRef.current) {
-        return {
-          ok: false,
-          reason: "Choose a version in the banner at the top first, so no work is lost.",
-        };
-      }
+      if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
       if (cloudUser && atBusinessLimit(businesses.length)) {
-        return {
-          ok: false,
-          reason: `Your account already holds ${MAX_BUSINESSES_PER_ACCOUNT} businesses, the most it can keep. Remove one you no longer need first.`,
-        };
+        return { ok: false, reason: businessLimitMessage() };
       }
+      // Written here first: another tab's newer save raises the banner now,
+      // before the new business takes this one's place.
+      if (!flushLocal()) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
       const current = profileRef.current;
       if (current.onboardingComplete !== false) {
         openBeforeSetup.current = current.businessId ?? "biz_default";
@@ -182,6 +199,7 @@ export function usePortfolio(input: {
     },
     [
       activateProfile,
+      flushLocal,
       flushActive,
       cloudUser,
       businesses.length,
@@ -207,7 +225,9 @@ export function usePortfolio(input: {
   const cancelSetup = useCallback(async () => {
     if (!setupReturnsTo) return;
     openBeforeSetup.current = null;
-    await switchBusiness(setupReturnsTo.id);
+    const result = await switchBusiness(setupReturnsTo.id);
+    if (!result.ok)
+      toast.error(`Could not open ${setupReturnsTo.name}`, { description: result.reason });
   }, [setupReturnsTo, switchBusiness]);
 
   /**
@@ -284,3 +304,6 @@ export function usePortfolio(input: {
     startOwnBusiness,
   };
 }
+
+const CHOOSE_A_VERSION_FIRST =
+  "Choose a version in the banner at the top first, so no work is lost.";

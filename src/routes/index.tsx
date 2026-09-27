@@ -621,7 +621,7 @@ function Home() {
             </div>
             <div className="flex items-center gap-2">
               <PresentationToggle className="hidden sm:inline-flex" />
-              <SyncStatusBadge className="hidden sm:inline-flex" />
+              <SyncStatusBadge compactOnPhone />
               {overdueDecisions > 0 && (
                 <button
                   type="button"

@@ -3,7 +3,6 @@ import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { IndustryId } from "./industry";
-import { isBusinessId, isIndustryId, validateProfileInput } from "./profile-input";
 import type { PracticeProfile } from "./practice-profile";
 import { mergeProfile } from "./profile-merge";
 import {
@@ -15,7 +14,11 @@ import {
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
 import { resolveClientDate } from "./dates";
-import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
+import {
+  parseDeleteBusinessRequest,
+  parseOpenBusinessRequest,
+  parseSaveBusinessRequest,
+} from "./profile-requests";
 
 export const loadBusinessProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -23,18 +26,10 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const active = await loadActiveBusiness<PracticeProfile>(sql, context.userId);
-    if (!active) {
-      return {
-        found: false as const,
-        profile: null,
-        industry: "dental" as IndustryId,
-        revision: null,
-      };
-    }
+    if (!active) return { found: false as const, profile: null, revision: null };
     return {
       found: true as const,
       profile: { ...mergeProfile(active, data.today), businessId: active.businessId },
-      industry: (active.industry as IndustryId) || "dental",
       updatedAt: active.updated_at,
       revision: active.revision,
     };
@@ -49,32 +44,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       industry?: IndustryId;
       baseRevision?: number | null;
       today?: string;
-    }) => {
-      const raw = requireObject(input);
-      if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId)
-        throw new RequestError(
-          409,
-          "Reload this application before saving so the account can be verified.",
-        );
-      const checked = validateProfileInput(raw.profile);
-      const industry = raw.industry ?? checked.profile.industry;
-      if (!isIndustryId(industry)) throw new RequestError(400, "Unknown industry");
-      if (
-        raw.baseRevision != null &&
-        (typeof raw.baseRevision !== "number" ||
-          !Number.isSafeInteger(raw.baseRevision) ||
-          raw.baseRevision < 1)
-      )
-        throw invalidRequest();
-      const baseRevision = raw.baseRevision ?? null;
-      return {
-        ...checked,
-        expectedAccountId: raw.expectedAccountId,
-        industry,
-        baseRevision: baseRevision !== null && Number.isFinite(baseRevision) ? baseRevision : null,
-        today: resolveClientDate(raw.today),
-      };
-    },
+    }) => parseSaveBusinessRequest(input),
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -132,7 +102,7 @@ type BusinessRow = {
 /**
  * Every business in the signed-in user's portfolio and their firm's
  * (summaries only). No row limit: saves refuse a new business past
- * MAX_BUSINESSES_PER_USER instead, so the list and the limit agree and no
+ * MAX_BUSINESSES_PER_ACCOUNT instead, so the list and the limit agree and no
  * business is unreachable.
  */
 export const listBusinesses = createServerFn({ method: "GET" })
@@ -146,11 +116,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
 
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; today?: string }) => {
-    const raw = requireObject(input);
-    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
-    return { id: raw.id, today: resolveClientDate(raw.today) };
-  })
+  .validator((input: { id: string; today?: string }) => parseOpenBusinessRequest(input))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await resolveBusinessOwner(sql, context.userId, data.id);
@@ -172,12 +138,9 @@ export const loadBusiness = createServerFn({ method: "GET" })
 
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; expectedAccountId: string }) => {
-    const raw = requireObject(input);
-    if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
-    if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId) throw invalidRequest();
-    return { id: raw.id, expectedAccountId: raw.expectedAccountId };
-  })
+  .validator((input: { id: string; expectedAccountId: string }) =>
+    parseDeleteBusinessRequest(input),
+  )
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
     const sql = await getSql();

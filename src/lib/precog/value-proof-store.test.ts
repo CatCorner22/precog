@@ -35,6 +35,18 @@ describe("value proof for an owner with two businesses in one browser", () => {
     expect(readValueProof("biz_beta", storage).valueCase).toBeUndefined();
   });
 
+  it("leaves the old figures for the Value proof tab when another reader passes claimLegacy false", () => {
+    const storage = memoryStorage({
+      [VALUE_CASE_STORAGE_KEY]: JSON.stringify({ directRecoveries: 500 }),
+    });
+    expect(readValueProof("biz_sample", storage, { claimLegacy: false })).toEqual({
+      valueCase: undefined,
+      evidence: undefined,
+    });
+    expect(storage.data.has(VALUE_CASE_STORAGE_KEY)).toBe(true);
+    expect(readValueProof("biz_own", storage).valueCase).toEqual({ directRecoveries: 500 });
+  });
+
   it("keeps the old figures where they are when the browser refuses the move", () => {
     const storage = memoryStorage({
       [VALUE_CASE_STORAGE_KEY]: JSON.stringify({ directRecoveries: 500 }),

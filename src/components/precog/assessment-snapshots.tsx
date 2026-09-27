@@ -9,16 +9,21 @@ import {
   deleteAssessmentSnapshot,
   getAssessmentSnapshot,
   listAssessmentSnapshots,
-  type AssessmentSnapshotSummary,
 } from "@/lib/precog/snapshots";
+import type { AssessmentSnapshotSummary } from "@/lib/precog/snapshot-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildAssignments } from "@/lib/precog/sod/detect";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { useTemplate } from "@/lib/precog/use-template";
-import { DEFAULT_VALUE_CASE, normalizeValueCase } from "@/lib/precog/value-case";
-import { normalizeValueEvidence } from "@/lib/precog/value-evidence";
+import {
+  DEFAULT_VALUE_CASE,
+  normalizeValueCase,
+  type ValueCaseInputs,
+} from "@/lib/precog/value-case";
+import { normalizeValueEvidence, type ValueEvidence } from "@/lib/precog/value-evidence";
+import type { StorageLike } from "@/lib/precog/local-data";
 import {
   compareAssessmentStates,
   createSnapshotComparisonReport,
@@ -27,7 +32,7 @@ import { formatSigned, formatUsdDelta } from "@/lib/utils";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
 import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
-import { localDateKey, formatDay } from "@/lib/precog/dates";
+import { localDateKey, formatDay, formatDayTime } from "@/lib/precog/dates";
 
 export function AssessmentSnapshots() {
   const workspace = useWorkspace();
@@ -42,6 +47,8 @@ export function AssessmentSnapshots() {
   const [busy, setBusy] = useState(false);
   const [listing, setListing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Snapshots of the account's other businesses are listed only on request.
+  const [showAll, setShowAll] = useState(false);
   const [comparison, setComparison] = useState<{
     title: string;
     createdAt: string;
@@ -68,52 +75,52 @@ export function AssessmentSnapshots() {
     void refresh();
   }, [refresh]);
 
+  const ofThisBusiness = (item: AssessmentSnapshotSummary) =>
+    item.businessId ? item.businessId === businessId : item.practiceName === profile.practiceName;
+  const ownItems = items.filter(ofThisBusiness);
+  const otherCount = items.length - ownItems.length;
+  const listed = showAll ? items : ownItems;
+
   async function save() {
     if (!user) return;
     setBusy(true);
     setError(null);
     try {
-      let valueCase;
-      let valueEvidence;
       // The map lives on the profile's people; capture it as the engines read it.
       const powerMap = buildAssignments(tpl);
-      // This business's value proof. Unreadable or blocked storage leaves it
-      // out rather than failing the whole snapshot.
-      const stored = readValueProof(businessId, workspace.local);
-      if (stored.valueCase && typeof stored.valueCase === "object") {
-        valueCase = normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>);
-      }
-      if (stored.evidence !== undefined) valueEvidence = normalizeValueEvidence(stored.evidence);
+      const { valueCase, evidence } = currentValueProof(businessId, workspace.local);
       await createAssessmentSnapshot({
         data: {
           title: title.trim() || `${profile.practiceName} assessment`,
-          // What a snapshot keeps; map versions and history stay behind.
+          // What a snapshot keeps; map versions and logs stay behind.
           profile: snapshotSlice(profile),
           powerMap,
           valueCase,
-          valueEvidence,
+          valueEvidence: evidence,
         },
       });
       setTitle("");
-      setBusy(false);
-      await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save snapshot");
+      return;
+    } finally {
       setBusy(false);
     }
+    await refresh();
   }
 
-  async function restore(id: string) {
-    if (
-      !window.confirm(
-        `Restore this snapshot into ${profile.practiceName}? Its team, process map, register, controls, decisions and value proof replace what is there now. Save a snapshot first if you want to keep the current version.`,
-      )
-    )
-      return;
+  async function restore(item: AssessmentSnapshotSummary) {
+    const into = profile.practiceName;
+    const replaced =
+      "line of business, name, team, process map, register, controls, staff figures, risk inputs, known leave, decisions and value proof";
+    const question = ofThisBusiness(item)
+      ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, leaver checks and access checks stay. Save a snapshot first if you want to keep the current version.`
+      : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, leaver checks and access checks stay. Restore it into ${into} anyway?`;
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
-      const snapshot = await getAssessmentSnapshot({ data: { id } });
+      const snapshot = await getAssessmentSnapshot({ data: { id: item.id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       // The snapshot's business goes into this business: same id, its own
       // map versions kept, and the saved power map written onto its people.
@@ -152,12 +159,7 @@ export function AssessmentSnapshots() {
       const snapshot = await getAssessmentSnapshot({ data: { id } });
       if (!snapshot) throw new Error("Snapshot no longer exists");
       const currentMap = buildAssignments(tpl);
-      const stored = readValueProof(businessId, workspace.local);
-      const currentValue =
-        stored.valueCase && typeof stored.valueCase === "object"
-          ? normalizeValueCase(stored.valueCase as Partial<typeof DEFAULT_VALUE_CASE>)
-          : DEFAULT_VALUE_CASE;
-      const currentEvidence = normalizeValueEvidence(stored.evidence);
+      const current = currentValueProof(businessId, workspace.local);
       setComparison({
         title: snapshot.title,
         createdAt: snapshot.createdAt,
@@ -165,8 +167,8 @@ export function AssessmentSnapshots() {
           {
             profile,
             powerMap: currentMap,
-            valueCase: currentValue,
-            evidence: currentEvidence,
+            valueCase: current.valueCase ?? DEFAULT_VALUE_CASE,
+            evidence: current.evidence ?? [],
             asOf: new Date(),
           },
           {
@@ -222,10 +224,9 @@ export function AssessmentSnapshots() {
           Preserve the decision record
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Save an immutable point-in-time copy of the practice profile, controls, variables,
-          decision journal, responsibility map, and value evidence. Snapshots are private to your
-          signed-in account. Restoring an older snapshot without a saved map or value proof resets
-          those workspaces to safe defaults rather than mixing them with newer work.
+          Save a dated copy of this business: its team, process map, register, controls, risk
+          inputs, decisions, power map and value proof. Snapshots are private to your account.
+          Restore replaces those parts of the open business and keeps its saved maps and logs.
         </p>
       </section>
 
@@ -256,7 +257,8 @@ export function AssessmentSnapshots() {
             <CardHeader>
               <CardTitle className="text-base">Create snapshot</CardTitle>
               <CardDescription>
-                Includes the current profile, decision journal, responsibility map, and value proof.
+                Includes this business's team, process map, register, controls, risk inputs,
+                decisions, power map and value proof.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -287,7 +289,9 @@ export function AssessmentSnapshots() {
             <CardHeader className="flex-row items-start justify-between gap-3">
               <div>
                 <CardTitle className="text-base">Snapshot history</CardTitle>
-                <CardDescription>Newest first · up to 50 assessments</CardDescription>
+                <CardDescription>
+                  Newest first · up to 50 snapshots across your businesses
+                </CardDescription>
               </div>
               <Button
                 size="sm"
@@ -328,7 +332,7 @@ export function AssessmentSnapshots() {
                   </div>
                   <p className="mt-1 text-xs text-subtle">
                     Comparing the current workspace with the assessment saved{" "}
-                    {new Date(comparison.createdAt).toLocaleString()}.
+                    {formatDayTime(comparison.createdAt)}.
                   </p>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                     <CompareMetric
@@ -430,23 +434,35 @@ export function AssessmentSnapshots() {
                 </div>
               )}
               {error && (
-                <p className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+                <p
+                  role="alert"
+                  className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+                >
                   {error}
                 </p>
               )}
-              {!listing && items.length === 0 && (
-                <p className="text-sm text-muted">No saved assessments yet.</p>
+              {!listing && listed.length === 0 && (
+                <p className="text-sm text-muted">No saved assessments of this business yet.</p>
               )}
-              {items.map((item) => (
+              {otherCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {showAll
+                    ? "Show only this business's snapshots"
+                    : `Show snapshots of your other businesses (${otherCount})`}
+                </button>
+              )}
+              {listed.map((item) => (
                 <div key={item.id} className="rounded-xl border border-border bg-elevated p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{item.title}</p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted">
-                        <Clock3 className="size-3" /> {new Date(item.createdAt).toLocaleString()}
-                      </p>
-                      <p className="mt-1 text-xs text-subtle">
-                        Model {item.modelVersion} · corpus {item.corpusVersion}
+                        <Clock3 className="size-3" /> {item.practiceName} ·{" "}
+                        {formatDayTime(item.createdAt)}
                       </p>
                       {item.includesPowerMap && <Badge className="mt-2">Power map included</Badge>}
                       {item.includesValueProof && (
@@ -465,7 +481,7 @@ export function AssessmentSnapshots() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => void restore(item.id)}
+                        onClick={() => void restore(item)}
                         disabled={busy}
                       >
                         Restore
@@ -489,6 +505,25 @@ export function AssessmentSnapshots() {
       )}
     </div>
   );
+}
+
+/**
+ * This business's value proof as the engines read it. Unreadable or blocked
+ * storage gives none rather than failing a snapshot; the browser-wide figures
+ * of older versions are left for the Value proof tab to claim.
+ */
+function currentValueProof(
+  businessId: string,
+  storage: StorageLike | null,
+): { valueCase?: ValueCaseInputs; evidence?: ValueEvidence[] } {
+  const stored = readValueProof(businessId, storage, { claimLegacy: false });
+  return {
+    valueCase:
+      stored.valueCase && typeof stored.valueCase === "object"
+        ? normalizeValueCase(stored.valueCase as Partial<ValueCaseInputs>)
+        : undefined,
+    evidence: stored.evidence === undefined ? undefined : normalizeValueEvidence(stored.evidence),
+  };
 }
 
 function CompareMetric({ label, value }: { label: string; value: string }) {

@@ -1,192 +1,41 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import type { PracticeProfile } from "./practice-profile";
-import { parseSnapshotCreate, parseSnapshotId, sanitizeSnapshotProfile } from "./snapshot-profile";
-import { normalizeRoleAssignments } from "./sod/model-io";
-import type { RoleAssignment } from "./sod/detect";
-import { normalizeValueCase, type ValueCaseInputs } from "./value-case";
-import { normalizeValueEvidence, type ValueEvidence } from "./value-evidence";
+import { parseSnapshotCreate, parseSnapshotId } from "./snapshot-profile";
+import {
+  deleteSnapshot,
+  insertSnapshot,
+  listSnapshotSummaries,
+  loadSnapshot,
+  type AssessmentSnapshot,
+  type AssessmentSnapshotSummary,
+  type SnapshotInput,
+} from "./snapshot-store";
 
-const ASSESSMENT_MODEL_VERSION = "precog-2026.09";
-const KNOWLEDGE_CORPUS_VERSION = "controls-2026.09";
-import { MAX_SNAPSHOTS_PER_USER, enforceSnapshotRetention } from "./snapshot-retention";
-const MAX_POWER_MAP_BYTES = 256 * 1024;
-
-export interface AssessmentSnapshotSummary {
-  id: string;
-  title: string;
-  practiceName: string;
-  modelVersion: string;
-  corpusVersion: string;
-  createdAt: string;
-  includesPowerMap: boolean;
-  includesValueProof: boolean;
-}
-
-export interface AssessmentSnapshot extends AssessmentSnapshotSummary {
-  profile: PracticeProfile;
-  /** False for a snapshot saved before snapshots kept the business's industry, team and map. */
-  profileComplete: boolean;
-  powerMap?: RoleAssignment[];
-  valueCase?: ValueCaseInputs;
-  valueEvidence?: ValueEvidence[];
-}
-
-type SnapshotRow = {
-  id: string;
-  title: string;
-  practice_name: string;
-  model_version: string;
-  corpus_version: string;
-  created_at: string | Date;
-  profile_json?: PracticeProfile | string;
-  power_map_json?: unknown;
-  value_case_json?: unknown;
-  value_evidence_json?: unknown;
-};
-
-function summary(row: SnapshotRow): AssessmentSnapshotSummary {
-  return {
-    id: row.id,
-    title: row.title,
-    practiceName: row.practice_name,
-    modelVersion: row.model_version,
-    corpusVersion: row.corpus_version,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    includesPowerMap: row.power_map_json != null,
-    includesValueProof: row.value_case_json != null || row.value_evidence_json != null,
-  };
-}
-
-function sanitizeValueProof(valueCase: unknown, evidence: unknown) {
-  if (valueCase == null && evidence == null) return {};
-  const raw = JSON.stringify({ valueCase, evidence });
-  if (new TextEncoder().encode(raw).byteLength > 128 * 1024)
-    throw new Error("Value proof is too large");
-  const normalizedCase =
-    valueCase && typeof valueCase === "object"
-      ? normalizeValueCase(valueCase as Partial<ValueCaseInputs>)
-      : undefined;
-  const normalizedEvidence = evidence == null ? undefined : normalizeValueEvidence(evidence);
-  return {
-    valueCase: normalizedCase,
-    valueEvidence: normalizedEvidence,
-    caseJson: normalizedCase ? JSON.stringify(normalizedCase) : undefined,
-    evidenceJson: normalizedEvidence ? JSON.stringify(normalizedEvidence) : undefined,
-  };
-}
-
-function sanitizePowerMap(value: unknown): { assignments?: RoleAssignment[]; json?: string } {
-  if (value == null) return {};
-  const raw = JSON.stringify(value);
-  if (new TextEncoder().encode(raw).byteLength > MAX_POWER_MAP_BYTES)
-    throw new Error("Power map is too large");
-  const assignments = normalizeRoleAssignments(value);
-  if (!assignments) throw new Error("Invalid power map");
-  return { assignments, json: JSON.stringify(assignments) };
-}
-
+/** Assessment snapshots of the signed-in account; the work is in snapshot-store.ts. */
 export const listAssessmentSnapshots = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<AssessmentSnapshotSummary[]> => {
-    const sql = await getSql();
-    const rows = await sql.query<SnapshotRow>(
-      `select id, title, practice_name, model_version, corpus_version, created_at
-              , power_map_json, value_case_json, value_evidence_json from assessment_snapshots where user_id = $1
-       order by created_at desc limit 50`,
-      [context.userId],
-    );
-    return rows.map(summary);
-  });
+  .handler(async ({ context }): Promise<AssessmentSnapshotSummary[]> =>
+    listSnapshotSummaries(await getSql(), context.userId),
+  );
 
 export const createAssessmentSnapshot = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: {
-      title: string;
-      profile: unknown;
-      powerMap?: unknown;
-      valueCase?: unknown;
-      valueEvidence?: unknown;
-    }) => parseSnapshotCreate(input),
-  )
-  .handler(async ({ data, context }): Promise<AssessmentSnapshotSummary> => {
-    if (!data.title) throw new Error("Snapshot title is required");
-    const { profile, json } = sanitizeSnapshotProfile(data.profile);
-    const powerMap = sanitizePowerMap(data.powerMap);
-    const valueProof = sanitizeValueProof(data.valueCase, data.valueEvidence);
-    if (!profile.practiceName) throw new Error("Practice profile is required");
-
-    const id = `snap_${crypto.randomUUID()}`;
-    const sql = await getSql();
-    const counts = await sql.query<{ count: string | number }>(
-      `select count(*) as count from assessment_snapshots where user_id = $1`,
-      [context.userId],
-    );
-    if (Number(counts[0]?.count ?? 0) >= MAX_SNAPSHOTS_PER_USER) {
-      throw new Error(
-        `Snapshot limit reached (${MAX_SNAPSHOTS_PER_USER}). Delete an older snapshot first.`,
-      );
-    }
-    const rows = await sql.query<SnapshotRow>(
-      `insert into assessment_snapshots
-        (id, user_id, title, practice_name, profile_json, power_map_json, value_case_json, value_evidence_json, model_version, corpus_version)
-       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10)
-       returning id, title, practice_name, model_version, corpus_version, created_at, power_map_json, value_case_json, value_evidence_json`,
-      [
-        id,
-        context.userId,
-        data.title,
-        profile.practiceName.slice(0, 80),
-        json,
-        powerMap.json ?? null,
-        valueProof.caseJson ?? null,
-        valueProof.evidenceJson ?? null,
-        ASSESSMENT_MODEL_VERSION,
-        KNOWLEDGE_CORPUS_VERSION,
-      ],
-    );
-    // Two saves can pass the count check together; the database keeps the limit either way.
-    await enforceSnapshotRetention(sql, context.userId);
-    return summary(rows[0]);
-  });
+  .validator((input: SnapshotInput) => parseSnapshotCreate(input))
+  .handler(async ({ data, context }): Promise<AssessmentSnapshotSummary> =>
+    insertSnapshot(await getSql(), context.userId, data),
+  );
 
 export const getAssessmentSnapshot = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((input: { id: string }) => parseSnapshotId(input))
-  .handler(async ({ data, context }): Promise<AssessmentSnapshot | null> => {
-    const sql = await getSql();
-    const rows = await sql.query<SnapshotRow>(
-      `select id, title, practice_name, profile_json, power_map_json, value_case_json, value_evidence_json, model_version, corpus_version, created_at
-       from assessment_snapshots where id = $1 and user_id = $2 limit 1`,
-      [data.id, context.userId],
-    );
-    const row = rows[0];
-    if (!row) return null;
-    const stored =
-      typeof row.profile_json === "string" ? JSON.parse(row.profile_json) : row.profile_json;
-    const { profile, complete } = sanitizeSnapshotProfile(stored);
-    const powerMap = sanitizePowerMap(row.power_map_json).assignments;
-    const valueProof = sanitizeValueProof(row.value_case_json, row.value_evidence_json);
-    return {
-      ...summary(row),
-      profile,
-      profileComplete: complete,
-      powerMap,
-      valueCase: valueProof.valueCase,
-      valueEvidence: valueProof.valueEvidence,
-    };
-  });
+  .handler(async ({ data, context }): Promise<AssessmentSnapshot | null> =>
+    loadSnapshot(await getSql(), context.userId, data.id),
+  );
 
 export const deleteAssessmentSnapshot = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { id: string }) => parseSnapshotId(input))
-  .handler(async ({ data, context }): Promise<{ deleted: boolean }> => {
-    const sql = await getSql();
-    const rows = await sql.query<{ id: string }>(
-      `delete from assessment_snapshots where id = $1 and user_id = $2 returning id`,
-      [data.id, context.userId],
-    );
-    return { deleted: rows.length > 0 };
-  });
+  .handler(async ({ data, context }): Promise<{ deleted: boolean }> => ({
+    deleted: await deleteSnapshot(await getSql(), context.userId, data.id),
+  }));
