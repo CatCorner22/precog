@@ -593,4 +593,99 @@ describe("aliases that must not capture an unrelated title", () => {
     expect(matchJobTitle("Guest Services Manager")?.entry.id).toBe("hotel-manager");
     expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
   });
+
+  it("reads 'HR and Payroll Administrator' as both seats however the title joins them", () => {
+    for (const title of [
+      "HR and Payroll Administrator",
+      "HR & Payroll Administrator",
+      "Payroll & HR Administrator",
+      "HR/Payroll Admin",
+    ]) {
+      expect(entitlementsForTitle(title), title).toEqual(
+        expect.arrayContaining(["enter_payroll", "edit_payroll_master"]),
+      );
+    }
+  });
+
+  it("gives a team lead cash only in a store or a restaurant", () => {
+    for (const [title, industry] of [
+      ["Software Team Lead", "professional_services"],
+      ["Engineering Team Lead", "general"],
+      ["Team Leader", "nonprofit"],
+      ["Team Lead", "dental"],
+    ]) {
+      expect(entitlementsForTitle(title, industry), `${title} ${industry}`).not.toContain(
+        "collect_cash",
+      );
+    }
+    expect(matchJobTitle("Team Lead", "retail")?.entry.id).toBe("shift-lead");
+    expect(matchJobTitle("Crew Lead", "restaurant")?.entry.id).toBe("shift-lead");
+    expect(matchJobTitle("Crew Lead", "construction")?.entry.id).toBe("foreman");
+  });
+
+  it("reads a community manager as marketing outside a property business", () => {
+    for (const industry of ["nonprofit", "professional_services", "retail", "restaurant"]) {
+      expect(matchJobTitle("Community Manager", industry)?.entry.id, industry).toBe("marketing");
+    }
+    expect(matchJobTitle("Community Manager", "general")?.entry.id).toBe("property-manager");
+    expect(matchJobTitle("Community Association Manager")?.entry.id).toBe("property-manager");
+  });
+
+  it("keeps financial, event and wedding planners from ordering stock", () => {
+    for (const title of ["Financial Planner", "Event Planner", "Wedding Planner"]) {
+      expect(entitlementsForTitle(title, "professional_services"), title).not.toContain(
+        "order_supplies",
+      );
+    }
+    expect(matchJobTitle("Merchandise Planner")?.entry.id).toBe("merchandiser");
+    expect(matchJobTitle("Event Planner", "restaurant")?.entry.id).toBe("catering-manager");
+  });
+
+  it("gives a dental practice administrator the practice manager's duties", () => {
+    expect(entitlementsForTitle("Practice Administrator", "dental")).toEqual(
+      entitlementsForTitle("Practice Manager", "dental"),
+    );
+    expect(entitlementsForTitle("Business Manager", "dental")).toContain("bank_reconcile");
+    expect(matchJobTitle("Practice Administrator", "professional_services")?.entry.id).toBe(
+      "firm-administrator",
+    );
+  });
+
+  it("puts no cash in the hands of greeters, schedulers and nonprofit case coordinators", () => {
+    expect(entitlementsForTitle("Case Coordinator", "nonprofit")).toEqual(
+      entitlementsForTitle("Case Worker", "nonprofit"),
+    );
+    for (const [title, industry] of [
+      ["Greeter", "retail"],
+      ["Scheduler", "construction"],
+      ["Registrar", "nonprofit"],
+      ["Care Coordinator", "general"],
+    ]) {
+      expect(entitlementsForTitle(title, industry), title).not.toContain("collect_cash");
+    }
+    expect(entitlementsForTitle("Chief of Staff", "nonprofit")).not.toContain("release_payment");
+    expect(matchJobTitle("Case Coordinator", "dental")?.entry.id).toBe("treatment-coordinator");
+  });
+
+  it("reads a nonprofit's principal and president as its school director and executive director", () => {
+    expect(matchJobTitle("Principal", "nonprofit")?.entry.id).toBe("center-director");
+    expect(matchJobTitle("President", "nonprofit")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("Chief Executive", "nonprofit")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("President", "general")?.entry.id).toBe("owner");
+  });
+
+  it("gives the night auditor no bank reconciliation and supervisors who submit hours no payroll entry", () => {
+    expect(entitlementsForTitle("Night Auditor")).not.toContain("bank_reconcile");
+    for (const title of [
+      "Foreman",
+      "Housekeeping Supervisor",
+      "Fleet Manager",
+      "Service Manager",
+      "Center Director",
+      "Clinic Site Director",
+      "Restaurant Manager",
+    ]) {
+      expect(entitlementsForTitle(title), title).not.toContain("enter_payroll");
+    }
+  });
 });
