@@ -981,8 +981,8 @@ function Home() {
               {tab === "layers" && (
                 <div className="space-y-4">
                   <div>
-                    <h1 className="text-lg font-semibold">Matrix process layers</h1>
-                    <p className="text-sm text-muted">Peel layers independently.</p>
+                    <h1 className="text-lg font-semibold">Six layers of your business</h1>
+                    <p className="text-sm text-muted">Look at one layer at a time.</p>
                   </div>
                   {/* A layer card shows its list below; the list links to its full tab. */}
                   <LayersPanel active={layer} onSelect={setLayer} />

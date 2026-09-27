@@ -209,7 +209,7 @@ export const nonprofitTemplate: IndustrySample = {
         },
         {
           id: "i-gift-2",
-          title: "Donor database reconciled to deposits monthly",
+          title: "Finance also matches the donor database to the deposits each week",
           category: "control",
           effort: "low",
           impact: "high",
@@ -611,12 +611,12 @@ export const nonprofitTemplate: IndustrySample = {
         compensatingControls: ["Finance compares the gift log with the deposit each week"],
       },
       "c-sod-cash": {
-        name: "SoD: gift posting vs reconciliation",
+        name: "Split duties: gift posting and reconciliation",
         description: "The finance manager posts receipts and reconciles the bank.",
-        compensatingControls: ["Treasurer reviews the reconciliation quarterly"],
+        compensatingControls: ["Treasurer reads the reconciliation each quarter"],
       },
       "c-sod-billing": {
-        name: "SoD: pledge and receivable write-offs",
+        name: "Split duties: pledge and receivable write-offs",
         description: "Pledges and grant receivables can be written off without a second approval.",
         compensatingControls: ["Write-off list to the executive director monthly"],
       },
@@ -744,7 +744,7 @@ export const nonprofitTemplate: IndustrySample = {
         },
         {
           id: "m-np-2",
-          label: "Finance matches the donor database to deposits monthly",
+          label: "Finance also matches the donor database to the deposits each week",
           effort: "low",
           riskReduction: 0.45,
           costAnnual: 0,
@@ -771,7 +771,7 @@ export const nonprofitTemplate: IndustrySample = {
         },
         {
           id: "m-np-4",
-          label: "Treasurer reviews restricted balances against cash each quarter",
+          label: "Treasurer reads the restricted-fund balances against cash each quarter",
           effort: "low",
           riskReduction: 0.45,
           costAnnual: 0,
@@ -797,7 +797,8 @@ export const nonprofitTemplate: IndustrySample = {
         },
         {
           id: "m-np-6",
-          label: "Treasurer reviews the executive director's card monthly; cash advances blocked",
+          label:
+            "Treasurer reads the executive director's card statement monthly; cash advances blocked",
           effort: "low",
           riskReduction: 0.45,
           costAnnual: 0,

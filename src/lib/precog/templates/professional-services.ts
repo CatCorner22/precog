@@ -27,12 +27,12 @@ import {
 export const professionalServicesTemplate: IndustrySample = {
   id: "professional_services",
   people: [
-    { id: "p1", name: "Dr. Elena Vargas", role: "Managing Partner", active: true, tenureYears: 14 },
-    { id: "p2", name: "Maya Chen", role: "Office Manager", active: true, tenureYears: 8 },
-    { id: "p3", name: "Jordan Blake", role: "Senior Consultant", active: true, tenureYears: 6 },
-    { id: "p4", name: "Sam Ortiz", role: "Billing Coordinator", active: true, tenureYears: 4 },
-    { id: "p5", name: "Riley Kim", role: "Admin Assistant", active: true, tenureYears: 2 },
-    { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 3 },
+    { id: "p1", name: "Catherine Wu", role: "Managing Partner", active: true, tenureYears: 14 },
+    { id: "p2", name: "Linda Foster", role: "Office Manager", active: true, tenureYears: 8 },
+    { id: "p3", name: "Raj Mehta", role: "Senior Consultant", active: true, tenureYears: 6 },
+    { id: "p4", name: "Paul Novak", role: "Billing Coordinator", active: true, tenureYears: 4 },
+    { id: "p5", name: "Emily Tran", role: "Admin Assistant", active: true, tenureYears: 2 },
+    { id: "p6", name: "Greg Holloway", role: "Bookkeeper", active: true, tenureYears: 3 },
   ],
   roleTemplates: {
     "Managing Partner": [
@@ -75,7 +75,7 @@ export const professionalServicesTemplate: IndustrySample = {
   knowledge: [
     {
       id: "k1",
-      name: "Client billing & WIP rules",
+      name: "Client billing & unbilled-work rules",
       description: "Time entry, billing rates, write-down policies.",
       criticality: "critical",
       category: "process",
@@ -116,7 +116,7 @@ export const professionalServicesTemplate: IndustrySample = {
     {
       id: "k6",
       name: "Payroll & bonus exceptions",
-      description: "Partner draws, bonus calculations, OT edge cases.",
+      description: "Partner draws, bonus calculations, overtime edge cases.",
       criticality: "important",
       category: "process",
       linkedProcessIds: ["proc-payroll"],
@@ -149,7 +149,7 @@ export const professionalServicesTemplate: IndustrySample = {
       id: "proc-engagement",
       name: "Client engagement & delivery",
       layer: "process",
-      description: "SOW, staffing, deliverable sign-off.",
+      description: "Statement of work, staffing, deliverable sign-off.",
       dependencies: [],
       controlIds: [],
       stage: 0,
@@ -208,13 +208,13 @@ export const professionalServicesTemplate: IndustrySample = {
       id: "proc-billing",
       name: "Time, billing & invoicing",
       layer: "process",
-      description: "WIP, invoice generation, client billing.",
+      description: "Unbilled work, invoice generation, client billing.",
       dependencies: ["proc-engagement"],
       controlIds: ["c-sod-billing"],
       stage: 1,
       ownerPersonIds: ["p4"],
       inputs: ["Approved timesheets", "Rate card", "Engagement terms"],
-      outputs: ["Client invoices", "WIP report"],
+      outputs: ["Client invoices", "Unbilled work report"],
       risks: [
         {
           id: "r-bill-1",
@@ -222,7 +222,7 @@ export const professionalServicesTemplate: IndustrySample = {
           kind: "continuity",
           severity: 5,
           likelihood: 3,
-          note: "Often only the billing coordinator knows the WIP and billing rules.",
+          note: "Often only the billing coordinator knows the unbilled-work and billing rules.",
           linkedKnowledgeId: "k1",
           linkedScenarioId: "sc-key-person-leaves",
         },
@@ -232,13 +232,13 @@ export const professionalServicesTemplate: IndustrySample = {
           kind: "revenue",
           severity: 3,
           likelihood: 4,
-          note: "Hours trimmed off WIP at invoice time with no partner review; realization quietly drops.",
+          note: "Hours trimmed off unbilled work at invoice time with no partner review; the share of work billed quietly drops.",
         },
       ],
       ideas: [
         {
           id: "i-bill-1",
-          title: "Monthly WIP aging and realization report to partners",
+          title: "Monthly report to partners of unbilled work by age and the share written down",
           category: "control",
           effort: "low",
           impact: "high",
@@ -278,11 +278,11 @@ export const professionalServicesTemplate: IndustrySample = {
       risks: [
         {
           id: "r-trust-1",
-          title: "Trust handling tribal knowledge",
+          title: "Trust handling known by one person",
           kind: "compliance",
           severity: 5,
           likelihood: 2,
-          note: "Office manager sole expert on trust rules.",
+          note: "The office manager is the sole expert on the trust rules.",
           linkedKnowledgeId: "k2",
         },
         {
@@ -388,7 +388,7 @@ export const professionalServicesTemplate: IndustrySample = {
     },
     {
       id: "proc-cash",
-      name: "Operating cash & bank rec",
+      name: "Operating cash & bank reconciliation",
       layer: "process",
       description: "Operating account, deposits, reconciliation.",
       dependencies: [],
@@ -404,13 +404,13 @@ export const professionalServicesTemplate: IndustrySample = {
           kind: "fraud",
           severity: 5,
           likelihood: 4,
-          note: "Classic small-firm embezzlement path.",
+          note: "The classic path to embezzlement in a small firm.",
           linkedControlId: "c-sod-cash",
           linkedScenarioId: "sc-cash-sod-failure",
         },
         {
           id: "r-cash-2",
-          title: "Bank rec finished weeks after month end",
+          title: "Bank reconciliation finished weeks after month end",
           kind: "control",
           severity: 3,
           likelihood: 3,
@@ -420,11 +420,11 @@ export const professionalServicesTemplate: IndustrySample = {
       ideas: [
         {
           id: "i-cash-1",
-          title: "Managing partner reviews bank statement and rec monthly",
+          title: "Managing partner reads the bank statement and reconciliation monthly",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Statements go to the partner unopened; she initials the rec within 10 days of month end.",
+          note: "Statements go to the partner unopened; she initials the reconciliation within 10 days of month end.",
           status: "planned",
         },
         {
@@ -441,14 +441,14 @@ export const professionalServicesTemplate: IndustrySample = {
         {
           id: "w-cash-1",
           kind: "muda_waiting",
-          label: "Cash position unknown until rec is done",
+          label: "Cash position unknown until the reconciliation is done",
           note: "Partners cannot plan draws or hiring until the bookkeeper closes the month.",
         },
       ],
     },
     {
       id: "proc-ap",
-      name: "Vendor & expense AP",
+      name: "Vendor bills & expenses",
       layer: "process",
       description: "Vendor bills, expense reports, reimbursements.",
       dependencies: [],
@@ -460,11 +460,11 @@ export const professionalServicesTemplate: IndustrySample = {
       risks: [
         {
           id: "r-ap-1",
-          title: "Vendor setup + payment concentrated",
+          title: "One person sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious vendor risk.",
+          note: "A fake vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -602,7 +602,7 @@ export const professionalServicesTemplate: IndustrySample = {
       ideas: [
         {
           id: "i-pay-1",
-          title: "Partner reviews payroll register before submission",
+          title: "Partner reads the payroll register before it is sent",
           category: "control",
           effort: "low",
           impact: "high",
@@ -638,7 +638,9 @@ export const professionalServicesTemplate: IndustrySample = {
         "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a partner who did not prepare the reconciliation reviews and signs it.",
       duties: ["reconciliation", "review"],
       segregated: false,
-      compensatingControls: ["Managing partner reads the trust bank statement monthly"],
+      compensatingControls: [
+        "The managing partner opens the trust bank statement first each month",
+      ],
       residualRiskAccepted: false,
     },
     {
@@ -655,9 +657,9 @@ export const professionalServicesTemplate: IndustrySample = {
   staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
-      keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
+      keyPersonTitle: "Billing coordinator leaves with sole billing knowledge",
       keyPersonDesc:
-        "The billing coordinator (sole expert on client billing and WIP rules) resigns. Invoices stall and write-offs pile up.",
+        "The billing coordinator (sole expert on client billing and unbilled-work rules) resigns. Invoices stall and write-offs pile up.",
       knowledgeId: "k1",
       billingLabel: "Client write-offs without partner approval",
     }),
@@ -688,7 +690,7 @@ export const professionalServicesTemplate: IndustrySample = {
         },
         {
           id: "m-trust-3",
-          label: "Trust bank statements go to the managing partner first",
+          label: "The managing partner opens the trust bank statement first each month",
           effort: "low",
           riskReduction: 0.35,
           costAnnual: 0,

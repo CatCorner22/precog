@@ -54,9 +54,9 @@ describe("buildThreatAssessment for an own business", () => {
       riskVariables: p.riskVariables,
       confirmedScenarioIds: new Set(["sc-vendor-fraud"]),
     });
-    expect(report.targetDeck.some((t) => t.label === "Vendor setup + payment not segregated")).toBe(
-      true,
-    );
+    expect(
+      report.targetDeck.some((t) => t.label === "One person sets up vendors and pays them"),
+    ).toBe(true);
     const reasons = report.targetDeck.flatMap((t) => t.reasons);
     expect(reasons.join(" ")).not.toMatch(/p50/);
     for (const t of report.targetDeck.filter((x) => x.domain === "scenario")) {

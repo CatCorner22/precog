@@ -29,16 +29,16 @@ export const restaurantTemplate: IndustrySample = {
   people: [
     {
       id: "p1",
-      name: "Elena Vargas",
+      name: "Marco Bellini",
       role: "Owner / Executive Chef",
       active: true,
       tenureYears: 11,
     },
-    { id: "p2", name: "Maya Chen", role: "General Manager", active: true, tenureYears: 6 },
-    { id: "p3", name: "Jordan Blake", role: "Head Server", active: true, tenureYears: 5 },
-    { id: "p4", name: "Sam Ortiz", role: "Line Cook Lead", active: true, tenureYears: 4 },
-    { id: "p5", name: "Riley Kim", role: "Bar Manager", active: true, tenureYears: 3 },
-    { id: "p6", name: "Chris Patel", role: "Bookkeeper", active: true, tenureYears: 2 },
+    { id: "p2", name: "Keisha Moore", role: "General Manager", active: true, tenureYears: 6 },
+    { id: "p3", name: "Diego Ramirez", role: "Head Server", active: true, tenureYears: 5 },
+    { id: "p4", name: "Tom Becker", role: "Line Cook Lead", active: true, tenureYears: 4 },
+    { id: "p5", name: "Nina Petrova", role: "Bar Manager", active: true, tenureYears: 3 },
+    { id: "p6", name: "Owen Clarke", role: "Bookkeeper", active: true, tenureYears: 2 },
   ],
   roleTemplates: {
     "Owner / Executive Chef": [
@@ -83,7 +83,7 @@ export const restaurantTemplate: IndustrySample = {
     {
       id: "k2",
       name: "Daily sales deposit",
-      description: "POS Z-report, cash vs card, safe drops.",
+      description: "End-of-day POS report (the Z-report), cash vs card, safe drops.",
       criticality: "critical",
       category: "process",
       linkedProcessIds: ["proc-cash"],
@@ -115,7 +115,8 @@ export const restaurantTemplate: IndustrySample = {
     {
       id: "k6",
       name: "Payroll tip credit rules",
-      description: "Tip credit, reported tips, state compliance.",
+      description:
+        "The tip credit (tips counted toward the minimum wage), reported tips, state rules.",
       criticality: "important",
       category: "compliance",
       linkedProcessIds: ["proc-payroll", "proc-tips"],
@@ -180,7 +181,7 @@ export const restaurantTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "POS forces a reason code; GM reviews the comp report nightly.",
+          note: "The POS forces a reason code; the general manager reads the comp report nightly.",
           status: "planned",
         },
         {
@@ -244,7 +245,7 @@ export const restaurantTemplate: IndustrySample = {
         },
         {
           id: "i-bar-2",
-          title: "Cross-train GM on bar inventory counts",
+          title: "Cross-train the general manager on bar inventory counts",
           category: "training",
           effort: "low",
           impact: "medium",
@@ -287,7 +288,7 @@ export const restaurantTemplate: IndustrySample = {
           kind: "safety",
           severity: 4,
           likelihood: 3,
-          note: "Walk-in temps and FIFO labels are checked by memory, not a log; health inspection exposure.",
+          note: "Staff check walk-in temperatures and first-in, first-out date labels from memory, not a log; health inspection exposure.",
           linkedKnowledgeId: "k4",
         },
       ],
@@ -298,7 +299,7 @@ export const restaurantTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Count and weigh against the invoice before signing; note shorts for AP credit.",
+          note: "Count and weigh against the invoice before signing; note shorts so the bookkeeper claims the credit.",
           status: "planned",
         },
         {
@@ -316,7 +317,7 @@ export const restaurantTemplate: IndustrySample = {
           id: "w-inv-1",
           kind: "mura",
           label: "Over-prep on slow nights, short on busy ones",
-          note: "Prep lists do not use the reservation forecast, so spoilage and 86'd items both happen.",
+          note: "Prep lists do not use the reservation forecast, so food spoils on slow nights and dishes run out on busy ones.",
         },
       ],
     },
@@ -329,7 +330,7 @@ export const restaurantTemplate: IndustrySample = {
       controlIds: ["c-cash", "c-sod-cash"],
       stage: 2,
       ownerPersonIds: ["p3", "p2"],
-      inputs: ["Server cash-outs", "POS Z-report", "Card tips"],
+      inputs: ["Server cash-outs", "End-of-day POS report", "Card tips"],
       outputs: ["Bank deposit", "Tip pool distribution"],
       risks: [
         {
@@ -366,11 +367,11 @@ export const restaurantTemplate: IndustrySample = {
         },
         {
           id: "i-cash-2",
-          title: "Owner matches deposits to Z-reports weekly",
+          title: "Owner matches deposits to the end-of-day POS reports weekly",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "The owner checks the bank statement against nightly closeouts; catches skimming fast.",
+          note: "The owner reads the bank statement against the nightly closeouts, which catches skimming fast.",
           status: "exploring",
         },
       ],
@@ -385,7 +386,7 @@ export const restaurantTemplate: IndustrySample = {
     },
     {
       id: "proc-ap",
-      name: "Food & beverage AP",
+      name: "Food & beverage bills",
       layer: "process",
       description: "Vendor invoices, liquor distributor, linen.",
       dependencies: [],
@@ -397,11 +398,11 @@ export const restaurantTemplate: IndustrySample = {
       risks: [
         {
           id: "r-ap-1",
-          title: "GM creates vendors and pays",
+          title: "General manager sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious food vendor path.",
+          note: "A fake food vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -461,7 +462,7 @@ export const restaurantTemplate: IndustrySample = {
           kind: "fraud",
           severity: 4,
           likelihood: 4,
-          note: "GM can void tickets without owner review.",
+          note: "The general manager can void tickets without owner review.",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -599,7 +600,8 @@ export const restaurantTemplate: IndustrySample = {
       ideas: [
         {
           id: "i-tax-1",
-          title: "Owner sees each return and the state's payment confirmation",
+          title:
+            "Owner reads each return, the POS report it was prepared from and the state's payment confirmation",
           category: "control",
           effort: "low",
           impact: "high",
@@ -643,12 +645,12 @@ export const restaurantTemplate: IndustrySample = {
           kind: "compliance",
           severity: 4,
           likelihood: 3,
-          note: "Tipped staff below minimum wage after tip credit means back-pay and penalties.",
+          note: "Tipped staff paid below the minimum wage after the tip credit means back pay and penalties.",
           linkedKnowledgeId: "k6",
         },
         {
           id: "r-pay-2",
-          title: "GM edits punches and runs payroll alone",
+          title: "General manager edits punches and runs payroll alone",
           kind: "fraud",
           severity: 4,
           likelihood: 2,
@@ -658,11 +660,11 @@ export const restaurantTemplate: IndustrySample = {
       ideas: [
         {
           id: "i-pay-1",
-          title: "Owner reviews payroll summary before submit",
+          title: "Owner reads the payroll summary before it is sent",
           category: "control",
           effort: "low",
           impact: "high",
-          note: "The owner checks hours, tips, and any punch edits each period.",
+          note: "The owner reads the hours, tips and any punch edits each period.",
           status: "planned",
         },
         {
@@ -680,7 +682,7 @@ export const restaurantTemplate: IndustrySample = {
           id: "w-pay-1",
           kind: "muda_rework",
           label: "Fixing missed punches after the fact",
-          note: "Servers forget to clock out; GM reconstructs hours from the POS every period.",
+          note: "Servers forget to clock out; the general manager rebuilds hours from the POS every period.",
         },
       ],
     },
@@ -693,7 +695,7 @@ export const restaurantTemplate: IndustrySample = {
       id: "c-salestax",
       name: "Sales tax return review",
       description:
-        "Each return's taxable sales tie to the POS sales report, and someone other than the preparer sees the state's confirmation that the payment arrived.",
+        "Each return's taxable sales tie to the POS sales report, and the owner, not the preparer, reads the state's confirmation that the payment arrived.",
       duties: ["review", "reconciliation"],
       segregated: false,
       compensatingControls: ["Owner reads the state tax account online each quarter"],
@@ -732,14 +734,15 @@ export const restaurantTemplate: IndustrySample = {
       mitigations: [
         {
           id: "m-tax-1",
-          label: "Tie every return to the POS report and file the state's payment confirmation",
+          label:
+            "Owner reads each return, the POS report it was prepared from and the state's payment confirmation",
           effort: "low",
           riskReduction: 0.5,
           costAnnual: 0,
         },
         {
           id: "m-tax-2",
-          label: "Owner checks the state tax account each quarter",
+          label: "Owner reads the state tax account online each quarter",
           effort: "low",
           riskReduction: 0.45,
           costAnnual: 0,

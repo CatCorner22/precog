@@ -50,14 +50,14 @@ export function baseFraudScenarios(opts: {
     mitigations: [
       {
         id: "m1",
-        label: "Cross-train backup with documented SOP",
+        label: "Cross-train a stand-in with a written procedure",
         effort: "medium",
         riskReduction: 0.55,
         costAnnual: 2400,
       },
       {
         id: "m2",
-        label: "Record tribal knowledge before exit",
+        label: "Write down what only they know before they leave",
         effort: "low",
         riskReduction: 0.35,
         costAnnual: 400,
@@ -181,8 +181,8 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
   {
     id: "c-sod-cash",
-    name: "SoD: payments vs reconciliation",
-    description: "Same person posts payments and reconciles bank.",
+    name: "Split duties: posting payments and reconciling the bank",
+    description: "The same person posts payments and reconciles the bank.",
     duties: ["recording", "reconciliation"],
     segregated: false,
     compensatingControls: ["Owner compares each deposit with the day's sales record weekly"],
@@ -190,7 +190,7 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
   {
     id: "c-sod-billing",
-    name: "SoD: billing adjustments",
+    name: "Split duties: billing adjustments",
     description: "Billing can post write-offs without independent approval.",
     duties: ["authorization", "recording"],
     segregated: false,
@@ -199,8 +199,8 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
   {
     id: "c-sod-ap",
-    name: "SoD: vendor setup vs payment",
-    description: "AP can create vendors and release payments.",
+    name: "Split duties: vendor setup and payment",
+    description: "The person who pays bills can also add vendors.",
     duties: ["authorization", "custody"],
     segregated: false,
     compensatingControls: [],
@@ -208,7 +208,7 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
   {
     id: "c-sod-ar",
-    name: "SoD: A/R write-offs",
+    name: "Split duties: receivable write-offs",
     description: "Write-off authority with independent approval.",
     duties: ["authorization", "recording"],
     segregated: true,
@@ -226,8 +226,8 @@ const BASE_CONTROLS: readonly ControlItem[] = [
   },
   {
     id: "c-ar",
-    name: "A/R aging review",
-    description: "Owner reviews 90+ aging monthly.",
+    name: "Receivables aging review",
+    description: "The owner reviews balances more than 90 days old each month.",
     duties: ["review"],
     segregated: true,
     compensatingControls: [],
@@ -247,22 +247,23 @@ const BASE_CONTROLS: readonly ControlItem[] = [
 const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
   {
     id: "sc-cash-sod-failure",
-    title: "Unsegregated cash + reconciliation control fails",
-    description: "Same person posts payments and reconciles bank with weak independent review.",
+    title: "One person posts payments and reconciles the bank",
+    description:
+      "The same person posts payments and reconciles the bank, and nobody independent reviews the reconciliation.",
     controlId: "c-sod-cash",
     ...SCENARIO_FIGURES.cash,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
         id: "m4",
-        label: "Independent bank recon by owner weekly",
+        label: "Owner reconciles the bank independently each week",
         effort: "low",
         riskReduction: 0.5,
         costAnnual: 0,
       },
       {
         id: "m5",
-        label: "Split posting vs deposit custody",
+        label: "Separate posting payments from handling deposits",
         effort: "medium",
         riskReduction: 0.7,
         costAnnual: 0,
@@ -271,16 +272,16 @@ const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
   },
   {
     id: "sc-writeoff-abuse",
-    title: "Write-off authority without dual control",
+    title: "Write-offs posted without a second approval",
     description:
-      "Staff can post large adjustments without independent approval — revenue leakage path.",
+      "Staff can post large adjustments without anyone else approving them, so revenue leaks away unseen.",
     controlId: "c-sod-billing",
     ...SCENARIO_FIGURES.writeoff,
     cascadeLayers: ["control", "knowledge", "process", "continuity"],
     mitigations: [
       {
         id: "m7",
-        label: "Require owner approval above threshold",
+        label: "Owner approves write-offs above the amount you set",
         effort: "low",
         riskReduction: 0.6,
         costAnnual: 0,
@@ -289,15 +290,16 @@ const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
   },
   {
     id: "sc-vendor-fraud",
-    title: "Vendor setup + payment not segregated",
-    description: "AP can create vendors and release payments — fictitious vendor path.",
+    title: "One person sets up vendors and pays them",
+    description:
+      "The person who pays bills can also add vendors, so a fake vendor can be set up and paid.",
     controlId: "c-sod-ap",
     ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {
         id: "m9",
-        label: "Dual bank release on ACH above threshold",
+        label: "Dual release on electronic payments above the amount you set",
         effort: "medium",
         riskReduction: 0.75,
         costAnnual: 0,

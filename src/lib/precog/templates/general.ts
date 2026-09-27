@@ -66,14 +66,14 @@ export const generalTemplate: IndustrySample = {
     {
       id: "k2",
       name: "Daily deposit & reconciliation",
-      description: "Cash/check deposits, bank rec, merchant batches.",
+      description: "Cash and check deposits, bank reconciliation, card batches.",
       criticality: "critical",
       category: "process",
       linkedProcessIds: ["proc-cash"],
     },
     {
       id: "k3",
-      name: "ERP / accounting admin",
+      name: "Accounting system admin",
       description: "Chart of accounts, user roles, report setup.",
       criticality: "critical",
       category: "system",
@@ -172,7 +172,7 @@ export const generalTemplate: IndustrySample = {
           id: "w-sales-1",
           kind: "muda_rework",
           label: "Quotes re-done after order intake",
-          note: "Handwritten or emailed quotes are re-keyed into the order system and often corrected.",
+          note: "Staff re-key handwritten or emailed quotes into the order system and often correct them.",
         },
       ],
     },
@@ -190,11 +190,11 @@ export const generalTemplate: IndustrySample = {
       risks: [
         {
           id: "r-bill-1",
-          title: "Billing SPOF",
+          title: "Only one person can bill",
           kind: "continuity",
           severity: 4,
           likelihood: 3,
-          note: "Admin/AR sole billing expert.",
+          note: "The billing admin is the sole billing expert.",
           linkedKnowledgeId: "k1",
           linkedScenarioId: "sc-key-person-leaves",
         },
@@ -223,7 +223,7 @@ export const generalTemplate: IndustrySample = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "The bookkeeper runs one billing cycle a month with the AR admin reviewing; steps written into a checklist.",
+          note: "The bookkeeper runs one billing cycle a month with the billing admin reviewing; steps written into a checklist.",
           status: "exploring",
         },
       ],
@@ -250,11 +250,11 @@ export const generalTemplate: IndustrySample = {
       risks: [
         {
           id: "r-cash-1",
-          title: "Posting + recon not segregated",
+          title: "One person posts payments and reconciles the bank",
           kind: "fraud",
           severity: 5,
           likelihood: 4,
-          note: "Classic SMB embezzlement path.",
+          note: "The classic path to embezzlement in a small business.",
           linkedControlId: "c-sod-cash",
           linkedScenarioId: "sc-cash-sod-failure",
         },
@@ -275,7 +275,7 @@ export const generalTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Statement goes to the owner first; owner initials the rec and questions any unmatched items.",
+          note: "Statement goes to the owner first; owner initials the reconciliation and questions any unmatched items.",
           status: "planned",
         },
         {
@@ -311,11 +311,11 @@ export const generalTemplate: IndustrySample = {
       risks: [
         {
           id: "r-ap-1",
-          title: "Vendor setup + payment same person",
+          title: "One person sets up vendors and pays them",
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Fictitious vendor path.",
+          note: "A fake vendor can be set up and paid.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -353,8 +353,8 @@ export const generalTemplate: IndustrySample = {
         {
           id: "w-ap-1",
           kind: "muri",
-          label: "AP clerk carries every vendor payment alone",
-          note: "No backup when the AP clerk is out; payments pile up and late fees follow.",
+          label: "The payables clerk carries every vendor payment alone",
+          note: "Nobody covers when the payables clerk is out; payments pile up and late fees follow.",
         },
       ],
     },
@@ -472,8 +472,8 @@ export const generalTemplate: IndustrySample = {
         {
           id: "w-pay-1",
           kind: "muda_rework",
-          label: "Timesheets corrected after submission",
-          note: "Missing punches fixed by hand every pay period instead of caught at the source.",
+          label: "Staff correct timesheets after submission",
+          note: "Someone fixes missing punches by hand every pay period instead of catching them at the source.",
         },
       ],
     },
@@ -481,9 +481,9 @@ export const generalTemplate: IndustrySample = {
   controls: baseFinancialControls(),
   staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: baseFraudScenarios({
-    keyPersonTitle: "AR lead leaves with sole billing knowledge",
+    keyPersonTitle: "Billing admin leaves with sole billing knowledge",
     keyPersonDesc:
-      "The AR admin (sole expert on customer billing) resigns with 2 weeks notice. Invoicing stalls.",
+      "The billing admin (sole expert on customer billing) resigns with two weeks' notice. Invoicing stalls.",
     knowledgeId: "k1",
   }),
 };

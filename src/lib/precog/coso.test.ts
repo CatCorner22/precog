@@ -64,7 +64,7 @@ describe("assessCoso", () => {
     expect(p7.note).toMatch(/^Starter scenarios from the general small business example/);
     const one = assessCoso(own, clean, { confirmedScenarioIds: new Set(["sc-vendor-fraud"]) });
     const top = one.priorityFindings.find((f) => f.id === "ra-top")!;
-    expect(top.label).toBe("Top residual future: Vendor setup + payment not segregated");
+    expect(top.label).toBe("Top residual future: One person sets up vendors and pays them");
     expect(top.detail).toContain("assumed days until found");
   });
 });

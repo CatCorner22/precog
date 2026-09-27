@@ -15,7 +15,7 @@ describe("parseProcessCsv", () => {
   it("adds a new process, resolving owners, dependencies, and controls by name", () => {
     const csv = [
       "process,stage,description,owners,depends on,controls,cadence,systems,documented,procedure location",
-      'Daily deposit,3,Take cash to the bank.,Jordan Blake; Maya Chen,Cash handling & deposits,SoD: payments vs reconciliation; c-cash,daily,"Bank portal; Dentrix",yes,Drive > Deposits.pdf',
+      'Daily deposit,3,Take cash to the bank.,Jordan Blake; Maya Chen,Cash handling & deposits,Split duties: posting payments and reconciling the bank; c-cash,daily,"Bank portal; Dentrix",yes,Drive > Deposits.pdf',
     ].join("\n");
     const r = parseProcessCsv(csv, tpl);
     expect(r.issues).toEqual([]);
