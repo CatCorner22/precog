@@ -12,7 +12,7 @@ import type { KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./ty
  */
 
 /** Most entries each list keeps. */
-export const LIST_LIMITS = {
+const LIST_LIMITS = {
   people: 1_000,
   processes: 500,
   knowledge: 2_000,

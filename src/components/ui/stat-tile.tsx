@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export type StatTone = "danger" | "warn" | "ok" | "primary";
+type StatTone = "danger" | "warn" | "ok" | "primary";
 
 /**
  * One figure on a card: its label, the value, and an optional line of basis.

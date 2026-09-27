@@ -55,7 +55,7 @@ export interface ItemCoverage {
   suggestedBackups: BackupSuggestion[];
 }
 
-export interface BackupSuggestion {
+interface BackupSuggestion {
   person: Person;
   /** Higher = better candidate. */
   score: number;
@@ -347,7 +347,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
   return { items, people: peopleLoad, counts, singlePoints, coverageIndex, plan };
 }
 
-export interface CoverageDrop {
+interface CoverageDrop {
   item: KnowledgeItem;
   from: CoverageStatus;
   to: CoverageStatus;
@@ -385,7 +385,7 @@ export function coverageDrops(before: CoverageReport, after: CoverageReport): Co
     );
 }
 
-export interface CriticalSinglePoints {
+interface CriticalSinglePoints {
   /** Critical items one absence would stop: nobody, or one person, can run them alone. */
   count: number;
   /** Of those, items nobody can run alone. */

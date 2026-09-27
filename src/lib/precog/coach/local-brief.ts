@@ -34,7 +34,7 @@ import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
  */
 
 /** One person's open duty conflicts, worst first. */
-export interface PersonConflicts {
+interface PersonConflicts {
   personId: string;
   personName: string;
   role: string;
@@ -42,7 +42,7 @@ export interface PersonConflicts {
 }
 
 /** A rules brief for this business; `partial` when only the conflict-only brief could be built. */
-export interface LocalBrief extends LocalAgentRun {
+interface LocalBrief extends LocalAgentRun {
   partial: boolean;
 }
 
@@ -199,7 +199,7 @@ export function isConflictQuestion(question: string): boolean {
 const ABSENCE_QUESTION =
   /\b(leav(?:e|es|ing)|quits?|resign\w*|retir\w*|sick|vacation|holiday|away|absen\w*|without)\b/i;
 
-export function isAbsenceQuestion(question: string): boolean {
+function isAbsenceQuestion(question: string): boolean {
   return ABSENCE_QUESTION.test(question);
 }
 

@@ -2,7 +2,7 @@ import type { Transaction } from "./forensic-suite";
 import { parseAmount, parseTransactionsCsv } from "./transactions-csv";
 import { localDateKey } from "../dates";
 
-export interface PastedAmounts {
+interface PastedAmounts {
   transactions: Transaction[];
   issues: string[];
   /**

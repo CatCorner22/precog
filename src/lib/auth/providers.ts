@@ -16,7 +16,7 @@
  * (`/api/auth/oauth2/callback/<providerId>`); `idp` is the hint the broker reads
  * to pick the upstream (Better Auth's id for X is still `twitter`).
  */
-export type GrokProvider = {
+type GrokProvider = {
   /** This app's local provider id; also the callback path segment. */
   providerId: string;
   /** Upstream hint the broker forwards to (Better Auth social id). */

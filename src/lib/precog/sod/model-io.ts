@@ -3,7 +3,7 @@ import type { RoleAssignment } from "./assignments";
 import { ENTITLEMENTS, OPERATING_DUTIES, type EntitlementId } from "./conflict-rules";
 
 /** A downloaded power map: the file the map exports and imports. */
-export interface PowerMapModelFile {
+interface PowerMapModelFile {
   /** The file format; an import refuses a newer one than this build reads. */
   version: number;
   exportedAt: string;
@@ -11,13 +11,13 @@ export interface PowerMapModelFile {
 }
 
 /** One row an import left out, and why. Rows count from 1. */
-export interface PowerMapImportIssue {
+interface PowerMapImportIssue {
   row: number;
   reason: string;
 }
 
 /** What an import read: the good rows, a reason for each row left out, and a problem with the file as a whole. */
-export interface PowerMapImport {
+interface PowerMapImport {
   assignments: RoleAssignment[];
   issues: PowerMapImportIssue[];
   /** Set when nothing in the file can be used. */

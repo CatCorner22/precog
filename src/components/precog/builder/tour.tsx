@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** The panel a tour step can open for the owner. */
-export type TourAction = "blocks" | "validate";
+type TourAction = "blocks" | "validate";
 
 /**
  * The map builder's five-step first-run tour. It is a region inside the

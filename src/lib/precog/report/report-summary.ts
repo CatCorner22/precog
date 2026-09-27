@@ -6,16 +6,16 @@ import { isDecisionOpen, linkedKnowledgeId } from "../decisions/follow-through";
 import { count, midSentence } from "../text";
 
 /** Where a logged decision stands, as the printed log says it. */
-export type DecisionStatus = "open" | "closed as done" | "closed as no longer relevant";
+type DecisionStatus = "open" | "closed as done" | "closed as no longer relevant";
 
 /** The newest decisions the printed log shows, each with its status, and how many older ones it leaves out. */
-export interface DecisionLog {
+interface DecisionLog {
   shown: { decision: DecisionEntry; status: DecisionStatus }[];
   more: number;
 }
 
 /** Continuity steps logged from the register: the open ones (earliest review first) and how the closed ones ended. */
-export interface ContinuityFollowThrough {
+interface ContinuityFollowThrough {
   total: number;
   open: DecisionEntry[];
   done: number;
@@ -23,7 +23,7 @@ export interface ContinuityFollowThrough {
 }
 
 /** Figures the executive summary is written from; all come from the report model. */
-export interface SummaryInput {
+interface SummaryInput {
   conflicts: readonly DetectedConflict[];
   firstStep: string | null;
   registerReady: boolean;
@@ -34,7 +34,7 @@ export interface SummaryInput {
 }
 
 /** How many decisions the printed log lists before it says how many it left out. */
-export const DECISION_LOG_MAX = 10;
+const DECISION_LOG_MAX = 10;
 
 /**
  * The footer's limits, written for a reader of the printed report (a lender,

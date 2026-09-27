@@ -15,7 +15,7 @@ import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals, type ReasoningBaseline } from "./counterfactual";
 import { verifyNext, type VerifyNextItem } from "./verify-next";
 
-export interface AdvancedReasoningReport {
+interface AdvancedReasoningReport {
   /** Levers in the order the model prefers; empty when no lever improves on the current setup. */
   recommendedSequence: string[];
   beam: {

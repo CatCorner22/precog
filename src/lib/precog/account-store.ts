@@ -11,7 +11,7 @@ import { count } from "./text";
  * keep. Left out on purpose: share passcode hashes and salts, invite link
  * tokens, and the encrypted QuickBooks tokens.
  */
-export interface AccountExport {
+interface AccountExport {
   exportedAt: string;
   user: { id: string; name: string; email: string; createdAt: string } | null;
   businesses: Array<{
@@ -130,7 +130,7 @@ export interface AccountExport {
 }
 
 /** What account deletion removed that still has to be undone outside the database. */
-export interface DeletedAccount {
+interface DeletedAccount {
   /** Encrypted QuickBooks refresh tokens to revoke at Intuit. */
   quickBooksRefreshTokens: string[];
 }

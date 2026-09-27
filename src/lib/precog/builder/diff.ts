@@ -1,6 +1,6 @@
 import type { Person, ProcessNode } from "../types";
 
-export interface MapDiff {
+interface MapDiff {
   added: ProcessNode[];
   removed: ProcessNode[];
   modified: { p: ProcessNode; changes: string[] }[];

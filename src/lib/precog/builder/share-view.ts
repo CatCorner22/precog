@@ -8,7 +8,7 @@ import { firstName } from "../text";
  * form (with a line above it) or a message, with a retry button when the
  * failure was the network rather than the link.
  */
-export type ShareErrorView =
+type ShareErrorView =
   { kind: "passcode"; message: string } | { kind: "message"; message: string; retry: boolean };
 
 export function shareErrorView(reason: string): ShareErrorView {

@@ -47,7 +47,7 @@ export type EntitlementId =
   | "approve_expenses"
   | "view_reports_only";
 
-export interface Entitlement {
+interface Entitlement {
   id: EntitlementId;
   label: string;
   family: DutyFamily;

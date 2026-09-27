@@ -10,7 +10,7 @@ import { documentationState, procedurePointer } from "./documentation";
  * What stops when someone is away, who picks it up, and the one action that
  * closes the gap — for planned leave, a departure, or a what-if.
  */
-export interface AbsenceStop {
+interface AbsenceStop {
   item: KnowledgeItem;
   /** Best person to pick it up while the holder is out, if anyone. */
   standIn: Person | null;
@@ -57,7 +57,7 @@ export interface AbsenceAction {
   knowledgeIds: string[];
 }
 
-export interface OwnerlessProcess {
+interface OwnerlessProcess {
   id: string;
   name: string;
   /** The listed owners, all of whom have left the team. */

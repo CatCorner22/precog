@@ -20,7 +20,7 @@ interface SpofRow {
   } | null;
 }
 
-export type SpofData = { assessed: true; rows: SpofRow[] } | { assessed: false; itemCount: number };
+type SpofData = { assessed: true; rows: SpofRow[] } | { assessed: false; itemCount: number };
 
 /** Reads the tool's data in either shape; null when the tool did not run or returned nothing usable. */
 export function readSpofData(data: unknown): SpofData | null {

@@ -27,7 +27,7 @@ import {
 import { nameKey, slug, stripInvisibleControls, verb } from "../text";
 import { defaultCategory } from "../continuity/knowledge-category";
 
-export interface RegisterImportResult {
+interface RegisterImportResult {
   knowledge: KnowledgeItem[];
   relations: KnowledgeRelation[];
   issues: ImportIssue[];

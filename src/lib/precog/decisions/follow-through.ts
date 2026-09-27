@@ -62,7 +62,7 @@ export function linkedContinuityStep(d: Pick<DecisionEntry, "linkedStep">): Cont
  * entries were all "remediate". A Journal entry that merely accepts, monitors or
  * insures a knowledge risk is not a step in progress.
  */
-export function isContinuityStepEntry(d: Pick<DecisionEntry, "kind" | "linkedStep">): boolean {
+function isContinuityStepEntry(d: Pick<DecisionEntry, "kind" | "linkedStep">): boolean {
   return d.linkedStep !== undefined || d.kind === "remediate";
 }
 
@@ -185,7 +185,7 @@ export function isDecisionOpen(d: DecisionEntry): boolean {
   return d.status !== "closed";
 }
 
-export type ContinuitySlip =
+type ContinuitySlip =
   | {
       decision: DecisionEntry;
       step: "cover" | "handoff";

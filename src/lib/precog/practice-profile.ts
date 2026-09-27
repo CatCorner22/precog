@@ -421,7 +421,7 @@ export function normalizePlannedAbsences(value: unknown): PlannedAbsence[] {
 }
 
 /** Keep only well-formed leaver checks: a name, a known industry, and real calendar days. */
-export function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
+function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
   if (!Array.isArray(value)) return [];
   const out: LeaverAccessCheck[] = [];
   for (const entry of value.slice(0, MAX_LEAVER_CHECKS)) {

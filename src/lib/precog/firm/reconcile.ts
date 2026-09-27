@@ -6,7 +6,7 @@ import { daysBetween } from "../dates";
 import { readHireDate } from "../import/hire-date";
 import { nameKey, titleKey } from "../text";
 
-export type AccessSource = "quickbooks" | "xero" | "unknown";
+type AccessSource = "quickbooks" | "xero" | "unknown";
 
 export type QueueStatus = "pending" | "mapped" | "dismissed";
 
@@ -30,7 +30,7 @@ export interface AccessUserRow {
   assigned?: EntitlementId;
 }
 
-export interface AccessVendorRow {
+interface AccessVendorRow {
   id: string;
   name: string;
   detail: string;

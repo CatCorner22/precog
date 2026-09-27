@@ -22,7 +22,7 @@ function valueProofKeys(businessId: string): { valueCase: string; evidence: stri
 }
 
 /** What is stored for one business, as parsed JSON (the caller normalises it); undefined when absent. */
-export interface StoredValueProof {
+interface StoredValueProof {
   valueCase: unknown;
   evidence: unknown;
 }

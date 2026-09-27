@@ -10,7 +10,7 @@ import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary } from "../../scoring/residual-engine";
 import { runPrecogScenario } from "../../engine";
 
-export interface CounterfactualResult {
+interface CounterfactualResult {
   /** Improving levers first, by residual drop and then cost-of-risk drop. */
   counterfactuals: {
     leverId: CascadeLeverId;
@@ -30,7 +30,7 @@ export interface ReasoningBaseline {
   topScenarioId: string | null;
 }
 
-export const NO_IMPROVEMENT = "None of these levers improves on the current setup";
+const NO_IMPROVEMENT = "None of these levers improves on the current setup";
 
 /** A residual drop smaller than this (in index points) does not count as an improvement. */
 const RESIDUAL_STEP = 1;

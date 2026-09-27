@@ -114,7 +114,7 @@ export function collectDueItems(
   );
 }
 
-export interface DueSummary {
+interface DueSummary {
   overdue: number;
   today: number;
   thisWeek: number;

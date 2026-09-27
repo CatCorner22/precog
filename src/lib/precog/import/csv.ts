@@ -1,7 +1,7 @@
 import { count, nameKey } from "../text";
 
 /** Cell separators the importers understand. */
-export type Delimiter = "," | "\t" | ";" | "|";
+type Delimiter = "," | "\t" | ";" | "|";
 
 /** Something an importer could not read or changed, for the owner to check. */
 export interface ImportIssue {
@@ -103,7 +103,7 @@ export function sniffDelimiter(text: string): Delimiter {
   return ",";
 }
 
-export interface LocatedTable {
+interface LocatedTable {
   /** The header row followed by the data rows. */
   rows: string[][];
   delimiter: Delimiter;

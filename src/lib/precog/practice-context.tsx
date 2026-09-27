@@ -96,7 +96,7 @@ export type { SyncStatus };
  * (stable), and the sync state (changes as saves land). `usePractice()`
  * merges them for callers that read across all three.
  */
-export type PracticeContextValue = PracticeState & PracticeActions & PracticeSync;
+type PracticeContextValue = PracticeState & PracticeActions & PracticeSync;
 
 /** The working state of the open business and what derives from it. */
 export interface PracticeState {

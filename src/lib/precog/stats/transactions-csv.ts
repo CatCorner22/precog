@@ -3,7 +3,7 @@ import type { Transaction } from "./forensic-suite";
 import { isCalendarDate } from "../dates";
 
 /** The date formats a transactions file may use, as the import help states them. */
-export const ACCEPTED_DATE_FORMATS = "YYYY-MM-DD, MM/DD/YYYY or M/D/YY";
+const ACCEPTED_DATE_FORMATS = "YYYY-MM-DD, MM/DD/YYYY or M/D/YY";
 
 /** At most this many issue lines are listed; the rest are counted in one line. */
 const MAX_LISTED_ISSUES = 20;

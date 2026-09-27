@@ -52,23 +52,6 @@ export function VisionChip({
   );
 }
 
-export function T1000Buddy() {
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1">
-      <div className="t1000-buddy relative flex size-16 items-center justify-center">
-        {/* Friendly chrome face */}
-        <div className="absolute inset-2 rounded-[40%] bg-gradient-to-b from-white/40 to-transparent" />
-        <div className="relative z-[1] flex gap-2">
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-          <span className="size-2 rounded-full bg-red-500/90 shadow-[0_0_6px_#f44]" />
-        </div>
-        <div className="absolute bottom-4 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-red-400/50" />
-      </div>
-      <span className="text-xs tracking-wide text-red-400/80 uppercase">T-1000 · risk</span>
-    </div>
-  );
-}
-
 export function StandardLegend() {
   return (
     <div className="max-w-[220px] rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs shadow-lg backdrop-blur">

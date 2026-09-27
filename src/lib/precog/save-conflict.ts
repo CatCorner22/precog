@@ -28,14 +28,14 @@ function makeLocalRevision(): string {
 
 const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? DEFAULT_BUSINESS_ID;
 
-export type LocalWriteResult =
+type LocalWriteResult =
   | { kind: "saved" }
   /** The browser refused the write (blocked site data, private mode, full quota). */
   | { kind: "failed" }
   /** Another tab saved a newer copy of this business; nothing was written. */
   | { kind: "conflict"; theirs: PracticeProfile; rev: string | null };
 
-export type LocalChange =
+type LocalChange =
   | { kind: "ignore" }
   /** Another tab saved on top of this tab's copy: take theirs, nothing here is lost. */
   | { kind: "adopt"; profile: PracticeProfile; rev: string | null }
@@ -193,7 +193,7 @@ export class AccountLineage {
 }
 
 /** The account's answer to one save: the new revision, or the version it holds instead. */
-export type AccountSaveAnswer =
+type AccountSaveAnswer =
   | { ok: true; revision: number }
   | { ok: false; revision: number; profile: Pick<PracticeProfile, "updatedAt"> };
 
@@ -236,7 +236,7 @@ export function signInMeetsNewerWork(
 }
 
 /** The copy a switch opens, or why it opens none. */
-export type SwitchCopy =
+type SwitchCopy =
   | {
       ok: true;
       profile: PracticeProfile;

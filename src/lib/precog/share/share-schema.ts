@@ -97,9 +97,9 @@ export function validateSharePayload(input: unknown): SharedMapPayload {
 
 /** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
 export const SHARE_PASSCODE_MIN = 8;
-export const SHARE_PASSCODE_MAX = 64;
+const SHARE_PASSCODE_MAX = 64;
 
-export interface CreateShareInput {
+interface CreateShareInput {
   payload: SharedMapPayload;
   expiresInDays: number;
   redacted: boolean;

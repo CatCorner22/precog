@@ -28,7 +28,7 @@ export function policyDefaultsInForce(v: RiskVariableState): boolean {
   );
 }
 
-export type InsuranceBasis = "entered" | "incomplete" | "unknown" | "none" | "app_default";
+type InsuranceBasis = "entered" | "incomplete" | "unknown" | "none" | "app_default";
 
 export function insuranceBasis(v: RiskVariableState, ownBusiness: boolean): InsuranceBasis {
   const record = normalizeInsuranceRecord(v.insurance);

@@ -14,9 +14,9 @@ import { assessCoso } from "../coso";
 import { RISK_SCALE } from "../scoring/bands";
 import { formatUsd } from "../../utils";
 
-export type IndicatorStatus = "ok" | "watch" | "breach";
+type IndicatorStatus = "ok" | "watch" | "breach";
 
-export interface LeadingIndicator {
+interface LeadingIndicator {
   id: string;
   label: string;
   value: number;
@@ -27,7 +27,7 @@ export interface LeadingIndicator {
   linkedTab?: string;
 }
 
-export interface LeadingIndicatorReport {
+interface LeadingIndicatorReport {
   pressureIndex: number; // 0–100
   band: "calm" | "watch" | "heat" | "red";
   indicators: LeadingIndicator[];

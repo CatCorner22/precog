@@ -55,11 +55,6 @@ export async function openTestDb(): Promise<TestDb> {
  * The `exec` the deploy migrator expects, over one PGlite: parameterised
  * statements return their rows, a multi-statement script its last result's.
  */
-export function pgliteExec(pg: PGlite): (sql: string, params?: unknown[]) => Promise<unknown[]> {
-  return async (sql, params) =>
-    params ? (await pg.query(sql, params)).rows : ((await pg.exec(sql)).at(-1)?.rows ?? []);
-}
-
 /** The migration file names in apply order, validated as the deploy migrator does. */
 export function migrationFiles(): Promise<string[]> {
   return listMigrationFiles(MIGRATIONS_DIR) as Promise<string[]>;

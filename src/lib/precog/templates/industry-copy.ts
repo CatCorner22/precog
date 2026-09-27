@@ -2,12 +2,12 @@ import type { MatrixLayerId } from "../types";
 import { DEFAULT_INDUSTRY, type IndustryId } from "../industry";
 
 /** The four duties the segregation-of-duties cards illustrate. */
-export type SodDuty = "authorization" | "custody" | "recording" | "reconciliation";
+type SodDuty = "authorization" | "custody" | "recording" | "reconciliation";
 
 /** The layers whose card lists industry examples; the others list the business's own records. */
-export type LayerCopyId = Extract<MatrixLayerId, "surface" | "source" | "continuity">;
+type LayerCopyId = Extract<MatrixLayerId, "surface" | "source" | "continuity">;
 
-export interface IndustryCopyBundle {
+interface IndustryCopyBundle {
   /** An example of each duty in this industry, for the segregation-of-duties cards. */
   sodExamples: Record<SodDuty, string>;
   layerCopy: Record<LayerCopyId, string[]>;

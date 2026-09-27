@@ -16,7 +16,7 @@ export const CONFORMITY_LABEL: Record<DigitTest["conformity"], string> = {
   nonconformity: "poor",
 };
 
-export interface BenfordRow {
+interface BenfordRow {
   digit: number;
   observedPct: number;
   expectedPct: number;

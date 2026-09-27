@@ -10,7 +10,7 @@ import type { PracticeProfile } from "./practice-profile";
  * failure. Kept apart from `createServerFn` so each rule has a unit test.
  */
 
-export interface SaveBusinessRequest {
+interface SaveBusinessRequest {
   profile: PracticeProfile;
   businessId: string;
   /** The profile as it is stored. */

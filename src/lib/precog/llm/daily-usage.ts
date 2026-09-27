@@ -18,7 +18,7 @@ function envInt(name: string, fallback: number): number {
   return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
-export interface DailyBudget {
+interface DailyBudget {
   allowed: boolean;
   userCalls: number;
   globalCalls: number;

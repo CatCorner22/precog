@@ -39,7 +39,7 @@ export class UnauthorizedError extends RequestError {
   }
 }
 
-export type VerifiedUser = { id: string; email: string | null };
+type VerifiedUser = { id: string; email: string | null };
 
 /**
  * Resolve the signed-in user from the current request, or `null` when auth isn't

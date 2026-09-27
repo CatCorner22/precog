@@ -15,7 +15,7 @@ export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
  * The modeled range around the base avoided loss: half and one and a half
  * times the base. This app's assumption, not a statistical interval.
  */
-export const MODELED_RANGE = { low: 0.5, high: 1.5 } as const;
+const MODELED_RANGE = { low: 0.5, high: 1.5 } as const;
 
 /** The sentence that says where Low and High come from, for the memo and the card. */
 export const MODELED_RANGE_NOTE =

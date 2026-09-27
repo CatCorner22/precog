@@ -14,7 +14,7 @@ export interface DutyCoverage {
   status: "unassigned" | "single_point" | "covered";
 }
 
-export interface CoverageAnalysis {
+interface CoverageAnalysis {
   duties: DutyCoverage[];
   unassigned: DutyCoverage[];
   singlePoints: DutyCoverage[];
@@ -27,7 +27,7 @@ export interface CoverageAnalysis {
   resilienceScore: number;
 }
 
-export interface DutyAbsenceImpact {
+interface DutyAbsenceImpact {
   personId: string;
   personName: string;
   newlyUnassigned: DutyCoverage[];

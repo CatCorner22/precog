@@ -16,7 +16,7 @@ import { stableStringify } from "../text";
  *   or removed processes. Renaming a starter process alone leaves it a
  *   starter map.
  */
-export type MapSource = "sample" | "starter" | "own";
+type MapSource = "sample" | "starter" | "own";
 
 export type MapProfile = Pick<PracticeProfile, "industry" | "customPeople" | "customProcesses">;
 

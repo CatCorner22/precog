@@ -10,7 +10,7 @@ import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { joinWithAnd } from "@/lib/precog/text";
 
 /** The part of the map a view shows: its people and duties, and which of them sit in a conflict. */
-export interface MapSlice {
+interface MapSlice {
   shownPeople: RoleAssignment[];
   shownDuties: typeof OPERATING_DUTIES;
   /** "personId:duty" for every duty a person holds inside a conflict. */

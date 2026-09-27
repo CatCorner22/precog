@@ -46,7 +46,7 @@ export interface StartHereModel {
   footer: StartHereFooterModel;
 }
 
-export interface StartHereInput {
+interface StartHereInput {
   profile: PracticeProfile;
   template: IndustryTemplate;
   today: Date;
@@ -58,7 +58,7 @@ export interface StartHereInput {
 }
 
 /** One duty-conflict rule and everyone who holds both of its duties. */
-export interface StartHereGap {
+interface StartHereGap {
   people: string[];
   ids: string[];
   /** The conflict that stands for the rule: an unmitigated one when there is one. */
@@ -72,7 +72,7 @@ export interface TenureNoteModel {
   cases: ReturnType<typeof tenureExamples>;
 }
 
-export interface StartHerePreambleModel {
+interface StartHerePreambleModel {
   overdue: ReturnType<typeof decisionsDue>["overdue"];
   slipped: ReturnType<typeof continuitySlips>;
   isSampleTeam: boolean;
@@ -81,7 +81,7 @@ export interface StartHerePreambleModel {
   industryLabel: string;
 }
 
-export interface StartHereContinuityModel {
+interface StartHereContinuityModel {
   isSampleTeam: boolean;
   industryLabel: string;
   /** Items on the knowledge register, assessed or not. */
@@ -99,7 +99,7 @@ export interface StartHereContinuityModel {
   staffingToday: ReturnType<typeof todayBrief>;
 }
 
-export interface StartHereExposureModel {
+interface StartHereExposureModel {
   industryId: PracticeProfile["industry"];
   dualRelease: PracticeProfile["dualRelease"];
   /** Conflicts not accepted and not the owner's own, unmitigated first. */
@@ -126,7 +126,7 @@ export interface StartHereExposureModel {
   tenureNote: TenureNoteModel | null;
 }
 
-export interface StartHereCostModel {
+interface StartHereCostModel {
   /** Cases whose records show one of the open findings, with their statistics. */
   citing: ReturnType<typeof citingCaseStats>;
   /** Cases listed at the foot of the page: citing plus those sharing a scheme. */
@@ -138,7 +138,7 @@ export interface StartHereCostModel {
   delayCurve: Benchmark | undefined;
 }
 
-export interface StartHereFirstStepsModel {
+interface StartHereFirstStepsModel {
   steps: ReturnType<typeof rankFirstSteps<ReturnType<typeof recommendedStepsForRules>[number]>>;
   caseById: Map<string, CaseStudy>;
   tips: Benchmark | undefined;
@@ -147,7 +147,7 @@ export interface StartHereFirstStepsModel {
   soleKnowledge: ReturnType<typeof findKnowledgeRisks>;
 }
 
-export interface StartHereFooterModel {
+interface StartHereFooterModel {
   cases: CaseStudy[];
   /** Cases whose records show one of the open findings, as opposed to sharing a scheme. */
   citingIds: Set<string>;

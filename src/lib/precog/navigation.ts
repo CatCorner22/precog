@@ -44,7 +44,7 @@ export type NavFn = (tab: string, id?: string) => void;
  * scenario, and `&build=1` opens How work flows in build mode, so a reload or
  * a pasted link lands on the same view and the same item.
  */
-export interface HomeSearch {
+interface HomeSearch {
   tab?: TabId;
   item?: string;
   /** Build mode on How work flows; "validate" also opens the builder's Validate panel. */

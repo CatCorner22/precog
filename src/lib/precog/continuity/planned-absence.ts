@@ -8,7 +8,7 @@ import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates"
 import { joinWithAnd, joinWithOr, firstName } from "../text";
 
 /** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
-export const ABSENCE_LEAD_DAYS = 30;
+const ABSENCE_LEAD_DAYS = 30;
 
 interface AbsenceOverlap {
   absence: PlannedAbsence;
@@ -54,7 +54,7 @@ export interface AbsenceWindow {
   todayImpact: AbsenceImpact | null;
 }
 
-export interface PlannedAbsenceReport {
+interface PlannedAbsenceReport {
   /** Leave that has started or is still to come, soonest first. */
   windows: AbsenceWindow[];
   /** Entries whose last day is before today. */

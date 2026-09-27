@@ -2,7 +2,7 @@ import type { IndustryId } from "../industry";
 import type { EntitlementId } from "./conflict-rules";
 import { guidanceWords, type GuidanceWords } from "./power-guidance";
 
-export interface DutyControlMeasures {
+interface DutyControlMeasures {
   directive: string[];
   preventive: string[];
   detective: string[];

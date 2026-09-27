@@ -9,7 +9,7 @@ export type ReviewItemKey =
 
 export type ReviewResult = "done" | "exception" | "skipped";
 
-export interface ReviewTask {
+interface ReviewTask {
   key: ReviewItemKey;
   title: string;
   why: string;

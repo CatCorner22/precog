@@ -16,7 +16,7 @@ import {
 } from "./store";
 import { recordReadingFailure, removeConnection, syncConnection } from "./sync.server";
 
-export interface QuickBooksStatus {
+interface QuickBooksStatus {
   configured: boolean;
   connection: ConnectionStatus | null;
   drift: IntegrationDrift | null;

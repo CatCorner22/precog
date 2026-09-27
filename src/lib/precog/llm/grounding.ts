@@ -8,7 +8,7 @@ import type { ToolResult } from "./types";
  * decides what to do (we flag them in the brief rather than drop the answer).
  */
 
-export interface GroundingReport {
+interface GroundingReport {
   /** Money and percent figures in the text that no tool result contains. */
   unsupported: string[];
   /** Every money/percent figure found in the text. */

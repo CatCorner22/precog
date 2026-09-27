@@ -4,7 +4,7 @@ import {
 } from "@/lib/precog/llm/johari-applications";
 
 /** Items a Johari pane lists before the owner asks for all of them. */
-export const PANE_PREVIEW = 8;
+const PANE_PREVIEW = 8;
 
 /**
  * The items a pane lists and the count its heading states. The heading

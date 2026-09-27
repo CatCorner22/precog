@@ -57,7 +57,7 @@ export interface ThresholdException {
   sample?: boolean;
 }
 
-export interface DualReleaseRule {
+interface DualReleaseRule {
   channel: ReleaseChannel;
   label: string;
   enabled: boolean;

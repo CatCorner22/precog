@@ -109,7 +109,7 @@ export function sentryEnvelope(event: ErrorEvent, eventId: string): string {
   ].join("\n");
 }
 
-export interface SentryFrame {
+interface SentryFrame {
   function: string;
   filename?: string;
   lineno?: number;

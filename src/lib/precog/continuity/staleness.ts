@@ -23,7 +23,7 @@ interface StaleItem {
   action: string;
 }
 
-export interface StalenessReport {
+interface StalenessReport {
   stale: StaleItem[];
   /** Criticality-weighted percentage of items confirmed within the freshness window. */
   confirmedIndex: number;

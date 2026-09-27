@@ -4,7 +4,7 @@ import { loadFirmFor } from "../firm/store";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 
-export interface DigestOutcome {
+interface DigestOutcome {
   advisors: number;
   owners: number;
   skipped: number;

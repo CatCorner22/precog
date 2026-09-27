@@ -15,7 +15,7 @@ type VariableCategory =
 
 type VariableKind = "currency" | "percent" | "boolean" | "number";
 
-export interface DynamicVariableDef {
+interface DynamicVariableDef {
   id: string;
   label: string;
   category: VariableCategory;

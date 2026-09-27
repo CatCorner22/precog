@@ -277,7 +277,7 @@ const pioneerSchema = z.object({
   today: z.string().max(40).nullish(),
 });
 
-export interface PioneerRequest {
+interface PioneerRequest {
   question: string;
   profile: PioneerProfileInput;
   today: string | undefined;

@@ -36,7 +36,7 @@ export function stepCommitment(
 }
 
 /** Whether an open Journal entry already tracks this step on this item. */
-export type IsTracked = (knowledgeId: string, step: ContinuityStep) => boolean;
+type IsTracked = (knowledgeId: string, step: ContinuityStep) => boolean;
 
 /** The items an absence step names that still need a Journal entry, in the step's order. */
 export function untrackedItems(

@@ -15,7 +15,7 @@ export interface VerifyNextItem {
   rationale: string;
 }
 
-export interface VerifyNextReport {
+interface VerifyNextReport {
   /** The checks, most useful first. */
   items: VerifyNextItem[];
   topObservation: string;

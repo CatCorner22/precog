@@ -62,7 +62,7 @@ export interface ControlDefinition {
   cadence: ControlCadence;
 }
 
-export type ControlCadence =
+type ControlCadence =
   | "once"
   | "daily"
   | "weekly"

@@ -1,7 +1,7 @@
 import { industryNoun, type IndustryId } from "../industry";
 import type { EntitlementId } from "./conflict-rules";
 
-export interface PowerGuidance {
+interface PowerGuidance {
   purpose: string;
   evidence: string;
   boundary: string;

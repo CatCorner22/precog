@@ -94,7 +94,7 @@ export async function passcodeLocked(sql: Sql, token: string): Promise<boolean> 
   return Boolean(rows[0]?.locked);
 }
 
-export type PasscodeGuessResult = "correct" | "wrong" | "locked";
+type PasscodeGuessResult = "correct" | "wrong" | "locked";
 
 /**
  * Runs one passcode guess under the lock: reserve a place in the window,

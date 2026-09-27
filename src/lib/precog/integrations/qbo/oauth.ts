@@ -7,14 +7,14 @@ import { constantTimeEqual, fromBase64Url, hmacSha256, toBase64Url } from "@/lib
  * WebCrypto, so the same code runs in a test without Node-only modules.
  */
 /** Where Intuit sends the browser back; the route file declares the same path. */
-export const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";
+const QBO_CALLBACK_PATH = "/api/integrations/qbo/callback";
 
 /** The redirect_uri Intuit must see identically at authorize and token exchange. */
 export function qboCallbackUrl(origin: string): string {
   return `${origin}${QBO_CALLBACK_PATH}`;
 }
 
-export interface ConnectState {
+interface ConnectState {
   userId: string;
   businessId: string;
   issuedAt: number;

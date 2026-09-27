@@ -8,7 +8,7 @@ import { suggestControlForProcess, suggestOwnerForProcess } from "./quick-fix";
  * makes. The Fix button, its health preview and "Fix all quick wins" all
  * read it, so what the preview shows is what the button applies.
  */
-export interface QuickFix {
+interface QuickFix {
   patch: Partial<ProcessNode>;
   /** One line for the toast, e.g. "Ana Ruiz assigned to Payroll". */
   message: string;

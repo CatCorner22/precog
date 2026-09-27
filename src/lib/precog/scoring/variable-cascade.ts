@@ -39,7 +39,7 @@ export type CascadeLeverId =
   | "clean_claims_history"
   | "raise_segregation_75";
 
-export interface CascadeLever {
+interface CascadeLever {
   id: CascadeLeverId;
   label: string;
   description: string;
@@ -77,7 +77,7 @@ interface MetricDelta {
   direction: "improves" | "worsens";
 }
 
-export interface CascadeSimulation {
+interface CascadeSimulation {
   lever: CascadeLever;
   /**
    * False when the lever cannot be modelled (an insurance lever on unconfirmed
@@ -94,7 +94,7 @@ export interface CascadeSimulation {
   staffAfter: StaffComposition;
 }
 
-export interface CascadeReport {
+interface CascadeReport {
   scenarioId: string;
   scenarioTitle: string;
   /**

@@ -33,7 +33,7 @@ export function healthLevel(score: number): HealthLevel {
 }
 
 /** The colour every health index is drawn in, by level: one scale for the badge, ring, bars and pill. */
-export type HealthTone = "ok" | "primary" | "warn" | "danger";
+type HealthTone = "ok" | "primary" | "warn" | "danger";
 
 export function healthTone(score: number): HealthTone {
   return HEALTH_TONE[healthLevel(score)];

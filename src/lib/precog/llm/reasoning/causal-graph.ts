@@ -22,7 +22,7 @@ export type CausalNodeId =
   | "timeline_p50"
   | "owner_decision";
 
-export interface CausalPath {
+interface CausalPath {
   /** Product of the edge weights along the path. */
   score: number;
   narrative: string;

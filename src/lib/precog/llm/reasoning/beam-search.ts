@@ -13,7 +13,7 @@ import {
   type CascadeLeverId,
 } from "../../scoring/variable-cascade";
 
-export interface BeamNode {
+interface BeamNode {
   sequence: CascadeLeverId[];
   labels: string[];
   staff: StaffComposition;
@@ -23,7 +23,7 @@ export interface BeamNode {
   marginalUtility: number;
 }
 
-export interface BeamSearchResult {
+interface BeamSearchResult {
   /** The best sequence found; empty when no lever adds utility. */
   best: BeamNode;
   /** Distinct lever sets considered, best first. */

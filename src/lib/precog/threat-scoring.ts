@@ -44,7 +44,7 @@ import { count } from "./text";
 
 type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
 
-export interface ThreatAssessmentReport {
+interface ThreatAssessmentReport {
   ao: string;
   overallThreatIndex: number;
   classificationLabel: string;
@@ -69,7 +69,7 @@ interface ThreatTarget extends PriorityTarget {
 }
 
 /** What the Priority figure is, for any table or card that prints it. */
-export const THREAT_PRIORITY_BASIS =
+const THREAT_PRIORITY_BASIS =
   "Priority is this app's ranking index, 0 to 100: it orders what to look at first and measures nothing.";
 
 export function buildThreatAssessment(input: {

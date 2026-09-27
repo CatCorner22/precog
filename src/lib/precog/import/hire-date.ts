@@ -1,7 +1,7 @@
 import { isCalendarDate, DAY_MS } from "../dates";
 import { clamp } from "../number";
 
-export interface HireDateOptions {
+interface HireDateOptions {
   /** Read "10/01/2020" as 10 January; set when the file's other dates only fit that order. */
   dayFirst?: boolean;
   /** Pivot for two-digit years; defaults to now. */

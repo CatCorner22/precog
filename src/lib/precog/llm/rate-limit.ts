@@ -1,9 +1,9 @@
-export interface RateLimitRule {
+interface RateLimitRule {
   limit: number;
   windowMs: number;
 }
 
-export interface LimitDecision {
+interface LimitDecision {
   allowed: boolean;
   /** How long until the oldest hit leaves the window; 0 when allowed. */
   retryAfterMs: number;

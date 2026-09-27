@@ -1,7 +1,7 @@
 import { MAX_VALUE_EVIDENCE_ITEMS, type ValueEvidence } from "./value-evidence";
 
 /** The register after an import, and what the import did to it. */
-export interface EvidenceImport {
+interface EvidenceImport {
   items: ValueEvidence[];
   added: number;
   updated: number;

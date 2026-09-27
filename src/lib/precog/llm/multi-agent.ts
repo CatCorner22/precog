@@ -11,7 +11,7 @@ import { count } from "../text";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
-export interface SpecialistNote {
+interface SpecialistNote {
   agent: SpecialistId;
   title: string;
   bullets: string[];

@@ -1,6 +1,6 @@
 import type { Sql } from "./db";
 
-export type QueryRunner = <T>(text: string, params: unknown[]) => Promise<T[]>;
+type QueryRunner = <T>(text: string, params: unknown[]) => Promise<T[]>;
 
 /**
  * Result-type parity: Postgres sends every value as text plus a type OID, and

@@ -7,7 +7,7 @@ export interface OrderedProcess {
   y: number;
 }
 
-export type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
+type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
 /**
  * Where an arrow key moves the selection in build mode: left and right to

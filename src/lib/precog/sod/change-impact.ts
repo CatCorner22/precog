@@ -4,7 +4,7 @@ import { withEntitlement, type RoleAssignment } from "./assignments";
 import { detectAssignments, type DetectedConflict } from "./detect";
 import type { StaffComposition } from "../types";
 
-export interface AssignmentChangeImpact {
+interface AssignmentChangeImpact {
   action: "assign" | "remove";
   nextAssignments: RoleAssignment[];
   conflictsCreated: DetectedConflict[];

@@ -49,7 +49,7 @@ export interface ImportContext {
 }
 
 /** A row read as a person, or as a second position of someone read earlier. */
-export type RowRead = { person: Person; mapping: TitleMapping } | { position: TitleMapping };
+type RowRead = { person: Person; mapping: TitleMapping } | { position: TitleMapping };
 
 /**
  * Reads one data row: its fields, whether it repeats an earlier row, the

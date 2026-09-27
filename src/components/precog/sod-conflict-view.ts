@@ -6,7 +6,7 @@ import { midSentence } from "@/lib/precog/text";
 export type ConflictSeverity = DetectedConflict["severity"];
 
 /** How a conflict is coloured, on every card that shows one. */
-export type ConflictTone = "ok" | "danger" | "warn" | "default";
+type ConflictTone = "ok" | "danger" | "warn" | "default";
 
 /** The severity filter's options, in order, with the words the chips show. */
 export const SEVERITY_FILTERS: { id: ConflictSeverity | "all"; label: string }[] = [

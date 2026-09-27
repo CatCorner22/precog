@@ -4,7 +4,7 @@ import { count, joinWithAnd } from "./text";
 import type { MapValidationIssue } from "./process-validation";
 import type { ProcessMapSnapshot } from "./process-graph";
 
-export type MapHealthBand = "healthy" | "fair" | "at_risk" | "critical";
+type MapHealthBand = "healthy" | "fair" | "at_risk" | "critical";
 
 interface MapHealthDimension {
   id: string;

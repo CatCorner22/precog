@@ -15,9 +15,9 @@
 export type IdentityLock = "signing-in" | "signing-out" | "other-tab" | "changed";
 
 /** The account change an exit check guards. */
-export type AccountTransition = "sign-in" | "sign-out";
+type AccountTransition = "sign-in" | "sign-out";
 
-export type IdentitySnapshot = { accountId: string | null; generation: number; locked: boolean };
+type IdentitySnapshot = { accountId: string | null; generation: number; locked: boolean };
 
 const CHANGE_KEY = "precog.identity-change.v1";
 const ACCOUNT_KEY = "precog.identity-account.v1";

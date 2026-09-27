@@ -4,7 +4,7 @@ import type { SamplePaymentSafeguards } from "./types";
 type Mitigation = ScenarioTemplate["mitigations"][number];
 
 /** How one sample words a shared scenario: its own text, relabelled mitigations, extra ones. */
-export type ScenarioChange = Partial<
+type ScenarioChange = Partial<
   Pick<ScenarioTemplate, "title" | "description" | "knowledgeId" | "controlId" | "sodRuleIds">
 > & {
   /** New labels for shared mitigations, by mitigation id. */

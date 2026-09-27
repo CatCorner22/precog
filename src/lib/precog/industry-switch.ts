@@ -7,7 +7,7 @@ import { defaultProfile, type PracticeProfile } from "./practice-profile";
 import { count, joinWithAnd, stableStringify } from "./text";
 
 /** What a business has entered on top of its industry template — everything an industry switch discards. */
-export interface EnteredWork {
+interface EnteredWork {
   people: number;
   processes: number;
   registerItems: number;

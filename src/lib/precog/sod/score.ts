@@ -15,7 +15,7 @@ import {
 export type FindingSeverity = ConflictRule["severity"] | "family";
 
 /** What a finding's score reads. */
-export interface ScoreInputs {
+interface ScoreInputs {
   severity: FindingSeverity;
   /** The rule's two duties (the held duties for a family finding). */
   pair: readonly [EntitlementId, EntitlementId];

@@ -5,7 +5,7 @@ import { rulesHeldTogether, teamHeldDuties } from "./rule-match";
 import { gapKey } from "./score";
 
 /** One person who holds most of the open gaps, and the single move that closes the most of them. */
-export interface ConcentrationHeadline {
+interface ConcentrationHeadline {
   personId: string;
   personName: string;
   role: string;
@@ -72,7 +72,7 @@ export function concentrationHeadline(
 }
 
 /** A named rule whose two duties are both held on the team, by different people. */
-export interface SeparatedPair {
+interface SeparatedPair {
   ruleId: string;
   title: string;
 }

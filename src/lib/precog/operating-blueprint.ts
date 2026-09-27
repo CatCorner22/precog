@@ -10,7 +10,7 @@ import type { IndustryId } from "./industry";
 export type PracticeProcessDomain =
   "revenue" | "cash" | "purchasing" | "payroll" | "operations" | "technology" | "governance";
 
-export interface PracticeProcessBlueprint {
+interface PracticeProcessBlueprint {
   id: string;
   name: string;
   domain: PracticeProcessDomain;

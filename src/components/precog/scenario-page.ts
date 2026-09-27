@@ -97,7 +97,7 @@ export function formatDaysChange(delta: number): string {
 }
 
 /** The staffing figures the scenario page lets the owner try without saving. */
-export const WHAT_IF_FIELDS = [
+const WHAT_IF_FIELDS = [
   "teamSize",
   "soleOwnerKnowledgeCount",
   "segregationScore",

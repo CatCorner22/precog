@@ -6,7 +6,7 @@ import type { ReminderItem } from "./due-items";
  * The reminder messages, as plain text and simple HTML. Text first: these
  * land in accountants' inboxes, where a clear list beats a designed email.
  */
-export interface DigestClient {
+interface DigestClient {
   businessName: string;
   items: ReminderItem[];
 }

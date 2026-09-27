@@ -57,7 +57,7 @@ import type { StaffComposition } from "@/lib/precog/types";
 import { localDateKey, formatDay, formatDayNear, formatDayRange } from "../dates";
 import { joinWithAnd, verb, firstName, count } from "../text";
 
-export interface WeeklyAction {
+interface WeeklyAction {
   id: string;
   title: string;
   why: string;
@@ -76,7 +76,7 @@ interface ActionEvidence {
   worst: { title: string; lossUsd: number; lossIsFloor: boolean } | null;
 }
 
-export interface WeeklyActionsInput {
+interface WeeklyActionsInput {
   tpl: IndustryTemplate;
   staff: StaffComposition;
   dualRelease: DualReleasePolicy;

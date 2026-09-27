@@ -45,7 +45,7 @@ export function isOwnerRole(role: string): boolean {
 }
 
 /** A person as the owner tests read them: the title, and the owner's own mark when set. */
-export interface OwnerCandidate {
+interface OwnerCandidate {
   id: string;
   role: string;
   /** Set during setup: this person owns the business. Absent, the title decides. */

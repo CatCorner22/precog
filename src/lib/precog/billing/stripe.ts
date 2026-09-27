@@ -24,7 +24,7 @@ export interface StripeEvent {
 }
 
 /** What a webhook event means for an account, independent of Stripe's shapes. */
-export type BillingChange =
+type BillingChange =
   | { kind: "assessment-paid"; userId: string; customerId: string | null }
   | {
       kind: "subscription";

@@ -10,7 +10,7 @@ import { textPatch, type ProcessTextFields } from "./process-text";
  */
 
 /** The form's copy of the text fields, and what it last saw of the process. */
-export interface FormText {
+interface FormText {
   /** The fields as the owner sees them. */
   fields: ProcessTextFields;
   /** The process text the form last saw or wrote, as a comparable key. */
@@ -62,7 +62,7 @@ export function commitFormText(
 }
 
 /** The text fields as the saved process reads. */
-export function processTextFields(process: ProcessNode): ProcessTextFields {
+function processTextFields(process: ProcessNode): ProcessTextFields {
   return {
     name: process.name,
     desc: process.description,

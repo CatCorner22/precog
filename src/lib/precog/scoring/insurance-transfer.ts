@@ -9,7 +9,7 @@ import type { RiskVariableState } from "./risk-variables";
 import { formatUsd, formatPct } from "../../utils";
 import { clamp } from "../number";
 
-export interface AppliedDiscount {
+interface AppliedDiscount {
   id: string;
   label: string;
   pct: number;
@@ -17,7 +17,7 @@ export interface AppliedDiscount {
   reason: string;
 }
 
-export interface InsuranceTransferResult {
+interface InsuranceTransferResult {
   grossLossExpected: number;
   grossLossLow: number;
   grossLossHigh: number;
@@ -35,7 +35,7 @@ export interface InsuranceTransferResult {
   notes: string[];
 }
 
-export interface DynamicRiskOutcome {
+interface DynamicRiskOutcome {
   variables: RiskVariableState;
   likelihoodSeverity: LikelihoodSeverityBreakdown;
   transfer: InsuranceTransferResult;

@@ -13,7 +13,7 @@ import { summarizeValueEvidence, type ValueEvidence } from "./value-evidence";
  *   can match; `most` is that ceiling.
  * - `no-reviews`: reviews per year is 0, so hours per review cannot be set.
  */
-export type HoursCheck =
+type HoursCheck =
   | { kind: "match" }
   | { kind: "apply" }
   | { kind: "unreachable"; most: number }
@@ -24,10 +24,10 @@ export type HoursCheck =
  * the value case: `unbacked` when a figure is typed but no verified recovery
  * backs it, `differs` when verified recoveries exist and total something else.
  */
-export type RecoveryCheck = { kind: "match" } | { kind: "unbacked" } | { kind: "differs" };
+type RecoveryCheck = { kind: "match" } | { kind: "unbacked" } | { kind: "differs" };
 
 /** One line of the evidence checklist and whether the owner's records show it. */
-export interface ChecklistItem {
+interface ChecklistItem {
   label: string;
   done: boolean;
 }

@@ -141,15 +141,12 @@ function riskHeat(r: ProcessRisk) {
  * What enrichProcess reads from the whole business. buildProcessMapGraph
  * computes it once for every process; a single call computes its own.
  */
-export interface ProcessMapContext {
+interface ProcessMapContext {
   knowledgeRisks: KnowledgeRisk[];
   residualRows: ResidualRiskScore[];
 }
 
-export function processMapContext(
-  tpl: IndustryTemplate,
-  staff?: StaffComposition,
-): ProcessMapContext {
+function processMapContext(tpl: IndustryTemplate, staff?: StaffComposition): ProcessMapContext {
   return {
     knowledgeRisks: findKnowledgeRisks(tpl),
     residualRows: portfolioSummary(tpl, staff).all,

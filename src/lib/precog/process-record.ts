@@ -44,7 +44,7 @@ const CADENCE_STOP_DAYS: Record<ProcessCadence, number> = {
 };
 
 /** Same vocabulary as KnowledgeItem documentation in continuity/coverage.ts. */
-export type ProcessDocumentationState = "none" | "unlocated" | "located";
+type ProcessDocumentationState = "none" | "unlocated" | "located";
 
 export const PROCESS_DOCUMENTATION_LABEL: Record<ProcessDocumentationState, string> = {
   none: "Nothing written down",
@@ -99,7 +99,7 @@ interface ProcessRecordGap {
   nextStep: string;
 }
 
-export interface ProcessRecordReport {
+interface ProcessRecordReport {
   total: number;
   counts: Record<ProcessDocumentationState, number>;
   /**

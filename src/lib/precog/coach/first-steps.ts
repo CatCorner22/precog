@@ -155,7 +155,7 @@ export function gapBadge(
 }
 
 /** One owner-held pair for the "Duties you hold yourself" note. */
-export interface OwnerHeldPair {
+interface OwnerHeldPair {
   ruleId: string;
   personName: string;
   pair: string;

@@ -2,20 +2,10 @@ import type { Transaction } from "./forensic-suite";
 import { utcDateKey } from "../dates";
 
 /**
- * What the demo day sheet plants, for the line that tells the owner what the
- * screen should find in it.
- */
-export const DEMO_PLANTED = [
-  "the last two days' deposits missing (payment-to-deposit timing)",
-  "three refunds entered twice on the same day (repeated transactions)",
-  "a $2,400 adjustment among small ones (magnitude outliers)",
-  "most adjustments and refunds posted by the front desk (adjustment concentration)",
-];
-
-/**
  * A deterministic 60-day day sheet: each charge settled by a payment of the
  * same amount on most visits, one deposit per weekday summing the day's
- * payments, and the anomalies in DEMO_PLANTED. Payment amounts are spread
+ * payments, and a few planted anomalies (missing deposits, repeated refunds,
+ * one large adjustment, concentrated adjustments). Payment amounts are spread
  * evenly on a log scale from $20 to $2,000 (a golden-ratio sequence, so even a
  * few hundred of them follow the shape closely), the shape Benford's law
  * expects of amounts that arise from many independent sales.

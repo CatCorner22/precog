@@ -48,7 +48,7 @@ export interface EpistemicItem {
   metric?: string;
 }
 
-export interface MetaAnalysisReport {
+interface MetaAnalysisReport {
   generatedAt: string;
   practiceName: string;
   realtimeCapabilities: RealtimeCapability[];

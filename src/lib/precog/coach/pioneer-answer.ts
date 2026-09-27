@@ -55,7 +55,7 @@ export type PioneerCoachResult = {
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
 };
 
-export type PioneerCoachError = {
+type PioneerCoachError = {
   ok: false;
   error: string;
 };

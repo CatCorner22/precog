@@ -18,7 +18,7 @@ import { DEFAULT_BUSINESS_ID } from "./business-id";
  *
  * Kept free of `createServerFn` so it can run against PGLite in a unit test.
  */
-export interface BusinessSaveInput {
+interface BusinessSaveInput {
   /** The row's owner (the account the business was created under). */
   userId: string;
   businessId: string;
@@ -44,7 +44,7 @@ interface BusinessRowSnapshot<TProfile = unknown> {
   updated_at: string;
 }
 
-export type BusinessSaveResult<TProfile = unknown> =
+type BusinessSaveResult<TProfile = unknown> =
   | { ok: true; revision: number; updatedAt: string }
   | { ok: false; conflict: true; existing: BusinessRowSnapshot<TProfile> };
 
@@ -320,7 +320,7 @@ export async function loadBusinessHistoryVersion<TProfile = unknown>(
     : null;
 }
 
-export interface BusinessSummaryRow {
+interface BusinessSummaryRow {
   id: string;
   name: string;
   industry: string;
@@ -386,7 +386,7 @@ export async function listBusinessSummaries(
  * written by older builds still hold a full copy, which `loadActiveBusiness`
  * reads only for an account that has no `businesses` row at all.
  */
-export interface ActivePointer {
+interface ActivePointer {
   /** The account whose pointer this is. */
   userId: string;
   businessId: string;
@@ -408,7 +408,7 @@ export async function setActiveBusiness(sql: Sql, input: ActivePointer): Promise
   `;
 }
 
-export interface ActiveBusiness<TProfile = unknown> {
+interface ActiveBusiness<TProfile = unknown> {
   businessId: string;
   name: string;
   industry: string;

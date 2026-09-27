@@ -23,7 +23,7 @@ import {
 } from "./own-team";
 
 /** What pasting a roster did: the new grid (null when unchanged), the note, and who it left out. */
-export interface PasteOutcome {
+interface PasteOutcome {
   rows: OwnTeamRow[] | null;
   /** The note under "Fill the table". */
   note: string;

@@ -128,7 +128,7 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
 
 export type ActionBand = "accept_monitor" | "mitigate" | "act_now" | "critical_path";
 
-export const ACTION_BANDS: {
+const ACTION_BANDS: {
   band: ActionBand;
   min: number;
   max: number;

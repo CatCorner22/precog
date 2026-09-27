@@ -8,7 +8,7 @@ export type IndustryId =
   | "nonprofit"
   | "general";
 
-export interface IndustryMeta {
+interface IndustryMeta {
   id: IndustryId;
   label: string;
   tagline: string;

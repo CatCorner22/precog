@@ -24,7 +24,7 @@ export const REGISTER_NOT_ASSESSED =
   "Register not assessed yet: mark who can do each item on Who knows what.";
 
 /** A decision the owner logged on a scenario, as the journal stores it. */
-export interface ScenarioDecision {
+interface ScenarioDecision {
   linkedTab?: string;
   linkedId?: string;
   linkedIndustry?: IndustryId;

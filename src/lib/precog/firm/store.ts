@@ -56,7 +56,7 @@ export interface ClientEngagementRow {
   ownerEmail: string | null;
 }
 
-export interface ReviewEventInput {
+interface ReviewEventInput {
   businessId: string;
   period: string;
   itemKey: ReviewItemKey;

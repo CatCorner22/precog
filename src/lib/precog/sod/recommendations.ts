@@ -9,7 +9,7 @@ import { PAYMENT_CHANNELS, type EntitlementId } from "./conflict-rules";
 import type { FindingSeverity } from "./score";
 
 /** The parts of a finding the recommendations read. */
-export interface RecommendationFinding {
+interface RecommendationFinding {
   ruleId: string;
   severity: FindingSeverity;
   ownerHeld: boolean;
@@ -17,7 +17,7 @@ export interface RecommendationFinding {
 }
 
 /** Who the recommendations name as the person outside the duties. */
-export interface Overseer {
+interface Overseer {
   /** The business has an owner at all (a nonprofit has none). */
   hasOwner: boolean;
   /** The one person who owns the business alone, when there is one. */

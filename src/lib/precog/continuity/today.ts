@@ -47,7 +47,7 @@ interface TodayUpcoming {
   unlogged: number;
 }
 
-export interface TodayBrief {
+interface TodayBrief {
   /** Everyone out right now, most critical impact first. */
   out: TodayOut[];
   /** Register entries that stop today across everyone out, each counted once. */

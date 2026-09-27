@@ -30,7 +30,7 @@ export type DeepLinkTarget =
   | { type: "precog"; scenarioId?: string }
   | { type: "layers"; layer?: string };
 
-export interface CosoFinding {
+interface CosoFinding {
   id: string;
   label: string;
   detail: string;

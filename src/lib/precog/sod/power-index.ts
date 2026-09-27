@@ -2,7 +2,7 @@ import { type DutyFamily, entitlementById, isOperatingDuty } from "./conflict-ru
 import { detectAssignments, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
 import { teamOwnerId } from "./owner-role";
 
-export interface PersonPowerIndex {
+interface PersonPowerIndex {
   personId: string;
   personName: string;
   role: string;

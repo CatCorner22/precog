@@ -35,7 +35,7 @@ import { buttonClass } from "@/components/ui/button-variants";
  * mode. Like `NavFn` it takes the tab as a string (a `NavTarget`); the shell
  * checks it.
  */
-export type OpenTab = (tab: string, item?: string | null, build?: boolean | "validate") => void;
+type OpenTab = (tab: string, item?: string | null, build?: boolean | "validate") => void;
 
 /**
  * The Dashboard tab: the headline, the six scores, this week's plan, and the

@@ -20,7 +20,7 @@ export interface EngagementStamp {
   reportSentAt?: string;
 }
 
-export interface PilotMetrics {
+interface PilotMetrics {
   startedAt: string | null;
   mapCompletedAt: string | null;
   /** Whole hours from start to a complete map; null until both stamps exist. */
@@ -59,13 +59,13 @@ export function mapIsComplete(people: readonly Person[] | null | undefined): boo
 }
 
 /** What the pilot metrics read from a detected conflict. */
-export type MetricConflict = Pick<
+type MetricConflict = Pick<
   DetectedConflict,
   "ruleId" | "linkedControlId" | "residualRiskAccepted" | "dualReleaseMitigated"
 >;
 
 /** What the pilot metrics read from a logged decision. */
-export type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry">;
+type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry">;
 
 /**
  * Findings are the detected conflicts. One counts as accepted once the owner
