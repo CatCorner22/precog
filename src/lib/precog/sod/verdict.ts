@@ -17,11 +17,6 @@ export interface ConcentrationHeadline {
   closes: number;
 }
 
-/** Lower-cases a label's first word for use mid-sentence, unless it is an acronym ("ACH initiation"). */
-export function midSentence(label: string): string {
-  return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
-}
-
 const dutyLabel = entitlementLabel;
 
 /** Open means a finding the owner still has to act on: not owner-held, not accepted. */

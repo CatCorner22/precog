@@ -3,6 +3,7 @@ import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import { formatUsd } from "@/lib/utils";
+import { midSentence } from "../text";
 
 /**
  * The duties each catalog control polices: a control answers an open finding
@@ -240,13 +241,9 @@ export function ownerHeldPairs(conflicts: readonly DetectedConflict[]): OwnerHel
     out.set(c.ruleId, {
       ruleId: c.ruleId,
       personName: c.personName,
-      pair: `${c.labelA} and ${lowerFirst(c.labelB)}`,
+      pair: `${c.labelA} and ${midSentence(c.labelB)}`,
       suggestion: c.compensatingControls[0] ?? "",
     });
   }
   return [...out.values()];
-}
-
-function lowerFirst(label: string): string {
-  return label.replace(/^([A-Z])(?=[a-z])/, (m) => m.toLowerCase());
 }

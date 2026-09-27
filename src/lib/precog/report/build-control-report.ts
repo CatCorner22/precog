@@ -23,10 +23,13 @@ import {
   observedLossRange,
   recommendedStepsForRules,
 } from "../evidence";
+import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { computeMapHealth } from "../process-health";
 import { validateProcessMap } from "../process-validation";
+import { registerAssessed } from "../continuity/register-state";
+import { continuityFollowThrough, decisionLog, executiveSummary } from "./report-summary";
 
 /**
  * Everything the printed report shows, computed once from the template and
@@ -126,7 +129,13 @@ export function buildControlReportModel({
     ...matched.filter((c) => isOwnSector(c, profile.industry)),
     ...matched.filter((c) => !isOwnSector(c, profile.industry)),
   ];
-  const steps = recommendedStepsForRules(openRuleIds).slice(0, 6);
+  // Ranked as Start here ranks its "Do these first" list, so the screen and
+  // the printed report lead with the same step: first by how many of the
+  // open findings (not the owner's own pairs) each control answers.
+  const openFindings = sod.conflicts.filter(
+    (c) => !c.residualRiskAccepted && !c.dualReleaseMitigated && !c.ownerHeld,
+  );
+  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds), openFindings).slice(0, 6);
   // Count, median and detection routes describe the cases whose records
   // show these gaps; cases that only share a scheme are listed but not
   // counted as matches.
@@ -134,8 +143,31 @@ export function buildControlReportModel({
   const statsFrom = citing.count > 0 ? citing.cases : evidence;
   const lossRange = observedLossRange(statsFrom);
   const found = detectionBreakdown(statsFrom);
+  // Which cases the figures describe, and how many stated losses are only a
+  // floor ("at least $X"), so the report can say both beside the median.
+  const statsScope = {
+    cases: citing.count > 0 ? ("citing" as const) : ("related" as const),
+    count: statsFrom.length,
+    floors: statsFrom.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
+  };
   const docs = documentationDebt(tpl);
+  const firstPoint = profile.mapHealthHistory?.[0];
+  const healthDelta =
+    mapReady && firstPoint && mapHealth.score !== firstPoint.score
+      ? { points: mapHealth.score - firstPoint.score, since: firstPoint.at }
+      : null;
+  const registerReady = registerAssessed(tpl);
+  const summary = executiveSummary({
+    conflicts: sod.conflicts,
+    firstStep: steps[0]?.control.label ?? null,
+    registerReady,
+    coverageIndex: continuity.coverageIndex,
+    singlePoints: continuity.singlePoints.length,
+    mapHealth: mapReady ? mapHealth : null,
+    topPriority: threat.targetDeck[0]?.label ?? null,
+  });
   return {
+    summary,
     threat,
     portfolio,
     sod,
@@ -158,7 +190,12 @@ export function buildControlReportModel({
     steps,
     lossRange,
     found,
+    statsScope,
     policyNote,
+    healthDelta,
+    registerReady,
+    decisionLog: decisionLog(profile.decisions),
+    followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };
 }
 

@@ -87,8 +87,7 @@ function RegisterCloseOutControls({
   const person =
     closeOut.step === "cover" ? closeOut.candidates.find((p) => p.id === personId) : undefined;
   const trimmedLocation = location.trim();
-  const inputClass =
-    "rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-foreground";
+  const inputClass = "rounded-lg border border-border bg-elevated px-2 py-1 text-xs text-fg";
 
   return (
     <div className="mt-2 space-y-2 rounded-lg border border-warn/40 bg-warn/5 p-2.5 text-xs">

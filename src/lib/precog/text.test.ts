@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  midSentence,
   count,
   firstName,
   joinWithAnd,
@@ -90,5 +91,14 @@ describe("stableStringify", () => {
       stableStringify({ a: { c: null, d: [2, { e: 0, f: 1 }] }, b: 1 }),
     );
     expect(stableStringify({ a: 1 })).not.toBe(stableStringify({ a: 2 }));
+  });
+});
+
+describe("midSentence", () => {
+  it("lower-cases the first word unless it is an acronym", () => {
+    expect(midSentence("Bank reconciliation")).toBe("bank reconciliation");
+    expect(midSentence("A weekly review")).toBe("a weekly review");
+    expect(midSentence("ACH initiation")).toBe("ACH initiation");
+    expect(midSentence("approve write-offs")).toBe("approve write-offs");
   });
 });
