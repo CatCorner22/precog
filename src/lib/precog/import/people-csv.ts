@@ -341,7 +341,22 @@ export function effectiveDuties(
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): string[] {
   if (person.entitlements?.length) return [...person.entitlements];
-  return [...(roleTemplates[person.role] ?? ROLE_TEMPLATES[person.role] ?? ["view_reports_only"])];
+  return [...(roleDuties(person.role, roleTemplates) ?? ["view_reports_only"])];
+}
+
+/** True when neither the person nor their role gives any duties, so effectiveDuties falls back to reports only. */
+export function dutiesUnknown(
+  person: Pick<Person, "role" | "entitlements">,
+  roleTemplates: Readonly<Record<string, readonly string[]>>,
+): boolean {
+  return !person.entitlements?.length && !roleDuties(person.role, roleTemplates);
+}
+
+function roleDuties(
+  role: string,
+  roleTemplates: Readonly<Record<string, readonly string[]>>,
+): readonly string[] | undefined {
+  return roleTemplates[role] ?? ROLE_TEMPLATES[role];
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */

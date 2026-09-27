@@ -27,10 +27,13 @@ export function MapHealthCard({
   map,
   onOpenMap,
   onBuildMap,
+  onFixIssues,
 }: {
   map: ScoredMap;
   onOpenMap: (processId?: string) => void;
   onBuildMap: () => void;
+  /** Opens the builder with its Validate panel, which lists every issue. */
+  onFixIssues: () => void;
 }) {
   const { profile, mapCustomized, recordMapHealth } = usePractice();
   // The starter map with nobody assigned, or an empty map, has no health to
@@ -69,7 +72,8 @@ export function MapHealthCard({
                 Map health score
               </CardTitle>
               <CardDescription>
-                How complete and calm your value stream is — owners, controls, integrity, heat.
+                How complete and calm your value stream is: integrity, ownership, controls, written
+                procedures and heat.
               </CardDescription>
             </div>
             <Badge variant="default">Not assessed yet</Badge>
@@ -107,7 +111,8 @@ export function MapHealthCard({
               Map health score
             </CardTitle>
             <CardDescription>
-              How complete and calm your value stream is — owners, controls, integrity, heat.
+              How complete and calm your value stream is: integrity, ownership, controls, written
+              procedures and heat.
             </CardDescription>
           </div>
           <Badge variant={healthTone(health.score)}>{health.bandLabel}</Badge>
@@ -224,7 +229,7 @@ export function MapHealthCard({
             {mapCustomized ? "Edit map" : "Build your map"}
           </Button>
           {issueCount > 0 && (
-            <Button size="sm" variant="outline" onClick={onBuildMap}>
+            <Button size="sm" variant="outline" onClick={onFixIssues}>
               <ShieldCheck className="size-3.5" />
               Fix {count(issueCount, "issue")}
             </Button>

@@ -8,12 +8,30 @@ import { textPatch, type ProcessTextFields } from "./process-text";
  * the process text replaces the copy, so a stale copy is never written back
  * over the change.
  */
+
+/** The form's copy of the text fields, and what it last saw of the process. */
 export interface FormText {
   /** The fields as the owner sees them. */
   fields: ProcessTextFields;
   /** The process text the form last saw or wrote, as a comparable key. */
   seenKey: string;
 }
+
+/**
+ * The longest text the map keeps for each field. The form's inputs stop at
+ * the same length, so what the owner sees is what is saved. (textPatch in
+ * process-text.ts cuts name, description and location to these lengths.)
+ */
+export const PROCESS_TEXT_LIMITS = {
+  name: 60,
+  description: 240,
+  location: 200,
+  /** A risk, idea or waste title. */
+  itemTitle: 80,
+  /** A risk, idea or waste note. */
+  itemNote: 200,
+  evidenceLabel: 100,
+} as const;
 
 /** The form's starting copy for a process. */
 export function initialFormText(process: ProcessNode): FormText {

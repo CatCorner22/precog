@@ -9,6 +9,23 @@ export function slug(value: string): string {
     .slice(0, 40);
 }
 
+/**
+ * A readable id from a name, `p-ana-ruiz`, made unique against `taken` by
+ * adding -2, -3 and so on. A name with no letters or digits falls back to
+ * `fallback`, so the id is never just the prefix.
+ */
+export function uniqueId(
+  prefix: string,
+  name: string,
+  taken: ReadonlySet<string>,
+  fallback = "item",
+): string {
+  const base = `${prefix}-${slug(name) || fallback}`;
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
 /** A unique id for things created in the browser, e.g. `proc_lx3k9a1b_4fz2qk`. */
 export function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;

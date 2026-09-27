@@ -6,7 +6,7 @@ import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
-import { inputCls } from "@/components/precog/builder/form-shared";
+import { inputCls } from "@/components/ui/field-classes";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {

@@ -1,4 +1,35 @@
-import { normalizeSystems, parseCadence } from "@/lib/precog/process-record";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  Blocks,
+  Camera,
+  ChevronRight,
+  ClipboardCheck,
+  Clock,
+  Download,
+  FileSpreadsheet,
+  Gauge,
+  GitCompare,
+  Hammer,
+  HelpCircle,
+  History,
+  Link2,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Scale,
+  ShieldCheck,
+  Undo2,
+  Upload,
+  UserMinus,
+  Users,
+  X,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { labelCls } from "@/components/ui/field-classes";
 import { BlockLibrary } from "@/components/precog/builder/block-library";
 import { ChangesView } from "@/components/precog/builder/changes-view";
 import { DeparturePanel } from "@/components/precog/builder/departure-panel";
@@ -6,73 +37,84 @@ import { HealthPill } from "@/components/precog/builder/health-pill";
 import { ProcessForm } from "@/components/precog/builder/process-form";
 import { ReviewPanel } from "@/components/precog/builder/review-panel";
 import { SharePanel } from "@/components/precog/builder/share-panel";
-import { labelCls } from "@/components/precog/builder/form-shared";
+import { SpreadsheetPanel } from "@/components/precog/builder/spreadsheet-panel";
 import { TeamEditor } from "@/components/precog/builder/team-editor";
+import { BuilderTour } from "@/components/precog/builder/tour";
+import { useBuilderTour } from "@/components/precog/builder/use-builder-tour";
 import { ValidationPanel } from "@/components/precog/builder/validation-panel";
 import { VersionsPanel } from "@/components/precog/builder/versions-panel";
-import { SpreadsheetPanel } from "@/components/precog/builder/spreadsheet-panel";
 import { WorkloadView } from "@/components/precog/builder/workload-view";
-
-import { useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import { usePractice } from "@/lib/precog/practice-context";
-import { useTemplate } from "@/lib/precog/use-template";
-import type { ProcessNode } from "@/lib/precog/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { Download, Hammer, Plus, RotateCcw, Upload, Users, X, FileSpreadsheet } from "lucide-react";
-import type { Person } from "@/lib/precog/types";
-
-import { industryMeta } from "@/lib/precog/industry";
-
-import { Blocks, GitCompare, Redo2, ShieldCheck, Undo2 } from "lucide-react";
-import { suggestControlForProcess, suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
+import { rankDepartureRisk } from "@/lib/precog/builder/departure";
+import { summarizeEvidence } from "@/lib/precog/builder/evidence";
+import { mapBackupJson, parseMapBackup, type MapBackup } from "@/lib/precog/builder/map-backup";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
+import {
+  blocksForIndustry,
+  instantiateBlock,
+  processToSavedBlock,
+  type ProcessBlock,
+  type SavedProcessBlock,
+} from "@/lib/precog/builder/process-blocks";
+import { suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
+import {
+  applyQuickFix,
+  applyQuickFixes,
+  isQuickFixable,
+} from "@/lib/precog/builder/quick-fix-plan";
+import type { MapReview } from "@/lib/precog/builder/review";
+import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
+import { buildSharePayload } from "@/lib/precog/builder/share-payload";
 import {
   analyzeWorkload,
   healthDelta,
   LOAD_BANDS,
   type HealthDelta,
 } from "@/lib/precog/builder/what-if";
-import { ChevronRight, Gauge, HelpCircle, Scale } from "lucide-react";
-import { BuilderTour } from "@/components/precog/builder-tour";
-import { useBuilderTour } from "@/components/precog/builder-tour-state";
-
-import { reviewMap } from "@/lib/precog/builder/review-server";
-import type { MapReview } from "@/lib/precog/builder/review";
-
-import { Camera, ClipboardCheck, History } from "lucide-react";
-import { rankDepartureRisk } from "@/lib/precog/builder/departure";
-import { summarizeEvidence } from "@/lib/precog/builder/evidence";
-
-import { buildSharePayload } from "@/lib/precog/builder/share-payload";
-import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
-import { buildProcessMapGraph } from "@/lib/precog/process-graph";
-
-import { Clock, Link2, UserMinus } from "lucide-react";
-import {
-  instantiateBlock,
-  processToSavedBlock,
-  type ProcessBlock,
-  type SavedProcessBlock,
-} from "@/lib/precog/builder/process-blocks";
-import { enrichProcess, validateProcessMap } from "@/lib/precog/process-graph";
-import { peopleFromBackup } from "@/lib/precog/import/people-backup";
-import { downloadText } from "@/lib/download";
 import { formatDayShort } from "@/lib/precog/dates";
-import { slug } from "@/lib/precog/text";
+import { downloadText } from "@/lib/download";
+import { industryMeta } from "@/lib/precog/industry";
+import type { MapValidationIssue } from "@/lib/precog/process-graph";
+import {
+  buildProcessMapGraph,
+  enrichProcess,
+  validateProcessMap,
+} from "@/lib/precog/process-graph";
+import { usePractice } from "@/lib/precog/practice-context";
+import { count, slug, uniqueId } from "@/lib/precog/text";
+import type { ProcessNode } from "@/lib/precog/types";
+import { useTemplate } from "@/lib/precog/use-template";
+import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
+import { cn } from "@/lib/utils";
 
+/** The builder's side panels; each toolbar button opens or closes one. */
+export type BuilderPanel =
+  | "blocks"
+  | "changes"
+  | "departure"
+  | "review"
+  | "share"
+  | "spreadsheet"
+  | "team"
+  | "validate"
+  | "versions"
+  | "workload";
+
+/**
+ * The map builder beside the canvas: the toolbar, its panels, and the
+ * selected process's form. `initialPanel` opens one panel on arrival (the
+ * dashboard's "Fix N issues" opens Validate).
+ */
 export function ProcessBuilder({
   selectedProcessId,
   onSelectProcess,
   onClose,
+  initialPanel,
 }: {
   selectedProcessId: string | null;
   onSelectProcess: (id: string) => void;
   onClose: () => void;
+  initialPanel?: BuilderPanel;
 }) {
   const tpl = useTemplate();
   const {
@@ -91,25 +133,23 @@ export function ProcessBuilder({
     restoreMapVersion,
   } = usePractice();
   const processes = tpl.processes;
-  const [showTeam, setShowTeam] = useState(false);
-  const [showChanges, setShowChanges] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
-  const [showBlocks, setShowBlocks] = useState(false);
-  const [showWorkload, setShowWorkload] = useState(false);
-  const [showReview, setShowReview] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
+  const [panels, setPanels] = useState<ReadonlySet<BuilderPanel>>(
+    () => new Set(initialPanel ? [initialPanel] : []),
+  );
+  const isOpen = (panel: BuilderPanel) => panels.has(panel);
+  const setPanel = (panel: BuilderPanel, open: boolean) =>
+    setPanels((current) => {
+      const next = new Set(current);
+      if (open) next.add(panel);
+      else next.delete(panel);
+      return next;
+    });
+  const toggle = (panel: BuilderPanel) => setPanel(panel, !panels.has(panel));
   const [review, setReview] = useState<MapReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const [showDeparture, setShowDeparture] = useState(false);
-  const [showShare, setShowShare] = useState(false);
-  const [showSpreadsheet, setShowSpreadsheet] = useState(false);
   const tour = useBuilderTour();
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const departures = useMemo(
-    () => (showDeparture ? rankDepartureRisk(tpl, processes, tpl.people, profile.staff) : []),
-    [showDeparture, tpl, processes, profile.staff],
-  );
-  const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
   // The starter map with nobody assigned, or an empty map, has no health to
   // show; the pill and the what-if deltas wait until the owner assigns an
   // owner or builds their own map.
@@ -140,19 +180,12 @@ export function ProcessBuilder({
   if (sessionBaseline.current === null && mapReady) sessionBaseline.current = currentHealth.score;
 
   /** Score a hypothetical process list against the current one. */
-  const whatIf = (next: ProcessNode[]): HealthDelta => {
-    if (!mapReady) {
-      return { before: currentHealth.score, after: currentHealth.score, delta: 0 };
-    }
-    return healthDelta(currentHealth, scoreList(next, true));
-  };
-
-  const workload = useMemo(
-    () =>
-      showWorkload
-        ? analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease)
-        : [],
-    [showWorkload, tpl, processes, profile.staff, profile.dualRelease],
+  const whatIf = useCallback(
+    (next: ProcessNode[]): HealthDelta =>
+      mapReady
+        ? healthDelta(currentHealth, scoreList(next, true))
+        : { before: currentHealth.score, after: currentHealth.score, delta: 0 },
+    [mapReady, currentHealth, scoreList],
   );
 
   const validationIssues = useMemo(
@@ -165,15 +198,57 @@ export function ProcessBuilder({
       ),
     [processes, tpl.people, tpl.controls, profile.mapLayout],
   );
+  const errorCount = validationIssues.filter((i) => i.severity === "error").length;
+
+  // Health previews are scored once per map change, and only while their
+  // panel is open: each one scores the whole map again.
+  const validateOpen = isOpen("validate");
+  const fixPreviews = useMemo(() => {
+    const previews = new Map<string, HealthDelta | null>();
+    if (!validateOpen) return previews;
+    for (const issue of validationIssues.filter(isQuickFixable)) {
+      const fixed = applyQuickFix(issue, processes, tpl);
+      previews.set(issue.id, fixed ? whatIf(fixed.next) : null);
+    }
+    return previews;
+  }, [validateOpen, validationIssues, processes, tpl, whatIf]);
+
+  const builtInBlocks = useMemo(() => blocksForIndustry(profile.industry), [profile.industry]);
+  const savedBlocks = useMemo(() => profile.savedProcessBlocks ?? [], [profile.savedProcessBlocks]);
+  const blocksOpen = isOpen("blocks");
+  const blockPreviews = useMemo(() => {
+    const previews = new Map<string, HealthDelta>();
+    if (!blocksOpen) return previews;
+    for (const block of [...builtInBlocks, ...savedBlocks]) {
+      previews.set(block.id, whatIf([...processes, newBlockProcess(block, processes)]));
+    }
+    return previews;
+  }, [blocksOpen, builtInBlocks, savedBlocks, processes, whatIf]);
+
+  const departureOpen = isOpen("departure");
+  const departures = useMemo(
+    () => (departureOpen ? rankDepartureRisk(tpl, processes, tpl.people, profile.staff) : []),
+    [departureOpen, tpl, processes, profile.staff],
+  );
+  const workloadOpen = isOpen("workload");
+  const workload = useMemo(
+    () =>
+      workloadOpen
+        ? analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease)
+        : [],
+    [workloadOpen, tpl, processes, profile.staff, profile.dualRelease],
+  );
+  const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
+  const evidenceDue = evidenceSummary.overdue + evidenceSummary.never;
   const selected = processes.find((p) => p.id === selectedProcessId) ?? null;
-  const fileRef = useRef<HTMLInputElement>(null);
+  const versions = profile.mapVersions ?? [];
 
   function update(id: string, patch: Partial<ProcessNode>) {
     setCustomProcesses((cur) => cur.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
 
   async function runReview() {
-    setShowReview(true);
+    setPanel("review", true);
     setReviewing(true);
     try {
       const wl = analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease);
@@ -227,133 +302,46 @@ export function ProcessBuilder({
     }
   }
 
-  function snapshotVersion() {
+  function saveVersion() {
     const name = window.prompt(
       "Name this version",
       `${formatDayShort(new Date())} · health ${currentHealth.score}`,
     );
     if (name === null) return;
     saveMapVersion(name, currentHealth.score);
-    setShowVersions(true);
+    setPanel("versions", true);
     toast.success("Version saved", {
       description: "Restore or compare it any time from Versions.",
     });
   }
 
-  /** Compute the process list a quick fix would produce, without applying it. */
-  function quickFixResult(issueId: string, processId: string): ProcessNode[] | null {
-    const proc = processes.find((p) => p.id === processId);
-    if (!proc) return null;
-    const replace = (patch: Partial<ProcessNode>) =>
-      processes.map((p) => (p.id === processId ? { ...p, ...patch } : p));
-    if (issueId.startsWith("owner-ref-") || issueId.startsWith("dep-")) {
-      const ids = new Set(processes.map((p) => p.id));
-      const pids = new Set(tpl.people.map((p) => p.id));
-      return replace({
-        dependencies: proc.dependencies.filter((d) => ids.has(d)),
-        ownerPersonIds: (proc.ownerPersonIds ?? []).filter((o) => pids.has(o)),
-      });
-    }
-    if (issueId.startsWith("owner-")) {
-      const owner = suggestOwnerForProcess(tpl, proc, processes, tpl.people);
-      return owner ? replace({ ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] }) : null;
-    }
-    if (issueId.startsWith("fraud-nocontrol-")) {
-      const control = suggestControlForProcess(proc, tpl.controls);
-      return control ? replace({ controlIds: [...proc.controlIds, control.id] }) : null;
-    }
-    return null;
+  function deleteVersion(id: string) {
+    const version = versions.find((v) => v.id === id);
+    if (!version) return;
+    if (!window.confirm(`Delete version "${version.name}"? This cannot be undone.`)) return;
+    deleteMapVersion(id);
+    toast(`Deleted version "${version.name}"`);
   }
 
-  function previewQuickFix(issueId: string, processId: string): HealthDelta | null {
-    const next = quickFixResult(issueId, processId);
-    return next ? whatIf(next) : null;
-  }
-
-  function previewBlock(block: ProcessBlock | SavedProcessBlock): HealthDelta {
-    const ids = new Set(processes.map((p) => p.id));
-    const maxStage = Math.max(0, ...processes.map((p) => p.stage ?? 0));
-    return whatIf([...processes, instantiateBlock(block, ids, maxStage + 1)]);
-  }
-
-  /** Apply one quick fix for a validation issue; returns true if something changed. */
-  function quickFix(issueId: string, processId: string): boolean {
-    const proc = processes.find((p) => p.id === processId);
-    if (!proc) return false;
-    if (issueId.startsWith("owner-")) {
-      const owner = suggestOwnerForProcess(tpl, proc, processes, tpl.people);
-      if (!owner) return false;
-      update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), owner.id] });
-      toast.success(`${owner.name} assigned to ${proc.name}`);
-      return true;
-    }
-    if (issueId.startsWith("fraud-nocontrol-")) {
-      const control = suggestControlForProcess(proc, tpl.controls);
-      if (!control) return false;
-      update(processId, { controlIds: [...proc.controlIds, control.id] });
-      toast.success(`Mapped "${control.name}" to ${proc.name}`);
-      return true;
-    }
-    if (issueId.startsWith("dep-") || issueId.startsWith("owner-ref-")) {
-      const ids = new Set(processes.map((p) => p.id));
-      const pids = new Set(tpl.people.map((p) => p.id));
-      update(processId, {
-        dependencies: proc.dependencies.filter((d) => ids.has(d)),
-        ownerPersonIds: (proc.ownerPersonIds ?? []).filter((o) => pids.has(o)),
-      });
-      toast.success(`Removed broken references on ${proc.name}`);
-      return true;
-    }
-    return false;
+  function quickFix(issue: MapValidationIssue) {
+    const fixed = applyQuickFix(issue, processes, tpl);
+    if (!fixed) return;
+    setCustomProcesses(fixed.next);
+    toast.success(fixed.message);
   }
 
   function fixAllQuickWins() {
-    const fixable = validationIssues.filter(
-      (i) =>
-        i.processId &&
-        (i.id.startsWith("owner-") ||
-          i.id.startsWith("fraud-nocontrol-") ||
-          i.id.startsWith("dep-")),
-    );
-    if (!fixable.length) return;
-    // Batch into one state update so undo reverts the whole sweep.
-    const ids = new Set(processes.map((p) => p.id));
-    const pids = new Set(tpl.people.map((p) => p.id));
-    let touched = 0;
-    setCustomProcesses((cur) =>
-      cur.map((p) => {
-        const mine = fixable.filter((i) => i.processId === p.id);
-        if (!mine.length) return p;
-        let next = { ...p };
-        for (const i of mine) {
-          if (i.id.startsWith("owner-ref-") || i.id.startsWith("dep-")) {
-            next = {
-              ...next,
-              dependencies: next.dependencies.filter((d) => ids.has(d)),
-              ownerPersonIds: (next.ownerPersonIds ?? []).filter((o) => pids.has(o)),
-            };
-          } else if (i.id.startsWith("owner-")) {
-            const owner = suggestOwnerForProcess(tpl, next, cur, tpl.people);
-            if (owner)
-              next = { ...next, ownerPersonIds: [...(next.ownerPersonIds ?? []), owner.id] };
-          } else if (i.id.startsWith("fraud-nocontrol-")) {
-            const control = suggestControlForProcess(next, tpl.controls);
-            if (control) next = { ...next, controlIds: [...next.controlIds, control.id] };
-          }
-          touched += 1;
-        }
-        return next;
-      }),
-    );
-    toast.success(`Applied ${touched} quick fix(es)`, {
-      description: "Review the suggestions — undo if anything looks off.",
+    // One state update, so one undo reverts the whole sweep.
+    const { next, applied } = applyQuickFixes(validationIssues, processes, tpl);
+    if (!applied) return;
+    setCustomProcesses(next);
+    toast.success(`Applied ${count(applied, "quick fix", "quick fixes")}`, {
+      description: "Review the suggestions; undo if anything looks off.",
     });
   }
 
   function insertBlock(block: ProcessBlock | SavedProcessBlock) {
-    const ids = new Set(processes.map((p) => p.id));
-    const maxStage = Math.max(0, ...processes.map((p) => p.stage ?? 0));
-    const node = instantiateBlock(block, ids, maxStage + 1);
+    const node = newBlockProcess(block, processes);
     setCustomProcesses((cur) => [...cur, node]);
     onSelectProcess(node.id);
     toast.success(`Inserted "${block.name}"`, {
@@ -363,11 +351,7 @@ export function ProcessBuilder({
 
   function addProcess() {
     const name = "New process";
-    const base = slug(name) || "process";
-    let id = `proc-${base}`;
-    let n = 2;
-    while (processes.some((p) => p.id === id)) id = `proc-${base}-${n++}`;
-    const maxStage = Math.max(0, ...processes.map((p) => p.stage ?? 0));
+    const id = uniqueId("proc", name, new Set(processes.map((p) => p.id)), "process");
     const node: ProcessNode = {
       id,
       name,
@@ -375,7 +359,7 @@ export function ProcessBuilder({
       description: "Describe what this process does and who touches it.",
       dependencies: [],
       controlIds: [],
-      stage: maxStage,
+      stage: lastStage(processes),
       ownerPersonIds: [],
       risks: [],
       ideas: [],
@@ -425,96 +409,107 @@ export function ProcessBuilder({
   }
 
   function exportMap() {
-    const payload = {
-      version: 3,
-      industry: profile.industry,
-      businessName: profile.practiceName,
-      exportedAt: new Date().toISOString(),
-      processes,
-      people: tpl.people,
-      layout: profile.mapLayout ?? {},
-    };
     downloadText(
       `${slug(profile.practiceName) || "process-map"}-map.json`,
-      JSON.stringify(payload, null, 2),
+      mapBackupJson({
+        industry: profile.industry,
+        businessName: profile.practiceName,
+        processes,
+        people: tpl.people,
+        layout: profile.mapLayout ?? {},
+      }),
       "application/json",
     );
     toast.success("Map exported");
   }
 
   async function importMap(file: File) {
+    let backup: MapBackup;
     try {
-      const parsed = JSON.parse(await file.text()) as {
-        processes?: ProcessNode[];
-        people?: Person[];
-        layout?: Record<string, { x: number; y: number }>;
-      };
-      if (!Array.isArray(parsed.processes) || parsed.processes.length === 0) {
-        throw new Error("File has no processes");
-      }
-      const procIds = new Set(
-        parsed.processes.filter((p) => p && typeof p.id === "string").map((p) => p.id as string),
-      );
-      const cleaned: ProcessNode[] = parsed.processes
-        .filter((p) => p && typeof p.id === "string" && typeof p.name === "string")
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          layer: "process",
-          description: p.description ?? "",
-          dependencies: Array.isArray(p.dependencies)
-            ? p.dependencies.filter((d) => procIds.has(d))
-            : [],
-          controlIds: Array.isArray(p.controlIds) ? p.controlIds : [],
-          stage: typeof p.stage === "number" ? p.stage : 0,
-          ownerPersonIds: Array.isArray(p.ownerPersonIds) ? p.ownerPersonIds : [],
-          risks: Array.isArray(p.risks) ? p.risks : [],
-          ideas: Array.isArray(p.ideas) ? p.ideas : [],
-          wastes: Array.isArray(p.wastes) ? p.wastes : [],
-          inputs: Array.isArray(p.inputs) ? p.inputs : [],
-          outputs: Array.isArray(p.outputs) ? p.outputs : [],
-          evidence: Array.isArray(p.evidence) ? p.evidence : [],
-          cadence: parseCadence(typeof p.cadence === "string" ? p.cadence : undefined),
-          systems: Array.isArray(p.systems)
-            ? normalizeSystems(p.systems.filter((s): s is string => typeof s === "string"))
-            : undefined,
-          documented: typeof p.documented === "boolean" ? p.documented : undefined,
-          procedureLocation:
-            typeof p.procedureLocation === "string"
-              ? p.procedureLocation.trim().slice(0, 200) || undefined
-              : undefined,
-        }));
-      // Every person field the backup carries comes back: department, last
-      // day and employee id too, each checked.
-      const restoredPeople = peopleFromBackup(parsed.people);
-      if (restoredPeople.length) setCustomPeople(restoredPeople);
-      const importIssues = validateProcessMap(
-        cleaned,
-        restoredPeople.length ? restoredPeople : tpl.people,
-        new Set(tpl.controls.map((c) => c.id)),
-        parsed.layout ?? {},
-      );
-      setCustomProcesses(cleaned);
-      setMapLayout(parsed.layout ?? {});
-      onSelectProcess(cleaned[0].id);
-      const errs = importIssues.filter((i) => i.severity === "error").length;
-      toast.success(`Imported ${cleaned.length} processes`, {
-        description:
-          errs > 0
-            ? `${errs} issue(s) found — open Validate to review`
-            : importIssues.length
-              ? `${importIssues.length} warning(s) — open Validate`
-              : undefined,
-      });
+      backup = parseMapBackup(JSON.parse(await file.text()));
     } catch (e) {
       toast.error("Import failed", {
-        description: e instanceof Error ? e.message : "Invalid file",
+        description:
+          e instanceof SyntaxError
+            ? "The file is not a JSON backup from this app."
+            : e instanceof Error
+              ? e.message
+              : "The file could not be read.",
       });
+      return;
     }
+    // Every person field the backup carries comes back: department, last
+    // day and employee id too, each checked.
+    if (backup.people.length) setCustomPeople(backup.people);
+    const importIssues = validateProcessMap(
+      backup.processes,
+      backup.people.length ? backup.people : tpl.people,
+      new Set(tpl.controls.map((c) => c.id)),
+      backup.layout,
+    );
+    setCustomProcesses(backup.processes);
+    setMapLayout(backup.layout);
+    onSelectProcess(backup.processes[0].id);
+    const errors = importIssues.filter((i) => i.severity === "error").length;
+    const notes = [
+      errors > 0
+        ? `${count(errors, "issue")} found; open Validate to review.`
+        : importIssues.length
+          ? `${count(importIssues.length, "warning")}; open Validate to review.`
+          : "",
+      backup.dropped
+        ? `${count(backup.dropped, "malformed entry", "malformed entries")} left out.`
+        : "",
+    ].filter(Boolean);
+    toast.success(`Imported ${count(backup.processes.length, "process", "processes")}`, {
+      description: notes.length ? notes.join(" ") : undefined,
+    });
   }
 
+  /** Add a second owner so the process survives this person's departure. */
+  function addStandIn(processId: string, leavingPersonId: string) {
+    const proc = processes.find((p) => p.id === processId);
+    if (!proc) return;
+    const candidates = tpl.people.filter((p) => p.id !== leavingPersonId && p.active);
+    const standIn = suggestOwnerForProcess(
+      tpl,
+      { ...proc, ownerPersonIds: [] },
+      processes,
+      candidates,
+    );
+    if (!standIn) return;
+    update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), standIn.id] });
+    toast.success(`${standIn.name} added as a stand-in owner of ${proc.name}`);
+  }
+
+  function reassign(fromId: string, processId: string) {
+    const proc = processes.find((p) => p.id === processId);
+    if (!proc) return;
+    const others = tpl.people.filter((p) => p.id !== fromId && p.active);
+    const candidate = suggestOwnerForProcess(
+      tpl,
+      { ...proc, ownerPersonIds: [] },
+      processes,
+      others,
+    );
+    if (!candidate) return;
+    update(processId, {
+      ownerPersonIds: [...(proc.ownerPersonIds ?? []).filter((o) => o !== fromId), candidate.id],
+    });
+    toast.success(`${proc.name} reassigned to ${candidate.name}`);
+  }
+
+  const panelButton = (panel: BuilderPanel) => ({
+    size: "sm" as const,
+    variant: isOpen(panel) ? ("default" as const) : ("secondary" as const),
+    "aria-pressed": isOpen(panel),
+    onClick: () => toggle(panel),
+  });
+
   return (
-    <Card className="border-accent/30">
+    // The builder lays its panels out by its own width (container queries):
+    // on a laptop it is a narrow column beside the canvas.
+    <Card className="@container border-accent/30">
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -524,8 +519,8 @@ export function ProcessBuilder({
               {mapCustomized && <Badge variant="accent">custom</Badge>}
             </CardTitle>
             <CardDescription>
-              Build your real value stream. Every change re-scores residual risk, SoD, and scenarios
-              live.
+              Build your real value stream. Every change re-scores residual risk, duty conflicts and
+              map health at once.
               <span className="mt-1 block text-xs text-subtle">
                 Keyboard: arrows move between processes · F frames the selection · Enter edits the
                 name · Shift+A arranges by stage · Ctrl+Z undo
@@ -576,22 +571,14 @@ export function ProcessBuilder({
         {tour.show && (
           <BuilderTour
             onDismiss={tour.dismiss}
-            onAction={(a) => {
-              if (a === "blocks") setShowBlocks(true);
-              if (a === "validate") setShowValidation(true);
-              if (a === "add") addProcess();
-            }}
+            onAction={(action) => setPanel(action === "blocks" ? "blocks" : "validate", true)}
           />
         )}
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" onClick={addProcess}>
             <Plus className="size-3.5" /> Add process
           </Button>
-          <Button
-            size="sm"
-            variant={showBlocks ? "default" : "secondary"}
-            onClick={() => setShowBlocks((v) => !v)}
-          >
+          <Button {...panelButton("blocks")}>
             <Blocks className="size-3.5" /> Blocks
           </Button>
           <div className="inline-flex overflow-hidden rounded-md border border-border">
@@ -617,9 +604,7 @@ export function ProcessBuilder({
             </button>
           </div>
           <Button
-            size="sm"
-            variant={showSpreadsheet ? "default" : "secondary"}
-            onClick={() => setShowSpreadsheet((v) => !v)}
+            {...panelButton("spreadsheet")}
             title="Export to or import from a CSV spreadsheet"
           >
             <FileSpreadsheet className="size-3.5" /> Spreadsheet
@@ -646,45 +631,29 @@ export function ProcessBuilder({
               e.target.value = "";
             }}
           />
-          <Button
-            size="sm"
-            variant={showTeam ? "default" : "secondary"}
-            onClick={() => setShowTeam((v) => !v)}
-          >
+          <Button {...panelButton("team")}>
             <Users className="size-3.5" /> Team ({tpl.people.length})
           </Button>
-          <Button
-            size="sm"
-            variant={showWorkload ? "default" : "secondary"}
-            onClick={() => setShowWorkload((v) => !v)}
-          >
+          <Button {...panelButton("workload")}>
             <Scale className="size-3.5" /> Workload
           </Button>
           <Button
-            size="sm"
-            variant={showReview ? "default" : "secondary"}
+            {...panelButton("review")}
             onClick={() =>
-              review && !showReview
-                ? setShowReview(true)
-                : showReview
-                  ? setShowReview(false)
+              isOpen("review")
+                ? setPanel("review", false)
+                : review
+                  ? setPanel("review", true)
                   : void runReview()
             }
           >
             <ClipboardCheck className="size-3.5" /> Review
           </Button>
-          <Button
-            size="sm"
-            variant={showDeparture ? "default" : "secondary"}
-            onClick={() => setShowDeparture((v) => !v)}
-            title="What breaks if someone leaves"
-          >
+          <Button {...panelButton("departure")} title="What breaks if someone leaves">
             <UserMinus className="size-3.5" /> Bus factor
           </Button>
           <Button
-            size="sm"
-            variant={showShare ? "default" : "secondary"}
-            onClick={() => setShowShare((v) => !v)}
+            {...panelButton("share")}
             title="Create a read-only link for an advisor or lender"
           >
             <Link2 className="size-3.5" /> Share
@@ -692,39 +661,27 @@ export function ProcessBuilder({
           <Button
             size="sm"
             variant="secondary"
-            onClick={snapshotVersion}
-            title="Save a named snapshot of this map"
+            onClick={saveVersion}
+            title="Save a named version of this map"
           >
-            <Camera className="size-3.5" /> Snapshot
+            <Camera className="size-3.5" /> Save version
           </Button>
-          {(profile.mapVersions?.length ?? 0) > 0 && (
-            <Button
-              size="sm"
-              variant={showVersions ? "default" : "secondary"}
-              onClick={() => setShowVersions((v) => !v)}
-            >
-              <History className="size-3.5" /> Versions ({profile.mapVersions!.length})
+          {versions.length > 0 && (
+            <Button {...panelButton("versions")}>
+              <History className="size-3.5" /> Versions ({versions.length})
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={showValidation ? "default" : "secondary"}
-            onClick={() => setShowValidation((v) => !v)}
-          >
+          <Button {...panelButton("validate")}>
             <ShieldCheck className="size-3.5" />
             Validate
-            {validationIssues.filter((i) => i.severity === "error").length > 0 && (
+            {errorCount > 0 && (
               <Badge variant="warn" className="ml-1 px-1 py-0 text-xs">
-                {validationIssues.filter((i) => i.severity === "error").length}
+                {errorCount}
               </Badge>
             )}
           </Button>
           {mapCustomized && (
-            <Button
-              size="sm"
-              variant={showChanges ? "default" : "secondary"}
-              onClick={() => setShowChanges((v) => !v)}
-            >
+            <Button {...panelButton("changes")}>
               <GitCompare className="size-3.5" /> Changes
             </Button>
           )}
@@ -735,28 +692,15 @@ export function ProcessBuilder({
           )}
         </div>
 
-        {showDeparture && (
+        {isOpen("departure") && (
           <DeparturePanel
             impacts={departures}
             onSelectProcess={onSelectProcess}
-            onAddBackup={(processId, excludePersonId) => {
-              const proc = processes.find((p) => p.id === processId);
-              if (!proc) return;
-              const candidates = tpl.people.filter((p) => p.id !== excludePersonId && p.active);
-              const backup = suggestOwnerForProcess(
-                tpl,
-                { ...proc, ownerPersonIds: [] },
-                processes,
-                candidates,
-              );
-              if (!backup) return;
-              update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), backup.id] });
-              toast.success(`${backup.name} added as backup owner on ${proc.name}`);
-            }}
+            onAddStandIn={addStandIn}
           />
         )}
 
-        {showSpreadsheet && (
+        {isOpen("spreadsheet") && (
           <SpreadsheetPanel
             businessName={profile.practiceName}
             onApply={(next) => setCustomProcesses(next)}
@@ -764,7 +708,7 @@ export function ProcessBuilder({
           />
         )}
 
-        {showShare && (
+        {isOpen("share") && (
           <SharePanel
             buildPayload={(note, redactNames) => {
               const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
@@ -780,32 +724,30 @@ export function ProcessBuilder({
           />
         )}
 
-        {evidenceSummary.total > 0 &&
-          evidenceSummary.overdue + evidenceSummary.never > 0 &&
-          !showValidation && (
-            <button
-              type="button"
-              onClick={() => {
-                const first = evidenceSummary.overdueItems[0];
-                if (first) onSelectProcess(first.process.id);
-              }}
-              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
-            >
-              <Clock className="size-3.5 shrink-0 text-warn" />
-              <span className="min-w-0 flex-1">
-                <span className="font-medium">
-                  {evidenceSummary.overdue + evidenceSummary.never} evidence item(s) need attention
-                </span>
-                <span className="text-muted">
-                  {" "}
-                  · {evidenceSummary.coverage}% of control evidence is current
-                </span>
+        {evidenceSummary.total > 0 && evidenceDue > 0 && !isOpen("validate") && (
+          <button
+            type="button"
+            onClick={() => {
+              const first = evidenceSummary.overdueItems[0];
+              if (first) onSelectProcess(first.process.id);
+            }}
+            className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
+          >
+            <Clock className="size-3.5 shrink-0 text-warn" />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">
+                {count(evidenceDue, "evidence item needs", "evidence items need")} attention
               </span>
-              <ChevronRight className="size-3 shrink-0 text-subtle" />
-            </button>
-          )}
+              <span className="text-muted">
+                {" "}
+                · {evidenceSummary.coverage}% of control evidence is current
+              </span>
+            </span>
+            <ChevronRight className="size-3 shrink-0 text-subtle" />
+          </button>
+        )}
 
-        {showReview && (
+        {isOpen("review") && (
           <ReviewPanel
             review={review}
             loading={reviewing}
@@ -815,63 +757,45 @@ export function ProcessBuilder({
           />
         )}
 
-        {showVersions && (profile.mapVersions?.length ?? 0) > 0 && (
+        {isOpen("versions") && versions.length > 0 && (
           <VersionsPanel
-            versions={profile.mapVersions!}
+            versions={versions}
             current={{ processes, people: tpl.people, health: currentHealth.score }}
             onRestore={(id) => {
-              const v = profile.mapVersions?.find((x) => x.id === id);
+              const v = versions.find((x) => x.id === id);
               if (!v) return;
               if (!window.confirm(`Restore "${v.name}"? Your current map goes into undo history.`))
                 return;
               restoreMapVersion(id);
               toast.success(`Restored "${v.name}"`, { description: "Ctrl+Z to go back." });
             }}
-            onDelete={deleteMapVersion}
+            onDelete={deleteVersion}
             onSelectProcess={onSelectProcess}
           />
         )}
 
-        {showWorkload && (
+        {isOpen("workload") && (
           <WorkloadView
             rows={workload}
             processCount={processes.length}
             onSelectProcess={onSelectProcess}
-            onReassign={(fromId, processId) => {
-              const proc = processes.find((p) => p.id === processId);
-              if (!proc) return;
-              const others = tpl.people.filter((p) => p.id !== fromId && p.active);
-              const candidate = suggestOwnerForProcess(
-                tpl,
-                { ...proc, ownerPersonIds: [] },
-                processes,
-                others,
-              );
-              if (!candidate) return;
-              update(processId, {
-                ownerPersonIds: [
-                  ...(proc.ownerPersonIds ?? []).filter((o) => o !== fromId),
-                  candidate.id,
-                ],
-              });
-              toast.success(`${proc.name} reassigned to ${candidate.name}`);
-            }}
+            onReassign={reassign}
           />
         )}
 
-        {showBlocks && (
+        {isOpen("blocks") && (
           <BlockLibrary
-            industry={profile.industry}
-            saved={profile.savedProcessBlocks ?? []}
+            blocks={builtInBlocks}
+            saved={savedBlocks}
+            previews={blockPreviews}
             onInsert={insertBlock}
-            previewDelta={previewBlock}
             onRemoveSaved={(id) =>
               setSavedProcessBlocks((blocks) => blocks.filter((b) => b.id !== id))
             }
           />
         )}
 
-        {showValidation && notAssessed && (
+        {isOpen("validate") && notAssessed && (
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs leading-relaxed text-fg">
             <p className="font-medium">Not assessed yet</p>
             <p className="mt-0.5 text-muted">
@@ -882,16 +806,16 @@ export function ProcessBuilder({
             </p>
           </div>
         )}
-        {showValidation && (
+        {isOpen("validate") && (
           <ValidationPanel
             issues={validationIssues}
+            previews={fixPreviews}
             onSelectProcess={(id) => {
               onSelectProcess(id);
-              setShowValidation(false);
+              setPanel("validate", false);
             }}
             onQuickFix={quickFix}
             onFixAll={fixAllQuickWins}
-            previewFix={previewQuickFix}
             onCleanLayout={() => {
               const ids = new Set(processes.map((p) => p.id));
               setMapLayout((l) =>
@@ -902,7 +826,7 @@ export function ProcessBuilder({
           />
         )}
 
-        {showChanges && mapCustomized && (
+        {isOpen("changes") && mapCustomized && (
           <ChangesView
             processes={processes}
             people={tpl.people}
@@ -910,7 +834,9 @@ export function ProcessBuilder({
           />
         )}
 
-        {showTeam && <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />}
+        {isOpen("team") && (
+          <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />
+        )}
 
         <div>
           <span className={labelCls}>Processes ({processes.length})</span>
@@ -922,6 +848,7 @@ export function ProcessBuilder({
                 <button
                   key={p.id}
                   type="button"
+                  aria-pressed={p.id === selectedProcessId}
                   onClick={() => onSelectProcess(p.id)}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-xs transition-colors",
@@ -955,4 +882,13 @@ export function ProcessBuilder({
       </CardContent>
     </Card>
   );
+}
+
+/** A block as the next process on the map, in a stage lane after the last one. */
+function newBlockProcess(block: ProcessBlock | SavedProcessBlock, processes: ProcessNode[]) {
+  return instantiateBlock(block, new Set(processes.map((p) => p.id)), lastStage(processes) + 1);
+}
+
+function lastStage(processes: ProcessNode[]): number {
+  return Math.max(0, ...processes.map((p) => p.stage ?? 0));
 }

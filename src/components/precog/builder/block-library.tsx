@@ -1,44 +1,39 @@
-import { DeltaBadge } from "@/components/precog/builder/health-pill";
-
-import { useMemo } from "react";
-
-import { Badge } from "@/components/ui/badge";
-
-import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 
-import { type HealthDelta } from "@/lib/precog/builder/what-if";
+import { Badge } from "@/components/ui/badge";
+import { labelCls } from "@/components/ui/field-classes";
+import { DeltaBadge } from "@/components/precog/builder/health-pill";
+import type { ProcessBlock, SavedProcessBlock } from "@/lib/precog/builder/process-blocks";
+import type { HealthDelta } from "@/lib/precog/builder/what-if";
+import { BLOCK_CATEGORY_LABEL } from "@/lib/precog/process-vocab";
+import { cn } from "@/lib/utils";
 
-import {
-  blocksForIndustry,
-  type ProcessBlock,
-  type SavedProcessBlock,
-} from "@/lib/precog/builder/process-blocks";
-
-import { labelCls } from "@/components/precog/builder/form-shared";
+/**
+ * The builder's block library: built-in control patterns for this line of
+ * business and the owner's saved blocks. `previews` holds each block's health
+ * change, scored once by the builder.
+ */
 export function BlockLibrary({
-  industry,
+  blocks,
   saved,
+  previews,
   onInsert,
   onRemoveSaved,
-  previewDelta,
 }: {
-  industry: import("@/lib/precog/industry").IndustryId;
+  blocks: ProcessBlock[];
   saved: SavedProcessBlock[];
+  previews: ReadonlyMap<string, HealthDelta>;
   onInsert: (block: ProcessBlock | SavedProcessBlock) => void;
   onRemoveSaved: (id: string) => void;
-  previewDelta: (block: ProcessBlock | SavedProcessBlock) => HealthDelta;
 }) {
-  const builtIn = useMemo(() => blocksForIndustry(industry), [industry]);
-
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-xs text-muted">
         Drop pre-built control patterns onto your map — risks, controls, and I/O included. The badge
         previews the map-health change before you insert.
       </p>
-      <div className="grid gap-1.5 sm:grid-cols-2">
-        {builtIn.map((b) => (
+      <div className="grid gap-1.5 @sm:grid-cols-2">
+        {blocks.map((b) => (
           <button
             key={b.id}
             type="button"
@@ -47,11 +42,11 @@ export function BlockLibrary({
           >
             <div className="flex items-start justify-between gap-1">
               <p className="text-xs font-medium text-fg">{b.name}</p>
-              <DeltaBadge delta={previewDelta(b)} />
+              <DeltaBadge delta={previews.get(b.id) ?? null} />
             </div>
             <p className="mt-0.5 line-clamp-2 text-xs text-muted">{b.description}</p>
             <Badge variant="default" className="mt-1 text-xs">
-              {b.category}
+              {BLOCK_CATEGORY_LABEL[b.category]}
             </Badge>
           </button>
         ))}
@@ -59,7 +54,7 @@ export function BlockLibrary({
       {saved.length > 0 && (
         <>
           <p className={cn(labelCls, "mt-2")}>Your saved blocks</p>
-          <div className="grid gap-1.5 sm:grid-cols-2">
+          <div className="grid gap-1.5 @sm:grid-cols-2">
             {saved.map((b) => (
               <div
                 key={b.id}
@@ -72,7 +67,7 @@ export function BlockLibrary({
                 >
                   <p className="flex items-center gap-1 text-xs font-medium text-fg">
                     {b.name}
-                    <DeltaBadge delta={previewDelta(b)} />
+                    <DeltaBadge delta={previews.get(b.id) ?? null} />
                   </p>
                   <p className="line-clamp-1 text-xs text-muted">{b.description}</p>
                 </button>

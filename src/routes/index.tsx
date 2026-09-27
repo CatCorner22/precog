@@ -449,7 +449,8 @@ function Home() {
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
-  const [mapBuild, setMapBuild] = useState(false);
+  // Open the map in build mode; "validate" also opens the builder's Validate panel.
+  const [mapBuild, setMapBuild] = useState<boolean | "validate">(false);
   const { isPending } = useCurrentUserState();
   const { profile, ready } = usePractice();
   const { say } = usePresentation();
@@ -782,6 +783,10 @@ function Home() {
                       setMapBuild(true);
                       setTab("map");
                     }}
+                    onFixIssues={() => {
+                      setMapBuild("validate");
+                      setTab("map");
+                    }}
                   />
 
                   <IndexBasis />
@@ -931,9 +936,10 @@ function Home() {
 
               {tab === "map" && (
                 <ProcessMap
-                  key={mapBuild ? "build" : "view"}
+                  key={String(mapBuild)}
                   initialProcessId={processId}
-                  initialBuild={mapBuild}
+                  initialBuild={mapBuild !== false}
+                  initialPanel={mapBuild === "validate" ? "validate" : undefined}
                   onNavigate={(t, id) => navigateTab(t, id)}
                 />
               )}

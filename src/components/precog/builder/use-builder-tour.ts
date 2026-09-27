@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-const TOUR_KEY = "precog.builderTour.v1";
-
+/** Whether the builder's first-run tour shows: until the owner dismisses it, and again on request. */
 export function useBuilderTour() {
   const [seen, setSeen] = useState(true);
   useEffect(() => {
@@ -29,3 +28,5 @@ export function useBuilderTour() {
   };
   return { show: !seen, dismiss, restart };
 }
+
+const TOUR_KEY = "precog.builderTour.v1";

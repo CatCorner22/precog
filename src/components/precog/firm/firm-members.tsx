@@ -10,7 +10,7 @@ import {
   setFirmMemberRole,
 } from "@/lib/precog/firm/server";
 import type { FirmContext, FirmInvite, FirmMember, FirmRole } from "@/lib/precog/firm/store";
-import { fieldCls as inputCls } from "@/components/precog/builder/form-shared";
+import { fieldCls } from "@/components/ui/field-classes";
 
 const ROLE_LABEL: Record<FirmRole, string> = {
   owner: "Owner",
@@ -125,7 +125,7 @@ export function FirmMembers({
             <div className="flex items-center gap-2">
               {owner && m.role !== "owner" ? (
                 <select
-                  className={inputCls}
+                  className={fieldCls}
                   value={m.role}
                   onChange={(e) =>
                     void changeRole(m.userId, e.target.value as Exclude<FirmRole, "owner">)
@@ -166,7 +166,7 @@ export function FirmMembers({
             <label className="min-w-[14rem] flex-1 text-xs text-muted">
               Colleague's email
               <input
-                className={`${inputCls} mt-1 w-full`}
+                className={`${fieldCls} mt-1 w-full`}
                 type="email"
                 required
                 value={email}
@@ -177,7 +177,7 @@ export function FirmMembers({
             <label className="text-xs text-muted">
               Role
               <select
-                className={`${inputCls} mt-1 block`}
+                className={`${fieldCls} mt-1 block`}
                 value={role}
                 onChange={(e) => setRole(e.target.value as Exclude<FirmRole, "owner">)}
               >

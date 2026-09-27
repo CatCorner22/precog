@@ -1,30 +1,21 @@
-import { useState } from "react";
 import { toast } from "sonner";
-
-import type { ProcessNode } from "@/lib/precog/types";
+import { CheckCircle2, Plus, Sparkles, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-import { cn } from "@/lib/utils";
-import { Plus, Trash2, X } from "lucide-react";
-import type { Person } from "@/lib/precog/types";
-
-import { Sparkles } from "lucide-react";
-
+import { inputCls, labelCls } from "@/components/ui/field-classes";
+import { useAddForm } from "@/components/precog/builder/use-add-form";
 import {
   FREQUENCY_LABEL,
   evidenceStatus,
   suggestEvidence,
   summarizeEvidence,
 } from "@/lib/precog/builder/evidence";
-import type { EvidenceFrequency, EvidenceItem } from "@/lib/precog/types";
+import { PROCESS_TEXT_LIMITS } from "@/lib/precog/builder/process-text-sync";
+import { count, uid } from "@/lib/precog/text";
+import type { EvidenceFrequency, EvidenceItem, Person, ProcessNode } from "@/lib/precog/types";
+import { cn } from "@/lib/utils";
 
-import { CheckCircle2 } from "lucide-react";
-
-import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
-import { uid } from "@/lib/precog/text";
-const FREQUENCIES: EvidenceFrequency[] = ["daily", "weekly", "monthly", "quarterly", "annual"];
-
+/** What proves a process's controls run: each review, how often, who does it, and when it last ran. */
 export function EvidenceList({
   process,
   people,
@@ -35,25 +26,13 @@ export function EvidenceList({
   onChange: (evidence: EvidenceItem[]) => void;
 }) {
   const items = process.evidence ?? [];
-  const [adding, setAdding] = useState(false);
-  const [label, setLabel] = useState("");
-  const [frequency, setFrequency] = useState<EvidenceFrequency>("monthly");
-  const [reviewer, setReviewer] = useState("");
-
-  function commit() {
-    if (!label.trim()) return;
-    onChange([
-      ...items,
-      {
-        id: uid("ev"),
-        label: label.trim().slice(0, 100),
-        frequency,
-        reviewerPersonId: reviewer || undefined,
-      },
-    ]);
-    setLabel("");
-    setAdding(false);
-  }
+  const form = useAddForm({ title: "", frequency: "monthly" as EvidenceFrequency, reviewer: "" }, [
+    "frequency",
+    "reviewer",
+  ]);
+  const { draft, set } = form;
+  // Only people still working here can be named as the reviewer.
+  const reviewers = people.filter((p) => p.active);
 
   function markDone(id: string) {
     onChange(items.map((e) => (e.id === id ? { ...e, lastDoneAt: new Date().toISOString() } : e)));
@@ -69,7 +48,7 @@ export function EvidenceList({
       return;
     }
     onChange([...items, ...fresh]);
-    toast.success(`Added ${fresh.length} evidence item(s)`);
+    toast.success(`Added ${count(fresh.length, "evidence item")}`);
   }
 
   const summary = summarizeEvidence([process]);
@@ -98,15 +77,15 @@ export function EvidenceList({
           </button>
           <button
             type="button"
-            onClick={() => setAdding((v) => !v)}
+            onClick={form.toggle}
             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
-            {adding ? <X className="size-3" /> : <Plus className="size-3" />}
-            {adding ? "Cancel" : "Add"}
+            {form.adding ? <X className="size-3" /> : <Plus className="size-3" />}
+            {form.adding ? "Cancel" : "Add"}
           </button>
         </span>
       </div>
-      {items.length === 0 && !adding && (
+      {items.length === 0 && !form.adding && (
         <p className="text-xs text-subtle">
           What proves this control runs? Add the review, its cadence, and who does it.
         </p>
@@ -157,27 +136,30 @@ export function EvidenceList({
               type="button"
               onClick={() => onChange(items.filter((x) => x.id !== e.id))}
               className="text-subtle hover:text-danger"
-              aria-label="Remove evidence"
+              aria-label={`Remove evidence ${e.label}`}
             >
               <Trash2 className="size-3" />
             </button>
           </div>
         );
       })}
-      {adding && (
+      {form.adding && (
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
           <input
             className={inputCls}
             placeholder="e.g. Owner signs off bank reconciliation"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            aria-label="Evidence"
+            maxLength={PROCESS_TEXT_LIMITS.evidenceLabel}
+            value={draft.title}
+            onChange={(e) => set("title", e.target.value)}
             autoFocus
           />
           <div className="grid grid-cols-2 gap-1.5">
             <select
               className={inputCls}
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value as EvidenceFrequency)}
+              aria-label="How often"
+              value={draft.frequency}
+              onChange={(e) => set("frequency", e.target.value as EvidenceFrequency)}
             >
               {FREQUENCIES.map((f) => (
                 <option key={f} value={f}>
@@ -187,18 +169,35 @@ export function EvidenceList({
             </select>
             <select
               className={inputCls}
-              value={reviewer}
-              onChange={(e) => setReviewer(e.target.value)}
+              aria-label="Reviewer"
+              value={draft.reviewer}
+              onChange={(e) => set("reviewer", e.target.value)}
             >
               <option value="">Reviewer (optional)</option>
-              {people.map((p) => (
+              {reviewers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
             </select>
           </div>
-          <Button size="sm" onClick={commit} disabled={!label.trim()}>
+          <Button
+            size="sm"
+            disabled={!form.ready}
+            onClick={() =>
+              form.submit((d) =>
+                onChange([
+                  ...items,
+                  {
+                    id: uid("ev"),
+                    label: d.title.trim(),
+                    frequency: d.frequency,
+                    reviewerPersonId: d.reviewer || undefined,
+                  },
+                ]),
+              )
+            }
+          >
             Add evidence
           </Button>
         </div>
@@ -206,3 +205,5 @@ export function EvidenceList({
     </div>
   );
 }
+
+const FREQUENCIES = Object.keys(FREQUENCY_LABEL) as EvidenceFrequency[];

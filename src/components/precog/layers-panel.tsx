@@ -20,6 +20,13 @@ const ORDER: MatrixLayerId[] = [
   "continuity",
 ];
 
+/** The tab that shows each layer in full, for the link under its list. */
+const FULL_VIEW: Partial<Record<MatrixLayerId, { tab: string; label: string }>> = {
+  control: { tab: "sod", label: "Open Who controls what" },
+  knowledge: { tab: "knowledge", label: "Open Who knows what" },
+  process: { tab: "map", label: "Open How work flows" },
+};
+
 export function LayersPanel({
   active,
   onSelect,
@@ -59,12 +66,7 @@ export function LayersPanel({
                 : "border-border bg-surface hover:border-border-strong hover:bg-elevated",
             )}
           >
-            <div className="flex items-start justify-between gap-2">
-              <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
-              <span className="text-xs tracking-wider text-subtle uppercase">
-                {meta.matrixName}
-              </span>
-            </div>
+            <Badge variant={selected ? "primary" : "default"}>L{index + 1}</Badge>
             <h2 className="mt-3 font-semibold">{meta.name}</h2>
             <p className="mt-1 text-sm text-muted">{meta.blurb}</p>
             <p className="mt-3 text-xs text-subtle">{counts}</p>
@@ -74,13 +76,6 @@ export function LayersPanel({
     </div>
   );
 }
-
-/** The tab that shows each layer in full, for the link under its list. */
-const FULL_VIEW: Partial<Record<MatrixLayerId, { tab: string; label: string }>> = {
-  control: { tab: "sod", label: "Open Who controls what" },
-  knowledge: { tab: "knowledge", label: "Open Who knows what" },
-  process: { tab: "map", label: "Open How work flows" },
-};
 
 export function LayerDetail({
   layer,
@@ -160,8 +155,7 @@ export function LayerDetail({
               )}
               {c.compensatingControls.length > 0 && (
                 <p className="mt-1 text-xs text-subtle">
-                  {ownBusiness ? "Already in place" : "Compensating"}:{" "}
-                  {c.compensatingControls.join("; ")}
+                  Already in place: {c.compensatingControls.join("; ")}
                   {ownBusiness &&
                     " (from your decisions log; remove an entry there to take it off)"}
                 </p>
