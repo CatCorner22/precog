@@ -9,11 +9,11 @@ jobs:
   source:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - run: git archive --format=tar HEAD > source.tar
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: stabilization-source
           path: source.tar
@@ -22,17 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - name: Archive installed review dependencies
         run: tar -czf review-dependencies.tar.gz node_modules
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: stabilization-dependencies
           path: review-dependencies.tar.gz
@@ -45,7 +45,7 @@ jobs:
           npm run lint 2>&1 | tee baseline-lint.log
           npm test 2>&1 | tee baseline-tests.log
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stabilization-baseline-results
           path: baseline-*.log
