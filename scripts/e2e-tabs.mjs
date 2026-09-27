@@ -68,7 +68,7 @@ await withPage(options, async (page, errors) => {
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
 
-    // The six primary tabs sit in the strip; the rest are behind "More".
+    // The primary tabs sit in the strip; the rest are behind "More".
     const primary = await page.locator('nav [role="tab"]').allInnerTexts();
     let lastLabel = "";
     for (let i = 0; i < primary.length; i++) {

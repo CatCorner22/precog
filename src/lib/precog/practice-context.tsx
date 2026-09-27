@@ -75,8 +75,13 @@ import {
   withoutDecision,
   withoutMapVersion,
   withPeople,
+  withPlaces,
   withPlannedAbsences,
   withPracticeName,
+  withProcedure,
+  withProcedureVerified,
+  withoutProcedure,
+  procedureFits,
   withProcesses,
   withRelations,
   withReportSent,
@@ -87,6 +92,7 @@ import {
   type DecisionInput,
 } from "./profile-actions";
 import { localDateKey } from "./dates";
+import type { Place, Procedure } from "./procedures/types";
 
 export type { SyncStatus };
 
@@ -184,6 +190,16 @@ export interface PracticeActions {
   ) => void;
   /** Continuity planner: known leave (who, from, to). */
   setPlannedAbsences: (v: SetStateAction<PlannedAbsence[]>) => void;
+  /** Procedures tab: the software platforms and physical places procedures are done in. */
+  setPlaces: (v: SetStateAction<Place[]>) => void;
+  /**
+   * Procedures tab: save a procedure (a change to its steps clears its
+   * verification). False, and nothing saved, when it would not fit.
+   */
+  saveProcedure: (next: Procedure) => boolean;
+  /** Procedures tab: record that `verifiedBy` (a person id, or "owner") confirmed the steps today. */
+  verifyProcedure: (id: string, verifiedBy: string) => void;
+  removeProcedure: (id: string) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
@@ -506,6 +522,24 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withPlannedAbsences(p, resolveUpdate(v, p.plannedAbsences ?? [])));
   }, []);
 
+  const setPlaces = useCallback((v: SetStateAction<Place[]>) => {
+    setProfile((p) => withPlaces(p, resolveUpdate(v, p.places ?? [])));
+  }, []);
+
+  const saveProcedure = useCallback((next: Procedure) => {
+    if (!procedureFits(profileRef.current, next)) return false;
+    setProfile((p) => withProcedure(p, next, localDateKey(new Date())));
+    return true;
+  }, []);
+
+  const verifyProcedure = useCallback((id: string, verifiedBy: string) => {
+    setProfile((p) => withProcedureVerified(p, id, verifiedBy, localDateKey(new Date())));
+  }, []);
+
+  const removeProcedure = useCallback((id: string) => {
+    setProfile((p) => withoutProcedure(p, id));
+  }, []);
+
   const resetSegregationToDerived = useCallback(() => {
     setProfile((p) => withDerivedSegregation(p));
   }, []);
@@ -574,6 +608,10 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setPlaces,
+      saveProcedure,
+      verifyProcedure,
+      removeProcedure,
       resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,
@@ -611,6 +649,10 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       setCustomKnowledge,
       setCustomRelations,
       setPlannedAbsences,
+      setPlaces,
+      saveProcedure,
+      verifyProcedure,
+      removeProcedure,
       resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,
@@ -677,7 +719,8 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
  * the whole journal, so an unrelated journal entry does not rebuild it.
  */
 function useActiveTemplate(profile: PracticeProfile): IndustryTemplate {
-  const { industry, customProcesses, customPeople, customKnowledge, customRelations } = profile;
+  const { industry, customProcesses, customPeople, customKnowledge, customRelations, procedures } =
+    profile;
   const confirmedControlsKey = confirmedControlIds(profile.decisions, industry).join("|");
   const controlsInPlaceKey = JSON.stringify(controlsInPlace(profile.decisions, industry));
   return useMemo(
@@ -690,6 +733,7 @@ function useActiveTemplate(profile: PracticeProfile): IndustryTemplate {
         customRelations,
         confirmedControlIds: confirmedControlsKey ? confirmedControlsKey.split("|") : [],
         controlsInPlace: JSON.parse(controlsInPlaceKey) as Record<string, string[]>,
+        procedures,
       }),
     [
       industry,
@@ -699,6 +743,7 @@ function useActiveTemplate(profile: PracticeProfile): IndustryTemplate {
       customRelations,
       confirmedControlsKey,
       controlsInPlaceKey,
+      procedures,
     ],
   );
 }

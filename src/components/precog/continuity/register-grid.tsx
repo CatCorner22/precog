@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import { LEVEL_LABEL, LEVEL_ORDER, relationLevel } from "@/lib/precog/continuity/coverage";
+import { isWritten } from "@/lib/precog/continuity/documentation";
 import {
   coverageBadge,
   CRITICALITY_LABEL,
@@ -234,7 +235,7 @@ export function RegisterGrid({
                           <span>{KIND_LABEL[row.item.kind ?? "knowledge"]}</span>
                           <span>·</span>
                           <span>{CRITICALITY_LABEL[row.item.criticality]}</span>
-                          {row.item.documented && (
+                          {isWritten(row.item) && (
                             <>
                               <span>·</span>
                               <span>Written down</span>

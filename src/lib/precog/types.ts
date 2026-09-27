@@ -90,6 +90,11 @@ export interface KnowledgeItem {
   procedureLocation?: string;
   /** ISO date (YYYY-MM-DD) the owner last confirmed who holds this and whether it is documented. Absent = never confirmed. */
   confirmedAt?: string;
+  /**
+   * The procedures written for this item on the Procedures tab. Derived when
+   * the template is built (procedures/coverage-link.ts) and never stored.
+   */
+  linkedProcedures?: readonly { id: string; title: string }[];
 }
 
 export interface KnowledgeRelation {

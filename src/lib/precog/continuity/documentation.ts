@@ -107,9 +107,29 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
   };
 }
 
+/**
+ * A procedure written on the Procedures tab is written and findable; so is a
+ * procedure kept elsewhere whose location is recorded.
+ */
 export function documentationState(item: KnowledgeItem): DocumentationState {
+  if (item.linkedProcedures?.length) return "located";
   if (!item.documented) return "none";
   return item.procedureLocation?.trim() ? "located" : "unlocated";
+}
+
+/**
+ * Where a stand-in finds the steps, for text read by the assistant: the
+ * procedure on the Procedures tab, else the recorded location, else null.
+ */
+export function procedureWhere(item: KnowledgeItem): string | null {
+  const inApp = item.linkedProcedures?.[0];
+  if (inApp) return `Procedures tab: "${inApp.title}"`;
+  return item.documented ? item.procedureLocation?.trim() || null : null;
+}
+
+/** Something is written down for this item, in the app or elsewhere. */
+export function isWritten(item: KnowledgeItem): boolean {
+  return documentationState(item) !== "none";
 }
 
 /**
@@ -117,6 +137,8 @@ export function documentationState(item: KnowledgeItem): DocumentationState {
  * worth telling them on the morning someone calls in sick.
  */
 export function procedurePointer(item: KnowledgeItem): string {
+  const inApp = item.linkedProcedures?.[0];
+  if (inApp) return `steps in Procedures: "${inApp.title}"`;
   if (!item.documented) return "nothing written down";
   const where = item.procedureLocation?.trim();
   return where ? `procedure at ${where}` : "written down, location not recorded";

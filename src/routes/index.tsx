@@ -4,6 +4,7 @@ import {
   Activity,
   Archive,
   BookOpen,
+  BookOpenCheck,
   Brain,
   Compass,
   Eye,
@@ -140,7 +141,7 @@ function Home() {
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    // The visible strip: the six primary tabs plus the open advanced tab, if any.
+    // The visible strip: the primary tabs plus the open advanced tab, if any.
     const visible = activeAdvanced ? [...PRIMARY_TABS, activeAdvanced] : PRIMARY_TABS;
     const index = visible.findIndex((t) => t.id === tab);
     let next = index;
@@ -324,6 +325,12 @@ function Home() {
                     <KnowledgeMap initialKnowledgeId={item} />
                   </div>
                 )}
+                {tab === "procedures" && (
+                  <div className="space-y-4">
+                    <TabIntro id="procedures" />
+                    <ProceduresPanel key={item ?? "list"} initialItem={item} />
+                  </div>
+                )}
                 {tab === "precog" && (
                   <div className="space-y-4">
                     <TabIntro id="precog" />
@@ -385,6 +392,7 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
   coso: Grid3x3,
   layers: Layers,
   knowledge: Network,
+  procedures: BookOpenCheck,
   precog: Sparkles,
   sod: Shield,
   journal: BookOpen,
@@ -396,12 +404,21 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
 const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 /**
- * Six tabs carry the product: where you stand, how work flows, who controls
- * what, who knows what, what could happen, and the advisor. The rest are
- * other views of the same inputs and sit behind "More", so a first visit
- * meets six choices, not fifteen. Every tab keeps its id and deep link.
+ * Seven tabs carry the product: where you stand, how work flows, who controls
+ * what, who knows what, how to do it when they are out, what could happen,
+ * and the advisor. The rest are other views of the same inputs and sit
+ * behind "More", so a first visit meets seven choices, not sixteen. Every
+ * tab keeps its id and deep link.
  */
-const PRIMARY_TAB_IDS: readonly TabId[] = ["start", "map", "sod", "knowledge", "precog", "pioneer"];
+const PRIMARY_TAB_IDS: readonly TabId[] = [
+  "start",
+  "map",
+  "sod",
+  "knowledge",
+  "procedures",
+  "precog",
+  "pioneer",
+];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
 const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
 
@@ -431,6 +448,13 @@ const TAB_INTROS = {
       "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
     tactical:
       "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
+  },
+  procedures: {
+    heading: "Procedures",
+    plain:
+      "Write the steps for each task, in the software screen or the physical place it is done, so someone else can do it when the usual person is away.",
+    tactical:
+      "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
   },
   precog: {
     heading: "Precog scenario engine",
@@ -480,6 +504,11 @@ const KnowledgeMap = lazy(() =>
 const ContinuityPlanner = lazy(() =>
   import("@/components/precog/continuity-planner").then((module) => ({
     default: module.ContinuityPlanner,
+  })),
+);
+const ProceduresPanel = lazy(() =>
+  import("@/components/precog/procedures/procedures-panel").then((module) => ({
+    default: module.ProceduresPanel,
   })),
 );
 const LayersPanel = lazy(() =>

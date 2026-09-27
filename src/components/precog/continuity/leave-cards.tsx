@@ -17,7 +17,9 @@ import {
   leadLabel,
   type AbsenceWindow,
 } from "@/lib/precog/continuity/planned-absence";
-import { procedurePointer } from "@/lib/precog/continuity/documentation";
+import { isWritten, procedurePointer } from "@/lib/precog/continuity/documentation";
+import type { KnowledgeItem } from "@/lib/precog/types";
+import { Link } from "@tanstack/react-router";
 import {
   describeDebriefItem,
   standInAlreadyStrong,
@@ -177,9 +179,20 @@ export function LeaveWindow({
                     </span>
                     {current && (
                       <span
-                        className={cn("text-xs", s.item.documented ? "text-muted" : "text-warn")}
+                        className={cn("text-xs", isWritten(s.item) ? "text-muted" : "text-warn")}
                       >
-                        · {procedurePointer(s.item)}
+                        ·{" "}
+                        {s.item.linkedProcedures?.[0] ? (
+                          <Link
+                            to="/"
+                            search={{ tab: "procedures", item: s.item.linkedProcedures[0].id }}
+                            className="text-primary underline-offset-2 hover:underline"
+                          >
+                            open the steps: {s.item.linkedProcedures[0].title}
+                          </Link>
+                        ) : (
+                          procedurePointer(s.item)
+                        )}
                       </span>
                     )}
                   </div>
@@ -379,13 +392,8 @@ function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) 
             ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_SHORT[h.successorLevel]})` : " (starting cold)"}`
             : "nobody to hand it to"}
         </span>
-        <span className={cn("text-xs", h.item.documented ? "text-muted" : "text-warn")}>
-          ·{" "}
-          {h.item.documented
-            ? h.item.procedureLocation?.trim()
-              ? `written · ${h.item.procedureLocation.trim()}`
-              : "written, location not recorded"
-            : "nothing written down"}
+        <span className={cn("text-xs", isWritten(h.item) ? "text-muted" : "text-warn")}>
+          · {writtenNote(h.item)}
         </span>
         {journal?.reviewBy && (
           <span className="text-xs text-subtle">
@@ -515,4 +523,13 @@ export function LeaveDebriefCard({
       </ul>
     </div>
   );
+}
+
+/** What a leaver's successor will have to follow, in the card's short wording. */
+function writtenNote(item: KnowledgeItem): string {
+  const inApp = item.linkedProcedures?.[0];
+  if (inApp) return `written · in Procedures: ${inApp.title}`;
+  if (!item.documented) return "nothing written down";
+  const where = item.procedureLocation?.trim();
+  return where ? `written · ${where}` : "written, location not recorded";
 }

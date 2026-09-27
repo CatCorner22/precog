@@ -1,4 +1,6 @@
-import { UserCheck } from "lucide-react";
+import { BookOpenCheck, UserCheck } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { buttonClass } from "@/components/ui/button-variants";
 import { ItemButton, JournalStepStatus, PeopleLine } from "@/components/precog/continuity/parts";
 import type {
   CheckIn,
@@ -28,7 +30,7 @@ import {
 } from "@/lib/precog/continuity/planner-copy";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { inputClass } from "./styles";
-import type { Criticality, KnowledgeLevel } from "@/lib/precog/types";
+import type { Criticality, KnowledgeItem, KnowledgeLevel } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 import { count, joinWithAnd, verb } from "@/lib/precog/text";
 import { formatDay } from "@/lib/precog/dates";
@@ -451,6 +453,7 @@ export function SelectedKnowledgeCard({
             A written procedure exists that a stand-in could follow
           </label>
         </div>
+        <ProcedureLinkLine item={selected.item} />
         {selected.item.documented && (
           <label className="flex flex-col gap-1 text-xs text-muted">
             Where the procedure lives (drive path, binder, link)
@@ -505,5 +508,41 @@ export function SelectedKnowledgeCard({
           ))}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The item's procedures on the Procedures tab, or a way to start one there.
+ * A procedure written there counts as written down and findable, whatever the
+ * checkbox above says.
+ */
+function ProcedureLinkLine({ item }: { item: KnowledgeItem }) {
+  const linked = item.linkedProcedures ?? [];
+  if (linked.length === 0) {
+    return (
+      <Link
+        to="/"
+        search={{ tab: "procedures", item: item.id }}
+        className={buttonClass({ variant: "outline", size: "sm", className: "h-8 text-xs" })}
+      >
+        <BookOpenCheck className="size-3.5" aria-hidden /> Write the steps in Procedures
+      </Link>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <BookOpenCheck className="size-3.5 text-ok" aria-hidden />
+      <span className="text-muted">Written in Procedures:</span>
+      {linked.map((p) => (
+        <Link
+          key={p.id}
+          to="/"
+          search={{ tab: "procedures", item: p.id }}
+          className="text-primary underline-offset-2 hover:underline"
+        >
+          {p.title}
+        </Link>
+      ))}
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
 import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
+import { documentationState, isWritten } from "./documentation";
 import { firstName, joinWithAnd, quoted } from "../text";
 
 /** A hand-off with this many days or fewer left is urgent. */
@@ -171,14 +172,14 @@ function handoverActions(
       step: "cover",
       knowledgeIds: ids(nobody),
     });
-  const undocumented = handover.filter((h) => !h.item.documented);
+  const undocumented = handover.filter((h) => !isWritten(h.item));
   if (undocumented.length)
     actions.push({
       text: `Have ${first} write down ${names(undocumented, 3)} while ${first} is still here.`,
       step: "document",
       knowledgeIds: ids(undocumented),
     });
-  const unlocated = handover.filter((h) => h.item.documented && !h.item.procedureLocation?.trim());
+  const unlocated = handover.filter((h) => documentationState(h.item) === "unlocated");
   if (unlocated.length)
     actions.push({
       text: `Record where the written procedure for ${names(unlocated, 3)} lives — after ${first} goes, nobody can ask.`,

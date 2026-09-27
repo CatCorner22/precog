@@ -4,7 +4,7 @@ import type { ContinuityStep } from "../decisions/follow-through";
 import { joinWithAnd, joinWithOr, firstName, quoted } from "../text";
 import { registerAssessed } from "./register-state";
 import { coverageReport, CRITICALITY_WEIGHT, dependenceFor, suggestBackups } from "./coverage";
-import { documentationState, procedurePointer } from "./documentation";
+import { documentationState, isWritten, procedurePointer } from "./documentation";
 
 /**
  * What stops when someone is away, who picks it up, and the one action that
@@ -119,7 +119,7 @@ export function absenceImpact(
         return {
           item: i.item,
           standIn: learner,
-          note: i.item.documented
+          note: isWritten(i.item)
             ? `${learner.name} has the basics and there is a written procedure to follow${where(i.item)}.`
             : `${learner.name} has the basics but nothing is written down — expect mistakes.`,
         };
@@ -143,7 +143,7 @@ export function absenceImpact(
       return {
         item: i.item,
         standIn: candidate.person,
-        note: i.item.documented
+        note: isWritten(i.item)
           ? `${candidate.person.name} has never done it but could follow the written procedure${where(i.item)} (${candidate.reasons[0]}).`
           : `${candidate.person.name} would be starting cold with nothing written down (${candidate.reasons[0]}).`,
       };
@@ -206,7 +206,7 @@ export function absenceImpact(
         knowledgeIds: ids(cold),
       });
   }
-  const undocumented = stops.filter((s) => !s.item.documented);
+  const undocumented = stops.filter((s) => !isWritten(s.item));
   if (undocumented.length)
     actions.push({
       text: `Have ${names} write down ${joinWithAnd(
@@ -216,7 +216,7 @@ export function absenceImpact(
       step: "document",
       knowledgeIds: ids(undocumented),
     });
-  const unlocated = stops.filter((s) => s.item.documented && !s.item.procedureLocation?.trim());
+  const unlocated = stops.filter((s) => documentationState(s.item) === "unlocated");
   if (unlocated.length)
     actions.push({
       text: `Record where the written procedure for ${joinWithAnd(

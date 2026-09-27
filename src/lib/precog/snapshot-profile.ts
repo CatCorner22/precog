@@ -19,7 +19,9 @@ import { buildAssignments, type RoleAssignment } from "./sod/detect";
  * points), which can be many times larger than the assessment, and its logs
  * (leaver access checks, monthly reviews, engagement stamps, the access
  * reconciliation), which record what happened rather than describe the
- * business. Restoring last quarter's team must not erase this month's closes.
+ * business, and its written procedures and the places they are done in,
+ * which are the owner's working documents. Restoring last quarter's team
+ * must not erase this month's closes or the steps written since.
  */
 const KEPT_ON_RESTORE = [
   "mapVersions",
@@ -29,6 +31,8 @@ const KEPT_ON_RESTORE = [
   "monthlyReviews",
   "engagement",
   "accessReconciliation",
+  "places",
+  "procedures",
 ] as const satisfies readonly (keyof PracticeProfile)[];
 
 type KeptOnRestore = (typeof KEPT_ON_RESTORE)[number];

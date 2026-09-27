@@ -50,6 +50,10 @@ import type { ReviewRecord } from "./firm/reviews";
 import type { AccessReconciliation } from "./firm/reconcile";
 import { localDateKey, formatDay } from "./dates";
 import { nameKey, uid } from "./text";
+import { stripProcedureLinks } from "./procedures/coverage-link";
+import { verifyProcedure, withProcedureEdit } from "./procedures/lifecycle";
+import { PROCEDURE_LIMITS, proceduresBytes } from "./procedures/normalize";
+import type { Place, Procedure } from "./procedures/types";
 
 /**
  * Every edit the app makes to a business, as a pure function from one
@@ -335,7 +339,7 @@ export function withProcesses(p: PracticeProfile, next: ProcessNode[] | null): P
 }
 
 export function withKnowledge(p: PracticeProfile, next: KnowledgeItem[] | null): PracticeProfile {
-  return withContinuityStaff({ ...p, customKnowledge: next });
+  return withContinuityStaff({ ...p, customKnowledge: next && stripProcedureLinks(next) });
 }
 
 export function withRelations(
@@ -347,6 +351,54 @@ export function withRelations(
 
 export function withPlannedAbsences(p: PracticeProfile, next: PlannedAbsence[]): PracticeProfile {
   return { ...p, plannedAbsences: next };
+}
+
+export function withPlaces(p: PracticeProfile, next: Place[]): PracticeProfile {
+  return { ...p, places: next.slice(0, PROCEDURE_LIMITS.places) };
+}
+
+/**
+ * The business with `next` saved over the procedure of the same id (or added
+ * first). A content change clears its verification (see withProcedureEdit).
+ * Unchanged when the procedures would no longer fit the byte budget; check
+ * `procedureFits` first to tell the owner why.
+ */
+export function withProcedure(p: PracticeProfile, next: Procedure, today: string): PracticeProfile {
+  const list = p.procedures ?? [];
+  const prev = list.find((x) => x.id === next.id) ?? null;
+  if (!prev && list.length >= PROCEDURE_LIMITS.procedures) return p;
+  const saved = withProcedureEdit(prev, next, today);
+  const procedures = prev ? list.map((x) => (x.id === next.id ? saved : x)) : [saved, ...list];
+  if (proceduresBytes(procedures) > PROCEDURE_LIMITS.bytes) return p;
+  return { ...p, procedures };
+}
+
+/** Whether saving `next` keeps the procedures within their count and byte limits. */
+export function procedureFits(p: PracticeProfile, next: Procedure): boolean {
+  const list = p.procedures ?? [];
+  const exists = list.some((x) => x.id === next.id);
+  if (!exists && list.length >= PROCEDURE_LIMITS.procedures) return false;
+  const others = list.filter((x) => x.id !== next.id);
+  return proceduresBytes([next, ...others]) <= PROCEDURE_LIMITS.bytes;
+}
+
+/** The business with procedure `id` verified by `verifiedBy` (a person id, or "owner") on `today`. */
+export function withProcedureVerified(
+  p: PracticeProfile,
+  id: string,
+  verifiedBy: string,
+  today: string,
+): PracticeProfile {
+  return {
+    ...p,
+    procedures: (p.procedures ?? []).map((x) =>
+      x.id === id ? verifyProcedure(x, verifiedBy, today) : x,
+    ),
+  };
+}
+
+export function withoutProcedure(p: PracticeProfile, id: string): PracticeProfile {
+  return { ...p, procedures: (p.procedures ?? []).filter((x) => x.id !== id) };
 }
 
 export function withMapLayout(

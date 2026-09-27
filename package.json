@@ -23,6 +23,7 @@
     "e2e": "node scripts/e2e-builder.mjs",
     "e2e:enhancements": "node scripts/e2e-enhancements.mjs",
     "e2e:tabs": "node scripts/e2e-tabs.mjs",
+    "e2e:procedures": "node scripts/e2e-procedures.mjs",
     "e2e:warmup": "node scripts/e2e-warmup.mjs",
     "e2e:safety": "node scripts/e2e-account-safety.mjs",
     "lint": "eslint . --max-warnings 0",
