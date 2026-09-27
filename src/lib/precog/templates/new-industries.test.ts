@@ -15,8 +15,11 @@ import {
   type OwnTeamRow,
 } from "../onboarding/own-team";
 import { initialSetup } from "../onboarding/setup-draft";
+import { STRONG_LEVELS } from "../continuity/coverage";
+import { deriveStaffFromTeam } from "../sod/derive-staff";
 import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
+import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { jobCatalogEntry } from "../onboarding/job-catalog";
 import { scenarioCases } from "./index";
 
@@ -56,6 +59,124 @@ describe("every sample's links resolve inside its own template", () => {
       expect(new Set(tpl.controls.map((c) => c.id)).size).toBe(tpl.controls.length);
     });
   }
+});
+
+describe("every sample's figures and claims agree with its own team", () => {
+  for (const { id } of INDUSTRIES) {
+    it(`${id}: team figures are the ones its people give`, () => {
+      const tpl = getBaseTemplate(id);
+      const derived = deriveStaffFromTeam(tpl, tpl.staffComposition);
+      const tenures = tpl.people.map((p) => p.tenureYears ?? 0);
+      const mean = tenures.reduce((a, b) => a + b, 0) / tenures.length;
+      expect(tpl.staffComposition.teamSize).toBe(tpl.people.length);
+      expect(tpl.staffComposition.avgTenureYears).toBe(Math.round(mean * 10) / 10);
+      expect(tpl.staffComposition.segregationScore).toBe(derived.segregationScore);
+      expect(tpl.staffComposition.soleOwnerKnowledgeCount).toBe(derived.soleOwnerKnowledgeCount);
+    });
+
+    it(`${id}: a control a duty pair covers is segregated exactly when nobody holds the pair`, () => {
+      const tpl = getBaseTemplate(id);
+      const conflicts = detectSodConflicts(tpl).conflicts.filter((c) => !c.ownerHeld);
+      for (const control of tpl.controls) {
+        const open = conflicts.filter((c) => c.linkedControlId === control.id);
+        if (open.length) expect(control.segregated, control.id).toBe(false);
+      }
+      // Payroll entry and release sit with one manager in every sample.
+      expect(tpl.controls.find((c) => c.id === "c-payroll")?.segregated).toBe(false);
+    });
+
+    it(`${id}: names no second signer as in place while payments need one person`, () => {
+      const tpl = getBaseTemplate(id);
+      expect(tpl.staffComposition.dualControlPayments).toBe(false);
+      const claimed = tpl.controls
+        .flatMap((c) => c.compensatingControls)
+        .filter((text) => /dual release|two signatures|second signer/i.test(text));
+      expect(claimed).toEqual([]);
+    });
+
+    it(`${id}: never offers the person who holds a pair as its compensating check`, () => {
+      const tpl = getBaseTemplate(id);
+      const conflicts = detectSodConflicts(tpl).conflicts.filter((c) => !c.ownerHeld);
+      const selfChecks = tpl.controls.flatMap((control) =>
+        control.compensatingControls.filter((text) =>
+          conflicts.some(
+            (c) =>
+              c.linkedControlId === control.id &&
+              text.toLowerCase().startsWith(c.role.toLowerCase()),
+          ),
+        ),
+      );
+      expect(selfChecks).toEqual([]);
+    });
+
+    it(`${id}: someone posts payments and reconciles the bank, as its cash scenario says`, () => {
+      expect(findings(id).some((f) => f.endsWith(": rule-cash-rec"))).toBe(true);
+    });
+
+    it(`${id}: whoever a scenario or risk calls the sole expert is the only strong holder`, () => {
+      const tpl = getBaseTemplate(id);
+      const strong = (knowledgeId: string) =>
+        tpl.relations.filter((r) => r.knowledgeId === knowledgeId && STRONG_LEVELS.has(r.level));
+      const claims = [
+        ...tpl.scenarios.map((s) => ({ id: s.id, text: s.description, k: s.knowledgeId })),
+        ...tpl.processes.flatMap((p) =>
+          (p.risks ?? []).map((r) => ({ id: r.id, text: r.note ?? "", k: r.linkedKnowledgeId })),
+        ),
+      ].filter((c) => c.k && /\bsole\b|\bonly (the )?[a-z ]+ knows\b/i.test(c.text));
+      for (const claim of claims) expect(strong(claim.k!).length, claim.id).toBe(1);
+    });
+  }
+
+  // Construction's write-off scenario is reworded separately; its register
+  // has nobody who can post and approve a write-off.
+  for (const id of [
+    "dental",
+    "retail",
+    "professional_services",
+    "restaurant",
+    "nonprofit",
+    "general",
+  ] as const) {
+    it(`${id}: every fraud scenario tied to a duty control has someone holding that control's pair`, () => {
+      const tpl = getBaseTemplate(id);
+      const open = new Set(
+        detectSodConflicts(tpl)
+          .conflicts.filter((c) => !c.ownerHeld)
+          .map((c) => c.linkedControlId),
+      );
+      const linked = new Set(CONFLICT_RULES.map((r) => r.linkedControlId));
+      const unsupported = tpl.scenarios
+        .filter((s) => s.controlId && linked.has(s.controlId) && !open.has(s.controlId))
+        .map((s) => s.id);
+      expect(unsupported).toEqual([]);
+    });
+  }
+
+  it("files the retail sample's receiving under a receiving control, not receivables", () => {
+    const tpl = getBaseTemplate("retail");
+    expect(tpl.processes.find((p) => p.id === "proc-inventory")?.controlIds).toEqual([
+      "c-inventory",
+    ]);
+    expect(tpl.controls.find((c) => c.id === "c-ap")?.segregated).toBe(false);
+  });
+
+  it("keeps receivables controls out of the restaurant", () => {
+    const ids = getBaseTemplate("restaurant").controls.map((c) => c.id);
+    expect(ids).not.toContain("c-ar");
+    expect(ids).not.toContain("c-sod-ar");
+  });
+
+  it("links every key-person scenario from a risk on the map", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getBaseTemplate(id);
+      const linked = new Set(
+        tpl.processes.flatMap((p) => (p.risks ?? []).map((r) => r.linkedScenarioId)),
+      );
+      for (const s of tpl.scenarios.filter((x) => x.knowledgeId && !x.controlId)) {
+        expect(linked.has(s.id), `${id} ${s.id}`).toBe(true);
+      }
+    }
+  });
 });
 
 describe("every sample's scenarios", () => {

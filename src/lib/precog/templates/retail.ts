@@ -1,14 +1,8 @@
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
-export const retailTemplate: IndustryTemplate = {
+export const retailTemplate: IndustrySample = {
   id: "retail",
-  businessName: "Harbor Lane Boutique",
   people: [
     { id: "p1", name: "Alex Rivera", role: "Owner", active: true, tenureYears: 9 },
     { id: "p2", name: "Sam Nguyen", role: "Store Manager", active: true, tenureYears: 5 },
@@ -53,7 +47,7 @@ export const retailTemplate: IndustryTemplate = {
     {
       id: "k5",
       name: "E-commerce platform ops",
-      description: "Shopify admin, refunds, inventory sync rules.",
+      description: "Web store admin, refunds, inventory sync rules.",
       criticality: "important",
       category: "system",
       linkedProcessIds: ["proc-ecom"],
@@ -71,7 +65,7 @@ export const retailTemplate: IndustryTemplate = {
     { personId: "p3", knowledgeId: "k1", level: "expert" },
     { personId: "p3", knowledgeId: "k2", level: "expert" },
     { personId: "p2", knowledgeId: "k2", level: "proficient" },
-    { personId: "p2", knowledgeId: "k1", level: "proficient" },
+    { personId: "p2", knowledgeId: "k1", level: "basic" },
     { personId: "p4", knowledgeId: "k3", level: "expert" },
     { personId: "p5", knowledgeId: "k5", level: "expert" },
     { personId: "p2", knowledgeId: "k4", level: "expert" },
@@ -99,6 +93,7 @@ export const retailTemplate: IndustryTemplate = {
           likelihood: 3,
           note: "Lead cashier sole expert on override codes.",
           linkedKnowledgeId: "k1",
+          linkedScenarioId: "sc-key-person-leaves",
         },
         {
           id: "r-pos-2",
@@ -116,7 +111,7 @@ export const retailTemplate: IndustryTemplate = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Daily review of overrides > $50.",
+          note: "Daily review of overrides above the amount you set.",
           status: "planned",
         },
         {
@@ -144,7 +139,7 @@ export const retailTemplate: IndustryTemplate = {
       layer: "process",
       description: "Stock receiving, counts, and shrink tracking.",
       dependencies: ["proc-pos"],
-      controlIds: ["c-ar"],
+      controlIds: ["c-inventory"],
       stage: 1,
       ownerPersonIds: ["p4"],
       inputs: ["Purchase orders", "Vendor shipments", "Packing slips"],
@@ -157,6 +152,7 @@ export const retailTemplate: IndustryTemplate = {
           severity: 4,
           likelihood: 3,
           note: "Inventory lead can receive and adjust without second count.",
+          linkedControlId: "c-inventory",
         },
         {
           id: "r-inv-2",
@@ -230,11 +226,11 @@ export const retailTemplate: IndustryTemplate = {
       ideas: [
         {
           id: "i-ecom-1",
-          title: "Refunds over $100 require manager approval in Shopify",
+          title: "Refunds above the amount you set need the store manager's approval",
           category: "control",
           effort: "low",
           impact: "medium",
-          note: "Use staff permissions so fulfillment can request and the store manager approves.",
+          note: "Use the web store's staff permissions so fulfillment can request and the store manager approves.",
           status: "planned",
         },
         {
@@ -420,7 +416,7 @@ export const retailTemplate: IndustryTemplate = {
         },
         {
           id: "i-ar-2",
-          title: "Owner sign-off on write-offs over $250",
+          title: "Owner signs off on write-offs above the amount you set",
           category: "policy",
           effort: "low",
           impact: "high",
@@ -496,9 +492,22 @@ export const retailTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: baseFinancialControls(),
-  staffComposition: { ...DEFAULT_STAFF },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  controls: [
+    // Invoices are paid without the receiving count today (r-ap-2); the
+    // three-way match that would do it is still planned (i-ap-1).
+    ...baseFinancialControls({ "c-ap": { segregated: false } }),
+    {
+      id: "c-inventory",
+      name: "Receiving and count check",
+      description:
+        "Someone other than the receiver counts each delivery against the purchase order, and someone who does not adjust stock checks the cycle counts.",
+      duties: ["review", "reconciliation"],
+      segregated: false,
+      compensatingControls: [],
+      residualRiskAccepted: false,
+    },
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: baseFraudScenarios({
     keyPersonTitle: "Lead cashier leaves with sole POS/returns knowledge",
     keyPersonDesc:
@@ -533,6 +542,7 @@ export const retailTemplate: IndustryTemplate = {
       "post_adjustments",
       "post_payments",
       "approve_writeoffs",
+      "bank_reconcile",
       "create_vendor",
       "release_payment",
       "review_card_statement",

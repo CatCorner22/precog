@@ -1,82 +1,96 @@
 import type { ControlItem, ScenarioTemplate, CrimeFraudStats } from "../types";
+import type { SamplePaymentSafeguards } from "./types";
 
-/** Core financial SoD controls reused across industry templates. */
-export function baseFinancialControls(): ControlItem[] {
-  return [
-    {
-      id: "c-cash",
-      name: "Cash handling control",
-      description: "Separate custody of cash from deposit reconciliation.",
-      duties: ["custody", "recording", "reconciliation"],
-      segregated: false,
-      compensatingControls: ["Owner reviews bank statements monthly"],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-sod-cash",
-      name: "SoD: payments vs reconciliation",
-      description: "Same person posts payments and reconciles bank.",
-      duties: ["recording", "reconciliation"],
-      segregated: false,
-      compensatingControls: ["Manager spot-checks deposits weekly"],
-      residualRiskAccepted: true,
-    },
-    {
-      id: "c-sod-billing",
-      name: "SoD: billing adjustments",
-      description: "Billing can post write-offs without independent approval.",
-      duties: ["authorization", "recording"],
-      segregated: false,
-      compensatingControls: ["Monthly adjustment report to owner"],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-sod-ap",
-      name: "SoD: vendor setup vs payment",
-      description: "AP can create vendors and release payments.",
-      duties: ["authorization", "custody"],
-      segregated: false,
-      compensatingControls: ["Dual release on payments > $1,000"],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-sod-ar",
-      name: "SoD: A/R write-offs",
-      description: "Write-off authority with independent approval.",
-      duties: ["authorization", "recording"],
-      segregated: true,
-      compensatingControls: [],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-ap",
-      name: "Invoice matching",
-      description: "Match receipt to invoice before payment.",
-      duties: ["review", "authorization"],
-      segregated: true,
-      compensatingControls: [],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-ar",
-      name: "A/R aging review",
-      description: "Owner reviews 90+ aging monthly.",
-      duties: ["review"],
-      segregated: true,
-      compensatingControls: [],
-      residualRiskAccepted: false,
-    },
-    {
-      id: "c-payroll",
-      name: "Payroll approval",
-      description: "Owner approves payroll before transmission.",
-      duties: ["authorization"],
-      segregated: true,
-      compensatingControls: [],
-      residualRiskAccepted: false,
-    },
-  ];
+/**
+ * Core financial SoD controls reused across industry templates. `changes`
+ * rewords or re-flags a control by id for one sample, so every sample keeps
+ * the shared ids and only states what differs.
+ */
+export function baseFinancialControls(
+  changes: Partial<Record<string, Partial<ControlItem>>> = {},
+): ControlItem[] {
+  return BASE_CONTROLS.map((c) => ({
+    ...c,
+    duties: [...c.duties],
+    compensatingControls: [...c.compensatingControls],
+    ...changes[c.id],
+  }));
 }
+
+const BASE_CONTROLS: readonly ControlItem[] = [
+  {
+    id: "c-cash",
+    name: "Cash handling control",
+    description: "Separate custody of cash from deposit reconciliation.",
+    duties: ["custody", "recording", "reconciliation"],
+    segregated: false,
+    compensatingControls: ["Owner reviews bank statements monthly"],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-sod-cash",
+    name: "SoD: payments vs reconciliation",
+    description: "Same person posts payments and reconciles bank.",
+    duties: ["recording", "reconciliation"],
+    segregated: false,
+    compensatingControls: ["Owner compares each deposit with the day's sales record weekly"],
+    residualRiskAccepted: true,
+  },
+  {
+    id: "c-sod-billing",
+    name: "SoD: billing adjustments",
+    description: "Billing can post write-offs without independent approval.",
+    duties: ["authorization", "recording"],
+    segregated: false,
+    compensatingControls: ["Monthly adjustment report to owner"],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-sod-ap",
+    name: "SoD: vendor setup vs payment",
+    description: "AP can create vendors and release payments.",
+    duties: ["authorization", "custody"],
+    segregated: false,
+    compensatingControls: [],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-sod-ar",
+    name: "SoD: A/R write-offs",
+    description: "Write-off authority with independent approval.",
+    duties: ["authorization", "recording"],
+    segregated: true,
+    compensatingControls: [],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-ap",
+    name: "Invoice matching",
+    description: "Match receipt to invoice before payment.",
+    duties: ["review", "authorization"],
+    segregated: true,
+    compensatingControls: [],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-ar",
+    name: "A/R aging review",
+    description: "Owner reviews 90+ aging monthly.",
+    duties: ["review"],
+    segregated: true,
+    compensatingControls: [],
+    residualRiskAccepted: false,
+  },
+  {
+    id: "c-payroll",
+    name: "Payroll approval",
+    description: "Owner approves payroll before transmission.",
+    duties: ["authorization"],
+    segregated: true,
+    compensatingControls: [],
+    residualRiskAccepted: false,
+  },
+];
 
 export function baseFraudScenarios(opts: {
   keyPersonTitle: string;
@@ -175,11 +189,12 @@ export function baseFraudScenarios(opts: {
   ];
 }
 
-export const DEFAULT_STAFF = {
-  teamSize: 6,
-  soleOwnerKnowledgeCount: 2,
-  avgTenureYears: 5.5,
-  segregationScore: 42,
+/**
+ * No sample has either payment safeguard yet: one person can release a
+ * payment and nobody independent reconciles the bank. The other team figures
+ * are derived from each sample's people (see IndustrySample).
+ */
+export const SAMPLE_SAFEGUARDS: SamplePaymentSafeguards = {
   dualControlPayments: false,
   independentBankRec: false,
 };

@@ -6,10 +6,9 @@ import type {
   Person,
   ProcessNode,
   ScenarioTemplate,
-  StaffComposition,
 } from "../types";
-import type { IndustryTemplate } from "./types";
-import { DEFAULT_FRAUD_STATS } from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 const people: Person[] = [
   { id: "p1", name: "Dr. Elena Vargas", role: "Owner / Dentist", active: true, tenureYears: 12 },
@@ -321,11 +320,11 @@ const processes: ProcessNode[] = [
       },
       {
         id: "i-claims-2",
-        title: "Owner approval > $150 write-off",
+        title: "Owner approves write-offs above the amount you set",
         category: "control",
         effort: "low",
         impact: "high",
-        note: "PMS threshold + weekly exception report.",
+        note: "Set the limit in the practice software and read a weekly exception report.",
         status: "exploring",
       },
     ],
@@ -569,7 +568,7 @@ const controls: ControlItem[] = [
     description: "Same person posts payments and reconciles bank.",
     duties: ["recording", "reconciliation"],
     segregated: false,
-    compensatingControls: ["Office manager spot-checks deposits weekly"],
+    compensatingControls: ["Owner compares the deposit slip to the day sheet weekly"],
     residualRiskAccepted: true,
   },
   {
@@ -587,13 +586,13 @@ const controls: ControlItem[] = [
     description: "AP can create vendors and release payments.",
     duties: ["authorization", "custody"],
     segregated: false,
-    compensatingControls: ["Dual release on payments > $1,000"],
+    compensatingControls: [],
     residualRiskAccepted: false,
   },
   {
     id: "c-sod-ar",
     name: "SoD: A/R write-offs",
-    description: "Write-off authority without independent approval.",
+    description: "Write-off authority with independent approval.",
     duties: ["authorization", "recording"],
     segregated: true,
     compensatingControls: [],
@@ -664,15 +663,6 @@ const controls: ControlItem[] = [
     residualRiskAccepted: false,
   },
 ];
-
-const staffComposition: StaffComposition = {
-  teamSize: 6,
-  soleOwnerKnowledgeCount: 3,
-  avgTenureYears: 5.5,
-  segregationScore: 42,
-  dualControlPayments: false,
-  independentBankRec: false,
-};
 
 /** Industry-oriented illustrative base rates for demo (educational, not actuarial advice). */
 
@@ -757,7 +747,7 @@ const scenarios: ScenarioTemplate[] = [
     mitigations: [
       {
         id: "m7",
-        label: "Require owner approval for write-offs > $150",
+        label: "Require owner approval for write-offs above the amount you set",
         effort: "low",
         riskReduction: 0.6,
         costAnnual: 0,
@@ -783,7 +773,7 @@ const scenarios: ScenarioTemplate[] = [
     mitigations: [
       {
         id: "m9",
-        label: "Dual bank release on all ACH > $500",
+        label: "Dual bank release on all ACH above the amount you set",
         effort: "medium",
         riskReduction: 0.75,
         costAnnual: 0,
@@ -868,20 +858,19 @@ const roleTemplates: Record<string, EntitlementId[]> = {
     "post_adjustments",
     "post_payments",
     "approve_writeoffs",
+    "bank_reconcile",
     "view_reports_only",
   ],
 };
 
-export const dentalTemplate: IndustryTemplate = {
+export const dentalTemplate: IndustrySample = {
   id: "dental",
-  businessName: "Ridgeview Family Dental",
   people,
   knowledge,
   relations,
   processes,
   controls,
-  staffComposition,
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios,
   roleTemplates,
 };

@@ -32,7 +32,7 @@ describe("starter text an owner's own business inherits", () => {
       const names = new Set(
         tpl.people
           .flatMap((p) => p.name.split(/\s+/))
-          .filter((part) => !/^(dr|mr|mrs|ms)\.?$/i.test(part) && part !== "Owner"),
+          .filter((part) => !/^(dr|mr|mrs|ms)\.?$/i.test(part)),
       );
       const hits = [
         ...texts(tpl.processes, "processes"),

@@ -113,7 +113,7 @@ describe("buildWeeklyActions journal awareness", () => {
       id: `k-gap-${i}`,
       name: `Gap ${i}`,
     }));
-    const three = resolveTemplate({
+    const resolved = resolveTemplate({
       industry: "dental",
       customKnowledge: items,
       customRelations: items.map((k) => ({
@@ -122,6 +122,16 @@ describe("buildWeeklyActions journal awareness", () => {
         level: "expert" as const,
       })),
     });
+    // A vendor-setup check in place keeps that control's residual below the
+    // register gaps this test ranks.
+    const three = {
+      ...resolved,
+      controls: resolved.controls.map((c) =>
+        c.id === "c-sod-ap"
+          ? { ...c, compensatingControls: ["Owner approves every new vendor"] }
+          : c,
+      ),
+    };
     const actions = buildWeeklyActions({
       tpl: three,
       staff,

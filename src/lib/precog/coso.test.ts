@@ -27,7 +27,9 @@ describe("assessCoso", () => {
         .find((c) => c.id === "control_activities")!
         .principles.find((p) => p.number === 10)!.note;
     expect(note(fromProfile)).toMatch(/^Segregation score 100\/100/);
-    expect(note(fromTemplate)).toMatch(/^Segregation score 42\/100/);
+    expect(note(fromTemplate)).toMatch(
+      new RegExp(`^Segregation score ${own.staffComposition.segregationScore}/100`),
+    );
     expect(fromProfile.overall).toBeGreaterThan(fromTemplate.overall);
   });
 
@@ -68,9 +70,17 @@ describe("assessCoso", () => {
 });
 
 describe("compensating controls in COSO findings", () => {
-  it("quote the live dual-release policy, never the sample record's own figure", () => {
+  it("quote the live dual-release policy, never a figure written into the control", () => {
     const p = defaultProfile("dental");
-    const tpl = getBaseTemplate("dental");
+    const sample = getBaseTemplate("dental");
+    const tpl = {
+      ...sample,
+      controls: sample.controls.map((c) =>
+        c.id === "c-sod-ap"
+          ? { ...c, compensatingControls: ["Dual release on payments > $1,000"] }
+          : c,
+      ),
+    };
     const detail = (a: ReturnType<typeof assessCoso>) =>
       a.components
         .find((c) => c.id === "control_activities")!

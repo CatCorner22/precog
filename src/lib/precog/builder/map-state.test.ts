@@ -97,7 +97,10 @@ describe("mapNotAssessedNote", () => {
 describe("the sample business's map figures do not change", () => {
   // The controlled-drugs process added to the dental and medical sample is
   // one more process with a hot fraud risk and no written record: the score
-  // moves from 73 to 72 and calm from 43 to 39.
+  // moves from 73 to 72 and calm from 43 to 39. The payroll control then
+  // reads as the gap the sample's own duties show (the office manager enters
+  // and releases payroll), and the billing specialist reconciles the bank as
+  // the cash scenario says: calm moves to 37 and the score to 71.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -110,14 +113,14 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(72);
+    expect(health.score).toBe(71);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 39],
+      ["calm", 37],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
     expect(health.hotProcesses).toBe(4);

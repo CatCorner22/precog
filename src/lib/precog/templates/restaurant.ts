@@ -1,11 +1,6 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
  * Sales tax and tips. Sales tax a restaurant collects is the state's money
@@ -105,9 +100,8 @@ const taxAndTipScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const restaurantTemplate: IndustryTemplate = {
+export const restaurantTemplate: IndustrySample = {
   id: "restaurant",
-  businessName: "Ember & Oak Kitchen",
   people: [
     {
       id: "p1",
@@ -183,7 +177,7 @@ export const restaurantTemplate: IndustryTemplate = {
   ],
   relations: [
     { personId: "p3", knowledgeId: "k1", level: "expert" },
-    { personId: "p2", knowledgeId: "k1", level: "proficient" },
+    { personId: "p2", knowledgeId: "k1", level: "basic" },
     { personId: "p3", knowledgeId: "k2", level: "expert" },
     { personId: "p2", knowledgeId: "k2", level: "proficient" },
     { personId: "p2", knowledgeId: "k3", level: "expert" },
@@ -402,6 +396,7 @@ export const restaurantTemplate: IndustryTemplate = {
           likelihood: 3,
           note: "Often only the head server knows the split rules; disputes and wage claims spike when they are out.",
           linkedKnowledgeId: "k1",
+          linkedScenarioId: "sc-key-person-leaves",
         },
       ],
       ideas: [
@@ -735,9 +730,12 @@ export const restaurantTemplate: IndustryTemplate = {
       ],
     },
   ],
-  controls: [...baseFinancialControls(), ...taxAndTipControls],
-  staffComposition: { ...DEFAULT_STAFF, teamSize: 6, segregationScore: 35 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  // A restaurant keeps no receivables, so the receivables controls stay out.
+  controls: [
+    ...baseFinancialControls().filter((c) => c.id !== "c-ar" && c.id !== "c-sod-ar"),
+    ...taxAndTipControls,
+  ],
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Head server leaves with sole tip-pool knowledge",

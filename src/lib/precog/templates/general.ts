@@ -1,16 +1,10 @@
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
-export const generalTemplate: IndustryTemplate = {
+export const generalTemplate: IndustrySample = {
   id: "general",
-  businessName: "Main Street Business Co.",
   people: [
-    { id: "p1", name: "Alex Owner", role: "Owner", active: true, tenureYears: 10 },
+    { id: "p1", name: "Alex Morgan", role: "Owner", active: true, tenureYears: 10 },
     { id: "p2", name: "Maya Chen", role: "Operations Manager", active: true, tenureYears: 6 },
     { id: "p3", name: "Jordan Blake", role: "Sales Lead", active: true, tenureYears: 4 },
     { id: "p4", name: "Sam Ortiz", role: "Admin / AR", active: true, tenureYears: 3 },
@@ -349,7 +343,7 @@ export const generalTemplate: IndustryTemplate = {
           kind: "revenue",
           severity: 3,
           likelihood: 4,
-          note: "Old balances drift into bad debt because collection calls are nobody's job.",
+          note: "The owner sees the aging each month, but collection calls are nobody's job, so old balances drift into bad debt.",
         },
       ],
       ideas: [
@@ -442,8 +436,7 @@ export const generalTemplate: IndustryTemplate = {
     },
   ],
   controls: baseFinancialControls(),
-  staffComposition: { ...DEFAULT_STAFF },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: baseFraudScenarios({
     keyPersonTitle: "AR lead leaves with sole billing knowledge",
     keyPersonDesc:

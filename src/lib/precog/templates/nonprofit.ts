@@ -1,6 +1,6 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import { DEFAULT_FRAUD_STATS, DEFAULT_STAFF } from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
  * A nonprofit of 5 to 40 people: an executive director who reports to a
@@ -29,7 +29,7 @@ const nonprofitControls: ControlItem[] = [
       "Separate who opens the mail and handles event cash from who records gifts and who reconciles the bank.",
     duties: ["custody", "recording", "reconciliation"],
     segregated: false,
-    compensatingControls: ["Treasurer reads the bank statement monthly"],
+    compensatingControls: ["Finance compares the gift log with the deposit each week"],
     residualRiskAccepted: false,
   },
   {
@@ -56,15 +56,6 @@ const nonprofitControls: ControlItem[] = [
     description: "The finance manager can add vendors and release payments.",
     duties: ["authorization", "custody"],
     segregated: false,
-    compensatingControls: ["Two signatures on payments above the amount the board set"],
-    residualRiskAccepted: false,
-  },
-  {
-    id: "c-sod-ar",
-    name: "SoD: pledge write-offs",
-    description: "Pledge write-offs approved by the executive director, entered by finance.",
-    duties: ["authorization", "recording"],
-    segregated: true,
     compensatingControls: [],
     residualRiskAccepted: false,
   },
@@ -328,9 +319,8 @@ const nonprofitScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const nonprofitTemplate: IndustryTemplate = {
+export const nonprofitTemplate: IndustrySample = {
   id: "nonprofit",
-  businessName: "Riverbend Community Alliance",
   people: [
     { id: "p1", name: "Grace Okafor", role: "Executive Director", active: true, tenureYears: 12 },
     {
@@ -519,6 +509,16 @@ export const nonprofitTemplate: IndustryTemplate = {
           likelihood: 3,
           note: "Federal awards follow cost principles; a disallowed cost is repaid, and a reimbursement request for costs not incurred is a false claim.",
         },
+        {
+          id: "r-grant-3",
+          title: "Grant budgets known by one person",
+          kind: "continuity",
+          severity: 4,
+          likelihood: 3,
+          note: "Only the grants manager knows what each grant may pay for and when reports are due; reports and draws slip when they are out.",
+          linkedKnowledgeId: "k2",
+          linkedScenarioId: "sc-key-person-leaves",
+        },
       ],
       ideas: [
         {
@@ -614,7 +614,7 @@ export const nonprofitTemplate: IndustryTemplate = {
       layer: "process",
       description: "Multi-year pledges, grant draws, write-offs of uncollectible pledges.",
       dependencies: ["proc-cash", "proc-grants"],
-      controlIds: ["c-ar", "c-sod-ar"],
+      controlIds: ["c-ar", "c-sod-billing"],
       stage: 2,
       ownerPersonIds: ["p3", "p4"],
       inputs: ["Pledge agreements", "Grant payment schedules", "Aging report"],
@@ -627,6 +627,7 @@ export const nonprofitTemplate: IndustryTemplate = {
           severity: 4,
           likelihood: 2,
           note: "A paid pledge written off as uncollectible hides a payment kept.",
+          linkedControlId: "c-sod-billing",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -725,8 +726,8 @@ export const nonprofitTemplate: IndustryTemplate = {
         {
           id: "w-ap-1",
           kind: "muda_waiting",
-          label: "Checks wait for a board signer",
-          note: "Payments sit until a volunteer signer comes in, and vendors call about late payments.",
+          label: "Checks wait for the executive director's signature",
+          note: "Payments sit until the executive director is in the office to sign, and vendors call about late payments.",
         },
       ],
     },
@@ -797,7 +798,7 @@ export const nonprofitTemplate: IndustryTemplate = {
       dependencies: ["proc-ap", "proc-payroll"],
       controlIds: ["c-sod-cash", "c-board-review"],
       stage: 4,
-      ownerPersonIds: ["p7", "p1"],
+      ownerPersonIds: ["p7", "p1", "p2"],
       inputs: ["Bank statements", "Reconciliations", "Financial statements"],
       outputs: ["Treasurer's review", "Board minutes", "Audit and Form 990"],
       risks: [
@@ -852,8 +853,7 @@ export const nonprofitTemplate: IndustryTemplate = {
     },
   ],
   controls: nonprofitControls,
-  staffComposition: { ...DEFAULT_STAFF, teamSize: 8, avgTenureYears: 5.3, segregationScore: 34 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: nonprofitScenarios,
   roleTemplates: {
     "Executive Director": [
@@ -868,6 +868,8 @@ export const nonprofitTemplate: IndustryTemplate = {
     "Finance & Operations Manager": [
       "post_payments",
       "prepare_deposit",
+      "post_adjustments",
+      "approve_writeoffs",
       "enter_invoices",
       "create_vendor",
       "release_payment",

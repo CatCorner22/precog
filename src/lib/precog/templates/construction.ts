@@ -1,11 +1,6 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
  * A general contractor or specialty trade of 5 to 40 people: office staff, a
@@ -190,9 +185,8 @@ const constructionScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const constructionTemplate: IndustryTemplate = {
+export const constructionTemplate: IndustrySample = {
   id: "construction",
-  businessName: "Summit Ridge Builders",
   people: [
     { id: "p1", name: "Marcus Hale", role: "Owner / President", active: true, tenureYears: 18 },
     { id: "p2", name: "Dana Whitfield", role: "Office Manager", active: true, tenureYears: 11 },
@@ -769,14 +763,7 @@ export const constructionTemplate: IndustryTemplate = {
     },
   ],
   controls: [...baseFinancialControls(), ...constructionControls],
-  staffComposition: {
-    ...DEFAULT_STAFF,
-    teamSize: 8,
-    soleOwnerKnowledgeCount: 3,
-    avgTenureYears: 7.9,
-    segregationScore: 36,
-  },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Project accountant leaves with sole pay-application knowledge",

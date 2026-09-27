@@ -1,28 +1,25 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
-import type { IndustryTemplate } from "./types";
-import {
-  baseFinancialControls,
-  baseFraudScenarios,
-  DEFAULT_FRAUD_STATS,
-  DEFAULT_STAFF,
-} from "./shared-controls";
+import type { IndustrySample } from "./types";
+import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
 
 /**
- * Client trust accounts. A law firm holds client money in a trust account (in
- * most states an IOLTA account for small or short-term balances), and the bar
- * rules follow ABA Model Rule 1.15: client money is kept separate, recorded by
- * client, and reconciled. The ABA Model Rules for Client Trust Account Records
- * call for a monthly reconciliation of the bank statement, the trust journal
- * and the client ledgers, the "three-way" reconciliation. Taking one client's
- * money and covering it with another's is the misappropriation pattern that
- * state bars discipline most severely; no rate is given for it here.
+ * Client trust funds. A firm that holds client money before it is earned
+ * (retainers, advance fees, money held for a client's costs) keeps it apart
+ * from its own, recorded by client, and reconciles it monthly: the bank
+ * statement, the trust journal and the client ledgers agree, the "three-way"
+ * reconciliation. For law firms the bar rules require exactly this (ABA Model
+ * Rule 1.15; in most states small or short-term balances sit in an IOLTA
+ * account). This sample is a consulting firm, so its controls name a partner
+ * rather than a lawyer. Taking one client's money and covering it with
+ * another's is the misappropriation pattern the reconciliation exists to
+ * catch; no rate is given for it here.
  */
 const trustControls: ControlItem[] = [
   {
     id: "c-trust-rec",
     name: "Three-way trust reconciliation",
     description:
-      "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a lawyer who did not prepare the reconciliation reviews and signs it.",
+      "Each month the trust bank balance, the trust account journal and the total of client ledger balances agree, and a partner who did not prepare the reconciliation reviews and signs it.",
     duties: ["reconciliation", "review"],
     segregated: false,
     compensatingControls: ["Managing partner reads the trust bank statement monthly"],
@@ -32,7 +29,7 @@ const trustControls: ControlItem[] = [
     id: "c-trust-disb",
     name: "Trust disbursement approval",
     description:
-      "No money leaves the trust account without a matter, enough funds in that client's ledger, and a lawyer's approval; only lawyers sign trust checks or release trust wires.",
+      "No money leaves the trust account without a matter, enough funds in that client's ledger, and a partner's approval; only partners sign trust checks or release trust wires.",
     duties: ["authorization", "custody"],
     segregated: false,
     compensatingControls: ["Bank alerts the managing partner to every trust withdrawal"],
@@ -59,14 +56,14 @@ const trustScenarios: ScenarioTemplate[] = [
     mitigations: [
       {
         id: "m-trust-1",
-        label: "A lawyer who did not prepare it signs the three-way reconciliation monthly",
+        label: "A partner who did not prepare it signs the three-way reconciliation monthly",
         effort: "low",
         riskReduction: 0.5,
         costAnnual: 0,
       },
       {
         id: "m-trust-2",
-        label: "Only lawyers approve and sign trust disbursements",
+        label: "Only partners approve and sign trust disbursements",
         effort: "low",
         riskReduction: 0.6,
         costAnnual: 0,
@@ -82,9 +79,8 @@ const trustScenarios: ScenarioTemplate[] = [
   },
 ];
 
-export const professionalServicesTemplate: IndustryTemplate = {
+export const professionalServicesTemplate: IndustrySample = {
   id: "professional_services",
-  businessName: "Northgate Advisory Group",
   people: [
     { id: "p1", name: "Dr. Elena Vargas", role: "Managing Partner", active: true, tenureYears: 14 },
     { id: "p2", name: "Maya Chen", role: "Office Manager", active: true, tenureYears: 8 },
@@ -174,7 +170,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       dependencies: [],
       controlIds: [],
       stage: 0,
-      ownerPersonIds: ["p1", "p3"],
+      ownerPersonIds: ["p1", "p3", "p2"],
       inputs: ["Signed engagement letter", "Staffing plan", "Client kickoff notes"],
       outputs: ["Approved deliverables", "Client sign-off"],
       risks: [
@@ -289,7 +285,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       id: "proc-trust",
       name: "Client trust / retainer funds",
       layer: "process",
-      description: "Segregated client funds (a law firm's IOLTA account), deposits, disbursements.",
+      description: "Client retainers held before they are earned, deposits, disbursements.",
       dependencies: [],
       controlIds: ["c-cash", "c-trust-disb"],
       stage: 1,
@@ -354,7 +350,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
       dependencies: ["proc-trust"],
       controlIds: ["c-trust-rec"],
       stage: 2,
-      ownerPersonIds: ["p6", "p1"],
+      ownerPersonIds: ["p6", "p1", "p2"],
       inputs: ["Trust bank statement", "Trust account journal", "Client ledger balances"],
       outputs: ["Signed three-way reconciliation", "Client ledger report"],
       risks: [
@@ -375,13 +371,13 @@ export const professionalServicesTemplate: IndustryTemplate = {
           kind: "compliance",
           severity: 5,
           likelihood: 2,
-          note: "Paying one client's costs with another client's money breaks the trust rules even if it is repaid; in many states the bank reports a trust overdraft to the bar.",
+          note: "Paying one client's costs with another client's money misuses client money even if it is repaid; the client whose money paid never agreed to it.",
         },
       ],
       ideas: [
         {
           id: "i-trec-1",
-          title: "A lawyer who did not prepare it signs the reconciliation",
+          title: "A partner who did not prepare it signs the reconciliation",
           category: "control",
           effort: "low",
           impact: "high",
@@ -403,7 +399,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
           id: "w-trec-1",
           kind: "muda_rework",
           label: "Reconciliation rebuilt at year end",
-          note: "Months are reconciled together when the annual certification is due, so differences are old and hard to trace.",
+          note: "Months are reconciled together at year end, so differences are old and hard to trace.",
         },
       ],
     },
@@ -651,8 +647,7 @@ export const professionalServicesTemplate: IndustryTemplate = {
     },
   ],
   controls: [...baseFinancialControls(), ...trustControls],
-  staffComposition: { ...DEFAULT_STAFF, soleOwnerKnowledgeCount: 3, segregationScore: 38 },
-  crimeFraudStats: DEFAULT_FRAUD_STATS,
+  staffComposition: SAMPLE_SAFEGUARDS,
   scenarios: [
     ...baseFraudScenarios({
       keyPersonTitle: "Billing coordinator leaves with sole WIP knowledge",
