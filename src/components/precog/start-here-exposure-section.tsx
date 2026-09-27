@@ -1,6 +1,6 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { BADGE_VARIANT, LONG_SERVICE_YEARS } from "./start-here-copy";
+import { BADGE_VARIANT } from "./start-here-copy";
 import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
 import { gapBadge } from "@/lib/precog/coach/first-steps";
 import { closingSteps } from "@/lib/precog/controls/dual-release-wording";
@@ -9,7 +9,8 @@ import { CaseCard } from "./case-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
-import type { StartHereModel } from "./use-start-here";
+import type { StartHereModel, TenureNoteModel } from "@/lib/precog/start-here/model";
+import type { NavFn } from "@/lib/precog/navigation";
 import { joinWithAnd, midSentence, verb } from "@/lib/precog/text";
 import { industryMeta } from "@/lib/precog/industry";
 
@@ -17,8 +18,8 @@ export function StartHereExposureSection({
   model,
   onOpenDetail,
 }: {
-  model: StartHereModel;
-  onOpenDetail?: (tab: string) => void;
+  model: StartHereModel["exposure"];
+  onOpenDetail: NavFn;
 }) {
   const {
     industryId,
@@ -37,9 +38,7 @@ export function StartHereExposureSection({
     placesOf,
     atPlaces,
     gapPlaces,
-    tenureByName,
-    tenureCases,
-    tenureNoteRuleId,
+    tenureNote,
     dualRelease,
   } = model;
 
@@ -64,17 +63,13 @@ export function StartHereExposureSection({
       {titleDuties && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           {titleDuties}{" "}
-          {onOpenDetail ? (
-            <button
-              type="button"
-              onClick={() => onOpenDetail("sod")}
-              className="font-medium text-primary underline underline-offset-2 hover:text-fg"
-            >
-              Check them in Who controls what.
-            </button>
-          ) : (
-            "Check them in Who controls what."
-          )}
+          <button
+            type="button"
+            onClick={() => onOpenDetail("sod")}
+            className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+          >
+            Check them in Who controls what.
+          </button>
         </p>
       )}
 
@@ -145,9 +140,7 @@ export function StartHereExposureSection({
                 <CardContent className="space-y-3 text-sm">
                   <p className="leading-relaxed text-muted">{conflict.why}</p>
 
-                  {conflict.ruleId === tenureNoteRuleId && (
-                    <TenureNote people={people} tenureByName={tenureByName} cases={tenureCases} />
-                  )}
+                  {conflict.ruleId === tenureNote?.ruleId && <TenureNote note={tenureNote} />}
 
                   {partialCoverage.has(conflict.ruleId) && (
                     <p className="rounded border border-primary/30 bg-primary/5 p-3 text-sm leading-relaxed text-muted">
@@ -221,7 +214,7 @@ export function StartHereExposureSection({
             </div>
           )}
 
-          {gaps.length > topThree.length && onOpenDetail && (
+          {gaps.length > topThree.length && (
             <button
               type="button"
               onClick={() => onOpenDetail("sod")}
@@ -277,20 +270,10 @@ export function StartHereExposureSection({
  * person holds: the longest- and shortest-serving people in the library's
  * cases whose source states tenure.
  */
-function TenureNote({
-  people,
-  tenureByName,
-  cases,
-}: {
-  people: readonly string[];
-  tenureByName: StartHereModel["tenureByName"];
-  cases: StartHereModel["tenureCases"];
-}) {
-  const longServing = people
-    .map((name) => ({ name, years: tenureByName.get(name) ?? 0 }))
-    .filter((p) => p.years >= LONG_SERVICE_YEARS);
-  const { longest, shortest, n } = cases;
-  if (longServing.length === 0 || !longest) return null;
+function TenureNote({ note }: { note: TenureNoteModel }) {
+  const { longServing } = note;
+  const { longest, shortest, n } = note.cases;
+  if (!longest) return null;
   return (
     <p className="rounded border border-border bg-elevated/50 p-3 text-sm leading-relaxed text-muted">
       {longServing.length === 1

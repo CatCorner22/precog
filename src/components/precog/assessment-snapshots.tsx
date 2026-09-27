@@ -33,6 +33,7 @@ import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
 import { localDateKey, formatDay, formatDayTime } from "@/lib/precog/dates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { buttonClass } from "@/components/ui/button-variants";
 
 export function AssessmentSnapshots() {
   const workspace = useWorkspace();
@@ -243,10 +244,7 @@ export function AssessmentSnapshots() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link
-              to="/login"
-              className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
-            >
+            <Link to="/login" className={buttonClass()}>
               Sign in
             </Link>
           </CardContent>

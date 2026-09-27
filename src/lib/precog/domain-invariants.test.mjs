@@ -196,7 +196,7 @@ describe("domain invariants", () => {
     );
     assert.match(
       memoWithEvidence,
-      /\| Verified \| Recovery \| Vendor \\\| refund \| \$500 \| Jan 1, 2026 \| AP-7 \|/,
+      /\| Verified \| Money recovered \| Vendor \\\| refund \| \$500 \| Jan 1, 2026 \| AP-7 \|/,
     );
     const reconciledHours = valueCase.applyVerifiedAnnualHours(result.inputs, 40);
     assert.equal(reconciledHours.reviewHoursAfter, 20);

@@ -5,21 +5,19 @@ import { CASE_LIBRARY, durationPhrase, DETECTION_LABEL } from "@/lib/precog/evid
 import { count } from "@/lib/precog/text";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
-import type { StartHereModel } from "./use-start-here";
+import type { StartHereModel } from "@/lib/precog/start-here/model";
 
-export function StartHereCostSection({ model }: { model: StartHereModel }) {
+export function StartHereCostSection({ model }: { model: StartHereModel["cost"] }) {
   const {
     citing,
-    evidence,
-    lossRange,
-    duration,
-    found,
+    evidenceCount,
     smallOrg,
     medianLoss,
     medianLossValue,
     medianDuration,
     delayCurve,
   } = model;
+  const { loss: lossRange, duration, detection: found } = citing;
   const comparison = caseMedianComparison(lossRange?.median, medianLoss?.numeric);
 
   return (
@@ -30,7 +28,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
         subtitle={
           citing.count > 0
             ? `Drawn from ${citing.count} prosecuted ${citing.count === 1 ? "case" : "cases"} whose records show the gaps above.`
-            : evidence.length > 0
+            : evidenceCount > 0
               ? "No prosecuted case in the library shows these exact gaps; the cases below share their schemes."
               : "No matching cases, because no gaps are open."
         }
@@ -65,6 +63,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel }) {
             value={medianLossValue ?? medianLoss.value}
             detail={medianLoss.study}
             href={medianLoss.source.url}
+            caveat={medianLoss.caveat}
           />
         )}
         {medianDuration && (

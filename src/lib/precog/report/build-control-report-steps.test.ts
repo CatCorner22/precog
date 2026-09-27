@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { INDUSTRIES } from "../industry";
 import { defaultProfile } from "../practice-profile";
-import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
-import { rankFirstSteps } from "../coach/first-steps";
-import { recommendedStepsForRules } from "../evidence";
+import { buildStartHereModel } from "../start-here/model";
 import { buildControlReportModel } from "./build-control-report";
 
 function reportFor(industry: (typeof INDUSTRIES)[number]["id"]) {
@@ -27,17 +25,11 @@ describe("control report 'Do these first'", () => {
     "%s sample: the report lists the steps in Start here's order",
     (industry) => {
       const { profile, tpl, model } = reportFor(industry);
-      // Start here's ranking (use-start-here.ts): open = not accepted and
-      // not the owner's own pair; ranked by the findings each control answers.
-      const sod = detectSodConflicts(
-        tpl,
-        profile.staff,
-        sodDetectionOptions(tpl, profile.dualRelease),
-      );
-      const open = sod.conflicts.filter((c) => !c.residualRiskAccepted && !c.ownerHeld);
-      const ruleIds = [...new Set(open.map((c) => c.ruleId))];
-      const stillOpen = open.filter((c) => !c.dualReleaseMitigated);
-      const startHere = rankFirstSteps(recommendedStepsForRules(ruleIds), stillOpen).slice(0, 6);
+      const startHere = buildStartHereModel({
+        profile,
+        template: tpl,
+        today: new Date(2026, 8, 26),
+      }).firstSteps.steps.slice(0, 6);
 
       expect(model.steps.map((s) => s.control.id)).toEqual(startHere.map((s) => s.control.id));
     },

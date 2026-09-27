@@ -104,7 +104,7 @@ describe("createValueCaseMemo", () => {
     );
     expect(memo).toContain("| Status | Type | Observation | Amount | Observed | Source |");
     expect(memo).toContain(
-      "| Verified | Recovery | Duplicate supplier payment recovered | $2,400 | Aug 1, 2026 | AP credit memo 118 |",
+      "| Verified | Money recovered | Duplicate supplier payment recovered | $2,400 | Aug 1, 2026 | AP credit memo 118 |",
     );
     expect(memo).toContain("- Documented recoveries: $500");
     expect(memo).toContain(

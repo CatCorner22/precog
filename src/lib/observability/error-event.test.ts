@@ -53,7 +53,7 @@ describe("error event scrubbing", () => {
     const jwt =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
     expect(scrubText(`token ${jwt} expired`, 500)).toBe("token [token] expired");
-    // Share tokens are 36 hex characters (builder/share-server.ts makeToken).
+    // Share tokens are 36 hex characters (share/share-server.ts, randomHex(18)).
     expect(scrubText("share 0f1e2d3c4b5a69788796a5b4c3d2e1f0a1b2 gone", 500)).toBe(
       "share [token] gone",
     );
