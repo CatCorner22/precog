@@ -44,6 +44,11 @@ const SCENARIO_KINDS: Record<string, ScenarioKind> = {
   "sc-change-order-kickback": FRAUD,
   "sc-material-theft": FRAUD,
   "sc-field-time-padding": FRAUD,
+  // Automotive
+  "sc-ro-cash-skim": CASH_FRAUD,
+  "sc-wire-je-cover": CASH_FRAUD,
+  "sc-parts-resale": FRAUD,
+  "sc-deal-fee-skim": FRAUD,
   // Nonprofit
   "sc-skimmed-donations": CASH_FRAUD,
   "sc-restricted-diverted": FRAUD,

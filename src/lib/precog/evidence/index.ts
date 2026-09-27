@@ -324,6 +324,7 @@ export const SECTOR_LABEL: Record<IndustrySector, string> = {
   veterinary: "Veterinary practice",
   restaurant: "Restaurant",
   construction: "Construction",
+  automotive: "Auto dealership",
   "professional-services": "Professional services",
   retail: "Retail",
   nonprofit: "Nonprofit",
@@ -378,6 +379,11 @@ export function sectorsForIndustry(industryId: string): IndustrySector[] {
     // and subcontractor and supplier payments.
     case "construction":
       return ["construction", "trades"];
+    // A dealership's office, service counter and parts room are one line of
+    // business with an independent repair shop's: same repair orders, same
+    // parts desk, same DMS.
+    case "automotive":
+      return ["automotive"];
     case "nonprofit":
       return ["nonprofit"];
     default:
@@ -575,6 +581,7 @@ const SECTOR_PHRASE: Record<IndustrySector, string> = {
   veterinary: "at a veterinary practice",
   restaurant: "at a restaurant",
   construction: "at a construction business",
+  automotive: "at an auto dealership or repair shop",
   "professional-services": "at a professional-services firm",
   retail: "at a retail business",
   nonprofit: "at a nonprofit",

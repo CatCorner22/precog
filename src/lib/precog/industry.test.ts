@@ -17,6 +17,7 @@ describe("pluralTeamLabel", () => {
       professional_services: "firms",
       restaurant: "restaurants",
       construction: "companies",
+      automotive: "shops",
       nonprofit: "organizations",
       general: "businesses",
     });

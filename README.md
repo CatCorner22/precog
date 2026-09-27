@@ -2,7 +2,7 @@
 
 **Internal controls and residual risk management for small businesses** — segregation-of-duties detection, a library of prosecuted cases showing what each gap has cost real businesses, knowledge continuity maps, scenario modeling, and an AI advisor grounded in your business profile and that case library.
 
-Built for owner-operated teams (2–50 people): dental and medical offices, retail, professional services, restaurants, construction, nonprofits, and general small business.
+Built for owner-operated teams (2–50 people): dental and medical offices, retail, professional services, restaurants, construction, auto dealerships and repair shops, nonprofits, and general small business.
 
 | Module               | Path                          | Role                                                                                                           |
 | -------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -308,13 +308,14 @@ Share links can hide people's names while keeping roles, optionally require a pa
 
 ## Demo data
 
-Seven industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
+Eight industry templates ship with demo processes, people, knowledge graphs, controls, and scenarios:
 
 - **Dental** — Ridgeview Family Dental (default)
 - **Retail** — Harbor Lane Boutique
 - **Restaurant** — Ember & Oak Kitchen
 - **Professional services** — Northgate Advisory Group
 - **Construction** — Summit Ridge Builders
+- **Auto dealership / repair shop** — Millbrook Auto & Service
 - **Nonprofit** — Riverbend Community Alliance
 - **General SMB** — Main Street Business Co.
 

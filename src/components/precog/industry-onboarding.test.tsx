@@ -30,7 +30,7 @@ describe("IndustryOnboarding, first render", () => {
     const { html, text } = firstRender("");
     expect(text).toContain("Which line of business is this?");
     expect(html).toContain('role="radiogroup" aria-labelledby="industry-onboarding-title"');
-    expect(html.match(/role="radio"/g)).toHaveLength(7);
+    expect(html.match(/role="radio"/g)).toHaveLength(8);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
     expect(text).toContain("Explore the sample instead");
     expect(text).not.toMatch(/\bdemo\b/i);

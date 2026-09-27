@@ -23,6 +23,8 @@ export type IndustrySector =
   | "retail"
   | "nonprofit"
   | "trades"
+  /** Auto dealerships and repair shops: service cash, parts, deals and title work. */
+  | "automotive"
   | "any";
 
 /**

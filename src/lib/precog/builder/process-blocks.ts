@@ -99,7 +99,7 @@ const PROCESS_BLOCKS: ProcessBlock[] = [
     name: "Cash collection & deposit",
     description: "Front-line cash handling with daily deposit and dual count.",
     category: "cash",
-    industries: ["dental", "retail", "restaurant", "nonprofit"],
+    industries: ["dental", "retail", "restaurant", "nonprofit", "automotive"],
     template: {
       name: "Cash collection",
       layer: "process",
@@ -188,7 +188,7 @@ const PROCESS_BLOCKS: ProcessBlock[] = [
     name: "Inventory cycle count",
     description: "Periodic count independent of purchasing and receiving.",
     category: "ops",
-    industries: ["retail", "restaurant", "construction"],
+    industries: ["retail", "restaurant", "construction", "automotive"],
     template: {
       name: "Inventory count",
       layer: "process",

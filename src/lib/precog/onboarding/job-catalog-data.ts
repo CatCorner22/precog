@@ -2560,7 +2560,14 @@ export const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
     dental: "office-manager",
     professional_services: "firm-administrator",
   },
-  "business manager": { dental: "office-manager" },
+  // In a dealership the "business manager" is the F&I office, the "advisor"
+  // writes repair orders, and the "controller" is the office manager who runs
+  // the DMS accounting rather than a finance department.
+  "business manager": { dental: "office-manager", automotive: "fi-manager" },
+  advisor: { automotive: "service-advisor" },
+  "service director": { automotive: "service-manager" },
+  "fixed operations director": { automotive: "service-manager" },
+  "fixed ops director": { automotive: "service-manager" },
   "business office manager": { dental: "billing-manager" },
   "care coordinator": { dental: "treatment-coordinator" },
   "case coordinator": { dental: "treatment-coordinator" },
@@ -2589,7 +2596,8 @@ export const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
  * than recording customer payments. In a law or accounting firm the front
  * desk takes payments and billing records them. A contractor's project
  * manager approves subcontractor bills; a nonprofit's development office
- * records the gifts it receives.
+ * records the gifts it receives; a dealership's office manager runs the DMS
+ * accounting.
  */
 export const INDUSTRY_SEATS: Record<
   string,
@@ -2603,6 +2611,12 @@ export const INDUSTRY_SEATS: Record<
   construction: { "project-manager": { add: ["approve_invoices", "order_supplies"] } },
   // Development enters the gifts it receives in the donor database.
   nonprofit: { "development-director": { add: ["post_payments"] } },
+  // A dealership's office manager runs the DMS accounting: the schedules,
+  // the journal entries and the bank reconciliation, as in the Granger and
+  // Burlington cases.
+  automotive: {
+    "office-manager": { add: ["bank_reconcile", "post_journal_entries", "pms_admin_roles"] },
+  },
 };
 
 const BY_ID = new Map(JOB_CATALOG.map((e) => [e.id, e]));

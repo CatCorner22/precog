@@ -11,6 +11,7 @@ import {
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
   Briefcase,
+  Car,
   ChefHat,
   Building2,
   HardHat,
@@ -26,6 +27,7 @@ export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   professional_services: Briefcase,
   restaurant: ChefHat,
   construction: HardHat,
+  automotive: Car,
   nonprofit: HeartHandshake,
   general: Building2,
 };

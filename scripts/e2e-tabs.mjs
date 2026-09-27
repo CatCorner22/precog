@@ -21,6 +21,7 @@ const INDUSTRIES = [
   "Professional",
   "Restaurant",
   "Construction",
+  "Auto",
   "Nonprofit",
   "General",
 ];

@@ -8,6 +8,8 @@ const INDUSTRY_RAG_QUERIES: Record<IndustryId, string> = {
   professional_services: "professional services trust account billing write-offs segregation AP",
   construction:
     "construction subcontractor lien waiver change order job cost field payroll materials fraud",
+  automotive:
+    "auto dealership repair shop repair order cash skimming parts inventory warranty claims title fees journal entries",
   nonprofit: "nonprofit donations restricted funds grants board treasurer credit card vendor fraud",
   general: "small business embezzlement bank reconciliation vendor fraud AP controls",
 };
