@@ -637,8 +637,7 @@ export function IndustryOnboarding() {
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                The sample is a fictional team; every finding on it says so until you enter your
-                own.
+                The sample is a fictional team; every gap on it says so until you enter your own.
               </p>
               {cancelLink}
             </CardContent>
@@ -1023,8 +1022,8 @@ export function IndustryOnboarding() {
                   </summary>
                   <div className="mt-2 space-y-2">
                     <p className="text-xs text-muted">
-                      Paste the worker list as exported, header row included, or one person per line
-                      as <span className="font-mono">Name, Job title</span>. Job titles such as
+                      Paste the roster as exported, header row included, or one person per line as{" "}
+                      <span className="font-mono">Name, Job title</span>. Job titles such as
                       Bookkeeper, Office Manager, AP Specialist, or Cashier are read from a catalog
                       of common jobs and their usual duties are ticked. People already in the table
                       are updated, not added twice. People marked inactive are left out.
@@ -1145,7 +1144,7 @@ export function IndustryOnboarding() {
                   onClick={finish}
                   disabled={namedRows.length === 0}
                 >
-                  Show me my findings
+                  Show me my gaps
                 </Button>
                 <Button className="w-full" variant="secondary" onClick={() => setStep("industry")}>
                   Back

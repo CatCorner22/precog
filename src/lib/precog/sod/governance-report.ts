@@ -31,7 +31,7 @@ export function createGovernanceReport(
     `- Continuity resilience: **${coverage.resilienceScore}/100**`,
     `- Open conflicts: **${open}** (${summary.critical} critical, ${summary.high} high)`,
     ...(summary.ownerHeld
-      ? [`- Pairs the owner holds (not theft findings): **${summary.ownerHeld}**`]
+      ? [`- Pairs the owner holds (not theft risks): **${summary.ownerHeld}**`]
       : []),
     ...(summary.dualReleaseMitigated
       ? [`- Pairs a dual-release rule narrows: **${summary.dualReleaseMitigated}**`]
@@ -63,7 +63,7 @@ export function createGovernanceReport(
       ? []
       : ["- Every high-risk duty has a holder and a backup."]),
     "",
-    "## Responsibility charters",
+    "## Duty charters",
     "",
   ];
 

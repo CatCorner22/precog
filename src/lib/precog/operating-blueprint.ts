@@ -242,7 +242,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
         "Admin rights held by as few people as possible",
       ],
       leading: [
-        "Quarterly access review against the duty map",
+        "Quarterly access review against the Duty map",
         "Audit log review for sensitive changes",
       ],
       optimal: ["Automated access reconciliation from exports", "Alerts on admin role changes"],

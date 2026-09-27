@@ -78,7 +78,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
           <div>
             <CardTitle className="flex items-center gap-2">
               <Network className="size-4" />
-              Power, duty & responsibility map
+              Duty map
             </CardTitle>
             <CardDescription>
               Each line joins a person to a duty they hold. A red moving line is a duty in a
@@ -92,7 +92,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               onClick={() => setConflictsOnly((value) => !value)}
             >
               <AlertTriangle className="size-3.5" />
-              {conflictsOnly ? "Showing conflicts" : "Focus conflicts"}
+              {conflictsOnly ? "Showing duty conflicts" : "Focus on duty conflicts"}
             </Button>
             <div className="inline-flex rounded-lg border border-border bg-elevated p-0.5">
               <button
@@ -268,13 +268,13 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             <CardTitle className="text-base">Assignment builder</CardTitle>
             <CardDescription>
               Pick a person, then add or remove duties. Each change updates this business&apos;s
-              duty map on every tab and is saved. Undo reverses one step; Discard in Change review
+              Duty map on every tab and is saved. Undo reverses one step; Discard in Change review
               returns to the baseline you accepted. No login or system permission changes.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <label className="block text-sm">
-              <span className="text-muted">Staff member / modeled job</span>
+              <span className="text-muted">Person or job title</span>
               <select
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}

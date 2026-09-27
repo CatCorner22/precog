@@ -33,7 +33,7 @@ export function SodRolesSection({ model }: { model: SodPanelModel }) {
                 </div>
                 <div className="flex gap-1">
                   <Badge variant={mine.length > 0 ? "danger" : "ok"}>
-                    {count(mine.length, "conflict")}
+                    {count(mine.length, "duty conflict")}
                   </Badge>
                   {narrowed > 0 && <Badge variant="ok">{narrowed} narrowed by dual release</Badge>}
                 </div>

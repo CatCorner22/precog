@@ -108,5 +108,5 @@ function cellDescription(
   if (status !== "conflict")
     return `${entitlementLabel(row)} and ${entitlementLabel(col)}: compatible`;
   const level = SEVERITY_FILTERS.find((item) => item.id === severity)?.label ?? "Conflict";
-  return `${entitlementLabel(row)} and ${entitlementLabel(col)}: conflict, ${level.toLowerCase()}`;
+  return `${entitlementLabel(row)} and ${entitlementLabel(col)}: duty conflict, ${level.toLowerCase()}`;
 }

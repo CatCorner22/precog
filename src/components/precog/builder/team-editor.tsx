@@ -332,7 +332,7 @@ export function TeamEditor({
       {showPaste && (
         <div className="space-y-1.5 rounded-md border border-border bg-elevated px-2 py-1.5">
           <p className="text-xs text-muted">
-            Paste a worker export from Workday, SAP SuccessFactors, Oracle HCM, or your payroll
+            Paste a roster exported from Workday, SAP SuccessFactors, Oracle HCM, or your payroll
             provider (header row included), or one person per line as{" "}
             <span className="font-mono">Name, Title</span>. Common titles get their usual duties
             from the catalog; check each person afterwards.
@@ -549,7 +549,7 @@ export function TeamEditor({
         </>
       )}
       <Button size="sm" variant="secondary" onClick={add} disabled={!canAdd}>
-        <Plus className="size-3.5" /> Add team member
+        <Plus className="size-3.5" /> Add a person
       </Button>
     </div>
   );

@@ -5,7 +5,7 @@ import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { usePractice } from "@/lib/precog/practice-context";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
-import { industryMeta } from "@/lib/precog/industry";
+import { industryNoun } from "@/lib/precog/industry";
 import { cn, formatUsd } from "@/lib/utils";
 import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
@@ -32,7 +32,7 @@ export function ThreatAssessmentPanel() {
   // until a business is set up.
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
-  const teamLabel = industryMeta(profile.industry).teamLabel;
+  const teamLabel = industryNoun(profile.industry);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const report = useMemo(

@@ -92,7 +92,7 @@ export function evidenceChecklist({
       done: hoursObserved || verifiedOf(["time"]) > 0,
     },
     {
-      label: "Closed findings and recoveries linked to evidence",
+      label: "Closed gaps and recoveries linked to evidence",
       done: verifiedOf(["recovery", "control"]) > 0,
     },
     {

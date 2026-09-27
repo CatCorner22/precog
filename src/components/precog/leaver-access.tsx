@@ -16,7 +16,7 @@ import { joinWithAnd } from "@/lib/precog/text";
 import { formatDay } from "@/lib/precog/dates";
 
 const WHY =
-  "A former employee whose login, card or PIN still works can move money or copy customer records after they leave. Checking each one takes a few minutes.";
+  "Someone who has left but whose login, card or PIN still works can move money or copy customer records. Checking each one takes a few minutes.";
 
 /** The logins and pay to check for someone who has left, ticked one by one before confirming. */
 function AccessChecklist({

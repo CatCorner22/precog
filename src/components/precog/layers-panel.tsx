@@ -294,7 +294,7 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
       </label>
       <p className="text-xs text-subtle">
         It goes in your {tabName("journal")} with a review date in 90 days. It lowers these
-        findings&apos; scores a little but does not close them: one person still holds both duties.
+        gaps&apos; scores a little but does not close them: one person still holds both duties.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={!trimmed}>

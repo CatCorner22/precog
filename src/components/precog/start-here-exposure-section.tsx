@@ -11,8 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 import type { StartHereModel, TenureNoteModel } from "@/lib/precog/start-here/model";
 import type { NavFn } from "@/lib/precog/navigation";
-import { joinWithAnd, midSentence, verb } from "@/lib/precog/text";
-import { industryMeta } from "@/lib/precog/industry";
+import { count, joinWithAnd, midSentence, verb } from "@/lib/precog/text";
+import { industryNoun } from "@/lib/precog/industry";
 import { useTabName } from "@/lib/precog/presentation";
 
 export function StartHereExposureSection({
@@ -52,7 +52,7 @@ export function StartHereExposureSection({
         subtitle={
           gaps.length === 0
             ? "Nothing open right now."
-            : `${gaps.length} distinct ${gaps.length === 1 ? "gap" : "gaps"} across ${openConflicts.length} ${openConflicts.length === 1 ? "finding" : "findings"}, worst first.` +
+            : `${count(gaps.length, "gap")} across ${count(openConflicts.length, "duty conflict")}, worst first.` +
               (narrowedCount > 0
                 ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
                 : "") +
@@ -78,9 +78,9 @@ export function StartHereExposureSection({
       {unheld.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
-          {verb(unheld.length, "this", "each of these")} in every{" "}
-          {industryMeta(industryId).teamLabel} that handles money, so mark who on Who controls what;
-          until then the findings cannot cover {verb(unheld.length, "that duty", "those duties")}.
+          {verb(unheld.length, "this", "each of these")} in every {industryNoun(industryId)} that
+          handles money, so mark who on {tabName("sod")}; until then this check cannot cover{" "}
+          {verb(unheld.length, "that duty", "those duties")}.
         </p>
       )}
 

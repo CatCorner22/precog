@@ -49,7 +49,7 @@ export const WARNING_RULES = {
 
 /** The warning when nothing crosses a threshold; the critic lens says the same. */
 export const NO_ALERT_WARNING =
-  "Nothing is at a red alert; check again after a staff or insurance change.";
+  "Nothing is at a red alert; check again after a team or insurance change.";
 
 export function fingerprintFromTools(tools: ToolResult[]): string {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
@@ -528,7 +528,7 @@ export function localSynthesize(
           ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
           : "") +
         (largest ? `. Largest: "${largest.title}" (${lossPhrase(largest)}).` : ".") +
-        " Other organizations, not this one; see Start here for the sources.",
+        " Other businesses, not this one; see Start here for the sources.",
     );
   }
 
@@ -738,7 +738,7 @@ export function localSynthesize(
   const registerStartDecision = (itemCount: number): PioneerDecision => ({
     action:
       itemCount === 0
-        ? "List the duties, tasks and know-how the business runs on"
+        ? "List the duties and know-how the business runs on"
         : `Mark who can do each of the ${itemCount} things the business runs on`,
     rationale:
       itemCount === 0

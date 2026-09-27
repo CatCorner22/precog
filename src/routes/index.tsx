@@ -247,7 +247,7 @@ function Home() {
                     <CountBadge
                       n={critical}
                       tone="danger"
-                      text={count(critical, "critical conflict")}
+                      text={count(critical, "critical duty conflict")}
                     />
                   )}
                 </button>
@@ -411,7 +411,7 @@ const TAB_INTROS = {
     heading: "Residual risk radar",
     plain:
       "Which risks remain after the controls you have today, scored from your business profile.",
-    tactical: "Transparent scoring from practice profile.",
+    tactical: "Transparent scoring from the business profile.",
   },
   coso: {
     heading: "COSO control system",
@@ -428,9 +428,9 @@ const TAB_INTROS = {
   knowledge: {
     heading: "Continuity of operations",
     plain:
-      "List the duties, tasks and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
+      "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
     tactical:
-      "List the duties, tasks and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
+      "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
   },
   precog: {
     heading: "Precog scenario engine",

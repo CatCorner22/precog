@@ -197,7 +197,7 @@ describe("local brief before the register is assessed", () => {
 
       expect(actions).toContain(
         knowledge === 0
-          ? "List the duties, tasks and know-how the business runs on"
+          ? "List the duties and know-how the business runs on"
           : `Mark who can do each of the ${knowledge} things the business runs on`,
       );
       expect(actions.some((a) => /cross-train/i.test(a))).toBe(false);

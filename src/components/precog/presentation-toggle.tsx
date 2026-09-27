@@ -5,12 +5,12 @@ const OPTIONS: { mode: PresentationMode; label: string; title: string }[] = [
   {
     mode: "plain",
     label: "Plain",
-    title: "Plain business language. Same findings, same numbers.",
+    title: "Plain business language. Same gaps, same numbers.",
   },
   {
     mode: "tactical",
     label: "Tactical",
-    title: "Threat-operations naming and styling. Same findings, same numbers.",
+    title: "Threat-operations naming and styling. Same gaps, same numbers.",
   },
 ];
 

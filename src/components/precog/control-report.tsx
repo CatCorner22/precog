@@ -183,7 +183,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           <Kpi
             label="SoD health"
             value={String(sod.summary.segregationHealth)}
-            hint={count(sod.summary.critical, "critical conflict")}
+            hint={count(sod.summary.critical, "critical duty conflict")}
           />
           <Kpi label="COSO" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>

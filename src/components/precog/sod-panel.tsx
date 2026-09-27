@@ -90,12 +90,12 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       {titleDuties && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           <p>
-            {titleDuties} Check them in the power map: {joinWithAnd(titleDutyNames, 6)}.
+            {titleDuties} Check them in the Duty map: {joinWithAnd(titleDutyNames, 6)}.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setView("power")}>
               <Network className="size-3.5" aria-hidden />
-              Open the power map
+              Open the Duty map
             </Button>
             <Button size="sm" variant="secondary" onClick={model.confirmTitleGuesses}>
               I checked them: they are right
@@ -134,10 +134,10 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
 function ViewSwitcher({ model }: { model: SodPanelModel }) {
   const { view, setView, report } = model;
   const views: { id: SodView; label: string; icon: LucideIcon }[] = [
-    { id: "power", label: "Power map", icon: Network },
+    { id: "power", label: "Duty map", icon: Network },
     { id: "dual", label: "Dual release", icon: ShieldCheck },
-    { id: "conflicts", label: `Conflicts (${report.conflicts.length})`, icon: AlertTriangle },
-    { id: "matrix", label: "Conflict matrix", icon: Grid3x3 },
+    { id: "conflicts", label: `Duty conflicts (${report.conflicts.length})`, icon: AlertTriangle },
+    { id: "matrix", label: "Duty conflict matrix", icon: Grid3x3 },
     { id: "roles", label: "Duties by person", icon: Users },
   ];
   return (

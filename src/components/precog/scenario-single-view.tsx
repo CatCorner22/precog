@@ -9,7 +9,7 @@ import {
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
 import { confirmedScenarioIds, starterScenarioLabel } from "@/lib/precog/scoring/scope";
-import { industryMeta } from "@/lib/precog/industry";
+import { industryNoun } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
@@ -72,7 +72,7 @@ export function SingleScenarioView({
   const noPolicy = insuranceBasis(riskVariables, ownBusiness) === "none";
   const policyNote = insuranceFigureNote(riskVariables, ownBusiness, scenario.id);
   const withPolicyNote = (text: string) => (policyNote ? `${text} · ${policyNote}` : text);
-  const teamLabel = industryMeta(profile.industry).teamLabel;
+  const teamLabel = industryNoun(profile.industry);
   const dynamic = result.dynamic;
 
   return (
@@ -273,7 +273,7 @@ export function SingleScenarioView({
 
       <Card>
         <CardHeader>
-          <CardTitle>Mitigations</CardTitle>
+          <CardTitle>Controls</CardTitle>
           <CardDescription>
             Costs and reductions are this scenario&rsquo;s assumptions, not quotes.
           </CardDescription>
@@ -315,7 +315,7 @@ export function SingleScenarioView({
           </p>
           <div className="mt-4">
             <Button variant="secondary" size="sm" onClick={onClearMitigations}>
-              Clear mitigations
+              Clear controls
             </Button>
           </div>
         </CardContent>
@@ -345,7 +345,7 @@ function RealCasesCard({ cases }: { cases: ScenarioCases }) {
             ? ` ${count(related, "more case")} ${verb(related, "shows", "show")} a related scheme and ${verb(related, "is", "are")} not counted.`
             : ""}{" "}
           The assumed figures below are not drawn from these cases; the cases are what the same
-          failure cost other organizations.
+          failure cost other businesses.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

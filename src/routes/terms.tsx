@@ -28,7 +28,7 @@ function TermsPage() {
           Precog helps an owner or advisor describe who holds which duties, which combinations
           conflict, and what a monthly review should check. Scores are this application’s own
           indexes. Scenario figures are assumptions. Case amounts are losses stated in public
-          sources about other organizations. None of these is a measurement of your business, a
+          sources about other businesses. None of these is a measurement of your business, a
           forecast, or an insurance quote.
         </p>
         <p>
@@ -45,7 +45,7 @@ function TermsPage() {
         </p>
         <p>
           The firm workspace records a pilot offer (a fixed assessment that can convert to a monthly
-          firm plan), time to a complete map, how many findings received a decision, and whether a
+          firm plan), time to a complete map, how many gaps received a decision, and whether a
           report was marked sent. A firm can pay for the assessment or the firm plan through
           Stripe’s checkout. Stripe takes the card; Precog never sees a card number. An invoice you
           mark by hand is your own record.

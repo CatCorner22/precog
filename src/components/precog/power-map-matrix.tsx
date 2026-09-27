@@ -35,8 +35,8 @@ export function ResponsibilityMatrix({
     <div className="max-h-[720px] overflow-auto rounded-xl border border-border bg-bg">
       <table className="min-w-max border-separate border-spacing-0 text-xs">
         <caption className="sr-only">
-          Responsibility assignment matrix. Rows are duties and columns are people. Select a cell to
-          add or remove an assignment.
+          Duty assignment matrix. Rows are duties and columns are people. Select a cell to add or
+          remove an assignment.
         </caption>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr>
@@ -44,7 +44,7 @@ export function ResponsibilityMatrix({
               scope="col"
               className="sticky left-0 z-30 min-w-64 border-b border-r border-border bg-surface p-3 text-left"
             >
-              Power / duty
+              Duty
             </th>
             {shownPeople.map((person) => (
               <th
@@ -87,7 +87,7 @@ export function ResponsibilityMatrix({
                   <td key={person.personId} className="border-b border-border p-1 text-center">
                     <button
                       type="button"
-                      aria-label={`${active ? "Remove" : "Assign"} ${duty.label} ${active ? "from" : "to"} ${person.personName}${conflict ? "; participates in a conflict" : ""}`}
+                      aria-label={`${active ? "Remove" : "Assign"} ${duty.label} ${active ? "from" : "to"} ${person.personName}${conflict ? "; part of a duty conflict" : ""}`}
                       aria-pressed={active}
                       onClick={() => onToggle(person.personId, duty.id)}
                       className={cn(
@@ -98,7 +98,7 @@ export function ResponsibilityMatrix({
                             ? "border-primary/50 bg-primary/15 text-primary"
                             : "border-border text-transparent hover:border-primary/40 hover:text-subtle",
                       )}
-                      title={`${person.personName} · ${duty.label}${conflict ? " · conflict" : ""}`}
+                      title={`${person.personName} · ${duty.label}${conflict ? " · duty conflict" : ""}`}
                     >
                       {conflict ? "!" : active ? "✓" : "+"}
                     </button>

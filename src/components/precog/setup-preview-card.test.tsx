@@ -20,7 +20,7 @@ describe("SetupPreviewCard", () => {
     expect(html).not.toContain("aria-live");
     expect(html).not.toContain("Updating provisional findings");
     const live = html.match(/<p class="sr-only" role="status">([^<]*)<\/p>/);
-    expect(live?.[1]).toMatch(/^Provisional first finding: Ben Cole holds both /);
+    expect(live?.[1]).toMatch(/^Provisional first duty conflict: Ben Cole holds both /);
     expect(html).toContain('aria-busy="false"');
     expect(html).not.toContain("at a any business");
   });

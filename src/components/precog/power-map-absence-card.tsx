@@ -55,7 +55,8 @@ export function PowerMapAbsenceCard({ model }: { model: PowerMapBuilderModel }) 
           </div>
         ) : (
           <div className="flex min-h-20 items-center rounded-xl border border-dashed border-border px-4 text-sm text-subtle">
-            Choose any employee, owner, or contractor to run a no-change continuity simulation.
+            Choose anyone on the team, including the owner or a contractor, to run a no-change
+            continuity simulation.
           </div>
         )}
       </CardContent>

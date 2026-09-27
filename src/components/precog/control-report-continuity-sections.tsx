@@ -77,7 +77,7 @@ export function ControlReportContinuitySections({
           <p className="text-sm text-neutral-700">
             Not assessed yet.{" "}
             {knowledgeCount === 0
-              ? "The register is empty: the business has not yet listed the duties, tasks and know-how it runs on."
+              ? "The register is empty: the business has not yet listed the duties and know-how it runs on."
               : `The register holds ${knowledgeCount} starter items from the ${industryLabel.toLowerCase()} example with nobody marked on any of them, so no continuity figure is reported.`}
           </p>
         ) : (

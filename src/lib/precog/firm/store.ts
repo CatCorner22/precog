@@ -300,7 +300,7 @@ export async function acceptInvite(sql: Sql, token: string, userId: string): Pro
     }
     if (invite.firm_user_id === userId) {
       throw new FirmMembershipError(
-        "You own this firm, so this invitation is not for you. Send the link to the colleague it names.",
+        "You own this firm, so this invitation is not for you. Send the link to the firm member it names.",
       );
     }
     const current = await loadFirmFor(tx, userId);

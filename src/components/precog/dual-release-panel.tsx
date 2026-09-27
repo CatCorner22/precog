@@ -51,7 +51,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
           </Button>
           {onOpenSod && (
             <Button size="sm" variant="outline" onClick={onOpenSod}>
-              See the conflicts this narrows
+              See the duty conflicts this narrows
             </Button>
           )}
         </div>

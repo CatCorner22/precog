@@ -217,7 +217,7 @@ function FuturesPicker({
         </div>
         <div>
           <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
-            Combine mitigations into one extra option
+            Combine controls into one extra option
           </p>
           <div className="flex flex-wrap gap-2">
             {focus.mitigations.map((m) => {
@@ -257,7 +257,7 @@ function CrossPicker({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Scenarios to compare (up to {MAX_CROSS})</CardTitle>
         <CardDescription>
-          Every column uses the same staffing and insurance; add mitigations to any scenario.
+          Every column uses the same staffing and insurance; add controls to any scenario.
           {full ? ` Untick one to compare another.` : ""}
         </CardDescription>
       </CardHeader>

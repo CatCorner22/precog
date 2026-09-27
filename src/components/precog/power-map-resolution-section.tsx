@@ -51,9 +51,7 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
       {selected && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              Responsibility charter · {selected.personName}
-            </CardTitle>
+            <CardTitle className="text-base">Duty charter · {selected.personName}</CardTitle>
             <CardDescription>
               A review-ready definition of each assigned power, its expected evidence, and its
               boundary.

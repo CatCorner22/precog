@@ -121,8 +121,8 @@ export function PlannerRegisterBanners({
             Starter list from the {industryMeta(industry).label.toLowerCase()} example
           </p>
           <p className="mt-1 leading-relaxed text-muted">
-            These {tpl.knowledge.length} duties, tasks and pieces of know-how are what a business
-            like yours usually runs on. Mark who can do each, edit or delete what does not apply, or
+            These {tpl.knowledge.length} duties and pieces of know-how are what a business like
+            yours usually runs on. Mark who can do each, edit or delete what does not apply, or
             start from a blank list. The figures above stay blank until someone is marked.
           </p>
           <Button size="sm" variant="secondary" className="mt-3" onClick={register.clearStarter}>
@@ -132,8 +132,8 @@ export function PlannerRegisterBanners({
       )}
       {registerFrom === "own" && tpl.knowledge.length === 0 && (
         <div className="rounded-lg border border-border bg-panel/60 p-4 text-sm text-muted">
-          Your register is empty. Add the duties, tasks and know-how the business runs on below, or
-          import a spreadsheet, then mark who can do each.
+          Your register is empty. Add the duties and know-how the business runs on below, or import
+          a spreadsheet, then mark who can do each.
         </div>
       )}
     </>

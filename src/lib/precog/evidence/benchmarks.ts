@@ -157,10 +157,10 @@ export const BENCHMARK_BY_ID: Record<string, Benchmark> = Object.fromEntries(
  * limits is what separates a decision aid from a scare tactic.
  */
 export const METHOD_CAVEATS: string[] = [
-  "These figures describe what happened to other organizations. They are a reference class, not a prediction about yours.",
+  "These figures describe what happened to other businesses. They are a reference class, not a prediction about yours.",
   "The published medians cover cases that were detected and investigated. Schemes that were never found cannot be in the data, so real frequency runs higher than any study can measure.",
   "Loss figures are medians, not averages. Half of cases cost more. The distribution has a long tail.",
-  "Nothing here scores a person. Every finding in this application describes a structural gap in how work is divided, which is a fact about the organization chart and not about anyone's character.",
+  "Nothing here scores a person. Every gap this application shows is a structural weakness in how work is divided, which is a fact about the organization chart and not about anyone's character.",
   "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; at least one case in this library was carried out with co-conspirators.",
   "This is decision support for prioritizing internal controls. It is not an audit, an actuarial estimate, or legal advice.",
 ];

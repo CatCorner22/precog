@@ -27,7 +27,7 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div>
-          <CardTitle className="text-base">Internal control action catalog</CardTitle>
+          <CardTitle className="text-base">Controls for each duty</CardTitle>
           <CardDescription>
             Controls for every duty shown: ones that set the rule, prevent, detect, and correct.
             Choose the controls your team can run and write down which you chose. No control
@@ -48,8 +48,8 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
           <div className="max-h-[760px] overflow-auto rounded-xl border border-border">
             <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
               <caption className="sr-only">
-                Internal control measures for each duty, organized by directive, preventive,
-                detective, and corrective category.
+                Controls for each duty, organized by directive, preventive, detective, and
+                corrective category.
               </caption>
               <thead className="sticky top-0 z-20 bg-surface">
                 <tr>
@@ -57,7 +57,7 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
                     scope="col"
                     className="sticky left-0 z-30 w-64 border-b border-r border-border bg-surface p-3 text-left"
                   >
-                    Power / duty
+                    Duty
                   </th>
                   {categories.map((category) => (
                     <th

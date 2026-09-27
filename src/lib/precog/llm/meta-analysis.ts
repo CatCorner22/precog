@@ -186,7 +186,7 @@ function inventoryItems(
     {
       id: "kk-staff-composition",
       classification: "known_known",
-      title: "Staff size, tenure, segregation score",
+      title: "Team size, tenure, segregation score",
       description:
         "Team size and the owner's own rating of how duties are split are recorded and feed the residual index, the scenarios and the duty-conflict check.",
       severity: "low",
@@ -254,7 +254,7 @@ function inventoryItems(
       classification: "unknown_known",
       title: "Owner's tacit 'who I trust' map",
       description:
-        "Owners often know which employee they wouldn't leave alone with the deposit; that judgment rarely reaches the register.",
+        "Owners often know which person they wouldn't leave alone with the deposit; that judgment rarely reaches the register.",
       severity: "medium",
       affects: ["knowledge", "sod"],
       confidenceDrag: 0.05,
@@ -344,8 +344,7 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
       label: "Business profile → residual re-score",
       ready: true,
       latencyClass: "instant",
-      description:
-        "Staff and variable sliders recompute the residual index and leading indicators.",
+      description: "Team and variable sliders recompute the residual index and leading indicators.",
       dependency: "local state",
     },
     {
@@ -456,7 +455,7 @@ function recommendationsFor(
     topGap ? `Close the top known gap: ${topGap.title}.` : "",
     topOutside ? `Look into the top area outside the model: ${topOutside.title}.` : "",
     "Schedule a weekly export of voids, payments, and write-offs so the app can watch transaction-level conditions.",
-    "Re-run this check after any dual-release exception, staff change, or new Decisions log entry.",
+    "Re-run this check after any dual-release exception, team change, or new Decisions log entry.",
   ].filter(Boolean);
 }
 

@@ -102,7 +102,7 @@ export function sodRecommendations(
   }
   if (ownerHeld > 0) {
     recommendations.push(
-      `The owner holds ${count(ownerHeld, "pair")}. An owner cannot steal from themselves, so ${verb(ownerHeld, "it is not a theft finding", "they are not theft findings")}; have an outside bookkeeper or accountant read the bank statement and the payroll register each month.`,
+      `The owner holds ${count(ownerHeld, "pair")}. An owner cannot steal from themselves, so ${verb(ownerHeld, "it is not a theft risk", "they are not theft risks")}; have an outside bookkeeper or accountant read the bank statement and the payroll register each month.`,
     );
   }
   if (!recommendations.length) {

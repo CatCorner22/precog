@@ -637,7 +637,7 @@ function registerStartActions({ tpl, registerReady }: WeeklyContext): WeeklyActi
     tpl.knowledge.length === 0
       ? {
           id: "register-start",
-          title: "List the duties, tasks and know-how the business runs on",
+          title: "List the duties and know-how the business runs on",
           why: "The register is empty. Until it lists what the business runs on and who can do each, the app cannot say what stops when someone is out or who holds work alone.",
           effort: "low",
           tab: "knowledge",
@@ -646,7 +646,7 @@ function registerStartActions({ tpl, registerReady }: WeeklyContext): WeeklyActi
       : {
           id: "register-start",
           title: `Mark who can do each of the ${tpl.knowledge.length} things the business runs on`,
-          why: `The register lists ${tpl.knowledge.length} duties, tasks and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until someone is marked, the app cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
+          why: `The register lists ${tpl.knowledge.length} duties and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until someone is marked, the app cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
           effort: "low",
           tab: "knowledge",
           priority: PRIORITY.registerStartListed,

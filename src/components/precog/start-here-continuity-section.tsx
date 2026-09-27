@@ -176,7 +176,7 @@ export function StartHereContinuitySection({
               <p className="text-sm font-medium">Not assessed yet</p>
               <p className="mt-1 text-sm leading-relaxed text-muted">
                 {registerSize === 0
-                  ? "Your register is empty. List the duties, tasks and know-how the business runs on and mark who can do each, and these figures fill in."
+                  ? "Your register is empty. List the duties and know-how the business runs on and mark who can do each, and these figures fill in."
                   : `Your register holds ${registerSize} starter items from the ${industryLabel} example, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
               </p>
             </div>

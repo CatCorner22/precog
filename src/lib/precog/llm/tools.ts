@@ -104,11 +104,11 @@ interface ToolSpec {
 
 const TOOLS = {
   get_practice_snapshot: {
-    description: "Business name, staff, risk variables, published fraud figures.",
+    description: "Business name, team, risk variables, published fraud figures.",
     run: practiceSnapshot,
   },
   get_coso_assessment: {
-    description: "Five COSO components and priority findings.",
+    description: "Five COSO components and priority gaps.",
     run: cosoAssessment,
   },
   get_residual_portfolio: {
@@ -144,7 +144,7 @@ const TOOLS = {
     run: runPrecogScenarioTool,
   },
   compare_scenario_futures: {
-    description: "The most dangerous scenario with no change against each mitigation.",
+    description: "The most dangerous scenario with no change against each control.",
     run: compareScenarioFuturesTool,
   },
   get_tornado_levers: {

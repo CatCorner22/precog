@@ -1,4 +1,4 @@
-import type { IndustryId } from "../industry";
+import { industryNoun, type IndustryId } from "../industry";
 import type { EntitlementId } from "./conflict-rules";
 
 export interface PowerGuidance {
@@ -43,8 +43,6 @@ export interface GuidanceWords {
   exportData: string;
   /** Who approves a price change besides the owner. */
   feeApproval: string;
-  /** The business, as the object of "commit the ... to". */
-  business: string;
 }
 
 const WORDS: Record<IndustryId, GuidanceWords> = {
@@ -66,7 +64,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "patients, insurers",
     exportData: "patient, clinical, or financial data",
     feeApproval: "clinical or owner approval",
-    business: "practice",
   },
   retail: {
     payer: "customer",
@@ -86,7 +83,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "customers",
     exportData: "customer or financial data",
     feeApproval: "owner approval",
-    business: "store",
   },
   restaurant: {
     payer: "guest",
@@ -106,7 +102,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "guests",
     exportData: "guest or financial data",
     feeApproval: "owner approval",
-    business: "restaurant",
   },
   professional_services: {
     payer: "client",
@@ -126,7 +121,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "clients",
     exportData: "client or financial data",
     feeApproval: "partner or owner approval",
-    business: "firm",
   },
   construction: {
     payer: "client",
@@ -146,7 +140,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "clients",
     exportData: "client, bid, or financial data",
     feeApproval: "owner approval",
-    business: "company",
   },
   nonprofit: {
     payer: "donor",
@@ -166,7 +159,6 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "donors, participants",
     exportData: "donor or financial data",
     feeApproval: "executive director or board approval",
-    business: "organization",
   },
   general: {
     payer: "customer",
@@ -186,11 +178,11 @@ const WORDS: Record<IndustryId, GuidanceWords> = {
     affected: "customers",
     exportData: "customer or financial data",
     feeApproval: "owner approval",
-    business: "business",
   },
 };
 
-function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
+/** `business` is the industry's word for a business, as in "commit the practice to". */
+function guidanceFor(w: GuidanceWords, business: string): Record<EntitlementId, PowerGuidance> {
   return {
     collect_cash: {
       purpose: `Accept ${w.payer} funds and operate the physical or virtual cash drawer.`,
@@ -304,7 +296,7 @@ function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
         "Exports only the data the purpose needs, sends it securely, and has the access removed afterwards.",
     },
     order_supplies: {
-      purpose: `Commit the ${w.business} to approved goods or services.`,
+      purpose: `Commit the ${business} to approved goods or services.`,
       evidence: "Purchase order or approved requisition",
       boundary: "Orders goods and services. Does not confirm their receipt.",
     },
@@ -340,7 +332,7 @@ function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
         "Keeps one copy nobody can change or delete, and sends failure alerts to someone else.",
     },
     hold_company_card: {
-      purpose: `Buy approved goods and services for the ${w.business} on a company card or charge account.`,
+      purpose: `Buy approved goods and services for the ${business} on a company card or charge account.`,
       evidence: "Receipt and stated business purpose for every charge, matched to the statement",
       boundary:
         "Spends on the card. Does not review or code its statement, or approve the spending on it.",
@@ -365,7 +357,10 @@ function guidanceFor(w: GuidanceWords): Record<EntitlementId, PowerGuidance> {
 }
 
 const BY_INDUSTRY = Object.fromEntries(
-  Object.entries(WORDS).map(([id, words]) => [id, guidanceFor(words)]),
+  Object.entries(WORDS).map(([id, words]) => [
+    id,
+    guidanceFor(words, industryNoun(id as IndustryId)),
+  ]),
 ) as Record<IndustryId, Record<EntitlementId, PowerGuidance>>;
 
 /**

@@ -110,7 +110,7 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
   .validator((input: { email: string; role: InviteRole }) => {
     const raw = requireObject(input);
     if (typeof raw.email !== "string" || !EMAIL.test(raw.email.trim())) {
-      throw new RequestError(400, "Enter the colleague's email address");
+      throw new RequestError(400, "Enter the firm member's email address");
     }
     return { email: raw.email.trim().slice(0, 200), role: inviteRoleInput(raw.role) };
   })

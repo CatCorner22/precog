@@ -19,7 +19,7 @@ describe("createGovernanceReport", () => {
     const report = createGovernanceReport(soloOwner, undefined, new Date("2026-09-19T00:00:00Z"));
     expect(report).toContain("- Open conflicts: **0** (0 critical, 0 high)");
     expect(report).toContain(
-      `- Pairs the owner holds (not theft findings): **${summary.ownerHeld}**`,
+      `- Pairs the owner holds (not theft risks): **${summary.ownerHeld}**`,
     );
     expect(report).toContain("- High-risk duties with one holder: **");
     expect(report).not.toContain("Critical single points");

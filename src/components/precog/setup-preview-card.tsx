@@ -60,7 +60,7 @@ function PreviewBody({ preview, updating }: { preview: SetupPreview; updating: b
     <div {...busy}>
       <div className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm" data-setup-preview>
         <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-warn uppercase">
-          <ShieldAlert className="size-3.5" aria-hidden /> Provisional first finding
+          <ShieldAlert className="size-3.5" aria-hidden /> Provisional first duty conflict
           {more > 0 && (
             <span className="font-normal normal-case text-muted">· {more} more after setup</span>
           )}
@@ -102,9 +102,9 @@ function useFindingAnnouncement(preview: SetupPreview): string {
   const [spoken, setSpoken] = useState({ key: "", text: "" });
   if (spoken.key !== key) {
     const text = first
-      ? `Provisional first finding: ${first.conflict.personName} holds both ${first.conflict.labelA.toLowerCase()} and ${first.conflict.labelB.toLowerCase()}.`
+      ? `Provisional first duty conflict: ${first.conflict.personName} holds both ${first.conflict.labelA.toLowerCase()} and ${first.conflict.labelB.toLowerCase()}.`
       : key === "none"
-        ? "No conflict found among the duties entered so far."
+        ? "No duty conflict found among the duties entered so far."
         : "";
     setSpoken({ key, text });
   }

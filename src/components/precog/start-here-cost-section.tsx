@@ -24,7 +24,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
     <section className="space-y-3">
       <SectionHeading
         icon={<TrendingDown className="size-4" aria-hidden />}
-        title="What these gaps have cost other organizations"
+        title="What these gaps have cost other businesses"
         subtitle={
           citing.count > 0
             ? `Drawn from ${citing.count} prosecuted ${citing.count === 1 ? "case" : "cases"} whose records show the gaps above.`

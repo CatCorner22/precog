@@ -123,7 +123,7 @@ export function Dashboard({
         <div className="mt-5 flex flex-wrap gap-2">
           <Button onClick={() => onOpen("sod")}>
             {say(
-              `Open Who controls what (${count(conflicts, "conflict")})`,
+              `Open Who controls what (${count(conflicts, "duty conflict")})`,
               `Review SoD (${conflicts})`,
             )}
           </Button>
@@ -198,7 +198,7 @@ export function Dashboard({
         <MetricCard
           label={say("Duties kept apart", "SoD health")}
           value={String(sodReport.summary.segregationHealth)}
-          hint={count(sodReport.summary.critical, "critical conflict")}
+          hint={count(sodReport.summary.critical, "critical duty conflict")}
           tone={
             sodReport.summary.segregationHealth < HEALTH_SCALE.weak
               ? "danger"
@@ -266,7 +266,7 @@ export function Dashboard({
             <CardTitle>{say("Biggest risks left", "Top residual risks")}</CardTitle>
             <CardDescription>
               {say(
-                `Based on your business profile: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found, staff pressure ${leading.band}.`,
+                `Based on your business profile: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found, team pressure ${leading.band}.`,
                 `Profile-driven · ${sodGaps} static gaps · ${conflicts} detected conflicts · pressure ${leading.band}`,
               )}
             </CardDescription>

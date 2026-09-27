@@ -41,7 +41,7 @@ export function SodConflictsSection({
         <IndexBasis />
         <div
           role="group"
-          aria-label="Show conflicts of one severity"
+          aria-label="Show duty conflicts of one severity"
           className="flex flex-wrap gap-1.5 pt-2"
         >
           {SEVERITY_FILTERS.map((option) => (
@@ -77,7 +77,7 @@ export function SodConflictsSection({
           </div>
         )}
         {filtered.length === 0 && (
-          <p className="text-sm text-muted">No conflicts in this filter.</p>
+          <p className="text-sm text-muted">No duty conflicts in this filter.</p>
         )}
         {conflictsByPerson(filtered).map((group) => {
           const open = expanded.has(group.personId);
@@ -144,7 +144,7 @@ function ConflictCardDetails({
         </p>
       )}
       {/*
-        The case that makes this finding concrete. Without it a duty conflict
+        The case that makes this duty conflict concrete. Without it a duty conflict
         reads as an auditor's preference; with it, the owner can see what the
         same arrangement cost a real business and how long it ran before
         anyone noticed.
@@ -191,7 +191,7 @@ function LocationFilter({ model }: { model: SodPanelModel }) {
   return (
     <div
       role="group"
-      aria-label="Show conflicts for one location"
+      aria-label="Show duty conflicts for one location"
       className="flex flex-wrap items-center gap-1.5 pt-1"
     >
       <span className="text-xs text-muted">Location:</span>

@@ -13,15 +13,14 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
       <SectionHeading
         icon={<ArrowRight className="size-4" aria-hidden />}
         title="Do these first"
-        subtitle="Ordered first by how many of your open findings each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
+        subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
       />
 
       <Card>
         <CardContent className="pt-5">
           {steps.length === 0 ? (
             <p className="text-sm leading-relaxed text-muted">
-              Nothing outstanding from the duty-conflict findings. What follows applies to every
-              business.
+              Nothing outstanding from the duty conflicts. What follows applies to every business.
             </p>
           ) : (
             <ol className="space-y-3">
@@ -36,7 +35,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
                     <p className="mt-1 text-xs text-subtle">
                       {effortPhrase(s.control)} ·{" "}
                       {s.answers > 0
-                        ? `answers ${s.answers} of your open ${s.answers === 1 ? "finding" : "findings"} · `
+                        ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
                         : ""}
                       would plausibly have caught {s.supportingCaseIds.length}{" "}
                       {s.supportingCaseIds.length === 1 ? "case" : "cases"} above

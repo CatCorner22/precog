@@ -227,7 +227,7 @@ export const CASCADE_LEVERS: CascadeLever[] = [
   {
     id: "raise_segregation_75",
     label: "Raise segregation score to 75",
-    description: "Staff composition / duty redesign.",
+    description: "Team profile / duty redesign.",
     affects: [
       "can lower the staffing uplift on residual risk",
       "can lower the assumed loss on scenarios",

@@ -266,7 +266,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       othersLabel: "Team, Pioneer and app view",
       openExample: "Owner states 'I approve write-offs >$150' and dual-release enforces it",
       blindExample: "Staff see owner rarely reviews exception reports; residual shows it",
-      hiddenExample: "Owner distrusts a specific employee but never changes access",
+      hiddenExample: "Owner distrusts a specific person but never changes access",
       unknownExample: "Neither party sees burnout leading to control shortcuts",
       primaryMove: "Monthly: read the residual ranking and ask staff one question",
       whyItMatters:

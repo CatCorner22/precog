@@ -106,6 +106,15 @@ export function industryMeta(id: IndustryId): IndustryMeta {
   return INDUSTRIES.find((i) => i.id === id) ?? INDUSTRIES.find((i) => i.id === DEFAULT_INDUSTRY)!;
 }
 
+/**
+ * The industry's word for a business ("practice", "store", "company"). Generic
+ * copy says "business"; only a sentence about one industry's business uses
+ * this noun, and only through this helper.
+ */
+export function industryNoun(id: IndustryId): string {
+  return industryMeta(id).teamLabel;
+}
+
 /** The plural of the industry's word for a business: "practices", "companies", "businesses". */
 export function pluralTeamLabel(id: IndustryId): string {
   return industryMeta(id).teamLabelPlural;

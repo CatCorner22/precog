@@ -268,7 +268,7 @@ export function usePowerMapBuilder() {
 
   function exportModel() {
     downloadText(
-      `precog-power-map-${localDateKey(new Date())}.json`,
+      `precog-duty-map-${localDateKey(new Date())}.json`,
       JSON.stringify(createPowerMapFile(assignments), null, 2),
       "application/json",
     );
@@ -276,7 +276,7 @@ export function usePowerMapBuilder() {
 
   function exportMatrixCsv() {
     downloadCsv(
-      `precog-responsibility-matrix-${localDateKey(new Date())}.csv`,
+      `precog-duty-matrix-${localDateKey(new Date())}.csv`,
       createResponsibilityMatrixCsv(assignments),
     );
   }
@@ -297,14 +297,14 @@ export function usePowerMapBuilder() {
   async function importModel(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
-      setImportMessage("That file is larger than a power map can be (256 KB).");
+      setImportMessage("That file is larger than a Duty map can be (256 KB).");
       return;
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      setImportMessage("That file is not a Precog power map.");
+      setImportMessage("That file is not a Precog Duty map.");
       return;
     }
     const read = readRoleAssignments(parsed);

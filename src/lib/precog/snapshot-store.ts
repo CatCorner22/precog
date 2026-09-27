@@ -215,9 +215,9 @@ function sanitizePowerMap(value: unknown): { assignments?: RoleAssignment[]; jso
   if (value == null) return {};
   const raw = JSON.stringify(value);
   if (new TextEncoder().encode(raw).byteLength > MAX_POWER_MAP_BYTES)
-    throw new RequestError(413, "Power map is too large");
+    throw new RequestError(413, "Duty map is too large");
   const assignments = normalizeRoleAssignments(value);
-  if (!assignments) throw new RequestError(400, "Invalid power map");
+  if (!assignments) throw new RequestError(400, "Invalid Duty map");
   return { assignments, json: JSON.stringify(assignments) };
 }
 

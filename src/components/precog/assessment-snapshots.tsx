@@ -113,7 +113,7 @@ export function AssessmentSnapshots() {
   async function restore(item: AssessmentSnapshotSummary) {
     const into = profile.practiceName;
     const replaced =
-      "line of business, name, team, process map, register, controls, staff figures, risk inputs, known leave, decisions and value proof";
+      "line of business, name, team, process map, register, controls, team figures, risk inputs, known leave, decisions and value proof";
     const question = ofThisBusiness(item)
       ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, leaver checks and access checks stay. Save a snapshot first if you want to keep the current version.`
       : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, leaver checks and access checks stay. Restore it into ${into} anyway?`;
@@ -226,7 +226,7 @@ export function AssessmentSnapshots() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Save a dated copy of this business: its team, process map, register, controls, risk
-          inputs, decisions, power map and value proof. Snapshots are private to your account.
+          inputs, decisions, Duty map and value proof. Snapshots are private to your account.
           Restore replaces those parts of the open business and keeps its saved maps and logs.
         </p>
       </section>
@@ -256,7 +256,7 @@ export function AssessmentSnapshots() {
               <CardTitle className="text-base">Create snapshot</CardTitle>
               <CardDescription>
                 Includes this business's team, process map, register, controls, risk inputs,
-                decisions, power map and value proof.
+                decisions, Duty map and value proof.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -341,7 +341,10 @@ export function AssessmentSnapshots() {
                       label="Risk inputs changed"
                       value={String(comparison.result.riskChanges)}
                     />
-                    <CompareMetric label="Duty grants" value={String(comparison.result.grants)} />
+                    <CompareMetric
+                      label="Duties assigned"
+                      value={String(comparison.result.grants)}
+                    />
                     <CompareMetric
                       label="Duty revocations"
                       value={String(comparison.result.revocations)}
@@ -462,7 +465,7 @@ export function AssessmentSnapshots() {
                         <Clock3 className="size-3" /> {item.practiceName} ·{" "}
                         {formatDayTime(item.createdAt)}
                       </p>
-                      {item.includesPowerMap && <Badge className="mt-2">Power map included</Badge>}
+                      {item.includesPowerMap && <Badge className="mt-2">Duty map included</Badge>}
                       {item.includesValueProof && (
                         <Badge className="mt-2 ml-1">Value proof included</Badge>
                       )}

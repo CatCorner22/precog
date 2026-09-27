@@ -95,7 +95,7 @@ export function AccessReconcile() {
       <h2 className="text-lg font-semibold">Access and vendor import</h2>
       <p className="mt-1 text-sm text-muted">
         Upload a user export and a vendor export from QuickBooks Online or Xero. We compare each
-        file with this client’s duty map and never write to the accounting system. Rows that do not
+        file with this client’s Duty map and never write to the accounting system. Rows that do not
         match wait here until you map or dismiss them; mapping a row gives that person the duty on
         the map.
       </p>
@@ -156,7 +156,7 @@ export function AccessReconcile() {
                     <select
                       className="ml-2 rounded-md border border-border bg-bg px-2 py-1 text-xs"
                       defaultValue=""
-                      aria-label={`Duty to give ${row.name} on the duty map`}
+                      aria-label={`Duty to give ${row.name} on the Duty map`}
                       onChange={(e) => {
                         const duty = e.target.value as EntitlementId;
                         if (duty) mapUser(row, duty);
@@ -224,7 +224,7 @@ export function AccessReconcile() {
                 <span>
                   {row.name} ·{" "}
                   {row.status === "mapped" && row.assigned
-                    ? `given ${entitlementLabel(row.assigned)} on the duty map`
+                    ? `given ${entitlementLabel(row.assigned)} on the Duty map`
                     : "dismissed"}
                 </span>
                 <button
@@ -232,7 +232,7 @@ export function AccessReconcile() {
                   className="rounded-md border border-border px-2 py-1 hover:bg-elevated"
                   title={
                     row.status === "mapped"
-                      ? "The duty stays on the map; remove it in the power map if it was wrong."
+                      ? "The duty stays on the map; remove it in the Duty map if it was wrong."
                       : undefined
                   }
                   onClick={() => setUserStatus(row.id, "pending")}

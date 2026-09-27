@@ -27,7 +27,7 @@ export function ControlReportEvidenceSection({
   const caseById = new Map(evidence.map((c) => [c.id, c]));
 
   return (
-    <Section title="What these gaps have cost other organizations">
+    <Section title="What these gaps have cost other businesses">
       <p className="text-sm text-neutral-700">
         {citing.count > 0
           ? `${citing.count} prosecuted ${citing.count === 1 ? "case shows" : "cases show"} the open duty conflicts above${
@@ -51,15 +51,15 @@ export function ControlReportEvidenceSection({
         {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
       </p>
       <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-        These describe other organizations, not this business, and these are prosecuted cases, so
-        they leave out small thefts. They are a reference class, not a forecast. The{" "}
+        These describe other businesses, not this one, and these are prosecuted cases, so they leave
+        out small thefts. They are a reference class, not a forecast. The{" "}
         {count(evidence.length, "case")} and{" "}
         {evidence.length === 1 ? "its source" : "their sources"} are listed in the appendix.
       </p>
 
       <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>
       <p className="text-xs text-neutral-500">
-        Ordered first by how many of the open findings each one answers, then by how many of the
+        Ordered first by how many of the open gaps each one answers, then by how many of the
         matching cases it would plausibly have caught, in our reading of the record. That reading is
         ours, not a finding from any case.
       </p>

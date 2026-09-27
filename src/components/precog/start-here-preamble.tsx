@@ -57,7 +57,7 @@ export function StartHerePreamble({
       {isSampleTeam && (
         <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
           <p className="text-sm font-medium text-warn">
-            These findings describe the sample team, not yours yet.
+            These gaps describe the sample team, not yours yet.
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
             The names and duty assignments below come from the loaded {industryLabel} example. Staff

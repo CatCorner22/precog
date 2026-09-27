@@ -39,8 +39,8 @@ export function StartHere({
         <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           This page shows where a business like yours is exposed, what that same exposure has cost
-          real organizations, and what to do about it first. Every dollar figure and duration on
-          this page links to the case or study it came from. The continuity percentages are this
+          real businesses, and what to do about it first. Every dollar figure and duration on this
+          page links to the case or study it came from. The continuity percentages are this
           app&rsquo;s own indices; Who knows what explains how each is counted.
         </p>
       </header>

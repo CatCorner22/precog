@@ -75,7 +75,9 @@ export function ClientList({
                     {client.id === activeId && (
                       <span className="ml-2 text-xs text-primary">open</span>
                     )}
-                    {client.shared && <span className="ml-2 text-xs text-muted">colleague's</span>}
+                    {client.shared && (
+                      <span className="ml-2 text-xs text-muted">another firm member's</span>
+                    )}
                   </p>
                   <p className="text-xs text-muted">
                     Last review: {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "none"} ·
@@ -183,6 +185,7 @@ export function ClientList({
 
 /** The open-conflict count, or a plain statement that nobody has counted them yet. */
 function conflictsText(openFindings: number | null): string {
-  if (openFindings === null) return "conflicts not counted yet (open the client to count them)";
-  return count(openFindings, "open conflict");
+  if (openFindings === null)
+    return "duty conflicts not counted yet (open the client to count them)";
+  return count(openFindings, "open duty conflict");
 }

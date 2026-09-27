@@ -23,7 +23,7 @@ describe("readRoleAssignments", () => {
   });
 
   it("names a file that is not a power map", () => {
-    expect(readRoleAssignments({ hello: 1 }).problem).toBe("That file is not a Precog power map.");
+    expect(readRoleAssignments({ hello: 1 }).problem).toBe("That file is not a Precog Duty map.");
   });
 
   it("keeps a stored list all or nothing", () => {

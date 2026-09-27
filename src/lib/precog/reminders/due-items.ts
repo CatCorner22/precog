@@ -60,7 +60,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
 
   for (const check of profile.leaverAccessChecks ?? []) {
     if (check.confirmedOn || check.industry !== profile.industry) continue;
-    const detail = `${check.name} was recorded as left on ${formatDay(check.notedOn)}. A login that still works lets a former employee move money after they leave.`;
+    const detail = `${check.name} was recorded as left on ${formatDay(check.notedOn)}. A login that still works lets someone who has left move money.`;
     add({
       key: `leaver:${check.id}`,
       title: `Confirm ${check.name} is off payroll and their logins are removed`,

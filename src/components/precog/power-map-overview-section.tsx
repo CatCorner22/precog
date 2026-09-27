@@ -47,7 +47,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         />
         <StatTile
           icon={AlertTriangle}
-          label="Open conflicts"
+          label="Open duty conflicts"
           value={String(report.conflicts.length)}
           hint={`${report.summary.peopleWithConflicts} people affected`}
           tone={report.conflicts.length > 0 ? "danger" : "primary"}

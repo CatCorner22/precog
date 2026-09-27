@@ -12,7 +12,7 @@
  */
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
-import { industryMeta } from "./industry";
+import { industryNoun } from "./industry";
 import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "./scoring/weights";
@@ -212,7 +212,7 @@ export function buildThreatAssessment(input: {
       residual: heat,
       roe: [
         "Cross-train a backup within 30 days",
-        "Document the procedure in the practice playbook",
+        "Document the procedure in the business playbook",
         "Re-score residual after backup is proficient",
       ],
     });
@@ -288,7 +288,7 @@ export function buildThreatAssessment(input: {
     leadingBand: leading.band,
     targetDeck: deck,
     missionBrief: [
-      `${practiceName}: where money can move without a second person in this ${industryMeta(tpl.id).teamLabel}, and what to fix first.`,
+      `${practiceName}: where money can move without a second person in this ${industryNoun(tpl.id)}, and what to fix first.`,
       `Average residual risk ${portfolio.averageResidual} of 100 (this app's index); ${count(portfolio.criticalPath, "item")} to act on before anything else and ${portfolio.actNow} more to act on now.`,
       `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
@@ -331,7 +331,7 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
   if (category === "knowledge") {
     return [
       "Cross-train backup within 30 days",
-      "Write the procedure into the practice playbook",
+      "Write the procedure into the business playbook",
       "Re-score residual after backup proficiency",
     ];
   }

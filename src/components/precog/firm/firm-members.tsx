@@ -53,7 +53,7 @@ export function FirmMembers({
   async function copyLink(token: string) {
     try {
       await navigator.clipboard.writeText(inviteLink(token));
-      toast.success("Invitation link copied. Send it to your colleague.");
+      toast.success("Invitation link copied. Send it to the firm member you are inviting.");
     } catch {
       window.prompt("Copy this invitation link:", inviteLink(token));
     }
@@ -184,7 +184,7 @@ export function FirmMembers({
             }}
           >
             <label className="min-w-[14rem] flex-1 text-xs text-muted">
-              Colleague's email
+              Firm member's email
               <input
                 className={`${fieldCls} mt-1 w-full`}
                 type="email"

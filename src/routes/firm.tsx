@@ -375,10 +375,10 @@ function FirmPage() {
           <Metric
             label="Findings accepted"
             value={metrics.acceptanceRate === null ? "—" : formatPct(metrics.acceptanceRate)}
-            hint="Conflicts answered (risk accepted, covered by dual release, or a logged decision), out of all conflicts found."
+            hint="Duty conflicts answered (risk accepted, covered by dual release, or a logged decision), out of all duty conflicts found."
           />
           <Metric
-            label="Open conflicts"
+            label="Open duty conflicts"
             value={own ? String(metrics.openFindings) : "—"}
             hint="Conflicts found with no answer yet."
           />
