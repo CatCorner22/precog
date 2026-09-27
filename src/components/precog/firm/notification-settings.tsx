@@ -3,16 +3,22 @@ import { toast } from "sonner";
 import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
 import type { NotificationSettings } from "@/lib/precog/firm/store";
 
-/** The two switches behind the reminder emails. */
+/**
+ * The two switches behind the reminder emails. On a deployment that cannot
+ * send email the switches are shown off and disabled, with the reason.
+ */
 export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
-  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [state, setState] = useState<{
+    settings: NotificationSettings;
+    mailConfigured: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!signedIn) return;
     let cancel = false;
     void getNotificationSettings()
       .then((res) => {
-        if (!cancel) setSettings(res.settings);
+        if (!cancel) setState(res);
       })
       .catch(() => undefined);
     return () => {
@@ -20,13 +26,16 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
     };
   }, [signedIn]);
 
-  if (!signedIn || !settings) return null;
+  if (!signedIn || !state) return null;
+  const { settings, mailConfigured } = state;
 
   async function save(next: NotificationSettings) {
-    setSettings(next);
+    const previous = settings;
+    setState((cur) => (cur ? { ...cur, settings: next } : cur));
     try {
       await updateNotificationSettings({ data: next });
     } catch {
+      setState((cur) => (cur ? { ...cur, settings: previous } : cur));
       toast.error("The reminder settings were not saved.");
     }
   }
@@ -37,13 +46,19 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
       <p className="mt-1 text-sm text-muted">
         Once a week, what is due across your clients arrives by email: decisions past their review
         date, leavers whose logins are not confirmed gone, leave with nobody named to cover, and the
-        monthly review still open. Each item is announced once.
+        monthly review still open. We announce each item once.
       </p>
+      {!mailConfigured && (
+        <p className="mt-2 text-sm text-warn">
+          Email is not connected on this deployment, so no reminders go out.
+        </p>
+      )}
       <div className="mt-3 space-y-2 text-sm">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={settings.weeklyDigest}
+            checked={mailConfigured && settings.weeklyDigest}
+            disabled={!mailConfigured}
             onChange={(e) => void save({ ...settings, weeklyDigest: e.target.checked })}
           />
           Send me the weekly digest
@@ -51,7 +66,8 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={settings.ownerReminders}
+            checked={mailConfigured && settings.ownerReminders}
+            disabled={!mailConfigured}
             onChange={(e) => void save({ ...settings, ownerReminders: e.target.checked })}
           />
           Also remind each client's owner at the address on their card

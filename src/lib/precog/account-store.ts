@@ -85,7 +85,8 @@ export interface AccountExport {
     startedAt: string | null;
     mapCompletedAt: string | null;
     reportSentAt: string | null;
-    openFindings: number;
+    /** Null when the count was never recorded (migration 0024), not zero. */
+    openFindings: number | null;
     acceptedFindings: number;
   }>;
   reviews: Array<{
@@ -495,7 +496,7 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     started_at: string | null;
     map_completed_at: string | null;
     report_sent_at: string | null;
-    open_findings: number | string;
+    open_findings: number | string | null;
     accepted_findings: number | string;
   }>`
     select business_id, started_at, map_completed_at, report_sent_at, open_findings, accepted_findings
@@ -506,7 +507,7 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     startedAt: toIsoTimestampOrNull(e.started_at),
     mapCompletedAt: toIsoTimestampOrNull(e.map_completed_at),
     reportSentAt: toIsoTimestampOrNull(e.report_sent_at),
-    openFindings: Number(e.open_findings),
+    openFindings: e.open_findings === null ? null : Number(e.open_findings),
     acceptedFindings: Number(e.accepted_findings),
   }));
 }

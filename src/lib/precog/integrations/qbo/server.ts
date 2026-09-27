@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { RequestError, requireObject } from "@/lib/request-errors";
-import { isBusinessId } from "../../profile-input";
+import { RequestError } from "@/lib/request-errors";
 import { requireBusinessOwner } from "../../firm/access.server";
+import { businessInput } from "../../firm/server-inputs";
 import { authorizeUrl, qboCallbackUrl, signState } from "./oauth";
 import {
   decryptSecret,
@@ -18,12 +18,6 @@ import { syncConnection } from "./sync.server";
 import type { PracticeProfile } from "../../practice-profile";
 import { normalizeProfile } from "../../practice-profile";
 import { resolveTemplate } from "../../active-template";
-
-function businessInput(input: { businessId: string }) {
-  const raw = requireObject(input);
-  if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
-  return { businessId: raw.businessId };
-}
 
 /** The connection's state and the newest drift, for the firm workspace. */
 export const getQuickBooksStatus = createServerFn({ method: "GET" })

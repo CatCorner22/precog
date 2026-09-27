@@ -106,7 +106,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): DueItem[] 
   const period = monthKey(today);
   const day = Number(today.slice(8, 10));
   if (day >= MONTHLY_REVIEW_GRACE_DAY) {
-    const tasks = monthlyReviewTasks(today, tpl.people);
+    const tasks = monthlyReviewTasks(today, tpl.people, tpl.roleTemplates);
     const open = tasks.filter(
       (task) => !latestReview(profile.monthlyReviews ?? [], task.key, period),
     );

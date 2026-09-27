@@ -1,15 +1,11 @@
 import type { RenderedEmail } from "./email";
+import { env } from "@/lib/env.server";
 
 /**
  * Sends through Resend's HTTP API when RESEND_API_KEY and EMAIL_FROM are
  * set. Without them nothing is sent and the digest job reports what it would
  * have sent, so a preview never emails anyone.
  */
-const env = (key: string): string | undefined => {
-  const value = process.env[key]?.trim();
-  return value || undefined;
-};
-
 export function mailConfigured(): boolean {
   return Boolean(env("RESEND_API_KEY") && env("EMAIL_FROM"));
 }

@@ -30,8 +30,7 @@ function Login() {
         <p className="mt-1 text-sm text-muted">
           An account keeps your businesses, snapshots, and shared map links on every device you sign
           in from. Signing in is free. Advisors who look after several businesses can add the{" "}
-          {PILOT_OFFER.monthlyLabel.toLowerCase()} ({formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month
-          for up to {PILOT_OFFER.monthlyClients} clients).
+          {PILOT_OFFER.monthlyLabel.toLowerCase()} ({formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month).
         </p>
         {authEnabled ? (
           <ProviderButtons />

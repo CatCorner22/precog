@@ -8,6 +8,7 @@ import {
   toErrorEvent,
   type ErrorEvent,
 } from "./error-event";
+import { env } from "@/lib/env.server";
 
 /**
  * Sends scrubbed error events to whichever tracker is configured:
@@ -199,11 +200,6 @@ function withinBudget(where: ErrorEvent["where"], now = Date.now()): boolean {
 
 function currentRelease(): string | null {
   return env("VERCEL_GIT_COMMIT_SHA")?.slice(0, 12) ?? null;
-}
-
-function env(key: string): string | undefined {
-  const value = process.env[key]?.trim();
-  return value || undefined;
 }
 
 const WINDOW_MS = 60_000;

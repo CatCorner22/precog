@@ -558,6 +558,8 @@ export async function restoreBusinessRow(
 
 export interface DeletedBusinessRow {
   id: string;
+  /** The account the business belongs to: the caller's own, or a colleague's in the firm. */
+  ownerUserId: string;
   name: string;
   industry: string;
   deletedAt: string;
@@ -572,12 +574,13 @@ export async function listDeletedBusinesses(
 ): Promise<DeletedBusinessRow[]> {
   const rows = await sql<{
     id: string;
+    user_id: string;
     name: string;
     industry: string;
     deleted_at: string;
     purge_on: string | null;
   }>`
-    select id, name, industry, deleted_at,
+    select id, user_id, name, industry, deleted_at,
       deleted_at + make_interval(days => ${DELETED_RETENTION_DAYS}::int) as purge_on
     from businesses
     where deleted_at is not null
@@ -587,6 +590,7 @@ export async function listDeletedBusinesses(
   `;
   return rows.map((r) => ({
     id: r.id,
+    ownerUserId: r.user_id,
     name: r.name,
     industry: r.industry,
     deletedAt: toIsoTimestamp(r.deleted_at),
